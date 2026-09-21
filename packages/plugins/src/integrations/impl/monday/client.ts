@@ -34,6 +34,7 @@ export async function verifyMondayCredentials(
     const data = await client.request<MondayViewerQuery>(MONDAY_VIEWER_QUERY);
     const me = data.me;
     return ok({
+      ...(me?.id ? { account: { id: `${me.account?.id ?? 'monday'}:${me.id}` } } : {}),
       displayName: me?.account?.name ?? me?.name,
       displayDetail:
         me?.account?.name && me.name && me.account.name !== me.name ? me.name : undefined,

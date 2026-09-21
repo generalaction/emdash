@@ -13,6 +13,34 @@ import { ChatComposer } from './index';
 afterEach(cleanup);
 
 describe('ChatComposer', () => {
+  it('shows startup failures on the MCP trigger and affected server, including while disabled', async () => {
+    const { getByRole, findByRole, queryByText, getByText } = render(
+      <ChatComposer
+        disabled
+        onSubmit={() => {}}
+        mcpServers={[
+          { name: 'docs', transport: 'http', startupError: 'Connection refused' },
+          { name: 'filesystem', transport: 'stdio' },
+        ]}
+      />
+    );
+    const trigger = getByRole('button', { name: '2 session MCP servers, 1 startup failure' });
+    expect(trigger.hasAttribute('disabled')).toBe(false);
+    expect(trigger.hasAttribute('data-failed')).toBe(true);
+    expect(trigger.textContent).toBe('2');
+    expect(trigger.querySelectorAll('svg')).toHaveLength(1);
+    fireEvent.click(trigger);
+    const info = await findByRole('button', { name: 'docs startup error' });
+    expect(queryByText('Connection refused')).toBeNull();
+    expect(getByText('docs').parentElement?.parentElement?.hasAttribute('data-failed')).toBe(true);
+    expect(getByText('docs').nextElementSibling).toBe(info);
+    expect(getByText('http').hasAttribute('data-failed')).toBe(true);
+    expect(getByText('stdio').hasAttribute('data-failed')).toBe(false);
+    fireEvent.keyDown(document, { key: 'Tab' });
+    info.focus();
+    expect((await findByRole('tooltip')).textContent).toBe('Connection refused');
+  });
+
   it('shows the selected effort beside the model and keeps the MCP trigger compact', () => {
     const { container, getByRole } = render(
       <ChatComposer
@@ -34,6 +62,7 @@ describe('ChatComposer', () => {
     expect(modelTrigger?.textContent).toBe('GPT-5.6-Sol High');
     const mcpTrigger = getByRole('button', { name: '2 session MCP servers' });
     expect(mcpTrigger.textContent).toBe('2');
+    expect(mcpTrigger.hasAttribute('data-failed')).toBe(false);
   });
 
   it('caps the permission-mode popup at its compact width', async () => {

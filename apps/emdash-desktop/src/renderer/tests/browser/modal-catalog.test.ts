@@ -22,7 +22,6 @@ const expectedModalIds = [
   'devProcessPanelModal',
   'directorySelectorModal',
   'feedbackModal',
-  'githubConnectModal',
   'githubDeviceFlowModal',
   'integrationSetupModal',
   'linkConversationModal',

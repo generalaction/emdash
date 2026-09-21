@@ -11,6 +11,7 @@ import {
 import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { resolveAdapterAsset } from '../../helpers/adapter-assets';
 import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
+import { enrichCodexUpdate } from './acp-enrich';
 import { codexAdapter } from './adapter';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
@@ -99,8 +100,22 @@ export const plugin = definePlugin(
       id: 'codex',
       package: '@openai/codex',
       extraOptions: {
-        macos: [homebrewOption({ formula: 'codex', cask: true })],
-        linux: [homebrewOption({ formula: 'codex', cask: true })],
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            elevation: 'never',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            elevation: 'never',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
         windows: [
           {
             method: 'powershell',
@@ -141,6 +156,7 @@ export const provider = registerPluginBehavior(plugin, {
     connect: (io, toClient) => {
       return connectStdioAcp(io, toClient);
     },
+    enrich: enrichCodexUpdate,
   },
   auth: {
     checkStatus: async (ctx) => {

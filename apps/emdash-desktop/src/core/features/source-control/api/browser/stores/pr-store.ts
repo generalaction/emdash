@@ -1,7 +1,9 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
 import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
-import { makeAutoObservable, reaction } from 'mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { remote } from '@emdash/wire/state';
+import { comparer, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import {
   asAvailableProject,
   getProjectStore,
@@ -18,6 +20,7 @@ import { Resource } from '@core/primitives/async-resource/browser/resource';
 import { commitRef, mergeBaseRange } from '@core/primitives/git/api';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
+import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import { compilePrUpdateInstruction } from '@core/primitives/workspaces/api';
 import {
   getPrNumber,
@@ -29,11 +32,16 @@ import {
   type PullRequestMergeOptions,
 } from '@core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
+import { pullRequestsContract } from '@core/services/pull-requests/api/contract';
+import type { PullRequestDetails } from '@core/services/pull-requests/api/schemas';
 import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-store';
 
 export type MergeResult = { success: true } | { success: false; error: string };
 
 export class PrStore {
+  details: PullRequestDetails | null = null;
+  private readonly _scope = createScope({ label: 'pr-store' });
+  private _detailsScope: Scope | null = null;
   private readonly _prFiles = new Map<
     string,
     { resource: Resource<GitChange[]>; baseRefOid: string; headRefOid: string }
@@ -46,7 +54,61 @@ export class PrStore {
     private readonly gitCheckoutStore: GitCheckoutStore,
     private readonly associationStore: TaskPrAssociationStore
   ) {
-    makeAutoObservable(this);
+    makeAutoObservable<this, '_scope' | '_detailsScope'>(this, {
+      details: observable.ref,
+      _scope: false,
+      _detailsScope: false,
+    });
+  }
+
+  bindDetails(interest: () => { visible: boolean; comments: boolean }): void {
+    this._scope.add(
+      reaction(
+        () => {
+          const demand = interest();
+          const pr = demand.visible ? this.currentPr : undefined;
+          const number = pr ? getPrNumber(pr) : null;
+          return pr && number !== null
+            ? { repositoryUrl: pr.repositoryUrl, number, comments: demand.comments }
+            : null;
+        },
+        (key) => {
+          void this._detailsScope?.dispose();
+          this._detailsScope = null;
+          this.details = null;
+          if (!key || this._scope.disposed) return;
+          const scope = this._scope.child('displayed-pr');
+          this._detailsScope = scope;
+          void getPullRequestsRuntimeClient()
+            .then((client) => {
+              if (scope.disposed) return;
+              const model = remote(pullRequestsContract.details, client.details, { scope });
+              observeReadableInAction(
+                model(key).states.state,
+                (state) => {
+                  if (scope.disposed) return;
+                  if (state.status === 'error') this.setDetailsError(state.error);
+                  else if (state.value) this.details = state.value;
+                },
+                { scope }
+              );
+            })
+            .catch((error) => {
+              if (!scope.disposed) runInAction(() => this.setDetailsError(error));
+            });
+        },
+        { fireImmediately: true, equals: comparer.structural }
+      )
+    );
+  }
+
+  private setDetailsError(error: unknown): void {
+    this.details = {
+      ...(this.details ?? { pr: null, comments: [], commentsFetchedAt: null }),
+      refreshing: false,
+      stale: true,
+      errors: { metadata: { type: 'refresh_failed', message: String(error) } },
+    };
   }
 
   get pullRequests(): readonly PullRequest[] {
@@ -220,19 +282,20 @@ export class PrStore {
     if (prNumber) {
       void getPullRequestsRuntimeClient()
         .then(async (client) => {
-          await this._refreshPr(pr, client);
-          await client.syncChecks({
+          await client.refreshPullRequest({
             repositoryUrl: pr.repositoryUrl,
-            pullRequestUrl: pr.url,
-            headRefOid: pr.headRefOid,
+            number: prNumber,
+            comments: true,
+            policy: 'force',
           });
-          await this._refreshPr(pr, client);
         })
         .catch(() => {});
     }
   }
 
   dispose(): void {
+    void this._scope.dispose();
+    this.details = null;
     for (const entry of this._prFiles.values()) entry.resource.dispose();
   }
 
@@ -284,20 +347,6 @@ export class PrStore {
 
     const retry = await tryRange();
     return retry ?? [];
-  }
-
-  private async _refreshPr(
-    pullRequest: PullRequest,
-    client: Awaited<ReturnType<typeof getPullRequestsRuntimeClient>>
-  ): Promise<void> {
-    const number = getPrNumber(pullRequest);
-    if (!number) return;
-    const result = await client.syncSingle({
-      repositoryUrl: pullRequest.repositoryUrl,
-      number,
-    });
-    if (!result.success) return;
-    this.associationStore.updateAssociatedPr(result.data.pr);
   }
 }
 

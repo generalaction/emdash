@@ -167,7 +167,7 @@ function promptPreview(text: string): string {
 }
 
 function toLinkedIssueMentionItem(issue: LinkedIssue): MentionItem {
-  const token = issueMentionToken(issue.provider, issue.identifier);
+  const token = issueMentionToken(issue.provider, issue.identifier, issue);
   return {
     id: token,
     label: token,

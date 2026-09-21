@@ -105,6 +105,7 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
 
         <DropdownMenu.Root>
           <DropdownMenu.Trigger
+            disabled={state === 'checking'}
             className="shrink-0 rounded p-1 text-foreground-passive hover:bg-background-2 hover:text-foreground"
             aria-label="Installation options"
           >

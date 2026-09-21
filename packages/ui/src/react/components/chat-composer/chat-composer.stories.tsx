@@ -19,6 +19,7 @@ import type {
   MentionItem,
   CommandItem,
 } from '.';
+import { PromptEditorModel } from '../prompt-editor/prompt-editor-model';
 import { PermissionBand, type ComposerPermissionRequest } from './permission-band';
 import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';
@@ -558,6 +559,48 @@ type Story = StoryObj<PlaygroundArgs>;
 /** Full controls playground — flip any arg in the Controls panel. */
 export const Playground: Story = {};
 
+/** Only one view is mounted; each open conversation retains its own editing model. */
+export const PersistentModels: Story = {
+  render: function PersistentModelsStory() {
+    const [models, setModels] = useState<PromptEditorModel[] | null>(null);
+    const [active, setActive] = useState(0);
+    useEffect(() => {
+      const models = [
+        new PromptEditorModel({
+          text: Array.from(
+            { length: 30 },
+            (_, i) => `Line ${i + 1}: edit here, switch tabs, then undo.`
+          ).join('\n'),
+        }),
+        new PromptEditorModel({ text: 'This conversation has independent undo history.' }),
+      ];
+      setModels(models);
+      return () => models.forEach((model) => model.dispose());
+    }, []);
+    if (!models) return <></>;
+    return (
+      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+        <p>Select text or scroll, switch conversations, then try Cmd/Ctrl+Z and redo.</p>
+        <Button onClick={() => setActive(0)} disabled={active === 0}>
+          Conversation A
+        </Button>
+        <Button onClick={() => setActive(1)} disabled={active === 1}>
+          Conversation B
+        </Button>
+        <ChatComposer
+          key={active}
+          model={models[active]}
+          onSubmit={() => models[active].clear()}
+          modelOptions={MOCK_MODELS}
+          selectedModel="claude-sonnet-4-5"
+          mentionProvider={mockMentionProvider}
+          queryCommands={queryCommands}
+        />
+      </Box>
+    );
+  },
+};
+
 export const WithMcpServers: Story = {
   render: () => (
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
@@ -572,6 +615,33 @@ export const WithMcpServers: Story = {
         queryCommands={queryCommands}
         onSubmit={() => {}}
       />
+    </Box>
+  ),
+};
+
+export const WithMcpStartupFailure: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        onSubmit={() => {}}
+        mcpServers={[
+          { name: 'openaiDeveloperDocs', transport: 'http' },
+          {
+            name: 'node_repl',
+            transport: 'stdio',
+            startupError:
+              '[codex-acp forwarded startup error] MCP server `node_repl` failed to start: MCP client for `node_repl` failed to start: MCP startup failed: No such file or directory (os error 2)',
+          },
+        ]}
+      />
+    </Box>
+  ),
+};
+
+export const AwaitingProviderControls: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer canSubmit={false} onSubmit={() => {}} />
     </Box>
   ),
 };

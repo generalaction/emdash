@@ -28,6 +28,10 @@ import type { TaskSessionManager } from '@core/features/tasks/api/node/task-sess
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
+import {
+  prepareTerminalFiles,
+  type TerminalFileSources,
+} from '@core/services/attachments/node/prepare-terminal-files';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { conversationsContract } from '../api';
 import {
@@ -70,6 +74,7 @@ type ConversationRuntimeHooks = Readonly<{
 
 export type CreateConversationsWireControllerOptions = Readonly<{
   db: AppDb;
+  terminalFileSources: TerminalFileSources;
   runtimes: ConversationsRuntimeBroker;
   workspaceIdentity: WorkspaceIdentityResolver;
   resolveTarget?: (conversationId: string) => Promise<ConversationRuntimeTarget>;
@@ -139,6 +144,35 @@ export function createConversationsWireController(
   );
 
   return createController(conversationsContract, {
+    attachments: {
+      prepareLocalFiles: ({ conversationId, sources }, meta) =>
+        run(conversationId, (client, target) =>
+          prepareTerminalFiles({
+            host: target.host,
+            sources,
+            localFiles: options.terminalFileSources,
+            upload: (file) =>
+              client.conversations.attachments.upload({ conversationId }, file, callOptions(meta)),
+            remove: (attachmentId) =>
+              client.conversations.attachments.delete({ conversationId, attachmentId }),
+            signal: meta.signal,
+            logger: options.logger,
+          })
+        ),
+      upload: ({ conversationId }, file, meta) =>
+        run(conversationId, (client) =>
+          client.conversations.attachments.upload({ conversationId }, file, callOptions(meta))
+        ),
+      download: ({ conversationId, attachmentId }, meta) =>
+        openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),
+      delete: ({ conversationId, attachmentId }, meta) =>
+        run(conversationId, (client) =>
+          client.conversations.attachments.delete(
+            { conversationId, attachmentId },
+            callOptions(meta)
+          )
+        ),
+    },
     getConversations: () => conversationOperations.getConversations(),
     createConversation: (input) =>
       withAttachedProject(options.projects, input.projectId, async () =>
@@ -240,16 +274,6 @@ export function createConversationsWireController(
         ),
       exportRawAcpLog: (input, meta) =>
         run(input.conversationId, (client) => client.acp.exportRawAcpLog(input, callOptions(meta))),
-      uploadAttachment: ({ conversationId }, file, meta) =>
-        run(conversationId, (client) =>
-          client.acp.uploadAttachment({ conversationId }, file, callOptions(meta))
-        ),
-      downloadAttachment: ({ conversationId, attachmentId }, meta) =>
-        openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),
-      deleteAttachment: ({ conversationId, attachmentId }, meta) =>
-        run(conversationId, (client) =>
-          client.acp.deleteAttachment({ conversationId, attachmentId }, callOptions(meta))
-        ),
       sessions: acpSessions,
       session: acpSession,
       terminalOutput: async ({ conversationId, terminalId }) =>
@@ -528,7 +552,7 @@ async function openAttachmentDownload(
   return withAttachedProject(options.projects, target.projectId, async () => {
     const runtime = await options.runtimes.client(target.host);
     if (!runtime.success) return err(runtime.error);
-    const result = await runtime.data.acp.downloadAttachment(
+    const result = await runtime.data.conversations.attachments.download(
       { conversationId: target.conversationId, attachmentId },
       call
     );

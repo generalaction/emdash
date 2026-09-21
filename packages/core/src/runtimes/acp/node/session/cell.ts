@@ -67,6 +67,8 @@ export class SessionCell {
   readonly machine: SessionMachine;
   readonly transcript: AcpTranscriptParser;
   readonly rawLog: RawAcpLog;
+  /** Diagnostics belong to this activation, not to transcript history or retained config. */
+  readonly mcpStartupFailures = new Map<string, string>();
   private readonly permissions = new PermissionBroker();
   private _acpSessionId: string;
   private configCatalogState: SessionConfigCatalog['kind'] = 'pending';
@@ -115,7 +117,13 @@ export class SessionCell {
   }
 
   get sessionState(): SessionState {
-    return this.machine.sessionState();
+    const state = this.machine.sessionState();
+    return {
+      ...state,
+      historyRevision: this.transcript.historyRevision,
+      // Partial replay is never an authoritative transcript position.
+      ...(state.lifecycle === 'replaying' ? {} : { transcript: this.transcript.snapshot }),
+    };
   }
 
   get config(): SessionConfigState {
@@ -207,6 +215,11 @@ export class SessionCell {
 
   push(event: NormalizedEvent): void {
     if (event.kind === 'ignored') return;
+    if (event.kind === 'mcp_startup_failure') {
+      this.mcpStartupFailures.set(event.server, event.error);
+      this.deps.callbacks?.onSessionStateChanged?.();
+      return;
+    }
 
     const idleTranscriptEvent = this.isIdleAgentTranscriptEvent(event);
     if (idleTranscriptEvent) this.applyEvent({ type: 'AgentActivity', active: true });
@@ -699,7 +712,7 @@ export class SessionCell {
   private isIdleAgentTranscriptEvent(event: NormalizedEvent): boolean {
     return (
       this.machine.phase.kind === 'ready' &&
-      this.isTranscriptEvent(event) &&
+      this.transcript.advancesForeground(event) &&
       !(event.kind === 'message' && event.role === 'user')
     );
   }

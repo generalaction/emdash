@@ -3,6 +3,7 @@ import { pluginRegistry } from './registry';
 
 const GLOBAL_HOOK_PROVIDERS = [
   'amp',
+  'antigravity',
   'auggie',
   'claude',
   'codebuddy',
@@ -18,6 +19,7 @@ const GLOBAL_HOOK_PROVIDERS = [
   'kiro',
   'mimocode',
   'mistral',
+  'muse',
   'oh-my-pi',
   'opencode',
   'pi',

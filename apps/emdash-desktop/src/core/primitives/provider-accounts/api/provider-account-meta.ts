@@ -16,6 +16,12 @@ const v1Schema = z.object({
   version: z.literal('1'),
   /** Human-readable account label, e.g. "Mona Lisa" or a Jira site name. */
   displayName: z.string().optional(),
+  /** User-assigned connection name; retained when verified display metadata changes. */
+  label: z.string().optional(),
+  /** Registry-assigned, stable name for accounts without provider or user display metadata. */
+  fallbackDisplayName: z.string().optional(),
+  /** Secondary display detail, e.g. the account email or organization. */
+  displayDetail: z.string().optional(),
   /** Provider login/username, e.g. "octocat". */
   login: z.string().optional(),
   avatarUrl: z.string().optional(),
@@ -23,6 +29,8 @@ const v1Schema = z.object({
   host: z.string().optional(),
   /** The provider's own id for the account, e.g. a numeric GitHub user id. */
   providerAccountId: z.string().optional(),
+  /** Canonical installation/workspace scope of the verified provider identity. */
+  identityScope: z.string().optional(),
   /** How the credential was obtained, e.g. 'form' | 'oauth' | 'device_flow' | 'cli'. */
   credentialSource: z.string().optional(),
 });

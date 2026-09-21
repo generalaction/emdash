@@ -12,6 +12,7 @@ import {
   mergeUpdateManifests,
   resolvePublishChannels,
 } from './lib/artifacts.ts';
+import { createReleaseBuildConfig } from './lib/build-config.ts';
 import { GITHUB_OWNER, GITHUB_REPO, requireEnv } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
 import { fail, info, step, warn } from './lib/log.ts';
@@ -141,15 +142,11 @@ try {
     if (!archEnum) fail(`Unknown arch: ${arch}`);
 
     const buildTargets = ebPlatform.createTarget(targetList, archEnum);
-    // Clone per iteration: electron-builder's normalizeFiles mutates config.files in
-    // place (collapsing strings into a single fileset and leaving null holes), which
-    // crashes the second arch iteration if the same config object is reused.
-    const config: Configuration = {
-      ...structuredClone(baseConfig),
+    const config = createReleaseBuildConfig(
+      baseConfig,
       electronVersion,
-      npmRebuild: false,
-      ...(isCanary ? { extraMetadata: { version: overrideVersion } } : {}),
-    };
+      isCanary ? overrideVersion : undefined
+    );
 
     await electronBuild({
       targets: buildTargets,

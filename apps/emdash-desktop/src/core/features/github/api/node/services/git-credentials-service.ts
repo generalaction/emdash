@@ -5,12 +5,14 @@ import type {
 import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type { GitOperationCredentials } from '@emdash/core/runtimes/git/api';
 import type { Logger } from '@emdash/shared/logger';
-import type { ProjectGitHubAccountResolver } from '@core/features/github/api/node/services/project-github-account-resolver';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import type { ProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/project-integration-account-resolver';
+import { isGitHubAccountSummary, type GitHubAccountSummary } from '@core/primitives/github/api';
 import {
-  resolveAccountForHost,
+  resolveProviderAccount,
   type AgentGitCredentialsSetting,
 } from '@core/primitives/project-settings/api';
+import { providerAccountHostMatching } from '@core/primitives/project-settings/api/resolve-provider-account';
+import type { ProviderAccountRef } from '@core/primitives/provider-accounts/api/provider-account-summary';
 import { normalizeRepositoryHost, parseRepositoryRef } from '@core/primitives/repository/api';
 
 /**
@@ -28,10 +30,10 @@ import { normalizeRepositoryHost, parseRepositoryRef } from '@core/primitives/re
  * limitation).
  */
 
-/** What a minted session authenticates as; resolution happens per request. */
+/** Project sessions follow settings; explicit account sessions retain their selection. */
 export type GitCredentialSessionTarget =
   | { kind: 'project'; projectId: string }
-  | { kind: 'host'; host: string };
+  | { kind: 'account'; accountId: string; host: string };
 
 export type GitCredentialChannelServer = {
   mintSession(target: GitCredentialSessionTarget): Promise<GitCredentialChannel>;
@@ -58,12 +60,13 @@ export type GitCredentialsService = {
   mintCloneCredentials(params: {
     repositoryUrl: string;
     host: HostRef;
+    account?: ProviderAccountRef;
   }): Promise<GitOperationCredentialsLease | undefined>;
 };
 
 export type GitCredentialsServiceDeps = {
   getAgentGitCredentialsSetting(projectId: string): Promise<AgentGitCredentialsSetting>;
-  resolveProjectGitHubAccount: ProjectGitHubAccountResolver;
+  resolveProjectIntegrationAccount: ProjectIntegrationAccountResolver;
   listAccounts(): Promise<GitHubAccountSummary[]>;
   channels: GitCredentialChannelServer;
   logger: Logger;
@@ -75,8 +78,10 @@ export function createGitCredentialsService(
   const resolveEffectiveAccount = async (
     projectId: string
   ): Promise<GitHubAccountSummary | null> => {
-    const resolution = await deps.resolveProjectGitHubAccount(projectId);
-    if (resolution.value) return resolution.value;
+    const resolution = await deps.resolveProjectIntegrationAccount(projectId, 'github', {
+      kind: 'project',
+    });
+    if (resolution.value && isGitHubAccountSummary(resolution.value)) return resolution.value;
     if (resolution.provenance.kind === 'unresolvable') {
       // Fail closed on the emdash identity: a broken pin never resolves to
       // another account. Git itself degrades to native behavior (same as an
@@ -123,7 +128,7 @@ export function createGitCredentialsService(
       return mintProjectLease(projectId, normalizeRepositoryHost(account.host));
     },
 
-    async mintCloneCredentials({ repositoryUrl, host }) {
+    async mintCloneCredentials({ repositoryUrl, host, account }) {
       if (!isLocalHostRef(host)) return undefined;
       // Only HTTPS clones go through the helper; SSH remotes stay untouched.
       if (!/^https:\/\//i.test(repositoryUrl.trim())) return undefined;
@@ -131,11 +136,28 @@ export function createGitCredentialsService(
       if (!ref) return undefined;
 
       const cloneHost = normalizeRepositoryHost(ref.host);
-      const inferred = resolveAccountForHost(cloneHost, await deps.listAccounts());
-      // No matching account: native behavior (spec §5 — skippers keep working).
-      if (!inferred.value) return undefined;
+      if (account && account.providerId !== 'github') {
+        throw new Error(`Managed Git credentials are not supported for ${account.providerId}.`);
+      }
+      const resolved = resolveProviderAccount(
+        account ? { kind: 'account', accountId: account.accountId } : undefined,
+        await deps.listAccounts(),
+        providerAccountHostMatching(cloneHost)
+      );
+      if (!resolved.value) {
+        if (account)
+          throw new Error(
+            'The selected clone account is unavailable or does not match the repository host.'
+          );
+        // No explicit account and no host match: retain native Git behavior.
+        return undefined;
+      }
 
-      const channel = await deps.channels.mintSession({ kind: 'host', host: cloneHost });
+      const channel = await deps.channels.mintSession({
+        kind: 'account',
+        accountId: resolved.value.accountId,
+        host: cloneHost,
+      });
       return {
         credentials: { port: channel.port, nonce: channel.nonce, host: cloneHost },
         release: () => deps.channels.revokeSession(channel.nonce),

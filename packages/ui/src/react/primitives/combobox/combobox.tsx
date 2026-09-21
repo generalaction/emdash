@@ -47,6 +47,7 @@ function ComboboxInput({
   leftAddon,
   rightAddon,
   inputRef,
+  variant = 'embedded',
   ...props
 }: ComboboxPrimitive.Input.Props & {
   showTrigger?: boolean;
@@ -54,10 +55,11 @@ function ComboboxInput({
   leftAddon?: React.ReactNode;
   rightAddon?: React.ReactNode;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  variant?: React.ComponentProps<typeof InputGroup.Root>['variant'];
 }) {
   return (
     <InputGroup.Root
-      variant="embedded"
+      variant={variant}
       className={typeof className === 'string' ? className : undefined}
     >
       {leftAddon && <InputGroup.Addon align="inline-start">{leftAddon}</InputGroup.Addon>}

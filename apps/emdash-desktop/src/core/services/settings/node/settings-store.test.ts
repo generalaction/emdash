@@ -1,3 +1,4 @@
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
@@ -13,6 +14,9 @@ import {
   defineSettingsContribution,
   type SettingsContributionMap,
 } from '@core/primitives/settings/api';
+import { appSettingsContract } from '../api/contract';
+import { AppSettingsService } from './app-settings-service';
+import { createAppSettingsWireController } from './wire-controller';
 
 const rows = vi.hoisted(() => new Map<string, string>());
 
@@ -63,6 +67,49 @@ async function roundTripDefault<K extends AppSettingsKey>(key: K): Promise<void>
 }
 
 describe('SettingsStore contributions', () => {
+  it('applies tray visibility immediately through Wire updates and resets', async () => {
+    rows.clear();
+    const service = new AppSettingsService(new SettingsStore(db, appSettingsContributions));
+    const setTrayVisible = vi.fn();
+    const wire = createTestWire(
+      appSettingsContract,
+      createAppSettingsWireController(service, {
+        setTrayVisible,
+        setTheme: vi.fn(),
+        setKeyboardSettings: vi.fn(),
+        setBrowserSettings: vi.fn(),
+      })
+    );
+    try {
+      const value = { ...getDefaultForKey('interface'), showTrayIcon: false };
+      await wire.client.update({ key: 'interface', value });
+      expect(setTrayVisible).toHaveBeenLastCalledWith(false);
+      await wire.client.resetField({ key: 'interface', field: 'showTrayIcon' });
+      expect(setTrayVisible).toHaveBeenLastCalledWith(true);
+      await wire.client.update({ key: 'interface', value });
+      await wire.client.reset({ key: 'interface' });
+      expect(setTrayVisible).toHaveBeenLastCalledWith(true);
+    } finally {
+      await wire.dispose();
+    }
+  });
+
+  it('preserves old interface preferences and remembers a disabled tray across restarts', async () => {
+    rows.clear();
+    rows.set('interface', JSON.stringify({ hideContextBar: true }));
+    const settings = new SettingsStore(db, appSettingsContributions);
+    const value = await settings.get('interface');
+    expect(value.showTrayIcon).toBe(true);
+    expect(value.hideContextBar).toBe(true);
+
+    await settings.update('interface', { ...value, showTrayIcon: false });
+    const restarted = new SettingsStore(db, appSettingsContributions);
+    expect(await restarted.get('interface')).toEqual({ ...value, showTrayIcon: false });
+
+    await restarted.resetField('interface', 'showTrayIcon');
+    expect(await restarted.get('interface')).toEqual(value);
+  });
+
   for (const key of AppSettingsKeys) {
     it(`round-trips the ${key} contribution defaults`, async () => {
       rows.clear();

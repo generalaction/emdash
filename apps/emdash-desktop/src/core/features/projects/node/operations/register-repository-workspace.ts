@@ -8,8 +8,12 @@ import {
   type WorkspaceClaimError,
 } from '@core/features/workspaces/api/node/registry';
 import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
+import {
+  storedIntegrationAccountsSchema,
+  type StoredIntegrationAccounts,
+} from '@core/primitives/project-settings/api/project-settings';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projects, type ProjectRow } from '@core/services/app-db/node/schema';
+import { projects, projectSettings, type ProjectRow } from '@core/services/app-db/node/schema';
 
 export type RegisterRepositoryWorkspaceError =
   | WorkspaceClaimError
@@ -19,6 +23,7 @@ export type RegisterRepositoryWorkspaceInput = {
   project: { id: string; name: string; baseRef: string | null };
   host: HostRef;
   record: WorkspaceRecord;
+  initialIntegrationAccounts?: StoredIntegrationAccounts;
 };
 
 /**
@@ -66,6 +71,20 @@ export function registerRepositoryWorkspace(
       })
       .returning()
       .get();
+    // Initial account intent and project identity commit together. Failure to
+    // persist a pin must never publish a project that silently uses a default.
+    if (input.initialIntegrationAccounts !== undefined) {
+      tx.insert(projectSettings)
+        .values({
+          projectId: row.id,
+          baseProjectSettingsJson: JSON.stringify({
+            integrationAccounts: storedIntegrationAccountsSchema.parse(
+              input.initialIntegrationAccounts
+            ),
+          }),
+        })
+        .run();
+    }
     log.info('registerRepositoryWorkspace: claimed canonical repository workspace', {
       projectId: row.id,
       workspaceId: input.record.id,

@@ -154,8 +154,19 @@ describe('lifecycle payload codec', () => {
         },
       ],
       preservePatterns: ['.env'],
+      previousScriptRuns: { teardown: 'previous-activation-teardown', setup: 'previous-setup' },
     };
     expect(parseLifecyclePayload(serializeLifecyclePayload(lifecycle))).toEqual(lifecycle);
+  });
+
+  it('upgrades v2 lifecycle outcomes without inventing a previous activation baseline', () => {
+    const value = {
+      steps: [
+        { id: 'teardown', status: 'failed', startedAt: 1_000, finishedAt: 2_000, params: {} },
+      ],
+      preservePatterns: [],
+    };
+    expect(parseLifecyclePayload(JSON.stringify({ version: '2', value }))).toEqual(value);
   });
 
   it('upgrades a v1 background payload into lifecycle steps best-effort', () => {

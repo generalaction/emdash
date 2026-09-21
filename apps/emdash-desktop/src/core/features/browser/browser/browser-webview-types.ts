@@ -4,7 +4,12 @@ export type BrowserWebviewEventMap = {
   'did-stop-loading': Event;
   'did-navigate': { url: string };
   'did-navigate-in-page': { url: string };
-  'did-fail-load': { errorCode: number; errorDescription: string; validatedURL: string };
+  'did-fail-load': {
+    errorCode: number;
+    errorDescription: string;
+    validatedURL: string;
+    isMainFrame: boolean;
+  };
   'console-message': { level: number; message: string; line: number; sourceId: string };
   'page-title-updated': { title: string };
   'page-favicon-updated': { favicons: string[] };

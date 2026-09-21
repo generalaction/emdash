@@ -6,8 +6,8 @@ export function createHostDependencyResolverFromDependency(
   client: ContractClient<HostDependencyResolverContract>
 ): HostDependencyResolver {
   return {
-    async resolve(id) {
-      return client.resolve({ id });
+    async resolve(id, selection) {
+      return client.resolve(selection === undefined ? { id } : { id, selection });
     },
   };
 }

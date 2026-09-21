@@ -110,6 +110,48 @@ describe('ProjectAvailabilityBanner', () => {
     expect(recover).toHaveBeenCalledOnce();
   });
 
+  it('reveals the redacted opening error and keeps Retry available for a local Project', async () => {
+    const recover = vi.fn(async () => ok<void>());
+    await render(
+      localProject,
+      {
+        kind: 'degraded',
+        situation: 'attention',
+        recovery: 'manual',
+        issue: {
+          type: 'unexpected',
+          stage: 'session-open',
+          message: "fatal: unknown revision 'origin/main'\nhttps://user:password@example.com/repo",
+        },
+      },
+      undefined,
+      { retry: recover }
+    );
+
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Project access failed');
+    expect(document.body.textContent).not.toContain("unknown revision 'origin/main'");
+    const details = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Error details'
+    );
+    expect(details).toBeDefined();
+    await act(async () => details?.click());
+
+    const popup = document.querySelector('[data-slot="popover-content"]');
+    expect(popup?.textContent).toContain("unknown revision 'origin/main'");
+    expect(popup?.textContent).toContain('[REDACTED_CREDENTIALS]');
+    expect(document.body.textContent).not.toContain('user:password');
+
+    const retry = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Retry'
+    );
+    await act(async () => retry?.click());
+    expect(recover).toHaveBeenCalledOnce();
+
+    await render(localProject, { kind: 'ready', hostGeneration: 1 });
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
+    expect(host.textContent).toBe('');
+  });
+
   it('keeps connection status below project content rather than above its tabs', async () => {
     await render(
       sshProject,

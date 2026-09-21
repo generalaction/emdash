@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyGitHubCredentials } from './client';
 import { icon } from './icon';
+import { gitHubCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -28,6 +29,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: gitHubCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyGitHubCredentials(credentials);
       if (!result.success) {

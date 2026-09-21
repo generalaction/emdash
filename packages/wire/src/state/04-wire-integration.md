@@ -101,6 +101,13 @@ The end-to-end chain, all pieces of which exist today except the derived hop:
    has applied the tagged update; optimistic overlays drop the corresponding
    patch.
 
+Settlement evidence belongs to a publication: `expose` records the published
+node revision and mutation IDs together with the cursor carrying that value.
+Both immediate and pending `observed` waits check that record. A newer local
+snapshot marked stale or loading cannot settle a mutation against an older
+published cursor. An already published revision remains observable even if
+the query has since become stale.
+
 A `mutationId` is considered *pending* on a node from the tagged
 settle/refresh until the next publish that consumes that input revision.
 `derived` folds tags only from input revisions that advanced, so tags do not

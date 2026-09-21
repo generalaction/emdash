@@ -1,12 +1,16 @@
+import { deferred } from '@emdash/shared/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
+import { invalidateProviderAccountState } from '@core/features/integrations/api/browser/use-provider-accounts';
 import {
   IntegrationsProvider,
   useIntegrationsContext,
 } from '@core/features/integrations/contributions/browser/integrations-provider';
+import type { ProviderAccountsByProvider } from '@core/primitives/provider-accounts/api';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -14,30 +18,37 @@ import {
 
 const mocks = vi.hoisted(() => ({
   checkAllConnections: vi.fn(),
-  checkConfiguredConnections: vi.fn(),
   connectIntegration: vi.fn(),
   disconnectIntegration: vi.fn(),
-  listIntegrations: vi.fn(),
+  listProviders: vi.fn(),
+  listAccounts: vi.fn(),
 }));
 
 vi.mock('@core/features/issues/api/browser/client', () => ({
   getIssuesClient: async () => ({
     checkAllConnections: mocks.checkAllConnections,
-    checkConfiguredConnections: mocks.checkConfiguredConnections,
   }),
 }));
 
 vi.mock('@core/features/integrations/api/browser/client', () => ({
   getIntegrationsClient: async () => ({
-    list: mocks.listIntegrations,
+    listProviders: mocks.listProviders,
     connect: mocks.connectIntegration,
     disconnect: mocks.disconnectIntegration,
+    listAccounts: mocks.listAccounts,
   }),
+}));
+
+vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
+  getProjectSettingsStore: vi.fn(),
 }));
 
 type ProbeState = {
   isCheckingConnections: boolean;
   linearIsMutating: boolean;
+  isLoadingAccounts: boolean;
+  accountsError: Error | null;
+  connectedProviders: string[];
 };
 
 type ProbeActions = {
@@ -54,14 +65,23 @@ function Probe({
   onActions?: (actions: ProbeActions) => void;
   onRender: (state: ProbeState) => void;
 }) {
-  const { connectIntegration, isCheckingConnections, isIntegrationMutating } =
-    useIntegrationsContext();
+  const {
+    connectIntegration,
+    isCheckingConnections,
+    isIntegrationMutating,
+    isLoadingAccounts,
+    accountsError,
+  } = useIntegrationsContext();
+  const { connectedProviders } = useConnectedIssueProviders();
 
   onActions?.({ connectIntegration });
 
   onRender({
     isCheckingConnections,
     linearIsMutating: isIntegrationMutating('linear'),
+    isLoadingAccounts,
+    accountsError,
+    connectedProviders,
   });
 
   return null;
@@ -85,10 +105,10 @@ describe('IntegrationsProvider', () => {
     actions = null;
     latest = null;
     mocks.checkAllConnections.mockReturnValue(new Promise(() => {}));
-    mocks.checkConfiguredConnections.mockResolvedValue({});
     mocks.connectIntegration.mockResolvedValue({ success: true });
     mocks.disconnectIntegration.mockResolvedValue({ success: true });
-    mocks.listIntegrations.mockResolvedValue([]);
+    mocks.listProviders.mockResolvedValue([]);
+    mocks.listAccounts.mockResolvedValue({});
 
     queryClient = new QueryClient({
       defaultOptions: {
@@ -136,6 +156,55 @@ describe('IntegrationsProvider', () => {
     expect(mocks.checkAllConnections).toHaveBeenCalled();
     expect(latest?.isCheckingConnections).toBe(true);
     expect(latest?.linearIsMutating).toBe(false);
+  });
+
+  it('recovers provider availability from the account inventory while health checks are pending', async () => {
+    const initialInventory = deferred<ProviderAccountsByProvider>();
+    const unavailable = new Error('Inventory unavailable');
+    mocks.listProviders.mockResolvedValue([
+      { id: 'linear', features: ['issues'], issueCapabilities: { requiresRepositoryUrl: false } },
+    ]);
+    mocks.listAccounts.mockReturnValueOnce(initialInventory.promise).mockResolvedValue({
+      linear: [{ providerId: 'linear', accountId: 'work', displayName: 'Work', isDefault: true }],
+    });
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(
+            IntegrationsProvider,
+            null,
+            React.createElement(Probe, { onRender: (state) => (latest = state) })
+          )
+        )
+      );
+    });
+    expect(latest?.isLoadingAccounts).toBe(true);
+    expect(latest?.connectedProviders).toEqual([]);
+
+    await act(async () => {
+      initialInventory.reject(unavailable);
+      await flushQueries();
+    });
+    expect(latest?.accountsError).toBe(unavailable);
+    expect(latest?.isLoadingAccounts).toBe(false);
+
+    await act(async () => {
+      await invalidateProviderAccountState(queryClient);
+      await flushQueries();
+    });
+    expect(latest?.accountsError).toBeNull();
+    expect(latest?.connectedProviders).toEqual(['linear']);
+    expect(latest?.isCheckingConnections).toBe(true);
+
+    mocks.listAccounts.mockResolvedValue({});
+    await act(async () => {
+      await invalidateProviderAccountState(queryClient);
+      await flushQueries();
+    });
+    expect(latest?.connectedProviders).toEqual([]);
   });
 
   it('returns expected connection failures without throwing', async () => {

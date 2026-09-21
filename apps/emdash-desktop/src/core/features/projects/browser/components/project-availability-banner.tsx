@@ -10,6 +10,7 @@ import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/wor
 import { log } from '@core/primitives/logging/browser/logger';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { ProjectErrorDetails } from './project-error-details';
 
 export type ProjectAvailabilityActionHandlers = Partial<
   Record<ProjectAvailabilityAction['kind'], () => void | Promise<unknown>>
@@ -45,6 +46,8 @@ export function ProjectAvailabilityBanner({
     state,
   });
   if (!presentation) return null;
+
+  const issue = state.kind === 'degraded' ? state.issue : undefined;
 
   const Icon = presentation.progress ? Loader2 : CloudOff;
   const requestAction = async (action: ProjectAvailabilityAction): Promise<void> => {
@@ -121,6 +124,7 @@ export function ProjectAvailabilityBanner({
           ) : null}
         </div>
       ) : null}
+      <ProjectErrorDetails message={issue && 'message' in issue ? issue.message : undefined} />
     </section>
   );
 }

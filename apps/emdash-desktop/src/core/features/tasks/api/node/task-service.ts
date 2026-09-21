@@ -152,6 +152,26 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
       .limit(1);
     if (!row) throw new Error(`Task not found: ${taskId}`);
+    if (!row.workspaceId) return err({ type: 'missing-workspace' });
+    try {
+      return await this.dependencies.sessions.withWorkspaceLifecycle(
+        row.workspaceId,
+        () => this._provisionWorkspace(row, signal),
+        signal
+      );
+    } catch (error) {
+      if (signal?.aborted) {
+        return err({ type: 'cancelled', message: 'Workspace activation was cancelled' });
+      }
+      throw error;
+    }
+  }
+
+  private async _provisionWorkspace(
+    row: typeof tasks.$inferSelect,
+    signal?: AbortSignal
+  ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
+    const taskId = row.id;
     // Idempotency: task is already live — return current state.
     const existingTask = this.dependencies.sessions.getTask(taskId);
     if (existingTask) {

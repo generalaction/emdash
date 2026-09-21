@@ -4,7 +4,8 @@ import type {
   AgentGitCredentialsSetting,
   ShareableProjectSettingsWriteField,
   StoredDefaultBranch,
-  StoredGithubAccount,
+  StoredIntegrationAccount,
+  StoredIntegrationAccounts,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
 import type {
@@ -40,11 +41,18 @@ export type EnvironmentFormState = {
   variables: EnvironmentVariableFormEntry[];
 };
 
+/**
+ * Per-provider account choices as a tombstoned map: a value is an explicit
+ * choice, `null` marks "clear the stored choice on save" (so the merge patch
+ * needs no baseline diff), an absent key means untouched/inferred. GitHub
+ * lives under the `github` key like every other provider.
+ */
+export type IntegrationAccountsFormState = Partial<Record<string, StoredIntegrationAccount | null>>;
+
 export type GitIdentityFormState = {
   defaultBranch: GitBranchRef | null;
   baseRemote: string;
   pushRemote: string;
-  githubAccount: StoredGithubAccount | undefined;
   agentGitCredentials: AgentGitCredentialsSetting;
 };
 
@@ -59,6 +67,7 @@ export type FormState = {
   fileHandling: FileHandlingFormState;
   environment: EnvironmentFormState;
   gitIdentity: GitIdentityFormState;
+  integrationAccounts: IntegrationAccountsFormState;
   placement: PlacementFormState;
 };
 
@@ -127,7 +136,6 @@ export function gitIdentityToForm(
     defaultBranch: storedDefaultBranchToBranchRef(domain.stored.defaultBranch, remotes),
     baseRemote: domain.stored.baseRemote ?? '',
     pushRemote: domain.stored.pushRemote ?? '',
-    githubAccount: domain.stored.githubAccount,
     agentGitCredentials: domain.stored.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS,
   };
 }
@@ -148,6 +156,7 @@ export function projectSettingsDomainsToForm(
     fileHandling: fileHandlingToForm(domains.fileHandling),
     environment: environmentToForm(domains.environment),
     gitIdentity: gitIdentityToForm(domains.gitIdentity, remotes),
+    integrationAccounts: domains.integrationAccounts.stored,
     placement: placementToForm(domains.placement),
   };
 }
@@ -235,9 +244,6 @@ export function gitIdentityToPatch(
         : undefined;
     stored.pushRemote = pushRemote ?? null;
   }
-  if (isTouched(touchedFields, 'gitIdentity.githubAccount')) {
-    stored.githubAccount = form.githubAccount ?? null;
-  }
   if (isTouched(touchedFields, 'gitIdentity.agentGitCredentials')) {
     stored.agentGitCredentials =
       form.agentGitCredentials === DEFAULT_AGENT_GIT_CREDENTIALS ? null : form.agentGitCredentials;
@@ -265,12 +271,20 @@ export function formToProjectSettingsDomainPatch(
   const fileHandling = fileHandlingToPatch(form.fileHandling, touchedFields);
   const environment = environmentToPatch(form.environment, touchedFields);
   const gitIdentity = gitIdentityToPatch(form.gitIdentity, touchedFields);
+  const integrationAccounts = Object.fromEntries(
+    Object.entries(form.integrationAccounts).filter(([providerId]) =>
+      isTouched(touchedFields, `integrationAccounts.${providerId}`)
+    )
+  );
   const placement = placementToPatch(form.placement, touchedFields);
   return {
     ...(lifecycle ? { lifecycle } : {}),
     ...(fileHandling ? { fileHandling } : {}),
     ...(environment ? { environment } : {}),
     ...(gitIdentity ? { gitIdentity } : {}),
+    ...(Object.keys(integrationAccounts).length > 0
+      ? { integrationAccounts: { stored: integrationAccounts } }
+      : {}),
     ...(placement ? { placement } : {}),
   };
 }
@@ -305,11 +319,18 @@ export function formToStoredGitSettings(
     ...(gitIdentity.defaultBranch
       ? { defaultBranch: branchRefToStoredDefaultBranch(gitIdentity.defaultBranch) }
       : {}),
-    ...(gitIdentity.githubAccount !== undefined
-      ? { githubAccount: gitIdentity.githubAccount }
-      : {}),
     ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
   };
+}
+
+export function formToStoredIntegrationAccounts(
+  form: IntegrationAccountsFormState
+): StoredIntegrationAccounts {
+  return Object.fromEntries(
+    Object.entries(form).filter(
+      (entry): entry is [string, StoredIntegrationAccount] => entry[1] != null
+    )
+  );
 }
 
 export function shareableFieldFormValue(

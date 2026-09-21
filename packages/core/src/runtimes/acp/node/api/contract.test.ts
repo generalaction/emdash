@@ -4,7 +4,6 @@ import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
-  acpAttachmentErrorSchema,
   acpTerminateErrorSchema,
   acpRuntimeErrorSchema,
   historyPageSchema,
@@ -12,7 +11,6 @@ import {
   sessionStateSchema,
   sessionUsageSchema,
   transcriptTurnSchema,
-  uploadAttachmentCommandSchema,
 } from '#runtimes/acp/api';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
@@ -94,7 +92,6 @@ describe('ACP API contract schemas', () => {
       await rt.stopSession(input.conversationId);
 
       h.agent.loadSession.mockRejectedValue(new Error('replay failed'));
-      h.agent.newSession.mockRejectedValue(new Error('replacement failed'));
 
       await expect(
         wire.client.sendPrompt({
@@ -105,10 +102,11 @@ describe('ACP API contract schemas', () => {
       ).resolves.toMatchObject({
         success: false,
         error: {
-          type: 'new_session_failed',
-          cause: { name: 'Error', message: 'replacement failed' },
+          type: 'invalid_state',
+          message: expect.stringContaining('saved session has been preserved'),
         },
       });
+      expect(h.agent.newSession).not.toHaveBeenCalled();
       h.agent.loadSession.mockClear();
       h.agent.newSession.mockClear();
       await expect(
@@ -132,14 +130,6 @@ describe('ACP API contract schemas', () => {
     }
   });
 
-  it('scopes attachment upload sidecar input to the owning conversation', () => {
-    expect(uploadAttachmentCommandSchema.parse({ conversationId: 'conv-1' })).toEqual({
-      conversationId: 'conv-1',
-    });
-    // Attachments are conversation-scoped (spec §3.6): the owning conversation is required.
-    expect(() => uploadAttachmentCommandSchema.parse({})).toThrow();
-  });
-
   it('accepts auth_required runtime errors', () => {
     expect(() =>
       acpRuntimeErrorSchema.parse({
@@ -155,15 +145,6 @@ describe('ACP API contract schemas', () => {
         type: 'intent_persistence_failed',
         message: 'Failed to remove the durable session intent for conv-1',
         cause: { name: 'SessionIntentError', message: 'disk full' },
-      })
-    ).not.toThrow();
-  });
-
-  it('accepts typed attachment-not-found errors', () => {
-    expect(() =>
-      acpAttachmentErrorSchema.parse({
-        type: 'attachment_not_found',
-        message: "Attachment 'missing' not found",
       })
     ).not.toThrow();
   });

@@ -1,4 +1,4 @@
-import { Field, Label, MicroLabel, Sheet } from '@emdash/ui/react/primitives';
+import { MicroLabel, Sheet } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentSettings } from '@core/features/agents/api/browser/use-agent-settings';
@@ -65,16 +65,14 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
         {agentPayload && (
           <div className="space-y-6">
             <AgentSheetHeaderSection agent={agentPayload} />
-            <Field.Root>
-              <Label>Installation</Label>
-              <InstallSection
-                agentId={agentId}
-                connectionId={connectionId}
-                agentPayload={agentPayload}
-                installOptions={agentPayload.installOptions}
-                hideOverrideOptions={!isInstalled || isRemote}
-              />
-            </Field.Root>
+            <InstallSection
+              agentId={agentId}
+              connectionId={connectionId}
+              agentPayload={agentPayload}
+              installOptions={agentPayload.installOptions}
+              installDocs={agentPayload.installDocs}
+              hideOverrideOptions={!isInstalled || isRemote}
+            />
             {isInstalled && <AgentHooksSection agent={agentPayload} host={host} />}
             {isInstalled && <AgentTrustSection agent={agentPayload} />}
             {isInstalled && (

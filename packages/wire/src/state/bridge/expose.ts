@@ -101,6 +101,7 @@ type StateRecord = {
   name: string;
   node: Readable<unknown>;
   liveState: LiveStateSource<unknown> | undefined;
+  published: { revision: Revision; cursor: LiveCursor } | undefined;
   readyWaiters: ReadyWaiter[];
   waiters: RevisionWaiter[];
 };
@@ -149,6 +150,7 @@ export function expose<Group extends LiveModelDef>(
         name,
         node,
         liveState: undefined,
+        published: undefined,
         readyWaiters: [],
         waiters: [],
       };
@@ -274,9 +276,9 @@ export function expose<Group extends LiveModelDef>(
     mutationId: string
   ): Promise<LiveCursor> {
     const record = records.ensure({ key, name }).value;
-    const current = snapshot(record.node);
-    if (record.liveState && matchesWaiter(record, current, revision, mutationId))
-      return Promise.resolve(record.liveState.cursor);
+    const published = record.published;
+    if (published && matchesWaiter(published.revision, revision, mutationId))
+      return Promise.resolve(published.cursor);
     return new Promise((resolve, reject) => {
       record.waiters.push({ revision, mutationId, resolve, reject });
     });
@@ -303,6 +305,13 @@ export function expose<Group extends LiveModelDef>(
       ? publishLiveState(record, liveState, current)
       : (record.liveState = new LiveStateSource(current.value)).cursor;
     if (!record.liveState) throw new Error('Exposed state failed to initialize');
+    const publishedRevision: Revision = {
+      nodeId: record.node.__stateNode.id,
+      revision: current.revision,
+      generation: current.generation,
+      mutationIds: current.mutationIds,
+    };
+    record.published = { revision: publishedRevision, cursor };
     const readyLiveState = record.liveState;
 
     const readyWaiters = record.readyWaiters;
@@ -310,10 +319,10 @@ export function expose<Group extends LiveModelDef>(
     for (const waiter of readyWaiters) waiter.resolve(readyLiveState);
 
     const ready = record.waiters.filter((waiter) =>
-      matchesWaiter(record, current, waiter.revision, waiter.mutationId)
+      matchesWaiter(publishedRevision, waiter.revision, waiter.mutationId)
     );
     record.waiters = record.waiters.filter(
-      (waiter) => !matchesWaiter(record, current, waiter.revision, waiter.mutationId)
+      (waiter) => !matchesWaiter(publishedRevision, waiter.revision, waiter.mutationId)
     );
     for (const waiter of ready) waiter.resolve(cursor);
   }
@@ -351,14 +360,9 @@ export function expose<Group extends LiveModelDef>(
     for (const waiter of waiters) waiter.reject(error);
   }
 
-  function matchesWaiter(
-    record: StateRecord,
-    current: Snapshot<unknown>,
-    revision: Revision,
-    mutationId: string
-  ): boolean {
-    if (current.mutationIds?.includes(mutationId)) return true;
-    return record.node.__stateNode.id === revision.nodeId && current.revision >= revision.revision;
+  function matchesWaiter(published: Revision, revision: Revision, mutationId: string): boolean {
+    if (published.mutationIds?.includes(mutationId)) return true;
+    return published.nodeId === revision.nodeId && published.revision >= revision.revision;
   }
 
   function assertActive(): void {

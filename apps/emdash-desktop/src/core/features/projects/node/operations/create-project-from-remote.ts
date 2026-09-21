@@ -22,6 +22,7 @@ import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/des
 import type { Project } from '@core/primitives/projects/api';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
+import { getProjectByPath } from './getProjects';
 
 export type ProjectCreationPublisher = (projectId: string, state: ProjectCreationState) => void;
 
@@ -71,6 +72,7 @@ export async function createProjectFromRemote(
   const credentialLease = await dependencies.mintCloneCredentials({
     repositoryUrl: input.repositoryUrl,
     host,
+    account: input.account,
   });
   let clone: Awaited<ReturnType<typeof runRuntimeLiveJob<typeof gitContract.cloneRepository>>>;
   try {
@@ -95,7 +97,7 @@ export async function createProjectFromRemote(
   } catch (error) {
     if (error instanceof LiveJobCancelledError || ctx.signal.aborted) {
       if (!targetExistedBeforeClone) {
-        await cleanupCancelledCloneTarget(files, input.targetPath);
+        await cleanupFailedCloneTarget(files, input.targetPath);
       }
       const cancelled = creationError('cancelled', 'Project creation was cancelled');
       publishCreationState(input.projectId, {
@@ -131,6 +133,7 @@ export async function createProjectFromRemote(
           id: input.projectId,
           name: input.name,
           path: input.targetPath,
+          initialIntegrationAccounts: input.initialIntegrationAccounts,
           connectionId: input.host.connectionId,
         }
       : {
@@ -138,10 +141,33 @@ export async function createProjectFromRemote(
           id: input.projectId,
           name: input.name,
           path: input.targetPath,
+          initialIntegrationAccounts: input.initialIntegrationAccounts,
         }
   );
   if (!project.success) {
+    let retainedClone = false;
+    // This typed failure guarantees the desktop registration transaction rolled
+    // back. Remove only a checkout created by this job so creation can be retried.
+    if (project.error.type === 'registration-failed') {
+      retainedClone = true;
+      if (!targetExistedBeforeClone) {
+        try {
+          // A different registration may have claimed the checkout meanwhile.
+          const registeredProject = await getProjectByPath(dependencies.db, host, input.targetPath);
+          if (!registeredProject)
+            retainedClone = !(await cleanupFailedCloneTarget(files, input.targetPath));
+        } catch (error) {
+          log.warn('Could not confirm failed clone is unregistered; retaining checkout', {
+            path: input.targetPath,
+            error,
+          });
+        }
+      }
+    }
     const error = projectErrorToCreationError(project.error);
+    if (retainedClone) {
+      error.message += ` The cloned files remain at ${input.targetPath}; use an empty destination to retry.`;
+    }
     publishCreationState(input.projectId, {
       phase: 'error',
       message: error.message,
@@ -184,18 +210,21 @@ async function inspectTarget(
   return ok(listed.data.paths.length === 0 ? 'empty-directory' : 'non-empty');
 }
 
-async function cleanupCancelledCloneTarget(files: HostFiles, path: string): Promise<void> {
+async function cleanupFailedCloneTarget(files: HostFiles, path: string): Promise<boolean> {
   try {
-    await files.fs.delete({
+    const result = await files.fs.delete({
       ...fileKeyForAbsolutePath(hostPathFromNative(path)),
       recursive: true,
     });
+    if (result.success) return true;
+    log.warn('Failed to clean up unsuccessful project clone target', { path, error: result.error });
   } catch (error) {
-    log.warn('Failed to clean up cancelled project clone target', {
+    log.warn('Failed to clean up unsuccessful project clone target', {
       path,
       error: error instanceof Error ? error.message : String(error),
     });
   }
+  return false;
 }
 
 function hostRefForProjectHost(host: ProjectHostParams): HostRef {

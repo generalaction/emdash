@@ -53,7 +53,7 @@
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
-    "test": "vitest run",
+    "test": "pnpm exec nx test @emdash/wire",
     "example:state-kernel": "tsx examples/state-kernel/client.ts",
     "example:live-log": "tsx examples/live-log/client.ts",
     "example:event-stream": "tsx examples/event-stream/client.ts",
@@ -84,5 +84,16 @@
   },
   "peerDependencies": {
     "mobx": "^6.16.1"
+  },
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/wire"
+        }
+      }
+    }
   }
 }

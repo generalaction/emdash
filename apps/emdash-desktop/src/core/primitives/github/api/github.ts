@@ -1,3 +1,5 @@
+import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api';
+
 export interface GitHubUser {
   id: number;
   login: string;
@@ -10,37 +12,32 @@ export type GitHubTokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'dev
 
 export type GitHubCredentialSource = Exclude<GitHubTokenSource, null>;
 
-/**
- * The one shared GitHub provider-account summary, used everywhere an account
- * is passed around (Wire DTOs, node services, resolver inputs). Derive from
- * this type instead of redeclaring the shape.
- */
-export interface GitHubAccountSummary {
-  /** `provider_accounts` row id. */
-  accountId: string;
+/** The shared account summary with the identity fields required by GitHub operations. */
+export type GitHubAccountSummary = ProviderAccountSummary & {
+  providerId: 'github';
   host: string;
   login: string;
   avatarUrl: string;
   credentialSource: GitHubCredentialSource;
-  isDefault: boolean;
-}
-
-export type GitHubAccountState = {
-  connected: boolean;
-  accounts: GitHubAccountSummary[];
-  defaultAccountId: string | null;
 };
 
-export type GitHubSetDefaultAccountResponse =
-  | { success: true; account: GitHubAccountSummary }
-  | { success: false; error: string };
+export function isGitHubAccountSummary(
+  account: ProviderAccountSummary
+): account is GitHubAccountSummary {
+  return (
+    account.providerId === 'github' &&
+    typeof account.host === 'string' &&
+    typeof account.login === 'string' &&
+    typeof account.avatarUrl === 'string' &&
+    (account.credentialSource === 'cli' ||
+      account.credentialSource === 'emdash_oauth' ||
+      account.credentialSource === 'device_flow' ||
+      account.credentialSource === 'secure_storage')
+  );
+}
 
 export type GitHubImportCliAccountsResponse =
-  | { success: true; accounts: GitHubAccountSummary[]; importedAccountIds: string[] }
-  | { success: false; error: string };
-
-export type GitHubRemoveAccountResponse =
-  | { success: true; accounts: GitHubAccountSummary[] }
+  | { success: true; importedAccountIds: string[] }
   | { success: false; error: string };
 
 export type GitHubAuthResponse =
@@ -78,5 +75,4 @@ export type GitHubEvent =
       interval: number;
     }
   | { type: 'auth-success'; user: GitHubUser }
-  | { type: 'auth-error'; error: string; message: string }
-  | { type: 'accounts-changed'; reason: 'startup-reconciliation' | 'account-updated' };
+  | { type: 'auth-error'; error: string; message: string };

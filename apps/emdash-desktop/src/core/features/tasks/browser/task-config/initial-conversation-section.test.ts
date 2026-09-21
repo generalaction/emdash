@@ -8,6 +8,7 @@ import {
   useInitialConversationState,
   type InitialConversationState,
 } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
+import { issueMentionToken } from '@core/primitives/issues/api/issue-context';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 (
@@ -329,8 +330,8 @@ describe('InitialConversationField', () => {
 
     expect(mocks.editorApi.prependMention).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'issue:linear:ENG-123',
-        label: 'issue:linear:ENG-123',
+        id: issueMentionToken('linear', 'ENG-123', linkedIssue),
+        label: issueMentionToken('linear', 'ENG-123', linkedIssue),
         name: 'ENG-123',
         kind: 'issue',
         description: 'Fix flaky tests',

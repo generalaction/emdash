@@ -5,7 +5,7 @@ export const transcriptThinkingSchema = z.object({
   id: z.string(),
   /** Stable order within the owning turn, assigned once by the reducer. */
   seq: z.number().int(),
-  /** Provider or synthesized stream segment id for merging reasoning chunks. */
+  /** Opaque reducer-owned stream segment identity; never interpreted as a provider id. */
   segmentId: z.string(),
   text: z.string(),
   status: z.enum(['thinking', 'done']),

@@ -147,6 +147,45 @@ Parsed transcript and raw ACP log exports are live-activation reads. They never 
 conversation because the raw log is activation-local and a post-wake export would describe the
 replay rather than the evicted process.
 
+## Transcript event ownership
+
+The transcript reducer separates foreground content progression from asynchronous tool, agent,
+and plan state. `event-routing.ts` resolves a tool's owning turn (including suppressed edit calls)
+before opening a turn or materializing content. The owner index survives turn completion and is
+reset with the parser on activation/replay. Child calls inherit their parent's owner. Provider
+enrichment must preserve whether a specialized tool notification starts or updates a call via
+`operation`; changing its presentation kind to `subagent` must not erase this distinction.
+
+Only content transitions and new foreground root invocations close a content segment.
+`content-stream.ts` owns both identity and reasoning finalization; `item-fold.ts` applies updates
+without inferring content completion from notification arrival. Provider ids are opaque values in
+a namespace separate from generated ordinals and roles. Reasoning continuation uses exact ids and
+explicit segment ordinals, never prefix matching. Item ids remain deterministic across live and
+replayed input, but consumers must treat them as opaque rather than parse their spelling.
+
+Tool updates, plan revisions, and nested activity preserve the foreground stream even when they
+materialize new rows. A late tool update amends its original turn and never opens a new agent turn.
+SessionCell uses the same foreground classification for idle activity/quiescence. Background tool
+rows remain running across foreground turn completion and settle from their own status updates.
+The optional session `historyRevision` increments when an already committed turn is amended; the
+desktop refreshes history independently of turn completion (deferring replacement while a new
+foreground turn is active). Plans remain session-scoped, with their transcript anchor in the turn
+that first presented the plan; an idle plan notification alone does not start a turn.
+
+For partial provider replay, an update-only call can be recovered within an existing active turn,
+without ending its content. When idle, unmatched tool notifications are retained in a bounded
+128-event window until a call start or parent establishes ownership; older unmatched notifications
+are evicted. This fallback cannot infer ownership absent provider evidence. No status notification
+alone is treated as proof of a new foreground turn.
+
+Committed history, live turns, and pending submissions have separate ownership. The desktop
+installs history with `history.replace`, which preserves the independently observed live turn
+unless that same turn is now committed; `history.seed` remains an explicit transcript reset. Initial history reads are fenced to the
+attachment just like subsequent refreshes. A missing history page never establishes that a
+restored conversation is empty. Pending rows reconcile against the matching `promptId` in their
+own conversation's active or committed turns, even without a mounted view; switching the view
+between conversations never acknowledges or removes a submission.
+
 ## Suspension and Rematerialization
 
 The public identity is always `conversationId`; provider process activations are internal. A
@@ -175,9 +214,29 @@ restricted migration and rewritten in the safe schema.
 Mode, model, and effort changes update desired state and persist without waking when suspended or
 materializing; the latest revision is applied after load and before the first queued prompt. Other
 reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
-one. If a provider cannot replay history, `loadHistory` returns a successful page marked
-`unavailable: true`; callers retain their existing transcript instead of replacing it with an empty
-one.
+one. Restoring a saved provider session never falls back to `newSession`: a failed or unsupported
+load preserves the saved pointer and returns a retryable error. An unavailable history page is not
+proof of an empty conversation; callers retain existing transcripts, and first loads with unknown
+history expose an error instead of the new-chat state. Provider restoration errors require explicit
+retry, while transient transport failures retain the existing bounded-backoff refresh behavior.
+
+Provider replay reconstructs committed history internally. While the session is replaying, its
+public projection exposes no active turn, so partial historical messages cannot briefly enter and
+leave the live renderer. A successful load publishes any rebound provider session identity; a
+failed or unsupported load preserves the original identity and returns a retryable error instead
+of creating a replacement session. Failures log the original serialized exception.
+
+Unsupported saved selections are removed only after replay finalization, initial prompt queuing,
+and route registration succeed. Until then, desired settings remain intact in memory and in the
+saved intent so a failed restoration can retry them. Removal applies only to the validated value;
+a newer user selection must survive. Supported settings still reach the provider before queued
+prompts start.
+
+Provider close acknowledgement is part of teardown. The conversation retains a pending close
+across the bounded teardown timeout; subsequent activation must await it or return a recovery
+error. A rejected close can be retried, while an outstanding close is never duplicated. If the
+provider connection generation has gone away, the old close no longer blocks restoration on a
+new connection. Cancellation still starts promptly before waiting for closure and lease drainage.
 
 Materialization is server-side and coalesced by the handle's lifecycle cell. A prompt submitted
 while materializing joins that activation and dispatches once after the latest desired configuration
@@ -187,22 +246,50 @@ for leases, then continue after a bounded drain timeout if a provider does not s
 callbacks carry a connection generation so a stale process cannot suspend sessions on its
 replacement.
 
+Provider close acknowledgement is part of teardown. The conversation handle retains a close barrier
+across a bounded timeout; subsequent activation attempts must wait for that same close, retry a
+rejected close, or establish that its connection generation no longer exists. A timeout alone never
+permits reuse of the closing session. Cancellation still starts before lease draining. Restoration
+logs include conversation/session identity and a bounded, redacted JSON-RPC explanation when the
+provider puts it in error data rather than the generic error message.
+
 ## Process Hosting
 
 Desktop-local ACP and workspace-server ACP both register logical workers through
 `WireWorkerHost` and use the Node `childProcessSpawner()` by default. The child
 process entry calls `runWireComponentWorker(createAcpComponent(...))`, which constructs
-`AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`, and
-`LocalAttachmentStore`. Host executable resolution comes from the injected
-`HostDependencies` resolver contract; ACP does not construct a dependency manager or keep a
-runtime-local executable cache. ACP-specific resources such as process handles, ACP ports,
-terminal management, attachment storage, and session cells stay inside the ACP runtime. Each host
+`AcpRuntime`, a machine-scoped `AgentPluginHost`, and `ChildAcpProcessHost`.
+Attachment operations come from the injected conversations runtime. Host executable resolution comes
+from the injected `HostDependencies` resolver contract; ACP does not construct a dependency manager or
+keep a runtime-local executable cache. ACP-specific resources such as process handles, ACP ports,
+terminal management, and session cells stay inside the ACP runtime. Each host
 owns a worker manifest that maps the ACP worker id to the emitted child-process entry path for that
 host's build.
 
-Desktop draft mementos may reference attachment bytes that do not appear in a transcript. Runtime
-attachment cleanup must therefore use explicit attachment deletion or whole-conversation deletion;
-absence from transcript history does not prove that stored bytes are orphaned.
+The conversations runtime owns attachment storage for ACP and TUI; the workspace registry owns
+shell uploads. Both use the shared attachment store under the host's attachment root (currently
+named `acp-attachments`). Each owner kind has one store instance in its sole writer worker.
+Conversation and workspace workers share that root but own disjoint namespaces.
+
+An attachment is a directory at `<conversations|workspaces>/<owner-id>/<attachment-id>/` containing
+`metadata.json` and `content` with a sanitized extension. The store writes metadata and streams bytes
+into a private directory under `.staging/<owner-kind>/`, closes the files, then publishes the whole
+directory with one rename on the same filesystem. There is no separate authoritative index to commit.
+Reads validate the attachment id and metadata, derive the content path, and stream bytes from disk.
+
+At worker startup, the store removes abandoned staging only within that worker's owner-kind namespace.
+All operations await the same initialization promise, so cleanup cannot race new uploads or run again
+while they are active. A process exit before publication leaves reclaimable staging; an exit after
+publication leaves complete, addressable metadata and bytes. This guarantees atomic visibility across
+worker exits, not power-loss durability. A crash after publication but before the response may leave
+an unused committed attachment, retained until explicit deletion or owner deletion.
+
+Desktop draft mementos may reference attachment bytes that do not appear in a transcript. Published
+attachments therefore have no age-based or transcript-based expiry. Owner deletion performs best-effort
+cleanup, serialized against publication; workspace deactivation retains attachments. The earlier
+development layout with an owner-wide index is not read or migrated; its published bytes are left
+untouched until owner deletion. Existing development attachments must be uploaded again to retrieve
+them through the attachment APIs after upgrading.
 
 Desktop composes the ACP client and renderer exposure in
 `apps/emdash-desktop/src/main/gateway/desktop-workers.ts`. The raw stable worker client is consumed

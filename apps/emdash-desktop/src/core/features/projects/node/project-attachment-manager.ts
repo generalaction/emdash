@@ -269,6 +269,10 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
       project = await this.options.adapter.loadProject(entry.projectId);
     } catch (error) {
       if (this.entries.get(entry.projectId) !== entry) return;
+      log.error('ProjectAttachmentManager: failed to load Project record', {
+        projectId: entry.projectId,
+        error,
+      });
       entry.state.set({
         kind: 'absent',
         lastFailure: {
@@ -453,6 +457,11 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
     failure: ProjectAttachmentError
   ): void {
     if (entry.attempt !== attempt) return;
+    log.error('ProjectAttachmentManager: failed to attach Project', {
+      projectId: entry.projectId,
+      hostGeneration: attempt.hostGeneration,
+      error: failure,
+    });
     entry.attempt = undefined;
     entry.state.set({
       kind: 'absent',

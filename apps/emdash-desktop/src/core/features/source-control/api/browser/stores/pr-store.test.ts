@@ -87,11 +87,11 @@ describe('PrStore Host observations', () => {
       data: { sha: 'abc', merged: true },
     }));
     const markReadyForReview = vi.fn(async () => ({ success: true as const, data: undefined }));
-    const syncSingle = vi.fn();
+    const refreshPullRequest = vi.fn();
     mocks.getPullRequestsRuntimeClient.mockResolvedValue({
       mergePullRequest,
       markReadyForReview,
-      syncSingle,
+      refreshPullRequest,
     });
     const association = new TaskPrAssociationStore(createManualClock(1_786_000_000_000));
     association.setAssociation([pullRequest], { kind: 'unknown' });
@@ -110,7 +110,7 @@ describe('PrStore Host observations', () => {
 
     expect(mergePullRequest).toHaveBeenCalledTimes(1);
     expect(markReadyForReview).toHaveBeenCalledTimes(1);
-    expect(syncSingle).not.toHaveBeenCalled();
+    expect(refreshPullRequest).not.toHaveBeenCalled();
     store.dispose();
   });
 });

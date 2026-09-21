@@ -4,13 +4,13 @@ import {
   buildInstallCommandInvocation,
   isPermissionDeniedOutput,
   resolveElevationDecision,
-  resolveSelection,
+  resolveAutoSelection,
 } from './install-execution';
 
-describe('resolveSelection', () => {
-  it('resolves a saved Windows path across casing variants', () => {
+describe('resolveAutoSelection', () => {
+  it('uses the first discovered path', () => {
     expect(
-      resolveSelection('agent', { kind: 'path', path: 'c:\\tools\\agent.cmd' }, [
+      resolveAutoSelection('agent', [
         {
           command: 'agent',
           path: 'C:\\Tools\\AGENT.cmd',
@@ -21,17 +21,11 @@ describe('resolveSelection', () => {
     ).toMatchObject({ success: true, data: { path: 'C:\\Tools\\AGENT.cmd' } });
   });
 
-  it('keeps POSIX selections case-sensitive', () => {
-    expect(
-      resolveSelection('agent', { kind: 'path', path: '/tools/agent' }, [
-        {
-          command: 'agent',
-          path: '/Tools/agent',
-          realpath: '/Tools/agent',
-          isPathDefault: true,
-        },
-      ])
-    ).toMatchObject({ success: false, error: { type: 'stale-selection' } });
+  it('reports missing when nothing is discovered', () => {
+    expect(resolveAutoSelection('agent', [])).toMatchObject({
+      success: false,
+      error: { type: 'missing' },
+    });
   });
 });
 

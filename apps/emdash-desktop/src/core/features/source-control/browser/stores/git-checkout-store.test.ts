@@ -5,8 +5,11 @@ import type {
 } from '@emdash/core/runtimes/git/api';
 import { localBranchRefSchema, remoteBranchRefSchema } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
-import { cell, expose, flushStateTurn } from '@emdash/wire/state';
+import { createScope } from '@emdash/shared/concurrency';
+import { createManualClock } from '@emdash/shared/testing';
+import { cell, expose, flushStateTurn, query, type Query } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
+import { autorun } from 'mobx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
@@ -18,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   getGitRepositoryStore: vi.fn(),
   pushRun: vi.fn(),
   readFileText: vi.fn(),
+  getPullRequestsForHead: vi.fn(),
+  refreshPullRequest: vi.fn(),
+  refreshRepository: vi.fn(),
 }));
 
 let statusState: ReturnType<typeof cell<CheckoutStatusState>>;
@@ -49,6 +55,17 @@ vi.mock('@core/features/source-control/api/browser/stores/source-control-selecto
   getGitRepositoryStore: mocks.getGitRepositoryStore,
 }));
 
+vi.mock('@core/services/pull-requests/api/client', () => ({
+  getPullRequestsRuntimeClient: async () => ({
+    getPullRequestsForHead: mocks.getPullRequestsForHead,
+    refreshPullRequest: mocks.refreshPullRequest,
+    refreshRepository: mocks.refreshRepository,
+  }),
+}));
+
+const repositoryUrl = 'https://github.com/emdash/emdash';
+const forkUrl = 'https://github.com/contributor/emdash';
+
 describe('GitCheckoutStore', () => {
   beforeEach(() => {
     statusState = cell(status());
@@ -59,6 +76,9 @@ describe('GitCheckoutStore', () => {
     unstageStarted = deferred<void>();
     releaseUnstage = deferred<void>();
     mocks.getChangedFiles.mockResolvedValue(ok({ files: [] }));
+    mocks.getPullRequestsForHead.mockResolvedValue(ok({ prs: [] }));
+    mocks.refreshPullRequest.mockResolvedValue(ok(undefined));
+    mocks.refreshRepository.mockResolvedValue(ok(undefined));
     mocks.getGitRepositoryStore.mockReturnValue({
       pushRemote: { name: 'origin', url: 'https://example.com/repo.git' },
     });
@@ -177,6 +197,106 @@ describe('GitCheckoutStore', () => {
     store.dispose();
   });
 
+  it.each(['push', 'publishCurrentBranch'] as const)(
+    '%s refreshes only known open PRs for the exact pushed fork and branch',
+    async (operation) => {
+      mocks.getGitRepositoryStore.mockReturnValue({
+        pushRemote: { name: 'fork', url: `${forkUrl}.git` },
+        pullRequestRepositoryUrl: repositoryUrl,
+        canonicalPushRepositoryUrl: forkUrl,
+      });
+      mocks.getPullRequestsForHead.mockResolvedValue(
+        ok({
+          prs: [
+            { identifier: '#12', status: 'open' },
+            { identifier: '#13', status: 'open' },
+            { identifier: '#11', status: 'closed' },
+          ],
+        })
+      );
+      headState.set(head('feature'));
+      const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+      store.start();
+      await waitFor(() => store.branchName === 'feature');
+
+      await expect(store[operation]()).resolves.toMatchObject({ success: true });
+      await vi.waitFor(() => expect(mocks.refreshPullRequest).toHaveBeenCalledTimes(2));
+
+      expect(mocks.getPullRequestsForHead).toHaveBeenCalledWith({
+        repositoryUrl,
+        headRepositoryUrl: forkUrl,
+        headRefName: 'feature',
+      });
+      expect(mocks.refreshPullRequest.mock.calls).toEqual([
+        [{ repositoryUrl, number: 12, policy: 'force' }],
+        [{ repositoryUrl, number: 13, policy: 'force' }],
+      ]);
+      expect(mocks.refreshRepository).not.toHaveBeenCalled();
+      store.dispose();
+    }
+  );
+
+  it.each([
+    ['unknown PR', ok({ prs: [] })],
+    ['closed-only PR', ok({ prs: [{ identifier: '#12', status: 'closed' }] })],
+    ['invalid identifier', ok({ prs: [{ identifier: null, status: 'open' }] })],
+    ['failed cache lookup', err({ type: 'unknown_error' })],
+  ])('discovers open PRs after push with %s', async (_description, lookupResult) => {
+    mocks.getGitRepositoryStore.mockReturnValue({
+      pushRemote: { name: 'fork', url: `${forkUrl}.git` },
+      pullRequestRepositoryUrl: repositoryUrl,
+      canonicalPushRepositoryUrl: forkUrl,
+    });
+    mocks.getPullRequestsForHead.mockResolvedValue(lookupResult);
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+
+    await expect(store.push()).resolves.toMatchObject({ success: true });
+    await vi.waitFor(() => expect(mocks.refreshRepository).toHaveBeenCalledTimes(1));
+
+    expect(mocks.refreshRepository).toHaveBeenCalledWith({ repositoryUrl, policy: 'force' });
+    expect(mocks.refreshPullRequest).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('discovers PRs without guessing the head repository when push identity is missing', async () => {
+    mocks.getGitRepositoryStore.mockReturnValue({
+      pushRemote: { name: 'origin', url: 'unrecognized-url' },
+      pullRequestRepositoryUrl: repositoryUrl,
+      canonicalPushRepositoryUrl: null,
+    });
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+
+    await expect(store.push()).resolves.toMatchObject({ success: true });
+    await vi.waitFor(() => expect(mocks.refreshRepository).toHaveBeenCalledTimes(1));
+
+    expect(mocks.getPullRequestsForHead).not.toHaveBeenCalled();
+    expect(mocks.refreshRepository).toHaveBeenCalledWith({ repositoryUrl, policy: 'force' });
+    store.dispose();
+  });
+
+  it('does not refresh PRs after an unsuccessful push', async () => {
+    mocks.getGitRepositoryStore.mockReturnValue({
+      pushRemote: { name: 'fork', url: `${forkUrl}.git` },
+      pullRequestRepositoryUrl: repositoryUrl,
+      canonicalPushRepositoryUrl: forkUrl,
+    });
+    mocks.pushRun.mockResolvedValue(err({ type: 'git_error', message: 'Push failed' }));
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+
+    await expect(store.push()).resolves.toMatchObject({ success: false });
+
+    expect(mocks.getPullRequestsForHead).not.toHaveBeenCalled();
+    expect(mocks.refreshPullRequest).not.toHaveBeenCalled();
+    expect(mocks.refreshRepository).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
   it('resync refreshes remote status and head state', async () => {
     const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
     store.start();
@@ -230,6 +350,72 @@ describe('GitCheckoutStore', () => {
     store.dispose();
   });
 
+  it.each(['stage', 'unstage'] as const)(
+    'keeps optimistic membership throughout %s when a watcher invalidates the status read',
+    async (direction) => {
+      await wire?.dispose();
+      const scope = createScope();
+      const clock = createManualClock();
+      const fetchStarted = deferred<void>();
+      const fetched = deferred<CheckoutStatusState>();
+      const statusQuery = query({
+        initial: direction === 'stage' ? status('src/index.ts') : stagedStatus('src/index.ts'),
+        fetch: () => {
+          fetchStarted.resolve();
+          return fetched.promise;
+        },
+        scope,
+        clock,
+        debounceMs: 100,
+      });
+      wire = createSourceControlWire(statusQuery);
+      const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+      store.start();
+      await waitFor(() => store.hasData && store.fileChanges.length > 0);
+      const membership = () => ({
+        staged: hasPath(store.stagedFileChanges, 'src/index.ts'),
+        unstaged: hasPath(store.unstagedFileChanges, 'src/index.ts'),
+      });
+      const transitions: ReturnType<typeof membership>[] = [];
+      const stop = autorun(() => {
+        const current = membership();
+        const previous = transitions.at(-1);
+        if (current.staged !== previous?.staged || current.unstaged !== previous?.unstaged) {
+          transitions.push(current);
+        }
+      });
+      const before = { staged: direction === 'unstage', unstaged: direction === 'stage' };
+      const after = { staged: direction === 'stage', unstaged: direction === 'unstage' };
+      try {
+        const operation =
+          direction === 'stage'
+            ? store.stageFiles(['src/index.ts'])
+            : store.unstageFiles(['src/index.ts']);
+        releaseStage.resolve();
+        releaseUnstage.resolve();
+        await fetchStarted.promise;
+        expect(membership()).toEqual(after);
+        statusQuery.invalidate();
+        flushStateTurn();
+        fetched.resolve(
+          direction === 'stage' ? stagedStatus('src/index.ts') : status('src/index.ts')
+        );
+        await operation;
+        expect(membership()).toEqual(after);
+
+        // Let the watcher's debounced follow-up read complete as well.
+        await clock.advanceBy(100);
+        await statusQuery.refresh();
+        await waitFor(() => membership().staged === after.staged);
+        expect(transitions).toEqual([before, after]);
+      } finally {
+        stop();
+        store.dispose();
+        await scope.dispose();
+      }
+    }
+  );
+
   it('rolls optimistic staged membership back when the mutation fails', async () => {
     failStage = true;
     statusState.set(status('src/index.ts'));
@@ -268,7 +454,7 @@ describe('GitCheckoutStore', () => {
   });
 });
 
-function createSourceControlWire() {
+function createSourceControlWire(statusQuery?: Query<CheckoutStatusState>) {
   const repositoryProvider = expose(sourceControlContract.repository.model, {
     refs: cell({ branches: [], tags: [], remoteHeads: [] }),
     remotes: cell({ remotes: [] }),
@@ -276,7 +462,7 @@ function createSourceControlWire() {
   const checkoutProvider = expose(
     sourceControlContract.checkout.model,
     {
-      status: statusState,
+      status: statusQuery ?? statusState,
       head: headState,
     },
     {
@@ -287,9 +473,9 @@ function createSourceControlWire() {
           if (failStage) return err({ type: 'git_error', message: 'stage failed' });
           const path = context.input.paths[0];
           if (!path) return ok<void>();
-          const revision = statusState.set(stagedStatus(path), {
-            mutationIds: [context.mutationId],
-          });
+          const revision = statusQuery
+            ? statusQuery.refresh({ mutationIds: [context.mutationId] })
+            : statusState.set(stagedStatus(path), { mutationIds: [context.mutationId] });
           await context.observed('status', revision);
           return ok<void>();
         },
@@ -298,9 +484,9 @@ function createSourceControlWire() {
           await releaseUnstage.promise;
           const path = context.input.paths[0];
           if (!path) return ok<void>();
-          const revision = statusState.set(status(path), {
-            mutationIds: [context.mutationId],
-          });
+          const revision = statusQuery
+            ? statusQuery.refresh({ mutationIds: [context.mutationId] })
+            : statusState.set(status(path), { mutationIds: [context.mutationId] });
           await context.observed('status', revision);
           return ok<void>();
         },
@@ -340,7 +526,7 @@ function createSourceControlWire() {
       getCommit: vi.fn(),
       getCommitFiles: vi.fn(),
       blame: vi.fn(),
-      push: { run: vi.fn() },
+      push: { run: mocks.pushRun },
       publish: { run: mocks.pushRun },
       pull: { run: vi.fn() },
     },

@@ -195,14 +195,14 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
           "text": "In one sentence, without reading any files, what is emdash?",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 1,
@@ -216,14 +216,14 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
           "text": "Think about how to explore this repo, then read \`AGENTS.md\` and give me the Repository Structure section as exactly 3 bullet points.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 1,
@@ -239,7 +239,7 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
           "toolCallId": "call_dMOHUTSuSmcFB4JThBpPj5nZ",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:1:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 3,
@@ -255,14 +255,14 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
           "text": "Search the codebase for the definition of \`toAgentUpdate\` — give the file path and line number.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 1,
@@ -278,7 +278,7 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
           "toolCallId": "call_sqP7LTqUlaTMofbbig96Qk08",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 3,
@@ -292,7 +292,7 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
@@ -300,9 +300,9 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:thinking:auto:thinking:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:thinking:generated:0",
           "kind": "thinking",
-          "segmentId": "auto:thinking:0",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:thinking:generated:0",
           "seq": 1,
           "startedAt": 1577836800000,
           "status": "done",
@@ -313,7 +313,7 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
 I think I need to form an answer after reviewing the relevant information. Using a specific tool seems necessary for this task to ensure accuracy and reliability in my response. I want to make sure that I gather all the essential details before crafting my answer. I'll do my best to summarize everything clearly and be helpful for the user's understanding!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 2,
@@ -369,7 +369,7 @@ I think I need to form an answer after reviewing the relevant information. Using
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 6,
@@ -389,7 +389,7 @@ I think I need to form an answer after reviewing the relevant information. Using
           "toolCallId": "call_EpbDQ39xyA1D5C7qfQS7LEVO",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:auto:assistant:2",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:message:assistant:generated:2",
           "kind": "message",
           "role": "assistant",
           "seq": 8,
@@ -403,7 +403,7 @@ I think I need to form an answer after reviewing the relevant information. Using
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
@@ -411,9 +411,9 @@ I think I need to form an answer after reviewing the relevant information. Using
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:thinking:auto:thinking:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:thinking:generated:0",
           "kind": "thinking",
-          "segmentId": "auto:thinking:0",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:thinking:generated:0",
           "seq": 1,
           "startedAt": 1577836800000,
           "status": "done",
@@ -424,7 +424,7 @@ I think I need to form an answer after reviewing the relevant information. Using
 I need to respond with just a plan since the user is asking for a checklist or to-do plan. It seems like there’s no need for extra detail, but to be accurate, maybe I should check the relevant files. The user asked not to edit, but reading files is still possible. I probably should mention the relevant locations. I think I can use a search tool to look into AgentUpdate uses and create that checklist.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 2,
@@ -476,7 +476,7 @@ I need to respond with just a plan since the user is asking for a checklist or t
           "status": "done",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 6,
@@ -494,14 +494,14 @@ I need to respond with just a plan since the user is asking for a checklist or t
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
           "text": "Run \`git rev-parse --abbrev-ref HEAD\` and tell me the current branch name.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 1,
@@ -518,9 +518,9 @@ I need to respond with just a plan since the user is asking for a checklist or t
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:thinking:auto:thinking:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:thinking:generated:0",
           "kind": "thinking",
-          "segmentId": "auto:thinking:0",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:thinking:generated:0",
           "seq": 3,
           "startedAt": 1577836800000,
           "status": "done",
@@ -531,7 +531,7 @@ I need to respond with just a plan since the user is asking for a checklist or t
 I need to mention that if the branch name is "HEAD," it might be in a detached state. I’ve got to make sure I communicate that clearly so anyone working with git understands what it means for their version control. It’s essential to emphasize what being in a detached HEAD state implies regarding committing changes, as it can lead to confusion if not properly addressed. I'll keep it straightforward and informative!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:5:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 4,
@@ -545,14 +545,14 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
           "text": "Run \`ls packages\` and list the workspace package names.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 1,
@@ -567,7 +567,7 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
           "toolCallId": "call_DagRCdNzm1jDfGHSmO0H6Awg",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:6:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 3,
@@ -581,7 +581,7 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
@@ -589,9 +589,9 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:thinking:auto:thinking:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:thinking:generated:0",
           "kind": "thinking",
-          "segmentId": "auto:thinking:0",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:thinking:generated:0",
           "seq": 1,
           "startedAt": 1577836800000,
           "status": "done",
@@ -602,7 +602,7 @@ I need to mention that if the branch name is "HEAD," it might be in a detached s
 I'm thinking about how to edit a file effectively. I need to use apply_patch, but first, I might want to ensure that the directory exists. I want to be careful because apply_patch can also create the file if the path is specified correctly. Making sure everything is in place will help avoid errors and complications later on. I just need to keep these steps in mind for a smooth process!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 2,
@@ -620,7 +620,7 @@ I'm thinking about how to edit a file effectively. I need to use apply_patch, bu
           "toolCallId": "call_5G3PTdzqpvPGdY6lSvFGLGJH",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 4,
@@ -634,14 +634,14 @@ I'm thinking about how to edit a file effectively. I need to use apply_patch, bu
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
           "text": "Append the line \`generated by fixture script\` to \`.acp-fixture-scratch/NOTES.md\`.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 1,
@@ -662,7 +662,7 @@ generated by fixture script
           "toolCallId": "call_tXyN5u55PGr31y1rBSbwDPRP",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 3,
@@ -676,7 +676,7 @@ generated by fixture script
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
@@ -684,9 +684,9 @@ generated by fixture script
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:auto:thinking:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:generated:0",
           "kind": "thinking",
-          "segmentId": "auto:thinking:0",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:generated:0",
           "seq": 1,
           "startedAt": 1577836800000,
           "status": "done",
@@ -697,7 +697,7 @@ generated by fixture script
 I need to rename a file first, then possibly apply a patch. After that, I might move it to a new location and then delete the original. It feels a bit convoluted, but I think breaking it into steps helps ensure I’m not missing anything important. Maybe I should confirm all the necessary changes before committing to the deletions to avoid errors later! Let's just take it step by step.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 2,
@@ -705,9 +705,9 @@ I need to rename a file first, then possibly apply a patch. After that, I might 
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:auto:thinking:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:generated:1",
           "kind": "thinking",
-          "segmentId": "auto:thinking:1",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:thinking:generated:1",
           "seq": 3,
           "startedAt": 1577836800000,
           "status": "done",
@@ -718,7 +718,7 @@ I need to rename a file first, then possibly apply a patch. After that, I might 
 I need to figure out if I should move content or maybe make some changes. It's looking like I might use the delete/add method. I don’t think renaming is necessary. I can add the new content first, and then I can go ahead and delete the old stuff. That seems like a straightforward approach! I wonder if there’s a more efficient way, but this sounds like it could work well.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 4,
@@ -750,7 +750,7 @@ generated by fixture script
           "toolCallId": "call_krldrCarRuXYq8c00DESs1zE",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:auto:assistant:2",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:message:assistant:generated:2",
           "kind": "message",
           "role": "assistant",
           "seq": 7,
@@ -764,14 +764,14 @@ generated by fixture script
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
           "text": "Use a subagent (Task tool) to find all files under \`packages/core/src/acp\` that contain the string \`stopReason\`, then summarize what each file does.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 1,
@@ -779,9 +779,9 @@ generated by fixture script
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:0",
           "kind": "thinking",
-          "segmentId": "auto:thinking:0",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:0",
           "seq": 2,
           "startedAt": 1577836800000,
           "status": "done",
@@ -792,7 +792,7 @@ generated by fixture script
 I think I need to spawn an explorer and likely use one subagent for this task. I want to read about the AGENTS already in context. I’ll use the explorer to search for files that contain “stopReason” under packages/core/src/acp, and I'll summarize what each file does. I might ask to use a tool like rg and read the matching files for more details. Let's see what I can discover!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:1",
           "kind": "message",
           "role": "assistant",
           "seq": 3,
@@ -809,7 +809,7 @@ I think I need to spawn an explorer and likely use one subagent for this task. I
           "toolKind": "other",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:2",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:2",
           "kind": "message",
           "role": "assistant",
           "seq": 5,
@@ -827,9 +827,9 @@ I think I need to spawn an explorer and likely use one subagent for this task. I
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:1",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:1",
           "kind": "thinking",
-          "segmentId": "auto:thinking:1",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:1",
           "seq": 7,
           "startedAt": 1577836800000,
           "status": "done",
@@ -840,7 +840,7 @@ I think I need to spawn an explorer and likely use one subagent for this task. I
 I need to think about whether I should send a request to check the agent's status or not. I could inspect things locally while I wait. I wonder if it's okay to continue without overlapping with the subagent's work. But since the user specifically asked to use the subagent, I might just wait a bit longer or send a progress inquiry. It feels like the agent is still busy, so maybe waiting more is better.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:3",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:3",
           "kind": "message",
           "role": "assistant",
           "seq": 8,
@@ -858,9 +858,9 @@ I need to think about whether I should send a request to check the agent's statu
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:2",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:2",
           "kind": "thinking",
-          "segmentId": "auto:thinking:2",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:2",
           "seq": 10,
           "startedAt": 1577836800000,
           "status": "done",
@@ -871,7 +871,7 @@ I need to think about whether I should send a request to check the agent's statu
 I need to decide if I should use send_input to ask for a complete response. Maybe I could handle this myself? Since the user requested the use of a subagent, I wonder if I should mention that it might stall. But it could be better if the agent just runs. I think I’ll query with an interrupt to request a concise report. That seems like a good way to get clarity!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:4",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:4",
           "kind": "message",
           "role": "assistant",
           "seq": 11,
@@ -888,7 +888,7 @@ I need to decide if I should use send_input to ask for a complete response. Mayb
           "toolKind": "other",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:5",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:5",
           "kind": "message",
           "role": "assistant",
           "seq": 13,
@@ -906,9 +906,9 @@ I need to decide if I should use send_input to ask for a complete response. Mayb
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:3",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:3",
           "kind": "thinking",
-          "segmentId": "auto:thinking:3",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:3",
           "seq": 15,
           "startedAt": 1577836800000,
           "status": "done",
@@ -919,7 +919,7 @@ I need to decide if I should use send_input to ask for a complete response. Mayb
 It seems the subagent might be unavailable, so I'm thinking we could conduct a local search ourselves. The user requested that we use the subagent, though, so I wonder if I should mention that it didn't return any results. However, if the subagent stalled, we could still summarize the findings from a local search. I'll use local rg to gather data on stopReason files and see what we can put together.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:6",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:6",
           "kind": "message",
           "role": "assistant",
           "seq": 16,
@@ -954,9 +954,9 @@ It seems the subagent might be unavailable, so I'm thinking we could conduct a l
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:4",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:4",
           "kind": "thinking",
-          "segmentId": "auto:thinking:4",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:4",
           "seq": 19,
           "startedAt": 1577836800000,
           "status": "done",
@@ -967,7 +967,7 @@ It seems the subagent might be unavailable, so I'm thinking we could conduct a l
 I need to filter out files containing the term "stopReason" from the output. The relevant files likely include session-machine.ts, acp-session-runtime.ts, and a few test files like acp-session-runtime.test.ts. The user wants a summary of what each file does, focusing on all matches in the specified directory, although I might skip the snapshots. I should list out the unique matching files using the rg command effectively. Let's proceed concisely!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:7",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:7",
           "kind": "message",
           "role": "assistant",
           "seq": 20,
@@ -984,9 +984,9 @@ I need to filter out files containing the term "stopReason" from the output. The
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:auto:thinking:5",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:5",
           "kind": "thinking",
-          "segmentId": "auto:thinking:5",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:thinking:generated:5",
           "seq": 22,
           "startedAt": 1577836800000,
           "status": "done",
@@ -997,7 +997,7 @@ I need to filter out files containing the term "stopReason" from the output. The
 I need to summarize what each file does. I'm wondering if mentioning that the subagent is stalled is necessary—probably not. Should I close the agent? Maybe that's a good idea! Closing after the final summary could help keep things tidy. Let’s aim to close it at the end! It feels like a good plan to keep everything organized, which will help us stay on track with what we're doing.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:8",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:8",
           "kind": "message",
           "role": "assistant",
           "seq": 23,
@@ -1014,7 +1014,7 @@ I need to summarize what each file does. I'm wondering if mentioning that the su
           "toolKind": "other",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:auto:assistant:9",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:message:assistant:generated:9",
           "kind": "message",
           "role": "assistant",
           "seq": 25,
@@ -1040,7 +1040,7 @@ I need to summarize what each file does. I'm wondering if mentioning that the su
       "initiator": "user",
       "items": [
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:auto:user:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:user:generated:0",
           "kind": "message",
           "role": "user",
           "seq": 0,
@@ -1048,9 +1048,9 @@ I need to summarize what each file does. I'm wondering if mentioning that the su
         },
         {
           "durationMs": 0,
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:thinking:auto:thinking:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:thinking:generated:0",
           "kind": "thinking",
-          "segmentId": "auto:thinking:0",
+          "segmentId": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:thinking:generated:0",
           "seq": 1,
           "startedAt": 1577836800000,
           "status": "done",
@@ -1061,7 +1061,7 @@ I need to summarize what each file does. I'm wondering if mentioning that the su
 I need to gather information from the files I've already read. There's no need to browse for new sources. I can use existing knowledge from session-machine.ts as a foundation. My goal is to ensure the answer is detailed while also being concise. I think using headings for each phase will help organize the information effectively. Let’s get started on crafting this response!",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:auto:assistant:0",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:11:message:assistant:generated:0",
           "kind": "message",
           "role": "assistant",
           "seq": 2,

@@ -49,12 +49,13 @@ import {
   permissionDeniedError,
   resolveElevationDecision,
   resolveInstallerTool,
-  resolveSelection,
+  resolveAutoSelection,
   selectInstallOption,
   type CommandExecutionResult,
   type InstallCommandKind,
   type PreparedInstallCommand,
 } from './install-execution';
+import { resolveOverride } from './resolve-override';
 
 const STORE_KEY_PREFIX = 'host-dependencies';
 const OUTPUT_TAIL_LIMIT = 20_000;
@@ -93,6 +94,7 @@ export class HostDependenciesRuntime {
   private readonly current: Query<HostDependencySnapshot>;
   private readonly stateScope: Scope;
   private readonly installMutex = new KeyedMutex();
+  private readonly selectionMutex = new KeyedMutex();
   private selections: Record<string, HostDependencySelection> | null = null;
   private disposed = false;
   private lastSuccessfulAptUpdateAt: number | null = null;
@@ -145,11 +147,25 @@ export class HostDependenciesRuntime {
     return this.host;
   }
 
-  async resolve(id: DependencyId): Promise<HostDependencyResolveResult> {
+  async resolve(
+    id: DependencyId,
+    selection?: HostDependencySelection
+  ): Promise<HostDependencyResolveResult> {
+    if (selection !== undefined) return this.resolveSelection(id, selection);
     const view = await this.settleView(id);
     if (!view.success) return view;
-    if (!view.data.resolved) return err({ type: 'missing', id });
+    if (!view.data.resolved) return err(view.data.error ?? { type: 'missing', id });
     return ok(view.data.resolved);
+  }
+
+  private async resolveSelection(
+    id: DependencyId,
+    selection: HostDependencySelection
+  ): Promise<HostDependencyResolveResult> {
+    const definition = this.definitions.get(id);
+    if (!definition) return err({ type: 'unknown-dependency', id });
+    if (selection) return resolveOverride(id, selection, this.deps.exec);
+    return resolveAutoSelection(id, await this.enumerate(definition));
   }
 
   async setSelection(
@@ -158,14 +174,21 @@ export class HostDependenciesRuntime {
     options: { mutationIds?: readonly string[] } = {}
   ): Promise<HostDependencyViewResult> {
     if (!this.definitions.has(id)) return err({ type: 'unknown-dependency', id });
-    const selections = await this.loadSelections();
-    if (!selections.success) return err(selections.error);
-    if (selection === null) delete selections.data[id];
-    else selections.data[id] = selection;
-    const saved = await this.saveSelections(selections.data);
-    if (!saved.success) return err(saved.error);
-    this.selections = selections.data;
-    return this.settleView(id, options.mutationIds);
+    if (selection) {
+      const validated = await this.resolveSelection(id, selection);
+      if (!validated.success) return validated;
+    }
+    return this.selectionMutex.runExclusive('selections', async () => {
+      const selections = await this.loadSelections();
+      if (!selections.success) return err(selections.error);
+      const next = { ...selections.data };
+      if (selection === null) delete next[id];
+      else next[id] = selection;
+      const saved = await this.saveSelections(next);
+      if (!saved.success) return err(saved.error);
+      this.selections = next;
+      return this.settleView(id, options.mutationIds);
+    });
   }
 
   async refresh(
@@ -522,7 +545,9 @@ export class HostDependenciesRuntime {
     if (!selections.success) return err(selections.error);
     const candidates = await this.enumerate(definition);
     const selection = selections.data[id] ?? null;
-    const resolved = resolveSelection(definition.id, selection, candidates);
+    const resolved = selection
+      ? await resolveOverride(id, selection, this.deps.exec)
+      : resolveAutoSelection(id, candidates);
     const view: HostDependencyView = {
       hostId: this.deps.hostId,
       definition,

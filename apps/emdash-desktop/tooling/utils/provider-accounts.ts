@@ -6,10 +6,12 @@
  * on Electron safeStorage which is unavailable under plain Node.
  */
 
-import {
-  ProviderAccountRegistry,
-  type ProviderAccountSecretStore,
-} from '@main/core/provider-accounts/provider-account-registry';
+import { log } from '@emdash/shared/logger';
+import { IntegrationAccountStore } from '@core/features/integrations/node/integration-account-store';
+import { IntegrationConnectionService } from '@core/features/integrations/node/integration-connection-service';
+import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import type { ProviderAccountSecretStore } from '@core/services/provider-accounts/api/provider-account-store';
+import { ProviderAccountRegistry } from '@main/core/provider-accounts/provider-account-registry';
 import { openFixture, type FixtureDb } from './db';
 
 export class InMemorySecretStore implements ProviderAccountSecretStore {
@@ -31,14 +33,28 @@ export class InMemorySecretStore implements ProviderAccountSecretStore {
 export type RegistryFixture = FixtureDb & {
   registry: ProviderAccountRegistry;
   secretStore: InMemorySecretStore;
+  integrationAccounts: IntegrationAccountStore;
+  connections: IntegrationConnectionService;
 };
 
 /** Open a fixture database with a real ProviderAccountRegistry on top of it. */
 export async function openRegistryFixture(
-  name: Parameters<typeof openFixture>[0] = 'empty'
+  name: Parameters<typeof openFixture>[0] = 'empty',
+  connectionHooks: {
+    telemetry?: Pick<TelemetryService, 'capture'>;
+    onAccountsChanged?: (providerId: string) => void;
+  } = {}
 ): Promise<RegistryFixture> {
   const fixture = await openFixture(name);
   const secretStore = new InMemorySecretStore();
   const registry = new ProviderAccountRegistry(fixture.db, secretStore);
-  return { ...fixture, registry, secretStore };
+  const integrationAccounts = new IntegrationAccountStore(registry);
+  const connections = new IntegrationConnectionService(
+    registry,
+    integrationAccounts,
+    connectionHooks.telemetry ?? { capture: () => {} },
+    log,
+    connectionHooks.onAccountsChanged
+  );
+  return { ...fixture, registry, secretStore, integrationAccounts, connections };
 }

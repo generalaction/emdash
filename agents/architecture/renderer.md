@@ -41,6 +41,16 @@ Task children have two explicit lifetimes: lightweight persistent stores survive
 for as long as the task row exists (`task-persistent-stores.ts`), while operational task stores are
 disposed when the task session is torn down (`task-scoped-stores.ts`).
 
+Task attention indicators aggregate unseen events from saved Conversations, independently of open
+tabs. A successful user close of either an ACP or terminal conversation tab acknowledges its
+existing notification through the resource's `onClose` hook; later background events can notify
+again. Generic disposal (including snapshot restoration, preview replacement and teardown) only
+releases resources. Conversation managers reconcile membership on successful list reloads and
+deletion events, preserving membership changes received during an in-flight reload. Stream gaps
+invalidate the list so a gap during a reload schedules another fetch. Failed reloads preserve the
+current stores. An empty pane can still have background attention, but a task with no Conversations
+has no agent status indicator.
+
 The Tasks slice owns current-task workspace activation in its app-scoped
 `TaskActivationCoordinator`. It derives activation from navigation, Project context hydration,
 Task state, and Host generation readiness. Views and navigation handlers only express which Task
@@ -83,6 +93,11 @@ Navigation lives in `src/core/primitives/navigation/`; commands and the palette 
 (`src/core/features/terminals/`). Monaco, file rendering, file-tree projection, and
 renderer-facing file runtime access are owned by `src/core/features/editor/browser/`.
 
+The renderer error boundary offers a state-preserving Reload app action, collapsible error details,
+and a Reset UI state and reload fallback under "Still having trouble?". Reset discards pending
+memento writes before clearing saved presentation state (including unsent drafts), and only reloads
+once deletion succeeds. A failed reset stays visible above the disclosures so it can be retried.
+
 ## Tests
 
 - Renderer unit tests: `src/renderer/tests/`
@@ -95,3 +110,27 @@ renderer-facing file runtime access are owned by `src/core/features/editor/brows
 - Add feature views, modals, and task tabs through the owning slice's contributions.
 - The preload bridge (`src/entry/preload.ts`) exposes only `requestWirePort` and
   `getPathForFile`; keep application traffic on Wire.
+
+## ACP Transcript Synchronization
+
+`SessionState.transcript` publishes a coherent `{ generation, historyRevision,
+lastCommittedTurnSeq, activeTurn }` snapshot. Generations change when the runtime rebuilds
+history, not when a renderer reconnects. Every committed turn and amendment advances the
+history revision; live chunks do not. The legacy `activeTurn` model remains available for
+older consumers, but new renderers use the coherent snapshot rather than combining independently
+coalesced live models.
+
+History pages carry the same position plus half-open coverage (`fromSeq`, `beforeSeq`, with
+null denoting an unbounded edge). Chat UI merges only that range, rejects obsolete pages, and
+keeps observed outgoing turns visible until authoritative history acknowledges them. Retention
+never invents a turn outcome or finalizes running tools. A generation change keeps the old
+presentation until replacement history arrives, then discards the old generation even if IDs
+repeat. Pending submissions are acknowledged by prompt ID independently of the mounted view.
+
+The conversation store refreshes history on revision changes, including entirely unobserved
+turns and direct A-to-B queue handoffs. Refreshes can run while a successor streams and cover
+the already loaded range, so pagination and old tool amendments survive catch-up. Initial live
+content determines presentation readiness; history, config, usage, plan, terminals, and MCP
+metadata must not block displaying it. Optional metadata has safe defaults while loading.
+Older runtimes without version metadata use the legacy synchronization path and cannot provide
+the same missed-update guarantees.

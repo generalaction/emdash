@@ -1,5 +1,60 @@
 import { describe, expect, it } from 'vitest';
-import { linkedIssueDisplayIdentifier, linkedIssueMentionName } from './linked-issue';
+import {
+  linkedIssue,
+  linkedIssueDisplayIdentifier,
+  linkedIssueMentionName,
+  linkedIssueResourcesMatch,
+} from './linked-issue';
+
+describe('linked issue source persistence', () => {
+  const legacy = {
+    provider: 'linear',
+    identifier: 'ENG-1',
+    title: 'Issue',
+    url: 'https://linear.app/a/issue/ENG-1',
+  };
+  it('reads old snapshots without inventing a source account', () => {
+    expect(linkedIssue.parseJson(JSON.stringify(legacy))).toEqual(legacy);
+  });
+  it('round-trips the account that supplied an issue', () => {
+    const current = linkedIssue.schema.parse({ ...legacy, accountId: 'workspace-a' });
+    expect(linkedIssue.parseJson(linkedIssue.serialize(current))).toEqual(current);
+  });
+  it.each([
+    ['trello', 'https://trello.com/c/abc123/1-old-name', 'https://trello.com/c/abc123/1-new-name'],
+    [
+      'linear',
+      'https://linear.app/acme/issue/ENG-1/old-title',
+      'https://linear.app/acme/issue/ENG-1/new-title',
+    ],
+    [
+      'notion',
+      'https://www.notion.so/Old-title-37818d1ba831812e8ca0c115c72de662',
+      'https://www.notion.so/New-title-37818d1ba831812e8ca0c115c72de662',
+    ],
+  ] as const)('retains %s resource identity across title changes', (provider, before, after) => {
+    expect(linkedIssueResourcesMatch(provider, before, after)).toBe(true);
+  });
+  it.each([
+    ['trello', 'https://trello.com/c/abc123/name', 'https://trello.com/c/xyz456/name'],
+    [
+      'linear',
+      'https://linear.app/acme/issue/ENG-1/name',
+      'https://linear.app/other/issue/ENG-1/name',
+    ],
+    ['gitlab', 'https://gitlab.com/acme/a/-/issues/1', 'https://gitlab.com/acme/b/-/issues/1'],
+    ['forgejo', 'https://forgejo.example/a/b/issues/1', 'https://other.example/a/b/issues/1'],
+  ] as const)('rejects a different %s resource or scope', (provider, before, after) => {
+    expect(linkedIssueResourcesMatch(provider, before, after)).toBe(false);
+  });
+  it('keeps workspace identity while ignoring fragments and trailing slashes', () => {
+    expect(linkedIssueResourcesMatch('linear', legacy.url, `${legacy.url}/#comment`)).toBe(true);
+    expect(
+      linkedIssueResourcesMatch('linear', legacy.url, 'https://linear.app/b/issue/ENG-1')
+    ).toBe(false);
+    expect(linkedIssueResourcesMatch('linear', '', '')).toBe(false);
+  });
+});
 
 describe('linked issue display helpers', () => {
   it('uses displayIdentifier for issue mentions when available', () => {

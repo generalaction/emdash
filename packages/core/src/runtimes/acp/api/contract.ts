@@ -1,16 +1,7 @@
-import {
-  defineContract,
-  downloadFile,
-  fallible,
-  liveLog,
-  liveModel,
-  liveState,
-  uploadFile,
-} from '@emdash/wire/rpc';
+import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { terminalStateSchema } from '#runtimes/acp/api/models';
 import { agentStateSchema } from '#runtimes/acp/api/models/agents';
-import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
 import {
   sessionConfigStateSchema,
   sessionMcpServerSchema,
@@ -20,7 +11,6 @@ import { planStateSchema } from '#runtimes/acp/api/models/plan';
 import { sessionStateSchema, sessionSummarySchema } from '#runtimes/acp/api/models/session';
 import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 import {
-  acpAttachmentErrorSchema,
   acpCancelTurnErrorSchema,
   acpChangeQueuePromptOrderErrorSchema,
   acpDeleteQueuedPromptErrorSchema,
@@ -29,7 +19,6 @@ import {
   acpExportTranscriptErrorSchema,
   acpLaunchErrorSchema,
   acpLoadHistoryErrorSchema,
-  acpPurgeConversationDataErrorSchema,
   acpResolvePermissionErrorSchema,
   acpSendPromptErrorSchema,
   acpSetOptionErrorSchema,
@@ -40,22 +29,17 @@ import {
   acpStartInputSchema,
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
-  deleteAttachmentCommandSchema,
   deleteQueuedPromptCommandSchema,
-  downloadAttachmentCommandSchema,
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
   historyPageInputSchema,
   loadHistoryResultSchema,
-  purgeConversationDataCommandSchema,
   resolvePermissionCommandSchema,
   sendPromptCommandSchema,
   sendPromptResponseSchema,
   setOptionCommandSchema,
   terminateCommandSchema,
-  uploadAttachmentCommandSchema,
-  uploadAttachmentResponseSchema,
 } from './schemas';
 
 const launchResultSchema = z.object({
@@ -125,24 +109,7 @@ export const acpApiContract = defineContract({
     data: z.object({ log: z.string() }),
     error: acpExportRawLogErrorSchema,
   }),
-  uploadAttachment: uploadFile({
-    input: uploadAttachmentCommandSchema,
-    result: uploadAttachmentResponseSchema,
-    error: acpAttachmentErrorSchema,
-  }),
-  downloadAttachment: downloadFile({
-    input: downloadAttachmentCommandSchema,
-    meta: attachmentRefSchema,
-    error: acpAttachmentErrorSchema,
-  }),
-  deleteAttachment: fallible({
-    input: deleteAttachmentCommandSchema,
-    error: acpAttachmentErrorSchema,
-  }),
-  purgeConversationData: fallible({
-    input: purgeConversationDataCommandSchema,
-    error: acpPurgeConversationDataErrorSchema,
-  }),
+
   loadHistory: fallible({
     input: historyPageInputSchema,
     data: loadHistoryResultSchema,

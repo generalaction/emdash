@@ -11,7 +11,10 @@ export type StoredProjectSettings = {
 export interface ProjectSettingsStorage {
   get(projectId: string): Promise<StoredProjectSettings | undefined>;
   insertIfMissing(projectId: string, settings: StoredProjectSettings): Promise<void>;
-  update(projectId: string, settings: Partial<StoredProjectSettings>): Promise<void>;
+  mutate(
+    projectId: string,
+    change: (current: StoredProjectSettings) => Partial<StoredProjectSettings>
+  ): Promise<StoredProjectSettings>;
 }
 
 export class ProjectSettingsRepository implements ProjectSettingsStorage {
@@ -44,13 +47,25 @@ export class ProjectSettingsRepository implements ProjectSettingsStorage {
       .onConflictDoNothing();
   }
 
-  async update(projectId: string, settings: Partial<StoredProjectSettings>): Promise<void> {
-    await this.db
-      .update(projectSettingsTable)
-      .set({
-        ...settings,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-      })
-      .where(eq(projectSettingsTable.projectId, projectId));
+  async mutate(
+    projectId: string,
+    change: (current: StoredProjectSettings) => Partial<StoredProjectSettings>
+  ): Promise<StoredProjectSettings> {
+    return this.db.transaction((tx) => {
+      const current = tx
+        .select()
+        .from(projectSettingsTable)
+        .where(eq(projectSettingsTable.projectId, projectId))
+        .get();
+      if (!current) throw new Error(`Project settings not found: ${projectId}`);
+      const patch = change(current);
+      if (Object.keys(patch).length > 0) {
+        tx.update(projectSettingsTable)
+          .set({ ...patch, updatedAt: sql`CURRENT_TIMESTAMP` })
+          .where(eq(projectSettingsTable.projectId, projectId))
+          .run();
+      }
+      return { ...current, ...patch };
+    });
   }
 }

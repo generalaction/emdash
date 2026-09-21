@@ -2,7 +2,7 @@ import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provid
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import type { GitHubUser } from '@core/primitives/github/api';
-import { GITHUB_PROVIDER_ID, upsertGitHubAccount } from './github-accounts';
+import { GITHUB_PROVIDER_ID, connectGitHubAccount } from './github-auth-connection';
 import { GitHubCliAccountImportService } from './github-cli-account-import';
 
 function makeGitHubUser(id: number, login: string): GitHubUser {
@@ -43,7 +43,7 @@ describe('GitHubCliAccountImportService', () => {
   });
 
   function makeService(stdout: string) {
-    return new GitHubCliAccountImportService(fixture.registry, makeExec(stdout), {
+    return new GitHubCliAccountImportService(fixture.connections, makeExec(stdout), {
       getAuthenticatedUser,
     });
   }
@@ -79,10 +79,10 @@ describe('GitHubCliAccountImportService', () => {
       'github.com:84',
     ]);
     await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:42')).resolves.toBe(
-      'gho_monalisa'
+      JSON.stringify({ accessToken: 'gho_monalisa', apiBaseUrl: 'https://api.github.com' })
     );
     await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:84')).resolves.toBe(
-      'gho_octocat'
+      JSON.stringify({ accessToken: 'gho_octocat', apiBaseUrl: 'https://api.github.com' })
     );
     await expect(fixture.registry.getDefaultAccountId(GITHUB_PROVIDER_ID)).resolves.toBe(
       'github.com:42'
@@ -91,7 +91,7 @@ describe('GitHubCliAccountImportService', () => {
 
   it('bounds the GitHub CLI status call so startup cannot hang indefinitely', async () => {
     const exec = makeExec(JSON.stringify({ hosts: {} }));
-    const service = new GitHubCliAccountImportService(fixture.registry, exec, {
+    const service = new GitHubCliAccountImportService(fixture.connections, exec, {
       getAuthenticatedUser,
     });
 
@@ -103,7 +103,7 @@ describe('GitHubCliAccountImportService', () => {
   });
 
   it('keeps existing linked accounts that are no longer reported by GitHub CLI', async () => {
-    await upsertGitHubAccount(fixture.registry, {
+    await connectGitHubAccount(fixture.connections, {
       accessToken: 'gho_existing',
       credentialSource: 'cli',
       providerAccount: {
@@ -136,7 +136,9 @@ describe('GitHubCliAccountImportService', () => {
     await expect(fixture.registry.listAccounts(GITHUB_PROVIDER_ID)).resolves.toHaveLength(2);
     await expect(
       fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:168')
-    ).resolves.toBe('gho_existing');
+    ).resolves.toBe(
+      JSON.stringify({ accessToken: 'gho_existing', apiBaseUrl: 'https://api.github.com' })
+    );
   });
 
   it('ignores CLI entries that cannot be resolved to a GitHub user', async () => {
@@ -193,7 +195,12 @@ describe('GitHubCliAccountImportService', () => {
     expect(getAuthenticatedUser).toHaveBeenCalledWith('ghes_enterprise', 'ghe.example.com');
     await expect(
       fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'ghe.example.com:168')
-    ).resolves.toBe('ghes_enterprise');
+    ).resolves.toBe(
+      JSON.stringify({
+        accessToken: 'ghes_enterprise',
+        apiBaseUrl: 'https://ghe.example.com/api/v3',
+      })
+    );
   });
 
   it('uses the CLI hosts map key as the authoritative account host', async () => {
@@ -220,7 +227,7 @@ describe('GitHubCliAccountImportService', () => {
   });
 
   it('re-imports previously removed CLI accounts that are still logged in to gh', async () => {
-    const { account } = await upsertGitHubAccount(fixture.registry, {
+    const { account } = await connectGitHubAccount(fixture.connections, {
       accessToken: 'gho_monalisa',
       credentialSource: 'cli',
       providerAccount: {

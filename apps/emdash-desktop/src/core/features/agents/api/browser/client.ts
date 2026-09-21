@@ -11,8 +11,8 @@ export function getAgentsClient(): Promise<AgentsRpcClient> {
   return domainClient<AgentsRpcClient>(agentsDomain, agentsContract);
 }
 
-export async function unwrapAgentsResult<T>(
-  result: Promise<Result<T, RuntimeResolveError>>
+export async function unwrapAgentsResult<T, E = RuntimeResolveError>(
+  result: Promise<Result<T, E>>
 ): Promise<T> {
   const resolved = await result;
   if (!resolved.success) throw resolved.error;

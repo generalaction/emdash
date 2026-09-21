@@ -24,10 +24,6 @@ export const issuesContract = defineContract({
     input: voidInput,
     output: z.custom<ConnectionStatusMap>(),
   }),
-  checkConfiguredConnections: procedure({
-    input: voidInput,
-    output: z.custom<Record<IssueProviderType, boolean>>(),
-  }),
   listIssues: procedure({
     input: z.object({
       provider: z.custom<IssueProviderType>(),

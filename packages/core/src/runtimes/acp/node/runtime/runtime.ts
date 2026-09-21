@@ -3,7 +3,6 @@ import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { LiveLogSource } from '@emdash/wire/live';
 import type {
-  AcpAttachmentError,
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
   AcpDeleteQueuedPromptError,
@@ -11,21 +10,17 @@ import type {
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpLoadHistoryError,
-  AcpPurgeConversationDataError,
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetOptionError,
   AcpStartError,
   AcpTerminateError,
-  AttachmentMimeType,
-  AttachmentRef,
   LoadHistoryResult,
   PromptInput,
   PromptPlacement,
   SessionState,
   TerminalState,
 } from '#runtimes/acp/api';
-import { acpErr } from '#runtimes/acp/api';
 import { buildAgentClient } from '#runtimes/acp/node/agent-ports/agent-client';
 import { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
@@ -35,7 +30,6 @@ import {
   type AcpConnectionSource,
 } from '#runtimes/acp/node/connection/source';
 import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
-import type { StoredAttachment } from './attachment-store';
 import { SessionManager, type AcpWakeFailure } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
@@ -177,49 +171,6 @@ export class AcpRuntime {
 
   killAllTerminals(): Promise<void> {
     return this.manager.killAllTerminals();
-  }
-
-  async uploadAttachment(input: {
-    conversationId: string;
-    data: Uint8Array;
-    mimeType: AttachmentMimeType;
-    name?: string;
-  }): Promise<Result<AttachmentRef, AcpAttachmentError>> {
-    if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    return ok(await this.deps.attachmentStore.put(input));
-  }
-
-  async downloadAttachment(
-    conversationId: string,
-    attachmentId: string
-  ): Promise<Result<StoredAttachment, AcpAttachmentError>> {
-    if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    const stored = await this.deps.attachmentStore.get(conversationId, attachmentId);
-    if (!stored) return acpErr.attachmentNotFound(attachmentId);
-    return ok(stored);
-  }
-
-  async deleteAttachment(
-    conversationId: string,
-    attachmentId: string
-  ): Promise<Result<void, AcpAttachmentError>> {
-    if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    await this.deps.attachmentStore.delete(conversationId, attachmentId);
-    return ok();
-  }
-
-  /**
-   * Conversation-deletion cleanup (spec §3.6): removes the conversation's attachment
-   * directory. Idempotent; a runtime without attachment storage has nothing to clean.
-   */
-  async purgeConversationData(
-    conversationId: string
-  ): Promise<Result<void, AcpPurgeConversationDataError>> {
-    const terminated = await this.terminateSession(conversationId);
-    if (!terminated.success) return terminated;
-    if (!this.deps.attachmentStore) return ok();
-    await this.deps.attachmentStore.deleteConversation(conversationId);
-    return ok();
   }
 
   sessionLiveModels(conversationId: string): SessionLiveModels | null {

@@ -1,15 +1,8 @@
 import { z } from 'zod';
 import { acpPermissionRequestSchema } from './permissions';
 import { queuedPromptSchema } from './prompt';
-
-export const stopReasonSchema = z.enum([
-  'end_turn',
-  'max_tokens',
-  'max_turn_requests',
-  'refusal',
-  'cancelled',
-]);
-export type StopReason = z.infer<typeof stopReasonSchema>;
+import { stopReasonSchema } from './stop-reason';
+import { transcriptSnapshotSchema } from './transcript';
 
 /**
  * ACP session lifecycle owned by the SessionMachine.
@@ -37,6 +30,10 @@ export const sessionStateSchema = z.object({
   suspended: z.literal(true).optional(),
   /** Current control-plane turn id, or null when no prompt/replay turn is active. */
   activeTurnId: z.string().nullable(),
+  /** Generation-local revision of all committed-history changes (legacy notification). */
+  historyRevision: z.number().int().nonnegative().optional(),
+  /** Coherent transcript position and live turn. Absent on older runtimes or before activation. */
+  transcript: transcriptSnapshotSchema.optional(),
   pendingPermissions: z.array(acpPermissionRequestSchema),
   /** Last ACP prompt stop reason observed by the machine; separate from transcript outcomes. */
   lastStopReason: stopReasonSchema.nullable(),

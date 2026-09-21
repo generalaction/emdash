@@ -1,26 +1,42 @@
-import type { IntegrationCredentials } from '@emdash/plugins/integrations';
+import { randomUUID } from 'node:crypto';
+import type { IntegrationCredentials, VerifyResult } from '@emdash/plugins/integrations';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import type { Logger } from '@emdash/shared/logger';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
+import { toProviderAccountSummary } from '@core/primitives/provider-accounts/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
-import { DEFAULT_INTEGRATION_ACCOUNT_ID } from './integration-credential-store';
-import type { IntegrationCredentialStore } from './integration-credential-store';
+import type {
+  ProviderAccount,
+  ProviderAccountStore,
+} from '@core/services/provider-accounts/api/provider-account-store';
+import type { IntegrationConnectOptions } from '../api/contract';
+import {
+  accountIdentity,
+  identityScope,
+  sameIdentity,
+  checkIntegrationConnection,
+} from '../api/node/account-verification';
+import type {
+  IntegrationConnectionResult,
+  IntegrationConnections,
+} from '../api/node/integration-accounts';
+import type { IntegrationAccountStore } from './integration-account-store';
+import { findMatchingLegacyAccount } from './migrations/legacy-integration-accounts';
 
-type ConnectResult =
-  | { success: true; displayName?: string; displayDetail?: string }
-  | { success: false; error: string };
-
-export class IntegrationConnectionService {
+export class IntegrationConnectionService implements IntegrationConnections {
   constructor(
-    private readonly credentials: IntegrationCredentialStore,
-    private readonly telemetry: TelemetryService,
-    private readonly logger: Logger
+    private readonly accounts: ProviderAccountStore,
+    private readonly credentials: IntegrationAccountStore,
+    private readonly telemetry: Pick<TelemetryService, 'capture'>,
+    private readonly logger: Logger,
+    private readonly onAccountsChanged?: (providerId: string) => void
   ) {}
 
   async connect(
     integrationId: string,
-    credentials: IntegrationCredentials
-  ): Promise<ConnectResult> {
+    credentials: IntegrationCredentials,
+    options: IntegrationConnectOptions & { credentialSource?: string } = {}
+  ): Promise<IntegrationConnectionResult> {
     const plugin = integrationPluginRegistry.get(integrationId);
     if (!plugin) return { success: false, error: `Unknown integration: ${integrationId}` };
 
@@ -32,31 +48,88 @@ export class IntegrationConnectionService {
       };
     }
 
-    await this.credentials.upsertAccount(integrationId, {
-      accountId: result.account
-        ? `${result.account.host ?? integrationId}:${result.account.id}`
-        : DEFAULT_INTEGRATION_ACCOUNT_ID,
-      ...(result.displayName ? { displayName: result.displayName } : {}),
-      credentials: result.credentials ?? credentials,
+    return this.connectVerified(integrationId, result, options);
+  }
+
+  /** Trusted auth adapters may supply an identity already verified by their auth flow. */
+  async connectVerified(
+    integrationId: string,
+    result: Extract<VerifyResult, { connected: true }>,
+    options: IntegrationConnectOptions & { credentialSource?: string } = {}
+  ): Promise<IntegrationConnectionResult> {
+    const plugin = integrationPluginRegistry.get(integrationId);
+    if (!plugin) return { success: false, error: `Unknown integration: ${integrationId}` };
+
+    await this.credentials.prepare(integrationId);
+    let existing: ProviderAccount | null = null;
+    if (options.accountId) {
+      existing = await this.accounts.getAccount(integrationId, options.accountId);
+      if (!existing) return { success: false, error: 'Account not found. Add a new account.' };
+      const identity = accountIdentity(existing);
+      if (identity && (!result.account || !sameIdentity(integrationId, identity, result.account))) {
+        return { success: false, error: 'These credentials belong to a different account.' };
+      }
+    } else if (result.account) {
+      const identity = result.account;
+      existing =
+        (await this.accounts.listAccounts(integrationId)).find((candidate) => {
+          const knownIdentity = accountIdentity(candidate);
+          return knownIdentity && sameIdentity(integrationId, knownIdentity, identity);
+        }) ?? null;
+      if (!existing) {
+        existing = await findMatchingLegacyAccount(
+          integrationId,
+          this.accounts,
+          async (accountId) =>
+            (await this.credentials.getAccount(integrationId, accountId))?.credentials ?? null,
+          async (legacyCredentials) => {
+            const previous = await plugin.behavior.auth?.verify(
+              { log: this.logger },
+              legacyCredentials
+            );
+            return (
+              !!previous?.connected &&
+              !!previous.account &&
+              sameIdentity(integrationId, previous.account, identity)
+            );
+          }
+        );
+      }
+    }
+    const label = options.displayName?.trim() || existing?.meta?.label;
+    const verifiedDisplayName = result.displayName || existing?.meta?.displayName;
+    const displayName = label || verifiedDisplayName;
+    if (!result.account && !displayName) {
+      return {
+        success: false,
+        error: 'Enter an account name so you can identify this connection.',
+      };
+    }
+    const accountId =
+      existing?.accountId ??
+      (result.account
+        ? `${identityScope(integrationId, result.account)}:${result.account.id}`
+        : `${integrationId}:${randomUUID()}`);
+    const saved = await this.credentials.upsertAccount(integrationId, {
+      accountId,
+      ...(verifiedDisplayName ? { displayName: verifiedDisplayName } : {}),
+      ...(label ? { label } : {}),
+      ...(result.displayDetail ? { displayDetail: result.displayDetail } : {}),
+      ...(result.account ? { identity: result.account } : {}),
+      credentials: result.credentials,
+      credentialSource: options.credentialSource ?? existing?.meta?.credentialSource,
     });
     this.telemetry.capture('integration_connected', { provider: integrationId });
+    this.onAccountsChanged?.(integrationId);
 
     return {
       success: true,
-      displayName: result.displayName,
+      accountId,
+      displayName,
       displayDetail: result.displayDetail,
+      account: toProviderAccountSummary(saved.account),
+      status: saved.status,
     };
-  }
-
-  async disconnect(integrationId: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      await this.credentials.delete(integrationId);
-      this.telemetry.capture('integration_disconnected', { provider: integrationId });
-      return { success: true };
-    } catch (error) {
-      this.logger.error('Failed to disconnect integration', { integrationId, error });
-      return { success: false, error: 'Unable to remove credentials from secure storage.' };
-    }
   }
 
   async checkConnection(
@@ -64,42 +137,9 @@ export class IntegrationConnectionService {
     capabilities: ConnectionStatus['capabilities'],
     accountId?: string
   ): Promise<ConnectionStatus> {
-    const plugin = integrationPluginRegistry.get(integrationId);
-    if (!plugin) {
-      return {
-        connected: false,
-        error: `Unknown integration: ${integrationId}`,
-        capabilities,
-      };
-    }
-
-    const account = await this.credentials.getAccount(integrationId, accountId);
-    if (!account) return { connected: false, capabilities };
-
-    try {
-      const result = await plugin.behavior.auth?.verify({ log: this.logger }, account.credentials);
-      if (!result?.connected) {
-        return { connected: false, error: result?.error, capabilities };
-      }
-      if (result.credentials) {
-        await this.credentials.upsertAccount(integrationId, {
-          ...account,
-          credentials: result.credentials,
-        });
-      }
-      return {
-        connected: true,
-        displayName: result.displayName,
-        displayDetail: result.displayDetail,
-        capabilities,
-      };
-    } catch (error) {
-      return {
-        connected: false,
-        error: error instanceof Error ? error.message : 'Connection check failed.',
-        capabilities,
-      };
-    }
+    return checkIntegrationConnection(integrationId, capabilities, this.logger, () =>
+      this.credentials.getAccount(integrationId, accountId)
+    );
   }
 }
 

@@ -3,6 +3,7 @@ import {
   registerPluginBehavior,
 } from '@emdash/core/services/agent-plugins/api/plugins';
 import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+import { buildAntigravityHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -16,6 +17,11 @@ export const plugin = definePlugin(
   {
     autoApprove: {
       kind: 'supported',
+    },
+    hooks: {
+      kind: 'config',
+      scope: 'global',
+      supportedEvents: ['session', 'start', 'stop'],
     },
     models: {
       kind: 'selectable',
@@ -93,13 +99,19 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  hooks: buildAntigravityHookConfig(),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--dangerously-skip-permissions',
         initialPromptFlag: '-i',
+        // --conversation resumes an existing native agy session by id; passing an
+        // unknown id makes agy warn and mint a fresh session, so only pass the
+        // hook-captured native id on resume and fall back to -c (most recent).
+        resumeFlag: '--conversation=',
         sessionIdFlag: '--conversation=',
-        sessionIdAlways: true,
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '-c',
         modelFlag: '--model',
       }),
   },

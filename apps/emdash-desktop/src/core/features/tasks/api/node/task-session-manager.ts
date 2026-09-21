@@ -7,11 +7,18 @@ import {
 import { ok, type Result } from '@emdash/shared';
 import {
   createLifecycleRegistry,
+  KeyedMutex,
   type LifecycleRegistryState,
   type LifecycleRegistryStateChange,
 } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
-import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
+import {
+  runWithTimeout,
+  throwIfAborted,
+  TimeoutError,
+  waitWithSignal,
+  type Clock,
+} from '@emdash/shared/scheduling';
 import type {
   ProvisionResult,
   TaskProvider,
@@ -57,6 +64,7 @@ type TaskLifecycleStateChange = LifecycleRegistryStateChange<
 >;
 
 export type TaskSessionManagerDependencies = {
+  clock?: Clock;
   db: AppDb;
   deactivateWorkspaceParticipants(identity: WorkspaceIdentity): Promise<void>;
   runtimes: RuntimeBroker;
@@ -160,10 +168,24 @@ export class TaskSessionManager {
     onObserverError: ({ error }) => log.error('TaskManager: lifecycle observer error', { error }),
   });
   private readonly _tasksByProject = new Map<string, Set<string>>();
+  private readonly _workspaceLifecycle = new KeyedMutex();
 
   readonly hooks: Hookable<TaskManagerHooks> = this._hooks;
 
   constructor(private readonly dependencies: TaskSessionManagerDependencies) {}
+
+  withWorkspaceLifecycle<T>(
+    workspaceId: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal
+  ): Promise<T> {
+    throwIfAborted(signal);
+    const pending = this._workspaceLifecycle.runExclusive(workspaceId, async () => {
+      throwIfAborted(signal);
+      return operation();
+    });
+    return signal ? waitWithSignal(pending, signal) : pending;
+  }
 
   /**
    * Registers a fully-provisioned task into the lifecycle map.
@@ -199,9 +221,36 @@ export class TaskSessionManager {
 
   async teardownTask(
     taskId: string,
-    mode: TaskTeardownMode = 'terminate'
+    mode: TaskTeardownMode = 'terminate',
+    workspaceId?: string
   ): Promise<Result<void, TeardownTaskError>> {
-    return this._lifecycle.stop(taskId, mode);
+    const targetWorkspaceId = this.getWorkspaceId(taskId) ?? workspaceId;
+    const stop = async (): Promise<Result<void, TeardownTaskError>> => {
+      try {
+        if (!this._lifecycle.has(taskId) && targetWorkspaceId && mode !== 'detach') {
+          await this.deactivateWorkspaceIfUnused(taskId, targetWorkspaceId);
+          return ok();
+        }
+        return await this._lifecycle.stop(taskId, mode);
+      } finally {
+        if (mode === 'archive') await this._lifecycle.forceRemove(taskId, 'task archived');
+      }
+    };
+    try {
+      return await runWithTimeout(
+        (signal) =>
+          targetWorkspaceId ? this.withWorkspaceLifecycle(targetWorkspaceId, stop, signal) : stop(),
+        { timeoutMs: TASK_TIMEOUT_MS, clock: this.dependencies.clock }
+      );
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof TimeoutError
+            ? { type: 'timeout', message: error.message, timeout: error.durationMs }
+            : { type: 'error', message: error instanceof Error ? error.message : String(error) },
+      };
+    }
   }
 
   async forceRemoveTask(taskId: string, reason?: unknown): Promise<void> {
@@ -294,32 +343,23 @@ export class TaskSessionManager {
     mode: TaskTeardownMode
   ): Promise<Result<void, TeardownTaskError>> {
     try {
-      await runWithTimeout(
-        async () => {
-          await executeTeardown(
-            this.dependencies,
-            taskProvider,
-            persistData.workspaceId,
-            mode,
-            runtimeWorkspace
-          );
-          this.removeTaskFromProjectIndex(projectId, taskId);
-          if (!this.hasOtherTaskForWorkspace(taskId, persistData.workspaceId)) {
-            const identity = await this.dependencies.workspaceIdentity.resolve(
-              persistData.workspaceId
-            );
-            if (identity) {
-              await this.dependencies.deactivateWorkspaceParticipants(identity);
-              // Terminate/archive deactivate on the host (kill sessions + teardown
-              // script); detach leaves the workspace active for a later remount.
-              if (mode !== 'detach') await this.deactivateOnHost(identity);
-            }
-          }
-        },
-        {
-          timeoutMs: TASK_TIMEOUT_MS,
-        }
+      await executeTeardown(
+        this.dependencies,
+        taskProvider,
+        persistData.workspaceId,
+        mode,
+        runtimeWorkspace
       );
+      this.removeTaskFromProjectIndex(projectId, taskId);
+      if (!this.hasOtherTaskForWorkspace(taskId, persistData.workspaceId)) {
+        const identity = await this.dependencies.workspaceIdentity.resolve(persistData.workspaceId);
+        if (identity) {
+          await this.dependencies.deactivateWorkspaceParticipants(identity);
+          // Terminate/archive deactivate on the host (kill sessions + teardown
+          // script); detach leaves the workspace active for a later remount.
+          if (mode !== 'detach') await this.deactivateOnHost(identity);
+        }
+      }
       return ok();
     } catch (e) {
       log.error('TaskManager: failed to teardown task', { taskId, error: String(e) });
@@ -348,7 +388,7 @@ export class TaskSessionManager {
   /**
    * Best-effort host-side deactivation (registry verb: kill sessions + teardown
    * script). An unreachable host or an unregistered workspace only warns — desktop
-   * teardown already reaped this task's own sessions.
+   * archive can still complete, including when this task was never mounted.
    */
   private async deactivateOnHost(identity: WorkspaceIdentity): Promise<void> {
     const client = await this.dependencies.runtimes.client(identity.host);
@@ -368,6 +408,14 @@ export class TaskSessionManager {
         error: deactivated.error,
       });
     }
+  }
+
+  private async deactivateWorkspaceIfUnused(taskId: string, workspaceId: string): Promise<void> {
+    if (this.hasOtherTaskForWorkspace(taskId, workspaceId)) return;
+    const identity = await this.dependencies.workspaceIdentity.resolve(workspaceId);
+    if (!identity) return;
+    await this.dependencies.deactivateWorkspaceParticipants(identity);
+    await this.deactivateOnHost(identity);
   }
 
   private hasOtherTaskForWorkspace(taskId: string, workspaceId: string): boolean {

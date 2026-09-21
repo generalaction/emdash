@@ -1,7 +1,8 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
+import { Github } from 'lucide-react';
 import { useId } from 'react';
-import { GitHubIdentityStrip } from '@core/features/github/contributions/browser/identity-strip';
+import { ProviderIdentityStrip } from '@core/features/integrations/contributions/browser/provider-identity-strip';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { Resolved } from '@core/primitives/project-settings/api';
 import { type Strategy } from './add-project-modal';
@@ -173,7 +174,15 @@ export function CreateRepositoryPanel({
           />
         </Field.Root>
       </Field.Group>
-      <GitHubIdentityStrip
+      <ProviderIdentityStrip
+        providerName="GitHub"
+        providerIcon={<Github className="size-4 text-foreground-muted" />}
+        actionLabel="Creating as"
+        emptyState={{
+          connect: 'Connect a GitHub account to continue.',
+          unavailable: 'Choose a GitHub account to continue.',
+          noMatch: 'No connected account matches this repository.',
+        }}
         resolved={resolvedAccount}
         accounts={accounts}
         override={overrideAccount}

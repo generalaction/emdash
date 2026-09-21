@@ -12,6 +12,7 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { createWorkspaceRegistryController } from './api/controller';
 import { createRegistryGitContext } from './git-context';
 
@@ -70,6 +71,7 @@ describe('workspace registry git context composition', () => {
   it('creation starts immediately under a saturated probe budget', async () => {
     const gitContext = createRegistryGitContext({ capacity: 2, headroom: 2 });
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock: new ManualClock(10_000),
       gitContext,

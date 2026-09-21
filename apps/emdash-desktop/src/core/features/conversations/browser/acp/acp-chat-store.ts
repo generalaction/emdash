@@ -1,22 +1,22 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
 import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type {
-  AttachmentMimeType,
-  AttachmentRef,
   PromptAttachment,
   PromptInput,
   QueuedPrompt,
   SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
+import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/services/attachments/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock } from '@emdash/shared/scheduling';
-import type {
-  CommandItem,
-  ComposerCollaborationModeOption,
-  ComposerEffortOption,
-  ComposerModelOption,
-  ComposerPermissionModeOption,
-  ComposerQueuedPrompt,
+import {
+  PromptEditorModel,
+  type CommandItem,
+  type ComposerCollaborationModeOption,
+  type ComposerEffortOption,
+  type ComposerModelOption,
+  type ComposerPermissionModeOption,
+  type ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
 import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
@@ -95,17 +95,23 @@ type PermissionQueueItem = {
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
   | { kind: 'unavailable'; message: string }
+  | { kind: 'history_unavailable'; message: string }
   | { kind: 'generic'; message: string };
 
 export class AcpChatStore {
   readonly chatContext: ChatContext;
   readonly chatState: ChatState;
+  readonly composerModel = new PromptEditorModel();
 
   session: AcpLiveSession | null = null;
   historyLoading = true;
+  historyKnown: boolean;
   loadError: AcpLoadError | null = null;
   messageCount = 0;
-  draftText = '';
+  private readonly _draftText = observable.box('');
+  get draftText(): string {
+    return this._draftText.get();
+  }
   draftAttachments: AcpPromptAttachment[] = [];
   unconfirmedPromptIds: string[] = [];
 
@@ -115,8 +121,9 @@ export class AcpChatStore {
   private readonly _scope: Scope;
   private readonly _draftSpace: SubjectSpace<'conversation'>;
   private readonly _draftHandle: MementoHandle<AcpDraftState>;
+  private readonly _disposeComposerSubscription: () => void;
   private readonly _disposeHostReaction: () => void;
-  private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
+  private _attachmentsClientPromise: Promise<ConversationsClient['attachments']> | null = null;
   private _submissionSequence = 0;
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
@@ -132,6 +139,8 @@ export class AcpChatStore {
     readonly taskId: string,
     readonly hostAccess?: ProjectHostAccess
   ) {
+    const conversation = conversationRegistry.get(taskId)?.conversations.get(conversationId)?.data;
+    this.historyKnown = conversation !== undefined && !conversation.sessionId;
     this.chatContext = getSharedChatContext();
     this._scope = createScope({ label: `acp-chat:${conversationId}` });
     this.chatState = getChatUiRuntime().createChatState(this.chatContext, {
@@ -146,9 +155,10 @@ export class AcpChatStore {
     makeObservable(this, {
       session: observable.ref,
       historyLoading: observable,
+      historyKnown: observable,
       loadError: observable,
       messageCount: observable,
-      draftText: observable,
+      draftText: computed,
       draftAttachments: observable.shallow,
       unconfirmedPromptIds: observable.shallow,
       model: computed,
@@ -182,6 +192,9 @@ export class AcpChatStore {
       removeDraftAttachment: action,
       exportTranscript: action,
       retry: action,
+    });
+    this._disposeComposerSubscription = this.composerModel.subscribe(() => {
+      runInAction(() => this._draftText.set(this.composerModel.getText()));
     });
     const initialHost = this.hostAccess?.state;
     this._attachedHostGeneration =
@@ -230,7 +243,7 @@ export class AcpChatStore {
         runInAction(() => {
           if (this._disposed || this.draftText !== '' || this.draftAttachments.length > 0) return;
           const stored = this._draftHandle.value;
-          this.draftText = stored.text;
+          this.composerModel.setText(stored.text);
           this.draftAttachments = stored.attachments.map((attachment) => ({
             ref: { type: 'attachment', ...attachment },
           }));
@@ -360,7 +373,7 @@ export class AcpChatStore {
   }
 
   get isEmpty(): boolean {
-    return !this.historyLoading && this.messageCount === 0;
+    return this.historyKnown && this.messageCount === 0;
   }
 
   bootstrap(): void {
@@ -397,8 +410,8 @@ export class AcpChatStore {
   async uploadAttachment(input: AcpAttachmentUploadInput): Promise<AttachmentRef | null> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return null;
     try {
-      const client = await this._getAcpClient();
-      const result = await client.uploadAttachment(
+      const client = await this._getAttachmentsClient();
+      const result = await client.upload(
         { conversationId: this.conversationId },
         {
           name: input.name ?? 'attachment',
@@ -419,8 +432,8 @@ export class AcpChatStore {
   }
 
   async downloadAttachment(id: string) {
-    const client = await this._getAcpClient();
-    const result = await client.downloadAttachment({
+    const client = await this._getAttachmentsClient();
+    const result = await client.download({
       conversationId: this.conversationId,
       attachmentId: id,
     });
@@ -436,8 +449,8 @@ export class AcpChatStore {
 
   async deleteAttachment(id: string): Promise<void> {
     try {
-      const client = await this._getAcpClient();
-      const result = await client.deleteAttachment({
+      const client = await this._getAttachmentsClient();
+      const result = await client.delete({
         conversationId: this.conversationId,
         attachmentId: id,
       });
@@ -457,7 +470,7 @@ export class AcpChatStore {
     const submissionSequence = ++this._submissionSequence;
     const promptId = crypto.randomUUID();
     let optimisticId: string | undefined;
-    this.draftText = '';
+    this.composerModel.clear();
     this.draftAttachments = [];
     if (!this.affordances.isWorking) {
       optimisticId = promptId;
@@ -481,15 +494,14 @@ export class AcpChatStore {
           this._syncMessageCount();
         }
         if (this.draftText !== '' || this.draftAttachments.length > 0) return;
-        this.draftText = text;
+        this.composerModel.setText(text);
         this.draftAttachments = attachments;
       });
     });
   }
 
   setDraftText(text: string): void {
-    if (text === this.draftText) return;
-    this.draftText = text;
+    this.composerModel.setText(text);
   }
 
   addDraftAttachments(attachments: AcpPromptAttachment[]): void {
@@ -635,6 +647,8 @@ export class AcpChatStore {
     this._unsubs.splice(0).forEach((unsub) => unsub());
     this.session?.dispose();
     this.chatState.dispose();
+    this._disposeComposerSubscription();
+    this.composerModel.dispose();
     void this._scope
       .dispose()
       .then(() => this._draftSpace.release())
@@ -642,6 +656,8 @@ export class AcpChatStore {
   }
 
   private async _runBootstrap(): Promise<void> {
+    const epoch = ++this._historyEpoch;
+    if (this._disposed) return;
     if (this.hostAccess?.liveAction.kind === 'disabled') {
       runInAction(() => {
         this.historyLoading = false;
@@ -658,6 +674,10 @@ export class AcpChatStore {
     try {
       const attachedSession = await AcpLiveSession.create(this.conversationId);
       clientSession = attachedSession;
+      if (this._disposed || this._historyEpoch !== epoch) {
+        attachedSession.dispose();
+        return;
+      }
 
       runInAction(() => {
         this.session?.dispose();
@@ -666,7 +686,16 @@ export class AcpChatStore {
       });
 
       const history = await attachedSession.loadHistory(undefined, 100);
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
       if (!history.success) throw new AcpStartError(history.error);
+      if (history.data.unavailable && !this.historyKnown && this.messageCount === 0) {
+        this._failBootstrap({
+          kind: 'history_unavailable',
+          message: 'Conversation history is unavailable. Retry loading this conversation.',
+        });
+        return;
+      }
       if (history.data.clearedConfiguration?.length) {
         await this._rememberPreference(
           Object.fromEntries(history.data.clearedConfiguration.map((key) => [key, null])) as {
@@ -678,39 +707,50 @@ export class AcpChatStore {
         );
       }
 
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
       runInAction(() => {
-        if (!history.data.unavailable) {
-          this.chatState.transcript.history.seed(history.data.turns);
-        }
+        const applied = this.chatState.transcript.applyPage(history.data);
+        if (applied) this.historyKnown = true;
         this.historyLoading = false;
         this.loadError = null;
         this._bootstrapFailed = false;
         this._syncMessageCount();
       });
+      if (this._historyRefreshRequested || this.chatState.transcript.needsHistory)
+        this._requestHistoryRefresh();
       void this._rehydrateDraftAttachmentPreviews();
     } catch (error) {
+      if (this._disposed || this._historyEpoch !== epoch) {
+        if (clientSession && this.session !== clientSession) clientSession.dispose();
+        return;
+      }
       log.error('ACP chat bootstrap failed', {
         conversationId: this.conversationId,
         projectId: this.projectId,
         taskId: this.taskId,
         error,
       });
-      runInAction(() => {
-        if (clientSession && this.session !== clientSession) clientSession.dispose();
-        this._bootstrapFailed = true;
-        this.historyLoading = false;
-        this.loadError =
-          this.hostAccess?.liveAction.kind === 'disabled'
-            ? {
-                kind: 'unavailable',
-                message: 'Live chat is unavailable until Project access returns.',
-              }
-            : toLoadError(error);
-      });
+      if (clientSession && this.session !== clientSession) clientSession.dispose();
+      this._failBootstrap(toLoadError(error));
       if (this.loadError?.kind === 'auth_required' && providerId) {
         void this._refreshAuthStatus(providerId);
       }
     }
+  }
+
+  private _failBootstrap(error: AcpLoadError): void {
+    runInAction(() => {
+      this._bootstrapFailed = true;
+      this.historyLoading = false;
+      this.loadError =
+        this.hostAccess?.liveAction.kind === 'disabled'
+          ? {
+              kind: 'unavailable',
+              message: 'Live chat is unavailable until Project access returns.',
+            }
+          : error;
+    });
   }
 
   private _recoverAttachment(session: AcpLiveSession, generation: number | undefined): void {
@@ -728,8 +768,11 @@ export class AcpChatStore {
             this._attachedHostGeneration = generation;
             runInAction(() => {
               // Reattachment alone cannot recover a failed history/bootstrap load.
-              if (this._bootstrapFailed) this.retry();
-              else {
+              if (this._bootstrapFailed || (this._bootstrapped && this.historyLoading)) {
+                this.historyLoading = true;
+                this.loadError = null;
+                void this._runBootstrap();
+              } else {
                 this.loadError = null;
                 this._requestHistoryRefresh();
               }
@@ -886,6 +929,7 @@ export class AcpChatStore {
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
     let previousLifecycle = session.sessionState.current().lifecycle;
+    let previousHistoryRevision = session.sessionState.current().historyRevision;
     const disconnectChatSession = getChatUiRuntime().connectSession(
       this.chatState,
       {
@@ -897,16 +941,20 @@ export class AcpChatStore {
         onTurnCommitted: () => this._requestHistoryRefresh(),
       }
     );
+    this._syncMessageCount();
     this._unsubs.push(
       disconnectChatSession,
       this._bindTerminalOutputs(session),
       session.sessionState.onChange((state) => {
         const replayCompleted = previousLifecycle === 'replaying' && state.lifecycle === 'ready';
+        const historyChanged = previousHistoryRevision !== state.historyRevision;
         previousLifecycle = state.lifecycle;
+        previousHistoryRevision = state.historyRevision;
         runInAction(() => {
           this._syncMessageCount();
         });
-        if (replayCompleted) this._requestHistoryRefresh();
+        if (historyChanged || (replayCompleted && !this.historyLoading))
+          this._requestHistoryRefresh();
       }),
       session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount()))
     );
@@ -941,9 +989,11 @@ export class AcpChatStore {
     );
   }
 
-  private _getAcpClient(): Promise<ConversationsClient['acp']> {
-    this._acpClientPromise ??= getConversationsClient().then((client) => client.acp);
-    return this._acpClientPromise;
+  private _getAttachmentsClient(): Promise<ConversationsClient['attachments']> {
+    this._attachmentsClientPromise ??= getConversationsClient().then(
+      (client) => client.attachments
+    );
+    return this._attachmentsClientPromise;
   }
 
   private async _rememberPreference(patch: {
@@ -971,16 +1021,19 @@ export class AcpChatStore {
 
   private _requestHistoryRefresh(): void {
     this._historyRefreshRequested = true;
-    if (this._historyRefreshTask) return;
+    if (this._historyRefreshTask || this.historyLoading) return;
 
     const task = Promise.resolve()
       .then(async () => {
         let attempt = 0;
-        while (this._historyRefreshRequested && !this._disposed) {
+        while (this._historyRefreshRequested && !this._disposed && !this.historyLoading) {
           this._historyRefreshRequested = false;
           if (await this._refreshHistory()) {
             attempt = 0;
           } else {
+            // A newer head arrived during the read: catch up immediately. Backoff is
+            // for unavailable/failed reads, not normal transcript progress.
+            if (this._historyRefreshRequested) continue;
             this._historyRefreshRequested = true;
             await systemClock.sleep(Math.min(1_000 * 2 ** attempt++, 15_000), {
               signal: this._scope.signal,
@@ -1004,32 +1057,61 @@ export class AcpChatStore {
     if (!session || !session.usable || this.hostAccess?.liveAction.kind === 'disabled') return true;
 
     try {
-      const history = await session.loadHistory(undefined, 100);
-      if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
-      if (!history.success) throw new AcpStartError(history.error);
-      if (history.data.unavailable) return true;
-      // A waking prompt may begin between replay completion and this response. Do not let a
-      // replay-history seed reset the newly active turn; its normal completion refresh will seed
-      // the authoritative history instead.
-      if (this.chatState.transcript.state.activeTurnSnapshot !== null) return true;
-      runInAction(() => {
-        const pendingPrompt = this.chatState.session.state.pendingPrompt;
-        this.chatState.transcript.history.seed(history.data.turns);
-        if (pendingPrompt) {
-          const committed = history.data.turns.some((turn) =>
-            turn.items.some((item) => item.kind === 'message' && item.promptId === pendingPrompt.id)
-          );
-          this.chatState.session.setPendingPrompt(committed ? null : pendingPrompt);
-        }
-        this._syncMessageCount();
-      });
-      return true;
+      const transcript = this.chatState.transcript;
+      const oldestVisibleSeq = transcript.state.displayTurns[0]?.seq;
+      let before: number | undefined;
+      let revision: number | undefined;
+      let generation: string | undefined;
+      do {
+        const history = await session.loadHistory(before, 100);
+        if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
+        if (!history.success) throw new AcpStartError(history.error);
+        if (history.data.unavailable) return !transcript.needsHistory;
+        const position = history.data.position;
+        // A change between pages requires another pass over the loaded range, including
+        // its latest page. A newer old-page response alone cannot prove we caught up.
+        if (
+          before !== undefined &&
+          (position?.historyRevision !== revision || position?.generation !== generation)
+        )
+          return false;
+        revision = position?.historyRevision;
+        generation = position?.generation;
+        let applied = false;
+        runInAction(() => {
+          applied = transcript.applyPage(history.data);
+          if (!applied) return;
+          this.historyKnown = true;
+          this.loadError = null;
+          this._bootstrapFailed = false;
+          this._syncMessageCount();
+        });
+        if (!applied) return false;
+        const cursor = history.data.nextCursor;
+        if (
+          !position ||
+          cursor === null ||
+          oldestVisibleSeq === undefined ||
+          cursor <= oldestVisibleSeq
+        )
+          break;
+        if (before !== undefined && cursor >= before) return false;
+        before = cursor;
+      } while (!this._disposed);
+      return !transcript.needsHistory;
     } catch (error) {
+      if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
       log.warn('Failed to refresh ACP history', {
         conversationId: this.conversationId,
         error,
       });
-      return error instanceof AcpStartError && error.errorType === 'auth_required';
+      if (error instanceof AcpStartError) {
+        runInAction(() => {
+          this.loadError = toLoadError(error);
+        });
+        return true;
+      }
+      return false;
     }
   }
 
@@ -1039,18 +1121,15 @@ export class AcpChatStore {
       const accepted = new Set(
         this.session.sessionState.current().queuedPrompts.map((prompt) => prompt.id)
       );
-      const active = this.session.activeTurn.current();
-      for (const turn of [...state.committedTurns, ...(active ? [active] : [])]) {
+      const active = state.activeTurnSnapshot;
+      for (const turn of [...state.displayTurns, ...(active ? [active] : [])]) {
         for (const item of turn.items) {
           if (item.kind === 'message' && item.promptId) accepted.add(item.promptId);
         }
       }
       this.unconfirmedPromptIds = this.unconfirmedPromptIds.filter((id) => !accepted.has(id));
     }
-    const committedCount = state.committedTurns.reduce(
-      (count, turn) => count + turn.items.length,
-      0
-    );
+    const committedCount = state.displayTurns.reduce((count, turn) => count + turn.items.length, 0);
     const activeCount = state.activeTurnSnapshot?.items.length ?? 0;
     const pendingPromptCount = this.chatState.session.state.pendingPrompt ? 1 : 0;
     this.messageCount = committedCount + activeCount + pendingPromptCount;
@@ -1085,7 +1164,7 @@ async function resolveDraftAttachmentDataUrl(
   try {
     const result = await store.downloadAttachment(attachmentId);
     if (!result.success) {
-      return result.error.type === 'attachment_not_found'
+      return result.error.type === 'attachment-not-found'
         ? { kind: 'not_found' }
         : { kind: 'unavailable' };
     }

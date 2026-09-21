@@ -23,20 +23,6 @@ export type AgentGitCredentialsSetting = z.infer<typeof agentGitCredentialsSetti
 
 export const DEFAULT_AGENT_GIT_CREDENTIALS: AgentGitCredentialsSetting = 'effective-account';
 
-export const baseProjectSettingsSchema = z.object({
-  worktreeDirectory: z.string().trim().optional(),
-  defaultBranch: defaultBranchSettingSchema.optional(),
-  baseRemote: z.string().optional(),
-  pushRemote: z.string().optional(),
-  githubAccountId: z.string().trim().min(1).nullable().optional(),
-  agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
-  tmux: z.boolean().optional(),
-  autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
-  autoRunRunScriptOnTaskCreation: z.boolean().optional(),
-});
-
-export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;
-
 // --- Stored model (spec: github-git-settings §10) -------------------------
 // The persisted per-project base settings after lazy migration. Apart from
 // named migration markers, only explicit user choices are stored; absence of
@@ -49,10 +35,17 @@ export const storedDefaultBranchSchema = z.object({
   branch: z.string(),
 });
 
-export const storedGithubAccountSchema = z.union([
+export const storedIntegrationAccountSchema = z.union([
   z.object({ kind: z.literal('account'), accountId: z.string().trim().min(1) }),
   z.object({ kind: z.literal('none') }),
 ]);
+
+export type StoredIntegrationAccount = z.infer<typeof storedIntegrationAccountSchema>;
+
+/** Explicit per-integration account choices keyed by provider id. */
+export const storedIntegrationAccountsSchema = z.record(z.string(), storedIntegrationAccountSchema);
+
+export type StoredIntegrationAccounts = z.infer<typeof storedIntegrationAccountsSchema>;
 
 export const storedBaseProjectSettingsSchema = z.object({
   /** Renamed from the legacy `worktreeDirectory` key. */
@@ -60,7 +53,7 @@ export const storedBaseProjectSettingsSchema = z.object({
   defaultBranch: storedDefaultBranchSchema.optional(),
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
-  githubAccount: storedGithubAccountSchema.optional(),
+  integrationAccounts: storedIntegrationAccountsSchema.optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
   /** Lazy-migration marker; not a user setting. */
