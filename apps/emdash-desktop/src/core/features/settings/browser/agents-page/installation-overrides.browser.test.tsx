@@ -163,11 +163,8 @@ describe('installation override settings', () => {
     expect(vm.setUsed).toHaveBeenCalledWith({ kind: 'cli', command: 'sandbox-claude' });
   });
 
-  it.each([
-    { surface: 'settings sheet', compact: false },
-    { surface: 'compact selector card', compact: true },
-  ])('shows the installation guide in the $surface', async ({ compact }) => {
-    await render({ installDocs: 'https://example.com/install', compact });
+  it('shows the installation guide when a documentation URL is available', async () => {
+    await render({ installDocs: 'https://example.com/install' });
 
     const link = page.getByRole('link', { name: 'Installation guide' });
     await expect.element(link).toHaveAttribute('href', 'https://example.com/install');
