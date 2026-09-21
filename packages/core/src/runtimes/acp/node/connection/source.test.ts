@@ -9,6 +9,7 @@ import {
   testPluginHost,
 } from '#runtimes/acp/node/acp-test-support';
 import type { AgentPluginHost, IAcpBehavior } from '#services/agent-plugins/api/plugins';
+import type { AgentHookInstaller } from '#services/agent-plugins/node';
 import {
   acpConnectionCacheKey,
   createAcpConnectionSource,
@@ -145,6 +146,34 @@ describe('createAcpConnectionSource', () => {
       cwd: '/tmp/workspace',
       env,
     });
+  });
+
+  it('ensures provider hooks are installed for this connection before spawning', async () => {
+    const host = new FakeAcpProcessHost();
+    const ensureHooksInstalled = vi.fn(async () => true);
+    const deps = {
+      ...sourceDeps(host),
+      hookInstaller: { ensureHooksInstalled } as unknown as AgentHookInstaller,
+    };
+    const source = createAcpConnectionSource(deps);
+    const env = { CLAUDE_CONFIG_DIR: '/home/axoniq/.claude' };
+
+    await acquireResourceAsResult(source, { ...connectionKey(), env }, isAcpConnectionError);
+
+    expect(ensureHooksInstalled).toHaveBeenCalledWith({
+      providerId: 'claude',
+      workspacePath: '/tmp/workspace',
+      env,
+    });
+  });
+
+  it('does not block a connection when hook installation is omitted', async () => {
+    const host = new FakeAcpProcessHost();
+    const source = createAcpConnectionSource(sourceDeps(host));
+
+    const result = await acquireResourceAsResult(source, connectionKey(), isAcpConnectionError);
+
+    expect(isOk(result)).toBe(true);
   });
 
   it('forwards process close and invalidates closed entries', async () => {

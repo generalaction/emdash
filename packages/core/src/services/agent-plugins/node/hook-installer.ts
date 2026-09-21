@@ -28,8 +28,11 @@ export class AgentHookInstaller {
 
   constructor(private readonly options: AgentHookInstallerOptions) {}
 
-  async hooksStatus(providerId: string): Promise<HookInstallationStatus | null> {
-    const installation = await this.resolveInstallation({ providerId });
+  async hooksStatus(
+    providerId: string,
+    env?: Record<string, string>
+  ): Promise<HookInstallationStatus | null> {
+    const installation = await this.resolveInstallation({ providerId, env });
     if (!installation) return null;
 
     let installed = false;
