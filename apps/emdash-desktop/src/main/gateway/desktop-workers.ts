@@ -242,6 +242,7 @@ function startDesktopWorkersWithHost(
       executable: desktopWorkerPath('conversations'),
       env: process.env,
       databasePath: join(app.getPath('userData'), 'conversations.db'),
+      attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
     })
   );
   const conversationsReady = timedReady('conversations', conversationsWorker.ready());
@@ -255,9 +256,9 @@ function startDesktopWorkersWithHost(
         dependencies: {
           hostDependencies: hostDependencies.client.resolver,
           conversations,
+          attachments: conversations,
           userEnv: userShellEnv,
         },
-        attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
         intentsFilePath: sessionIntentFilePaths().acp,
       })
     );
@@ -445,6 +446,7 @@ function startDesktopWorkersWithHost(
             userEnv: userShellEnv,
           },
           databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+          attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
           watchIgnore: filesSettings.watcherExclude,
         })
       );

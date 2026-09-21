@@ -251,58 +251,84 @@ describe('createConversationsWireController', () => {
     expect(recordTuiInput).toHaveBeenCalledWith(target);
   });
 
-  it('passes uploads and downloads through the resolved client', async () => {
-    const uploadAttachment = vi.fn(async () =>
-      ok({ id: 'attachment-1', name: 'image.png', mimeType: 'image/png' as const })
-    );
-    const downloadAttachment = vi.fn(async () =>
-      ok({
-        meta: { id: 'attachment-1', name: 'image.png', mimeType: 'image/png' as const },
-        chunks: async function* () {
-          yield new Uint8Array([1, 2, 3]);
+  it.each(['acp', 'pty'] as const)(
+    'routes %s attachments to the conversation host',
+    async (conversationType) => {
+      const remoteHost = hostRef('remote', 'ssh-attachments');
+      const resolvedHosts: HostRef[] = [];
+      const uploadAttachment = vi.fn(async (_input: { conversationId: string }, _file: WireFile) =>
+        ok({
+          id: 'attachment-1',
+          name: 'image.png',
+          mimeType: 'image/png' as const,
+          pathStyle: 'posix' as const,
+          targetPath: '/host/attachments/image.png',
+        })
+      );
+      const downloadAttachment = vi.fn(async () =>
+        ok({
+          meta: {
+            id: 'attachment-1',
+            name: 'image.png',
+            mimeType: 'image/png' as const,
+            pathStyle: 'posix' as const,
+            targetPath: '/host/attachments/image.png',
+          },
+          chunks: async function* () {
+            yield new Uint8Array([1, 2, 3]);
+          },
+        })
+      );
+      const controller = setupController({
+        conversationType,
+        host: remoteHost,
+        resolvedHosts,
+        client: {
+          conversations: {
+            attachments: { upload: uploadAttachment, download: downloadAttachment },
+          },
         },
-      })
-    );
-    const controller = setupController({
-      client: { acp: { uploadAttachment, downloadAttachment } },
-    });
-    const file = fakeWireFile();
+      });
+      const file = fakeWireFile();
 
-    await controller.call(
-      'acp.uploadAttachment',
-      { conversationId: target.conversationId },
-      { uploadFile: file }
-    );
-    expect(uploadAttachment).toHaveBeenCalledWith(
-      { conversationId: target.conversationId },
-      file,
-      {}
-    );
+      await controller.call(
+        'attachments.upload',
+        { conversationId: target.conversationId },
+        { uploadFile: file }
+      );
+      expect(uploadAttachment).toHaveBeenCalledWith(
+        { conversationId: target.conversationId },
+        expect.objectContaining({ name: file.name, mimeType: file.mimeType, size: file.size }),
+        {}
+      );
+      expect(resolvedHosts).toEqual([remoteHost]);
+      expect(await uploadAttachment.mock.calls[0][1].bytes()).toEqual(await file.bytes());
 
-    const result = await controller.call('acp.downloadAttachment', {
-      conversationId: target.conversationId,
-      attachmentId: 'attachment-1',
-    });
-    expect(downloadAttachment).toHaveBeenCalledWith(
-      { conversationId: target.conversationId, attachmentId: 'attachment-1' },
-      {}
-    );
-    expect(isDownloadFileOpenResult(result)).toBe(true);
-    if (!isDownloadFileOpenResult(result)) throw new Error('Expected a download result');
-    const chunks: Uint8Array[] = [];
-    for await (const chunk of result.data.source as AsyncIterable<Uint8Array>) {
-      chunks.push(chunk);
+      const result = await controller.call('attachments.download', {
+        conversationId: target.conversationId,
+        attachmentId: 'attachment-1',
+      });
+      expect(downloadAttachment).toHaveBeenCalledWith(
+        { conversationId: target.conversationId, attachmentId: 'attachment-1' },
+        {}
+      );
+      expect(isDownloadFileOpenResult(result)).toBe(true);
+      if (!isDownloadFileOpenResult(result)) throw new Error('Expected a download result');
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of result.data.source as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk);
+      }
+      expect(chunks).toEqual([new Uint8Array([1, 2, 3])]);
+
+      const cancelled = await controller.call('attachments.download', {
+        conversationId: target.conversationId,
+        attachmentId: 'attachment-1',
+      });
+      if (!isDownloadFileOpenResult(cancelled)) throw new Error('Expected a download result');
+      const iterator = (cancelled.data.source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
+      await iterator.return?.();
     }
-    expect(chunks).toEqual([new Uint8Array([1, 2, 3])]);
-
-    const cancelled = await controller.call('acp.downloadAttachment', {
-      conversationId: target.conversationId,
-      attachmentId: 'attachment-1',
-    });
-    if (!isDownloadFileOpenResult(cancelled)) throw new Error('Expected a download result');
-    const iterator = (cancelled.data.source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
-    await iterator.return?.();
-  });
+  );
 
   it('resolves the client for each attached ACP session state', async () => {
     const source: LiveSource = {
@@ -398,7 +424,7 @@ describe('createConversationsWireController', () => {
       })
     ).resolves.toEqual(err(resolveError));
     await expect(
-      controller.call('acp.downloadAttachment', {
+      controller.call('attachments.download', {
         conversationId: target.conversationId,
         attachmentId: 'attachment-1',
       })
@@ -444,6 +470,8 @@ describe('createConversationsWireController', () => {
 
 function setupController(options: {
   client: object;
+  host?: HostRef;
+  conversationType?: 'acp' | 'pty';
   runtimeError?: RuntimeResolveError;
   attachmentError?: { type: 'project-missing'; projectId: string };
   resolvedHosts?: HostRef[];
@@ -481,7 +509,11 @@ function setupController(options: {
     taskSessions: { getTask: vi.fn() },
     withCompensation: async ({ action }) => action(),
     hostIsReachable: () => true,
-    resolveTarget: async () => target,
+    resolveTarget: async () => ({
+      ...target,
+      host: options.host ?? target.host,
+      conversationType: options.conversationType ?? target.conversationType,
+    }),
     hooks,
   });
 }

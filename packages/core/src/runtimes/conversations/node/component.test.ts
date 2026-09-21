@@ -22,13 +22,22 @@ const createInput = {
 describe('conversationsComponent', () => {
   it('rejects relative database paths', () => {
     expect(
-      conversationsComponentConfigSchema.safeParse({ databasePath: 'relative.db' }).success
+      conversationsComponentConfigSchema.safeParse({
+        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        databasePath: 'relative.db',
+      }).success
     ).toBe(false);
-    expect(conversationsComponentConfigSchema.safeParse({ databasePath: ':memory:' }).success).toBe(
-      true
-    );
     expect(
-      conversationsComponentConfigSchema.safeParse({ databasePath: '/abs/path.db' }).success
+      conversationsComponentConfigSchema.safeParse({
+        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        databasePath: ':memory:',
+      }).success
+    ).toBe(true);
+    expect(
+      conversationsComponentConfigSchema.safeParse({
+        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        databasePath: '/abs/path.db',
+      }).success
     ).toBe(true);
   });
 
@@ -37,7 +46,10 @@ describe('conversationsComponent', () => {
     const component = conversationsComponent.create({
       scope,
       dependencies: {},
-      config: { databasePath: ':memory:' },
+      config: {
+        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        databasePath: ':memory:',
+      },
     });
 
     const created = await component.client.create(createInput);
@@ -52,7 +64,10 @@ describe('conversationsComponent', () => {
     const worker = host.create(conversationsComponent, {
       executable: 'conversations-worker',
       dependencies: {},
-      config: { databasePath: ':memory:' },
+      config: {
+        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        databasePath: ':memory:',
+      },
       shutdownGraceMs: 0,
     });
 

@@ -8,6 +8,7 @@ import {
   workspaceRegistryStore,
   WorkspaceRegistryRuntime,
 } from '@emdash/core/runtimes/workspace-registry/node';
+import { LocalAttachmentStore } from '@emdash/core/services/attachments/node';
 import { ok } from '@emdash/shared';
 import { createTestWire } from '@emdash/wire/testing';
 import { openFixture } from '@tooling/utils/db';
@@ -30,7 +31,10 @@ it.each(['claude', 'codex'] as const)(
     );
     const fixture = await openFixture('empty');
     const handle = await workspaceRegistryStore.openTemp();
-    const runtime = new WorkspaceRegistryRuntime({ handle });
+    const runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(directory, '.test-attachments')),
+      handle,
+    });
     const wire = createTestWire(
       workspaceRegistryContract,
       createWorkspaceRegistryController(runtime)

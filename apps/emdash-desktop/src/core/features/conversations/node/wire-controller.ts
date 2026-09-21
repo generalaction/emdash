@@ -139,6 +139,21 @@ export function createConversationsWireController(
   );
 
   return createController(conversationsContract, {
+    attachments: {
+      upload: ({ conversationId }, file, meta) =>
+        run(conversationId, (client) =>
+          client.conversations.attachments.upload({ conversationId }, file, callOptions(meta))
+        ),
+      download: ({ conversationId, attachmentId }, meta) =>
+        openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),
+      delete: ({ conversationId, attachmentId }, meta) =>
+        run(conversationId, (client) =>
+          client.conversations.attachments.delete(
+            { conversationId, attachmentId },
+            callOptions(meta)
+          )
+        ),
+    },
     getConversations: () => conversationOperations.getConversations(),
     createConversation: (input) =>
       withAttachedProject(options.projects, input.projectId, async () =>
@@ -240,16 +255,6 @@ export function createConversationsWireController(
         ),
       exportRawAcpLog: (input, meta) =>
         run(input.conversationId, (client) => client.acp.exportRawAcpLog(input, callOptions(meta))),
-      uploadAttachment: ({ conversationId }, file, meta) =>
-        run(conversationId, (client) =>
-          client.acp.uploadAttachment({ conversationId }, file, callOptions(meta))
-        ),
-      downloadAttachment: ({ conversationId, attachmentId }, meta) =>
-        openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),
-      deleteAttachment: ({ conversationId, attachmentId }, meta) =>
-        run(conversationId, (client) =>
-          client.acp.deleteAttachment({ conversationId, attachmentId }, callOptions(meta))
-        ),
       sessions: acpSessions,
       session: acpSession,
       terminalOutput: async ({ conversationId, terminalId }) =>
@@ -528,7 +533,7 @@ async function openAttachmentDownload(
   return withAttachedProject(options.projects, target.projectId, async () => {
     const runtime = await options.runtimes.client(target.host);
     if (!runtime.success) return err(runtime.error);
-    const result = await runtime.data.acp.downloadAttachment(
+    const result = await runtime.data.conversations.attachments.download(
       { conversationId: target.conversationId, attachmentId },
       call
     );

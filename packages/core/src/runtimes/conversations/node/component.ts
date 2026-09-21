@@ -1,12 +1,14 @@
 import path from 'node:path';
 import { defineWireComponent } from '@emdash/wire/worker';
 import { z } from 'zod';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { conversationsContract } from '../api';
 import { createConversationsController } from './api/controller';
 import { conversationsStore } from './persistence/store';
 import { ConversationsRuntime } from './runtime';
 
 export const conversationsComponentConfigSchema = z.object({
+  attachmentsDir: z.string().min(1).refine(path.isAbsolute),
   databasePath: z
     .string()
     .min(1)
@@ -29,7 +31,11 @@ export const conversationsComponent = defineWireComponent({
     const handle = conversationsStore.open(config.databasePath);
     scope.add(() => handle.close());
 
-    const runtime = new ConversationsRuntime({ handle, logger });
+    const runtime = new ConversationsRuntime({
+      handle,
+      logger,
+      attachments: new LocalAttachmentStore(config.attachmentsDir),
+    });
     scope.add(() => runtime.dispose());
 
     return instance({

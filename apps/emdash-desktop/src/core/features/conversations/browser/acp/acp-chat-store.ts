@@ -1,13 +1,12 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
 import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type {
-  AttachmentMimeType,
-  AttachmentRef,
   PromptAttachment,
   PromptInput,
   QueuedPrompt,
   SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
+import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/services/attachments/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock } from '@emdash/shared/scheduling';
 import {
@@ -124,7 +123,7 @@ export class AcpChatStore {
   private readonly _draftHandle: MementoHandle<AcpDraftState>;
   private readonly _disposeComposerSubscription: () => void;
   private readonly _disposeHostReaction: () => void;
-  private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
+  private _attachmentsClientPromise: Promise<ConversationsClient['attachments']> | null = null;
   private _submissionSequence = 0;
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
@@ -411,8 +410,8 @@ export class AcpChatStore {
   async uploadAttachment(input: AcpAttachmentUploadInput): Promise<AttachmentRef | null> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return null;
     try {
-      const client = await this._getAcpClient();
-      const result = await client.uploadAttachment(
+      const client = await this._getAttachmentsClient();
+      const result = await client.upload(
         { conversationId: this.conversationId },
         {
           name: input.name ?? 'attachment',
@@ -433,8 +432,8 @@ export class AcpChatStore {
   }
 
   async downloadAttachment(id: string) {
-    const client = await this._getAcpClient();
-    const result = await client.downloadAttachment({
+    const client = await this._getAttachmentsClient();
+    const result = await client.download({
       conversationId: this.conversationId,
       attachmentId: id,
     });
@@ -450,8 +449,8 @@ export class AcpChatStore {
 
   async deleteAttachment(id: string): Promise<void> {
     try {
-      const client = await this._getAcpClient();
-      const result = await client.deleteAttachment({
+      const client = await this._getAttachmentsClient();
+      const result = await client.delete({
         conversationId: this.conversationId,
         attachmentId: id,
       });
@@ -990,9 +989,11 @@ export class AcpChatStore {
     );
   }
 
-  private _getAcpClient(): Promise<ConversationsClient['acp']> {
-    this._acpClientPromise ??= getConversationsClient().then((client) => client.acp);
-    return this._acpClientPromise;
+  private _getAttachmentsClient(): Promise<ConversationsClient['attachments']> {
+    this._attachmentsClientPromise ??= getConversationsClient().then(
+      (client) => client.attachments
+    );
+    return this._attachmentsClientPromise;
   }
 
   private async _rememberPreference(patch: {
@@ -1163,7 +1164,7 @@ async function resolveDraftAttachmentDataUrl(
   try {
     const result = await store.downloadAttachment(attachmentId);
     if (!result.success) {
-      return result.error.type === 'attachment_not_found'
+      return result.error.type === 'attachment-not-found'
         ? { kind: 'not_found' }
         : { kind: 'unavailable' };
     }
