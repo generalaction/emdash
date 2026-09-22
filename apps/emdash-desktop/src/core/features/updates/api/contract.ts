@@ -48,7 +48,7 @@ export const updatesDomain = 'updates' as const;
 
 export const updatesContract = defineContract({
   check: procedure({ input: voidInput, output: z.custom<UpdateCheckResult>() }),
-  download: procedure({ input: voidInput, output: z.custom<UpdateActionResult>() }),
+  download: procedure({ input: voidInput, output: z.custom<UpdateStateResult>() }),
   quitAndInstall: procedure({ input: voidInput, output: z.custom<UpdateActionResult>() }),
   openLatest: procedure({ input: voidInput, output: z.custom<UpdateActionResult>() }),
   getState: procedure({ input: voidInput, output: z.custom<UpdateStateResult>() }),
