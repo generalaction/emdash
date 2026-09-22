@@ -51,7 +51,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       status={status}
       error={
         state.status === 'error' && !update.downloadRequested
-          ? { message: state.message }
+          ? { message: state.message, details: state.details }
           : undefined
       }
       onCheckForUpdates={() => update.check()}

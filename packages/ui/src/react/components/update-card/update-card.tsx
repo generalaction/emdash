@@ -1,8 +1,8 @@
+import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 import { Box } from '../../primitives/box';
 import { Button } from '../../primitives/button';
 import { useAsyncAction } from '../../primitives/hooks/use-async-action';
-import { Pill } from '../pill/pill';
 import { StatusIcon } from '../status-icon/status-icon';
 import * as styles from './update-card.css';
 
@@ -25,8 +25,8 @@ export interface UpdateCardProps {
   status: UpdateStatus;
   appName: string;
   onCheckForUpdates: () => Promise<void>;
-  /** Error from the most recent action (check / download / install). */
-  error?: { message: string };
+  /** A readable summary and, when needed, full sanitized diagnostic details. */
+  error?: { message: string; details?: string };
 }
 
 export function UpdateCard({
@@ -83,7 +83,7 @@ export function UpdateCard({
           <DownloadingButton />
         ) : (
           <Button variant="secondary" size="xs" onClick={downloadUpdate}>
-            Download
+            {error ? 'Retry download' : 'Download'}
           </Button>
         );
       case 'update-downloading':
@@ -111,7 +111,7 @@ export function UpdateCard({
       case 'checking':
         return 'Checking for updates';
       case 'up-to-date':
-        return "You're up to date";
+        return error ? 'Could not check for updates' : "You're up to date";
       case 'update-downloading':
         return 'Downloading update';
       case 'update-installing':
@@ -128,7 +128,9 @@ export function UpdateCard({
       case 'checking':
         return `Current ${appName} version v${currentVersion}`;
       case 'up-to-date':
-        return `Current ${appName} version v${currentVersion} is up to date`;
+        return error
+          ? `Current ${appName} version v${currentVersion}`
+          : `Current ${appName} version v${currentVersion} is up to date`;
       case 'update-available':
         return `Version v${status.version} is available. Update and restart ${appName} to use the new version`;
       case 'update-download-available':
@@ -143,22 +145,19 @@ export function UpdateCard({
   };
 
   return (
-    <Box surface="sunken" borderRadius="md" padding="2" px="3" className="min-w-0">
+    <Box surface="sunken" borderRadius="md" padding="2" px="3" className={styles.card}>
       <div className={styles.row}>
-        <StatusIcon size="lg" severity={status.type === 'up-to-date' ? 'success' : 'warning'} />
+        <StatusIcon
+          size="lg"
+          severity={error ? 'error' : status.type === 'up-to-date' ? 'success' : 'warning'}
+        />
         <div className={styles.rowBody}>
-          <div className={styles.rowTitle}>
-            {renderStatusLabel()}
-            {error && (
-              <Pill variant="error" className={styles.errorPill} title={error.message}>
-                {error.message}
-              </Pill>
-            )}
-          </div>
+          <div className={styles.rowTitle}>{renderStatusLabel()}</div>
           <div className={styles.rowDescription}>{renderStatusDescription()}</div>
         </div>
         <div className={styles.rowControls}>{renderActionButton()}</div>
       </div>
+      {error && <UpdateError key={error.details ?? error.message} error={error} />}
     </Box>
   );
 }
@@ -172,5 +171,43 @@ function DownloadingButton({ progress }: { progress?: number }) {
     <Button variant="secondary" size="xs" disabled aria-busy="true">
       {percent === undefined ? 'Downloading…' : `Downloading… ${percent}%`}
     </Button>
+  );
+}
+
+function UpdateError({ error }: { error: NonNullable<UpdateCardProps['error']> }) {
+  const details = error.details ?? error.message;
+  const [copyFailed, setCopyFailed] = React.useState(false);
+  const [copyDetails, copied, copying] = useAsyncAction(
+    async () => {
+      setCopyFailed(false);
+      await navigator.clipboard.writeText(details);
+      return true;
+    },
+    { onError: () => setCopyFailed(true) }
+  );
+
+  return (
+    <div className={styles.errorPanel}>
+      <div className={styles.errorMessage} role="alert">
+        {error.message}
+      </div>
+      <div className={styles.errorActions}>
+        {details !== error.message && (
+          <details className={styles.errorDetails}>
+            <summary className={styles.errorSummary}>Details</summary>
+            <div className={styles.errorDetailsText}>{details}</div>
+          </details>
+        )}
+        <Button variant="ghost" size="xs" onClick={copyDetails} disabled={copying}>
+          {copied ? <Check /> : <Copy />}
+          {copied ? 'Copied' : 'Copy details'}
+        </Button>
+      </div>
+      {copyFailed && (
+        <div className={styles.errorMessage} role="status">
+          Could not copy. Select the text to copy it manually.
+        </div>
+      )}
+    </div>
   );
 }

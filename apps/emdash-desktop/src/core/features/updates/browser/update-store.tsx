@@ -25,7 +25,7 @@ export type UpdateState =
   | { status: 'downloading'; progress?: DownloadProgress }
   | { status: 'downloaded' }
   | { status: 'installing' }
-  | { status: 'error'; message: string };
+  | { status: 'error'; message: string; details?: string };
 
 export class UpdateStore {
   state: UpdateState = { status: 'idle' };
@@ -205,6 +205,7 @@ export class UpdateStore {
           this.state = {
             status: 'error',
             message: snapshot.error ?? 'Update failed',
+            details: snapshot.errorDetails,
           };
           break;
         case 'idle':
@@ -253,7 +254,7 @@ export class UpdateStore {
           this.state = { status: 'installing' };
           break;
         case 'error':
-          this.state = { status: 'error', message: event.message };
+          this.state = { status: 'error', message: event.message, details: event.details };
           break;
       }
     });

@@ -77,4 +77,31 @@ describe('UpdateCard', () => {
     expect(view.getByRole('button', { name: 'Restart' })).toBeTruthy();
     expect(onDownload).toHaveBeenCalledTimes(1);
   });
+
+  it('shows the complete error and copies details beyond the summary', async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const message = 'The download was interrupted. Check your connection and try again.';
+    const details = 'Diagnostic '.repeat(70);
+    const view = render(<UpdateCard {...props} error={{ message, details }} />);
+    expect(view.getByRole('alert').textContent).toBe(message);
+    expect(view.getByRole('button', { name: 'Retry download' })).toBeTruthy();
+    fireEvent.click(view.getByText('Details'));
+    expect(view.getByText(details.trim())).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: 'Copy details' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(details));
+    expect(view.getByRole('button', { name: 'Copied' })).toBeTruthy();
+  });
+
+  it('does not claim the app is up to date when checking failed', () => {
+    const view = render(
+      <UpdateCard
+        {...props}
+        status={{ type: 'up-to-date' }}
+        error={{ message: 'Update server unavailable' }}
+      />
+    );
+    expect(view.queryByText("You're up to date")).toBeNull();
+    expect(view.getByText('Could not check for updates')).toBeTruthy();
+  });
 });

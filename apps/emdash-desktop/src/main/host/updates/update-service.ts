@@ -8,7 +8,7 @@ import { updateEvents } from '@core/features/updates/node';
 import { IS_CANARY, UPDATE_CHANNEL } from '@core/primitives/app-identity/api/app-identity';
 import { resolveAppVersion } from '@main/core/app/utils';
 import { log } from '@main/lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
+import { formatUpdaterError, getUpdaterErrorDetails, sanitizeUpdaterLogArgs } from './utils';
 
 let autoUpdater: typeof _electronUpdater.autoUpdater | undefined;
 
@@ -37,6 +37,7 @@ export interface UpdateState {
     total: number;
   };
   error?: string;
+  errorDetails?: string;
   rollbackVersion?: string;
   releaseNotes?: string;
 }
@@ -245,6 +246,7 @@ export class UpdateService implements Disposable {
 
   private clearError(): void {
     this.updateState.error = undefined;
+    this.updateState.errorDetails = undefined;
   }
 
   private handleError(error: unknown): void {
@@ -253,11 +255,18 @@ export class UpdateService implements Disposable {
       return;
     }
     const message = formatUpdaterError(error);
-    if (this.updateState.status === 'error' && this.updateState.error === message) return;
+    const details = getUpdaterErrorDetails(error);
+    if (
+      this.updateState.status === 'error' &&
+      this.updateState.error === message &&
+      this.updateState.errorDetails === details
+    )
+      return;
     log.error('Auto-updater error:', message);
     this.updateState.status = 'error';
     this.updateState.error = message;
-    updateEvents.emit(undefined, { type: 'error', message });
+    this.updateState.errorDetails = details;
+    updateEvents.emit(undefined, { type: 'error', message, details });
     this.publishNotification((publisher) => publisher.error(message));
   }
 

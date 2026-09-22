@@ -39,8 +39,11 @@ of a button callback: downloads can start from the sidebar, toast, or recovery w
 while Settings is unmounted. State snapshots must not replace newer events received while awaiting
 the response.
 
+Error summaries wrap below the card description. Full sanitized diagnostics are preserved separately
+for the Details disclosure and Copy details action; summaries and updater log messages remain bounded.
+
 Regression coverage lives in `src/main/host/updates/update-service.test.ts`,
-`src/renderer/tests/update-flow.test.ts`, and the shared card's
+`src/main/host/updates/utils.test.ts`, `src/renderer/tests/update-flow.test.ts`, and the shared card's
 tests and Storybook states.
 
 ## Update Feed / Publishing Strategy
