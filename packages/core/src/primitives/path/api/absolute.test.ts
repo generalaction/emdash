@@ -31,6 +31,7 @@ describe('absolute paths', () => {
     const parsed = parseAbsolute('/repo/src\\literal/index.ts', {
       profile: { style: 'posix' },
     });
+    expect(parsed.success).toBe(true);
     if (!parsed.success) return;
 
     // The backslash belongs to the filename here, so joining on it would make
