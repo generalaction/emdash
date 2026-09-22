@@ -25,4 +25,21 @@ describe('parseCsv', () => {
       ['1', 'Ada'],
     ]);
   });
+
+  it('keeps an empty quoted field when the record ends at EOF', () => {
+    expect(parseCsv('name\n""').rows).toEqual([['name'], ['']]);
+    expect(parseCsv('name\r\n""').rows).toEqual([['name'], ['']]);
+    expect(parseCsv('""').rows).toEqual([['']]);
+    expect(parseCsv('""\n""').rows).toEqual([[''], ['']]);
+    expect(parseCsv('a,""').rows).toEqual([['a', '']]);
+    expect(parseCsv('"",""').rows).toEqual([['', '']]);
+  });
+
+  it('does not invent a row after a record that already ended', () => {
+    expect(parseCsv('').rows).toEqual([]);
+    expect(parseCsv('name\n').rows).toEqual([['name']]);
+    expect(parseCsv('name\r\n').rows).toEqual([['name']]);
+    expect(parseCsv('""\n').rows).toEqual([['']]);
+    expect(parseCsv('name\n""\n').rows).toEqual([['name'], ['']]);
+  });
 });
