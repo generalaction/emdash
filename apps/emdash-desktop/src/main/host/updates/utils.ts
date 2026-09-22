@@ -1,4 +1,4 @@
-import { redactSecrets } from '@emdash/shared/logger';
+import { redactAll } from '@emdash/shared/logger';
 
 function stripMarkup(raw: string): string {
   if (!raw) return 'Unknown update error';
@@ -7,7 +7,7 @@ function stripMarkup(raw: string): string {
   const noHtml = withoutData.replace(/<!DOCTYPE html.*$/is, '').replace(/<html.*$/is, '');
   const collapsed = noHtml.replace(/\s+/g, ' ').trim();
   if (!collapsed) return 'Unknown update error';
-  return redactSecrets(collapsed);
+  return redactAll(collapsed);
 }
 
 export function getUpdaterErrorDetails(error: unknown): string {

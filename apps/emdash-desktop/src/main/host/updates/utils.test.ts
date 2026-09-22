@@ -2,6 +2,28 @@ import { describe, expect, it } from 'vitest';
 import { formatUpdaterError, getUpdaterErrorDetails } from './utils';
 
 describe('updater diagnostics', () => {
+  const credentialUrl =
+    'https://release-user:release-pass@updates.example.com/archive.zip?token=secret-value';
+  it.each([
+    ['string message', `Cannot download ${credentialUrl}`],
+    ['error message', new Error(`Cannot download ${credentialUrl}`)],
+    [
+      'http status text',
+      Object.assign(new Error('Cannot download update'), {
+        statusCode: 502,
+        statusMessage: `Failed to fetch ${credentialUrl}`,
+      }),
+    ],
+  ])('redacts URL credentials and tokens from %s', (_source, error) => {
+    for (const output of [getUpdaterErrorDetails(error), formatUpdaterError(error)]) {
+      expect(output).toContain(
+        'https://[REDACTED_CREDENTIALS]@updates.example.com/archive.zip?token=[REDACTED]'
+      );
+      expect(output).not.toContain('release-user');
+      expect(output).not.toContain('release-pass');
+      expect(output).not.toContain('secret-value');
+    }
+  });
   it('preserves the underlying HTTP diagnostic as well as the status summary', () => {
     const error = Object.assign(new Error('Cannot download archive.zip?token=secret-value'), {
       statusCode: 502,
