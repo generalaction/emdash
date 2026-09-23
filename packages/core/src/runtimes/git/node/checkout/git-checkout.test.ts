@@ -464,6 +464,30 @@ describe('GitCheckout', () => {
     }
   });
 
+  it('keeps log records intact when commit messages contain control characters', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      const subject = 'subject with \u001f separator';
+      const body = 'body with \u001e record break\nand a second line';
+      await writeFile(path.join(repo, 'control.txt'), 'payload\n', 'utf8');
+      await checkout.stageAll();
+      const commitResult = await checkout.commit(`${subject}\n\n${body}`);
+      if (!commitResult.success) throw new Error('commit failed');
+
+      const log = await checkout.getLog();
+      expect(log.totalCount).toBe(2);
+      expect(log.commits).toHaveLength(2);
+      expect(log.commits[0]).toMatchObject({ subject, body, author: 'Test User' });
+      expect(log.commits[0].date).toBeGreaterThan(0);
+      expect(log.commits[1]).toMatchObject({ subject: 'init' });
+
+      const commit = await checkout.getCommit(commitResult.data.hash);
+      expect(commit).toMatchObject({ hash: commitResult.data.hash, subject, body });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('classifies live Git file content as text, binary, or missing', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();
     try {
