@@ -51,6 +51,10 @@ invalidate the list so a gap during a reload schedules another fetch. Failed rel
 current stores. An empty pane can still have background attention, but a task with no Conversations
 has no agent status indicator.
 
+Notification clicks wait for the task composition and saved conversation record, then resolve
+its tab kind through the Conversations API. Opening through the pane layout focuses an existing
+ACP chat or terminal conversation tab across panes; unavailable targets expire without opening a tab.
+
 The Tasks slice owns current-task workspace activation in its app-scoped
 `TaskActivationCoordinator`. It derives activation from navigation, Project context hydration,
 Task state, and Host generation readiness. Views and navigation handlers only express which Task
