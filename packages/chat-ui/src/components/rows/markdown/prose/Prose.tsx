@@ -113,6 +113,7 @@ function ProseFragment(props: {
         e.preventDefault();
         commands().onOpenFile?.({
           path: result.path,
+          ...(result.line === undefined ? {} : { line: result.line }),
           itemId: props.blockId,
           source: 'prose-link',
         });
