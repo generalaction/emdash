@@ -27,6 +27,24 @@ describe('measureProjectWorkspaces', () => {
     vi.clearAllMocks();
   });
 
+  it('does not start listing when the request was cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      measureProjectWorkspaces(
+        {
+          db: {} as never,
+          runtimes: { client: vi.fn() },
+          taskSessions: { getTask: vi.fn() },
+        },
+        { projectId: 'project-1', paths: ['/srv/repo'] },
+        controller.signal
+      )
+    ).rejects.toThrow();
+    expect(mocks.getProject).not.toHaveBeenCalled();
+  });
+
   it('measures a remote workspace through its host runtime', async () => {
     const row: ProjectWorkspaceRow = {
       kind: 'root',
@@ -70,6 +88,7 @@ describe('measureProjectWorkspaces', () => {
         workspaceRegistry: { measureUsage },
       } as never)
     );
+    const signal = new AbortController().signal;
 
     const result = await measureProjectWorkspaces(
       {
@@ -77,11 +96,12 @@ describe('measureProjectWorkspaces', () => {
         runtimes: { client },
         taskSessions: { getTask: vi.fn() },
       },
-      { projectId: 'project-1', paths: ['/srv/repo'] }
+      { projectId: 'project-1', paths: ['/srv/repo'] },
+      signal
     );
 
     expect(client).toHaveBeenCalledWith({ type: 'remote', id: 'ssh-1' });
-    expect(measureUsage).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
+    expect(measureUsage).toHaveBeenCalledWith({ workspaceId: 'workspace-1' }, { signal });
     expect(result.results).toEqual([
       {
         path: '/srv/repo',

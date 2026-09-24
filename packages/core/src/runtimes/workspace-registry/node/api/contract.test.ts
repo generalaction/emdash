@@ -18,6 +18,7 @@ import {
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { WorkspaceScanScheduler } from '#runtimes/workspace-registry/node/scan/scheduler';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
+import { measureAbsolutePathUsage } from '#services/fs-usage/node';
 import { nativeWatchBackend } from '#services/fs-watch/impl/native-backend';
 import { createWatchService } from '#services/fs-watch/impl/watch-service';
 import { createWorkspaceRegistryController } from './controller';
@@ -763,6 +764,28 @@ describe('workspace registry contract', () => {
     if (!measured.success) throw new Error('expected success');
     expect(measured.data.artifactBytes).toBeGreaterThan(0);
     expect(measured.data.totalBytes).toBeGreaterThanOrEqual(measured.data.artifactBytes);
+  });
+
+  it('measures nested registered worktrees separately from the repository', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreeRoot = path.join(repoPath, '.claude', 'worktrees');
+    await fs.mkdir(worktreeRoot, { recursive: true });
+    const nestedPath = await makeWorktree(repoPath, worktreeRoot, 'nested');
+    await fs.writeFile(path.join(nestedPath, 'artifact.bin'), 'x'.repeat(4_096));
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-nested', path: nestedPath });
+
+    const repositoryUsage = await wire.client.measureUsage({ workspaceId: 'ws-repo' });
+    const nestedUsage = await wire.client.measureUsage({ workspaceId: 'ws-nested' });
+    const fullTree = await measureAbsolutePathUsage(repoPath, '');
+
+    expect(repositoryUsage.success).toBe(true);
+    expect(nestedUsage.success).toBe(true);
+    if (!repositoryUsage.success || !nestedUsage.success) throw new Error('expected usage');
+    expect(repositoryUsage.data.totalBytes + nestedUsage.data.totalBytes).toBe(
+      fullTree.exclusiveDiskBytes
+    );
+    expect(repositoryUsage.data.totalBytes).toBeLessThan(fullTree.exclusiveDiskBytes);
   });
 
   it('measureUsage of an unknown workspaceId is a typed not-found error', async () => {

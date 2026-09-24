@@ -63,8 +63,8 @@ export function createProjectWorkspacesWireController(
   return {
     controller: createController(projectWorkspacesContract, {
       workspaceGroups: groupsProvider,
-      measureProjectWorkspaces: (input) =>
-        projectWorkspaceOperations.measureProjectWorkspaces(input),
+      measureProjectWorkspaces: (input, meta) =>
+        projectWorkspaceOperations.measureProjectWorkspaces(input, meta.signal),
       deleteProjectWorkspaces: (input) => projectWorkspaceOperations.deleteProjectWorkspaces(input),
     }),
     async dispose() {

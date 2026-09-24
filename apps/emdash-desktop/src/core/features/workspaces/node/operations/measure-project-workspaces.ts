@@ -22,18 +22,23 @@ const MEASURE_CONCURRENCY = 4;
 
 export async function measureProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies,
-  input: MeasureProjectWorkspacesInput
+  input: MeasureProjectWorkspacesInput,
+  signal?: AbortSignal
 ): Promise<MeasureProjectWorkspacesResult> {
+  signal?.throwIfAborted();
   if (input.paths.length === 0) {
     return { scannedAt: new Date().toISOString(), projectId: input.projectId, results: [] };
   }
 
   const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
+  signal?.throwIfAborted();
   const listed = await listProjectWorkspaces(dependencies, input.projectId);
+  signal?.throwIfAborted();
   const rowsByPath = new Map(
     listed.rows.map((row) => [workspacePathIdentityKey(row.path), row] as const)
   );
   const results = await mapWithConcurrency(input.paths, MEASURE_CONCURRENCY, async (targetPath) => {
+    signal?.throwIfAborted();
     const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
     if (!row) {
       return {
@@ -42,7 +47,9 @@ export async function measureProjectWorkspaces(
         message: 'Workspace was not found.',
       } satisfies ProjectWorkspaceUsageResult;
     }
-    return await measureRow(dependencies, project, row);
+    const result = await measureRow(dependencies, project, row, signal);
+    signal?.throwIfAborted();
+    return result;
   });
 
   return {
@@ -55,7 +62,8 @@ export async function measureProjectWorkspaces(
 async function measureRow(
   dependencies: { runtimes: Pick<RuntimeBroker, 'client'> },
   project: Awaited<ReturnType<typeof getProjectWorkspaceProject>>,
-  row: ProjectWorkspaceRow
+  row: ProjectWorkspaceRow,
+  signal?: AbortSignal
 ): Promise<ProjectWorkspaceUsageResult> {
   if (row.pathState === 'missing') {
     return { path: row.path, success: false, message: 'Workspace path is missing.' };
@@ -71,9 +79,10 @@ async function measureRow(
     const host = projectWorkspaceHost(project);
     const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    const usage = await runtime.data.workspaceRegistry.measureUsage({
-      workspaceId: row.workspaceId,
-    });
+    const usage = await runtime.data.workspaceRegistry.measureUsage(
+      { workspaceId: row.workspaceId },
+      { signal }
+    );
     if (!usage.success) {
       const message = measureUsageErrorMessage(usage.error);
       return {
@@ -93,6 +102,7 @@ async function measureRow(
       },
     };
   } catch (error) {
+    signal?.throwIfAborted();
     return {
       path: row.path,
       success: false,

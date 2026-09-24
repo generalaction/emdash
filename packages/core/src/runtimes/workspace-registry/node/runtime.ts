@@ -873,7 +873,15 @@ export class WorkspaceRegistryRuntime {
     if (!record) {
       return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
     }
-    return measureWorkspaceUsage({ workspacePath: record.path, signal });
+    const workspacePath = path.resolve(record.path);
+    const excludePaths = this.store
+      .list()
+      .filter(
+        (other) =>
+          other.id !== record.id && isNestedWorkspacePath(workspacePath, path.resolve(other.path))
+      )
+      .map((other) => other.path);
+    return measureWorkspaceUsage({ workspacePath, excludePaths, signal });
   }
 
   /**
@@ -1953,6 +1961,16 @@ function recordEssence(
  */
 export function sameRecordEssence(a: DurableWorkspaceRecord, b: DurableWorkspaceRecord): boolean {
   return stableStringify(recordEssence(a)) === stableStringify(recordEssence(b));
+}
+
+function isNestedWorkspacePath(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 async function isDirectory(path: string): Promise<boolean> {
