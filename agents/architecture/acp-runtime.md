@@ -207,6 +207,9 @@ preferences. Confirmed invalid choices fall back to provider defaults and are re
 cleanup. Pickers expose only provider choices; selecting a native default alias persists that alias.
 Missing preferences leave the provider configuration untouched; there is no user reset to inheritance.
 Active updates first succeed at the provider, then persist the conversation and interactive preference.
+Once the requested option is accepted, it is saved even if reapplying another saved choice fails.
+The setter returns those secondary failures alongside success so callers still persist the accepted
+choice and can warn the user. Failed secondary choices remain saved for a later restoration attempt.
 
 Successful live configuration carries an opaque discovery context. Main subscribes to configuration
 only (not all session transcript streams) and updates the host-scoped advisory cache. Dormant or

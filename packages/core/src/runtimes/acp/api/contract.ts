@@ -39,6 +39,7 @@ import {
   sendPromptCommandSchema,
   sendPromptResponseSchema,
   setOptionCommandSchema,
+  setOptionResultSchema,
   terminateCommandSchema,
 } from './schemas';
 
@@ -91,6 +92,7 @@ export const acpApiContract = defineContract({
   }),
   setOption: fallible({
     input: setOptionCommandSchema,
+    data: setOptionResultSchema,
     error: acpSetOptionErrorSchema,
   }),
   resolvePermission: fallible({

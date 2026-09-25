@@ -121,14 +121,14 @@ describe('ACP API contract schemas', () => {
           configId: 'mode',
           value: 'agent',
         })
-      ).resolves.toEqual({ success: true, data: undefined });
+      ).resolves.toEqual({ success: true, data: { reapplyFailures: [] } });
       await expect(
         wire.client.setOption({
           conversationId: input.conversationId,
           configId: 'reasoning_effort',
           value: 'high',
         })
-      ).resolves.toEqual({ success: true, data: undefined });
+      ).resolves.toEqual({ success: true, data: { reapplyFailures: [] } });
       expect(h.agent.loadSession).not.toHaveBeenCalled();
       expect(h.agent.newSession).not.toHaveBeenCalled();
     } finally {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { permissionDecisionSchema } from '#runtimes/acp/api/models/permissions';
 import { promptInputSchema, queuedPromptSchema } from '#runtimes/acp/api/models/prompt';
 import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
+import { acpSetOptionErrorSchema } from './errors';
 import { providerOptionValueSchema, providerOptionValuesSchema } from './models/config';
 import { transcriptPositionSchema, transcriptCoverageSchema } from './models/transcript';
 
@@ -51,6 +52,10 @@ export const setOptionCommandSchema = z.object({
   configId: z.string(),
   value: providerOptionValueSchema,
 });
+export const setOptionResultSchema = z.object({
+  reapplyFailures: z.array(z.object({ configId: z.string(), error: acpSetOptionErrorSchema })),
+});
+export type AcpSetOptionResult = z.infer<typeof setOptionResultSchema>;
 export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
   conversationId: z.string(),
 });

@@ -331,6 +331,59 @@ describe('AcpChatStore prompt submission', () => {
     }
   });
 
+  it('warns about secondary option failures without reporting the accepted change as failed', async () => {
+    const warningToast = vi.spyOn(toast, 'warning').mockImplementation(() => 'warning');
+    const errorToast = vi.spyOn(toast, 'error').mockImplementation(() => 'error');
+    const setOption = vi.fn(async () => ({
+      success: true as const,
+      data: {
+        reapplyFailures: [
+          {
+            configId: 'reasoning_effort',
+            error: {
+              type: 'set_config_failed' as const,
+              cause: { name: 'Error', message: 'effort temporarily unavailable' },
+            },
+          },
+        ],
+      },
+    }));
+    const store = createStore(idleState(), vi.fn(), {
+      setOption,
+      config: {
+        current: () => ({
+          options: [
+            {
+              id: 'reasoning_effort',
+              name: 'Effort',
+              type: 'select',
+              currentValue: 'low',
+              options: [
+                { value: 'low', name: 'Low' },
+                { value: 'high', name: 'High' },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+    try {
+      store.setOption('model', 'b');
+      await vi.waitFor(() =>
+        expect(warningToast).toHaveBeenCalledWith(
+          'Setting saved, but some settings could not be restored',
+          { description: 'Effort: effort temporarily unavailable' }
+        )
+      );
+      expect(setOption).toHaveBeenCalledWith('model', 'b');
+      expect(errorToast).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+      warningToast.mockRestore();
+      errorToast.mockRestore();
+    }
+  });
+
   it('does not report send failure or restore a remotely accepted prompt when the Wire reply is lost', async () => {
     const gate = deferred<void>();
     const received: string[] = [];
@@ -886,7 +939,10 @@ describe('AcpChatStore prompt submission', () => {
   });
 
   it('forwards native options including provider-owned defaults', async () => {
-    const setOption = vi.fn(async () => ({ success: true as const, data: undefined }));
+    const setOption = vi.fn(async () => ({
+      success: true as const,
+      data: { reapplyFailures: [] },
+    }));
     const store = createStore(idleState(), vi.fn(), { setOption });
     store.setOption('collaboration_mode', 'plan');
     store.setOption('collaboration_mode', 'default');
@@ -1347,13 +1403,16 @@ function createStore(
   sessionOverrides: Record<string, unknown> = {}
 ) {
   const store = new AcpChatStore('conversation-1', 'project-1', 'task-1');
-  store.session = {
-    usable: true,
-    sessionState: { current: () => state },
-    sendPrompt,
-    dispose: vi.fn(),
-    ...sessionOverrides,
-  } as never;
+  runInAction(() => {
+    store.session = {
+      usable: true,
+      sessionState: { current: () => state },
+      config: { current: () => ({ options: [] }) },
+      sendPrompt,
+      dispose: vi.fn(),
+      ...sessionOverrides,
+    } as never;
+  });
   return store;
 }
 

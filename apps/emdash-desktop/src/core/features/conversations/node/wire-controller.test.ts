@@ -65,7 +65,7 @@ describe('createConversationsWireController', () => {
       vi.mocked(settings.patch).mockClear();
       const setOption = vi.fn(async () =>
         success
-          ? ok()
+          ? ok({ reapplyFailures: [] })
           : err({
               type: 'set_config_failed' as const,
               cause: { name: 'Error', message: 'rejected' },
@@ -100,6 +100,40 @@ describe('createConversationsWireController', () => {
       }
     }
   );
+
+  it('persists the accepted choice and forwards secondary restoration failures', async () => {
+    const settings = getProviderSettingsService({} as never);
+    vi.mocked(settings.patch).mockClear();
+    const accepted = ok({
+      reapplyFailures: [
+        {
+          configId: 'reasoning_effort',
+          error: {
+            type: 'set_config_failed' as const,
+            cause: { name: 'Error', message: 'effort temporarily unavailable' },
+          },
+        },
+      ],
+    });
+    const setOption = vi.fn(async () => accepted);
+    const patchConfig = vi.fn(async () => ok());
+    const controller = setupController({
+      client: { acp: { setOption }, conversations: { patchConfig } },
+    });
+    const input = { conversationId: target.conversationId, configId: 'model', value: 'b' };
+
+    await expect(controller.call('acp.setOption', input)).resolves.toEqual(accepted);
+
+    expect(patchConfig).toHaveBeenCalledWith({
+      conversationId: input.conversationId,
+      patch: {},
+      mapPatch: { field: 'options', entries: { model: 'b' } },
+    });
+    expect(settings.patch).toHaveBeenCalledWith(
+      { host: formatHostRef(target.host), providerId: target.providerId },
+      { transport: 'acp', options: { model: 'b' } }
+    );
+  });
 
   it.each(['resume', 'fresh'] as const)(
     'starts in %s mode with the trusted descriptor',
@@ -249,7 +283,7 @@ describe('createConversationsWireController', () => {
   });
 
   it('acknowledges config mutations only after host config persistence succeeds', async () => {
-    const setOption = vi.fn(async () => ok(undefined));
+    const setOption = vi.fn(async () => ok({ reapplyFailures: [] }));
     const patchConfig = vi.fn(async () => ok());
     const controller = setupController({
       client: { acp: { setOption }, conversations: { patchConfig } },
@@ -260,7 +294,9 @@ describe('createConversationsWireController', () => {
       value: 'high',
     };
 
-    await expect(controller.call('acp.setOption', input)).resolves.toEqual(ok(undefined));
+    await expect(controller.call('acp.setOption', input)).resolves.toEqual(
+      ok({ reapplyFailures: [] })
+    );
     expect(patchConfig).toHaveBeenCalledWith({
       conversationId: target.conversationId,
       patch: {},

@@ -506,6 +506,19 @@ export class AcpChatStore {
       ?.setOption(configId, value)
       .then((result) => {
         if (!result.success) this._toastError('Failed to change setting', result.error);
+        else if (result.data.reapplyFailures.length) {
+          toast.warning('Setting saved, but some settings could not be restored', {
+            description: result.data.reapplyFailures
+              .map(({ configId, error }) => {
+                const name =
+                  this.providerOptions?.find((option) => option.id === configId)?.name ?? configId;
+                const message =
+                  error.type === 'set_config_failed' ? error.cause?.message : error.message;
+                return message ? `${name}: ${message}` : name;
+              })
+              .join('\n'),
+          });
+        }
       })
       .catch((error: unknown) => this._toastError('Failed to change setting', error));
   }

@@ -214,7 +214,7 @@ export function createConversationsWireController(
             return withConversationRuntime(
               options,
               Promise.resolve(runtimeTarget),
-              async (client) => {
+              async (client): ReturnType<ConversationsHostRuntimesClient['acp']['setOption']> => {
                 const result = await client.acp.setOption(input, callOptions(meta));
                 if (!result.success) return result;
                 const persisted = await client.conversations.patchConfig({

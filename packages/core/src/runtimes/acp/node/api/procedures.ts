@@ -18,6 +18,7 @@ import type {
   PromptPlacement,
 } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
+import type { AcpSetOptionResult } from '#runtimes/acp/api/schemas';
 import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
 import { isAcpWakeFailure, type AcpWakeFailure } from '#runtimes/acp/node/runtime/session-manager';
 
@@ -76,11 +77,11 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       conversationId: string;
       configId: string;
       value: string | boolean;
-    }): Promise<Result<void, AcpSetOptionError>> {
+    }): Promise<Result<AcpSetOptionResult, AcpSetOptionError>> {
       const result = await runtime.setOption(input.conversationId, input.configId, input.value);
       if (!result.success && isAcpWakeFailure(result.error))
         return acpErr.setConfigFailed(wakeFailureCause(result.error));
-      return result as Result<void, AcpSetOptionError>;
+      return result as Result<AcpSetOptionResult, AcpSetOptionError>;
     },
     resolvePermission(input: {
       conversationId: string;

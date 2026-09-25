@@ -31,6 +31,7 @@ import type {
 } from '#runtimes/acp/api';
 import { ACP_UNAMBIGUOUS_START_ERROR_TYPES, acpErr } from '#runtimes/acp/api';
 import { acceptsProviderValue } from '#runtimes/acp/api/models/config';
+import type { AcpSetOptionResult } from '#runtimes/acp/api/schemas';
 import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
@@ -505,37 +506,42 @@ export class SessionManager {
     conversationId: string,
     configId: string,
     value: string | boolean
-  ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
+  ): Promise<Result<AcpSetOptionResult, AcpSetOptionError | AcpWakeFailure>> {
     const entry = this.retained.get(conversationId);
     if (!entry) return acpErr.conversationNotFound(conversationId);
     await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
+    const reapplyFailures: AcpSetOptionResult['reapplyFailures'] = [];
     if (entry.state === 'active') {
       const result = await entry.use(async (record) => {
         const result = await record.cell.setOption(configId, value);
         if (!result.success) return result;
+        if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
+        entry.updateOption(configId, value);
+        entry.saveIntent();
         for (const [id, desired] of Object.entries(entry.descriptor.options ?? {})) {
           if (id === configId) continue;
           const option = record.cell.config.options?.find((item) => item.id === id);
           if (!option || !acceptsProviderValue(option, desired)) {
-            entry.updateOption(id, null);
             record.clearedOptions = { ...record.clearedOptions, [id]: desired };
+            entry.updateOption(id, null);
           } else if (option.currentValue !== desired) {
             const applied = await record.cell.setOption(id, desired);
-            if (!applied.success) return applied;
+            if (!applied.success) reapplyFailures.push({ configId: id, error: applied.error });
           }
         }
         return result;
       });
       if (!result.success) {
         if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
-        return result as Result<void, AcpSetOptionError>;
+        return result as Result<AcpSetOptionResult, AcpSetOptionError>;
       }
+    } else {
+      entry.updateOption(configId, value);
+      entry.saveIntent();
     }
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
-    entry.updateOption(configId, value);
-    entry.saveIntent();
-    return ok();
+    return ok({ reapplyFailures });
   }
 
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {

@@ -314,7 +314,7 @@ describe('AcpRuntime session manager', () => {
       canSubmit: true,
     });
     await expect(rt.setOption(input.conversationId, 'reasoning_effort', 'high')).resolves.toEqual(
-      ok()
+      ok({ reapplyFailures: [] })
     );
     expect(
       peek(rt.sessionLiveModels(input.conversationId)!.states.config)?.configuredOptions
@@ -383,13 +383,13 @@ describe('AcpRuntime session manager', () => {
     h.agent.setSessionConfigOption.mockClear();
     h.agent.prompt.mockClear();
     await expect(rt.setOption(input.conversationId, 'mode', 'agent-full-access')).resolves.toEqual(
-      ok()
+      ok({ reapplyFailures: [] })
     );
     await expect(rt.setOption(input.conversationId, 'reasoning_effort', 'high')).resolves.toEqual(
-      ok()
+      ok({ reapplyFailures: [] })
     );
     await expect(rt.setOption(input.conversationId, 'collaboration_mode', 'plan')).resolves.toEqual(
-      ok()
+      ok({ reapplyFailures: [] })
     );
     expect(h.agent.loadSession).not.toHaveBeenCalled();
     expect(h.agent.newSession).not.toHaveBeenCalled();
@@ -1865,6 +1865,84 @@ async function startAndLoadHistory(runtime: AcpRuntime, conversationId: string) 
 }
 
 describe('provider-native option persistence', () => {
+  it('persists an accepted selection when reapplying another saved option fails', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents });
+    let model = 'a';
+    let effort = 'high';
+    let mode = 'agent-full-access';
+    let rejectEffort = true;
+    const options = () => [
+      {
+        ...modelConfigOption(model),
+        options: ['a', 'b'].map((value) => ({ value, name: value })),
+      },
+      effortConfigOption(effort),
+      modeConfigOption(mode),
+    ];
+    h.agent.newSession.mockImplementation(async () => ({
+      sessionId: 'session-1',
+      configOptions: options(),
+    }));
+    h.agent.loadSession.mockImplementation(async () => ({ configOptions: options() }));
+    h.agent.setSessionConfigOption.mockImplementation(async ({ configId, value }) => {
+      if (configId === 'model') {
+        model = String(value);
+        effort = 'low';
+        mode = 'agent';
+      }
+      if (configId === 'reasoning_effort') {
+        if (rejectEffort) throw new Error('effort temporarily unavailable');
+        effort = String(value);
+      }
+      if (configId === 'mode') mode = String(value);
+      return { configOptions: options() };
+    });
+    const runtime = new AcpRuntime(h.deps);
+    const input = makeStartInput({
+      options: { model: 'a', reasoning_effort: 'high', mode: 'agent-full-access' },
+    });
+    try {
+      expect((await runtime.startSession(input, 'resume')).success).toBe(true);
+      const result = await runtime.setOption(input.conversationId, 'model', 'b');
+      expect(model).toBe('b');
+      expect(peek(runtime.sessionLiveModels(input.conversationId)!.states.config)).toMatchObject({
+        configuredOptions: { model: 'b', reasoning_effort: 'high', mode: 'agent-full-access' },
+      });
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          reapplyFailures: [
+            {
+              configId: 'reasoning_effort',
+              error: {
+                type: 'set_config_failed',
+                cause: { message: 'effort temporarily unavailable' },
+              },
+            },
+          ],
+        },
+      });
+      expect(mode).toBe('agent-full-access');
+      await vi.waitFor(() =>
+        expect(intents.snapshot()[0]?.payload).toMatchObject({
+          configured: {
+            options: { model: 'b', reasoning_effort: 'high', mode: 'agent-full-access' },
+          },
+        })
+      );
+      await runtime.stopSession(input.conversationId);
+      rejectEffort = false;
+      expect(await runtime.sendPrompt(input.conversationId, { text: 'resume' })).toMatchObject({
+        success: true,
+      });
+      expect([model, effort, mode]).toEqual(['b', 'high', 'agent-full-access']);
+      expect(h.agent.newSession).toHaveBeenCalledOnce();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('leaves provider configuration untouched when there are no saved choices', async () => {
     const h = makeAcpHarness();
     h.agent.newSession.mockResolvedValue({
