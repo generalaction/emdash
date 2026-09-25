@@ -4,6 +4,7 @@ import { CopyButton } from '@components/primitives/CopyButton';
 import type { StackLayout } from '@core/compose';
 import type { MeasureCtx, Measured, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
+import { estimateMarkdownHeight } from '@core/layout/estimate-text';
 import type { Block } from '@core/markdown/document';
 import { blockPlainText } from '@core/markdown/plain-text';
 import type { SegmentCtx } from '@core/units';
@@ -176,15 +177,13 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
   estimate(item, ctx, vars): number {
     if (item.role === 'user') {
       const innerW = userInnerWidth(ctx.width, vars);
-      const lines = Math.max(1, Math.ceil(item.text.length / 60));
+      const textH = estimateMarkdownHeight(item.text, innerW, ctx.theme);
       const aH = attachStripHeight(item.attachments?.length ?? 0, innerW, vars);
-      const est =
-        aH + lines * ctx.theme.fonts.body.lineHeight + 2 * vars.userCardPadY + 2 * vars.cardBorder;
+      const est = aH + textH + 2 * vars.userCardPadY + 2 * vars.cardBorder;
       return Math.min(est, ctx.expandedSelf ? vars.expandedMaxH : vars.collapsedMaxH);
     }
-    const lines = Math.max(1, Math.ceil(item.text.length / 60));
     const footer = item.role === 'assistant' ? vars.footerH : 0;
-    return lines * ctx.theme.fonts.body.lineHeight + footer;
+    return estimateMarkdownHeight(item.text, ctx.width, ctx.theme) + footer;
   },
 
   measure: measureMessage,

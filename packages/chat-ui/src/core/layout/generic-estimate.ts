@@ -18,6 +18,7 @@
  */
 
 import type { MeasureCtx } from '@core/define';
+import { estimateMarkdownHeight } from '@core/layout/estimate-text';
 import type { ChatItem } from '@/model';
 
 /**
@@ -35,6 +36,5 @@ export function genericEstimate(item: ChatItem, ctx: MeasureCtx): number {
         : 'name' in item && typeof item.name === 'string'
           ? item.name
           : '';
-  const lines = Math.max(1, Math.ceil(text.length / 60));
-  return lines * ctx.theme.fonts.body.lineHeight;
+  return estimateMarkdownHeight(text, ctx.width, ctx.theme);
 }

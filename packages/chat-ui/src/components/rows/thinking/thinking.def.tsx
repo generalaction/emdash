@@ -5,6 +5,7 @@ import { CollapseHeader } from '@components/primitives/CollapseHeader';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
+import { estimateMarkdownHeight } from '@core/layout/estimate-text';
 import type { Block } from '@core/markdown/document';
 import { flattenBlockHeadings } from '@core/markdown/parse';
 import { defineUnit } from '@core/units';
@@ -166,8 +167,7 @@ export const thinkingUnitDef = defineUnit<ChatThinking, ThinkingVars>({
       return headerH;
     }
 
-    const lines = Math.max(1, Math.ceil((item.text?.length ?? 0) / 60));
-    return headerH + 2 * vars.padY + lines * ctx.theme.fonts.body.lineHeight;
+    return headerH + 2 * vars.padY + estimateMarkdownHeight(item.text ?? '', ctx.width, ctx.theme);
   },
 
   measure: thinkingMeasure,

@@ -630,9 +630,14 @@ export function ChatRoot(props: ChatRootProps) {
     const t = theme();
     untrack(() => {
       const expandedNow = expandedUserId();
+      // Cold mount: this effect runs before the onMount geometry probe, so
+      // containerWidth() may still be 0. The probe elements are already
+      // rendered by the time effects run — probe imperatively so estimates
+      // see the real column width (estimators wrap text by width).
+      if (containerWidth() === 0) updateContentColumnGeometry();
       const estimateCtx = {
         theme: t,
-        width: 0,
+        width: containerWidth(),
         isCollapsed: () => false,
         expanded: () => false,
         caches: caches(),
