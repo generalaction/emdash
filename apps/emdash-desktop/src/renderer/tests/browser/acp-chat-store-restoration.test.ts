@@ -12,7 +12,6 @@ import { installChatUiRuntime } from '@core/features/conversations/api/browser/c
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import { AcpLiveSession } from '@core/features/conversations/browser/acp/acp-live-session';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
-
 const fixture = vi.hoisted(() => ({ context: undefined as unknown }));
 vi.mock('@core/features/conversations/api/browser/chat/shared-chat-context', () => ({
   getSharedChatContext: () => fixture.context,
@@ -30,7 +29,6 @@ vi.mock('@core/primitives/mementos/browser', () => ({
     }),
   }),
 }));
-
 function remote<T>(initial: T) {
   let value = initial;
   const listeners = new Set<(value: T) => void>();
@@ -48,7 +46,6 @@ function remote<T>(initial: T) {
     },
   };
 }
-
 const previous: TranscriptTurn = {
   id: 'previous',
   seq: 0,
@@ -72,7 +69,6 @@ const current: TranscriptTurn = {
     },
   ],
 };
-
 it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)(
   'installs bootstrap history without losing newer state: %s',
   async (mode) => {
@@ -99,10 +95,8 @@ it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)
       sessionState: remote(state),
       plan: remote(null),
       config: remote({
-        modelOptions: null,
-        efforts: null,
-        modeOptions: null,
         availableCommands: [],
+        options: [],
       }),
       usage: remote(null),
       terminals: remote([]),

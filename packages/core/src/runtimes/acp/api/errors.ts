@@ -44,9 +44,6 @@ export type CancelFailedError = BaseError<'cancel_failed', SerializedError>;
 /** A setSessionConfigOption() call to the agent failed. */
 export type SetConfigFailedError = BaseError<'set_config_failed', SerializedError>;
 
-/** A setSessionMode() call to the agent failed. */
-export type SetModeFailedError = BaseError<'set_mode_failed', SerializedError>;
-
 /** Removing the durable session intent failed. */
 export type IntentPersistenceFailedError = BaseError<'intent_persistence_failed', SerializedError>;
 
@@ -62,7 +59,6 @@ export type AcpRuntimeError =
   | PromptFailedError
   | CancelFailedError
   | SetConfigFailedError
-  | SetModeFailedError
   | IntentPersistenceFailedError;
 
 export type AcpStartError =
@@ -94,8 +90,7 @@ export type AcpCancelTurnError = InvalidStateError | CancelFailedError;
 export type AcpSetOptionError =
   | ConversationNotFoundError
   | InvalidStateError
-  | SetConfigFailedError
-  | SetModeFailedError;
+  | SetConfigFailedError;
 export type AcpExportTranscriptError = ConversationNotFoundError;
 export type AcpExportRawLogError = ConversationNotFoundError;
 
@@ -126,8 +121,6 @@ export const acpErr = {
   cancelFailed: (cause: SerializedError) => fail('cancel_failed', { cause }),
 
   setConfigFailed: (cause: SerializedError) => fail('set_config_failed', { cause }),
-
-  setModeFailed: (cause: SerializedError) => fail('set_mode_failed', { cause }),
 
   intentPersistenceFailed: (conversationId: string, cause: SerializedError) =>
     fail('intent_persistence_failed', {
@@ -163,7 +156,6 @@ export const authRequiredErrorSchema = failedErrorSchema('auth_required');
 export const promptFailedErrorSchema = failedErrorSchema('prompt_failed');
 export const cancelFailedErrorSchema = failedErrorSchema('cancel_failed');
 export const setConfigFailedErrorSchema = failedErrorSchema('set_config_failed');
-export const setModeFailedErrorSchema = failedErrorSchema('set_mode_failed');
 export const intentPersistenceFailedErrorSchema = failedErrorSchema('intent_persistence_failed');
 
 export const acpStartErrorSchema = z.discriminatedUnion('type', [
@@ -205,7 +197,6 @@ export const acpSetOptionErrorSchema = z.discriminatedUnion('type', [
   conversationNotFoundErrorSchema,
   invalidStateErrorSchema,
   setConfigFailedErrorSchema,
-  setModeFailedErrorSchema,
 ]);
 export const acpExportTranscriptErrorSchema = conversationNotFoundErrorSchema;
 export const acpExportRawLogErrorSchema = conversationNotFoundErrorSchema;
@@ -221,6 +212,5 @@ export const acpRuntimeErrorSchema = z.discriminatedUnion('type', [
   promptFailedErrorSchema,
   cancelFailedErrorSchema,
   setConfigFailedErrorSchema,
-  setModeFailedErrorSchema,
   intentPersistenceFailedErrorSchema,
 ]);

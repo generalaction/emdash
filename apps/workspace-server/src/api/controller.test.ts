@@ -39,7 +39,6 @@ describe('createWorkspaceWireController', () => {
         providerId: 'codex',
         cwd: '/tmp/project',
         sessionId: null,
-        model: null,
       });
 
       expect(result).toEqual(ok({ sessionId: 'acp-session-1' }));

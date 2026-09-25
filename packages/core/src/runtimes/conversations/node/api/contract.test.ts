@@ -163,13 +163,13 @@ describe('conversations contract', () => {
     expect(renamedAgain.data.updatedAt).toBe(30_000);
   });
 
-  it('updateConfig mutates only the config payload', async () => {
+  it('patchConfig mutates only the config payload', async () => {
     await wire.client.create(baseCreate);
 
     await clock.advanceTo(20_000);
-    const updated = await wire.client.updateConfig({
+    const updated = await wire.client.patchConfig({
       conversationId: 'conv-1',
-      config: { model: 'opus', initialQueue: [{ text: 'hello' }] },
+      patch: { model: 'opus', initialQueue: [{ text: 'hello' }] },
     });
     expect(updated.success).toBe(true);
     if (!updated.success) throw new Error('expected success');
@@ -178,15 +178,89 @@ describe('conversations contract', () => {
     expect(updated.data.updatedAt).toBe(20_000);
   });
 
-  it('rename and updateConfig of an unknown record are conversation-not-found errors', async () => {
+  it('merges concurrent provider-option patches against authoritative config', async () => {
+    await wire.client.create({
+      ...baseCreate,
+      config: {
+        model: 'sonnet',
+        collaborationMode: 'default',
+        effort: 'high',
+        modeId: 'restricted',
+      },
+    });
+    const otherWire = createTestWire(conversationsContract, createConversationsController(runtime));
+    try {
+      const results = await Promise.all([
+        wire.client.patchConfig({ conversationId: 'conv-1', patch: { collaborationMode: 'plan' } }),
+        otherWire.client.patchConfig({ conversationId: 'conv-1', patch: { model: 'opus' } }),
+      ]);
+      expect(results.every((result) => result.success)).toBe(true);
+
+      // Idempotent create returns the durable record, ignoring this stale client's old config.
+      const persisted = await wire.client.create(baseCreate);
+      expect(persisted).toMatchObject({
+        success: true,
+        data: {
+          config: {
+            model: 'opus',
+            collaborationMode: 'plan',
+            effort: 'high',
+            modeId: 'restricted',
+          },
+        },
+      });
+    } finally {
+      otherWire.dispose();
+    }
+  });
+
+  it('merges option-map patches and conditionally clears stale choices', async () => {
+    await wire.client.create({
+      ...baseCreate,
+      config: { initialQueue: [{ text: 'Review' }], options: { effort: 'high', fast: false } },
+    });
+    await Promise.all([
+      wire.client.patchConfig({
+        conversationId: 'conv-1',
+        patch: {},
+        mapPatch: { field: 'options', entries: { model: 'astra' } },
+      }),
+      wire.client.patchConfig({
+        conversationId: 'conv-1',
+        patch: {},
+        mapPatch: { field: 'options', entries: { effort: 'xhigh' } },
+      }),
+    ]);
+    const result = await wire.client.patchConfig({
+      conversationId: 'conv-1',
+      patch: {},
+      mapPatch: {
+        field: 'options',
+        entries: { model: null, effort: null },
+        expected: { model: 'astra', effort: 'high' },
+      },
+    });
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        config: { initialQueue: [{ text: 'Review' }], options: { effort: 'xhigh', fast: false } },
+      },
+    });
+    if (result.success) expect(result.data.config.options).not.toHaveProperty('model');
+  });
+
+  it('rename and config mutations of an unknown record are conversation-not-found errors', async () => {
     const renamed = await wire.client.rename({ conversationId: 'conv-missing', title: 'x' });
     expect(renamed).toMatchObject({
       success: false,
       error: { type: 'conversation-not-found', conversationId: 'conv-missing' },
     });
 
-    const updated = await wire.client.updateConfig({ conversationId: 'conv-missing', config: {} });
-    expect(updated).toMatchObject({
+    const patched = await wire.client.patchConfig({
+      conversationId: 'conv-missing',
+      patch: { effort: 'high' },
+    });
+    expect(patched).toMatchObject({
       success: false,
       error: { type: 'conversation-not-found', conversationId: 'conv-missing' },
     });

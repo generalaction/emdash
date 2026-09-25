@@ -11,12 +11,12 @@ import {
   conversationRecordsSchema,
   createConversationInputSchema,
   deleteConversationInputSchema,
+  patchConversationConfigInputSchema,
   renameConversationInputSchema,
   reportProviderSessionIdInputSchema,
   reportSessionActivityInputSchema,
   reportSessionEndedInputSchema,
   reportSessionStartedInputSchema,
-  updateConversationConfigInputSchema,
 } from './schemas';
 
 const conversationReportsSubContract = defineContract({
@@ -66,8 +66,8 @@ export const conversationsContract = defineContract({
     data: conversationRecordSchema,
     error: conversationMutationErrorSchema,
   }),
-  updateConfig: fallible({
-    input: updateConversationConfigInputSchema,
+  patchConfig: fallible({
+    input: patchConversationConfigInputSchema,
     data: conversationRecordSchema,
     error: conversationMutationErrorSchema,
   }),

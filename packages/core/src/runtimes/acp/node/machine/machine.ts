@@ -25,12 +25,11 @@ export interface ControlTurn {
 }
 
 export interface SessionMachineContext {
-  modeIds?: readonly string[];
   configOptionIds?: readonly string[];
 }
 
 export function emptySessionMachineContext(): SessionMachineContext {
-  return { modeIds: [], configOptionIds: [] };
+  return { configOptionIds: [] };
 }
 
 export function phaseToLifecycle(phase: SessionPhase): SessionLifecycle {
@@ -78,8 +77,7 @@ export type Command =
   | { type: 'RemoveQueuedPrompt'; id: string }
   | { type: 'ReorderQueue'; ids: readonly string[] }
   | { type: 'ResolvePermission'; requestId: string; optionId: string }
-  | { type: 'SetMode'; modeId: string }
-  | { type: 'SetConfigOption'; configId: string; value: string };
+  | { type: 'SetConfigOption'; configId: string; value: string | boolean };
 
 export type DomainEvent =
   | { type: 'ReplayStarted' }
@@ -163,15 +161,6 @@ export function decide(
         return acpErr.invalidState(`No pending permission request with id '${cmd.requestId}'`);
       }
       return ok([{ type: 'PermissionResolved', requestId: cmd.requestId }]);
-
-    case 'SetMode':
-      if (!ctx.modeIds?.includes(cmd.modeId)) {
-        return acpErr.setModeFailed({
-          name: 'Error',
-          message: `Mode '${cmd.modeId}' is not in the available modes list`,
-        });
-      }
-      return ok([]);
 
     case 'SetConfigOption':
       if (!ctx.configOptionIds?.includes(cmd.configId)) {

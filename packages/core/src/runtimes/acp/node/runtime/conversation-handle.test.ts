@@ -17,7 +17,6 @@ import {
 } from './conversation-handle';
 import type { SessionRecord } from './conversation-types';
 import { SessionsListProjector } from './sessions-list-projector';
-
 describe('ConversationHandle', () => {
   it('projects MCP failures without persisting them into the next activation', () => {
     const setup = makeHandle();
@@ -37,7 +36,6 @@ describe('ConversationHandle', () => {
       },
     });
     expect(JSON.stringify(setup.handle.intentPayload())).not.toContain('Connection refused');
-
     const next = setup.handle.beginMaterialization()!;
     const replacement = makeRecord(setup.handle, next.epoch);
     replacement.mcpServers = [{ name: 'docs', transport: 'http' }];
@@ -48,7 +46,6 @@ describe('ConversationHandle', () => {
       snapshot: { mcpServers: [{ name: 'docs', transport: 'http' }] },
     });
   });
-
   it('invalidates provisional records from superseded materialization epochs', () => {
     const setup = makeHandle();
     const first = setup.handle.beginMaterialization();
@@ -56,19 +53,15 @@ describe('ConversationHandle', () => {
     if (!first || !second) throw new Error('expected materialization epochs');
     const stale = makeRecord(setup.handle, first.epoch);
     const current = makeRecord(setup.handle, second.epoch);
-
     setup.handle.attachProvisional(stale);
     expect(setup.handle.currentRecord()).toBeUndefined();
-
     setup.handle.attachProvisional(current);
     setup.handle.activate(current);
-
     expect(first.signal.aborted).toBe(true);
     expect(setup.handle.state).toBe('active');
     expect(setup.handle.readyRecord()).toBe(current);
     expect(peek(setup.projection.source).kind).toBe('active');
   });
-
   for (const initialState of [
     'closed',
     'suspended',
@@ -79,10 +72,8 @@ describe('ConversationHandle', () => {
     it(`kills from ${initialState} and releases its projection exactly once`, () => {
       const setup = makeHandle();
       moveTo(setup.handle, initialState);
-
       setup.handle.kill();
       setup.handle.kill();
-
       expect(setup.handle.state).toBe('killed');
       expect(setup.handle.currentRecord()).toBeUndefined();
       expect(peek(setup.projection.source)).toEqual({ kind: 'closed' });
@@ -90,24 +81,25 @@ describe('ConversationHandle', () => {
       expect(peek(setup.listModel.states.list)[setup.handle.conversationId]).toBeUndefined();
     });
   }
-
   it('writes descriptor and config changes through one persistence seam', () => {
     const setup = makeHandle({ everMaterialized: true });
-
-    setup.handle.updateMode('plan');
-    setup.handle.updateConfig('effort', 'high');
+    setup.handle.updateOption('mode', 'plan');
+    setup.handle.updateOption('reasoning_effort', 'high');
     setup.handle.updateProviderSessionId('session-2');
-
     expect(setup.saveIntent).toHaveBeenCalledTimes(3);
     expect(setup.handle.intentPayload()).toMatchObject({
       payload: {
         sessionId: 'session-2',
-        configured: { modeId: 'plan', effort: 'high' },
+        configured: {
+          options: {
+            mode: 'plan',
+            reasoning_effort: 'high',
+          },
+        },
       },
       sessionId: 'session-2',
     });
   });
-
   it('retains pending capabilities and atomically replaces them when the catalog is ready', () => {
     const setup = makeHandle();
     const firstMaterialization = setup.handle.beginMaterialization();
@@ -119,24 +111,42 @@ describe('ConversationHandle', () => {
     };
     firstCell.config = {
       ...initialSessionConfigState,
-      modelOptions: {
-        configId: 'model',
-        selected: 'opus',
-        available: [
-          { id: 'opus', name: 'Opus' },
-          { id: 'haiku', name: 'Haiku' },
-        ],
-      },
-      efforts: {
-        configId: 'effort',
-        selected: 'medium',
-        available: [{ id: 'medium', name: 'Medium' }],
-      },
+      options: [
+        {
+          category: 'model',
+          name: 'model',
+          type: 'select',
+          id: 'model',
+          currentValue: 'opus',
+          options: [
+            {
+              value: 'opus',
+              name: 'Opus',
+            },
+            {
+              value: 'haiku',
+              name: 'Haiku',
+            },
+          ],
+        },
+        {
+          category: 'thought_level',
+          name: 'thought_level',
+          type: 'select',
+          id: 'effort',
+          currentValue: 'medium',
+          options: [
+            {
+              value: 'medium',
+              name: 'Medium',
+            },
+          ],
+        },
+      ],
     };
     firstCell.configCatalog = readyConfigCatalog(firstCell.config);
     setup.handle.attachProvisional(firstRecord);
     setup.handle.activate(firstRecord);
-
     const secondMaterialization = setup.handle.beginMaterialization();
     if (!secondMaterialization) throw new Error('expected rematerialization epoch');
     const record = makeRecord(setup.handle, secondMaterialization.epoch);
@@ -145,70 +155,92 @@ describe('ConversationHandle', () => {
       configCatalog: SessionConfigCatalog;
     };
     setup.handle.attachProvisional(record);
-
     let source = peek(setup.projection.source);
     expect(source.kind).toBe('active');
     if (source.kind !== 'active') throw new Error('expected active projection');
-    expect(source.snapshot.config.modelOptions?.selected).toBe('opus');
-    expect(source.snapshot.config.efforts?.selected).toBe('medium');
-
+    expect(
+      source.snapshot.config.options?.find((option) => option.category === 'model')?.currentValue
+    ).toBe('opus');
+    expect(
+      source.snapshot.config.options?.find((option) => option.category === 'thought_level')
+        ?.currentValue
+    ).toBe('medium');
     recordCell.config = {
       ...initialSessionConfigState,
-      modelOptions: {
-        configId: 'model',
-        selected: 'haiku',
-        available: [
-          { id: 'opus', name: 'Opus' },
-          { id: 'haiku', name: 'Haiku' },
-        ],
-      },
-      efforts: null,
+      options: [
+        {
+          category: 'model',
+          name: 'model',
+          type: 'select',
+          id: 'model',
+          currentValue: 'haiku',
+          options: [
+            {
+              value: 'opus',
+              name: 'Opus',
+            },
+            {
+              value: 'haiku',
+              name: 'Haiku',
+            },
+          ],
+        },
+      ],
     };
     recordCell.configCatalog = readyConfigCatalog(recordCell.config);
     setup.handle.syncRecord(record);
-
     source = peek(setup.projection.source);
     expect(source.kind).toBe('active');
     if (source.kind !== 'active') throw new Error('expected active projection');
-    expect(source.snapshot.config.modelOptions?.selected).toBe('haiku');
-    expect(source.snapshot.config.efforts).toBeNull();
-
+    expect(
+      source.snapshot.config.options?.find((option) => option.category === 'model')?.currentValue
+    ).toBe('haiku');
+    expect(
+      source.snapshot.config.options?.find((option) => option.category === 'thought_level')
+    ).toBeUndefined();
     setup.handle.activate(record);
     setup.handle.suspend();
-
     const suspended = peek(setup.projection.source);
     expect(suspended.kind).toBe('suspended');
     if (suspended.kind !== 'suspended') throw new Error('expected suspended projection');
     if (!suspended.retained) throw new Error('expected retained presentation');
-    expect(suspended.retained.lastKnownCapabilities.modelOptions?.selected).toBe('haiku');
-    expect(suspended.retained.lastKnownCapabilities.efforts).toBeNull();
+    expect(
+      suspended.retained.lastKnownCapabilities.options?.find(
+        (option) => option.category === 'model'
+      )?.currentValue
+    ).toBe('haiku');
+    expect(
+      suspended.retained.lastKnownCapabilities.options?.find(
+        (option) => option.category === 'thought_level'
+      )
+    ).toBeUndefined();
   });
-
   it('persists an allowlisted versioned intent without provider environment secrets', () => {
     const setup = makeHandle({ everMaterialized: true });
     setup.handle.refreshDescriptor({
       ...setup.handle.descriptor,
       env: { API_TOKEN: 'must-not-be-persisted' },
-      model: 'sonnet',
-      modeId: 'agent',
-      effort: 'high',
+      options: { model: 'sonnet', mode: 'agent', reasoning_effort: 'high' },
     });
-
     const intent = setup.handle.intentPayload();
-
     expect(intent).toMatchObject({
       payload: {
         version: '1',
         conversationId: 'conv-handle',
         providerId: 'claude',
         cwd: '/tmp/workspace',
-        configured: { model: 'sonnet', modeId: 'agent', effort: 'high' },
+        configured: {
+          options: {
+            model: 'sonnet',
+            mode: 'agent',
+            reasoning_effort: 'high',
+          },
+        },
       },
     });
     expect(JSON.stringify(intent)).not.toContain('API_TOKEN');
     expect(JSON.stringify(intent)).not.toContain('must-not-be-persisted');
   });
-
   it('aborts in-flight materialization before disposal waits for activation drain', async () => {
     let enteredMaterialization: () => void = () => {};
     const materializing = new Promise<void>((resolve) => {
@@ -228,15 +260,12 @@ describe('ConversationHandle', () => {
         });
       },
     });
-
     const activation = setup.handle.ensure();
     await materializing;
-
     await expect(setup.handle.dispose()).resolves.toBeUndefined();
     await expect(activation).rejects.toThrow('LifecycleRegistry disposed');
     expect(setup.handle.state).toBe('closed');
   });
-
   it('rejects commands after kill while directory removal is still pending', async () => {
     const setup = makeHandle();
     const materialization = setup.handle.beginMaterialization();
@@ -245,9 +274,7 @@ describe('ConversationHandle', () => {
     setup.handle.attachProvisional(record);
     setup.handle.activate(record);
     const operation = vi.fn(() => ({ success: true as const, data: undefined }));
-
     setup.handle.kill();
-
     await expect(setup.handle.use(operation)).resolves.toMatchObject({
       success: false,
       error: { type: 'conversation_not_found' },
@@ -256,7 +283,6 @@ describe('ConversationHandle', () => {
     expect(setup.handle.beginMaterialization()).toBeNull();
   });
 });
-
 function makeHandle(
   options: {
     everMaterialized?: boolean;
@@ -295,7 +321,6 @@ function makeHandle(
       now: () => 123,
     },
     makeStartInput({ conversationId: 'conv-handle' }),
-    {},
     false,
     options.everMaterialized ?? false
   );
@@ -307,7 +332,6 @@ function makeHandle(
     saveIntent,
   };
 }
-
 function moveTo(handle: ConversationHandle, state: ConversationHandleState): void {
   if (state === 'closed') return;
   if (state === 'suspended') {
@@ -322,7 +346,6 @@ function moveTo(handle: ConversationHandle, state: ConversationHandleState): voi
   handle.activate(record);
   if (state === 'stopping') handle.beginStopping();
 }
-
 function makeRecord(handle: ConversationHandle, epoch: number): SessionRecord {
   const input = handle.materializationInput();
   return {
@@ -330,7 +353,6 @@ function makeRecord(handle: ConversationHandle, epoch: number): SessionRecord {
     epoch,
     input,
     resumeOutcome: null,
-    clearedConfiguration: [],
     processKey: 'claude:/tmp/workspace',
     processGeneration: 1,
     connectionLeaseState: { release: true },
@@ -347,11 +369,10 @@ function makeRecord(handle: ConversationHandle, epoch: number): SessionRecord {
     disposed: false,
   };
 }
-
 function readyConfigCatalog(config: SessionConfigState): SessionConfigCatalog {
-  const { modelOptions, efforts, modeOptions, collaborationModeOptions } = config;
+  const { options } = config;
   return {
     kind: 'ready',
-    config: { modelOptions, efforts, modeOptions, collaborationModeOptions },
+    config: { options },
   };
 }

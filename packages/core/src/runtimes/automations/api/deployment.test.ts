@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LOCAL_HOST_REF } from '#primitives/host/api';
 import { automationDeploymentSchema, automationRunConfigSnapshotSchema } from './deployment';
-
 const repository = {
   host: LOCAL_HOST_REF,
   path: {
@@ -9,7 +8,6 @@ const repository = {
     segments: ['Users', 'jona', 'repo'],
   },
 };
-
 const deployment = {
   automationId: 'auto-1',
   enabled: true,
@@ -19,7 +17,6 @@ const deployment = {
     type: 'acp' as const,
     start: {
       providerId: 'claude',
-      model: null,
       initialQueue: [{ text: 'Review open PRs' }],
     },
   },
@@ -40,19 +37,16 @@ const deployment = {
   },
   revision: 1,
 };
-
 describe('automation deployment schemas', () => {
   it('validates a deployment and derives its immutable run snapshot', () => {
     const parsed = automationDeploymentSchema.parse(deployment);
     const snapshot = automationRunConfigSnapshotSchema.parse(parsed);
-
     expect(parsed.automationId).toBe('auto-1');
     expect(snapshot).not.toHaveProperty('automationId');
     expect(snapshot).not.toHaveProperty('enabled');
     expect(snapshot).not.toHaveProperty('revision');
     expect(snapshot.workspace).toEqual(deployment.workspace);
   });
-
   it('accepts structurally valid schedules without evaluating cron semantics', () => {
     expect(
       automationDeploymentSchema.safeParse({
@@ -67,7 +61,6 @@ describe('automation deployment schemas', () => {
       }).success
     ).toBe(true);
   });
-
   it('rejects blank schedule fields without a local fallback', () => {
     expect(() =>
       automationDeploymentSchema.parse({
@@ -82,16 +75,13 @@ describe('automation deployment schemas', () => {
       })
     ).toThrow();
   });
-
   it('accepts fixed-directory deployments without repository or git fields', () => {
     const parsed = automationDeploymentSchema.parse({
       ...deployment,
       workspace: { kind: 'directory', path: repository },
     });
-
     expect(parsed.workspace).toEqual({ kind: 'directory', path: repository });
   });
-
   it('requires repository and git configuration for a worktree', () => {
     expect(() =>
       automationDeploymentSchema.parse({
@@ -100,11 +90,9 @@ describe('automation deployment schemas', () => {
       })
     ).toThrow();
   });
-
   it('requires explicit non-blank preserve patterns for worktrees', () => {
     const { preservePatterns: _preservePatterns, ...withoutPreservePatterns } =
       deployment.workspace;
-
     expect(() =>
       automationDeploymentSchema.parse({
         ...deployment,
@@ -117,14 +105,12 @@ describe('automation deployment schemas', () => {
         workspace: { ...deployment.workspace, preservePatterns: ['   '] },
       })
     ).toThrow();
-
     const parsed = automationDeploymentSchema.parse({
       ...deployment,
       workspace: { ...deployment.workspace, preservePatterns: [] },
     });
     expect(parsed.workspace).toMatchObject({ preservePatterns: [] });
   });
-
   it('trims user-entered deployment and runtime input strings', () => {
     const parsed = automationDeploymentSchema.parse({
       ...deployment,
@@ -134,9 +120,11 @@ describe('automation deployment schemas', () => {
         title: '  Review result  ',
         start: {
           providerId: '  claude  ',
-          model: '  opus  ',
-          modeId: '  agent  ',
           initialQueue: [{ text: '  Review open PRs  ', hiddenContext: '  keep spacing  ' }],
+          options: {
+            model: '  opus  ',
+            mode: '  agent  ',
+          },
         },
       },
       workspace: {
@@ -153,16 +141,17 @@ describe('automation deployment schemas', () => {
         },
       },
     });
-
     expect(parsed).toMatchObject({
       name: 'Nightly review',
       agent: {
         title: 'Review result',
         start: {
           providerId: 'claude',
-          model: 'opus',
-          modeId: 'agent',
           initialQueue: [{ text: 'Review open PRs', hiddenContext: '  keep spacing  ' }],
+          options: {
+            model: '  opus  ',
+            mode: '  agent  ',
+          },
         },
       },
       workspace: {
@@ -177,8 +166,7 @@ describe('automation deployment schemas', () => {
       },
     });
   });
-
-  it('rejects blank prompts, providers, models, modes, titles, and names', () => {
+  it('rejects blank prompts, providers, titles, and names', () => {
     const invalidDeployments = [
       { ...deployment, name: '   ' },
       {
@@ -186,20 +174,6 @@ describe('automation deployment schemas', () => {
         agent: {
           ...deployment.agent,
           start: { ...deployment.agent.start, providerId: '   ' },
-        },
-      },
-      {
-        ...deployment,
-        agent: {
-          ...deployment.agent,
-          start: { ...deployment.agent.start, model: '' },
-        },
-      },
-      {
-        ...deployment,
-        agent: {
-          ...deployment.agent,
-          start: { ...deployment.agent.start, modeId: '   ' },
         },
       },
       { ...deployment, agent: { ...deployment.agent, title: '   ' } },
@@ -211,12 +185,10 @@ describe('automation deployment schemas', () => {
         },
       },
     ];
-
     for (const invalid of invalidDeployments) {
       expect(automationDeploymentSchema.safeParse(invalid).success).toBe(false);
     }
   });
-
   it('rejects blank TUI models and prompts while accepting null as provider default', () => {
     const tuiAgent = {
       type: 'tui' as const,
@@ -227,7 +199,6 @@ describe('automation deployment schemas', () => {
         autoApprove: false,
       },
     };
-
     expect(automationDeploymentSchema.safeParse({ ...deployment, agent: tuiAgent }).success).toBe(
       true
     );

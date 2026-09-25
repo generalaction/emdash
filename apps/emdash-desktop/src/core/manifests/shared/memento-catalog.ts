@@ -1,7 +1,4 @@
-import {
-  acpDraftMemento,
-  providerPreferencesMemento,
-} from '@core/features/conversations/contributions/mementos';
+import { acpDraftMemento } from '@core/features/conversations/contributions/mementos';
 import {
   projectViewMemento,
   workspaceChromeMemento,
@@ -31,7 +28,6 @@ import { workbenchHistoryMemento } from '@core/primitives/navigation/api/memento
  */
 export const mementoCatalog: readonly MementoCatalogEntry[] = [
   acpDraftMemento,
-  providerPreferencesMemento,
   projectViewMemento,
   workspaceChromeMemento,
   taskChromeMemento,

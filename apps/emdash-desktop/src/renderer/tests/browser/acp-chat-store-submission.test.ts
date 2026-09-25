@@ -307,10 +307,10 @@ describe('AcpChatStore prompt submission', () => {
     });
     try {
       store.setDraftText('keep writing offline');
-      store.setModel('model');
-      store.setMode('mode');
-      store.setEffort('high');
-      store.setCollaborationMode('plan');
+      store.setOption('model', 'model');
+      store.setOption('mode', 'mode');
+      store.setOption('effort', 'high');
+      store.setOption('collaboration', 'plan');
       store.stop();
       store.deleteQueuedPrompt('queued');
       store.reorderQueuedPrompts(['queued']);
@@ -862,44 +862,32 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
-  it('does not remember a rejected provider change as a future default', async () => {
+  it('reports a rejected provider option without changing local preferences', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockImplementation(() => 'test-toast');
     const setOption = vi.fn(async () => ({
       success: false as const,
-      error: { type: 'set_mode_failed' as const, cause: { message: 'rejected' } },
+      error: { type: 'set_config_failed' as const, cause: { message: 'rejected' } },
     }));
     const store = createStore(idleState(), vi.fn(), { setOption });
-    const rememberPreference = vi
-      .spyOn(
-        store as unknown as {
-          _rememberPreference(patch: { modeId: string }): Promise<void>;
-        },
-        '_rememberPreference'
-      )
-      .mockResolvedValue();
-
-    store.setMode('agent-full-access');
-
-    await vi.waitFor(() => expect(setOption).toHaveBeenCalledWith('mode', 'agent-full-access'));
-    expect(rememberPreference).not.toHaveBeenCalled();
+    store.setOption('native-mode', 'agent-full-access');
+    await vi.waitFor(() =>
+      expect(setOption).toHaveBeenCalledWith('native-mode', 'agent-full-access')
+    );
+    expect(toastError).toHaveBeenCalled();
+    toastError.mockRestore();
     store.dispose();
   });
 
-  it('remembers a successful collaboration-mode change', async () => {
+  it('forwards native options including provider-owned defaults', async () => {
     const setOption = vi.fn(async () => ({ success: true as const, data: undefined }));
     const store = createStore(idleState(), vi.fn(), { setOption });
-    const rememberPreference = vi
-      .spyOn(
-        store as unknown as {
-          _rememberPreference(patch: { collaborationMode: string }): Promise<void>;
-        },
-        '_rememberPreference'
-      )
-      .mockResolvedValue();
-
-    store.setCollaborationMode('plan');
-
-    await vi.waitFor(() => expect(setOption).toHaveBeenCalledWith('collaborationMode', 'plan'));
-    expect(rememberPreference).toHaveBeenCalledWith({ collaborationMode: 'plan' });
+    store.setOption('collaboration_mode', 'plan');
+    store.setOption('collaboration_mode', 'default');
+    await vi.waitFor(() => expect(setOption).toHaveBeenCalledTimes(2));
+    expect(setOption.mock.calls).toEqual([
+      ['collaboration_mode', 'plan'],
+      ['collaboration_mode', 'default'],
+    ]);
     store.dispose();
   });
 

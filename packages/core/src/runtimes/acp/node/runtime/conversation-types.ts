@@ -3,8 +3,6 @@ import type { SessionCell } from '#runtimes/acp/node/session/cell';
 import type { ConversationHandle } from './conversation-handle';
 import type { AcpStartInput } from './types';
 
-export type ConfigDimension = 'model' | 'effort' | 'collaborationMode';
-export type ConfigOverrides = Partial<Record<ConfigDimension, string>>;
 export type ActivationStartError = AcpStartError | ConversationNotFoundError;
 
 export interface ConnectionLeaseState {
@@ -16,7 +14,7 @@ export interface SessionRecord {
   epoch: number;
   input: AcpStartInput;
   resumeOutcome: 'loaded' | 'replaced-by-new' | null;
-  clearedConfiguration: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+  clearedOptions?: Record<string, string | boolean>;
   processKey: string;
   processGeneration: number;
   connectionLeaseState: ConnectionLeaseState;

@@ -13,12 +13,10 @@ import { cell, expose } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { conversationsContract } from '../../api';
 import { AcpLiveSession } from './acp-live-session';
-
 const getClient = vi.hoisted(() => vi.fn());
 vi.mock('@core/features/conversations/api/browser/client', () => ({
   getConversationsClient: getClient,
 }));
-
 const contract = defineContract({
   acp: defineContract({
     attach: conversationsContract.acp.attach,
@@ -26,7 +24,6 @@ const contract = defineContract({
     session: conversationsContract.acp.session,
   }),
 });
-
 describe('ACP attachment recovery over replaceable Wire', () => {
   it.each([null, 'saved'])(
     'uses the shared start operation after attaching session %s',
@@ -113,7 +110,7 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       const recovery = expect(session.revalidate()).rejects.toThrow(
         'Timed out reattaching ACP session'
       );
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(10000);
       await recovery;
       expect(session.usable).toBe(false);
       gate.resolve();
@@ -121,8 +118,11 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       await expect(rpc.acp.attach({ conversationId: 'conversation' })).resolves.toEqual(
         ok({ sessionId: 'session-1' })
       );
-      await vi.advanceTimersByTimeAsync(60_000);
-      expect(session.config.current().modelOptions?.selected).toBe('new');
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('new');
       expect(session.usable).toBe(false);
       await session.revalidate();
       expect(session.usable).toBe(true);
@@ -136,7 +136,6 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       vi.useRealTimers();
     }
   });
-
   it('recovers optional metadata after its initial acquisition fails without blocking chat', async () => {
     const transport = replaceableTransport();
     const connection = connect(transport, { maxHeldCalls: 0 });
@@ -163,7 +162,6 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       await replacement.dispose();
     }
   });
-
   it('retains the logical session while reattaching and refreshing daemon-owned state', async () => {
     const transport = replaceableTransport();
     const connection = connect(transport, { maxHeldCalls: 0 });
@@ -175,9 +173,15 @@ describe('ACP attachment recovery over replaceable Wire', () => {
     const session = await AcpLiveSession.create('conversation');
     try {
       expect(session.usable).toBe(true);
-      expect(session.config.current().modelOptions?.selected).toBe('old');
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('old');
       transport.detach();
-      expect(session.config.current().modelOptions?.selected).toBe('old');
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('old');
       transport.install(replacement.transport);
       const recovery = session.revalidate();
       expect(session.usable).toBe(false);
@@ -185,7 +189,10 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       await recovery;
       expect(session.usable).toBe(true);
       expect(session.conversationId).toBe('conversation');
-      expect(session.config.current().modelOptions?.selected).toBe('new');
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('new');
     } finally {
       gate.resolve();
       session.dispose();
@@ -196,7 +203,6 @@ describe('ACP attachment recovery over replaceable Wire', () => {
     }
   });
 });
-
 function peer(
   model: string,
   attachGate: Promise<void> = Promise.resolve(),
@@ -218,10 +224,17 @@ function peer(
       canCancel: false,
     }),
     config: cell({
-      modelOptions: { configId: 'model', selected: model, available: [] },
-      efforts: null,
-      modeOptions: null,
       availableCommands: [],
+      options: [
+        {
+          category: 'model',
+          name: 'model',
+          type: 'select',
+          id: 'model',
+          currentValue: model,
+          options: [],
+        },
+      ],
     }),
     usage: cell(null),
     plan: cell(null),

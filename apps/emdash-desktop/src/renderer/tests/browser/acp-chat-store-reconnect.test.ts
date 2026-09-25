@@ -18,7 +18,6 @@ import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
-
 const fixture = vi.hoisted(() => ({ client: undefined as unknown, context: undefined as unknown }));
 vi.mock('@core/features/conversations/api/browser/client', () => ({
   getConversationsClient: async () => fixture.client,
@@ -39,7 +38,6 @@ vi.mock('@core/primitives/mementos/browser', () => ({
     }),
   }),
 }));
-
 it.each([
   'missed-active',
   'observed-active',
@@ -79,7 +77,7 @@ it.each([
   const session = expose(contract.acp.session, {
     state,
     activeTurn,
-    config: cell({ modelOptions: null, efforts: null, modeOptions: null, availableCommands: [] }),
+    config: cell({ availableCommands: [], options: [] }),
     usage: cell(null),
     plan: cell(null),
     agents: cell([]),
@@ -278,7 +276,7 @@ it.each([
     }
     await vi.waitFor(
       () => expect(store.chatState.transcript.state.committedTurns).toHaveLength(1),
-      { timeout: 3_000 }
+      { timeout: 3000 }
     );
     await vi.waitFor(() => expect(parent.textContent).toContain('Completed remotely.'));
     expect.soft(store.chatState.transcript.state.committedTurns).toEqual([completed]);

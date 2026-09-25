@@ -35,7 +35,7 @@ import {
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
   historyPageInputSchema,
-  loadHistoryResultSchema,
+  historyPageSchema,
   resolvePermissionCommandSchema,
   sendPromptCommandSchema,
   sendPromptResponseSchema,
@@ -45,9 +45,6 @@ import {
 
 const startSessionResultSchema = z.object({
   sessionId: z.string(),
-  clearedConfiguration: z
-    .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
-    .optional(),
 });
 const sessionKeySchema = z.object({ conversationId: z.string() });
 const terminalOutputKeySchema = z.object({ terminalId: z.string() });
@@ -114,7 +111,7 @@ export const acpApiContract = defineContract({
 
   loadHistory: fallible({
     input: historyPageInputSchema,
-    data: loadHistoryResultSchema,
+    data: historyPageSchema,
     error: acpLoadHistoryErrorSchema,
   }),
   sessions: liveModel({

@@ -62,10 +62,7 @@ export type ActivationSnapshot = {
 };
 
 export type RetainedConfiguredState = {
-  model: string | null;
-  modeId: string | null;
-  effort: string | null;
-  collaborationMode?: string | null;
+  options?: Record<string, string | boolean>;
 };
 
 export type RetainedPresentation = {
@@ -254,21 +251,8 @@ export function retainedConfig(retained: RetainedPresentation): SessionConfigSta
   const { configured, lastKnownCapabilities } = retained;
   return {
     ...lastKnownCapabilities,
-    modelOptions: selected(lastKnownCapabilities.modelOptions, configured.model),
-    efforts: selected(lastKnownCapabilities.efforts, configured.effort),
-    modeOptions: selected(lastKnownCapabilities.modeOptions, configured.modeId),
-    collaborationModeOptions: selected(
-      lastKnownCapabilities.collaborationModeOptions ?? null,
-      configured.collaborationMode ?? null
-    ),
+    configuredOptions: configured.options,
   };
-}
-
-function selected<T extends { selected: string | null }>(
-  group: T | null,
-  value: string | null
-): T | null {
-  return group ? { ...group, selected: value ?? group.selected } : null;
 }
 
 function asMutable<T>(value: readonly T[]): T[] {

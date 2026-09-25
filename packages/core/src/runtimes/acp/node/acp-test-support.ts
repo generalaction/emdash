@@ -190,9 +190,6 @@ export class FakeAcpProcessHandle extends EventEmitter implements AcpProcessHand
   }
 }
 
-// Alias for backward compat.
-export { FakeAcpProcessHandle as FakeChildProcess };
-
 export const fakeAcpFs: AcpFs = {
   readFile: vi.fn().mockResolvedValue(''),
   writeFile: vi.fn().mockResolvedValue(undefined),
@@ -409,7 +406,6 @@ export function makeStartInput(
     providerId: 'claude',
     cwd: '/tmp/workspace',
     sessionId: null,
-    model: null,
     ...overrides,
   };
 }

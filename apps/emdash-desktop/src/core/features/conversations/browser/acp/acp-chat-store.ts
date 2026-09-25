@@ -1,5 +1,4 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
-import { formatHostRef } from '@emdash/core/primitives/host/api';
 import {
   sessionNotFoundErrorSchema,
   type AcpSessionStartMode,
@@ -14,10 +13,6 @@ import { systemClock } from '@emdash/shared/scheduling';
 import {
   PromptEditorModel,
   type CommandItem,
-  type ComposerCollaborationModeOption,
-  type ComposerEffortOption,
-  type ComposerModelOption,
-  type ComposerPermissionModeOption,
   type ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
 import { toast } from '@emdash/ui/react/primitives';
@@ -35,7 +30,6 @@ import {
   type ConversationsClient,
 } from '@core/features/conversations/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { updateProviderPreference } from '@core/features/conversations/browser/provider-preferences';
 import {
   ACP_DRAFT_MAX_LENGTH,
   acpDraftMemento,
@@ -164,14 +158,6 @@ export class AcpChatStore {
       draftText: computed,
       draftAttachments: observable.shallow,
       unconfirmedPromptIds: observable.shallow,
-      model: computed,
-      modelOptions: computed,
-      permissionMode: computed,
-      permissionModeOptions: computed,
-      collaborationMode: computed,
-      collaborationModeOptions: computed,
-      effort: computed,
-      effortOptions: computed,
       commands: computed,
       mcpServers: computed,
       permissionQueue: computed,
@@ -181,10 +167,9 @@ export class AcpChatStore {
       isEmpty: computed,
       submitPrompt: action,
       stop: action,
-      setModel: action,
-      setMode: action,
-      setCollaborationMode: action,
-      setEffort: action,
+      providerOptions: computed,
+      configuredOptions: computed,
+      setOption: action,
       resolvePermission: action,
       editQueuedPrompt: action,
       deleteQueuedPrompt: action,
@@ -254,66 +239,6 @@ export class AcpChatStore {
         void this._rehydrateDraftAttachmentPreviews();
       },
       (error: unknown) => getMementoClient().reportError(error)
-    );
-  }
-
-  get model(): string | null {
-    return this.session?.config.current().modelOptions?.selected ?? null;
-  }
-
-  get modelOptions(): Record<string, ComposerModelOption> | null {
-    const options = this.session?.config.current().modelOptions;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
-    );
-  }
-
-  get permissionMode(): string | null {
-    return this.session?.config.current().modeOptions?.selected ?? null;
-  }
-
-  get permissionModeOptions(): Record<string, ComposerPermissionModeOption> | null {
-    const options = this.session?.config.current().modeOptions;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
-    );
-  }
-
-  get collaborationMode(): string | null {
-    return this.session?.config.current().collaborationModeOptions?.selected ?? null;
-  }
-
-  get collaborationModeOptions(): Record<string, ComposerCollaborationModeOption> | null {
-    const options = this.session?.config.current().collaborationModeOptions;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
-    );
-  }
-
-  get effort(): string | null {
-    return this.session?.config.current().efforts?.selected ?? null;
-  }
-
-  get effortOptions(): Record<string, ComposerEffortOption> | null {
-    const options = this.session?.config.current().efforts;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
     );
   }
 
@@ -548,60 +473,21 @@ export class AcpChatStore {
       .catch((error: unknown) => this._toastError('Failed to stop', error));
   }
 
-  setModel(model: string): void {
-    if (!this.liveActionsEnabled) return;
-    void this.session
-      ?.setOption('model', model)
-      .then((result) => {
-        if (!result.success) {
-          this._toastError('Failed to change model', result.error);
-          return;
-        }
-        void this._rememberPreference({ model });
-      })
-      .catch((error: unknown) => this._toastError('Failed to change model', error));
+  get providerOptions() {
+    return this.session?.config.current().options ?? [];
+  }
+  get configuredOptions() {
+    return this.session?.config.current().configuredOptions ?? {};
   }
 
-  setMode(modeId: string): void {
-    if (!this.liveActionsEnabled) return;
+  setOption(configId: string, value: string | boolean): void {
+    if (!this.liveActionsEnabled || !configId) return;
     void this.session
-      ?.setOption('mode', modeId)
+      ?.setOption(configId, value)
       .then((result) => {
-        if (!result.success) {
-          this._toastError('Failed to change session mode', result.error);
-          return;
-        }
-        void this._rememberPreference({ modeId });
+        if (!result.success) this._toastError('Failed to change setting', result.error);
       })
-      .catch((error: unknown) => this._toastError('Failed to change session mode', error));
-  }
-
-  setCollaborationMode(modeId: string): void {
-    if (!this.liveActionsEnabled) return;
-    void this.session
-      ?.setOption('collaborationMode', modeId)
-      .then((result) => {
-        if (!result.success) {
-          this._toastError('Failed to change collaboration mode', result.error);
-          return;
-        }
-        void this._rememberPreference({ collaborationMode: modeId });
-      })
-      .catch((error: unknown) => this._toastError('Failed to change collaboration mode', error));
-  }
-
-  setEffort(effort: string): void {
-    if (!this.liveActionsEnabled) return;
-    void this.session
-      ?.setOption('effort', effort)
-      .then((result) => {
-        if (!result.success) {
-          this._toastError('Failed to change effort', result.error);
-          return;
-        }
-        void this._rememberPreference({ effort });
-      })
-      .catch((error: unknown) => this._toastError('Failed to change effort', error));
+      .catch((error: unknown) => this._toastError('Failed to change setting', error));
   }
 
   resolvePermission(optionId: string): void {
@@ -716,16 +602,6 @@ export class AcpChatStore {
           message: 'Conversation history is unavailable. Retry loading this conversation.',
         });
         return;
-      }
-      if (started.data.clearedConfiguration?.length) {
-        await this._rememberPreference(
-          Object.fromEntries(started.data.clearedConfiguration.map((key) => [key, null])) as {
-            model?: null;
-            modeId?: null;
-            effort?: null;
-            collaborationMode?: null;
-          }
-        );
       }
 
       if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
@@ -1027,23 +903,6 @@ export class AcpChatStore {
       (client) => client.attachments
     );
     return this._attachmentsClientPromise;
-  }
-
-  private async _rememberPreference(patch: {
-    model?: string | null;
-    modeId?: string | null;
-    effort?: string | null;
-    collaborationMode?: string | null;
-  }): Promise<void> {
-    const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
-      ?.data.providerId;
-    if (!providerId) return;
-    const host = formatHostRef(hostRefFromConnectionId(getProjectSshConnectionId(this.projectId)));
-    try {
-      await updateProviderPreference(host, providerId, 'acp', patch);
-    } catch (error) {
-      getMementoClient().reportError(error);
-    }
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {

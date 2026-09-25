@@ -1,4 +1,6 @@
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import { hostRefKey, isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import { acpApiContract } from '@emdash/core/runtimes/acp/api/client';
 import {
   conversationRecordsSchema,
   conversationsContract,
@@ -6,7 +8,10 @@ import {
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady } from '@emdash/wire/state';
+import { eq } from 'drizzle-orm';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { conversationRegistryTable } from '../../api/node/registry';
+import { getProviderSettingsService } from '../provider-settings-service';
 import {
   applyConversationSnapshot,
   type ConversationHostIdentity,
@@ -72,6 +77,84 @@ export class ConversationSyncService {
       },
       { scope }
     );
+    if (client.data.acp) {
+      const sessions = remote(acpApiContract.sessions, client.data.acp.sessions, { scope });
+      const configModel = {
+        ...acpApiContract.session,
+        states: { config: acpApiContract.session.states.config },
+      };
+      const configs = remote<typeof configModel>(configModel, client.data.acp.session, { scope });
+      const subscriptions = new Map<string, Scope>();
+      observe(
+        sessions(undefined).states.list,
+        (snapshot) => {
+          if (snapshot.status === 'loading') return;
+          const current = snapshot.value ?? {};
+          for (const [id, child] of subscriptions)
+            if (!current[id]) {
+              subscriptions.delete(id);
+              void child.dispose();
+            }
+          for (const [id, summary] of Object.entries(current)) {
+            if (subscriptions.has(id)) continue;
+            const child = createScope({ label: `provider-options:${id}` });
+            scope.add(() => child.dispose());
+            subscriptions.set(id, child);
+            let previous = '';
+            observe(
+              configs({ conversationId: id }).states.config,
+              (state) => {
+                if (state.status === 'loading' || !state.value?.discoveryContext) return;
+                const config = state.value;
+                const fingerprint = JSON.stringify([
+                  config.options,
+                  config.discoveryContext,
+                  config.clearedOptions,
+                ]);
+                if (fingerprint === previous) return;
+                previous = fingerprint;
+                chain = chain
+                  .then(async () => {
+                    const [row] = await this.options.db
+                      .select()
+                      .from(conversationRegistryTable)
+                      .where(eq(conversationRegistryTable.id, id))
+                      .limit(1);
+                    await getProviderSettingsService(this.options.db).observeCatalog(
+                      {
+                        host: formatHostRef(host),
+                        providerId: summary.providerId,
+                        ...(row?.projectId ? { projectId: row.projectId } : {}),
+                      },
+                      config
+                    );
+                    if (Object.keys(config.clearedOptions ?? {}).length) {
+                      const result = await client.data.conversations.patchConfig({
+                        conversationId: id,
+                        patch: {},
+                        mapPatch: {
+                          field: 'options',
+                          entries: Object.fromEntries(
+                            Object.keys(config.clearedOptions!).map((key) => [key, null])
+                          ),
+                          expected: config.clearedOptions,
+                        },
+                      });
+                      if (!result.success) throw new Error(result.error.message);
+                    }
+                  })
+                  .catch((error) => {
+                    previous = '';
+                    this.options.onError?.('provider options sync', error);
+                  });
+              },
+              { scope: child }
+            );
+          }
+        },
+        { scope }
+      );
+    }
     await whenReady(list, { scope });
     await chain;
     if (this.attachments.get(key) !== scope) await scope.dispose();

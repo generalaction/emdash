@@ -2,8 +2,8 @@ import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { conversationForRun, taskParamsForRun } from './adoption-builder';
 import { adoptRun } from './run-adoption';
-
 const mocks = vi.hoisted(() => ({
   client: vi.fn(),
   dbSelect: vi.fn(),
@@ -14,24 +14,19 @@ const mocks = vi.hoisted(() => ({
   isAutomationRunAdoptable: vi.fn(),
   upsertRunProjection: vi.fn(),
 }));
-
 vi.mock('@core/features/automations/api/automation-run', async () => ({
   ...(await import('@core/primitives/automations/api/config')),
   isAutomationRunAdoptable: mocks.isAutomationRunAdoptable,
 }));
-
 vi.mock('@core/features/projects/node/operations/getProjects', () => ({
   getProjectById: mocks.getProjectById,
 }));
-
 vi.mock('./repo', () => ({
   getAutomation: mocks.getAutomation,
 }));
-
 vi.mock('@core/features/automations/api/node/run-projection', () => ({
   upsertRunProjection: mocks.upsertRunProjection,
 }));
-
 const dependencies = {
   db: { select: mocks.dbSelect } as never,
   getProjectById: mocks.getProjectById,
@@ -41,7 +36,6 @@ const dependencies = {
   },
   taskService: { notifyTaskCreated: vi.fn() },
 };
-
 function runFixture(): AutomationRun {
   return {
     id: 'run-1',
@@ -56,7 +50,6 @@ function runFixture(): AutomationRun {
         type: 'acp',
         start: {
           providerId: 'claude',
-          model: null,
           initialQueue: [{ text: 'Review changes' }],
         },
       },
@@ -91,7 +84,6 @@ function runFixture(): AutomationRun {
     error: null,
   };
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getAutomation.mockResolvedValue({ id: 'automation-1', projectId: 'project-1' });
@@ -108,11 +100,9 @@ beforeEach(() => {
     }),
   });
 });
-
 describe('automation run adoption lookup', () => {
   it('uses the scoped point lookup', async () => {
     mocks.getRun.mockResolvedValue(ok({ run: runFixture() }));
-
     await expect(adoptRun(dependencies, 'automation-1', 'run-1')).resolves.toEqual({
       success: false,
       error: {
@@ -127,10 +117,8 @@ describe('automation run adoption lookup', () => {
       runId: 'run-1',
     });
   });
-
   it('reports a missing runtime run', async () => {
     mocks.getRun.mockResolvedValue(ok({ run: null }));
-
     await expect(adoptRun(dependencies, 'automation-1', 'missing-run')).resolves.toEqual({
       success: false,
       error: {
@@ -141,12 +129,10 @@ describe('automation run adoption lookup', () => {
     });
     expect(mocks.dbSelect).not.toHaveBeenCalled();
   });
-
   it('propagates runtime read failures', async () => {
     mocks.getRun.mockResolvedValue(
       err({ type: 'runtime-unavailable', message: 'Automation runtime is unavailable' })
     );
-
     await expect(adoptRun(dependencies, 'automation-1', 'unavailable-run')).resolves.toEqual({
       success: false,
       error: {
@@ -156,12 +142,10 @@ describe('automation run adoption lookup', () => {
     });
     expect(mocks.dbSelect).not.toHaveBeenCalled();
   });
-
   it('writes the projection before continuing task adoption', async () => {
     const run = runFixture();
     mocks.getRun.mockResolvedValue(ok({ run }));
     mocks.isAutomationRunAdoptable.mockReturnValue(true);
-
     await expect(adoptRun(dependencies, 'automation-1', 'run-1')).resolves.toEqual({
       success: false,
       error: {
@@ -170,24 +154,52 @@ describe('automation run adoption lookup', () => {
         message: 'The selected project no longer exists.',
       },
     });
-
     expect(mocks.upsertRunProjection).toHaveBeenCalledOnce();
     expect(mocks.upsertRunProjection).toHaveBeenCalledWith(dependencies.db, run);
     expect(mocks.upsertRunProjection.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getProjectById.mock.invocationCallOrder[0]!
     );
   });
-
   it('does not continue task adoption when the projection write fails', async () => {
     mocks.getRun.mockResolvedValue(ok({ run: runFixture() }));
     mocks.isAutomationRunAdoptable.mockReturnValue(true);
     mocks.upsertRunProjection.mockRejectedValue(new Error('projection_write_failed'));
-
     await expect(adoptRun(dependencies, 'automation-1', 'run-1')).resolves.toEqual({
       success: false,
       error: { type: 'runtime-unavailable', message: 'projection_write_failed' },
     });
-
     expect(mocks.getProjectById).not.toHaveBeenCalled();
+  });
+});
+describe('adopted automation configuration', () => {
+  it('preserves provider-native ACP options from the run snapshot', () => {
+    const run = runFixture();
+    run.conversationId = 'conversation-1';
+    if (run.configSnapshot.agent.type !== 'acp') throw new Error('Expected ACP fixture');
+    run.configSnapshot.agent.start.options = { reasoning_effort: 'xhigh', fast: false };
+    const conversation = conversationForRun(run, 'project-1', 'task-1');
+    expect(conversation?.config).toMatchObject({
+      type: 'acp',
+      options: { reasoning_effort: 'xhigh', fast: false },
+    });
+  });
+  it.each([false, true])('preserves TUI autoApprove=%s from the run snapshot', (autoApprove) => {
+    const run = runFixture();
+    run.conversationId = 'conversation-1';
+    run.configSnapshot.agent = {
+      type: 'tui',
+      start: {
+        providerId: 'claude',
+        model: null,
+        initialPrompt: 'Review changes',
+        autoApprove,
+      },
+    };
+    const conversation = conversationForRun(run, 'project-1', 'task-1');
+    expect(conversation?.config).toMatchObject({ type: 'pty', autoApprove });
+    expect(
+      taskParamsForRun(run, 'project-1', 'task-1', 'workspace-1', conversation).taskConfig
+        .initialConversation?.autoApprove
+    ).toBe(autoApprove);
   });
 });

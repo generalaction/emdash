@@ -33,7 +33,6 @@ import { AcpChatPanel } from '@core/features/conversations/browser/acp/acp-chat-
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import { openModal } from '@core/manifests/browser/modal-api';
 import type { AgentMetadata } from '@core/primitives/agents/api';
-
 const fixture = vi.hoisted(() => ({
   client: undefined as unknown,
   context: undefined as unknown,
@@ -45,11 +44,17 @@ const fixture = vi.hoisted(() => ({
       capabilities: Pick<AgentMetadata['capabilities'], 'auth'>;
     }
   >,
-  pane: undefined as { readonly resolvedTabs: unknown[] } | undefined,
+  pane: undefined as
+    | {
+        readonly resolvedTabs: unknown[];
+      }
+    | undefined,
 }));
 beforeAll(() => {
   (
-    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    globalThis as typeof globalThis & {
+      IS_REACT_ACT_ENVIRONMENT: boolean;
+    }
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 vi.mock('@core/features/conversations/api/browser/client', () => ({
@@ -258,7 +263,6 @@ it.each([false, true])(
         .toBeVisible();
       expect(parent.querySelector('[contenteditable="true"]')).toBeNull();
       expect(store.draftText).toBe('Keep this draft');
-
       vi.mocked(openModal).mockResolvedValueOnce({
         success: false,
         error: { type: 'modal_dismissed', reason: 'explicit' },
@@ -279,7 +283,6 @@ it.each([false, true])(
           store.loadError = authError;
         })
       );
-
       vi.mocked(openModal).mockResolvedValueOnce({ success: true, data: undefined });
       await act(async () => page.getByRole('button', { name: 'Sign in', exact: true }).click());
       await vi.waitFor(() => expect(retry).toHaveBeenCalledTimes(2));
@@ -304,7 +307,6 @@ it.each([false, true])(
     }
   }
 );
-
 it('restores caret, viewport and undo/redo across conversation and non-chat tab switches', async () => {
   await page.viewport(1100, 800);
   fixture.restored = false;
@@ -338,7 +340,11 @@ it('restores caret, viewport and undo/redo across conversation and non-chat tab 
   const root = createRoot(parent);
   type Editor = ReturnType<PromptEditorModel['attach']>['editor'];
   const input = () =>
-    parent.querySelector<HTMLElement & { editor: Editor }>('[data-testid="prompt-editor"]')!;
+    parent.querySelector<
+      HTMLElement & {
+        editor: Editor;
+      }
+    >('[data-testid="prompt-editor"]')!;
   const viewport = () => {
     let element = input().parentElement!;
     while (getComputedStyle(element).overflowY !== 'auto') element = element.parentElement!;
@@ -362,7 +368,6 @@ it('restores caret, viewport and undo/redo across conversation and non-chat tab 
     viewport().scrollTop = viewport().scrollHeight;
     const bottom = viewport().scrollTop;
     expect(bottom).toBeGreaterThan(500);
-
     await switchTo(b);
     expect(input().textContent).toBe('Independent draft B');
     expect(editor.isDestroyed).toBe(true);
@@ -374,7 +379,6 @@ it('restores caret, viewport and undo/redo across conversation and non-chat tab 
     expect(document.activeElement === input()).toBe(true);
     expect(editor.state.selection.toJSON()).toEqual(selection);
     expect(viewport().scrollTop).toBe(bottom);
-
     // Exercise the actual keyboard shortcut, not a history command invoked by the test.
     const modifier = /Mac/.test(navigator.platform) ? 'Meta' : 'Control';
     await act(async () => userEvent.keyboard(`{${modifier}>}z{/${modifier}}`));
@@ -384,7 +388,6 @@ it('restores caret, viewport and undo/redo across conversation and non-chat tab 
     await switchTo(a);
     await act(async () => userEvent.keyboard(`{${modifier}>}{Shift>}z{/Shift}{/${modifier}}`));
     expect(a.draftText).toBe(text);
-
     // A backward range and an intentionally scrolled-away caret are both view state.
     await act(async () => editor.commands.setTextSelection({ from: 120, to: 20 }));
     const range = editor.state.selection.toJSON();
@@ -409,7 +412,6 @@ it('restores caret, viewport and undo/redo across conversation and non-chat tab 
     css.remove();
   }
 });
-
 it.each([
   { restored: false, populated: false },
   { restored: true, populated: false },
@@ -436,11 +438,8 @@ it.each([
     canCancel: false,
   });
   const config = cell<SessionConfigState>({
-    modelOptions: null,
-    efforts: null,
-    modeOptions: null,
-    collaborationModeOptions: null,
     availableCommands: [],
+    options: [],
   });
   const mcpServers = cell<SessionMcpServer[]>([{ name: 'docs', transport: 'http' }]);
   const contract = defineContract({
@@ -525,21 +524,28 @@ it.each([
       expect(parent.textContent).not.toContain('Loading controls');
       expect(parent.querySelector('[data-slot="combobox-trigger"]')).toBeNull();
     }
-
     if (controls)
       config.set({
-        modelOptions: {
-          configId: 'model',
-          selected: 'test-model',
-          available: [{ id: 'test-model', name: 'Diagnostic Model' }],
-        },
-        efforts: null,
-        modeOptions: {
-          configId: 'mode',
-          selected: 'full',
-          available: [{ id: 'full', name: 'Full access' }],
-        },
-        collaborationModeOptions: null,
+        options: [
+          {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: 'test-model',
+            options: [{ value: 'test-model', name: 'Diagnostic Model' }],
+          },
+          {
+            id: 'mode',
+            name: 'Mode',
+            category: 'mode',
+            type: 'select',
+            currentValue: 'full',
+            options: [{ value: 'full', name: 'Full access' }],
+          },
+          { id: 'fast', name: 'Fast mode', type: 'boolean', currentValue: false },
+        ],
+        configuredOptions: { model: 'test-model', mode: 'full' },
         availableCommands: [],
       });
     flushStateTurn();
@@ -578,7 +584,6 @@ it.each([
     if (populated) expect(editorY()).toBeGreaterThan(500);
     else expect(editorY()).toBeLessThan(450);
     expect(parent.textContent).not.toContain('Loading controls');
-
     if (!restored) {
       await page.getByRole('button', { name: '1 session MCP server, 1 startup failure' }).click();
       expect(document.body.textContent).not.toContain('Connection refused');
@@ -607,7 +612,6 @@ it.each([
       );
       await page.getByRole('button', { name: '1 session MCP server, 1 startup failure' }).click();
     }
-
     if (!populated) {
       activeTurn.set(userTurn);
       flushStateTurn();
@@ -628,7 +632,6 @@ it.each([
     css.remove();
   }
 });
-
 it.each([
   'history',
   'config',
@@ -681,10 +684,8 @@ it.each([
       transcript: { ...position, activeTurn: current },
     });
     const configValue: SessionConfigState = {
-      modelOptions: null,
-      efforts: null,
-      modeOptions: null,
       availableCommands: [],
+      options: [],
     };
     const states = {
       config: cell<SessionConfigState | undefined>(configValue),
@@ -760,7 +761,6 @@ it.each([
       expect(store.session?.usable).toBe(true);
       expect(parent.querySelector('[contenteditable="true"]')).not.toBeNull();
       if (delayed === 'history') expect(store.historyLoading).toBe(true);
-
       gate.resolve();
       states.config.set(configValue);
       states.usage.set(null);

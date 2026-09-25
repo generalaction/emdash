@@ -52,8 +52,7 @@ export function conversationForRun(
       ? {
           version: '1',
           type: 'acp',
-          ...(agent.start.model && { model: agent.start.model }),
-          ...(agent.start.modeId && { modeId: agent.start.modeId }),
+          ...(agent.start.options && { options: agent.start.options }),
           initialQueue: agent.start.initialQueue,
         }
       : {
@@ -107,6 +106,10 @@ export function taskParamsForRun(
           provider: conversation.provider ?? '',
           title: conversation.title,
           type: conversation.type === 'acp' ? 'acp' : 'pty',
+          autoApprove:
+            runtimeRun.configSnapshot.agent.type === 'tui'
+              ? runtimeRun.configSnapshot.agent.start.autoApprove
+              : false,
         },
       }),
     },

@@ -10,7 +10,22 @@ import { encodeTopic, isDownloadFileOpenResult, WireError, type WireFile } from 
 import { describe, expect, it, vi } from 'vitest';
 import { conversationsContract } from '../api';
 import type { ConversationsRuntimeResolveError as RuntimeResolveError } from '../api/runtime-adapter';
+import { getProviderSettingsService } from './provider-settings-service';
 import { createConversationsWireController } from './wire-controller';
+
+vi.mock('./provider-settings-service', async () => {
+  const { cell, expose } = await import('@emdash/wire/state');
+  const { conversationsContract } = await import('../api/contract');
+  const { emptyProviderSettings } = await import('../api/provider-settings');
+  const settings = {
+    model: expose(conversationsContract.providerSettings.model, {
+      value: () => cell(emptyProviderSettings),
+    }),
+    patch: vi.fn(async () => emptyProviderSettings),
+    setTransport: vi.fn(async () => emptyProviderSettings),
+  };
+  return { getProviderSettingsService: () => settings };
+});
 
 vi.mock('@core/features/conversations/node/controller', () => ({
   createConversationOperations: () => ({
@@ -32,10 +47,6 @@ const target = {
   conversationType: 'acp',
   providerId: 'claude',
   sessionId: null,
-  model: null,
-  modeId: null,
-  effort: null,
-  collaborationMode: null,
   workspacePath: '/repo',
   host: LOCAL_HOST_REF,
   acpInput: {
@@ -43,14 +54,54 @@ const target = {
     providerId: 'claude',
     cwd: '/repo',
     sessionId: null,
-    model: null,
-    modeId: null,
-    collaborationMode: null,
   },
 } as const;
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
+  it.each([false, true])(
+    'saves native choices only after provider acceptance (%s)',
+    async (success) => {
+      const settings = getProviderSettingsService({} as never);
+      vi.mocked(settings.patch).mockClear();
+      const setOption = vi.fn(async () =>
+        success
+          ? ok()
+          : err({
+              type: 'set_config_failed' as const,
+              cause: { name: 'Error', message: 'rejected' },
+            })
+      );
+      const patchConfig = vi.fn(async () => ok());
+      const host = hostRef('remote', 'server-options');
+      const controller = setupController({
+        host,
+        client: { acp: { setOption }, conversations: { patchConfig } },
+      });
+      const input = {
+        conversationId: target.conversationId,
+        configId: 'native-fast',
+        value: false,
+      };
+      const result = await controller.call('acp.setOption', input);
+      expect(result).toMatchObject({ success });
+      if (success) {
+        expect(patchConfig).toHaveBeenCalledWith({
+          conversationId: input.conversationId,
+          patch: {},
+          mapPatch: { field: 'options', entries: { 'native-fast': false } },
+        });
+        expect(settings.patch).toHaveBeenCalledWith(
+          expect.objectContaining({ host: formatHostRef(host), providerId: target.providerId }),
+          { transport: 'acp', options: { 'native-fast': false } }
+        );
+      } else {
+        expect(patchConfig).not.toHaveBeenCalled();
+        expect(settings.patch).not.toHaveBeenCalled();
+      }
+    }
+  );
+
   it.each(['resume', 'fresh'] as const)(
     'starts in %s mode with the trusted descriptor',
     async (mode) => {
@@ -193,50 +244,28 @@ describe('createConversationsWireController', () => {
 
   it('acknowledges config mutations only after host config persistence succeeds', async () => {
     const setOption = vi.fn(async () => ok(undefined));
-    const persistAcpConfigOption = vi.fn(async () => {});
+    const patchConfig = vi.fn(async () => ok());
     const controller = setupController({
-      client: { acp: { setOption } },
-      hooks: { persistAcpConfigOption },
+      client: { acp: { setOption }, conversations: { patchConfig } },
     });
     const input = {
       conversationId: target.conversationId,
-      key: 'effort' as const,
+      configId: 'native-effort',
       value: 'high',
     };
 
     await expect(controller.call('acp.setOption', input)).resolves.toEqual(ok(undefined));
-    expect(persistAcpConfigOption).toHaveBeenCalledWith(target, 'effort', 'high');
+    expect(patchConfig).toHaveBeenCalledWith({
+      conversationId: target.conversationId,
+      patch: {},
+      mapPatch: { field: 'options', entries: { 'native-effort': 'high' } },
+    });
 
-    persistAcpConfigOption.mockRejectedValueOnce(new Error('host rejected write'));
+    patchConfig.mockResolvedValueOnce(err({ message: 'host rejected write' }) as never);
     await expect(controller.call('acp.setOption', input)).resolves.toMatchObject({
       success: false,
       error: { type: 'set_config_failed', cause: { message: 'host rejected write' } },
     });
-  });
-
-  it('clears unsupported selections reported by activation from host config', async () => {
-    const startSession = vi.fn(async () =>
-      ok({
-        sessionId: 'session-1',
-        clearedConfiguration: ['model', 'modeId', 'collaborationMode'] as const,
-      })
-    );
-    const persistAcpConfigOption = vi.fn(async () => {});
-    const controller = setupController({
-      client: { acp: { startSession } },
-      hooks: { persistAcpConfigOption },
-    });
-
-    await controller.call('acp.startSession', {
-      conversationId: target.conversationId,
-      mode: 'resume',
-    });
-
-    expect(persistAcpConfigOption.mock.calls).toEqual([
-      [target, 'model', null],
-      [target, 'modeId', null],
-      [target, 'collaborationMode', null],
-    ]);
   });
 
   it('allows activation to finish before acknowledging prompt acceptance', async () => {
@@ -517,16 +546,10 @@ function setupController(options: {
   attachmentError?: { type: 'project-missing'; projectId: string };
   resolvedHosts?: HostRef[];
   hooks?: Partial<{
-    persistAcpConfigOption: (
-      target: TestRuntimeTarget,
-      key: 'model' | 'modeId' | 'effort' | 'collaborationMode',
-      value: string | null
-    ) => Promise<void>;
     recordTuiInput: (target: TestRuntimeTarget) => Promise<void>;
   }>;
 }) {
   const hooks = {
-    persistAcpConfigOption: async () => {},
     recordTuiInput: async () => {},
     ...options.hooks,
   };

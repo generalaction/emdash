@@ -116,14 +116,14 @@ describe('ACP API contract schemas', () => {
       await expect(
         wire.client.setOption({
           conversationId: input.conversationId,
-          key: 'mode',
+          configId: 'mode',
           value: 'agent',
         })
       ).resolves.toEqual({ success: true, data: undefined });
       await expect(
         wire.client.setOption({
           conversationId: input.conversationId,
-          key: 'effort',
+          configId: 'reasoning_effort',
           value: 'high',
         })
       ).resolves.toEqual({ success: true, data: undefined });

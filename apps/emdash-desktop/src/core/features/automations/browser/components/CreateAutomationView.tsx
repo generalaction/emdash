@@ -11,7 +11,6 @@ import { CheckCircle2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
-import type { ConversationConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
@@ -42,7 +41,6 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     name,
     setName,
     effectiveProjectId,
-    prompt,
     provider,
     canSave,
     triggerConfig,
@@ -76,14 +74,8 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       return;
     }
     setCronError(null);
-    const useChatUi = formState.initialConversation.useChatUi;
-    const conversationConfig: ConversationConfig = {
-      prompt: prompt.trim(),
-      provider,
-      autoApprove: false,
-      model: formState.model ?? undefined,
-      type: useChatUi ? 'acp' : 'pty',
-    };
+    const conversationConfig = formState.buildConversationConfig();
+    if (!conversationConfig) return;
     try {
       const trimmedName = name.trim();
       const saved = await create.mutateAsync({

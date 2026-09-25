@@ -4,7 +4,6 @@ import { defineSettingsContribution } from '@core/primitives/settings/api';
 
 const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
-  autoApproveByDefault: z.boolean(),
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
   deleteBranchByDefault: z.boolean(),
@@ -17,7 +16,6 @@ export const taskSettingsContribution = defineSettingsContribution<'tasks', Task
   schema: taskSettingsSchema,
   defaults: {
     autoGenerateName: true,
-    autoApproveByDefault: false,
     autoTrustWorktrees: true,
     createBranchAndWorktree: true,
     deleteBranchByDefault: false,

@@ -1,16 +1,23 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { formatHostRef, hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import {
+  acpApiContract,
+  initialSessionConfigState,
+  type SessionConfigState,
+  type SessionSummary,
+} from '@emdash/core/runtimes/acp/api/client';
 import {
   conversationsContract,
   type ConversationRecord,
   type ConversationRecords,
 } from '@emdash/core/runtimes/conversations/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
-import { createController } from '@emdash/wire/rpc';
+import { createController, defineContract } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
+import { getProviderSettingsService } from '../provider-settings-service';
 import { ConversationSyncService } from './conversation-sync-service';
 
 function hostRecord(
@@ -49,6 +56,7 @@ describe('ConversationSyncService', () => {
   let wire: TestWire<typeof conversationsContract>;
   let service: ConversationSyncService;
   let hostReachable: boolean;
+  let acpClient: unknown;
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
@@ -63,7 +71,7 @@ describe('ConversationSyncService', () => {
         records: recordsHost,
         create: unused,
         rename: unused,
-        updateConfig: unused,
+        patchConfig: unused,
         delete: unused,
         reports: {
           sessionStarted: unused,
@@ -74,10 +82,11 @@ describe('ConversationSyncService', () => {
       })
     );
     hostReachable = true;
+    acpClient = undefined;
     const broker = {
       client: async () =>
         hostReachable
-          ? { success: true, data: { conversations: wire.client } }
+          ? { success: true, data: { conversations: wire.client, acp: acpClient } }
           : { success: false, error: { type: 'host-unavailable' } },
     } as unknown as RuntimeBroker;
     service = new ConversationSyncService({ db: fixture.db, runtimes: broker });
@@ -87,6 +96,7 @@ describe('ConversationSyncService', () => {
     service.dispose();
     await recordsHost.dispose();
     await wire.dispose();
+    await getProviderSettingsService(fixture.db).dispose();
     fixture.close();
   });
 
@@ -97,6 +107,77 @@ describe('ConversationSyncService', () => {
   function setHostRecords(...records: ConversationRecord[]): void {
     hostRecords.set(Object.fromEntries(records.map((record) => [record.conversationId, record])));
   }
+
+  it('discovers remote options without a renderer and keeps them when the host disconnects', async () => {
+    const contract = defineContract({
+      sessions: acpApiContract.sessions,
+      session: acpApiContract.session,
+    });
+    const config = cell<SessionConfigState>(initialSessionConfigState);
+    const summary: SessionSummary = {
+      conversationId: 'headless',
+      providerId: 'codex',
+      lifecycle: 'ready',
+      isGenerating: false,
+      lastStopReason: null,
+      lastTurnErrored: false,
+      pendingPermissionCount: 0,
+      backgroundAgentCount: 0,
+      queuedPromptCount: 0,
+      title: null,
+      updatedAt: 1,
+    };
+    const sessions = expose(contract.sessions, { list: () => cell({ headless: summary }) });
+    const unused = () => {
+      throw new Error('Only config is observed');
+    };
+    const session = expose(contract.session, {
+      config: () => config,
+      state: unused,
+      usage: unused,
+      plan: unused,
+      agents: unused,
+      activeTurn: unused,
+      terminals: unused,
+      mcpServers: unused,
+    });
+    const acpWire = createTestWire(contract, createController(contract, { sessions, session }));
+    acpClient = acpWire.client;
+    const remoteHost = hostRef('remote', 'model-server');
+    const key = { host: formatHostRef(remoteHost), providerId: 'codex' };
+    const settings = getProviderSettingsService(fixture.db);
+    try {
+      await settings.patch(key, { transport: 'acp', options: { model: 'user-choice' } });
+      await service.attachHost(remoteHost);
+      const option = {
+        id: 'model',
+        type: 'select' as const,
+        name: 'Model',
+        category: 'model',
+        currentValue: 'remote-cli-default',
+        options: [{ value: 'remote-cli-default', name: 'Remote model' }],
+      };
+      config.set({
+        ...initialSessionConfigState,
+        discoveryContext: 'remote-env',
+        options: [option],
+      });
+      await vi.waitFor(async () => expect((await settings.read(key)).catalogs).toEqual([[option]]));
+      expect(
+        (await settings.read({ ...key, host: formatHostRef(LOCAL_HOST_REF) })).catalogs
+      ).toEqual([]);
+      expect((await settings.read(key)).acp.options).toEqual({ model: 'user-choice' });
+      service.detachHost(remoteHost);
+      hostReachable = false;
+      await service.attachHost(remoteHost);
+      expect((await settings.read(key)).catalogs).toEqual([[option]]);
+    } finally {
+      service.detachHost(remoteHost);
+      await sessions.dispose();
+      await session.dispose();
+      await acpWire.dispose();
+    }
+  });
 
   it('applies initial host state and then diffs through the same path', async () => {
     setHostRecords(hostRecord({ conversationId: 'conv-1', title: 'Pre-existing' }));

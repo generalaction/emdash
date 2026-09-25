@@ -1,5 +1,6 @@
 import { asAgentProviderId, type AgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
+import { emptyProviderSettings } from '@core/features/conversations/api/provider-settings';
 import type { InitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import { buildInitialConversation } from './build-create-task-params';
 
@@ -12,6 +13,11 @@ function makeInitialConversationState(
 ): InitialConversationState {
   return {
     provider,
+    settingsReady: true,
+    settings: emptyProviderSettings,
+    options: {},
+    setOption: () => {},
+    flushSettings: async () => {},
     setProvider: () => {},
     prompt: 'Check this',
     setPrompt: () => {},
@@ -50,6 +56,8 @@ describe('buildInitialConversation', () => {
       makeInitialConversationState(agent('claude'), false, {
         useChatUi: true,
         prompt: 'Check (issue:github:123)',
+        model: 'ignored-plugin-model',
+        options: { model: 'astra', reasoning_effort: 'xhigh' },
         issueContext: 'Pinned issue context',
         issueMentionContexts: {
           'issue:github:123': 'Mention issue context',
@@ -58,6 +66,8 @@ describe('buildInitialConversation', () => {
     );
 
     expect(conversation?.type).toBe('acp');
+    expect(conversation?.options).toEqual({ model: 'astra', reasoning_effort: 'xhigh' });
+    expect(conversation?.model).toBeUndefined();
     expect(conversation?.initialPrompt).toBeUndefined();
     expect(conversation?.initialQueue).toEqual([
       {

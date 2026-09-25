@@ -38,6 +38,7 @@ import {
   localTerminalFilesSchema,
   preparedTerminalFileSchema,
 } from '@core/services/attachments/api/terminal-files';
+import { providerSettingsContract } from './provider-settings';
 
 const conversationKey = z.object({ conversationId: z.string() });
 const conversationLocation = z.object({
@@ -175,6 +176,7 @@ const conversationsTuiContract = defineContract({
 export const conversationsDomain = 'conversations' as const;
 
 export const conversationsContract = defineContract({
+  providerSettings: providerSettingsContract,
   attachments: defineContract({
     prepareLocalFiles: fallible({
       input: z.object({ conversationId: z.string(), sources: localTerminalFilesSchema }),

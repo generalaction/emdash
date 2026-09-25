@@ -128,10 +128,10 @@ describe('SettingsStore contributions', () => {
 
     const value: AppSettings['tasks'] = {
       ...getDefaultForKey('tasks'),
-      autoApproveByDefault: true,
+      autoTrustWorktrees: false,
     };
     await settings.update('tasks', value);
-    expect(JSON.parse(rows.get('tasks')!)).toEqual({ autoApproveByDefault: true });
+    expect(JSON.parse(rows.get('tasks')!)).toEqual({ autoTrustWorktrees: false });
   });
 
   it('adopts legacy scalar values', async () => {

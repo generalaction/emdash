@@ -24,6 +24,7 @@ import type {
   ChatView,
 } from '@core/features/conversations/api/browser/chat/chat-transcript';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { providerComposerOptions } from '@core/features/conversations/contributions/browser/provider-composer-options';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
@@ -284,34 +285,6 @@ const ComposerForStore = observer(function ComposerForStore({
           store.sendQueuedPromptNow(id);
         }
       });
-    },
-    [store]
-  );
-
-  const handleModelChange = useCallback(
-    (modelId: string) => {
-      store.setModel(modelId);
-    },
-    [store]
-  );
-
-  const handleModeChange = useCallback(
-    (modeId: string) => {
-      store.setMode(modeId);
-    },
-    [store]
-  );
-
-  const handleCollaborationModeChange = useCallback(
-    (modeId: string) => {
-      store.setCollaborationMode(modeId);
-    },
-    [store]
-  );
-
-  const handleEffortChange = useCallback(
-    (effortId: string) => {
-      store.setEffort(effortId);
     },
     [store]
   );
@@ -614,20 +587,13 @@ const ComposerForStore = observer(function ComposerForStore({
           onReorderQueuedPrompts={(ids) => store.reorderQueuedPrompts(ids)}
           onSendQueuedPromptNow={handleSendQueuedPromptNow}
           editorApiRef={editorApiRef}
-          modelOptions={store.modelOptions}
-          selectedModel={store.model ?? undefined}
-          onModelChange={store.liveActionsEnabled ? handleModelChange : undefined}
-          effortOptions={store.effortOptions}
-          selectedEffort={store.effort ?? undefined}
-          onEffortChange={store.liveActionsEnabled ? handleEffortChange : undefined}
-          permissionModeOptions={store.permissionModeOptions}
-          selectedPermissionMode={store.permissionMode ?? undefined}
-          onPermissionModeChange={store.liveActionsEnabled ? handleModeChange : undefined}
-          collaborationModeOptions={store.collaborationModeOptions}
-          selectedCollaborationMode={store.collaborationMode ?? undefined}
-          onCollaborationModeChange={
-            store.liveActionsEnabled ? handleCollaborationModeChange : undefined
-          }
+          {...providerComposerOptions(
+            store.providerOptions,
+            store.configuredOptions,
+            (id, value) => store.setOption(id, value),
+            store.liveActionsEnabled,
+            true
+          )}
           mcpServers={store.mcpServers}
           agentOptions={agentOptions}
           selectedAgent={providerId ?? undefined}

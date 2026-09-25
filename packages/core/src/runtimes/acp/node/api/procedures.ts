@@ -13,7 +13,7 @@ import type {
   AcpSessionStartMode,
   AcpStartInputWire,
   AcpTerminateError,
-  LoadHistoryResult,
+  HistoryPage,
   PromptInput,
   PromptPlacement,
 } from '#runtimes/acp/api';
@@ -74,15 +74,12 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     },
     async setOption(input: {
       conversationId: string;
-      key: 'model' | 'mode' | 'effort' | 'collaborationMode';
-      value: string;
+      configId: string;
+      value: string | boolean;
     }): Promise<Result<void, AcpSetOptionError>> {
-      const result = await runtime.setOption(input.conversationId, input.key, input.value);
-      if (!result.success && isAcpWakeFailure(result.error)) {
-        return input.key === 'mode'
-          ? acpErr.setModeFailed(wakeFailureCause(result.error))
-          : acpErr.setConfigFailed(wakeFailureCause(result.error));
-      }
+      const result = await runtime.setOption(input.conversationId, input.configId, input.value);
+      if (!result.success && isAcpWakeFailure(result.error))
+        return acpErr.setConfigFailed(wakeFailureCause(result.error));
       return result as Result<void, AcpSetOptionError>;
     },
     resolvePermission(input: {
@@ -108,7 +105,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       conversationId: string;
       before?: number;
       limit: number;
-    }): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
+    }): Promise<Result<HistoryPage, AcpLoadHistoryError>> {
       return runtime.loadHistory(input.conversationId, input.before, input.limit);
     },
   };

@@ -1,3 +1,4 @@
+import type { SessionUpdate } from '@agentclientprotocol/sdk';
 /**
  * Pure parser state reducer.
  *
@@ -8,7 +9,7 @@
  *   content and new foreground calls → turn/segment boundaries + item fold.
  *   async tool/plan updates → their owner, without foreground side effects.
  *
- *   session kinds (config / mode_selected / commands / usage / title)
+ *   session kinds (config / commands / usage / title)
  *     → slice update, no turn boundary side-effect.
  *
  *   ignored → no-op on all slices.
@@ -21,9 +22,8 @@
  *   CLOSE (explicit): 'turn_end' / 'replay_end' input → closeActive.
  *   CLOSE (implicit): next new user message while a turn is active → closeActive + open.
  */
-
-import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { AgentState, AgentStatus } from '../models/agents';
+import { providerConfigOptionSchema } from '../models/config';
 import type { SessionCommand, SessionConfigState, SessionUsage } from '../models/config';
 import { initialSessionConfigState } from '../models/config';
 import { SESSION_PLAN_ID, type PlanState } from '../models/plan';
@@ -34,7 +34,6 @@ import type {
   TranscriptTurnOutcome,
   TranscriptTurn,
 } from '../models/turns';
-import { deriveConfigGroups } from './config-derive';
 import {
   closeContent,
   initialSegment,
@@ -62,7 +61,6 @@ export interface ParserState {
   config: SessionConfigState;
   usage: SessionUsage | null;
   title: string | null;
-  pendingModeId: string | null;
   segment: SegmentState;
   agents: AgentState[];
   plan: PlanState | null;
@@ -90,7 +88,6 @@ export function initialState(): ParserState {
     config: initialSessionConfigState,
     usage: null,
     title: null,
-    pendingModeId: null,
     segment: initialSegment(),
     agents: [],
     plan: null,
@@ -362,24 +359,11 @@ function reduceInput(s: ParserState, input: ReducerInput, deps: ReducerDeps): Pa
 
   switch (event.kind) {
     case 'config': {
-      const groups = deriveConfigGroups(event.options);
-      const config: SessionConfigState = { ...s.config, ...groups };
-      if (s.pendingModeId && config.modeOptions) {
-        config.modeOptions = { ...config.modeOptions, selected: s.pendingModeId };
-      }
-      return {
-        ...s,
-        config,
-        pendingModeId: config.modeOptions ? null : s.pendingModeId,
-      };
-    }
-    case 'mode_selected': {
-      if (!s.config.modeOptions) return { ...s, pendingModeId: event.modeId };
-      const config: SessionConfigState = {
-        ...s.config,
-        modeOptions: { ...s.config.modeOptions, selected: event.modeId },
-      };
-      return { ...s, config, pendingModeId: null };
+      const options = event.options.flatMap((option) => {
+        const parsed = providerConfigOptionSchema.safeParse(option);
+        return parsed.success ? [parsed.data] : [];
+      });
+      return { ...s, config: { ...s.config, options } };
     }
     case 'commands': {
       const availableCommands = event.commands.map((c) => {

@@ -271,7 +271,7 @@ describe('ACP persistence boundaries', () => {
         await new Promise<void>((resolve) => setImmediate(resolve));
         expect(intents.snapshot()[0]).toMatchObject({
           sessionId: success ? 'session-1' : 'saved',
-          payload: { configured: { model: 'changed-while-saving' } },
+          payload: { configured: { options: { model: 'changed-while-saving' } } },
         });
         expect(writes.slice(writes.indexOf('session-1') + 1)).not.toContain(
           success ? 'saved' : 'session-1'
@@ -457,7 +457,7 @@ describe('ACP persistence boundaries', () => {
 async function seededRuntime(unstarted: boolean) {
   const intents = createMemorySessionIntentStore();
   const input = makeStartInput({ conversationId: 'persisted', sessionId: 'saved' });
-  const configured = { model: null, modeId: null, effort: null, collaborationMode: null };
+  const configured = { options: {} };
   const presentation = {
     ...emptyRetainedPresentation(configured),
     lastKnownMcpServers: [{ name: 'retained', transport: 'http' }],

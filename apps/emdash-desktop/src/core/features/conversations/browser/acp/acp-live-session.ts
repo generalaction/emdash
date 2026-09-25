@@ -284,11 +284,8 @@ export class AcpLiveSession {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
-  setOption(
-    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
-    value: string
-  ): Promise<Result<void, unknown>> {
-    return this.client.setOption({ conversationId: this.conversationId, key, value });
+  setOption(configId: string, value: string | boolean) {
+    return this.client.setOption({ conversationId: this.conversationId, configId, value });
   }
 
   resolvePermission(requestId: string, optionId: string): Promise<Result<void, unknown>> {

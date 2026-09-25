@@ -1,52 +1,66 @@
-import { formatHostRef, hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
-import { describe, expect, it } from 'vitest';
-import type { ProviderPreferencesState } from '@core/features/conversations/contributions/mementos';
+import type { ProviderConfigOption } from '@emdash/core/runtimes/acp/api/client';
+import { describe, expect, it, vi } from 'vitest';
 import {
-  patchProviderPreference,
-  providerPreference,
-  providerPreferenceKey,
-} from './provider-preferences';
-
-describe('providerPreferenceKey', () => {
-  it('isolates hosts, providers, and transports', () => {
-    const local = formatHostRef(LOCAL_HOST_REF);
-    const remote = formatHostRef(hostRef('remote', 'ssh-1'));
-    expect(providerPreferenceKey(local, 'claude', 'acp')).not.toBe(
-      providerPreferenceKey(local, 'claude', 'pty')
-    );
-    expect(providerPreferenceKey(local, 'claude', 'acp')).not.toBe(
-      providerPreferenceKey(local, 'codex', 'acp')
-    );
-    expect(providerPreferenceKey(remote, 'claude', 'acp')).not.toBe(
-      providerPreferenceKey(local, 'claude', 'acp')
-    );
+  providerComposerOptions,
+  selectCachedProviderOptions,
+} from '../contributions/browser/provider-composer-options';
+const model = {
+  id: 'model',
+  category: 'model',
+  type: 'select',
+  name: 'Model',
+  currentValue: 'a',
+  options: [
+    { name: 'A', value: 'a' },
+    { name: 'B', value: 'b' },
+  ],
+} satisfies ProviderConfigOption;
+const effort: ProviderConfigOption = {
+  id: 'reasoning_effort',
+  category: 'thought_level',
+  type: 'select',
+  name: 'Effort',
+  currentValue: 'high',
+  options: [{ name: 'High', value: 'high' }],
+};
+describe('discovered composer configuration', () => {
+  it('does not invent controls before discovery', () => {
+    expect(selectCachedProviderOptions([], { model: 'a' })).toEqual([]);
+    expect(providerComposerOptions([], {}, vi.fn()).modelOptions).toBeUndefined();
   });
-
-  it('reads and patches one keyed preference without mutating the source document', () => {
-    const local = formatHostRef(LOCAL_HOST_REF);
-    const initial: ProviderPreferencesState = { version: '1', entries: {} };
-
-    const updated = patchProviderPreference(initial, local, 'claude', 'acp', {
-      model: 'sonnet',
-      modeId: 'agent',
-    });
-
-    expect(initial.entries).toEqual({});
-    expect(providerPreference(updated, local, 'claude', 'acp')).toEqual({
-      model: 'sonnet',
-      modeId: 'agent',
-    });
-    expect(providerPreference(updated, local, 'claude', 'pty')).toEqual({});
+  it('offers effort only for an observed model configuration', () => {
+    expect(selectCachedProviderOptions([[model, effort]], { model: 'b' })).toEqual([model]);
+    expect(selectCachedProviderOptions([[model, effort]], { model: 'a' })).toEqual([model, effort]);
   });
-
-  it('removes null fields and drops empty preference entries', () => {
-    const local = formatHostRef(LOCAL_HOST_REF);
-    const initial = patchProviderPreference({ version: '1', entries: {} }, local, 'claude', 'acp', {
-      model: 'sonnet',
-    });
-
-    const updated = patchProviderPreference(initial, local, 'claude', 'acp', { model: null });
-
-    expect(updated.entries).toEqual({});
+  it('sends only provider-owned choices, including a native default alias', () => {
+    const change = vi.fn();
+    const nativeDefault = { name: 'Default (recommended)', value: 'default' };
+    const props = providerComposerOptions(
+      [{ ...model, options: [nativeDefault, ...model.options] }, effort],
+      { model: 'a', reasoning_effort: 'high' },
+      change
+    );
+    props.onEffortChange?.('high');
+    expect(change).toHaveBeenLastCalledWith('reasoning_effort', 'high');
+    expect(Object.keys(props.modelOptions!)).toEqual(['default', 'a', 'b']);
+    expect(Object.keys(props.effortOptions!)).toEqual(['high']);
+    props.onModelChange?.('default');
+    expect(change).toHaveBeenLastCalledWith('model', 'default');
+  });
+  it('displays effective live values without saving provider defaults as overrides', () => {
+    const change = vi.fn();
+    const values = {};
+    const props = providerComposerOptions([model, effort], values, change, true, true);
+    expect(props.selectedModel).toBe('a');
+    expect(props.selectedEffort).toBe('high');
+    expect(change).not.toHaveBeenCalled();
+    expect(values).toEqual({});
+    props.onModelChange?.('a');
+    expect(change).toHaveBeenCalledWith('model', 'a');
+  });
+  it('does not treat cached current values as provider defaults', () => {
+    const props = providerComposerOptions([model, effort], {}, vi.fn());
+    expect(props.selectedModel).toBeUndefined();
+    expect(props.selectedEffort).toBeUndefined();
   });
 });

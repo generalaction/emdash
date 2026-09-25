@@ -49,13 +49,6 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Automatically suggests a task name when creating a new task.',
   },
   {
-    id: 'auto-approve-by-default',
-    label: 'Auto-approve by default',
-    tab: 'general',
-    description: 'Skip permission prompts for supported agents when creating new tasks.',
-    keywords: ['permissions', 'yolo'],
-  },
-  {
     id: 'auto-trust-worktree-directories',
     label: 'Auto-trust worktree directories',
     tab: 'general',

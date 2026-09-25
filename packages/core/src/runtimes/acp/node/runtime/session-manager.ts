@@ -30,6 +30,7 @@ import type {
   TerminalState,
 } from '#runtimes/acp/api';
 import { ACP_UNAMBIGUOUS_START_ERROR_TYPES, acpErr } from '#runtimes/acp/api';
+import { acceptsProviderValue } from '#runtimes/acp/api/models/config';
 import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
@@ -42,7 +43,6 @@ import {
   closedSessionState,
   createAcpSessionLiveHost,
   createAcpSessionsLiveHost,
-  emptyRetainedPresentation,
   suspendedSessionState,
   type AcpSessionLiveHost,
   type AcpSessionsLiveHost,
@@ -59,13 +59,8 @@ import type {
 } from '#services/session-lifecycle/api';
 import { createSessionLifecycle } from '#services/session-lifecycle/node';
 import { ConversationHandle } from './conversation-handle';
-import type {
-  ActivationStartError,
-  ConfigDimension,
-  ConfigOverrides,
-  SessionRecord,
-} from './conversation-types';
-import { legacyRetainedIntentSchema, persistedIntentV1Schema } from './session-intent-schemas';
+import type { ActivationStartError, SessionRecord } from './conversation-types';
+import { persistedIntentV1Schema } from './session-intent-schemas';
 import { SessionMaterializer } from './session-materializer';
 import { routeOwnerId, SessionRouter } from './session-router';
 import { SessionsListProjector, type SuspendedIntentListEntry } from './sessions-list-projector';
@@ -100,7 +95,6 @@ type SuspendedIntentEntry = {
   unstarted: boolean;
   initialQueueConsumed: boolean;
   descriptor: AcpStartInput;
-  configOverrides: ConfigOverrides;
   retained: RetainedPresentation;
   summary: SuspendedIntentListEntry;
 };
@@ -211,7 +205,6 @@ export class SessionManager {
     Result<
       {
         sessionId: string;
-        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
       },
       AcpStartError
     >
@@ -243,7 +236,6 @@ export class SessionManager {
     Result<
       {
         sessionId: string;
-        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
       },
       AcpStartError
     >
@@ -269,9 +261,6 @@ export class SessionManager {
     entry.saveIntent();
     return ok({
       sessionId: started.data.cell.acpSessionId,
-      ...(started.data.clearedConfiguration.length > 0 && {
-        clearedConfiguration: started.data.clearedConfiguration,
-      }),
     });
   }
 
@@ -300,17 +289,12 @@ export class SessionManager {
     if (!materialized.success) return materialized;
 
     const { record, unstarted } = materialized.data;
-    let { unsupportedSelections } = materialized.data;
     const configuredRevision = entry.desiredRevision;
     const committed = await entry.commitMaterialization(record, unstarted);
     if (!committed.success) return committed;
     try {
       if (entry.desiredRevision !== configuredRevision) {
-        unsupportedSelections = await this.materializer.applyDesiredConfiguration(
-          record,
-          entry,
-          record.cell.configCatalog.kind === 'ready'
-        );
+        await this.materializer.applyDesiredConfiguration(record, entry);
         if (!entry.isCurrentRecord(record))
           return acpErr.conversationNotFound(entry.conversationId);
       }
@@ -329,15 +313,8 @@ export class SessionManager {
     } catch (error) {
       return acpErr.initializeFailed(toSerializedError(error));
     }
-    for (const { key, value } of unsupportedSelections) {
-      if (key === 'modeId') {
-        if (entry.descriptor.modeId !== value) continue;
-        entry.clearMode();
-      } else {
-        if (entry.configOverrides[key] !== value) continue;
-        entry.clearConfig(key);
-      }
-      record.clearedConfiguration.push(key);
+    for (const [id, value] of Object.entries(record.clearedOptions ?? {})) {
+      if (entry.descriptor.options?.[id] === value) entry.updateOption(id, null);
     }
     return ok(record);
   }
@@ -524,50 +501,40 @@ export class SessionManager {
     return record ? record.cell.resolvePermission(requestId, optionId) : ok();
   }
 
-  async setMode(
+  async setOption(
     conversationId: string,
-    modeId: string
+    configId: string,
+    value: string | boolean
   ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
     const entry = this.retained.get(conversationId);
     if (!entry) return acpErr.conversationNotFound(conversationId);
     await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
-    if (entry.state !== 'active') {
-      entry.updateMode(modeId);
-      entry.saveIntent();
-      return ok();
-    }
-    const result = await entry.use((record) => record.cell.setMode(modeId));
-    if (!result.success) {
-      if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
-      return result as Result<void, AcpSetOptionError>;
-    }
-    if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
-    entry.updateMode(modeId);
-    return ok();
-  }
-
-  async setConfigOption(
-    conversationId: string,
-    dimension: ConfigDimension,
-    value: string
-  ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
-    const entry = this.retained.get(conversationId);
-    if (!entry) return acpErr.conversationNotFound(conversationId);
-    await entry.waitForEviction();
-    if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
-    if (entry.state !== 'active') {
-      entry.updateConfig(dimension, value);
-      entry.saveIntent();
-      return ok();
-    }
-    const result = await entry.use((record) => record.cell.setConfigOption(dimension, value));
-    if (!result.success) {
-      if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
-      return result as Result<void, AcpSetOptionError>;
+    if (entry.state === 'active') {
+      const result = await entry.use(async (record) => {
+        const result = await record.cell.setOption(configId, value);
+        if (!result.success) return result;
+        for (const [id, desired] of Object.entries(entry.descriptor.options ?? {})) {
+          if (id === configId) continue;
+          const option = record.cell.config.options?.find((item) => item.id === id);
+          if (!option || !acceptsProviderValue(option, desired)) {
+            entry.updateOption(id, null);
+            record.clearedOptions = { ...record.clearedOptions, [id]: desired };
+          } else if (option.currentValue !== desired) {
+            const applied = await record.cell.setOption(id, desired);
+            if (!applied.success) return applied;
+          }
+        }
+        return result;
+      });
+      if (!result.success) {
+        if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
+        return result as Result<void, AcpSetOptionError>;
+      }
     }
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
-    entry.updateConfig(dimension, value);
+    entry.updateOption(configId, value);
+    entry.saveIntent();
     return ok();
   }
 
@@ -791,7 +758,6 @@ export class SessionManager {
     input: AcpStartInput,
     options: {
       suspended: boolean;
-      configOverrides?: ConfigOverrides;
       consumed?: boolean;
       everMaterialized?: boolean;
       retained?: RetainedPresentation;
@@ -844,12 +810,6 @@ export class SessionManager {
         },
       },
       input,
-      options.configOverrides ??
-        ({
-          ...(input.model ? { model: input.model } : {}),
-          ...(input.effort ? { effort: input.effort } : {}),
-          ...(input.collaborationMode ? { collaborationMode: input.collaborationMode } : {}),
-        } satisfies ConfigOverrides),
       options.consumed ?? !input.initialQueue?.length,
       options.everMaterialized ?? (options.suspended || input.sessionId !== null),
       options.retained,
@@ -862,58 +822,24 @@ export class SessionManager {
   }
 
   private parseIntent(intent: SessionIntent): SuspendedIntentEntry | null {
-    const parsedV1 = persistedIntentV1Schema.safeParse(intent.payload);
-    let descriptor: AcpStartInput;
-    let configOverrides: ConfigOverrides;
-    let retained: RetainedPresentation;
-    if (parsedV1.success) {
-      const configured = parsedV1.data.configured;
-      descriptor = {
-        conversationId: intent.conversationId,
-        providerId: parsedV1.data.providerId,
-        cwd: parsedV1.data.cwd,
-        sessionId: intent.sessionId ?? parsedV1.data.sessionId,
-        model: configured.model,
-        modeId: configured.modeId,
-        effort: configured.effort,
-        collaborationMode: configured.collaborationMode ?? null,
-      };
-      configOverrides = configuredOverrides(configured);
-      retained = { ...parsedV1.data.presentation, configured };
-    } else {
-      const parsedLegacy = legacyRetainedIntentSchema.safeParse(intent.payload);
-      if (!parsedLegacy.success) return null;
-      const { configOverrides: legacyOverrides, ...legacy } = parsedLegacy.data;
-      const configured = {
-        model: legacyOverrides?.model ?? legacy.model ?? null,
-        modeId: legacy.modeId ?? null,
-        effort: legacyOverrides?.effort ?? legacy.effort ?? null,
-        collaborationMode: legacyOverrides?.collaborationMode ?? legacy.collaborationMode ?? null,
-      };
-      descriptor = {
-        conversationId: intent.conversationId,
-        providerId: legacy.providerId,
-        cwd: legacy.cwd,
-        sessionId: intent.sessionId ?? legacy.sessionId,
-        model: configured.model,
-        modeId: configured.modeId,
-        effort: configured.effort,
-        collaborationMode: configured.collaborationMode,
-      };
-      configOverrides = configuredOverrides(configured);
-      retained = emptyRetainedPresentation(configured);
-    }
+    const parsed = persistedIntentV1Schema.safeParse(intent.payload);
+    if (!parsed.success) return null;
+    const { configured, presentation, providerId, cwd, sessionId } = parsed.data;
+    const descriptor: AcpStartInput = {
+      conversationId: intent.conversationId,
+      providerId,
+      cwd,
+      sessionId: intent.sessionId ?? sessionId,
+      options: configured.options,
+    };
     return {
       // Older intents provide no evidence that the initial queue is safe to retry.
-      initialQueueConsumed: !parsedV1.success || parsedV1.data.initialQueueConsumed !== false,
+      initialQueueConsumed: parsed.data.initialQueueConsumed !== false,
       unstarted:
         descriptor.sessionId === null ||
-        (parsedV1.success &&
-          parsedV1.data.unstarted === true &&
-          descriptor.sessionId === parsedV1.data.sessionId),
+        (parsed.data.unstarted === true && descriptor.sessionId === parsed.data.sessionId),
       descriptor,
-      configOverrides,
-      retained,
+      retained: { ...presentation, configured },
       summary: {
         conversationId: intent.conversationId,
         providerId: descriptor.providerId,
@@ -930,7 +856,6 @@ export class SessionManager {
     if (!indexed) return null;
     return this.createHandle(indexed.descriptor, {
       suspended: true,
-      configOverrides: indexed.configOverrides,
       consumed: indexed.initialQueueConsumed,
       everMaterialized: indexed.descriptor.sessionId !== null,
       retained: indexed.retained,
@@ -1057,14 +982,6 @@ export class SessionManager {
 
   private applyRawMeta(cell: SessionCell, update: SessionUpdate): void {
     switch (update.sessionUpdate) {
-      case 'current_mode_update':
-        cell.applySessionMeta({
-          modes: {
-            currentModeId: update.currentModeId,
-            availableModes: cell.config.modeOptions?.available ?? [],
-          },
-        });
-        break;
       case 'config_option_update':
         cell.applySessionMeta({ configOptions: update.configOptions });
         break;
@@ -1072,14 +989,6 @@ export class SessionManager {
         break;
     }
   }
-}
-
-function configuredOverrides(configured: RetainedPresentation['configured']): ConfigOverrides {
-  return {
-    ...(configured.model ? { model: configured.model } : {}),
-    ...(configured.effort ? { effort: configured.effort } : {}),
-    ...(configured.collaborationMode ? { collaborationMode: configured.collaborationMode } : {}),
-  };
 }
 
 function persistedIntentPayload(

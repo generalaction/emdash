@@ -6,6 +6,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import { redactSecrets, type Logger } from '@emdash/shared/logger';
 import type { AcpStartError, ConversationNotFoundError } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
+import { acceptsProviderValue } from '#runtimes/acp/api/models/config';
 import {
   isAcpConnectionError,
   type AcpConnectionEntry,
@@ -25,12 +26,6 @@ export type MaterializationStartError = AcpStartError | ConversationNotFoundErro
 export type MaterializedSession = {
   record: SessionRecord;
   unstarted: boolean;
-  unsupportedSelections: UnsupportedSelection[];
-};
-
-type UnsupportedSelection = {
-  key: SessionRecord['clearedConfiguration'][number];
-  value: string;
 };
 
 export interface SessionMaterializerCallbacks {
@@ -92,7 +87,6 @@ export class SessionMaterializer {
     let record: SessionRecord | null = null;
     let resumeOutcome: SessionRecord['resumeOutcome'] =
       entry.isStartingFresh && entry.descriptor.sessionId !== null ? 'replaced-by-new' : null;
-    let unsupportedSelections: UnsupportedSelection[] = [];
     let unstarted = true;
 
     try {
@@ -138,14 +132,9 @@ export class SessionMaterializer {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           record.cell.applySessionLoaded({
-            modes: response.modes,
             configOptions: response.configOptions,
           });
-          unsupportedSelections = await this.applyDesiredConfiguration(
-            record,
-            entry,
-            response.configOptions !== undefined
-          );
+          await this.applyDesiredConfiguration(record, entry);
           const history = record.cell.history();
           unstarted = wasUntouched && history.committed.length === 0 && !history.active;
           loaded = true;
@@ -211,14 +200,9 @@ export class SessionMaterializer {
           scope
         );
         record.cell.applySessionMeta({
-          modes: response.modes,
           configOptions: response.configOptions,
         });
-        unsupportedSelections = await this.applyDesiredConfiguration(
-          record,
-          entry,
-          response.configOptions !== undefined
-        );
+        await this.applyDesiredConfiguration(record, entry);
       }
 
       if (!this.callbacks.isCurrent(entry, epoch) || record.disposed) {
@@ -231,7 +215,7 @@ export class SessionMaterializer {
       );
       record.mcpServers = mcpServerSummary;
       record.resumeOutcome = resumeOutcome;
-      return { success: true, data: { record, unstarted, unsupportedSelections } };
+      return { success: true, data: { record, unstarted } };
     } catch (error) {
       if (isAuthRequiredError(error)) return acpErr.authRequired(toSerializedError(error));
       return acpErr.initializeFailed(toSerializedError(error));
@@ -311,7 +295,6 @@ export class SessionMaterializer {
       epoch,
       input,
       resumeOutcome: null,
-      clearedConfiguration: [],
       processKey: connection.key,
       processGeneration: connection.generation,
       connectionLeaseState,
@@ -329,55 +312,33 @@ export class SessionMaterializer {
     return record;
   }
 
-  private async applyConfigOverrides(
-    record: SessionRecord,
-    entry: ConversationHandle,
-    hasAuthoritativeCatalog: boolean
-  ): Promise<UnsupportedSelection[]> {
-    const unsupported: UnsupportedSelection[] = [];
-    for (const dimension of ['model', 'effort', 'collaborationMode'] as const) {
-      const value = entry.configOverrides[dimension];
-      if (!value) continue;
-      const catalog =
-        dimension === 'model'
-          ? record.cell.config.modelOptions
-          : dimension === 'effort'
-            ? record.cell.config.efforts
-            : record.cell.config.collaborationModeOptions;
-      if (
-        (!catalog && hasAuthoritativeCatalog) ||
-        (catalog && !catalog.available.some((option) => option.id === value))
-      ) {
-        unsupported.push({ key: dimension, value });
-        continue;
-      }
-      const result = await record.cell.setConfigOption(dimension, value);
-      if (!result.success) {
-        this.deps.logger.warn('SessionMaterializer: failed to apply retained config option', {
-          conversationId: entry.conversationId,
-          providerId: entry.descriptor.providerId,
-          dimension,
-          error: result.error,
-        });
-      }
-    }
-    return unsupported;
-  }
-
-  async applyDesiredConfiguration(
-    record: SessionRecord,
-    entry: ConversationHandle,
-    hasAuthoritativeCatalog: boolean
-  ): Promise<UnsupportedSelection[]> {
+  async applyDesiredConfiguration(record: SessionRecord, entry: ConversationHandle): Promise<void> {
     let revision: number;
-    let unsupported: UnsupportedSelection[];
     do {
       revision = entry.desiredRevision;
-      unsupported = await this.applyConfigOverrides(record, entry, hasAuthoritativeCatalog);
-      const unsupportedMode = await this.applyInitialMode(record, entry);
-      if (unsupportedMode) unsupported.push({ key: 'modeId', value: unsupportedMode });
+      const configured = entry.descriptor.options ?? {};
+      const ids = Object.keys(configured).sort((a, b) => {
+        const options = record.cell.config.options ?? [];
+        return (
+          Number(options.find((o) => o.id === b)?.category === 'model') -
+          Number(options.find((o) => o.id === a)?.category === 'model')
+        );
+      });
+      const cleared: Record<string, string | boolean> = {};
+      for (const id of ids) {
+        const value = configured[id]!;
+        const option = record.cell.config.options?.find((o) => o.id === id);
+        if (!option || !acceptsProviderValue(option, value)) {
+          if (record.cell.configCatalog.kind === 'ready') cleared[id] = value;
+          continue;
+        }
+        if (option.currentValue === value) continue;
+        const applied = await record.cell.setOption(id, value);
+        if (!applied.success)
+          throw new Error(`Could not apply ${id}: ${JSON.stringify(applied.error)}`);
+      }
+      record.clearedOptions = cleared;
     } while (entry.desiredRevision !== revision);
-    return unsupported;
   }
 
   private async resolveSessionMcpServers(providerId: string, connection: AcpConnectionEntry) {
@@ -398,35 +359,6 @@ export class SessionMaterializer {
       });
       return [];
     }
-  }
-
-  private async applyInitialMode(
-    record: SessionRecord,
-    entry: ConversationHandle
-  ): Promise<string | null> {
-    const modeId = entry.descriptor.modeId;
-    if (!modeId) return null;
-    const modeOptions = record.cell.config.modeOptions;
-    if (!modeOptions) return null;
-    if (!modeOptions.available.some((mode) => mode.id === modeId)) {
-      this.deps.logger.debug('SessionMaterializer: persisted mode not advertised, skipping', {
-        conversationId: entry.conversationId,
-        providerId: entry.descriptor.providerId,
-        modeId,
-      });
-      return modeId;
-    }
-    if (modeOptions.selected === modeId) return null;
-    const result = await record.cell.setMode(modeId);
-    if (!result.success) {
-      this.deps.logger.warn('SessionMaterializer: failed to apply initial mode', {
-        conversationId: entry.conversationId,
-        providerId: entry.descriptor.providerId,
-        modeId,
-        error: result.error,
-      });
-    }
-    return null;
   }
 
   private buildNewSessionRequest(

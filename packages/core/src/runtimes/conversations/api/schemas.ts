@@ -77,11 +77,18 @@ export const renameConversationInputSchema = z.object({
 });
 export type RenameConversationInput = z.infer<typeof renameConversationInputSchema>;
 
-export const updateConversationConfigInputSchema = z.object({
+export const patchConversationConfigInputSchema = z.object({
   conversationId: z.string().min(1),
-  config: conversationConfigSchema,
+  patch: conversationConfigSchema,
+  mapPatch: z
+    .object({
+      field: z.string(),
+      entries: z.record(z.string(), z.unknown()),
+      expected: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
 });
-export type UpdateConversationConfigInput = z.infer<typeof updateConversationConfigInputSchema>;
+export type PatchConversationConfigInput = z.infer<typeof patchConversationConfigInputSchema>;
 
 export const deleteConversationInputSchema = z.object({
   conversationId: z.string().min(1),
