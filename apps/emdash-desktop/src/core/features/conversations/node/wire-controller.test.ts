@@ -22,7 +22,6 @@ vi.mock('./provider-settings-service', async () => {
       value: () => cell(emptyProviderSettings),
     }),
     patch: vi.fn(async () => emptyProviderSettings),
-    setTransport: vi.fn(async () => emptyProviderSettings),
   };
   return { getProviderSettingsService: () => settings };
 });

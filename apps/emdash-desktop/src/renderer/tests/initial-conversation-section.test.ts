@@ -43,6 +43,9 @@ const mocks = vi.hoisted(() => ({
   lastChatComposerProps: null as unknown,
   updateAutomation: vi.fn(async () => {}),
   autoApproveKind: 'supported',
+  providerId: 'claude',
+  acpKind: 'supported',
+  preferredConversationType: 'pty' as 'acp' | 'pty',
   preferences: { version: '1', entries: {} } as {
     version: string;
     entries: Record<string, ProviderSettingsSnapshot>;
@@ -115,10 +118,30 @@ vi.mock('@core/features/conversations/api/browser/provider-preferences', async (
           : { ...settings, pty: { ...settings.pty, autoApprove: patch.autoApprove } }
       );
     },
-    setPreferredTransport: async (
-      scope: { host: string; providerId: string },
-      transport: 'acp' | 'pty'
-    ) => write(scope, { ...read(scope), transport }),
+  };
+});
+
+vi.mock('@core/features/settings/api/browser/use-app-settings-key', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const listeners = new Set<() => void>();
+  return {
+    useAppSettingsKey: () => ({
+      value: useSyncExternalStore(
+        (listener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+        () => mocks.preferredConversationType
+      ),
+      isLoading: false,
+      isSaving: false,
+      updateAsync: async (value: 'acp' | 'pty') => {
+        mocks.preferredConversationType = value;
+        for (const listener of listeners) listener();
+      },
+    }),
   };
 });
 
@@ -181,9 +204,9 @@ vi.mock('@core/features/agents/api/browser/use-agents', () => ({
   useAgents: () => ({
     data: [
       {
-        id: 'claude',
+        id: mocks.providerId,
         capabilities: {
-          acp: { kind: 'supported' },
+          acp: { kind: mocks.acpKind },
           autoApprove: { kind: mocks.autoApproveKind },
           models: { kind: 'none' },
         },
@@ -198,7 +221,7 @@ vi.mock('@core/primitives/logging/browser/logger', () => ({
 
 vi.mock('@core/features/conversations/api/browser/use-effective-provider', () => ({
   useEffectiveProvider: () => ({
-    providerId: 'claude',
+    providerId: mocks.providerId,
     setProviderOverride: mocks.setProviderOverride,
     createDisabled: false,
   }),
@@ -262,6 +285,9 @@ describe('useInitialConversationState', () => {
   beforeEach(() => {
     latestState = undefined;
     mocks.preferences = { version: '1', entries: {} };
+    mocks.providerId = 'claude';
+    mocks.acpKind = 'supported';
+    mocks.preferredConversationType = 'pty';
     mocks.editorText = '';
     mocks.lastChatComposerProps = null;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
@@ -499,13 +525,51 @@ describe('useInitialConversationState', () => {
       latestState?.setUseChatUi(true);
     });
 
-    expect(Object.values(mocks.preferences.entries)[0]?.transport).toBe('acp');
+    expect(mocks.preferredConversationType).toBe('acp');
 
     await act(async () => root.unmount());
     root = createRoot(container);
     await renderProbe('project-2');
 
     expect(latestState?.useChatUi).toBe(true);
+  });
+
+  it('keeps the interface choice across providers and remote hosts without carrying provider settings', async () => {
+    await renderProbe('project-1');
+    await act(async () => latestState?.setAutoApprove(true));
+    await act(async () => latestState?.setUseChatUi(true));
+    mocks.providerId = 'codex';
+    mocks.getProjectSshConnectionId.mockReturnValue('remote-1');
+    await renderProbe('project-2');
+    expect(latestState?.useChatUi).toBe(true);
+    expect(latestState?.autoApprove).toBe(false);
+    expect(latestState?.options).toEqual({});
+    await act(async () => latestState?.setUseChatUi(false));
+    mocks.providerId = 'claude';
+    mocks.getProjectSshConnectionId.mockReturnValue(undefined);
+    await renderProbe('project-1');
+    expect(latestState?.useChatUi).toBe(false);
+    expect(latestState?.autoApprove).toBe(true);
+  });
+
+  it('falls back to TUI for unsupported providers without changing the remembered interface', async () => {
+    mocks.preferredConversationType = 'acp';
+    mocks.acpKind = 'unsupported';
+    await renderProbe('project-1');
+    expect(latestState?.useChatUi).toBe(false);
+    expect(mocks.preferredConversationType).toBe('acp');
+    mocks.acpKind = 'supported';
+    await renderProbe('project-2');
+    expect(latestState?.useChatUi).toBe(true);
+  });
+
+  it('keeps automation interface choices independent from the global preference', async () => {
+    mocks.preferredConversationType = 'acp';
+    await renderProbe('project-1', { launchSettings: { autoApprove: false, useChatUi: false } });
+    expect(latestState?.useChatUi).toBe(false);
+    await act(async () => latestState?.setUseChatUi(true));
+    await act(async () => latestState?.setUseChatUi(false));
+    expect(mocks.preferredConversationType).toBe('acp');
   });
 });
 
@@ -517,6 +581,9 @@ describe('InitialConversationField', () => {
   beforeEach(() => {
     latestState = undefined;
     mocks.preferences = { version: '1', entries: {} };
+    mocks.providerId = 'claude';
+    mocks.acpKind = 'supported';
+    mocks.preferredConversationType = 'pty';
     mocks.editorText = '';
     mocks.lastChatComposerProps = null;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);

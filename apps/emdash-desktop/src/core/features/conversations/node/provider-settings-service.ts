@@ -7,7 +7,6 @@ import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { conversationsContract } from '../api/contract';
 import {
   emptyProviderSettings,
-  launchPreferenceSchema,
   providerOptionsCacheSchema,
   acpPreferenceSchema,
   ptyPreferenceSchema,
@@ -29,7 +28,6 @@ export function getProviderSettingsService(db: AppDb): ProviderSettingsService {
 /** The sole desktop writer. UI and provider observations never replace an entire preference bag. */
 export class ProviderSettingsService {
   private readonly preferences;
-  private readonly launches;
   private readonly catalogs;
   private readonly scope = createScope({ label: 'provider-settings' });
   private readonly changes =
@@ -39,7 +37,6 @@ export class ProviderSettingsService {
 
   constructor(db: AppDb) {
     this.preferences = new AppDbKeyValueStore<Record<string, unknown>>(db, 'provider-preferences');
-    this.launches = new AppDbKeyValueStore<Record<string, unknown>>(db, 'provider-launch');
     this.catalogs = new AppDbKeyValueStore<Record<string, unknown>>(db, 'provider-options');
     const states = family(
       (key: ProviderSettingsKey, scope) =>
@@ -70,17 +67,14 @@ export class ProviderSettingsService {
   }
 
   async read(scope: ProviderSettingsKey): Promise<ProviderSettingsSnapshot> {
-    const [acp, pty, launch, catalogs] = await Promise.all([
+    const [acp, pty, catalogs] = await Promise.all([
       this.readPreference(scope, 'acp'),
       this.readPreference(scope, 'pty'),
-      this.launches.getOrThrow(this.key(scope)),
       this.catalogs.getAll(),
     ]);
-    const parsed = launchPreferenceSchema.schema.safeParse(launch);
     return {
       acp,
       pty,
-      transport: parsed.success ? parsed.data.transport : 'pty',
       catalogs: Object.entries(catalogs)
         .flatMap(([key, value]) => {
           const [host, providerId, projectId] = JSON.parse(key) as string[];
@@ -127,12 +121,6 @@ export class ProviderSettingsService {
       }
       this.changes.poke(scope);
     });
-    return this.read(scope);
-  }
-
-  async setTransport(scope: ProviderSettingsKey, transport: 'acp' | 'pty') {
-    await this.launches.setOrThrow(this.key(scope), { version: '1', transport });
-    this.changes.poke(scope);
     return this.read(scope);
   }
 

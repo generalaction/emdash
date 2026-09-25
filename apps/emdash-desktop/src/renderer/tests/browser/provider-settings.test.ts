@@ -7,7 +7,6 @@ import { expect, it, vi } from 'vitest';
 import {
   patchProviderSettings,
   readProviderSettings,
-  setPreferredTransport,
 } from '@core/features/conversations/api/browser/provider-preferences';
 import { conversationsContract } from '@core/features/conversations/api/contract';
 import {
@@ -44,11 +43,6 @@ it('shares pending selections across creation scopes and waits for their durable
         providerSettings: {
           model,
           patch,
-          setTransport: ({ transport }) => {
-            saved = { ...saved, transport };
-            state.set(saved);
-            return saved;
-          },
         },
       },
       { validate: 'full' }
@@ -63,7 +57,6 @@ it('shares pending selections across creation scopes and waits for their durable
       transport: 'acp',
       options: { model: 'astra', effort: 'xhigh' },
     });
-    const transport = setPreferredTransport(key, 'acp');
     let created = false;
     const creation = readProviderSettings({ ...key, projectId: 'b' }).then((settings) => {
       created = true;
@@ -72,9 +65,8 @@ it('shares pending selections across creation scopes and waits for their durable
     await vi.waitFor(() => expect(patch).toHaveBeenCalledOnce());
     expect(created).toBe(false);
     firstSave.resolve();
-    await Promise.all([save, transport]);
+    await save;
     expect(await creation).toMatchObject({
-      transport: 'acp',
       acp: { options: { model: 'astra', effort: 'xhigh' } },
     });
   } finally {

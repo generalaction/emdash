@@ -139,7 +139,6 @@ export function createConversationsWireController(
     providerSettings: {
       model: settings.model,
       patch: ({ patch, ...key }) => settings.patch(key, patch),
-      setTransport: ({ transport, ...key }) => settings.setTransport(key, transport),
     },
     attachments: {
       prepareLocalFiles: ({ conversationId, sources }, meta) =>

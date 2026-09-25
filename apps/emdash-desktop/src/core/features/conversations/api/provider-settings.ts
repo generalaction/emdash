@@ -21,15 +21,6 @@ export const acpPreferenceSchema = defineVersionedSchema()
 export const ptyPreferenceSchema = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), autoApprove: z.boolean() }))
   .build();
-export const launchPreferenceSchema = defineVersionedSchema()
-  .initial(
-    '1',
-    z.object({
-      version: z.literal('1'),
-      transport: z.enum(['acp', 'pty']),
-    })
-  )
-  .build();
 export const providerOptionsCacheSchema = defineVersionedSchema()
   .initial(
     '1',
@@ -42,14 +33,12 @@ export const providerOptionsCacheSchema = defineVersionedSchema()
 export const providerSettingsSnapshotSchema = z.object({
   acp: acpPreferenceSchema.asNested(),
   pty: ptyPreferenceSchema.asNested(),
-  transport: z.enum(['acp', 'pty']),
   catalogs: z.array(z.array(providerConfigOptionSchema)),
 });
 export type ProviderSettingsSnapshot = z.infer<typeof providerSettingsSnapshotSchema>;
 export const emptyProviderSettings: ProviderSettingsSnapshot = {
   acp: { version: '1', options: {} },
   pty: { version: '1', autoApprove: false },
-  transport: 'pty',
   catalogs: [],
 };
 export const providerPreferencePatchSchema = z.discriminatedUnion('transport', [
@@ -66,10 +55,6 @@ export const providerSettingsContract = defineContract({
     input: providerSettingsKeySchema.extend({
       patch: providerPreferencePatchSchema,
     }),
-    output: providerSettingsSnapshotSchema,
-  }),
-  setTransport: procedure({
-    input: providerSettingsKeySchema.extend({ transport: z.enum(['acp', 'pty']) }),
     output: providerSettingsSnapshotSchema,
   }),
 });

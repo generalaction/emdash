@@ -13,16 +13,13 @@ import { getConversationsClient } from './client';
 
 type Pending = {
   key: ProviderSettingsKey;
-} & (
-  | { kind: 'preferences'; patch: ProviderPreferencePatch }
-  | { kind: 'transport'; transport: 'acp' | 'pty' }
-);
+  patch: ProviderPreferencePatch;
+};
 const stores = new Map<string, SettingsStore>();
 const pending: Pending[] = [];
 let writes = Promise.resolve();
 
 function project(base: ProviderSettingsSnapshot, mutation: Pending): ProviderSettingsSnapshot {
-  if (mutation.kind === 'transport') return { ...base, transport: mutation.transport };
   if (mutation.patch.transport === 'pty') {
     return {
       ...base,
@@ -128,13 +125,7 @@ function mutate(mutation: Pending): Promise<void> {
     .catch(() => {})
     .then(async () => {
       const client = (await getConversationsClient()).providerSettings;
-      const snapshot =
-        mutation.kind === 'transport'
-          ? await client.setTransport({ ...mutation.key, transport: mutation.transport })
-          : await client.patch({
-              ...mutation.key,
-              patch: mutation.patch,
-            });
+      const snapshot = await client.patch({ ...mutation.key, patch: mutation.patch });
       store(mutation.key);
       for (const source of stores.values()) {
         if (
@@ -162,10 +153,7 @@ function mutate(mutation: Pending): Promise<void> {
   return operation;
 }
 export function patchProviderSettings(key: ProviderSettingsKey, patch: ProviderPreferencePatch) {
-  return mutate({ key, kind: 'preferences', patch });
-}
-export function setPreferredTransport(key: ProviderSettingsKey, transport: 'acp' | 'pty') {
-  return mutate({ key, kind: 'transport', transport });
+  return mutate({ key, patch });
 }
 export async function readProviderSettings(key: ProviderSettingsKey) {
   const source = store(key);

@@ -100,14 +100,14 @@ committed and shared.
 
 ## Conversation Preferences And Discovered Options
 
-`ProviderSettingsService` in the conversations slice is the sole desktop writer. It stores three
-versioned JSON records in the existing SQLite KV store, exposed through typed Wire procedures and
-a keyed live model. Renderer state is an optimistic projection, not a separate persistence owner.
+`ProviderSettingsService` in the conversations slice is the sole desktop writer for provider
+preferences and discovered options. It stores versioned JSON in two namespaces in the existing
+SQLite KV store, exposed through typed Wire procedures and a keyed live model. Renderer state is
+an optimistic projection, not a separate persistence owner.
 
 | Namespace | Key | Value |
 | --- | --- | --- |
 | `provider-preferences` | host, provider, transport | ACP: `{ version: '1', options: {} }`; PTY: `{ version: '1', autoApprove: false }` |
-| `provider-launch` | host, provider | `{ version: '1', transport: 'acp' \| 'pty' }` |
 | `provider-options` | host, provider, project context, process context, configuration fingerprint | `{ version: '1', options: SessionConfigOption[] }` |
 
 Preferences contain only explicit selections, using native provider option IDs and string/boolean
@@ -118,6 +118,13 @@ accepts only `autoApprove`. The Wire boundary rejects fields belonging to the ot
 Per-field patches are serialized in main; database read failures cannot become empty
 preferences. The retired global setting, localStorage defaults, and preference mementos are not
 migrated. Draft text/attachments continue to use their own memento.
+
+The app settings service stores the last explicitly selected interface as the global SQLite
+`preferredConversationType` setting (`'acp' | 'pty'`, initially `'pty'`). Both interactive creation
+flows share it across providers, projects, and hosts. Providers without ACP support use TUI without
+changing the saved preference. Opening existing conversations never writes this setting. Creation
+waits for it to load and for the form's interface selection to save. The old scoped launch records
+are not read or migrated.
 
 Creation flows integrate an icon-only Chat UI/TUI toggle into the provider field, with
 auto-approve below for TUI only. Create Conversation exposes no model picker. Create Task and active chat

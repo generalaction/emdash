@@ -44,11 +44,9 @@ describe('provider settings persistence', () => {
       transport: 'acp',
       options: { model: 'astra', effort: 'xhigh', fast: false },
     });
-    await service.setTransport(local, 'acp');
     await service.dispose();
     service = new ProviderSettingsService(fixture.db);
     expect(await service.read(local)).toMatchObject({
-      transport: 'acp',
       acp: { options: { model: 'astra', effort: 'xhigh', fast: false } },
     });
   });
@@ -61,7 +59,6 @@ describe('provider settings persistence', () => {
         providerSettings: {
           model: service.model,
           patch: ({ patch, ...key }) => service.patch(key, patch),
-          setTransport: ({ transport, ...key }) => service.setTransport(key, transport),
         },
       })
     );
