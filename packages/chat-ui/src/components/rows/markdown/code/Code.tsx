@@ -19,7 +19,7 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useStreamAnimation } from '@components/contexts/StreamContext';
 import { BlockFrame } from '@components/engine/block-frame';
-import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
+import { createIdleYield } from '@components/engine/dom-utils';
 import { CopyButton } from '@components/primitives/CopyButton';
 import { applyTokenLines } from '@core/highlight/apply-tokens';
 import type { CodeLaidOut } from '@core/layout/layout-types';
@@ -84,14 +84,8 @@ export function Code(props: CodeProps) {
     // Deferred path — budget-bounded tokenization across idle slices so a
     // large block never stalls a frame (Shiki work happens between yields).
     let cancelled = false;
-    let idleHandle: number | null = null;
-    const waitIdle = () =>
-      new Promise<void>((resolve) => {
-        idleHandle = scheduleIdle(() => {
-          idleHandle = null;
-          resolve();
-        });
-      });
+    const idle = createIdleYield();
+    const waitIdle = idle.waitIdle;
 
     void (async () => {
       await waitIdle();
@@ -118,7 +112,7 @@ export function Code(props: CodeProps) {
 
     onCleanup(() => {
       cancelled = true;
-      if (idleHandle !== null) cancelIdle(idleHandle);
+      idle.cancel();
     });
   });
 

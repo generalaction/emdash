@@ -1,6 +1,6 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useCommands } from '@components/contexts/CommandsContext';
-import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
+import { createIdleYield } from '@components/engine/dom-utils';
 import { Devicon } from '@components/primitives/Devicon';
 import { GenericFileIcon, IconError, IconShieldAlert } from '@components/primitives/icons';
 import { applyTokensToElement } from '@core/highlight/apply-tokens';
@@ -146,18 +146,11 @@ export function DiffLines(props: DiffLinesProps) {
     // Budget-bounded tokenization across idle slices (same driver as Code.tsx)
     // so large diffs never stall a frame.
     let cancelled = false;
-    let idleHandle: number | null = null;
-    const waitIdle = () =>
-      new Promise<void>((resolve) => {
-        idleHandle = scheduleIdle(() => {
-          idleHandle = null;
-          resolve();
-        });
-      });
-    const opts = { yieldToIdle: waitIdle, isCancelled: () => cancelled };
+    const idle = createIdleYield();
+    const opts = { yieldToIdle: idle.waitIdle, isCancelled: () => cancelled };
 
     void (async () => {
-      await waitIdle();
+      await idle.waitIdle();
       if (cancelled) return;
       const newResult = await caches.highlightIncremental(newCode, lang, opts);
       const oldResult = props.item.oldText
@@ -169,7 +162,7 @@ export function DiffLines(props: DiffLinesProps) {
 
     onCleanup(() => {
       cancelled = true;
-      if (idleHandle !== null) cancelIdle(idleHandle);
+      idle.cancel();
     });
   });
 
