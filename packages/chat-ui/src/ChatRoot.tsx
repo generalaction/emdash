@@ -659,9 +659,8 @@ export function ChatRoot(props: ChatRootProps) {
         return unitReservedHeight(u, contentH);
       });
       refreshTotal();
-      // Defer projection to the write phase: the scroll module projects once per
-      // frame (not once per row) preventing layout thrashing on streaming updates.
-      scroll.invalidate();
+      // Projection need is derived by the invalidation bridge (units() and
+      // totalHeight() are both in its input list) — no imperative flag here.
     });
   });
 
@@ -940,13 +939,14 @@ export function ChatRoot(props: ChatRootProps) {
   // write + ONE projection (and thus at most one forced reflow) in the write
   // phase per rAF frame. compensateHeightChange applies estimate→exact deltas
   // from rows above the viewport same-frame (settle window or not) so content
-  // never shifts under the user; invalidate() covers everything else (tail
-  // re-pin, reserve growth) via the settled projection.
+  // never shifts under the user. Projection need is derived by the
+  // invalidation bridge: the queued total flush runs at the top of the write
+  // phase, its setTotalHeight fires the bridge synchronously (invalidate +
+  // request), and the module's write phase projects in that same frame.
   const onHeightChanged = (index: number, delta: number) => {
     if (delta === 0) return;
     queueTotalFlush();
     scroll.compensateHeightChange(index, delta);
-    scroll.invalidate();
     scheduler.request();
   };
 
@@ -1089,10 +1089,15 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Invalidation bridge — the single reactive input list ─────────────────
   //
-  // One createEffect reads every layout-affecting signal and calls
-  // scheduler.request(). This replaces the per-memo dependency curation that
-  // drifted (and caused blank transcripts / stale pins). Any layout input
-  // change => one arm, never more, never fewer.
+  // One createEffect reads every layout-affecting signal, marks projection
+  // needed, and arms the scheduler. This replaces the per-memo dependency
+  // curation that drifted (and caused blank transcripts / stale pins) AND the
+  // imperative needsProject scattering that missed inputs: projection need is
+  // DERIVED from this list, so a padBottom growth or viewport shrink while
+  // pinned at the tail re-projects (the stick-to-bottom fix) exactly like a
+  // streaming height change does. Any layout input change ⇒ one invalidate +
+  // one arm, never more, never fewer. The projection itself stays cheap on
+  // no-op frames (sub-pixel guard skips the write when the target matches).
   //
   // Output signals (visible, pin) are intentionally NOT in this list —
   // reading them here would create a feedback loop.
@@ -1107,6 +1112,7 @@ export function ChatRoot(props: ChatRootProps) {
     containerWidth();
     measureEpoch();
     expandedUserId();
+    scroll.invalidate();
     scheduler.request();
   });
 
@@ -1409,8 +1415,9 @@ export function ChatRoot(props: ChatRootProps) {
           lastActiveUserVisible = undefined;
           lastAtBottom = undefined;
           // Load the incoming model's scroll intent and project it onto the DOM.
+          // (Projection need for the new geometry derives from the invalidation
+          // bridge — the units() swap fires it.)
           attach(next);
-          scroll.invalidate();
           scheduler.forceReconcile(() => {
             totalDirty = true;
           });
