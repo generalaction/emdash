@@ -73,7 +73,7 @@ it.each(['claude', 'codex'] as const)(
         repoFacts: { get: async () => ({ remotes: [], localBranches: [] }) },
       };
       const projects = { requireAttached: () => ok(provider as never) };
-      const attach = vi.fn(async () => ok(undefined));
+      const attach = vi.fn(async () => ok({ sessionId: null }));
       const hostClient = {
         workspaceRegistry: wire.client,
         conversations: { create: async () => ok(undefined) },
@@ -130,7 +130,7 @@ it.each(['claude', 'codex'] as const)(
           success: true,
         });
         await expect(controller.call('acp.attach', { conversationId })).resolves.toEqual(
-          ok(undefined)
+          ok({ sessionId: null })
         );
       }
 
