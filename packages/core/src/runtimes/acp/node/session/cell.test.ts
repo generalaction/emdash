@@ -25,6 +25,37 @@ function makeCell(agent = new FakeAcpAgent()) {
 }
 
 describe('SessionCell prompts', () => {
+  it.each([false, true])(
+    'defers prepared prompt dispatch until commit (resumed=%s)',
+    async (resumed) => {
+      const { cell, agent } = makePendingCell();
+      agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+      if (resumed) cell.beginReplay();
+      try {
+        const prepared = cell.prepareActivation([{ text: 'first' }, { text: 'second' }], resumed);
+        expect(prepared.success).toBe(true);
+        expect(agent.prompt).not.toHaveBeenCalled();
+        expect(cell.prepareActivation([{ text: 'unexpected' }], resumed).success).toBe(false);
+        if (!prepared.success) return;
+        prepared.data();
+        prepared.data();
+        await vi.waitFor(() => expect(agent.prompt).toHaveBeenCalledTimes(2));
+      } finally {
+        cell.dispose();
+      }
+    }
+  );
+
+  it('invalidates prepared dispatch when the activation is disposed', () => {
+    const { cell, agent } = makePendingCell();
+    agent.prompt = vi.fn();
+    const prepared = cell.prepareActivation([{ text: 'never send' }], false);
+    expect(prepared.success).toBe(true);
+    cell.dispose();
+    if (prepared.success) prepared.data();
+    expect(agent.prompt).not.toHaveBeenCalled();
+  });
+
   it('keeps MCP startup failures out of transcript and agent activity', () => {
     const { cell } = makeCell();
     cell.push({ kind: 'mcp_startup_failure', server: 'docs', error: 'Connection refused' });

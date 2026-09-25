@@ -411,13 +411,11 @@ async function resolveConversationRuntimeTarget(
 
   const identity = row.workspaceId ? await workspaceIdentity.resolve(row.workspaceId) : null;
   const acpConfig = row.config?.type === 'acp' ? row.config : undefined;
-  const initialQueue =
-    row.sessionId === null
-      ? acpConfig?.initialQueue?.length
-        ? acpConfig.initialQueue
-        : acpConfig?.initialPrompt?.trim()
-          ? [{ text: acpConfig.initialPrompt }]
-          : undefined
+  // The runtime owns consumption. A provider pointer alone does not prove dispatch.
+  const initialQueue = acpConfig?.initialQueue?.length
+    ? acpConfig.initialQueue
+    : acpConfig?.initialPrompt?.trim()
+      ? [{ text: acpConfig.initialPrompt }]
       : undefined;
   const workspacePath = identity?.path;
   // Resolve the ACP agent environment in main from provider and project/task settings. The

@@ -40,6 +40,49 @@ function restorationConfigOptions(includeSaved: boolean) {
 }
 
 describe('ACP restoration continuity', () => {
+  it.each(['new queue', 'new readiness', 'replay queue', 'replay finalization'] as const)(
+    'retains the initial prompt across a worker restart after %s fails',
+    async (failure) => {
+      const intents = createMemorySessionIntentStore();
+      const h = makeAcpHarness({ intents });
+      let runtime = new AcpRuntime(h.deps);
+      const input = makeStartInput({
+        conversationId: 'initial-prompt-restart',
+        sessionId: failure.startsWith('replay') ? 'original' : null,
+        initialQueue: [{ text: 'do not lose this prompt' }],
+      });
+      const fault = failure.endsWith('queue')
+        ? vi
+            .spyOn(SessionCell.prototype, 'queuePrompt')
+            .mockReturnValueOnce(acpErr.invalidState('queue rejected'))
+        : vi
+            .spyOn(
+              SessionCell.prototype,
+              failure === 'new readiness' ? 'applySessionReady' : 'endReplay'
+            )
+            .mockImplementationOnce(() => {
+              throw new Error('readiness failed');
+            });
+      try {
+        expect((await runtime.startSession(input, 'resume')).success).toBe(false);
+        expect(h.agent.prompt).not.toHaveBeenCalled();
+        await runtime.dispose();
+        runtime = new AcpRuntime(h.deps);
+        await runtime.reconcile();
+        expect((await runtime.startSession(input, 'resume')).success).toBe(true);
+        await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledOnce());
+        expect(h.agent.prompt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            prompt: [{ type: 'text', text: 'do not lose this prompt' }],
+          })
+        );
+      } finally {
+        fault.mockRestore();
+        await runtime.dispose();
+      }
+    }
+  );
+
   it.each(['replay finalization', 'initial queue'] as const)(
     'preserves saved configuration when %s fails after applying the provider catalog',
     async (failure) => {

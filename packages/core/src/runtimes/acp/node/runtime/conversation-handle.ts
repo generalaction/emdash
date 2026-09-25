@@ -401,7 +401,11 @@ export class ConversationHandle {
     record: SessionRecord,
     unstarted: boolean
   ): Promise<Result<void, ActivationStartError>> {
-    return this.persistSession(record, unstarted && !record.input.initialQueue?.length, true);
+    return this.persistSession(record, unstarted, { materialized: true });
+  }
+
+  async commitInitialQueue(record: SessionRecord): Promise<Result<void, ActivationStartError>> {
+    return this.persistSession(record, false, { consumeInitialQueue: true });
   }
 
   updateMode(modeId: string): void {
@@ -482,7 +486,13 @@ export class ConversationHandle {
   private async persistSession(
     record: SessionRecord,
     unstarted: boolean,
-    materialized = false
+    {
+      materialized = false,
+      consumeInitialQueue = false,
+    }: {
+      materialized?: boolean;
+      consumeInitialQueue?: boolean;
+    } = {}
   ): Promise<Result<void, ActivationStartError>> {
     if (!this.isCurrentRecord(record)) return acpErr.conversationNotFound(this.conversationId);
     const saved = await this.deps.persistIntent(() => {
@@ -492,12 +502,17 @@ export class ConversationHandle {
       const retained = replacePresentation
         ? emptyRetainedPresentation(this.retainedValue.configured)
         : this.retainedValue;
+      const initialQueueConsumed =
+        this.initialQueueConsumed ||
+        consumeInitialQueue ||
+        (materialized && !record.input.initialQueue?.length);
       return {
-        ...this.buildIntent(sessionId, retained, unstarted),
+        ...this.buildIntent(sessionId, retained, unstarted, initialQueueConsumed),
         onPersisted: () => {
           if (!this.isEpochCurrent(record.epoch)) return;
           this.descriptor = { ...this.descriptor, sessionId };
           this.unstarted = unstarted;
+          this.initialQueueConsumed = initialQueueConsumed;
           if (replacePresentation) {
             this.retainedValue = emptyRetainedPresentation(this.retainedValue.configured);
           }
@@ -525,7 +540,8 @@ export class ConversationHandle {
   private buildIntent(
     sessionId: string | null,
     retained: RetainedPresentation,
-    unstarted: boolean
+    unstarted: boolean,
+    initialQueueConsumed = this.initialQueueConsumed
   ) {
     return {
       payload: {
@@ -535,6 +551,7 @@ export class ConversationHandle {
         cwd: this.descriptor.cwd,
         sessionId,
         unstarted,
+        initialQueueConsumed,
         configured: retained.configured,
         presentation: retained,
       } as unknown as Serializable,

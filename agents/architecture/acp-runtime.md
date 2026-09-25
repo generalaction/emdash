@@ -163,6 +163,16 @@ likewise publishes its cache only after atomic file replacement; failed mutation
 into a subsequent write. Configuration and presentation writes use the same persistence queue.
 Provider environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never
 persisted.
+Initial prompt payloads remain in the owning Conversation configuration. Desktop supplies them on
+attachment and startup even when a provider pointer exists; the runtime's durable
+`initialQueueConsumed` marker decides whether to use them. Legacy intents without this marker are
+treated as consumed. A pending queue with no supplied payload fails explicitly rather than being
+silently discarded. Saving a provider pointer does not consume the queue: startup first prepares
+the entire queue and completes replay/readiness with prompt effects held, then durably consumes the
+queue and protects the session before releasing dispatch. Preparation or persistence failure leaves
+the queue retryable, including after worker restart. The dispatch commit is conservative: a crash
+after it can leave delivery uncertain and must not automatically resend the initial queue. This
+does not make accepted live queues durable or introduce a prompt outbox.
 The runtime reports provider session identity and resume outcomes through the host conversation
 index. Interactive callers therefore never persist lifecycle response data themselves.
 

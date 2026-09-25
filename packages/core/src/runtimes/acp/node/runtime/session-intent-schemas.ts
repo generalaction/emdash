@@ -28,6 +28,7 @@ export const persistedIntentV1Schema = z.object({
   cwd: z.string(),
   sessionId: z.string().nullable(),
   unstarted: z.boolean().optional(),
+  initialQueueConsumed: z.boolean().optional(),
   configured: retainedConfiguredSchema,
   presentation: retainedPresentationSchema,
 });
