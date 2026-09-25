@@ -16,6 +16,17 @@ describe('linked issue source persistence', () => {
   it('reads old snapshots without inventing a source account', () => {
     expect(linkedIssue.parseJson(JSON.stringify(legacy))).toEqual(legacy);
   });
+  it('round-trips a ClickUp issue with its source account and Markdown context', () => {
+    const current = linkedIssue.schema.parse({
+      provider: 'clickup',
+      identifier: 'HGAI-2316',
+      title: 'Fix login',
+      url: 'https://app.clickup.com/t/86abc123',
+      accountId: 'clickup:421:72',
+      context: '## Acceptance criteria\n- Keep the return URL',
+    });
+    expect(linkedIssue.parseJson(linkedIssue.serialize(current))).toEqual(current);
+  });
   it('round-trips the account that supplied an issue', () => {
     const current = linkedIssue.schema.parse({ ...legacy, accountId: 'workspace-a' });
     expect(linkedIssue.parseJson(linkedIssue.serialize(current))).toEqual(current);

@@ -214,11 +214,29 @@ export function InitialConversationField({
     [linkedIssue]
   );
 
-  // Auto-inject issue context whenever the linked issue changes.
+  const linkedIssueMention = useMemo(
+    () => (linkedIssue ? toLinkedIssueMentionItem(linkedIssue) : null),
+    [linkedIssue]
+  );
+  const issueToken = linkedIssueMention?.id ?? null;
+  const previousInclusion = useRef<{ token: string | null; include: boolean } | null>(null);
+
+  // Refresh included context, but never undo a user's removal when details for
+  // the same issue arrive. Selecting another issue restores the default policy.
   useEffect(() => {
+    const previous = previousInclusion.current;
+    previousInclusion.current = { token: issueToken, include: includeIssueContextByDefault };
+    if (
+      previous?.token === issueToken &&
+      previous.include &&
+      includeIssueContextByDefault &&
+      state.issueContext === null
+    ) {
+      return;
+    }
     state.setIssueContext(includeIssueContextByDefault ? defaultIssueContext : null);
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [defaultIssueContext, includeIssueContextByDefault]);
+  }, [defaultIssueContext, includeIssueContextByDefault, issueToken]);
 
   const { data: agents } = useAgents(hostRefFromConnectionId(state.connectionId));
   const selectedAgent = state.provider
@@ -261,11 +279,6 @@ export function InitialConversationField({
       syncingEditorTextRef.current = false;
     }
   }, [state.prompt]);
-
-  const linkedIssueMention = useMemo(
-    () => (linkedIssue ? toLinkedIssueMentionItem(linkedIssue) : null),
-    [linkedIssue]
-  );
 
   useEffect(() => {
     const editor = editorApiRef.current;
