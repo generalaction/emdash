@@ -52,7 +52,6 @@ export const plugin = definePlugin(
     },
     models: {
       kind: 'selectable',
-      // Same ids as the chat's model selector.
       modelOptions: {
         'opus[1m]': {
           name: 'Opus 5.5',
