@@ -1,4 +1,4 @@
-import { formatHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { formatHostRef, hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { ChatComposerProps, PromptEditorRef } from '@emdash/ui/react/components';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   providerId: 'claude',
   acpKind: 'supported',
   preferredConversationType: 'pty' as 'acp' | 'pty',
+  preferencesReady: true,
   preferences: { version: '1', entries: {} } as {
     version: string;
     entries: Record<string, ProviderSettingsSnapshot>;
@@ -100,7 +101,7 @@ vi.mock('@core/features/conversations/api/browser/provider-preferences', async (
         },
         () => (scope ? read(scope) : emptyProviderSettings)
       );
-      return { settings, ready: true };
+      return { settings, ready: mocks.preferencesReady };
     },
     readProviderSettings: async (scope: { host: string; providerId: string }) => read(scope),
     patchProviderSettings: async (
@@ -288,6 +289,7 @@ describe('useInitialConversationState', () => {
     mocks.providerId = 'claude';
     mocks.acpKind = 'supported';
     mocks.preferredConversationType = 'pty';
+    mocks.preferencesReady = true;
     mocks.editorText = '';
     mocks.lastChatComposerProps = null;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
@@ -506,6 +508,167 @@ describe('useInitialConversationState', () => {
       })
     );
     expect(mocks.preferences.entries).toEqual({});
+  });
+
+  it('uses shared chat preferences for new automations and remembers explicit changes', async () => {
+    const scope = { host: formatHostRef(LOCAL_HOST_REF), providerId: 'claude' };
+    const saved = { model: 'sonnet', effort: 'high', mode: 'bypass', fast: true };
+    await patchProviderSettings(scope, { transport: 'acp', options: saved });
+    await patchProviderSettings(scope, { transport: 'pty', autoApprove: true });
+    await act(async () => root.render(React.createElement(AutomationCreateProbe)));
+    expect(latestAutomation?.initialConversation.options).toEqual(saved);
+    expect(latestAutomation?.initialConversation.autoApprove).toBe(false);
+    await act(async () => {
+      latestAutomation?.initialConversation.setUseChatUi(true);
+      latestAutomation?.initialConversation.setOption('effort', 'max');
+    });
+    expect(latestAutomation?.buildConversationConfig()).toMatchObject({
+      type: 'acp',
+      options: { ...saved, effort: 'max' },
+      autoApprove: false,
+    });
+    await act(async () => root.render(React.createElement(Probe, { projectId: 'project-2' })));
+    expect(latestState?.options).toEqual({ ...saved, effort: 'max' });
+    await act(async () => latestState?.setOption('fast', false));
+    await act(async () => root.render(React.createElement(AutomationCreateProbe)));
+    expect(latestAutomation?.initialConversation.options).toEqual({
+      ...saved,
+      effort: 'max',
+      fast: false,
+    });
+  });
+
+  it('updates an open new automation from shared preferences and scopes them by host and provider', async () => {
+    const local = { host: formatHostRef(LOCAL_HOST_REF), providerId: 'claude' };
+    const remote = { host: formatHostRef(hostRef('remote', 'remote-1')), providerId: 'claude' };
+    await patchProviderSettings(local, { transport: 'acp', options: { model: 'sonnet' } });
+    await patchProviderSettings(remote, { transport: 'acp', options: { model: 'opus' } });
+    await patchProviderSettings(
+      { ...remote, providerId: 'codex' },
+      { transport: 'acp', options: { model: 'astra', reasoning_effort: 'xhigh' } }
+    );
+    await act(async () => root.render(React.createElement(AutomationCreateProbe)));
+    await act(async () => {
+      await patchProviderSettings(local, { transport: 'acp', options: { effort: 'high' } });
+    });
+    expect(latestAutomation?.initialConversation.options).toEqual({
+      model: 'sonnet',
+      effort: 'high',
+    });
+    await act(async () => latestAutomation?.setProjectId('project-2'));
+    expect(latestAutomation?.initialConversation.options).toEqual({
+      model: 'sonnet',
+      effort: 'high',
+    });
+    mocks.getProjectSshConnectionId.mockReturnValue('remote-1');
+    await act(async () => latestAutomation?.setProjectId('project-3'));
+    expect(latestAutomation?.initialConversation.options).toEqual({ model: 'opus' });
+    mocks.providerId = 'codex';
+    await act(async () => root.render(React.createElement(AutomationCreateProbe)));
+    expect(latestAutomation?.initialConversation.options).toEqual({
+      model: 'astra',
+      reasoning_effort: 'xhigh',
+    });
+  });
+
+  it.each<Record<string, string | boolean> | undefined>([
+    undefined,
+    {},
+    { model: 'opus', effort: 'low' },
+  ])(
+    'preserves saved automation options %j while remembering explicit edits',
+    async (savedOptions) => {
+      const scope = { host: formatHostRef(LOCAL_HOST_REF), providerId: 'claude' };
+      await patchProviderSettings(scope, {
+        transport: 'acp',
+        options: { model: 'sonnet', effort: 'high', mode: 'bypass' },
+      });
+      const automation: Automation = {
+        id: 'automation-1',
+        name: 'Review',
+        projectId: 'project-1',
+        enabled: true,
+        revision: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        conversationConfig: {
+          provider: 'claude',
+          type: 'acp',
+          prompt: 'Review changes',
+          autoApprove: false,
+          options: savedOptions,
+        },
+      };
+      await act(async () => root.render(React.createElement(AutomationEditProbe, { automation })));
+      expect(latestAutomation?.initialConversation.options).toEqual(savedOptions ?? {});
+      mocks.updateAutomation.mockClear();
+      await act(async () => {
+        await patchProviderSettings(scope, { transport: 'acp', options: { effort: 'max' } });
+      });
+      expect(latestAutomation?.initialConversation.options).toEqual(savedOptions ?? {});
+      expect(mocks.updateAutomation).not.toHaveBeenCalled();
+      await act(async () => latestAutomation?.initialConversation.setOption('effort', 'medium'));
+      expect(mocks.updateAutomation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          patch: expect.objectContaining({
+            conversationConfig: expect.objectContaining({
+              options: { ...savedOptions, effort: 'medium' },
+            }),
+          }),
+        })
+      );
+      expect(
+        mocks.preferences.entries[JSON.stringify([scope.host, scope.providerId])]?.acp.options
+      ).toEqual({ model: 'sonnet', effort: 'medium', mode: 'bypass' });
+
+      // A provider change must still autosave when its preferences finish loading empty.
+      mocks.updateAutomation.mockClear();
+      mocks.preferencesReady = false;
+      mocks.providerId = 'codex';
+      await act(async () => root.render(React.createElement(AutomationEditProbe, { automation })));
+      expect(mocks.updateAutomation).not.toHaveBeenCalled();
+      mocks.preferencesReady = true;
+      await act(async () => root.render(React.createElement(AutomationEditProbe, { automation })));
+      expect(mocks.updateAutomation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          patch: expect.objectContaining({
+            conversationConfig: expect.objectContaining({ provider: 'codex', options: {} }),
+          }),
+        })
+      );
+      mocks.updateAutomation.mockClear();
+      await act(async () => {
+        await patchProviderSettings(
+          { ...scope, providerId: 'codex' },
+          { transport: 'acp', options: { model: 'astra' } }
+        );
+      });
+      expect(latestAutomation?.initialConversation.options).toEqual({});
+      expect(mocks.updateAutomation).not.toHaveBeenCalled();
+    }
+  );
+
+  it('waits for preferences before a new automation can be saved', async () => {
+    mocks.preferencesReady = false;
+    await act(async () => root.render(React.createElement(AutomationCreateProbe)));
+    await act(async () => {
+      latestAutomation?.setName('Review');
+      latestAutomation?.initialConversation.setPrompt('Review changes');
+      latestAutomation?.initialConversation.setUseChatUi(true);
+    });
+    expect(latestAutomation?.canSave).toBe(false);
+    expect(latestAutomation?.buildConversationConfig()).toBeNull();
+    mocks.preferencesReady = true;
+    await act(async () => {
+      await patchProviderSettings(
+        { host: formatHostRef(LOCAL_HOST_REF), providerId: 'claude' },
+        { transport: 'acp', options: { model: 'sonnet', effort: 'high' } }
+      );
+    });
+    expect(latestAutomation?.canSave).toBe(true);
+    expect(latestAutomation?.buildConversationConfig()).toMatchObject({
+      options: { model: 'sonnet', effort: 'high' },
+    });
   });
 
   it('defaults chat UI off when the provider supports ACP', async () => {

@@ -115,7 +115,7 @@ export function useAutomationFormState(
 
   const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider, {
     resetPromptOnProjectChange: false,
-    initialOptions: seedConversationConfig?.options,
+    initialOptions: seedConversationConfig ? (seedConversationConfig.options ?? {}) : undefined,
     launchSettings: {
       autoApprove: seedConversationConfig?.autoApprove ?? false,
       useChatUi: seedConversationConfig?.type === 'acp',
@@ -185,6 +185,7 @@ export function useAutomationFormState(
   }, [setUseChatUi, shouldForceChatUi, useChatUi]);
 
   const canSave =
+    initialConversation.settingsReady &&
     name.trim().length > 0 &&
     prompt.trim().length > 0 &&
     !!provider &&
@@ -230,7 +231,7 @@ export function useAutomationFormState(
   const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };
 
   function buildConversationConfig(): ConversationConfig | null {
-    if (!provider) return null;
+    if (!provider || !initialConversation.settingsReady) return null;
     return {
       prompt: prompt.trim(),
       provider,

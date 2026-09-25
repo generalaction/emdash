@@ -85,7 +85,6 @@ export type InitialConversationState = {
 
 interface InitialConversationStateOptions {
   resetPromptOnProjectChange?: boolean;
-  /** Initializes an isolated automation draft; omit to use remembered interactive defaults. */
   launchSettings?: ConversationLaunchSettings;
   initialOptions?: Record<string, string | boolean>;
 }
@@ -110,9 +109,7 @@ export function useInitialConversationState(
   );
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
-  const [draftOptions, setDraftOptions] = useState<Record<string, string | boolean>>(
-    options.initialOptions ?? {}
-  );
+  const [draftOptions, setDraftOptions] = useState(options.initialOptions);
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
@@ -129,15 +126,19 @@ export function useInitialConversationState(
     setIssueContext(null);
     setIssueContextEditorOpen(false);
     setModel(null);
-    setDraftOptions({});
+    setDraftOptions(undefined);
     setIssueMentionContexts({});
   } else if (providerChanged) {
     setPrevProviderId(providerId);
     setModel(null);
-    setDraftOptions({});
+    setDraftOptions(undefined);
   }
 
   const { useChatUi, autoApprove } = launchSettings;
+  const providerOptions = draftOptions ?? launchSettings.settings.acp.options ?? {};
+  if (options.initialOptions !== undefined && draftOptions === undefined && launchSettings.ready) {
+    setDraftOptions({ ...providerOptions });
+  }
   const initialPromptSupported = useChatUi || agentSupportsInitialPromptDelivery(capabilities);
 
   return {
@@ -154,17 +155,18 @@ export function useInitialConversationState(
     setIssueContextEditorOpen,
     settingsReady: launchSettings.ready,
     settings: launchSettings.settings,
-    options: options.launchSettings ? draftOptions : (launchSettings.settings.acp.options ?? {}),
+    options: providerOptions,
     setOption: (id, value) => {
-      if (options.launchSettings) setDraftOptions((previous) => ({ ...previous, [id]: value }));
-      else if (providerId)
+      if (options.initialOptions !== undefined)
+        setDraftOptions((previous) => ({ ...(previous ?? providerOptions), [id]: value }));
+      if (providerId)
         void patchProviderSettings(
           { host: formatHostRef(hostRefFromConnectionId(connectionId)), providerId },
           { transport: 'acp', options: { [id]: value } }
         );
     },
     flushSettings: async () => {
-      if (!options.launchSettings && providerId)
+      if (providerId)
         await readProviderSettings({
           host: formatHostRef(hostRefFromConnectionId(connectionId)),
           providerId,

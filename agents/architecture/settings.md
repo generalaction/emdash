@@ -153,9 +153,14 @@ discovered empty catalogs. Discovery failures preserve stored data;
 confirmed invalid overrides are removed conditionally so a newer user choice survives delayed cleanup.
 Provider-reported defaults and automatic changes never become user preferences.
 
-Automations reuse option catalogs but keep their own configuration. Each new automation starts with
-TUI auto-approve false, and creation/editing never inherits or writes interactive preferences. ACP
-options and TUI approval travel in the deployment and conversation snapshot, including headless execution.
+New automations use shared ACP preferences for their host/provider and reuse discovered option
+catalogs. Explicit option changes in creation or editing also update shared preferences. Saving an
+automation stores its own option snapshot; opening an existing automation uses only its saved options,
+including an empty map, and later preference changes do not alter scheduled runs. Switching provider
+or project loads preferences for the target scope. Creation waits for preferences and pending writes.
+Automation interface choices stay independent, and each new automation starts with TUI auto-approve
+false. TUI approval never inherits or writes interactive preferences. ACP options and TUI approval
+travel in the deployment and conversation snapshot, including headless execution.
 
 ACP permissions use the provider access mode; Emdash never auto-approves ACP requests.
 `conversations.create` sets the initial config; `conversations.patchConfig` is its sole mutation API.

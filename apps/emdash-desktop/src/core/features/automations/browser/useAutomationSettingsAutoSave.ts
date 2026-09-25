@@ -58,17 +58,22 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
 
   // These controls live inside the initialConversation sub-hook. Persist changes
   // immediately, including toggles that do not trigger prompt blur.
-  const optionsKey = JSON.stringify(options);
-  const isFirstRender = useRef(true);
+  const selectionKey = JSON.stringify([
+    effectiveProjectId,
+    provider,
+    model,
+    autoApprove,
+    useChatUi,
+    options,
+  ]);
+  const previousSelection = useRef(selectionKey);
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    if (editable && canSave) savePatch();
+    if (previousSelection.current === selectionKey || !editable || !canSave) return;
+    previousSelection.current = selectionKey;
+    savePatch();
     // Other fields use action-at-change-site.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [provider, model, autoApprove, useChatUi, optionsKey]);
+  }, [selectionKey, editable, canSave]);
 
   // Workspace config changes (preset, branch name, sandbox toggle, etc.) are not
   // interceptable at the setter level because they go through useWorkspaceConfig
