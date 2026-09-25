@@ -57,6 +57,7 @@ import type { ThemeVarKey } from './core/config';
 import type { MeasureCtx } from './core/define';
 import { genericEstimate } from './core/layout/generic-estimate';
 import { createScrollProjection } from './core/scroll-projection';
+import { measureUnitCached } from './core/unit-measure';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatItem, ChatMessage, TranscriptTurn } from './model';
@@ -1171,7 +1172,7 @@ export function ChatRoot(props: ChatRootProps) {
         measureEpoch: measureEpoch(),
         expandedId: expandedUserId(),
       };
-      const contentH = unitDef.measure(u.data, ctx, unitDef.vars ?? {});
+      const contentH = measureUnitCached(u, ctx, unitDef);
       const h = unitReservedHeight(u, contentH);
       const delta = virt.setSize(ui, h);
       if (delta !== 0) onHeightChanged(ui, delta);
@@ -1504,7 +1505,12 @@ export function ChatRoot(props: ChatRootProps) {
                   >
                     <For each={visible()}>
                       {(unitIndex) => {
-                        const u = () => units().at(unitIndex);
+                        // Memo with identity equality: committed units keep
+                        // their object identity across streaming ticks, so
+                        // UnitRow props don't churn when only units() (the
+                        // view wrapper) is rebuilt. Active-tier units are
+                        // rebuilt per tick and flow through as real changes.
+                        const u = createMemo(() => units().at(unitIndex));
                         const isActiveTurn = () => {
                           const unit = u();
                           return unit ? activeTurnItemIds().has(unit.itemId) : false;

@@ -37,6 +37,7 @@ import { useDebug } from '@components/contexts/debug-context';
 import type { ChatCaches } from '@core/caches';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import type { ChatTheme } from '@core/theme';
+import { measureUnitCached } from '@core/unit-measure';
 import type { RenderUnit } from '@core/units';
 import { unitReservedHeight } from '@core/units';
 import type { Virtualizer } from '@core/virtualizer';
@@ -164,10 +165,14 @@ export function UnitRow(props: UnitRowProps) {
     expandedId: props.expandedId,
   });
 
+  // measureUnitCached is the unit-level memo (WeakMap by unit.data): re-runs of
+  // this memo triggered by ctx churn (expandedId toggles elsewhere, measureEpoch
+  // reads) become cache hits; collapse reads recorded by the memo keep the
+  // reactive subscriptions alive on hits.
   const contentH = createMemo(() => {
     const d = def();
     if (!d) return 0;
-    return d.measure(props.unit.data, logicalMeasureCtx(), d.vars ?? {});
+    return measureUnitCached(props.unit, logicalMeasureCtx(), d);
   });
 
   const logicalReserved = createMemo(() => unitReservedHeight(props.unit, contentH()));
