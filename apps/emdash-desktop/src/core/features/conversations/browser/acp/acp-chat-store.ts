@@ -94,6 +94,7 @@ type PermissionQueueItem = {
 
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
+  | { kind: 'session_not_found'; message: string }
   | { kind: 'unavailable'; message: string }
   | { kind: 'history_unavailable'; message: string }
   | { kind: 'generic'; message: string };
@@ -363,7 +364,10 @@ export class AcpChatStore {
       isBusy: state?.isGenerating ?? false,
       isResuming,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
-      canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
+      canSubmit:
+        liveActionsEnabled &&
+        this.loadError?.kind !== 'session_not_found' &&
+        (state?.canSubmit ?? false),
       canCancel: liveActionsEnabled && (state?.canCancel ?? false),
     };
   }
@@ -1193,6 +1197,9 @@ function toLoadError(error: unknown): AcpLoadError {
   const message = error instanceof Error ? error.message : 'Failed to load chat.';
   if (error instanceof AcpStartError && error.errorType === 'auth_required') {
     return { kind: 'auth_required', message };
+  }
+  if (error instanceof AcpStartError && error.errorType === 'session_not_found') {
+    return { kind: 'session_not_found', message };
   }
   return { kind: 'generic', message };
 }

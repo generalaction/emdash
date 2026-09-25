@@ -1448,6 +1448,42 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     }
   );
 
+  it('stops retrying a saved session the provider reports as missing', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-missing-session', sessionId: 'missing' });
+    h.agent.loadSession.mockRejectedValueOnce(
+      Object.assign(new Error('Resource not found: missing'), { code: -32002 })
+    );
+    try {
+      await rt.attachSession(input);
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({
+        success: false,
+        error: { type: 'session_not_found' },
+      });
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({
+        success: false,
+        error: { type: 'session_not_found' },
+      });
+      await rt.attachSession(input);
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({
+        success: false,
+        error: { type: 'session_not_found' },
+      });
+      await expect(rt.sendPrompt(input.conversationId, { text: 'hello' })).resolves.toMatchObject({
+        success: false,
+        error: { type: 'session_not_found' },
+      });
+      expect(h.agent.loadSession).toHaveBeenCalledOnce();
+      expect(h.agent.newSession).not.toHaveBeenCalled();
+      expect(h.agent.prompt).not.toHaveBeenCalled();
+      expect(intents.snapshot()[0]?.sessionId).toBe('missing');
+    } finally {
+      await rt.dispose();
+    }
+  });
+
   it('waits for the provider close acknowledgement before restoring history', async () => {
     const { h, rt, conversationId } = await launchHarness('conv-close-barrier');
     const closing = deferred<void>();

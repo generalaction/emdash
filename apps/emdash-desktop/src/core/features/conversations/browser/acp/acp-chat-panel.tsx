@@ -42,6 +42,7 @@ import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
@@ -199,10 +200,12 @@ const ComposerForStore = observer(function ComposerForStore({
   store,
   composerSlot,
   onViewerOpen,
+  onStartFresh,
 }: {
   store: AcpChatStore;
   composerSlot: HTMLElement;
   onViewerOpen: (src?: string, alt?: string) => void;
+  onStartFresh: () => void;
 }) {
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -577,8 +580,14 @@ const ComposerForStore = observer(function ComposerForStore({
       {!disabledReason && store.loadError && (
         <div className="border-destructive/30 bg-destructive/5 mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
           <span className="truncate text-foreground-muted">{store.loadError.message}</span>
-          <Button variant="secondary" size="sm" onClick={() => store.retry()}>
-            Retry
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={
+              store.loadError.kind === 'session_not_found' ? onStartFresh : () => store.retry()
+            }
+          >
+            {store.loadError.kind === 'session_not_found' ? 'Start new conversation' : 'Retry'}
           </Button>
         </div>
       )}
@@ -742,6 +751,23 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       }
     });
   }, [agent?.name, cliAuthMethod, host, providerId, store]);
+
+  const startFreshConversation = useCallback(() => {
+    if (!store) return;
+    void openModal('createConversationModal', {
+      projectId: store.projectId,
+      taskId: store.taskId,
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const taskView = getTaskComposition(store.projectId, store.taskId);
+      taskView?.paneLayout.open(
+        outcome.data.type === 'acp' ? 'acp-chat' : 'conversation',
+        { conversationId: outcome.data.conversationId },
+        { preview: false }
+      );
+      taskView?.setFocusedRegion('main');
+    });
+  }, [store]);
 
   useEffect(() => {
     if (conversationStore && !conversationStore.seen) {
@@ -907,9 +933,15 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
                     variant="secondary"
                     size="sm"
                     className="mt-1"
-                    onClick={() => store.retry()}
+                    onClick={
+                      store.loadError.kind === 'session_not_found'
+                        ? startFreshConversation
+                        : () => store.retry()
+                    }
                   >
-                    Retry
+                    {store.loadError.kind === 'session_not_found'
+                      ? 'Start new conversation'
+                      : 'Retry'}
                   </Button>
                 </div>
               )
@@ -935,6 +967,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
           store={store}
           composerSlot={composerSlot}
           onViewerOpen={handleViewerOpen}
+          onStartFresh={startFreshConversation}
         />
       )}
 

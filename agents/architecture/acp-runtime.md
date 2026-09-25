@@ -214,17 +214,20 @@ restricted migration and rewritten in the safe schema.
 Mode, model, and effort changes update desired state and persist without waking when suspended or
 materializing; the latest revision is applied after load and before the first queued prompt. Other
 reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
-one. Restoring a saved provider session never falls back to `newSession`: a failed or unsupported
-load preserves the saved pointer and returns a retryable error. An unavailable history page is not
-proof of an empty conversation; callers retain existing transcripts, and first loads with unknown
-history expose an error instead of the new-chat state. Provider restoration errors require explicit
-retry, while transient transport failures retain the existing bounded-backoff refresh behavior.
+one. Restoring a saved provider session never falls back to `newSession`. A missing session response
+preserves the saved pointer but stops repeated load attempts for that conversation in the current
+runtime generation, and the desktop offers a new conversation as an explicit user action. Other
+failed or unsupported loads preserve the saved pointer and remain retryable. An unavailable history
+page is not proof of an empty conversation; callers retain existing transcripts, and first loads
+with unknown history expose an error instead of the new-chat state. Retryable provider restoration
+errors require explicit retry, while transient transport failures retain the existing bounded-backoff
+refresh behavior.
 
 Provider replay reconstructs committed history internally. While the session is replaying, its
 public projection exposes no active turn, so partial historical messages cannot briefly enter and
 leave the live renderer. A successful load publishes any rebound provider session identity; a
-failed or unsupported load preserves the original identity and returns a retryable error instead
-of creating a replacement session. Failures log the original serialized exception.
+failed or unsupported load preserves the original identity instead of creating a replacement
+session. Failures log the original serialized exception.
 
 Unsupported saved selections are removed only after replay finalization, initial prompt queuing,
 and route registration succeed. Until then, desired settings remain intact in memory and in the

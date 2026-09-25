@@ -917,6 +917,25 @@ describe('AcpChatStore prompt submission', () => {
     }
   });
 
+  it('recognizes a missing saved session and disables prompt submission', async () => {
+    const live = fakeLiveSession(suspendedState(), unavailableHistory());
+    live.loadHistory.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'session_not_found',
+        message: 'This saved session could not be found. Start a new conversation.',
+      },
+    });
+    const store = await bootstrapWithSession(live.session);
+    try {
+      expect(store.loadError?.kind).toBe('session_not_found');
+      expect(store.affordances.canSubmit).toBe(false);
+      expect(store.historyKnown).toBe(false);
+    } finally {
+      store.dispose();
+    }
+  });
+
   it('keeps history after a restoration error and clears the error when a later refresh succeeds', async () => {
     const live = fakeLiveSession(idleState(), historyPage('original'));
     const store = await bootstrapWithSession(live.session);

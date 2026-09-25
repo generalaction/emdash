@@ -158,6 +158,11 @@ export class SessionMaterializer {
             error: toSerializedError(error),
             ...providerErrorDetails(error),
           });
+          if (hasProviderErrorCode(error, -32002)) {
+            // A missing saved session cannot be restored by repeating session/load.
+            entry.markMissingSession(input.sessionId);
+            return acpErr.sessionNotFound();
+          }
           return acpErr.invalidState(
             'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
           );
@@ -454,10 +459,14 @@ export class SessionMaterializer {
 }
 
 function isAuthRequiredError(error: unknown): boolean {
+  return hasProviderErrorCode(error, -32000);
+}
+
+function hasProviderErrorCode(error: unknown, code: number): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const value = error as { code?: unknown; cause?: unknown };
-  if (value.code === -32000) return true;
-  return isAuthRequiredError(value.cause);
+  if (value.code === code) return true;
+  return hasProviderErrorCode(value.cause, code);
 }
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {

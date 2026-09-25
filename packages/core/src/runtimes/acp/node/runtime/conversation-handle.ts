@@ -59,6 +59,7 @@ export class ConversationHandle {
   private evictionPromiseValue: Promise<void> | null = null;
   private retainedValue: RetainedPresentation;
   private desiredRevisionValue = 0;
+  private missingSessionId: string | null = null;
   // A timed-out close must continue fencing later activations until it settles or its
   // provider connection is gone. Disposing the old cell alone cannot prove that.
   private providerClose: { record: SessionRecord; task: Promise<void>; failed: boolean } | null =
@@ -156,12 +157,18 @@ export class ConversationHandle {
     if (!this.isCurrent()) {
       return Promise.resolve(acpErr.conversationNotFound(this.conversationId));
     }
+    if (this.missingSessionId !== null && this.missingSessionId === this.descriptor.sessionId) {
+      return Promise.resolve(acpErr.sessionNotFound());
+    }
     return this.activation.start();
   }
 
   acquire(): Promise<Result<Lease<SessionRecord>, ActivationStartError>> {
     if (!this.isCurrent()) {
       return Promise.resolve(acpErr.conversationNotFound(this.conversationId));
+    }
+    if (this.missingSessionId !== null && this.missingSessionId === this.descriptor.sessionId) {
+      return Promise.resolve(acpErr.sessionNotFound());
     }
     return this.activation.acquire();
   }
@@ -171,6 +178,9 @@ export class ConversationHandle {
   ): Promise<Result<T, ActivationStartError | UseError>> {
     if (!this.isCurrent()) {
       return Promise.resolve(acpErr.conversationNotFound(this.conversationId));
+    }
+    if (this.missingSessionId !== null && this.missingSessionId === this.descriptor.sessionId) {
+      return Promise.resolve(acpErr.sessionNotFound());
     }
     return this.activation.use<T, ActivationStartError | UseError>(undefined, (record) => {
       if (!this.isCurrentRecord(record)) {
@@ -422,12 +432,17 @@ export class ConversationHandle {
           ? this.descriptor.sessionId
           : descriptor.sessionId,
     };
+    if (this.missingSessionId !== this.descriptor.sessionId) this.missingSessionId = null;
     this.configOverrides = {
       ...(descriptor.model ? { model: descriptor.model } : {}),
       ...(descriptor.effort ? { effort: descriptor.effort } : {}),
       ...(descriptor.collaborationMode ? { collaborationMode: descriptor.collaborationMode } : {}),
     };
     this.updateConfigured(configuredFromDescriptor(descriptor));
+  }
+
+  markMissingSession(sessionId: string): void {
+    if (this.descriptor.sessionId === sessionId) this.missingSessionId = sessionId;
   }
 
   saveIntent(): void {

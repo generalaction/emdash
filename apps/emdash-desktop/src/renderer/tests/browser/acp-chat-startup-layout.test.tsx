@@ -46,6 +46,8 @@ const fixture = vi.hoisted(() => ({
     }
   >,
   pane: undefined as { readonly resolvedTabs: unknown[] } | undefined,
+  openTab: vi.fn(),
+  focusMain: vi.fn(),
 }));
 beforeAll(() => {
   (
@@ -126,6 +128,12 @@ vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   getTaskStore: () => undefined,
   getRegisteredTaskData: () => undefined,
 }));
+vi.mock('@core/features/workbench/api/browser/task-composition-selectors', () => ({
+  getTaskComposition: () => ({
+    paneLayout: { open: fixture.openTab },
+    setFocusedRegion: fixture.focusMain,
+  }),
+}));
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
   getGitRepositoryStore: () => undefined,
 }));
@@ -136,6 +144,60 @@ vi.mock('@core/manifests/browser/modal-api', () => ({ openModal: vi.fn() }));
 vi.mock('@core/features/conversations/browser/acp/transcript-file-commands', () => ({
   createTranscriptFileCommands: () => ({}),
 }));
+
+it('offers a new conversation when the saved provider session is missing', async () => {
+  await page.viewport(1100, 800);
+  installChatUiRuntime(chatUi);
+  const context = chatUi.createChatContext();
+  fixture.context = context;
+  vi.mocked(openModal).mockClear();
+  fixture.openTab.mockClear();
+  fixture.focusMain.mockClear();
+  const store = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+  fixture.store = store;
+  runInAction(() => {
+    store.historyLoading = false;
+    store.loadError = {
+      kind: 'session_not_found',
+      message: 'This saved session could not be found. Start a new conversation.',
+    };
+  });
+  const parent = document.createElement('div');
+  parent.style.cssText = 'width:1000px;height:700px;position:relative;font-family:system-ui';
+  parent.className = 'emlight';
+  document.body.append(parent);
+  const root = createRoot(parent);
+  try {
+    await act(async () => root.render(<AcpChatPanel />));
+    await expect
+      .element(page.getByRole('button', { name: 'Start new conversation' }))
+      .toBeVisible();
+    expect(parent.textContent).not.toContain('Retry');
+    expect(vi.mocked(openModal)).not.toHaveBeenCalled();
+
+    vi.mocked(openModal).mockResolvedValueOnce({
+      success: true,
+      data: { conversationId: 'new-conversation', type: 'acp' },
+    });
+    await act(async () => page.getByRole('button', { name: 'Start new conversation' }).click());
+    expect(openModal).toHaveBeenCalledWith('createConversationModal', {
+      projectId: 'project-1',
+      taskId: 'task-1',
+    });
+    expect(fixture.openTab).toHaveBeenCalledWith(
+      'acp-chat',
+      { conversationId: 'new-conversation' },
+      { preview: false }
+    );
+    expect(fixture.focusMain).toHaveBeenCalledWith('main');
+  } finally {
+    await act(async () => root.unmount());
+    store.dispose();
+    context.dispose();
+    parent.remove();
+    vi.mocked(openModal).mockReset();
+  }
+});
 
 it.each([false, true])(
   'restores the sign-in screen with retained history=%s',

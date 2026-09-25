@@ -130,6 +130,28 @@ describe('ACP API contract schemas', () => {
     }
   });
 
+  it('returns a missing saved session error over the wire', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const input = makeStartInput({ conversationId: 'conv-missing-wire', sessionId: 'missing' });
+    h.agent.loadSession.mockRejectedValueOnce(
+      Object.assign(new Error('Resource not found: missing'), { code: -32002 })
+    );
+    try {
+      await wire.client.attach(input);
+      await expect(
+        wire.client.loadHistory({ conversationId: input.conversationId, limit: 50 })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'session_not_found' },
+      });
+    } finally {
+      wire.dispose();
+      await rt.dispose();
+    }
+  });
+
   it('accepts auth_required runtime errors', () => {
     expect(() =>
       acpRuntimeErrorSchema.parse({
