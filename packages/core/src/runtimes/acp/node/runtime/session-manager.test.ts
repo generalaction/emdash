@@ -135,6 +135,66 @@ describe('AcpRuntime session manager', () => {
     }
   });
 
+  it.each(['opus[1m]', 'claude-fable-5-1[1m]', 'gpt-6-sol', 'gpt-6-luna'])(
+    'applies initial model %s before the first prompt and restores it on resume',
+    async (model) => {
+      const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
+      const configOption = {
+        id: 'model',
+        name: 'Model',
+        category: 'model' as const,
+        type: 'select' as const,
+        currentValue: 'default-model',
+        options: [
+          { value: 'default-model', name: 'Default model' },
+          { value: model, name: 'Selected model' },
+        ],
+      };
+      h.agent.newSession.mockResolvedValue({
+        sessionId: 'session-1',
+        configOptions: [configOption],
+      });
+      h.agent.loadSession.mockResolvedValue({ configOptions: [configOption] });
+      h.agent.setSessionConfigOption.mockImplementation(async ({ value }) => ({
+        configOptions: [{ ...configOption, currentValue: value }],
+      }));
+      const rt = new AcpRuntime(h.deps);
+      const input = makeStartInput({ model, initialQueue: [{ text: 'First prompt' }] });
+      try {
+        const result = await rt.launchSession(input);
+        expect(result).toMatchObject({ success: true });
+        if (result.success) expect(result.data.clearedConfiguration).toBeUndefined();
+        await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledOnce());
+        expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+          sessionId: 'session-1',
+          configId: 'model',
+          value: model,
+        });
+        expect(h.agent.setSessionConfigOption.mock.invocationCallOrder[0]).toBeLessThan(
+          h.agent.prompt.mock.invocationCallOrder[0]!
+        );
+        expect(peek(rt.sessionLiveModels(input.conversationId)!.states.config)).toMatchObject({
+          modelOptions: { selected: model },
+        });
+
+        await rt.stopSession(input.conversationId);
+        h.agent.setSessionConfigOption.mockClear();
+        await rt.loadHistory(input.conversationId);
+        expect(h.agent.loadSession).toHaveBeenCalledOnce();
+        expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+          sessionId: 'session-1',
+          configId: 'model',
+          value: model,
+        });
+        expect(peek(rt.sessionLiveModels(input.conversationId)!.states.config)).toMatchObject({
+          modelOptions: { selected: model },
+        });
+      } finally {
+        await rt.dispose();
+      }
+    }
+  );
+
   it('maps ACP auth_required JSON-RPC errors to auth_required', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);

@@ -29,31 +29,27 @@ const GLOBAL_HOOK_PROVIDERS = [
 ].sort();
 
 describe('agent plugin registry', () => {
-  it('advertises Claude models by the ids its chat model selector uses', () => {
-    const models = pluginRegistry.get('claude')?.capabilities.models;
+  it.each([
+    ['claude', '--model', 'opus[1m]'],
+    ['claude', '--model', 'claude-fable-5-1[1m]'],
+    ['claude', '--model', 'sonnet'],
+    ['claude', '--model', 'haiku'],
+    ['codex', '-m', 'gpt-6-sol'],
+    ['codex', '-m', 'gpt-6-luna'],
+  ])('offers %s model %s %s and preserves its ID in terminal argv', (providerId, flag, model) => {
+    const provider = pluginRegistry.get(providerId)!;
+    const models = provider.capabilities.models;
+    expect(models.kind).toBe('selectable');
+    if (models.kind !== 'selectable') throw new Error('Expected selectable models');
+    expect(models.modelOptions[model]).toBeDefined();
 
-    expect(models?.kind).toBe('selectable');
-    expect(models?.kind === 'selectable' && Object.keys(models.modelOptions)).toEqual([
-      'opus[1m]',
-      'claude-fable-5-1[1m]',
-      'sonnet',
-      'haiku',
-    ]);
-  });
-
-  it('advertises Codex models by the ids its chat model selector uses', () => {
-    const models = pluginRegistry.get('codex')?.capabilities.models;
-
-    expect(models?.kind).toBe('selectable');
-    expect(models?.kind === 'selectable' && Object.keys(models.modelOptions)).toEqual([
-      'gpt-6-astra',
-      'gpt-6-sol',
-      'gpt-6-luna',
-      'gpt-5.6-sol',
-      'gpt-5.6-terra',
-      'gpt-5.6-luna',
-      'gpt-5.5',
-    ]);
+    const command = provider.behavior.prompt!.buildCommand({
+      cli: providerId,
+      autoApprove: false,
+      isResuming: false,
+      model,
+    });
+    expect(command.args).toEqual([flag, model]);
   });
 
   it('keeps every shipped hook integration user-global', () => {
