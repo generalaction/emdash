@@ -37,13 +37,13 @@
     "test:bench": "pnpm exec nx run @emdash/chat-ui:test-bench"
   },
   "dependencies": {
-    "@chenglou/pretext": "^0.0.8",
+    "@chenglou/pretext": "^0.0.9",
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
-    "@shikijs/langs": "^4.2.0",
-    "@shikijs/themes": "^4.2.0",
+    "@shikijs/langs": "^4.4.3",
+    "@shikijs/themes": "^4.4.3",
     "@vanilla-extract/css": "^1.20.1",
     "@vanilla-extract/dynamic": "^2.1.5",
     "@vanilla-extract/recipes": "^0.5.7",
@@ -54,8 +54,8 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
-    "shiki": "^4.2.0",
-    "solid-js": "^1.9.13",
+    "shiki": "^4.4.3",
+    "solid-js": "^1.9.15",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
     "vfile": "^6.0.3"
