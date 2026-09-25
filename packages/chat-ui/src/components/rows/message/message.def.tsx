@@ -47,12 +47,12 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
     const aH = attachStripHeight(item.attachments?.length ?? 0, innerW, vars);
     if (blocks.length === 0) {
       const fallback = aH + ctx.theme.fonts.body.lineHeight + 2 * userCardPadY + 2 * cardBorder;
-      return Math.min(fallback, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
+      return Math.min(fallback, ctx.expandedSelf ? expandedMaxH : collapsedMaxH);
     }
     const innerCtx = { ...ctx, width: innerW };
     const stack = layoutBlockStack(blocks, innerCtx, { isCollapsed: ctx.isCollapsed });
     const contentH = aH + stack.height + 2 * userCardPadY + 2 * cardBorder;
-    return Math.min(contentH, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
+    return Math.min(contentH, ctx.expandedSelf ? expandedMaxH : collapsedMaxH);
   }
 
   // assistant / thought
@@ -174,7 +174,7 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
       const aH = attachStripHeight(item.attachments?.length ?? 0, innerW, vars);
       const est =
         aH + lines * ctx.theme.fonts.body.lineHeight + 2 * vars.userCardPadY + 2 * vars.cardBorder;
-      return Math.min(est, ctx.expandedId === item.id ? vars.expandedMaxH : vars.collapsedMaxH);
+      return Math.min(est, ctx.expandedSelf ? vars.expandedMaxH : vars.collapsedMaxH);
     }
     const lines = Math.max(1, Math.ceil(item.text.length / 60));
     const footer = item.role === 'assistant' ? vars.footerH : 0;

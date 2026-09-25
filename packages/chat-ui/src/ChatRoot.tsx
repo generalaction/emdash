@@ -629,6 +629,7 @@ export function ChatRoot(props: ChatRootProps) {
     const us = units();
     const t = theme();
     untrack(() => {
+      const expandedNow = expandedUserId();
       const estimateCtx = {
         theme: t,
         width: 0,
@@ -636,7 +637,7 @@ export function ChatRoot(props: ChatRootProps) {
         expanded: () => false,
         caches: caches(),
         measureEpoch: measureEpoch(),
-        expandedId: expandedUserId(),
+        expandedSelf: false,
       };
       // lastWidth > 0 iff onCleanup wrote a snapshot on a prior dispose.
       // Skip the Map.get pass entirely on cold mounts (empty heightmap).
@@ -654,9 +655,15 @@ export function ChatRoot(props: ChatRootProps) {
           if (snapped !== undefined) return snapped;
         }
         const unitDef = UNIT_REGISTRY[u.kind];
+        // expandedSelf is per-unit: only the (rare) expanded card pays a
+        // one-off ctx allocation; every other unit shares estimateCtx.
+        const ctxForUnit =
+          expandedNow != null && expandedNow === u.itemId
+            ? { ...estimateCtx, expandedSelf: true }
+            : estimateCtx;
         const contentH =
-          unitDef?.estimate?.(u.data, estimateCtx, unitDef.vars ?? {}) ??
-          genericEstimate(u.data as unknown as ChatItem, estimateCtx);
+          unitDef?.estimate?.(u.data, ctxForUnit, unitDef.vars ?? {}) ??
+          genericEstimate(u.data as unknown as ChatItem, ctxForUnit);
         return unitReservedHeight(u, contentH);
       });
       refreshTotal();
@@ -1124,7 +1131,7 @@ export function ChatRoot(props: ChatRootProps) {
         expanded: (id: string) => viewState().isCollapsed(id),
         caches: caches(),
         measureEpoch: measureEpoch(),
-        expandedId: expandedUserId(),
+        expandedSelf: expandedUserId() === u.itemId,
       };
       const contentH = measureUnitCached(u, ctx, unitDef);
       const h = unitReservedHeight(u, contentH);

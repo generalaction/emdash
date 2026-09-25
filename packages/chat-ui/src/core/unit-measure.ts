@@ -11,11 +11,10 @@
  *
  * Invalidation has two parts:
  *
- *   Base fingerprint — `kind|measureEpoch|width|expandedId-relevance`.
- *     `expandedId` enters only as "does it point at THIS unit" — the MeasureCtx
- *     contract (core/define.ts) is that defs may compare `ctx.expandedId`
- *     against their own item id only, so a toggle between two other rows
- *     cannot change this unit's height.
+ *   Base fingerprint — `kind|measureEpoch|width|expandedSelf`.
+ *     `expandedSelf` is already scoped to this unit by the ctx builder
+ *     (core/define.ts), so a card expand toggling between two other rows
+ *     cannot change this unit's fingerprint.
  *
  *   Recorded collapse reads — every `ctx.isCollapsed(id)` / `ctx.expanded(id)`
  *     call made during measure is recorded with its value. A lookup re-reads
@@ -44,8 +43,7 @@ type UnitMemoEntry = {
 const unitMemo = new WeakMap<object, UnitMemoEntry>();
 
 function baseFingerprint(unit: RenderUnit, ctx: MeasureCtx): string {
-  const expandedSelf = ctx.expandedId != null && ctx.expandedId === unit.itemId ? 'E' : '-';
-  return `${unit.kind}|${ctx.measureEpoch ?? 0}|${ctx.width}|${expandedSelf}`;
+  return `${unit.kind}|${ctx.measureEpoch ?? 0}|${ctx.width}|${ctx.expandedSelf ? 'E' : '-'}`;
 }
 
 function readsStillValid(reads: CollapseRead[], ctx: MeasureCtx): boolean {

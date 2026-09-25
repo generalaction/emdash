@@ -13,7 +13,7 @@
  *   • `ctx.width`          — available column width (px)
  *   • `ctx.expanded(id)`   — resolved collapse state for collapsible defs
  *   • `ctx.measureEpoch`   — bumped after font load to invalidate blockMemo
- *   • `ctx.expandedId`     — id of the single expanded user message card
+ *   • `ctx.expandedSelf`   — whether THIS unit's user card is expanded
  *
  * Lane B — presentational / ephemeral state. These must NEVER enter `measure`
  * or any height fingerprint because they do not affect height:
@@ -57,10 +57,14 @@ export type Measured<L = unknown> = {
  *                  `blockMemo` cache misses even when width is unchanged.
  *                  This clears fallback-font geometry and prevents
  *                  `contain: paint` from clipping under-measured content.
- * `expandedId`  — optional id of the single currently-expanded user message card.
- *                 When `expandedId === item.id` the card is measured at the
- *                 expanded max-height; all other user messages use the collapsed
- *                 max-height. Only affects user-role message units.
+ * `expandedSelf` — optional flag: this unit's user message card is the single
+ *                  currently-expanded card. Ctx builders resolve the global
+ *                  expanded-card id against the unit's own item id BEFORE
+ *                  building the ctx, so the global signal never flows through
+ *                  a shared ctx (one card expand must not invalidate rows it
+ *                  cannot affect). When true, user cards measure at the
+ *                  expanded max-height; otherwise the collapsed max-height.
+ *                  Only affects user-role message units.
  */
 export type MeasureCtx = {
   theme: ChatTheme;
@@ -69,7 +73,7 @@ export type MeasureCtx = {
   expanded: (id: string) => boolean;
   caches: ChatCaches;
   measureEpoch?: number;
-  expandedId?: string | null;
+  expandedSelf?: boolean;
 };
 
 /**

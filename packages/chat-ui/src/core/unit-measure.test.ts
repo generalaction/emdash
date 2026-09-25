@@ -26,7 +26,7 @@ function makeCtx(overrides: Partial<MeasureCtx> = {}): MeasureCtx {
     expanded: () => false,
     caches: CACHES,
     measureEpoch: 0,
-    expandedId: null,
+    expandedSelf: false,
     ...overrides,
   };
 }
@@ -154,22 +154,18 @@ describe('measureUnitCached', () => {
     expect(calls()).toBe(2);
   });
 
-  it('expandedId only invalidates the unit it points at', () => {
-    const { def: defA, calls: callsA } = countingDef((_, ctx) =>
-      ctx.expandedId === 'item-a' ? 360 : 120
-    );
-    const { def: defB, calls: callsB } = countingDef((_, ctx) =>
-      ctx.expandedId === 'item-b' ? 360 : 120
-    );
+  it('expandedSelf only invalidates the unit it is set for', () => {
+    const { def: defA, calls: callsA } = countingDef((_, ctx) => (ctx.expandedSelf ? 360 : 120));
+    const { def: defB, calls: callsB } = countingDef((_, ctx) => (ctx.expandedSelf ? 360 : 120));
     const unitA = makeUnit({ id: 'item-a' }, 'test', 'item-a');
     const unitB = makeUnit({ id: 'item-b' }, 'test', 'item-b');
 
-    expect(measureUnitCached(unitA, makeCtx({ expandedId: null }), defA)).toBe(120);
-    expect(measureUnitCached(unitB, makeCtx({ expandedId: null }), defB)).toBe(120);
+    expect(measureUnitCached(unitA, makeCtx({ expandedSelf: false }), defA)).toBe(120);
+    expect(measureUnitCached(unitB, makeCtx({ expandedSelf: false }), defB)).toBe(120);
 
-    // Expanding A re-measures A but leaves B cached.
-    expect(measureUnitCached(unitA, makeCtx({ expandedId: 'item-a' }), defA)).toBe(360);
-    expect(measureUnitCached(unitB, makeCtx({ expandedId: 'item-a' }), defB)).toBe(120);
+    // Expanding A re-measures A but leaves B (still expandedSelf: false) cached.
+    expect(measureUnitCached(unitA, makeCtx({ expandedSelf: true }), defA)).toBe(360);
+    expect(measureUnitCached(unitB, makeCtx({ expandedSelf: false }), defB)).toBe(120);
     expect(callsA()).toBe(2);
     expect(callsB()).toBe(1);
   });

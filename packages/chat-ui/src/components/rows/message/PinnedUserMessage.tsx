@@ -39,7 +39,7 @@ export function PinnedUserMessage(props: {
     isCollapsed: () => false,
     expanded: () => false,
     caches: props.caches,
-    expandedId: props.expandedId(),
+    expandedSelf: props.expandedId() === props.item.id,
   });
 
   const renderCtx: RenderCtx = {

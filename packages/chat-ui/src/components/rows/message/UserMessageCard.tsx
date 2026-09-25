@@ -75,7 +75,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
     return aH + s.height + 2 * props.vars.userCardPadY + 2 * props.vars.cardBorder;
   });
 
-  const isExpanded = () => mCtx()?.expandedId === props.data.id;
+  const isExpanded = () => mCtx()?.expandedSelf === true;
   const maxH = () => (isExpanded() ? props.vars.expandedMaxH : props.vars.collapsedMaxH);
   const clampedH = () => Math.min(fullContentH(), maxH());
   const isOverflowing = () => fullContentH() > maxH();

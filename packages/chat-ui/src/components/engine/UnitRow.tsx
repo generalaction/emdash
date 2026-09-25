@@ -152,6 +152,14 @@ export function UnitRow(props: UnitRowProps) {
   const chrome = createMemo(() => props.unit.chrome);
   const insetX = createMemo(() => chrome()?.insetX ?? 0);
 
+  // Row-scoped expand flag: the global expanded-card id is resolved against
+  // THIS row's item id inside an equality-gated memo, so expanding one card
+  // notifies only the two affected rows — every other row's measure/render
+  // chain reads an unchanged boolean and does not re-run (audit F1).
+  const rowExpandedSelf = createMemo(
+    () => props.expandedId != null && props.expandedId === props.unit.itemId
+  );
+
   // ── LOGICAL ctx — the true committed collapse state ─────────────────────────
   // This is what measure() always reads. The tween target comes from here.
 
@@ -162,7 +170,7 @@ export function UnitRow(props: UnitRowProps) {
     expanded: (id) => props.viewState.isCollapsed(id),
     caches: props.caches,
     measureEpoch: props.measureEpoch,
-    expandedId: props.expandedId,
+    expandedSelf: rowExpandedSelf(),
   });
 
   // measureUnitCached is the unit-level memo (WeakMap by unit.data): re-runs of
@@ -226,18 +234,34 @@ export function UnitRow(props: UnitRowProps) {
   if (props.tweenRegistry) {
     const reg = props.tweenRegistry;
     const getIndex = () => props.index;
-    const itemId = props.unit.itemId;
+    // Track the id we registered under: the host <Show> in ChatRoot is
+    // non-keyed, so this instance can survive a swap to a DIFFERENT unit
+    // (index-keyed <For> after a history prepend shifts indexes). The effect
+    // below migrates the registry entry and resets per-unit expansion
+    // tracking when that happens, instead of leaving tween entries and held
+    // expansion snapshots pointing at the swapped-out unit (audit F4).
+    let registeredItemId = untrack(() => props.unit.itemId);
 
     // Register the initial target; the effect below will call set() on changes.
-    tweenHandle = reg.set(itemId, getIndex, untrack(logicalReserved), false);
+    tweenHandle = reg.set(registeredItemId, getIndex, untrack(logicalReserved), false);
 
     createEffect(() => {
+      const id = props.unit.itemId;
       const target = logicalReserved();
+      if (id !== registeredItemId) {
+        reg.unregister(registeredItemId);
+        registeredItemId = id;
+        heldExpandedIds.clear();
+        previousExpansionState = untrack(expansionState);
+        // A unit swap is a content change, never a collapse toggle: snap.
+        tweenHandle = reg.set(id, getIndex, target, false);
+        return;
+      }
       const anim = untrack(shouldAnimate);
-      tweenHandle = reg.set(itemId, getIndex, target, anim);
+      tweenHandle = reg.set(id, getIndex, target, anim);
     });
 
-    onCleanup(() => reg.unregister(itemId));
+    onCleanup(() => reg.unregister(registeredItemId));
   } else {
     // Legacy path: per-row rAF tween (for stories / tests without ChatRoot).
     const localTween = createHeightTween(logicalReserved, { shouldAnimate });
@@ -292,9 +316,9 @@ export function UnitRow(props: UnitRowProps) {
 
   const rowItemId = () => props.unit.itemId;
   const collapsing = () => animating() && animatedReserved() > logicalReserved();
-  const displayExpandedId = () => {
-    if (collapsing() && heldExpandedIds.has(rowItemId())) return rowItemId();
-    return props.expandedId;
+  const displayExpandedSelf = () => {
+    if (collapsing() && heldExpandedIds.has(rowItemId())) return true;
+    return rowExpandedSelf();
   };
 
   // Display viewState: override isCollapsed for this row's id while collapsing
@@ -318,9 +342,9 @@ export function UnitRow(props: UnitRowProps) {
     expanded: displayViewState.isCollapsed,
     caches: props.caches,
     measureEpoch: props.measureEpoch,
-    // While collapsing a user-message card: hold expandedId so the expanded
+    // While collapsing a user-message card: hold expandedSelf so the expanded
     // render is kept alive during the tween.
-    expandedId: displayExpandedId(),
+    expandedSelf: displayExpandedSelf(),
   });
 
   // ── Animated clip ─────────────────────────────────────────────────────────
