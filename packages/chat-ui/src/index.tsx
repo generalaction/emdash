@@ -96,7 +96,12 @@ export { buildChatTheme, DEFAULT_CONFIG, DEFAULT_THEME } from './core/theme';
 
 // ── Highlighter ───────────────────────────────────────────────────────────────
 
-export type { ChatHighlighter, HighlightResult, CodeToken } from './core/highlight/highlighter';
+export type {
+  ChatHighlighter,
+  HighlightResult,
+  CodeToken,
+  IncrementalHighlightOpts,
+} from './core/highlight/highlighter';
 export { createDefaultHighlighter } from './core/highlight/highlighter';
 
 // ── Mention provider ─────────────────────────────────────────────────────────

@@ -39,6 +39,7 @@ import {
   createDefaultHighlighter,
   type ChatHighlighter,
   type HighlightResult,
+  type IncrementalHighlightOpts,
 } from './highlight/highlighter';
 import type { CommandProvider } from './markdown/command-provider';
 import type { Block } from './markdown/document';
@@ -186,6 +187,18 @@ export type SharedCaches = {
    * Use for the synchronous fast-path on scroll-back re-mounts.
    */
   peekHighlight(code: string, lang: string | undefined): HighlightResult | null;
+  /**
+   * Budget-bounded highlight: tokenizes in slices, awaiting `opts.yieldToIdle`
+   * between slices so no single slice blocks a frame. Resolves from the LRU
+   * when cached; falls back to the synchronous path when the injected
+   * highlighter lacks incremental support. Resolves null when cancelled or
+   * the language is unsupported.
+   */
+  highlightIncremental(
+    code: string,
+    lang: string | undefined,
+    opts: IncrementalHighlightOpts
+  ): Promise<HighlightResult | null>;
   /** Compute a line-level diff with bounded LRU caching (100 entries). */
   computeDiff(oldText: string | null, newText: string): DiffRow[];
   /**
@@ -315,6 +328,22 @@ export function createSharedCaches(highlighter?: ChatHighlighter): SharedCaches 
 
     peekHighlight(code, lang) {
       return lruGet(highlightCache, `${lang ?? ''}\x00${code}`) ?? null;
+    },
+
+    async highlightIncremental(code, lang, opts) {
+      const key = `${lang ?? ''}\x00${code}`;
+      const cached = lruGet(highlightCache, key);
+      if (cached) return cached;
+      try {
+        const result = hl.highlightIncremental
+          ? await hl.highlightIncremental(code, lang, opts)
+          : hl.highlight(code, lang);
+        if (!result) return null;
+        lruSet(highlightCache, key, result, HIGHLIGHT_CACHE_MAX);
+        return result;
+      } catch {
+        return null;
+      }
     },
 
     computeDiff(oldText, newText) {

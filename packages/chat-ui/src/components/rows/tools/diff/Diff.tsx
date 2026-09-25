@@ -143,18 +143,33 @@ export function DiffLines(props: DiffLinesProps) {
       return;
     }
 
+    // Budget-bounded tokenization across idle slices (same driver as Code.tsx)
+    // so large diffs never stall a frame.
     let cancelled = false;
-    const handle = scheduleIdle(() => {
+    let idleHandle: number | null = null;
+    const waitIdle = () =>
+      new Promise<void>((resolve) => {
+        idleHandle = scheduleIdle(() => {
+          idleHandle = null;
+          resolve();
+        });
+      });
+    const opts = { yieldToIdle: waitIdle, isCancelled: () => cancelled };
+
+    void (async () => {
+      await waitIdle();
       if (cancelled) return;
-      const newResult = caches.highlight(newCode, lang);
-      const oldResult = props.item.oldText ? caches.highlight(oldCode, lang) : null;
+      const newResult = await caches.highlightIncremental(newCode, lang, opts);
+      const oldResult = props.item.oldText
+        ? await caches.highlightIncremental(oldCode, lang, opts)
+        : null;
       if (cancelled) return;
       paint(newResult?.lines ?? [], oldResult?.lines ?? []);
-    });
+    })();
 
     onCleanup(() => {
       cancelled = true;
-      cancelIdle(handle);
+      if (idleHandle !== null) cancelIdle(idleHandle);
     });
   });
 

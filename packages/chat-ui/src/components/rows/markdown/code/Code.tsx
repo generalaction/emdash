@@ -81,11 +81,25 @@ export function Code(props: CodeProps) {
       return;
     }
 
-    // Deferred path
+    // Deferred path — budget-bounded tokenization across idle slices so a
+    // large block never stalls a frame (Shiki work happens between yields).
     let cancelled = false;
-    const handle = scheduleIdle(() => {
+    let idleHandle: number | null = null;
+    const waitIdle = () =>
+      new Promise<void>((resolve) => {
+        idleHandle = scheduleIdle(() => {
+          idleHandle = null;
+          resolve();
+        });
+      });
+
+    void (async () => {
+      await waitIdle();
       if (cancelled) return;
-      const hl = caches.highlight(code, lang);
+      const hl = await caches.highlightIncremental(code, lang, {
+        yieldToIdle: waitIdle,
+        isCancelled: () => cancelled,
+      });
       if (!hl || cancelled) return;
       const el = wrapperEl;
       if (!el) return;
@@ -100,11 +114,11 @@ export function Code(props: CodeProps) {
       }
       const lineEls = Array.from(lineElsMap.values());
       applyTokenLines(lineEls, hl.lines);
-    });
+    })();
 
     onCleanup(() => {
       cancelled = true;
-      cancelIdle(handle);
+      if (idleHandle !== null) cancelIdle(idleHandle);
     });
   });
 

@@ -22,6 +22,7 @@ import type { ThemeRegistrationRaw } from 'shiki/core';
 import { createHighlighterCoreSync } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 import { BUNDLED_DARK_THEME, BUNDLED_LIGHT_THEME } from './bundled-themes';
+import { tokenizeIncremental } from './incremental';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,28 @@ export type HighlightResult = {
  */
 export interface ChatHighlighter {
   highlight(code: string, lang: string | undefined): HighlightResult | null;
+  /**
+   * Optional budget-bounded tokenization: tokenize in slices, awaiting
+   * `opts.yieldToIdle()` between slices so no single slice blocks a frame.
+   * Must resolve to the same result as `highlight`, or null when cancelled /
+   * unsupported. When absent, callers fall back to the synchronous path.
+   */
+  highlightIncremental?(
+    code: string,
+    lang: string | undefined,
+    opts: IncrementalHighlightOpts
+  ): Promise<HighlightResult | null>;
 }
+
+/** Options for ChatHighlighter.highlightIncremental. */
+export type IncrementalHighlightOpts = {
+  /** Await between tokenization slices (e.g. a requestIdleCallback wrapper). */
+  yieldToIdle: () => Promise<void>;
+  /** Max synchronous tokenization time per slice (ms). */
+  budgetMs?: number;
+  /** Checked after each yield; when true the run aborts and resolves null. */
+  isCancelled?: () => boolean;
+};
 
 // ── Language alias map ────────────────────────────────────────────────────────
 
@@ -88,7 +110,7 @@ export function resolveAlias(lang: string | undefined): string | undefined {
 type SyncHighlighter = ReturnType<typeof createHighlighterCoreSync>;
 let _defaultHighlighter: SyncHighlighter | null = null;
 
-function getDefaultShikiHighlighter(): SyncHighlighter {
+export function getDefaultShikiHighlighter(): SyncHighlighter {
   if (!_defaultHighlighter) {
     _defaultHighlighter = createHighlighterCoreSync({
       engine: createJavaScriptRegexEngine(),
@@ -142,6 +164,11 @@ export function createDefaultHighlighter(): ChatHighlighter {
       const resolved = resolveAlias(lang);
       if (!resolved) return null;
       return computeHighlightRaw(code, resolved);
+    },
+    highlightIncremental(code, lang, opts): Promise<HighlightResult | null> {
+      const resolved = resolveAlias(lang);
+      if (!resolved) return Promise.resolve(null);
+      return tokenizeIncremental(getDefaultShikiHighlighter(), code, resolved, opts);
     },
   };
 }
