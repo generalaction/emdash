@@ -6,7 +6,6 @@ import {
   sessionMcpServerSchema,
   sessionStateSchema,
   terminalStateSchema,
-  transcriptTurnSchema,
   type AcpRuntimeError,
   type AcpSessionStartMode,
   type PromptInput,
@@ -93,7 +92,6 @@ export class AcpLiveSession {
   readonly config: RemoteValueState<z.infer<typeof sessionConfigStateSchema>>;
   readonly usage: RemoteValueState<z.infer<typeof sessionUsageSchema> | null>;
   readonly plan: RemoteValueState<z.infer<typeof planStateSchema> | null>;
-  readonly activeTurn: RemoteValueState<z.infer<typeof transcriptTurnSchema> | null>;
   readonly terminals: RemoteValueState<TerminalState[]>;
   readonly mcpServers: RemoteValueState<Array<z.infer<typeof sessionMcpServerSchema>>>;
   private readonly scope = createScope({ label: 'acp-live-session' });
@@ -141,12 +139,6 @@ export class AcpLiveSession {
       this.scope,
       null
     );
-    const activeTurn = replicaValueState(
-      client.session.state(key, 'activeTurn'),
-      transcriptTurnSchema.nullable(),
-      this.scope,
-      null
-    );
     const terminals = replicaValueState(
       client.session.state(key, 'terminals'),
       z.array(terminalStateSchema),
@@ -163,7 +155,6 @@ export class AcpLiveSession {
     this.config = config;
     this.usage = usage;
     this.plan = plan;
-    this.activeTurn = activeTurn;
     this.terminals = terminals;
     this.mcpServers = mcpServers;
     this.refreshStates = async () => {
@@ -171,7 +162,6 @@ export class AcpLiveSession {
         void ancillary.refresh().catch(() => {});
       }
       await state.refresh();
-      if (!this.sessionState.current().transcript) await activeTurn.refresh();
     };
   }
 
@@ -190,12 +180,7 @@ export class AcpLiveSession {
       result.data.sessionId ? 'resume' : 'fresh'
     );
     try {
-      await withTimeout(
-        session.sessionState.ready.then(async () => {
-          if (!session.sessionState.current().transcript) await session.activeTurn.ready;
-        }),
-        'Timed out connecting ACP live models'
-      );
+      await withTimeout(session.sessionState.ready, 'Timed out connecting ACP live models');
       runInAction(() => session.usableState.set(true));
       return session;
     } catch (error) {

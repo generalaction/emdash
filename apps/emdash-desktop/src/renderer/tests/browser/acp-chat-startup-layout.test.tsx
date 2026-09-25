@@ -1,5 +1,4 @@
 import * as chatUi from '@emdash/chat-ui';
-import '@emdash/chat-ui/style.css';
 import type {
   SessionConfigState,
   SessionMcpServer,
@@ -9,10 +8,11 @@ import type {
   TerminalState,
   TranscriptTurn,
 } from '@emdash/core/runtimes/acp/api/client';
+import '@emdash/chat-ui/style.css';
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
-import '@emdash/ui/style.css';
 import type { PromptEditorModel } from '@emdash/ui/react/components';
+import '@emdash/ui/style.css';
 import {
   client,
   connect,
@@ -21,7 +21,7 @@ import {
   defineContract,
   memoryTransportPair,
 } from '@emdash/wire/rpc';
-import { cell, expose, flushStateTurn } from '@emdash/wire/state';
+import { cell, expose, flushStateTurn, peek } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -33,6 +33,7 @@ import { AcpChatPanel } from '@core/features/conversations/browser/acp/acp-chat-
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import { openModal } from '@core/manifests/browser/modal-api';
 import type { AgentMetadata } from '@core/primitives/agents/api';
+import { availableHistory, transcriptSnapshot } from './acp-transcript-fixtures';
 const fixture = vi.hoisted(() => ({
   client: undefined as unknown,
   context: undefined as unknown,
@@ -427,6 +428,7 @@ it.each([
     lifecycle: 'closed',
     suspended: true,
     activeTurnId: null,
+    transcript: null,
     pendingPermissions: [],
     lastStopReason: null,
     lastTurnErrored: false,
@@ -450,11 +452,9 @@ it.each([
       loadHistory: conversationsContract.acp.loadHistory,
     }),
   });
-  const activeTurn = cell<TranscriptTurn | null>(null);
   const session = expose(contract.acp.session, {
     state,
     config,
-    activeTurn,
     usage: cell(null),
     plan: cell(null),
     agents: cell([]),
@@ -470,7 +470,7 @@ it.each([
   };
   const loadHistory = vi.fn(async () => {
     await historyGate.promise;
-    return ok({ turns: populated ? [userTurn] : [], nextCursor: null });
+    return ok(availableHistory(populated ? [userTurn] : []));
   });
   const hub = createWireSessionHub(
     createController(
@@ -613,7 +613,7 @@ it.each([
       await page.getByRole('button', { name: '1 session MCP server, 1 startup failure' }).click();
     }
     if (!populated) {
-      activeTurn.set(userTurn);
+      state.set({ ...peek(state), transcript: transcriptSnapshot(userTurn) });
       flushStateTurn();
       await vi.waitFor(() => expect(store.isEmpty).toBe(false));
       await vi.waitFor(() => expect(editorY()).toBeGreaterThan(500));
@@ -639,7 +639,6 @@ it.each([
   'plan',
   'terminals',
   'mcpServers',
-  'activeTurn',
   'mcp-acquisition',
   'mcp-failure',
 ] as const)(
@@ -693,7 +692,6 @@ it.each([
       plan: cell<PlanState | null | undefined>(null),
       terminals: cell<TerminalState[] | undefined>([]),
       mcpServers: cell<SessionMcpServer[] | undefined>([]),
-      activeTurn: cell<TranscriptTurn | null | undefined>(current),
     };
     if (delayed !== 'history' && delayed !== 'mcp-acquisition' && delayed !== 'mcp-failure')
       states[delayed].set(undefined);
@@ -722,6 +720,7 @@ it.each([
     const loadHistory = vi.fn(async () => {
       if (delayed === 'history') await gate.promise;
       return ok({
+        kind: 'available' as const,
         turns: [],
         nextCursor: null,
         position,
@@ -767,7 +766,6 @@ it.each([
       states.plan.set(null);
       states.terminals.set([]);
       states.mcpServers.set([]);
-      states.activeTurn.set(current);
       flushStateTurn();
       await vi.waitFor(() => expect(store.historyLoading).toBe(false));
       expect(store.loadError).toBeNull();

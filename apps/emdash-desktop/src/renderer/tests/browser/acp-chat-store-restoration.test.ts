@@ -12,6 +12,7 @@ import { installChatUiRuntime } from '@core/features/conversations/api/browser/c
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import { AcpLiveSession } from '@core/features/conversations/browser/acp/acp-live-session';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
+import { availableHistory, transcriptSnapshot } from './acp-transcript-fixtures';
 const fixture = vi.hoisted(() => ({ context: undefined as unknown }));
 vi.mock('@core/features/conversations/api/browser/chat/shared-chat-context', () => ({
   getSharedChatContext: () => fixture.context,
@@ -76,10 +77,10 @@ it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)
     const context = chatUi.createChatContext();
     fixture.context = context;
     const history = deferred<HistoryPage>();
-    const activeTurn = remote<TranscriptTurn | null>(mode === 'live' ? current : null);
     const state: SessionState = {
       lifecycle: 'ready',
       activeTurnId: mode === 'live' ? current.id : null,
+      transcript: transcriptSnapshot(mode === 'live' ? current : null),
       pendingPermissions: [],
       lastStopReason: null,
       lastTurnErrored: false,
@@ -91,7 +92,6 @@ it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)
       canCancel: mode === 'live',
     };
     const live = {
-      activeTurn,
       sessionState: remote(state),
       plan: remote(null),
       config: remote({
@@ -136,7 +136,7 @@ it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)
       if (mode === 'reattached') {
         const nextLive = {
           ...live,
-          loadHistory: vi.fn(async () => ok({ turns: [replacement], nextCursor: null })),
+          loadHistory: vi.fn(async () => ok(availableHistory([replacement]))),
         };
         create.mockResolvedValueOnce(nextLive as unknown as AcpLiveSession);
         runInAction(() => hostState.set({ kind: 'ready', hostGeneration: 2 }));
@@ -149,11 +149,9 @@ it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)
         store.dispose();
         disposed = true;
       }
-      history.resolve({
-        turns: mode === 'unavailable' ? [] : [previous],
-        nextCursor: null,
-        ...(mode === 'unavailable' && { unavailable: true }),
-      });
+      history.resolve(
+        mode === 'unavailable' ? { kind: 'unavailable' } : availableHistory([previous])
+      );
       await vi.waitFor(() => expect(live.loadHistory).toHaveResolvedTimes(1));
       if (mode === 'disposed') {
         expect(store.chatState.transcript.state.committedTurns).toEqual([]);
@@ -173,7 +171,7 @@ it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)
         }
       }
     } finally {
-      history.resolve({ turns: [], nextCursor: null });
+      history.resolve(availableHistory());
       if (!disposed) {
         view.dispose();
         store.dispose();

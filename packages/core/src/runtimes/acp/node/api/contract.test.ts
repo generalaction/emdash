@@ -33,7 +33,9 @@ describe('ACP API contract schemas', () => {
     expect(() => sessionStateSchema.parse(peek(live.states.state))).not.toThrow();
     expect(() => sessionConfigStateSchema.parse(peek(live.states.config))).not.toThrow();
     expect(() => sessionUsageSchema.nullable().parse(peek(live.states.usage))).not.toThrow();
-    expect(() => transcriptTurnSchema.nullable().parse(peek(live.states.activeTurn))).not.toThrow();
+    expect(() =>
+      transcriptTurnSchema.nullable().parse(peek(live.states.state)?.transcript?.activeTurn ?? null)
+    ).not.toThrow();
   });
 
   it('round-trips procedures and live state over a wire transport', async () => {
@@ -184,12 +186,13 @@ describe('ACP API contract schemas', () => {
     ).not.toThrow();
   });
 
-  it('accepts additive suspension and unavailable-history fields', () => {
+  it('represents suspended transcripts and unavailable history explicitly', () => {
     expect(() =>
       sessionStateSchema.parse({
         lifecycle: 'closed',
         suspended: true,
         activeTurnId: null,
+        transcript: null,
         pendingPermissions: [],
         lastStopReason: null,
         lastTurnErrored: false,
@@ -203,10 +206,22 @@ describe('ACP API contract schemas', () => {
     ).not.toThrow();
     expect(() =>
       historyPageSchema.parse({
-        turns: [],
-        nextCursor: null,
-        unavailable: true,
+        kind: 'unavailable',
       })
     ).not.toThrow();
+  });
+
+  it('requires an authoritative position and coverage on available history', () => {
+    expect(historyPageSchema.safeParse({ turns: [], nextCursor: null }).success).toBe(false);
+    const page = {
+      kind: 'available',
+      turns: [],
+      nextCursor: null,
+      position: { generation: 'one', historyRevision: 0, lastCommittedTurnSeq: null },
+      coverage: { fromSeq: null, beforeSeq: null },
+    };
+    expect(historyPageSchema.safeParse(page).success).toBe(true);
+    expect(historyPageSchema.safeParse({ ...page, position: undefined }).success).toBe(false);
+    expect(historyPageSchema.safeParse({ ...page, coverage: undefined }).success).toBe(false);
   });
 });

@@ -9,7 +9,6 @@ import {
 } from '#runtimes/acp/api/models/config';
 import { planStateSchema } from '#runtimes/acp/api/models/plan';
 import { sessionStateSchema, sessionSummarySchema } from '#runtimes/acp/api/models/session';
-import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 import {
   acpCancelTurnErrorSchema,
   acpChangeQueuePromptOrderErrorSchema,
@@ -128,7 +127,6 @@ export const acpApiContract = defineContract({
       usage: liveState({ data: sessionUsageSchema.nullable() }),
       plan: liveState({ data: planStateSchema.nullable() }),
       agents: liveState({ data: z.array(agentStateSchema) }),
-      activeTurn: liveState({ data: transcriptTurnSchema.nullable() }),
       terminals: liveState({ data: z.array(terminalStateSchema) }),
       mcpServers: liveState({ data: z.array(sessionMcpServerSchema) }),
     },

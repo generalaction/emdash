@@ -615,7 +615,6 @@ export class ConversationHandle {
       usage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
       plan: record.cell.transcript.plan,
       agents: record.cell.transcript.agents,
-      activeTurn: state.lifecycle === 'replaying' ? null : record.cell.transcript.activeTurn,
       terminals: this.deps.terminals.listByConversation(this.conversationId),
       mcpServers: this.withMcpStartupFailures(
         record,
@@ -689,7 +688,6 @@ function startingSnapshot(retained: RetainedPresentation): ActivationSnapshot {
     usage: retained.lastKnownUsage,
     plan: null,
     agents: [],
-    activeTurn: null,
     terminals: [],
     mcpServers: retained.lastKnownMcpServers,
   };

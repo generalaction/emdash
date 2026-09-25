@@ -58,7 +58,7 @@ describe('AcpRuntime session manager', () => {
     expect(peek(live.states.mcpServers)).toEqual([
       { name: 'docs', transport: 'stdio', startupError: 'Connection refused' },
     ]);
-    expect(peek(live.states.activeTurn)).toBeNull();
+    expect(peek(live.states.state)?.transcript?.activeTurn ?? null).toBeNull();
     expect(peek(live.states.state)).toMatchObject({ agentTurnActive: false, isGenerating: false });
     // An ordinary failed tool call is still conversational content.
     await agent.capturedClient!.sessionUpdate({
@@ -71,7 +71,7 @@ describe('AcpRuntime session manager', () => {
         kind: 'other',
       },
     });
-    expect(peek(live.states.activeTurn)).not.toBeNull();
+    expect(peek(live.states.state)?.transcript?.activeTurn ?? null).not.toBeNull();
     await rt.dispose();
   });
   it('attaches and exposes a suspended projection without spawning, then activates separately', async () => {
@@ -1078,7 +1078,11 @@ describe('AcpRuntime session manager', () => {
     if (!live) throw new Error('expected live models');
     const scope = createScope({ label: 'test:active-turn' });
     const updates: unknown[] = [];
-    observe(live.states.activeTurn, (snapshot) => updates.push(snapshot.value), { scope });
+    observe(
+      live.states.state,
+      (snapshot) => updates.push(snapshot.value?.transcript?.activeTurn ?? null),
+      { scope }
+    );
     const prompt = rt.sendPrompt('conv-live', { text: 'hello' });
     await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1));
     updates.length = 0;
@@ -1102,7 +1106,9 @@ describe('AcpRuntime session manager', () => {
       } as SessionUpdate,
     });
     expect(updates.length).toBeGreaterThan(0);
-    expect(JSON.stringify(peek(live.states.activeTurn))).toContain('hello');
+    expect(JSON.stringify(peek(live.states.state)?.transcript?.activeTurn ?? null)).toContain(
+      'hello'
+    );
     await scope.dispose();
     resolvePrompt({ stopReason: 'end_turn' });
     await prompt;
@@ -1172,7 +1178,8 @@ describe('AcpRuntime session manager', () => {
 
     const history = await startAndLoadHistory(rt, 'conv-attachment');
     expect(isOk(history)).toBe(true);
-    if (!isOk(history)) return;
+    if (!isOk(history) || history.data.kind !== 'available')
+      throw new Error('Expected available history');
     expect(history.data.turns[0].items[0]).toMatchObject({
       kind: 'message',
       text: 'look',
@@ -1202,7 +1209,8 @@ describe('AcpRuntime session manager', () => {
 
     const history = await startAndLoadHistory(rt, 'conv-hidden-context');
     expect(isOk(history)).toBe(true);
-    if (!isOk(history)) return;
+    if (!isOk(history) || history.data.kind !== 'available')
+      throw new Error('Expected available history');
     expect(history.data.turns[0].items[0]).toMatchObject({
       kind: 'message',
       text: 'Fix @[ENG-123](issue:linear:ENG-123)',
@@ -1297,7 +1305,8 @@ describe('AcpRuntime session manager', () => {
     const result = await startAndLoadHistory(rt, input.conversationId);
 
     expect(isOk(result)).toBe(true);
-    if (!isOk(result)) return;
+    if (!isOk(result) || result.data.kind !== 'available')
+      throw new Error('Expected available history');
     expect(result.data.turns).toHaveLength(1);
     expect(result.data.turns[0].items[0]).toMatchObject({
       kind: 'message',

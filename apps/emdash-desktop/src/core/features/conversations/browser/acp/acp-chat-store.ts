@@ -596,7 +596,7 @@ export class AcpChatStore {
       if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
         return;
       if (!history.success) throw new AcpStartError(history.error);
-      if (history.data.unavailable && !this.historyKnown && this.messageCount === 0) {
+      if (history.data.kind === 'unavailable' && !this.historyKnown && this.messageCount === 0) {
         this._failBootstrap({
           kind: 'history_unavailable',
           message: 'Conversation history is unavailable. Retry loading this conversation.',
@@ -836,12 +836,9 @@ export class AcpChatStore {
 
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
-    let previousLifecycle = session.sessionState.current().lifecycle;
-    let previousHistoryRevision = session.sessionState.current().historyRevision;
     const disconnectChatSession = getChatUiRuntime().connectSession(
       this.chatState,
       {
-        activeTurn: asValueSource(session.activeTurn),
         plan: asValueSource(session.plan),
         sessionState: asValueSource(session.sessionState),
       },
@@ -853,19 +850,7 @@ export class AcpChatStore {
     this._unsubs.push(
       disconnectChatSession,
       this._bindTerminalOutputs(session),
-      session.sessionState.onChange((state) => {
-        const replayCompleted = previousLifecycle === 'replaying' && state.lifecycle === 'ready';
-        const historyChanged =
-          state.lifecycle === 'ready' && previousHistoryRevision !== state.historyRevision;
-        previousLifecycle = state.lifecycle;
-        previousHistoryRevision = state.historyRevision;
-        runInAction(() => {
-          this._syncMessageCount();
-        });
-        if (historyChanged || (replayCompleted && !this.historyLoading))
-          this._requestHistoryRefresh();
-      }),
-      session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount()))
+      session.sessionState.onChange(() => runInAction(() => this._syncMessageCount()))
     );
   }
 
@@ -967,17 +952,17 @@ export class AcpChatStore {
         const history = await session.loadHistory(before, 100);
         if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
         if (!history.success) throw new AcpStartError(history.error);
-        if (history.data.unavailable) return !transcript.needsHistory;
+        if (history.data.kind === 'unavailable') return !transcript.needsHistory;
         const position = history.data.position;
         // A change between pages requires another pass over the loaded range, including
         // its latest page. A newer old-page response alone cannot prove we caught up.
         if (
           before !== undefined &&
-          (position?.historyRevision !== revision || position?.generation !== generation)
+          (position.historyRevision !== revision || position.generation !== generation)
         )
           return false;
-        revision = position?.historyRevision;
-        generation = position?.generation;
+        revision = position.historyRevision;
+        generation = position.generation;
         let applied = false;
         runInAction(() => {
           applied = transcript.applyPage(history.data);
@@ -989,13 +974,7 @@ export class AcpChatStore {
         });
         if (!applied) return false;
         const cursor = history.data.nextCursor;
-        if (
-          !position ||
-          cursor === null ||
-          oldestVisibleSeq === undefined ||
-          cursor <= oldestVisibleSeq
-        )
-          break;
+        if (cursor === null || oldestVisibleSeq === undefined || cursor <= oldestVisibleSeq) break;
         if (before !== undefined && cursor >= before) return false;
         before = cursor;
       } while (!this._disposed);

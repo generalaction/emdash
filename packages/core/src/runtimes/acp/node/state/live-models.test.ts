@@ -24,7 +24,6 @@ describe('ACP live models', () => {
         usage: null,
         plan: null,
         agents: [],
-        activeTurn: null,
         terminals: [],
         mcpServers: [],
       },

@@ -551,20 +551,17 @@ export class SessionManager {
   }
 
   getHistory(conversationId: string, before?: number, limit = 50): HistoryPage {
-    if (
-      (this.retained.has(conversationId) || this.suspendedIntents.has(conversationId)) &&
-      !this.readyRecord(conversationId)
-    ) {
-      return { turns: [], nextCursor: null, unavailable: true };
-    }
-    const turns = this.getChatHistory(conversationId).committed;
+    const record = this.readyRecord(conversationId);
+    if (!record || record.cell.sessionState.transcript === null) return { kind: 'unavailable' };
+    const turns = record.cell.transcript.history;
     const filtered = before === undefined ? turns : turns.filter((turn) => turn.seq < before);
     const page = [...filtered].sort((a, b) => b.seq - a.seq).slice(0, limit);
     const nextCursor = page.length === limit ? page.at(-1)!.seq : null;
     return {
+      kind: 'available',
       turns: page.reverse(),
       nextCursor,
-      position: this.readyRecord(conversationId)?.cell.transcript.position,
+      position: record.cell.transcript.position,
       coverage: { fromSeq: nextCursor, beforeSeq: before ?? null },
     };
   }

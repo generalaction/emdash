@@ -225,7 +225,14 @@ describe('createConversationsWireController', () => {
 
   it('attaches with the trusted descriptor and reads history without starting a session', async () => {
     const attach = vi.fn(async () => ok({ sessionId: null }));
-    const loadHistory = vi.fn(async () => ok({ turns: [], nextCursor: null }));
+    const page = {
+      kind: 'available' as const,
+      turns: [],
+      nextCursor: null,
+      position: { generation: 'test', historyRevision: 0, lastCommittedTurnSeq: null },
+      coverage: { fromSeq: null, beforeSeq: null },
+    };
+    const loadHistory = vi.fn(async () => ok(page));
     const controller = setupController({ client: { acp: { attach, loadHistory } } });
 
     await expect(
@@ -233,7 +240,7 @@ describe('createConversationsWireController', () => {
     ).resolves.toEqual(ok({ sessionId: null }));
     await expect(
       controller.call('acp.loadHistory', { conversationId: target.conversationId, limit: 100 })
-    ).resolves.toEqual(ok({ turns: [], nextCursor: null }));
+    ).resolves.toEqual(ok(page));
 
     expect(attach).toHaveBeenCalledWith(target.acpInput, {});
     expect(loadHistory).toHaveBeenCalledWith(

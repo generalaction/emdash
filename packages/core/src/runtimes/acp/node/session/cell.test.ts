@@ -417,7 +417,7 @@ describe('SessionCell idle turns and queue commands', () => {
         status: 'error',
         outputText: 'late failure',
       });
-      expect(cell.sessionState.historyRevision).toBe(2);
+      expect(cell.sessionState.transcript?.historyRevision).toBe(2);
       expect(vi.getTimerCount()).toBe(0);
     } finally {
       cell.dispose();

@@ -17,7 +17,7 @@ describe('ACP session continuity', () => {
       });
       expect(await runtime.loadHistory(input.conversationId)).toMatchObject({
         success: true,
-        data: { unavailable: true },
+        data: { kind: 'unavailable' },
       });
       expect(h.agent.newSession).not.toHaveBeenCalled();
       expect(h.agent.loadSession).not.toHaveBeenCalled();
@@ -25,7 +25,7 @@ describe('ACP session continuity', () => {
       await runtime.stopSession(input.conversationId);
       expect(await runtime.loadHistory(input.conversationId)).toMatchObject({
         success: true,
-        data: { unavailable: true },
+        data: { kind: 'unavailable' },
       });
       expect(h.agent.loadSession).not.toHaveBeenCalled();
       expect(await runtime.attachSession(input)).toMatchObject({

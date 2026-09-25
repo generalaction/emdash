@@ -167,6 +167,7 @@ describe('createChatView', () => {
         lastCommittedTurnSeq: previous.at(-1)?.seq ?? null,
       };
       state.transcript.applyPage({
+        kind: 'available',
         turns: previous,
         nextCursor: null,
         position,
@@ -206,6 +207,7 @@ describe('createChatView', () => {
         expect(Math.abs(retainedCard!.getBoundingClientRect().top - pinnedTop)).toBeLessThan(1);
 
         state.transcript.applyPage({
+          kind: 'available',
           turns: [...previous, { ...active, outcome: { kind: 'done', reason: 'end_turn' } }],
           nextCursor: null,
           position: committedPosition,

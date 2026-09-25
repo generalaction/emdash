@@ -233,9 +233,14 @@ Tool updates, plan revisions, and nested activity preserve the foreground stream
 materialize new rows. A late tool update amends its original turn and never opens a new agent turn.
 SessionCell uses the same foreground classification for idle activity/quiescence. Background tool
 rows remain running across foreground turn completion and settle from their own status updates.
-The optional session `historyRevision` increments when an already committed turn is amended; the
-desktop refreshes history independently of turn completion (deferring replacement while a new
-foreground turn is active). Plans remain session-scoped, with their transcript anchor in the turn
+The required session `transcript` field contains the coherent active turn and history position;
+it is explicitly `null` before activation, during replay, and while suspended. There is no separate
+active-turn stream or session-level history-revision notification. Available history pages always
+carry their generation, revision, and authoritative coverage; unavailable history is a separate
+result variant. The desktop retains visible content while the transcript is unavailable and replaces
+it atomically when the new generation's history arrives. The snapshot's `historyRevision` increments
+when an already committed turn is amended, refreshing history independently of turn completion.
+Plans remain session-scoped, with their transcript anchor in the turn
 that first presented the plan; an idle plan notification alone does not start a turn.
 
 For partial provider replay, an update-only call can be recovered within an existing active turn,

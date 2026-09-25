@@ -1,11 +1,11 @@
 import * as chatUi from '@emdash/chat-ui';
-import '@emdash/chat-ui/style.css';
-import '@emdash/ui/style.css';
 import type {
   HistoryPage,
   SessionState,
   TranscriptTurn,
 } from '@emdash/core/runtimes/acp/api/client';
+import '@emdash/chat-ui/style.css';
+import '@emdash/ui/style.css';
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import {
@@ -24,6 +24,7 @@ import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
+import { availableHistory } from './acp-transcript-fixtures';
 
 export function makeTurn(seq: number, text = `Prompt ${seq}`): TranscriptTurn {
   return {
@@ -40,7 +41,7 @@ export function makeTurn(seq: number, text = `Prompt ${seq}`): TranscriptTurn {
 export const idleSession: SessionState = {
   lifecycle: 'ready',
   activeTurnId: null,
-  historyRevision: 0,
+  transcript: null,
   pendingPermissions: [],
   lastStopReason: null,
   lastTurnErrored: false,
@@ -68,7 +69,6 @@ export function createContinuityHarness(
     lastCommittedTurnSeq: history.turns.at(-1)?.seq ?? null,
   });
   const state = cell<SessionState>(idleSession);
-  const activeTurn = cell<TranscriptTurn | null>(null);
   const contract = defineContract({
     acp: defineContract({
       attach: conversationsContract.acp.attach,
@@ -80,20 +80,19 @@ export function createContinuityHarness(
   });
   const session = expose(contract.acp.session, {
     state,
-    activeTurn,
-    config: cell({ modelOptions: null, efforts: null, modeOptions: null, availableCommands: [] }),
+    config: cell({ options: [], availableCommands: [] }),
     usage: cell(null),
     plan: cell(null),
     agents: cell([]),
     terminals: cell([]),
     mcpServers: cell([]),
   });
-  let history: HistoryPage = { turns: [...initialHistory], nextCursor: null };
-  history.position = position();
-  history.coverage = { fromSeq: null, beforeSeq: null };
+  let history = availableHistory([...initialHistory], 0, transcriptGeneration);
+  let historyUnavailable = false;
   state.set({ ...idleSession, transcript: { ...position(), activeTurn: null } });
   const heldReads: Array<ReturnType<typeof deferred<void>>> = [];
   function historyPage(before?: number, limit = 100): HistoryPage {
+    if (historyUnavailable) return { kind: 'unavailable' };
     const candidates = history.turns.filter((turn) => before === undefined || turn.seq < before);
     const turns = candidates.slice(-limit);
     const nextCursor = turns.length === limit ? turns[0].seq : null;
@@ -190,17 +189,15 @@ export function createContinuityHarness(
     },
     setHistory(turns: readonly TranscriptTurn[], unavailable = false) {
       historyRevision += 1;
-      history = {
-        turns: structuredClone([...turns]),
-        nextCursor: null,
-        ...(unavailable && { unavailable: true }),
-      };
-      history.position = position();
-      history.coverage = { fromSeq: null, beforeSeq: null };
+      history = availableHistory(
+        structuredClone([...turns]),
+        historyRevision,
+        transcriptGeneration
+      );
+      historyUnavailable = unavailable;
       state.set({
         ...peek(state),
-        historyRevision,
-        transcript: { ...position(), activeTurn: peek(activeTurn) },
+        transcript: { ...position(), activeTurn: peek(state).transcript?.activeTurn ?? null },
       });
     },
     holdNextHistory() {
@@ -220,7 +217,6 @@ export function createContinuityHarness(
       };
     },
     publish(turn: TranscriptTurn | null, patch: Partial<SessionState> = {}) {
-      activeTurn.set(turn);
       state.set({
         ...peek(state),
         lifecycle: turn ? 'working' : 'ready',
@@ -229,7 +225,10 @@ export function createContinuityHarness(
         agentTurnActive: turn !== null,
         canCancel: turn !== null,
         ...patch,
-        transcript: { ...position(), activeTurn: turn },
+        transcript:
+          patch.lifecycle === 'replaying' || patch.suspended
+            ? null
+            : { ...position(), activeTurn: turn },
       });
     },
     flush() {
@@ -238,7 +237,9 @@ export function createContinuityHarness(
     async observe(turn: TranscriptTurn | null) {
       flushStateTurn();
       await vi.waitFor(() =>
-        expect(store.session?.activeTurn.current()?.id ?? null).toBe(turn?.id ?? null)
+        expect(store.session?.sessionState.current().transcript?.activeTurn?.id ?? null).toBe(
+          turn?.id ?? null
+        )
       );
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     },

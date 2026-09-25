@@ -413,6 +413,7 @@ export function projectSessionState(s: SessionMachineState): SessionState {
   return {
     lifecycle,
     activeTurnId: activeTurn?.id ?? null,
+    transcript: null,
     pendingPermissions: structuredClone([...s.pendingPermissions]),
     lastStopReason: s.lastStopReason,
     lastTurnErrored: s.lastTurnErrored,

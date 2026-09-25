@@ -137,7 +137,6 @@ describe('ConversationSyncService', () => {
       usage: unused,
       plan: unused,
       agents: unused,
-      activeTurn: unused,
       terminals: unused,
       mcpServers: unused,
     });

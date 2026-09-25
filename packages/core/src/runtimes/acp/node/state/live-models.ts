@@ -20,12 +20,12 @@ import {
   type SessionSummary,
   type SessionUsage,
   type TerminalState,
-  type TranscriptTurn,
 } from '#runtimes/acp/api';
 
 export const closedSessionState: SessionState = {
   lifecycle: 'closed',
   activeTurnId: null,
+  transcript: null,
   pendingPermissions: [],
   lastStopReason: null,
   lastTurnErrored: false,
@@ -56,7 +56,6 @@ export type ActivationSnapshot = {
   usage: SessionUsage | null;
   plan: PlanState | null;
   agents: readonly AgentState[];
-  activeTurn: TranscriptTurn | null;
   terminals: readonly TerminalState[];
   mcpServers: readonly SessionMcpServer[];
 };
@@ -86,7 +85,6 @@ export type SessionLiveModels = {
     usage: Readable<SessionUsage | null | undefined>;
     plan: Readable<PlanState | null | undefined>;
     agents: Readable<AgentState[] | undefined>;
-    activeTurn: Readable<TranscriptTurn | null | undefined>;
     terminals: Readable<TerminalState[] | undefined>;
     mcpServers: Readable<SessionMcpServer[] | undefined>;
   };
@@ -116,7 +114,6 @@ export function createAcpSessionLiveHost(): AcpSessionLiveHost {
       usage: (key) => models(key.conversationId).states.usage,
       plan: (key) => models(key.conversationId).states.plan,
       agents: (key) => models(key.conversationId).states.agents,
-      activeTurn: (key) => models(key.conversationId).states.activeTurn,
       terminals: (key) => models(key.conversationId).states.terminals,
       mcpServers: (key) => models(key.conversationId).states.mcpServers,
     },
@@ -155,7 +152,6 @@ export type {
   SessionSummary,
   SessionUsage,
   TerminalState,
-  TranscriptTurn,
 };
 
 function createProjection(): SessionLiveModels {
@@ -212,12 +208,6 @@ function createProjection(): SessionLiveModels {
         () => EMPTY_AGENTS,
         EMPTY_AGENTS,
         'acp-session-agents'
-      ),
-      activeTurn: retainedSlice(
-        (current) => current.activeTurn,
-        () => null,
-        null,
-        'acp-session-active-turn'
       ),
       terminals: retainedSlice(
         (current) => asMutable(current.terminals),

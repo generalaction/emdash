@@ -387,7 +387,8 @@ describe('ACP restoration continuity', () => {
       await replayed.promise;
       const live = runtime.sessionLiveModels(input.conversationId)!;
       expect(peek(live.states.state)?.lifecycle).toBe('replaying');
-      expect(peek(live.states.activeTurn)).toBeNull();
+      expect(peek(live.states.state)?.transcript).toBeNull();
+      expect(runtime.manager.getHistory(input.conversationId)).toEqual({ kind: 'unavailable' });
     } finally {
       finish.resolve();
       const loaded = await loading;

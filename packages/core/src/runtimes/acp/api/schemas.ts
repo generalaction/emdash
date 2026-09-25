@@ -63,15 +63,17 @@ export const historyPageInputSchema = z.object({
   limit: z.number().int(),
 });
 
-export const historyPageSchema = z.object({
-  turns: z.array(transcriptTurnSchema),
-  nextCursor: z.number().int().nullable(),
-  /** Absent only when unavailable or when talking to an older runtime. */
-  position: transcriptPositionSchema.optional(),
-  coverage: transcriptCoverageSchema.optional(),
-  /** History is activation-local and currently unavailable while the session is suspended. */
-  unavailable: z.literal(true).optional(),
-});
+export const historyPageSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('available'),
+    turns: z.array(transcriptTurnSchema),
+    nextCursor: z.number().int().nullable(),
+    position: transcriptPositionSchema,
+    coverage: transcriptCoverageSchema,
+  }),
+  /** History is activation-local and unavailable before activation or during replay. */
+  z.object({ kind: z.literal('unavailable') }),
+]);
 export type HistoryPage = z.infer<typeof historyPageSchema>;
 
 export { queuedPromptSchema };

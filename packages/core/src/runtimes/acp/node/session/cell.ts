@@ -115,9 +115,8 @@ export class SessionCell {
     const state = this.machine.sessionState();
     return {
       ...state,
-      historyRevision: this.transcript.historyRevision,
       // Partial replay is never an authoritative transcript position.
-      ...(state.lifecycle === 'replaying' ? {} : { transcript: this.transcript.snapshot }),
+      transcript: state.lifecycle === 'replaying' ? null : this.transcript.snapshot,
     };
   }
 

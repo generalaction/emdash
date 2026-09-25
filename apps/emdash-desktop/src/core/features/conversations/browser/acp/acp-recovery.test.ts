@@ -213,6 +213,7 @@ function peer(
     state: cell({
       lifecycle: 'ready' as const,
       activeTurnId: null,
+      transcript: null,
       pendingPermissions: [],
       lastStopReason: null,
       lastTurnErrored: false,
@@ -239,7 +240,6 @@ function peer(
     usage: cell(null),
     plan: cell(null),
     agents: cell([]),
-    activeTurn: cell(null),
     terminals: cell([]),
     mcpServers: async () => {
       await loadMetadata();
