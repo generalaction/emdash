@@ -1,5 +1,6 @@
 import type { Gitlab, IssueSchemaWithBasicLabels } from '@gitbeaker/rest';
 import z from 'zod';
+import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 import { normalizeHostedInstanceUrl } from '../../helpers/hosted-instance';
 
@@ -17,6 +18,7 @@ export type GitLabClient = Gitlab;
 export type GitLabIssue = IssueSchemaWithBasicLabels;
 
 export type GitLabVerifiedConnection = {
+  account?: VerifiedAccountIdentity;
   displayName?: string;
   displayDetail?: string;
   credentials: GitLabCredentials;

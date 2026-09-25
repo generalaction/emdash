@@ -11,6 +11,7 @@ import type {
   WaitForTerminalExitResponse,
 } from '@agentclientprotocol/sdk';
 import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
+import type { CommandSpec } from '#primitives/exec/api';
 import { buildTerminalEnv } from '#services/pty/api';
 import type { AgentTerminalManager } from './terminal-manager';
 
@@ -24,7 +25,8 @@ export class TerminalPort {
     conversationId: string,
     defaultCwd: string,
     agentEnv: Readonly<Record<string, string>>,
-    params: CreateTerminalRequest
+    params: CreateTerminalRequest,
+    command: CommandSpec = { kind: 'argv', command: params.command, args: params.args ?? [] }
   ): Promise<CreateTerminalResponse> {
     const envRecord = mergeAgentEnvLayers(
       currentAgentEnvPlatform(this.platform),
@@ -36,8 +38,7 @@ export class TerminalPort {
       })
     );
     const terminalId = await this.terminals.create(conversationId, {
-      command: params.command,
-      args: params.args ?? [],
+      command,
       env: envRecord,
       cwd: params.cwd ?? defaultCwd,
       outputByteLimit: params.outputByteLimit,

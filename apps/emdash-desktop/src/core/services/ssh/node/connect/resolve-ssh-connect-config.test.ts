@@ -2,7 +2,7 @@ import { PassThrough } from 'node:stream';
 import { secret } from '@emdash/shared';
 import type { ParsedKey, SignCallback } from 'ssh2';
 import { BaseAgent, utils } from 'ssh2';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import type { SshConnectionRow } from '@core/services/app-db/node/schema';
 import {
@@ -23,6 +23,55 @@ function baseConfig(partial: Partial<SshConfig> = {}): SshConfig {
     ...partial,
   };
 }
+
+describe('testing edited credentials', () => {
+  it.each([{ hostname: 'replacement.example.com' }, { user: 'other' }, { port: 2222 }])(
+    'rejects a stale alias destination before retrieving a password: %j',
+    async (change) => {
+      const config = baseConfig({ sshConfigAlias: 'work' });
+      const getPassword = vi.fn(async () => secret('original password'));
+      await expect(
+        resolveSshConnectConfig(
+          { kind: 'transient', config, previous: config },
+          deps({
+            getPassword,
+            resolveSshConfig: async () => ({
+              hostname: config.host,
+              user: config.username,
+              port: config.port,
+              identityFile: [],
+              identityAgentDisabled: false,
+              identitiesOnly: false,
+              forwardAgent: false,
+              ...change,
+            }),
+          })
+        )
+      ).rejects.toThrow('SSH config changed');
+      expect(getPassword).not.toHaveBeenCalled();
+    }
+  );
+
+  it('uses a stored password for an unchanged connection with a blank draft password', async () => {
+    const config = baseConfig();
+    const getPassword = vi.fn(async () => secret('stored-password'));
+    const result = await resolveSshConnectConfig(
+      { kind: 'transient', config: { ...config, password: '' }, previous: config },
+      deps({ getPassword })
+    );
+    expect(result.config.password).toBe('stored-password');
+    expect(getPassword).toHaveBeenCalledWith(config.id, expect.any(String));
+  });
+
+  it('uses a stored passphrase for the same key', async () => {
+    const config = baseConfig({ authType: 'key', privateKeyPath: '/keys/work' });
+    const result = await resolveSshConnectConfig(
+      { kind: 'transient', config, previous: config },
+      deps({ getPassphrase: async () => secret('stored-passphrase') })
+    );
+    expect(result.config.passphrase).toBe('stored-passphrase');
+  });
+});
 
 function deps(overrides: Partial<SshConnectDeps> = {}): SshConnectDeps {
   return {
@@ -106,6 +155,58 @@ function row(partial: Partial<SshConnectionRow> = {}): SshConnectionRow {
 }
 
 describe('resolveSshConnectConfig', () => {
+  it.each(['transient', 'persisted'] as const)(
+    'uses a key override with an SSH config target for %s connections',
+    async (kind) => {
+      const override = 'C:/Users/alice/.ssh/id_ed25519';
+      const readFiles: string[] = [];
+      const input =
+        kind === 'transient'
+          ? {
+              kind,
+              config: baseConfig({
+                authType: 'key',
+                sshConfigAlias: 'work.internal',
+                privateKeyPath: override,
+              }),
+            }
+          : {
+              kind,
+              row: row({
+                authType: 'key',
+                metadata: { sshConfigAlias: 'work.internal' },
+                privateKeyPath: override,
+              }),
+            };
+      const result = await resolveSshConnectConfig(
+        input,
+        deps({
+          readFile: async (path) => {
+            readFiles.push(path);
+            return 'OVERRIDE KEY';
+          },
+          resolveSshConfig: async () => ({
+            hostname: 'resolved.internal',
+            user: 'alice',
+            port: 2222,
+            identityFile: ['C:/Users/alice/.ssh/id_rsa'],
+            identityAgentDisabled: false,
+            identitiesOnly: false,
+            forwardAgent: false,
+            proxyJump: 'bastion',
+          }),
+        })
+      );
+      expect(readFiles).toEqual([override]);
+      expect(result.config).toMatchObject({
+        host: 'resolved.internal',
+        port: 2222,
+        privateKey: 'OVERRIDE KEY',
+      });
+      expect(result.debugLogs).toEqual(['proxy-jump']);
+    }
+  );
+
   it('uses ssh -G as authoritative for alias-backed ProxyCommand', async () => {
     const spawned: string[] = [];
     const result = await resolveSshConnectConfig(
@@ -425,7 +526,11 @@ describe('resolveSshConnectConfig', () => {
         {
           kind: 'transient',
           config: {
-            ...baseConfig({ sshConfigAlias: 'corp-dev', authType: 'password' }),
+            ...baseConfig({
+              sshConfigAlias: 'corp-dev',
+              authType: 'password',
+              host: 'dev.internal',
+            }),
             password: 'pw',
           },
         },
@@ -460,7 +565,7 @@ describe('resolveSshConnectConfig', () => {
         { kind: 'persisted', row: row({ authType: 'password' }) },
         deps({ getPassword: async () => null })
       )
-    ).rejects.toThrow('No password found');
+    ).rejects.toThrow('Enter a password');
 
     await expect(
       resolveSshConnectConfig(
@@ -617,7 +722,11 @@ describe('resolveSshConnectConfig', () => {
         {
           kind: 'transient',
           config: {
-            ...baseConfig({ sshConfigAlias: 'corp-dev', authType: 'password' }),
+            ...baseConfig({
+              sshConfigAlias: 'corp-dev',
+              authType: 'password',
+              host: 'dev.internal',
+            }),
             password: 'pw',
           },
         },
@@ -769,6 +878,9 @@ describe('resolveSshConnectConfig', () => {
         kind: 'persisted',
         row: row({
           authType: 'key',
+          host: 'dev.internal',
+          username: 'deploy',
+          port: 2222,
           privateKeyPath: null,
           metadata: { sshConfigAlias: 'corp-dev' },
         }),

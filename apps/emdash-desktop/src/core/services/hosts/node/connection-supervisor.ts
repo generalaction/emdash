@@ -283,7 +283,17 @@ export class HostConnectionSupervisor {
       this.runtimePolicy = { kind: 'active' };
       this.publish({ kind: 'idle' });
     }
+    // Routine hints do not revoke recent health evidence. Keep the same ready
+    // snapshot and allow live input until the probe establishes a failure.
+    const keepReady =
+      state.kind === 'ready' &&
+      this.runtimeConnection.connected &&
+      this.hasFreshHealth() &&
+      (cause === 'focus' || cause === 'online' || cause === 'timer');
     if (this.active) {
+      // A timeout or expired evidence must still demote an in-flight quiet probe.
+      if (state.kind === 'ready' && !keepReady && !this.runtimeBlock)
+        this.publish({ kind: 'checking', generation: this.generation });
       if (
         (cause !== 'retry' && cause !== 'online') ||
         state.kind !== 'recovering' ||
@@ -304,7 +314,7 @@ export class HostConnectionSupervisor {
     const wireProbe = this.runtimeConnection.connected;
     const attemptScope = this.scope.child('connection-attempt');
     this.active = attemptScope;
-    if (cause !== 'timer' && !this.runtimeBlock)
+    if (!keepReady && !this.runtimeBlock)
       this.publish({ kind: 'checking', generation: this.generation });
     const epoch = this.epoch;
     void attemptScope
@@ -332,13 +342,14 @@ export class HostConnectionSupervisor {
           () => {
             if (!this.isCurrent(attemptScope, epoch)) return;
             this.lastValidatedAt = this.clock.now();
-            this.publish(
-              wireProbe
-                ? { kind: 'ready', generation: this.generation }
-                : this.runtimeBlock
-                  ? { kind: 'blocked', layer: 'runtime', issue: this.runtimeBlock }
-                  : { kind: 'idle' }
-            );
+            if (!wireProbe || peek(this.state).kind !== 'ready')
+              this.publish(
+                wireProbe
+                  ? { kind: 'ready', generation: this.generation }
+                  : this.runtimeBlock
+                    ? { kind: 'blocked', layer: 'runtime', issue: this.runtimeBlock }
+                    : { kind: 'idle' }
+              );
             this.resolveWaiters();
           },
           async () => {
@@ -593,6 +604,13 @@ export class HostConnectionSupervisor {
     }
   }
 
+  private hasFreshHealth(): boolean {
+    return (
+      this.clock.now() - this.lastValidatedAt <=
+      (this.options.healthIntervalMs ?? 15_000) + (this.options.healthTimeoutMs ?? 5_000)
+    );
+  }
+
   private scheduleHealth(): void {
     if (
       this.timer?.active ||
@@ -606,10 +624,7 @@ export class HostConnectionSupervisor {
       interval,
       () => {
         this.timer = undefined;
-        if (
-          this.clock.now() - this.lastValidatedAt >
-          interval + (this.options.healthTimeoutMs ?? 5_000)
-        ) {
+        if (!this.hasFreshHealth()) {
           this.resume();
         } else this.revalidate('timer');
       },

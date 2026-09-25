@@ -71,13 +71,25 @@ type LegacyBackground = z.infer<typeof legacyBackgroundSchema>;
 /**
  * The `background` column now stores the unified lifecycle section; v1 payloads (the
  * old background-steps shape) upgrade in place, best-effort — the legacy single `at`
- * stamp becomes startedAt/finishedAt as its status implies.
+ * stamp becomes startedAt/finishedAt as its status implies. v3 adds the run-ID
+ * baseline that keeps retained script results out of a newer activation cycle.
  */
 const storedLifecycle = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: legacyBackgroundSchema }))
-  .version('2', z.object({ version: z.literal('2'), value: workspaceLifecycleSchema }), (prev) => ({
-    version: '2' as const,
-    value: migrateLegacyBackground(prev.value),
+  .version(
+    '2',
+    z.object({
+      version: z.literal('2'),
+      value: workspaceLifecycleSchema.omit({ previousScriptRuns: true }),
+    }),
+    (prev) => ({
+      version: '2' as const,
+      value: migrateLegacyBackground(prev.value),
+    })
+  )
+  .version('3', z.object({ version: z.literal('3'), value: workspaceLifecycleSchema }), (prev) => ({
+    version: '3' as const,
+    value: prev.value,
   }))
   .build();
 
@@ -149,7 +161,7 @@ export function parseRemovalAttemptPayload(payload: string): WorkspaceRemovalAtt
 }
 
 export function serializeLifecyclePayload(lifecycle: WorkspaceLifecycle): string {
-  return storedLifecycle.serialize({ version: '2', value: lifecycle });
+  return storedLifecycle.serialize({ version: '3', value: lifecycle });
 }
 
 export function parseLifecyclePayload(payload: string): WorkspaceLifecycle {

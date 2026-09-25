@@ -15,7 +15,7 @@ export type RecoveryWindowOptions = {
 interface RecoveryUpdateService {
   initialize(): Promise<void>;
   checkForUpdates(): Promise<unknown>;
-  downloadUpdate(): Promise<void>;
+  downloadUpdate(): void;
   quitAndInstall(): void;
   getState(): {
     status: string;
@@ -132,7 +132,7 @@ export async function showRecoveryWindow(options: RecoveryWindowOptions): Promis
 
       case 'download':
         try {
-          await updateSvc?.downloadUpdate();
+          updateSvc?.downloadUpdate();
         } catch (err) {
           log.warn('Recovery: download failed', { error: err });
         }

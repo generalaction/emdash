@@ -11,6 +11,7 @@ import type { Client } from '@agentclientprotocol/sdk';
 import { createScope } from '@emdash/shared/concurrency';
 import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
+import type { CommandSpec } from '#primitives/exec/api';
 import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import type {
   AcpFs,
@@ -207,8 +208,7 @@ export class FakeAcpProcessHost implements AcpProcessHost {
   readonly spawnTerminalFn =
     vi.fn<
       (spec: {
-        command: string;
-        args: string[];
+        command: CommandSpec;
         env: Record<string, string>;
         cwd: string;
       }) => Promise<AcpTerminalProcess>
@@ -231,8 +231,7 @@ export class FakeAcpProcessHost implements AcpProcessHost {
   }
 
   async spawnTerminal(spec: {
-    command: string;
-    args: string[];
+    command: CommandSpec;
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpTerminalProcess> {
@@ -366,7 +365,7 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
     ptySpawner,
     client(): Client {
       if (!agent.capturedClient) {
-        throw new Error('capturedClient is null — has launchSession() been called?');
+        throw new Error('capturedClient is null — has startSession() been called?');
       }
       return agent.capturedClient;
     },

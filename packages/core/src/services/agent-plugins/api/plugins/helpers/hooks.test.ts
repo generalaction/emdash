@@ -70,6 +70,32 @@ describe('hook command helpers', () => {
     expect(command).not.toContain('>');
   });
 
+  it.skipIf(process.platform === 'win32')(
+    'returns safely quoted JSON when transport fails or routing variables are absent',
+    () => {
+      const response = {
+        decision: 'stop',
+        reason: "don't run $(printf injected) or `echo injected`",
+      };
+      const command = makeStdinHookCommand('stop', {
+        platform: 'linux',
+        stdoutJson: response,
+      });
+      for (const env of [
+        {},
+        { EMDASH_HOOK_PORT: '1234', EMDASH_HOOK_NONCE: 'nonce', EMDASH_PTY_ID: 'pty-1' },
+      ]) {
+        const result = spawnSync(
+          '/bin/sh',
+          ['-c', `curl() { printf 'unexpected server response'; return 22; }; ${command}`],
+          { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env }, input: '{}' }
+        );
+        expect(result.status).toBe(0);
+        expect(JSON.parse(result.stdout)).toEqual(response);
+      }
+    }
+  );
+
   it('keeps the Emdash markers visible to hook config cleanup without PowerShell args', () => {
     const command = makeWindowsPowerShellHookCommand('Write-Output "ok"');
 

@@ -3,6 +3,7 @@ import { pluginRegistry } from './registry';
 
 const GLOBAL_HOOK_PROVIDERS = [
   'amp',
+  'antigravity',
   'auggie',
   'claude',
   'codebuddy',
@@ -18,6 +19,7 @@ const GLOBAL_HOOK_PROVIDERS = [
   'kiro',
   'mimocode',
   'mistral',
+  'muse',
   'oh-my-pi',
   'opencode',
   'pi',
@@ -27,32 +29,27 @@ const GLOBAL_HOOK_PROVIDERS = [
 ].sort();
 
 describe('agent plugin registry', () => {
-  it('advertises Claude Fable 5.1', () => {
-    const claude = pluginRegistry.get('claude');
+  it.each([
+    ['claude', '--model', 'opus[1m]'],
+    ['claude', '--model', 'claude-fable-5-1[1m]'],
+    ['claude', '--model', 'sonnet'],
+    ['claude', '--model', 'haiku'],
+    ['codex', '-m', 'gpt-6-sol'],
+    ['codex', '-m', 'gpt-6-luna'],
+  ])('offers %s model %s %s and preserves its ID in terminal argv', (providerId, flag, model) => {
+    const provider = pluginRegistry.get(providerId)!;
+    const models = provider.capabilities.models;
+    expect(models.kind).toBe('selectable');
+    if (models.kind !== 'selectable') throw new Error('Expected selectable models');
+    expect(models.modelOptions[model]).toBeDefined();
 
-    expect(claude).toBeDefined();
-    expect(claude?.capabilities.models).toMatchObject({
-      kind: 'selectable',
-      modelOptions: {
-        'claude-fable-5-1': {
-          name: 'Claude Fable 5.1',
-        },
-      },
+    const command = provider.behavior.prompt!.buildCommand({
+      cli: providerId,
+      autoApprove: false,
+      isResuming: false,
+      model,
     });
-  });
-
-  it('advertises Claude Opus 5', () => {
-    const claude = pluginRegistry.get('claude');
-
-    expect(claude).toBeDefined();
-    expect(claude?.capabilities.models).toMatchObject({
-      kind: 'selectable',
-      modelOptions: {
-        'claude-opus-5': {
-          name: 'Claude Opus 5',
-        },
-      },
-    });
+    expect(command.args).toEqual([flag, model]);
   });
 
   it('keeps every shipped hook integration user-global', () => {

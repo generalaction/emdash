@@ -11,6 +11,7 @@ import type {
   AcpAgentApi,
   AgentHostError,
   AgentPluginHost,
+  IAcpBehavior,
 } from '#services/agent-plugins/api/plugins';
 import {
   createAcpAgentConnection,
@@ -27,6 +28,7 @@ export interface AcpConnectionContext {
   cwd: string;
   env: Readonly<Record<string, string>>;
   normalize: AcpSessionUpdateNormalizer;
+  terminalCommand?: IAcpBehavior['terminalCommand'];
 }
 
 export interface AcpConnectionEntry extends AcpConnectionContext {
@@ -151,6 +153,7 @@ async function provisionAcpConnection(
           cwd: key.cwd,
           env: spawn.data.env,
           normalize,
+          terminalCommand: binding.behavior.terminalCommand,
         }),
       onClosed: (exitCode) => onClosed(routeKey, generation, exitCode),
     }
@@ -165,6 +168,7 @@ async function provisionAcpConnection(
     env: spawn.data.env,
     agent: connection.data.agent,
     normalize: connection.data.normalize,
+    terminalCommand: binding.behavior.terminalCommand,
     supportsLoadSession: connection.data.supportsLoadSession,
     mcpCapabilities: connection.data.mcpCapabilities,
   };

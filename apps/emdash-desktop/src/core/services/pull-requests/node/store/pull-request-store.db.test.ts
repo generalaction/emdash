@@ -54,6 +54,40 @@ describe('pull request schema', () => {
 });
 
 describe('PullRequestStore', () => {
+  it('commits check observations only for the current head, including empty results', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const pr = pullRequestFixture();
+    store.registerRepository(pr.repositoryUrl);
+    store.savePullRequest(pr);
+    expect(store.replaceChecksForHead(pr.url, 'head', [], 100)).toBe(true);
+    expect(store.getPullRequestByUrl(pr.url)?.checksFetchedAt).toBe(100);
+    store.savePullRequest({ ...pr, headRefOid: 'next' });
+    expect(store.replaceChecksForHead(pr.url, 'head', [], 200)).toBe(false);
+    expect(store.getPullRequestByUrl(pr.url)?.checksFetchedAt).toBeNull();
+    expect(store.replaceChecksForHead(pr.url, 'next', [], 300)).toBe(true);
+    expect(store.getPullRequestByUrl(pr.url)?.checksFetchedAt).toBe(300);
+  });
+
+  it('rolls back comments and their freshness together on failed application', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const pr = pullRequestFixture();
+    store.registerRepository(pr.repositoryUrl);
+    store.savePullRequest(pr);
+    const first = pullRequestCommentFixture();
+    store.saveCommentObservation(pr.url, [first], 100);
+    const invalid = pullRequestCommentFixture({ id: 'duplicate', body: 'Replacement' });
+    expect(() => store.saveCommentObservation(pr.url, [invalid, invalid], 200)).toThrow();
+    expect(store.getComments(pr.url)).toEqual([first]);
+    expect(store.getCommentState(pr.url)?.lastFetchedAt).toBe(100);
+    store.saveCommentObservation(pr.url, [], 300);
+    expect(store.getComments(pr.url)).toEqual([]);
+    expect(store.getCommentState(pr.url)?.lastFetchedAt).toBe(300);
+  });
+
   it('lists, searches, filters, and paginates assembled pull requests', async () => {
     const handle = await pullRequestSqliteStore.openTemp();
     cleanups.push(() => handle.close());

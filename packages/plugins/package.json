@@ -23,6 +23,11 @@
       "types": "./dist/integrations.d.mts",
       "default": "./dist/integrations.mjs"
     },
+    "./integrations/github": {
+      "development": "./src/integrations/impl/github/types.ts",
+      "types": "./dist/integrations/github.d.mts",
+      "default": "./dist/integrations/github.mjs"
+    },
     "./issues": {
       "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
@@ -32,8 +37,8 @@
   "scripts": {
     "dev": "tsdown --config-loader tsx --watch",
     "build": "tsdown --config-loader tsx && tsx tooling/validate-adapters.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "pnpm exec nx test @emdash/plugins",
+    "test:watch": "pnpm exec nx run @emdash/plugins:test-watch",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
     "lint": "oxlint src",
@@ -60,8 +65,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@agentclientprotocol/claude-agent-acp": "^0.73.0",
-    "@agentclientprotocol/codex-acp": "^1.7.0",
+    "@agentclientprotocol/claude-agent-acp": "^0.81.2",
+    "@agentclientprotocol/codex-acp": "^1.13.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",
@@ -69,5 +74,32 @@
     "tsx": "^4.22.4",
     "vitest": "^3.1.4"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build",
+          "build"
+        ],
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/plugins"
+        }
+      },
+      "test-watch": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build",
+          "build"
+        ],
+        "cache": false,
+        "options": {
+          "command": "pnpm exec vitest",
+          "cwd": "packages/plugins"
+        }
+      }
+    }
+  }
 }

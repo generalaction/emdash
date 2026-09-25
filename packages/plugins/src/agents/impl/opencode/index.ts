@@ -58,7 +58,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'global',
-      supportedEvents: ['notification', 'stop', 'session'],
+      supportedEvents: ['notification', 'start', 'stop', 'session'],
     },
     hostDependency: npmDependency({ id: 'opencode', package: 'opencode-ai' }),
     mcp: {

@@ -1,6 +1,6 @@
 {
   "name": "@emdash/emdash-desktop",
-  "version": "1.2.4",
+  "version": "1.2.6",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -28,10 +28,10 @@
     "db:generate:app": "drizzle-kit generate",
     "generate:pr-schema": "tsx scripts/generate-pr-schema.ts",
     "db:fixtures": "vitest run --project fixtures",
-    "test:migrations": "vitest run --project migrations",
+    "test:migrations": "pnpm exec nx run @emdash/emdash-desktop:test-migrations",
     "db:reset": "tsx scripts/db-reset.ts",
-    "test": "vitest run --project \"!fixtures\"",
-    "test:workspace-server-remote": "EMDASH_TEST_REMOTE_WSS=1 vitest run --project node src/main/gateway/workspace-server.remote.test.ts",
+    "test": "pnpm exec nx test @emdash/emdash-desktop",
+    "test:workspace-server-remote": "pnpm exec nx run @emdash/emdash-desktop:test-workspace-server-remote",
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",
     "build:renderer": "electron-vite build --filter renderer",
@@ -147,5 +147,41 @@
   "engines": {
     "node": ">=24.0.0",
     "pnpm": ">=10.28.0"
+  },
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec vitest run --project \"!fixtures\"",
+          "cwd": "apps/emdash-desktop"
+        }
+      },
+      "test-migrations": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build"
+        ],
+        "cache": false,
+        "options": {
+          "command": "pnpm exec vitest run --project migrations",
+          "cwd": "apps/emdash-desktop"
+        }
+      },
+      "test-workspace-server-remote": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build"
+        ],
+        "cache": false,
+        "options": {
+          "command": "pnpm exec vitest run --project node src/main/gateway/workspace-server.remote.test.ts",
+          "cwd": "apps/emdash-desktop",
+          "env": {
+            "EMDASH_TEST_REMOTE_WSS": "1"
+          }
+        }
+      }
+    }
   }
 }

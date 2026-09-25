@@ -1,5 +1,6 @@
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { conversationAttachmentsContract } from '#services/attachments/api';
 import {
   conversationMutationErrorSchema,
   createConversationErrorSchema,
@@ -48,6 +49,7 @@ const conversationReportsSubContract = defineContract({
  * client-facing feeder of the sole-writer index component (conv.sole-writer).
  */
 export const conversationsContract = defineContract({
+  attachments: conversationAttachmentsContract.attachments,
   records: liveModel({
     key: z.void().optional(),
     states: {

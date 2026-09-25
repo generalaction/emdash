@@ -12,10 +12,7 @@ import type {
   ConversationIndexContract,
   CreateConversationIndexRecordInput,
 } from '#services/conversation-index/api';
-import type {
-  AcpSessionLaunchContract,
-  TuiSessionStartContract,
-} from '#services/session-start/api';
+import type { AcpSessionStartContract, TuiSessionStartContract } from '#services/session-start/api';
 import type { AutomationAgentConfig } from '../../api/deployment';
 import type { AutomationPortError } from './port-error';
 
@@ -35,7 +32,7 @@ export interface AutomationSessionPort {
 
 export function createSessionPortFromDependencies(dependencies: {
   workspaceRegistry: ContractClient<WorkspaceRegistryContract>;
-  acp: ContractClient<AcpSessionLaunchContract>;
+  acp: ContractClient<AcpSessionStartContract>;
   tui: ContractClient<TuiSessionStartContract>;
   conversationIndex: ContractClient<ConversationIndexContract>;
 }): AutomationSessionPort {
@@ -84,11 +81,12 @@ export function createSessionPortFromDependencies(dependencies: {
           });
         }
         if (input.agent.type === 'acp') {
-          const result = await dependencies.acp.launch(
+          const result = await dependencies.acp.startSession(
             {
               conversationId: input.conversationId,
               cwd,
               sessionId: null,
+              mode: 'fresh',
               ...input.agent.start,
             },
             { signal: input.signal }
@@ -98,7 +96,7 @@ export function createSessionPortFromDependencies(dependencies: {
             : err({ code: result.error.type, message: result.error.message });
         }
 
-        const result = await dependencies.tui.start(
+        const result = await dependencies.tui.startSession(
           {
             conversationId: input.conversationId,
             cwd,

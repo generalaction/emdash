@@ -37,10 +37,9 @@ describe('buildTerminalEnv git credentials', () => {
     });
     expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('51234');
     expect(env.EMDASH_GIT_CREDENTIAL_NONCE).toBe('session-nonce');
-    expect(env.GIT_CONFIG_COUNT).toBe('2');
-    expect(env.GIT_CONFIG_KEY_0).toBe('credential.https://github.com.helper');
-    expect(env.GIT_CONFIG_VALUE_0).toBe('');
-    expect(env.GIT_CONFIG_VALUE_1).toBe(GIT_CREDENTIAL_HELPER_COMMAND);
+    expect(env.GIT_CONFIG_COUNT).toBeUndefined();
+    expect(env.GIT_CONFIG_PARAMETERS).toContain("'credential.https://github.com.helper'=''");
+    expect(env.GIT_CONFIG_PARAMETERS).toContain(GIT_CREDENTIAL_HELPER_COMMAND);
   });
 
   it('none scrubs credential helpers even when overrides set them', () => {
@@ -51,9 +50,8 @@ describe('buildTerminalEnv git credentials', () => {
     });
     expect(env.GIT_ASKPASS).toBe('');
     expect(env.SSH_ASKPASS).toBe('');
-    expect(env.GIT_CONFIG_COUNT).toBe('1');
-    expect(env.GIT_CONFIG_KEY_0).toBe('credential.helper');
-    expect(env.GIT_CONFIG_VALUE_0).toBe('');
+    expect(env.GIT_CONFIG_COUNT).toBeUndefined();
+    expect(env.GIT_CONFIG_PARAMETERS).toBe("'credential.helper'=''");
   });
 
   it('system and absent leave credential-related env untouched', () => {

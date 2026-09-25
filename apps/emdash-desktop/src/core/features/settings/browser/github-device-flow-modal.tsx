@@ -2,7 +2,6 @@ import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getGithubClient } from '@core/features/github/api/browser/client';
-import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import type { GitHubUser } from '@core/primitives/github/api';
@@ -17,7 +16,10 @@ export type GithubDeviceFlowModalArgs = {
 export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
   const modal = useModalController('githubDeviceFlowModal');
   const { toast } = useToast();
-  const { cancelGithubConnect } = useGithubContext();
+  const cancelGithubConnect = useCallback(() => {
+    void getGithubClient().then((client) => client.authCancel(undefined));
+    toast('GitHub connection unsuccessful', { description: 'Device flow was canceled' });
+  }, [toast]);
 
   // Presentational state - updated via IPC events from main process
   const [userCode, setUserCode] = useState<string>('');

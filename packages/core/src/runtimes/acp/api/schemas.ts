@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
 import { permissionDecisionSchema } from '#runtimes/acp/api/models/permissions';
 import { promptInputSchema, queuedPromptSchema } from '#runtimes/acp/api/models/prompt';
 import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
+import { transcriptPositionSchema, transcriptCoverageSchema } from './models/transcript';
 
 export const acpStartInputSchema = z.object({
   conversationId: z.string(),
@@ -17,6 +17,9 @@ export const acpStartInputSchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
+
+export const acpSessionStartModeSchema = z.enum(['resume', 'fresh']);
+export type AcpSessionStartMode = z.infer<typeof acpSessionStartModeSchema>;
 
 export const sendPromptResponseSchema = z.object({ queued: z.boolean() });
 
@@ -56,21 +59,6 @@ export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 
-export const uploadAttachmentCommandSchema = z.object({
-  /** Attachments belong to their conversation (spec §3.6); a conversation exists at upload time. */
-  conversationId: z.string(),
-});
-export const uploadAttachmentResponseSchema = attachmentRefSchema;
-export const attachmentKeySchema = z.object({
-  conversationId: z.string(),
-  attachmentId: z.string(),
-});
-export const downloadAttachmentCommandSchema = attachmentKeySchema;
-export const deleteAttachmentCommandSchema = attachmentKeySchema;
-export const purgeConversationDataCommandSchema = z.object({
-  conversationId: z.string(),
-});
-
 export const historyPageInputSchema = z.object({
   conversationId: z.string(),
   before: z.number().int().optional(),
@@ -80,16 +68,15 @@ export const historyPageInputSchema = z.object({
 export const historyPageSchema = z.object({
   turns: z.array(transcriptTurnSchema),
   nextCursor: z.number().int().nullable(),
+  /** Absent only when unavailable or when talking to an older runtime. */
+  position: transcriptPositionSchema.optional(),
+  coverage: transcriptCoverageSchema.optional(),
   /** History is activation-local and currently unavailable while the session is suspended. */
   unavailable: z.literal(true).optional(),
 });
 export type HistoryPage = z.infer<typeof historyPageSchema>;
 
-export const loadHistoryResultSchema = historyPageSchema.extend({
-  clearedConfiguration: z
-    .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
-    .optional(),
-});
+export const loadHistoryResultSchema = historyPageSchema;
 export type LoadHistoryResult = z.infer<typeof loadHistoryResultSchema>;
 
 export { queuedPromptSchema };

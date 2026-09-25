@@ -42,8 +42,7 @@ describe('ChildAcpProcessHost', () => {
     const host = windowsHost(shim);
 
     await host.spawnTerminal({
-      command: 'provider.cmd',
-      args: ['run'],
+      command: { kind: 'argv', command: 'provider.cmd', args: ['run'] },
       cwd: 'C:\\workspace',
       env: windowsEnv(),
     });
@@ -67,7 +66,10 @@ describe('ChildAcpProcessHost', () => {
     };
 
     const primary = await host.spawn(spec);
-    const terminal = await host.spawnTerminal(spec);
+    const terminal = await host.spawnTerminal({
+      ...spec,
+      command: { kind: 'argv', command: spec.command, args: spec.args },
+    });
     await Promise.all([primary.kill(), terminal.kill()]);
 
     expect(execFileMock).toHaveBeenCalledTimes(2);
@@ -78,6 +80,52 @@ describe('ChildAcpProcessHost', () => {
     }
     expect(spawnMock.mock.results[0]?.value.kill).toHaveBeenCalledWith('SIGTERM');
     expect(spawnMock.mock.results[1]?.value.kill).toHaveBeenCalledWith('SIGTERM');
+  });
+
+  it('plans explicit Windows scripts through cmd without modifying the script', async () => {
+    const commandLine = '"C:\\Program Files\\tool.exe" && echo done > result';
+    await new ChildAcpProcessHost({ platform: 'win32' }).spawnTerminal({
+      command: { kind: 'shell-line', commandLine },
+      cwd: 'C:\\workspace',
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+    });
+    expect(spawnMock).toHaveBeenCalledWith(
+      'C:\\Windows\\System32\\cmd.exe',
+      [`/d /s /c "${commandLine}"`],
+      expect.objectContaining({ windowsVerbatimArguments: true })
+    );
+  });
+
+  it('retains process errors until the terminal owner subscribes', async () => {
+    const terminal = await new ChildAcpProcessHost().spawnTerminal({
+      command: { kind: 'argv', command: 'node', args: [] },
+      cwd: '/tmp',
+      env: {},
+    });
+    const child = spawnMock.mock.results[0]!.value;
+    const error = new Error('terminal failed');
+    expect(() => child.emit('error', error)).not.toThrow();
+    const onError = vi.fn();
+    terminal.onError(onError);
+    expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  it('waits for stdio closure and retains completion for late subscribers', async () => {
+    const terminal = await new ChildAcpProcessHost().spawnTerminal({
+      command: { kind: 'argv', command: 'node', args: [] },
+      cwd: '/tmp',
+      env: {},
+    });
+    const child = spawnMock.mock.results[0]!.value;
+    const onExit = vi.fn();
+    terminal.onExit(onExit);
+    child.emit('exit', 0, null);
+    expect(onExit).not.toHaveBeenCalled();
+    child.emit('close', 0, null);
+    expect(onExit).toHaveBeenCalledExactlyOnceWith({ exitCode: 0, signal: null });
+    const late = vi.fn();
+    terminal.onExit(late);
+    expect(late).toHaveBeenCalledExactlyOnceWith({ exitCode: 0, signal: null });
   });
 });
 
@@ -111,5 +159,6 @@ function fakeChild() {
     child.emit('exit', null, child.signalCode);
     return true;
   });
+  queueMicrotask(() => child.emit('spawn'));
   return child;
 }

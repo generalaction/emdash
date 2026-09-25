@@ -1,16 +1,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { IntegrationListItem } from '@core/features/integrations/api';
 import { getIntegrationsClient } from '@core/features/integrations/api/browser/client';
+import {
+  invalidateProviderAccountState,
+  ISSUE_CONNECTION_STATUS_QUERY_KEY,
+  useAccounts,
+} from '@core/features/integrations/api/browser/use-provider-accounts';
+import type { IntegrationProviderDescriptor } from '@core/features/integrations/api/contract';
 import type { IntegrationFormInput } from '@core/features/integrations/browser/types';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
 import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
+import type { ProviderAccountsByProvider } from '@core/primitives/provider-accounts/api';
 
-export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
-export const INTEGRATIONS_LIST_QUERY_KEY = ['integrations:list'] as const;
-
-export type IntegrationMetadata = IntegrationListItem;
+export const INTEGRATION_PROVIDERS_QUERY_KEY = ['integrations:listProviders'] as const;
 
 type ConnectionStatusByIntegration = Partial<Record<string, ConnectionStatus>>;
 
@@ -18,31 +21,42 @@ type ConnectionMutationResult = { success: true } | { success: false; error: str
 type RawConnectionMutationResult = { success: boolean; error?: string };
 
 type IntegrationsContextValue = {
-  integrations: IntegrationMetadata[];
-  integrationById: Partial<Record<string, IntegrationMetadata>>;
+  integrations: IntegrationProviderDescriptor[];
+  integrationById: Partial<Record<string, IntegrationProviderDescriptor>>;
   connectionStatus: ConnectionStatusByIntegration;
-  configuredConnections: Partial<Record<string, boolean>>;
-  isCheckingConfiguredConnections: boolean;
+  /** Connected accounts per integration, including GitHub. */
+  integrationAccounts: ProviderAccountsByProvider;
+  isLoadingAccounts: boolean;
+  accountsError: Error | null;
   isCheckingConnections: boolean;
   connectIntegration: (
     integrationId: string,
-    input: IntegrationFormInput
+    input: IntegrationFormInput,
+    options?: { accountId?: string; displayName?: string }
   ) => Promise<ConnectionMutationResult>;
-  disconnectIntegration: (integrationId: string) => Promise<ConnectionMutationResult>;
+  /** Remove one saved account. */
+  disconnectIntegration: (
+    integrationId: string,
+    accountId: string
+  ) => Promise<ConnectionMutationResult>;
+  setDefaultIntegrationAccount: (
+    integrationId: string,
+    accountId: string
+  ) => Promise<ConnectionMutationResult>;
   isIntegrationMutating: (integrationId: string) => boolean;
 };
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
 
 function defaultConnectionStatuses(
-  integrations: IntegrationMetadata[]
+  integrations: IntegrationProviderDescriptor[]
 ): ConnectionStatusByIntegration {
   return Object.fromEntries(
     integrations
       .filter((integration) => integration.features.includes('issues'))
       .map((integration) => [
         integration.id,
-        { connected: false, capabilities: integration.capabilities },
+        { connected: false, capabilities: integration.issueCapabilities },
       ])
   );
 }
@@ -54,8 +68,8 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   );
 
   const { data: integrations = [] } = useQuery({
-    queryKey: INTEGRATIONS_LIST_QUERY_KEY,
-    queryFn: async () => (await getIntegrationsClient()).list(undefined),
+    queryKey: INTEGRATION_PROVIDERS_QUERY_KEY,
+    queryFn: async () => (await getIntegrationsClient()).listProviders(undefined),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
@@ -71,17 +85,16 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     refetchOnWindowFocus: true,
   });
 
-  const { data: configuredConnections = {}, isFetching: isCheckingConfiguredConnections } =
-    useQuery({
-      queryKey: [...ISSUE_CONNECTION_STATUS_QUERY_KEY, 'configured'],
-      queryFn: async () => (await getIssuesClient()).checkConfiguredConnections(undefined),
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
-    });
+  const {
+    data: integrationAccounts = {},
+    isPending: isLoadingAccounts,
+    error: accountsError,
+  } = useAccounts();
 
-  const invalidateStatuses = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
-  }, [queryClient]);
+  const invalidateStatuses = useCallback(
+    () => invalidateProviderAccountState(queryClient),
+    [queryClient]
+  );
 
   const setIntegrationMutating = useCallback((integrationId: string, isMutating: boolean) => {
     setMutatingIntegrationIds((current) => {
@@ -111,20 +124,27 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         }
         return { success: true };
       } finally {
-        setIntegrationMutating(integrationId, false);
-        invalidateStatuses();
+        try {
+          await invalidateStatuses();
+        } finally {
+          setIntegrationMutating(integrationId, false);
+        }
       }
     },
     [invalidateStatuses, setIntegrationMutating]
   );
 
   const connectIntegration = useCallback(
-    async (integrationId: string, input: IntegrationFormInput) =>
+    async (
+      integrationId: string,
+      input: IntegrationFormInput,
+      options?: { accountId?: string; displayName?: string }
+    ) =>
       runConnectionMutation(
         integrationId,
         () =>
           getIntegrationsClient().then((client) =>
-            client.connect({ integrationId, credentials: input })
+            client.connect({ integrationId, credentials: input, ...options })
           ),
         'Failed to connect.'
       ),
@@ -132,11 +152,25 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   );
 
   const disconnectIntegration = useCallback(
-    async (integrationId: string) =>
+    async (integrationId: string, accountId: string) =>
       runConnectionMutation(
         integrationId,
-        () => getIntegrationsClient().then((client) => client.disconnect({ integrationId })),
+        () =>
+          getIntegrationsClient().then((client) => client.disconnect({ integrationId, accountId })),
         'Failed to disconnect.'
+      ),
+    [runConnectionMutation]
+  );
+
+  const setDefaultIntegrationAccount = useCallback(
+    async (integrationId: string, accountId: string) =>
+      runConnectionMutation(
+        integrationId,
+        () =>
+          getIntegrationsClient().then((client) =>
+            client.setDefaultAccount({ integrationId, accountId })
+          ),
+        'Failed to update the default account.'
       ),
     [runConnectionMutation]
   );
@@ -153,7 +187,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   const integrationById = useMemo(
     () =>
       Object.fromEntries(
-        integrations.map((integration: IntegrationMetadata) => [integration.id, integration])
+        integrations.map((integration: IntegrationProviderDescriptor) => [
+          integration.id,
+          integration,
+        ])
       ),
     [integrations]
   );
@@ -164,11 +201,13 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         integrations,
         integrationById,
         connectionStatus,
-        configuredConnections,
-        isCheckingConfiguredConnections,
+        integrationAccounts,
+        isLoadingAccounts,
+        accountsError,
         isCheckingConnections,
         connectIntegration,
         disconnectIntegration,
+        setDefaultIntegrationAccount,
         isIntegrationMutating,
       }}
     >

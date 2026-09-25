@@ -10,6 +10,7 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { RefFollowScheduler } from './ref-follow';
 
 // The autonomous ref-follow pass (pr-workspace-model spec, Staleness — ref follow):
@@ -66,6 +67,7 @@ describe('workspace registry ref-follow pass', () => {
     handle = await workspaceRegistryStore.openTemp();
     sessionCount = 0;
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock: new ManualClock(10_000),
       countSessions: async () => sessionCount,

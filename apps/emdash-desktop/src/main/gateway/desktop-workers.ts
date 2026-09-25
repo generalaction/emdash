@@ -66,8 +66,8 @@ import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { app } from 'electron';
 import { createAutomationCreationAdmissionController } from '@core/features/automations/node/creation-admission';
 import { automationRuntimePaths } from '@core/features/automations/node/runtime-paths';
-import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
-import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services/github-api-base-url';
+import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
+import { getIntegrationAccountStore } from '@core/features/integrations/node/integration-account-store-instance';
 import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import { mementosWireContract, type MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
@@ -135,6 +135,7 @@ export type WorkerStatusSource = {
 
 export type DesktopRuntimeWorkers = {
   readonly acp: WorkerStatusSource;
+  readonly pullRequests: WorkerStatusSource;
   readonly tuiAgents: WorkerStatusSource;
 };
 
@@ -241,6 +242,7 @@ function startDesktopWorkersWithHost(
       executable: desktopWorkerPath('conversations'),
       env: process.env,
       databasePath: join(app.getPath('userData'), 'conversations.db'),
+      attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
     })
   );
   const conversationsReady = timedReady('conversations', conversationsWorker.ready());
@@ -254,9 +256,9 @@ function startDesktopWorkersWithHost(
         dependencies: {
           hostDependencies: hostDependencies.client.resolver,
           conversations,
+          attachments: conversations,
           userEnv: userShellEnv,
         },
-        attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
         intentsFilePath: sessionIntentFilePaths().acp,
       })
     );
@@ -292,8 +294,13 @@ function startDesktopWorkersWithHost(
       // Identity is resolved per request through the seam bound during services
       // boot (spec: github-git-settings §8); until then requests fail closed.
       githubAuth: createPullRequestsGitHubAuthController(
-        new GitHubApiAuthService(providerAccountRegistry),
-        githubApiBaseUrlForHost,
+        createGitHubCredentialReader(
+          {
+            getAccount: (providerId, accountId) =>
+              getIntegrationAccountStore().getAccount(providerId, accountId),
+          },
+          providerAccountRegistry
+        ),
         resolvePullRequestSyncIdentity
       ),
     },
@@ -439,6 +446,7 @@ function startDesktopWorkersWithHost(
             userEnv: userShellEnv,
           },
           databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+          attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
           watchIgnore: filesSettings.watcherExclude,
         })
       );
@@ -462,7 +470,7 @@ function startDesktopWorkersWithHost(
               // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
               // live in the app db, so the main process answers for the worker.
               creationAdmission: createAutomationCreationAdmissionController(getAppDb),
-              acpLauncher: acp,
+              acpSessions: acp,
               tuiSessions: tuiAgents.client,
               conversationIndex: conversationsClient,
             },
@@ -518,6 +526,7 @@ function startDesktopWorkersWithHost(
     },
     workers: {
       acp: deferredWorkerStatus(acpStart.then((result) => result.worker)),
+      pullRequests: pullRequestsWorker,
       tuiAgents: deferredWorkerStatus(tuiAgentsReady.then((result) => result.worker)),
     },
     runtimeReady: () => runtimeReady,

@@ -70,6 +70,7 @@ it.each([
   const contract = defineContract({
     acp: defineContract({
       attach: conversationsContract.acp.attach,
+      startSession: conversationsContract.acp.startSession,
       session: conversationsContract.acp.session,
       sendPrompt: conversationsContract.acp.sendPrompt,
       loadHistory: conversationsContract.acp.loadHistory,
@@ -87,7 +88,7 @@ it.each([
   });
   let history: HistoryPage = { turns: [], nextCursor: null };
   let acceptedPromptId = '';
-  const attach = vi.fn(async () => ok(undefined));
+  const attach = vi.fn(async () => ok({ sessionId: 'session-1' }));
   const loadHistory = vi.fn(async () => ok(history));
   const sendPrompt = vi.fn(async ({ promptId }: { promptId: string }) => {
     acceptedPromptId = promptId;
@@ -97,7 +98,13 @@ it.each([
     createController(
       contract,
       {
-        acp: { attach, session, loadHistory, sendPrompt },
+        acp: {
+          attach,
+          startSession: async () => ok({ sessionId: 'session-1' }),
+          session,
+          loadHistory,
+          sendPrompt,
+        },
       },
       { validate: 'full' }
     )
@@ -129,7 +136,7 @@ it.each([
     expect(store.loadError).toBeNull();
     const live = store.session!;
     const revalidate = vi.spyOn(live, 'revalidate');
-    const seed = vi.spyOn(store.chatState.transcript.history, 'seed');
+    const seed = vi.spyOn(store.chatState.transcript.history, 'replace');
     const send = vi.spyOn(live, 'sendPrompt');
     store.submitPrompt('continue');
     await vi.waitFor(() => expect(send).toHaveResolvedWith(ok({ queued: false })));
@@ -249,7 +256,9 @@ it.each([
         historyGate.resolve();
         await vi.waitFor(() => expect(loadHistory).toHaveResolvedTimes(2));
         expect(store.chatState.transcript.state.activeTurnSnapshot?.id).toBe('next-turn');
-        expect(store.chatState.transcript.state.committedTurns).toEqual([]);
+        await vi.waitFor(() =>
+          expect(store.chatState.transcript.state.committedTurns).toEqual([completed])
+        );
         history = { turns: [completed, nextTurn], nextCursor: null };
         activeTurn.set(null);
         flushStateTurn();

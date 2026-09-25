@@ -195,14 +195,14 @@ describe('TerminalsRuntime', () => {
     });
     await waitFor(() => spawner.processes.length === 1);
 
-    spawner.processes[0]!.emitData('ready at http://localhost:5173/app\n');
+    spawner.processes[0]!.emitData('ready at http://[::1]:5173/app\n');
 
     await waitFor(async () => Object.keys(await devServers(runtime)).length === 1);
     expect(await devServers(runtime)).toEqual({
       [`${workspaceKey(workspace)}:terminal-1:http::5173`]: {
         key: { workspace, id: 'terminal-1' },
         protocol: 'http:',
-        host: 'localhost',
+        host: '::1',
         port: 5173,
         urlPath: '/app',
         detectedAt: 1000,
@@ -528,6 +528,34 @@ describe('TerminalsRuntime', () => {
 
     expect(result).toEqual({ success: true, data: undefined });
     await scope.dispose();
+  });
+
+  it.each([false, true])('answers terminal probes on the host only with tmux=%s', async (tmux) => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals-probe-replies' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      exec: fakeExec(),
+      scope,
+    });
+    const key = { workspace: testWorkspace(), id: 'terminal-1' };
+    const replies = '\x1b[?1;2c\x1b[>0;276;0c\x1bP>|XTerm(380)\x1b\\';
+    try {
+      await runtime.start({ key, spec: { cwd: '/repo', env: {}, tmux } });
+      spawner.processes[0]!.emitData('\x1b[c\x1b[>c');
+      runtime.sendInput(key, replies.repeat(4));
+      runtime.sendInput(key, 'echo hello\r');
+      runtime.sendInput(key, '\x1b[6;10R');
+      expect(spawner.processes[0]!.writes).toEqual([
+        ...(tmux && process.platform !== 'win32' ? ['\x1b[?1;2c', '\x1b[>0;276;0c'] : []),
+        replies.repeat(4),
+        'echo hello\r',
+        '\x1b[6;10R',
+      ]);
+    } finally {
+      await scope.dispose();
+    }
   });
 
   it('starts tmux terminals with a readable name and stable identity metadata', async () => {

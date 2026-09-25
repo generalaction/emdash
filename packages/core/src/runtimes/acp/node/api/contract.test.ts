@@ -4,7 +4,6 @@ import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
-  acpAttachmentErrorSchema,
   acpTerminateErrorSchema,
   acpRuntimeErrorSchema,
   historyPageSchema,
@@ -12,7 +11,6 @@ import {
   sessionStateSchema,
   sessionUsageSchema,
   transcriptTurnSchema,
-  uploadAttachmentCommandSchema,
 } from '#runtimes/acp/api';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
@@ -22,7 +20,10 @@ describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    const started = await rt.launchSession(makeStartInput({ conversationId: 'conv-contract' }));
+    const started = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-contract' }),
+      'resume'
+    );
     expect(isOk(started)).toBe(true);
 
     const live = rt.sessionLiveModels('conv-contract');
@@ -47,7 +48,7 @@ describe('ACP API contract schemas', () => {
     try {
       await summaries.states.list.refresh();
       const input = makeStartInput({ conversationId: 'conv-wire' });
-      const started = await contractClient.launch(input);
+      const started = await contractClient.startSession({ ...input, mode: 'resume' });
       expect(started).toEqual({ success: true, data: { sessionId: 'session-1' } });
 
       await vi.waitFor(() => {
@@ -67,17 +68,18 @@ describe('ACP API contract schemas', () => {
     }
   });
 
-  it('loads history through activation and keeps dormant settings non-waking', async () => {
+  it('starts explicitly before loading history and keeps dormant settings non-waking', async () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     const rt = new AcpRuntime(h.deps);
     const wire = createTestWire(acpApiContract, createAcpController(rt));
     const input = makeStartInput({ conversationId: 'conv-wire-suspended' });
 
     try {
-      await wire.client.launch(input);
+      await wire.client.startSession({ ...input, mode: 'resume' });
       await rt.stopSession(input.conversationId);
       h.agent.loadSession.mockClear();
       h.agent.newSession.mockClear();
+      await wire.client.startSession({ ...input, mode: 'resume' });
 
       await expect(
         wire.client.loadHistory({
@@ -94,7 +96,6 @@ describe('ACP API contract schemas', () => {
       await rt.stopSession(input.conversationId);
 
       h.agent.loadSession.mockRejectedValue(new Error('replay failed'));
-      h.agent.newSession.mockRejectedValue(new Error('replacement failed'));
 
       await expect(
         wire.client.sendPrompt({
@@ -105,10 +106,11 @@ describe('ACP API contract schemas', () => {
       ).resolves.toMatchObject({
         success: false,
         error: {
-          type: 'new_session_failed',
-          cause: { name: 'Error', message: 'replacement failed' },
+          type: 'invalid_state',
+          message: expect.stringContaining('saved session has been preserved'),
         },
       });
+      expect(h.agent.newSession).not.toHaveBeenCalled();
       h.agent.loadSession.mockClear();
       h.agent.newSession.mockClear();
       await expect(
@@ -132,12 +134,35 @@ describe('ACP API contract schemas', () => {
     }
   });
 
-  it('scopes attachment upload sidecar input to the owning conversation', () => {
-    expect(uploadAttachmentCommandSchema.parse({ conversationId: 'conv-1' })).toEqual({
-      conversationId: 'conv-1',
-    });
-    // Attachments are conversation-scoped (spec §3.6): the owning conversation is required.
-    expect(() => uploadAttachmentCommandSchema.parse({})).toThrow();
+  it('returns a missing saved session error over the wire', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const input = makeStartInput({ conversationId: 'conv-missing-wire', sessionId: 'missing' });
+    h.agent.loadSession.mockRejectedValueOnce(
+      Object.assign(new Error('Resource not found: missing'), {
+        code: -32002,
+        data: { uri: 'missing' },
+      })
+    );
+    try {
+      await wire.client.attach(input);
+      await expect(wire.client.startSession({ ...input, mode: 'resume' })).resolves.toMatchObject({
+        success: false,
+        error: { type: 'session_not_found' },
+      });
+      expect(await wire.client.startSession({ ...input, mode: 'fresh' })).toMatchObject({
+        success: true,
+      });
+      expect(
+        await wire.client.loadHistory({ conversationId: input.conversationId, limit: 50 })
+      ).toMatchObject({ success: true, data: { turns: [] } });
+      expect(h.agent.loadSession).toHaveBeenCalledOnce();
+      expect(h.agent.newSession).toHaveBeenCalledOnce();
+    } finally {
+      wire.dispose();
+      await rt.dispose();
+    }
   });
 
   it('accepts auth_required runtime errors', () => {
@@ -155,15 +180,6 @@ describe('ACP API contract schemas', () => {
         type: 'intent_persistence_failed',
         message: 'Failed to remove the durable session intent for conv-1',
         cause: { name: 'SessionIntentError', message: 'disk full' },
-      })
-    ).not.toThrow();
-  });
-
-  it('accepts typed attachment-not-found errors', () => {
-    expect(() =>
-      acpAttachmentErrorSchema.parse({
-        type: 'attachment_not_found',
-        message: "Attachment 'missing' not found",
       })
     ).not.toThrow();
   });

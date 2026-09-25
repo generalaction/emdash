@@ -3,6 +3,7 @@ import type { Agent } from '@agentclientprotocol/sdk';
 import type { AcpClientFactory } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { pluginRegistry } from '../../registry';
+import { enrichCodexUpdate } from './acp-enrich';
 
 describe('codex acp capability', () => {
   it('declares acp: { kind: supported }', () => {
@@ -18,6 +19,30 @@ describe('codex acp behavior', () => {
 
   it('behavior.acp is defined', () => {
     expect(acpBehavior()).toBeDefined();
+  });
+
+  it('registers startup diagnostic enrichment only for Codex', () => {
+    expect(acpBehavior().enrich).toBe(enrichCodexUpdate);
+    expect(pluginRegistry.get('claude')!.behavior.acp!.enrich).not.toBe(enrichCodexUpdate);
+  });
+
+  it('recognizes the captured missing-rollout error only for the requested session', () => {
+    const missing = {
+      code: -32603,
+      message: 'Internal error',
+      data: { details: 'no rollout found for thread id saved' },
+    };
+    expect(acpBehavior().isSessionNotFound?.(missing, 'saved')).toBe(true);
+    expect(acpBehavior().isSessionNotFound?.(missing, 'another-session')).toBe(false);
+    expect(
+      acpBehavior().isSessionNotFound?.(
+        { ...missing, data: { details: 'permission denied' } },
+        'saved'
+      )
+    ).toBe(false);
+    expect(
+      acpBehavior().isSessionNotFound?.({ code: -32603, message: 'Internal error' }, 'saved')
+    ).toBe(false);
   });
 
   describe('buildSpawn', () => {

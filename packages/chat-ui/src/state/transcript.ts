@@ -1,3 +1,4 @@
+import type { HistoryPage, TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
 import { batch, createSignal } from 'solid-js';
 import { createStore, reconcile, unwrap } from 'solid-js/store';
 import type { ChatItem, TranscriptTurn } from '@/model';
@@ -13,6 +14,8 @@ export type TurnStatus = 'generating' | 'cancelled' | 'done';
 
 export type TranscriptState = {
   readonly committedTurns: readonly TranscriptTurn[];
+  /** History plus observed outgoing turns awaiting authoritative history. */
+  readonly displayTurns: readonly TranscriptTurn[];
   readonly activeTurnSnapshot: TranscriptTurn | null;
   readonly turnStatus: TurnStatus;
 };
@@ -27,6 +30,8 @@ export type ChatHistory = {
    * Rebuilds the id map. Prefer for initial load / session replay.
    */
   seed(turns: readonly TranscriptTurn[]): void;
+  /** Replace history, preserving the live turn unless that same turn is now committed. */
+  replace(turns: readonly TranscriptTurn[]): void;
   /**
    * Prepend older turns before the current committed history (pagination).
    * Stable object references required — identity-keyed caches key by ref.
@@ -68,6 +73,11 @@ export type ActiveTurn = {
 export type TranscriptApi = {
   /** Imperative history write surface (seed / prepend / append). */
   history: ChatHistory;
+  /** Apply a coherent live snapshot. Returns whether history needs catching up. */
+  observe(snapshot: TranscriptSnapshot): boolean;
+  /** Merge only the page's authoritative range; reject obsolete responses. */
+  applyPage(page: HistoryPage): boolean;
+  readonly needsHistory: boolean;
   /** Controlled active-turn write surface (set / commit). */
   activeTurn: ActiveTurn;
   /** Reactive read facade — consumed by ChatRoot and helpers. */
@@ -125,6 +135,27 @@ export function createTranscript(): TranscriptApi {
   // with zero store-proxy overhead on the hot measure/render path.
   const [committed, setCommitted] = createSignal<readonly TranscriptTurn[]>([]);
 
+  const [retained, setRetained] = createSignal<readonly TranscriptTurn[]>([]);
+  let displayedHistory: readonly TranscriptTurn[] | undefined;
+  let displayedRetained: readonly TranscriptTurn[] | undefined;
+  let displayed: readonly TranscriptTurn[] = [];
+  const display = () => {
+    const history = committed();
+    const outgoing = retained();
+    if (displayedHistory !== history || displayedRetained !== outgoing) {
+      const pending = outgoing.filter((turn) => !history.some((entry) => entry.id === turn.id));
+      displayed = pending.length ? [...history, ...pending].sort((a, b) => a.seq - b.seq) : history;
+      displayedHistory = history;
+      displayedRetained = outgoing;
+    }
+    return displayed;
+  };
+  let head: TranscriptSnapshot | undefined;
+  let historyGeneration: string | undefined;
+  let displayGeneration: string | undefined;
+  let appliedRevision = -1;
+  const retiredGenerations = new Set<string>();
+
   // activeTurn + turnStatus mutate in place during streaming; fine-grained
   // store tracking is warranted here.
   const [live, setLive] = createStore<{
@@ -142,6 +173,9 @@ export function createTranscript(): TranscriptApi {
     get committedTurns() {
       return committed();
     },
+    get displayTurns() {
+      return display();
+    },
     get activeTurnSnapshot() {
       return live.activeTurn;
     },
@@ -152,10 +186,13 @@ export function createTranscript(): TranscriptApi {
 
   // item id → committed item map; rebuilt on history mutations.
   const itemMap = new Map<string, ChatItem>();
+  const committedIds = new Set<string>();
 
   const rebuildItemMap = (turns: readonly TranscriptTurn[]): void => {
     itemMap.clear();
+    committedIds.clear();
     for (const turn of turns) {
+      committedIds.add(turn.id);
       assertOrderedItems(turn);
       for (const item of turn.items) {
         if (import.meta.env.DEV && itemMap.has(item.id)) {
@@ -181,9 +218,24 @@ export function createTranscript(): TranscriptApi {
       assertOrderedTurns(turns, 'history.seed');
       batch(() => {
         setCommitted(turns);
+        setRetained([]);
         setLive({ activeTurn: null, turnStatus: 'done' });
       });
       rebuildItemMap(turns);
+    },
+
+    replace(turns) {
+      assertOrderedTurns(turns, 'history.replace');
+      rebuildItemMap(turns);
+      batch(() => {
+        setCommitted(turns);
+        setRetained((previous) =>
+          previous.filter((entry) => !turns.some((turn) => turn.id === entry.id))
+        );
+        if (live.activeTurn && turns.some((turn) => turn.id === live.activeTurn?.id)) {
+          setLive({ activeTurn: null, turnStatus: 'done' });
+        }
+      });
     },
 
     prepend(turns) {
@@ -215,13 +267,25 @@ export function createTranscript(): TranscriptApi {
     },
 
     set(turn, status) {
+      // A trailing live delivery cannot resurrect a turn history already acknowledged.
+      if (turn && committedIds.has(turn.id)) return;
       batch(() => {
+        if (live.activeTurn && live.activeTurn.id !== turn?.id) {
+          // Preserve exactly what was observed: settlement and running tool outcomes
+          // are facts only the runtime can supply, not inferred from a handoff.
+          const outgoing = structuredClone(unwrap(live.activeTurn));
+          setRetained((previous) => [
+            ...previous.filter((entry) => entry.id !== outgoing.id),
+            outgoing,
+          ]);
+        }
         if (turn === null) {
           setLive({ activeTurn: null, turnStatus: 'done' });
         } else {
           assertOrderedItems(turn);
           setLive('turnStatus', status ?? 'generating');
-          setLive('activeTurn', reconcile(turn, { key: 'id' }));
+          // Own the mutable Solid store; never reconcile into a source/Wire snapshot.
+          setLive('activeTurn', reconcile(structuredClone(unwrap(turn)), { key: 'id' }));
         }
       });
     },
@@ -245,12 +309,102 @@ export function createTranscript(): TranscriptApi {
 
   return {
     history,
+    observe(snapshot) {
+      if (retiredGenerations.has(snapshot.generation)) return false;
+      if (
+        head?.generation === snapshot.generation &&
+        snapshot.historyRevision < head.historyRevision
+      )
+        return false;
+      const previous = head;
+      if (head && head.generation !== snapshot.generation) retiredGenerations.add(head.generation);
+      head = snapshot;
+      displayGeneration ??= snapshot.generation;
+      // Keep the prior generation visible until replacement history is ready.
+      if (displayGeneration === snapshot.generation) {
+        const turn = snapshot.activeTurn;
+        activeTurnApi.set(
+          turn && turn.seq > (snapshot.lastCommittedTurnSeq ?? -Infinity) ? turn : null
+        );
+      }
+      return (
+        previous !== undefined &&
+        (previous.generation !== snapshot.generation ||
+          previous.historyRevision !== snapshot.historyRevision)
+      );
+    },
+    applyPage(page) {
+      if (page.unavailable) return false;
+      const position = page.position;
+      if (!position) {
+        if (head || historyGeneration) return false;
+        history.replace(page.turns);
+        return true;
+      }
+      if (
+        !page.coverage ||
+        retiredGenerations.has(position.generation) ||
+        (head && position.generation !== head.generation)
+      )
+        return false;
+      const newGeneration = historyGeneration !== position.generation;
+      if (!newGeneration && position.historyRevision < appliedRevision) return false;
+      const { fromSeq, beforeSeq } = page.coverage;
+      const covered = (turn: TranscriptTurn) =>
+        (fromSeq === null || turn.seq >= fromSeq) && (beforeSeq === null || turn.seq < beforeSeq);
+      const next = new Map(
+        (newGeneration ? [] : committed())
+          .filter((turn) => !covered(turn))
+          .map((turn) => [turn.id, turn])
+      );
+      for (const turn of page.turns) next.set(turn.id, turn);
+      batch(() => {
+        if (displayGeneration !== undefined && displayGeneration !== position.generation) {
+          retiredGenerations.add(displayGeneration);
+          setRetained([]);
+          setLive({ activeTurn: null, turnStatus: 'done' });
+        } else {
+          setRetained((previous) =>
+            previous.filter(
+              (turn) => !covered(turn) || turn.seq > (position.lastCommittedTurnSeq ?? -Infinity)
+            )
+          );
+        }
+        displayGeneration = position.generation;
+        historyGeneration = position.generation;
+        appliedRevision = position.historyRevision;
+        history.replace([...next.values()].sort((a, b) => a.seq - b.seq));
+        if (head) {
+          const turn = head.activeTurn;
+          activeTurnApi.set(
+            turn &&
+              turn.seq >
+                Math.max(
+                  head.lastCommittedTurnSeq ?? -Infinity,
+                  position.lastCommittedTurnSeq ?? -Infinity
+                )
+              ? turn
+              : null
+          );
+        }
+      });
+      return true;
+    },
+    get needsHistory() {
+      return (
+        !!head && (head.generation !== historyGeneration || head.historyRevision > appliedRevision)
+      );
+    },
     activeTurn: activeTurnApi,
     state,
 
     findItemById(id) {
       const committedItem = itemMap.get(id);
       if (committedItem) return committedItem;
+      const retainedItem = retained()
+        .flatMap((turn) => turn.items)
+        .find((item) => item.id === id);
+      if (retainedItem) return retainedItem;
       const at = live.activeTurn;
       if (at) {
         for (const item of at.items) {
@@ -263,9 +417,16 @@ export function createTranscript(): TranscriptApi {
     reset() {
       batch(() => {
         setCommitted([]);
+        setRetained([]);
+        head = undefined;
+        historyGeneration = undefined;
+        displayGeneration = undefined;
+        appliedRevision = -1;
+        retiredGenerations.clear();
         setLive({ activeTurn: null, turnStatus: 'done' });
       });
       itemMap.clear();
+      committedIds.clear();
     },
   };
 }

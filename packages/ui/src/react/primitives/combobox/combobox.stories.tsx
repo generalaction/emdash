@@ -30,6 +30,27 @@ export const Default: Story = {
     </div>
   ),
 };
+
+export const StandaloneInput: Story = {
+  render: () => (
+    <div className={s.w64}>
+      <Combobox.Root items={FRUITS}>
+        <Combobox.Input appearance="standalone" aria-label="Fruit" placeholder="Search fruits…" />
+        <Combobox.Content>
+          <Combobox.List>
+            {(fruit: string) => (
+              <Combobox.Item key={fruit} value={fruit}>
+                {fruit}
+              </Combobox.Item>
+            )}
+          </Combobox.List>
+          <Combobox.Empty>No fruits found.</Combobox.Empty>
+        </Combobox.Content>
+      </Combobox.Root>
+    </div>
+  ),
+};
+
 export const WithGroups: Story = {
   render: () => (
     <div className={s.w64}>

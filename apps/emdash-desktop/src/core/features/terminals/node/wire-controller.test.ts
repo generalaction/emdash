@@ -1,6 +1,6 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LiveSource } from '@emdash/wire/rpc';
+import type { WireFile, LiveSource } from '@emdash/wire/rpc';
 import { encodeTopic } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
@@ -15,6 +15,7 @@ const identity = {
   path: '/repo/worktree',
 } as const;
 const controllerDeps = {
+  terminalFileSources: { prepare: vi.fn() },
   db: {} as never,
   logger: { warn: vi.fn() } as never,
   projects: { requireAttached: vi.fn(() => ok({} as never)) },
@@ -36,6 +37,68 @@ const controllerDeps = {
 };
 
 describe('createTerminalsWireController', () => {
+  it.each([LOCAL_HOST_REF, hostRef('remote', 'remote-1')])(
+    'routes shell attachments to their workspace host $type',
+    async (host) => {
+      const ref = {
+        id: 'upload-1',
+        name: 'notes.txt',
+        mimeType: 'text/plain',
+        pathStyle: 'posix' as const,
+        targetPath: '/host/attachments/notes.txt',
+      };
+      const upload = vi.fn(async () => ok(ref));
+      const remove = vi.fn(async () => ok(undefined));
+      const client = vi.fn(async () =>
+        ok({ workspaceRegistry: { attachments: { upload, delete: remove } } })
+      );
+      const controller = createTerminalsWireController({
+        ...controllerDeps,
+        runtimes: { client } as unknown as TerminalsRuntimeBroker,
+        workspaceIdentity: { resolve: async () => ({ ...identity, host }) },
+      });
+      const file: WireFile = {
+        name: ref.name,
+        mimeType: ref.mimeType,
+        size: 3,
+        stream: async function* () {
+          yield new Uint8Array([1, 2, 3]);
+        },
+        bytes: async () => new Uint8Array([1, 2, 3]),
+        file: async () => ({
+          name: ref.name,
+          mimeType: ref.mimeType,
+          stream: async function* () {
+            yield new Uint8Array([1, 2, 3]);
+          },
+        }),
+        cancel: vi.fn(),
+      };
+      const abort = new AbortController();
+      await expect(
+        controller.call(
+          'attachments.upload',
+          { workspaceId: identity.workspaceId },
+          { uploadFile: file, signal: abort.signal }
+        )
+      ).resolves.toEqual(ok(ref));
+      expect(client).toHaveBeenCalledWith(host);
+      expect(upload).toHaveBeenCalledWith(
+        { workspaceId: identity.workspaceId },
+        expect.objectContaining({ name: 'notes.txt' }),
+        { signal: abort.signal }
+      );
+      await controller.call('attachments.delete', {
+        workspaceId: identity.workspaceId,
+        attachmentId: ref.id,
+      });
+      expect(remove).toHaveBeenCalledWith(
+        { workspaceId: identity.workspaceId, attachmentId: ref.id },
+        {}
+      );
+    }
+  );
+
   it('translates terminal ids through the resolved client', async () => {
     const sendInput = vi.fn(async () => ok(undefined));
     const client = vi.fn(async () => ok({ terminals: { sendInput } }));

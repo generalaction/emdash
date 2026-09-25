@@ -2,6 +2,7 @@ import type { Readable, Writable } from 'node:stream';
 import type {
   CancelNotification,
   Client,
+  CreateTerminalRequest,
   CloseSessionRequest,
   CloseSessionResponse,
   InitializeRequest,
@@ -20,6 +21,7 @@ import type {
 import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type { EnrichHook } from '#primitives/acp-transcript/api';
+import type { CommandSpec } from '#primitives/exec/api';
 
 export type AcpSpawnContext = {
   /** Absolute path to the worktree / task directory. */
@@ -89,6 +91,12 @@ export interface IAcpBehavior {
    * Omit for standard-ACP passthrough — the core reducer handles baseline decoding.
    */
   enrich?: EnrichHook;
+
+  /** Recognize provider-specific proof that session/load's requested session is missing. */
+  isSessionNotFound?(error: unknown, sessionId: string): boolean;
+
+  /** Adapt provider terminal semantics; omitted means literal executable + argv. */
+  terminalCommand?(request: Pick<CreateTerminalRequest, 'command' | 'args'>): CommandSpec;
 }
 
 /**

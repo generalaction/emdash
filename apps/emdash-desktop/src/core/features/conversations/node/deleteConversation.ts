@@ -8,6 +8,7 @@ import {
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
+import { conversationWireEvents } from './event-host';
 import { removeConversationOrTombstone } from './remove-conversation';
 
 /**
@@ -46,6 +47,7 @@ export async function deleteConversation(
   await removeConversationOrTombstone(db, runtimes, convRow);
 
   conversationEvents._emit('conversation:deleted', conversationId);
+  conversationWireEvents.emit(undefined, { type: 'deleted', conversationId, projectId, taskId });
   appDbPokes.conversations.poke({ projectId, taskId });
   telemetry.capture('conversation_deleted', {
     project_id: projectId,

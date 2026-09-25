@@ -40,7 +40,7 @@
     "build": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/styles.css src/__generated__/shiki-themes.gen.ts && tsdown",
     "build:theme": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/styles.css src/__generated__/shiki-themes.gen.ts",
     "watch:theme": "tsx --watch src/core/codegen/run.ts",
-    "test": "vitest run",
+    "test": "pnpm exec nx test @emdash/theme",
     "lint": "oxlint src",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
@@ -62,9 +62,14 @@
   "nx": {
     "targets": {
       "test": {
+        "executor": "nx:run-commands",
         "dependsOn": [
           "build"
-        ]
+        ],
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/theme"
+        }
       }
     }
   }

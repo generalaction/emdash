@@ -2,18 +2,34 @@ import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 
-const apiBaseUrlForHost = (host: string) =>
-  host === 'github.com' ? 'https://api.github.com' : `https://${host}/api/v3`;
-
 describe('pull requests GitHub auth controller', () => {
-  it('resolves identity per request, then the matching token', async () => {
-    const getToken = vi.fn(async () => ok('secret-token'));
-    const resolveSyncIdentity = vi.fn(async () => ok({ accountId: 'account-1' }));
+  it('uses the selected account’s stored Enterprise endpoint', async () => {
     const controller = createPullRequestsGitHubAuthController(
-      { getToken },
-      apiBaseUrlForHost,
-      resolveSyncIdentity
+      async () =>
+        ok({
+          accessToken: 'enterprise-token',
+          apiBaseUrl: 'https://ghe.example.com/github/api/v3',
+        }),
+      async () => ok({ accountId: 'ghe.example.com:42' })
     );
+    await expect(
+      controller.call('resolveAuth', { repositoryUrl: 'https://ghe.example.com/acme/repo' })
+    ).resolves.toEqual(
+      ok({
+        token: 'enterprise-token',
+        host: 'ghe.example.com',
+        apiBaseUrl: 'https://ghe.example.com/github/api/v3',
+        accountId: 'ghe.example.com:42',
+      })
+    );
+  });
+
+  it('resolves identity per request, then the matching token', async () => {
+    const readCredentials = vi.fn(async () =>
+      ok({ accessToken: 'secret-token', apiBaseUrl: 'https://api.github.com' })
+    );
+    const resolveSyncIdentity = vi.fn(async () => ok({ accountId: 'account-1' }));
+    const controller = createPullRequestsGitHubAuthController(readCredentials, resolveSyncIdentity);
 
     await expect(
       controller.call('resolveAuth', {
@@ -28,7 +44,7 @@ describe('pull requests GitHub auth controller', () => {
       })
     );
     expect(resolveSyncIdentity).toHaveBeenCalledWith('https://GitHub.COM/emdash/emdash');
-    expect(getToken).toHaveBeenCalledWith('github.com', { accountId: 'account-1' });
+    expect(readCredentials).toHaveBeenCalledWith('account-1', 'github.com');
   });
 
   it('fails closed when identity resolution fails, without fetching a token', async () => {
@@ -37,10 +53,11 @@ describe('pull requests GitHub auth controller', () => {
       host: 'github.com',
       message: 'The pinned GitHub account no longer exists.',
     };
-    const getToken = vi.fn(async () => ok('secret-token'));
+    const readCredentials = vi.fn(async () =>
+      ok({ accessToken: 'secret-token', apiBaseUrl: 'https://api.github.com' })
+    );
     const controller = createPullRequestsGitHubAuthController(
-      { getToken },
-      apiBaseUrlForHost,
+      readCredentials,
       vi.fn(async () => err(error))
     );
 
@@ -49,7 +66,7 @@ describe('pull requests GitHub auth controller', () => {
         repositoryUrl: 'https://github.com/emdash/emdash',
       })
     ).resolves.toEqual(err(error));
-    expect(getToken).not.toHaveBeenCalled();
+    expect(readCredentials).not.toHaveBeenCalled();
   });
 
   it('preserves typed authentication failures', async () => {
@@ -61,10 +78,7 @@ describe('pull requests GitHub auth controller', () => {
       hint: 'Reconnect the account',
     };
     const controller = createPullRequestsGitHubAuthController(
-      {
-        getToken: vi.fn(async () => err(error)),
-      },
-      apiBaseUrlForHost,
+      vi.fn(async () => err(error)),
       vi.fn(async () => ok({ accountId: 'missing' }))
     );
 

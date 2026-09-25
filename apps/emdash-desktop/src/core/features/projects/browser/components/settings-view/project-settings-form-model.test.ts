@@ -6,6 +6,7 @@ import {
   effectiveAutoRunToggleValue,
   formToProjectSettingsDomainPatch,
   formToStoredGitSettings,
+  formToStoredIntegrationAccounts,
   getAvailableWriteFields,
   normalizeShareableFieldValue,
   projectSettingsDomainsToForm,
@@ -15,6 +16,7 @@ import {
   type FormFieldPath,
   type FormState,
   type GitIdentityFormState,
+  type IntegrationAccountsFormState,
   type LifecycleFormState,
   type PlacementFormState,
 } from './project-settings-form-model';
@@ -26,6 +28,7 @@ type FormOverrides = {
   fileHandling?: Partial<FileHandlingFormState>;
   environment?: Partial<EnvironmentFormState>;
   gitIdentity?: Partial<GitIdentityFormState>;
+  integrationAccounts?: IntegrationAccountsFormState;
   placement?: Partial<PlacementFormState>;
 };
 
@@ -46,10 +49,10 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       defaultBranch: null,
       baseRemote: '',
       pushRemote: '',
-      githubAccount: undefined,
       agentGitCredentials: 'effective-account',
       ...overrides.gitIdentity,
     },
+    integrationAccounts: overrides.integrationAccounts ?? {},
     placement: { tmux: undefined, worktreeDirectory: '', ...overrides.placement },
   };
 }
@@ -82,6 +85,7 @@ function domains(): ProjectSettingsDomains {
       },
     },
     gitIdentity: { stored: { baseRemote: 'origin' } },
+    integrationAccounts: { stored: {} },
     placement: {
       stored: { tmux: false },
       layers: {
@@ -103,6 +107,30 @@ function domains(): ProjectSettingsDomains {
 }
 
 describe('project settings form model', () => {
+  it('patches only the provider edited while preserving other live account choices', () => {
+    const form = projectSettingsDomainsToForm(domains(), [origin]);
+    form.integrationAccounts = {
+      github: { kind: 'account', accountId: 'github.com:old' },
+      jira: { kind: 'account', accountId: 'jira:new' },
+    };
+    expect(
+      formToProjectSettingsDomainPatch(form, new Set<FormFieldPath>(['integrationAccounts.jira']))
+    ).toEqual({
+      integrationAccounts: { stored: { jira: { kind: 'account', accountId: 'jira:new' } } },
+    });
+  });
+
+  it('clears only the reset provider even when another provider has a stored pin', () => {
+    const form = projectSettingsDomainsToForm(domains(), [origin]);
+    form.integrationAccounts = {
+      github: { kind: 'account', accountId: 'github.com:old' },
+      jira: null,
+    };
+    expect(
+      formToProjectSettingsDomainPatch(form, new Set<FormFieldPath>(['integrationAccounts.jira']))
+    ).toEqual({ integrationAccounts: { stored: { jira: null } } });
+  });
+
   it('binds each section to raw domain layers instead of inherited values', () => {
     const input = domains();
     input.lifecycle.personal = { scripts: { setup: 'personal setup' } };
@@ -205,36 +233,40 @@ describe('project settings form model', () => {
     expect(effectiveAutoRunToggleValue(false, true)).toBe(false);
   });
 
-  it('keeps GitHub account states and resolver inputs distinct', () => {
+  it('keeps provider account states and resolver inputs distinct', () => {
     const input = domains();
-    input.gitIdentity.stored.githubAccount = { kind: 'account', accountId: 'row-42' };
-    expect(projectSettingsDomainsToForm(input, [origin]).gitIdentity.githubAccount).toEqual({
+    input.integrationAccounts.stored = {
+      github: { kind: 'account', accountId: 'row-42' },
+    };
+    expect(projectSettingsDomainsToForm(input, [origin]).integrationAccounts['github']).toEqual({
       kind: 'account',
       accountId: 'row-42',
     });
-    input.gitIdentity.stored.githubAccount = { kind: 'none' };
-    expect(projectSettingsDomainsToForm(input, [origin]).gitIdentity).toHaveProperty(
-      'githubAccount',
-      { kind: 'none' }
-    );
-    delete input.gitIdentity.stored.githubAccount;
-    expect(projectSettingsDomainsToForm(input, [origin]).gitIdentity.githubAccount).toBeUndefined();
+    input.integrationAccounts.stored = { github: { kind: 'none' } };
+    expect(projectSettingsDomainsToForm(input, [origin]).integrationAccounts['github']).toEqual({
+      kind: 'none',
+    });
+    input.integrationAccounts.stored = {};
+    expect(projectSettingsDomainsToForm(input, [origin]).integrationAccounts).toEqual({});
 
     const form = makeForm({
       gitIdentity: {
         defaultBranch: { type: 'remote', branch: 'main', remote: origin },
         baseRemote: 'origin',
         pushRemote: 'upstream',
-        githubAccount: { kind: 'none' },
       },
+      integrationAccounts: { github: { kind: 'none' }, jira: null },
       placement: { worktreeDirectory: ' ../worktrees ' },
     });
+    // Tombstoned entries (jira: null) never leak into the resolver preview.
     expect(formToStoredGitSettings(form)).toEqual({
       worktreeRoot: '../worktrees',
       defaultBranch: { remote: 'origin', branch: 'main' },
       baseRemote: 'origin',
       pushRemote: 'upstream',
-      githubAccount: { kind: 'none' },
+    });
+    expect(formToStoredIntegrationAccounts(form.integrationAccounts)).toEqual({
+      github: { kind: 'none' },
     });
   });
 

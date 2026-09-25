@@ -1,3 +1,4 @@
+import type { CommandSpec } from '#primitives/exec/api';
 import type { TerminalState } from '#runtimes/acp/api';
 import type { AcpProcessHost } from '#runtimes/acp/api/transport';
 import { ManagedAgentTerminal } from './managed-terminal';
@@ -54,8 +55,7 @@ export class AgentTerminalManager {
   async create(
     conversationId: string,
     spec: {
-      command: string;
-      args: string[];
+      command: CommandSpec;
       env: Record<string, string>;
       cwd: string;
       outputByteLimit?: number | null;
@@ -70,10 +70,12 @@ export class AgentTerminalManager {
     const terminalId = crypto.randomUUID();
     const proc = await this.host.spawnTerminal(spec);
 
+    const command = spec.command.kind === 'argv' ? spec.command.command : spec.command.commandLine;
+    const args = spec.command.kind === 'argv' ? spec.command.args : [];
     const terminal = new ManagedAgentTerminal(
       terminalId,
-      spec.command,
-      spec.args,
+      command,
+      args,
       spec.cwd,
       proc,
       (chunk, truncated) => {
@@ -96,11 +98,12 @@ export class AgentTerminalManager {
     this.hooks.onTerminalCreated({
       conversationId,
       terminalId,
-      command: spec.command,
-      args: spec.args,
+      command,
+      args,
       cwd: spec.cwd,
     });
 
+    terminal.observe();
     return terminalId;
   }
 

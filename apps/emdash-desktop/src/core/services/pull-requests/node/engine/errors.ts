@@ -54,7 +54,7 @@ export function mapAuthError(error: GitHubAuthError): PullRequestError {
     // renderer shows the quiet disabled state, this status only records that
     // the sync did not run.
     case 'github_disabled':
-      return { type: 'sync_failed', message: error.message };
+      return { type: 'github_disabled', message: error.message };
   }
 }
 

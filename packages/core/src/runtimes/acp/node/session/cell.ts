@@ -67,12 +67,15 @@ export class SessionCell {
   readonly machine: SessionMachine;
   readonly transcript: AcpTranscriptParser;
   readonly rawLog: RawAcpLog;
+  /** Diagnostics belong to this activation, not to transcript history or retained config. */
+  readonly mcpStartupFailures = new Map<string, string>();
   private readonly permissions = new PermissionBroker();
   private _acpSessionId: string;
   private configCatalogState: SessionConfigCatalog['kind'] = 'pending';
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
   private readonly effectDriver: MachineEffectDriver<Effect>;
+  private preparedPromptEffects: Effect[] | null = null;
 
   constructor(private readonly deps: SessionCellDeps) {
     this._acpSessionId = deps.acpSessionId;
@@ -115,7 +118,13 @@ export class SessionCell {
   }
 
   get sessionState(): SessionState {
-    return this.machine.sessionState();
+    const state = this.machine.sessionState();
+    return {
+      ...state,
+      historyRevision: this.transcript.historyRevision,
+      // Partial replay is never an authoritative transcript position.
+      ...(state.lifecycle === 'replaying' ? {} : { transcript: this.transcript.snapshot }),
+    };
   }
 
   get config(): SessionConfigState {
@@ -174,6 +183,28 @@ export class SessionCell {
     this.lastRunningAgentCount = 0;
   }
 
+  prepareActivation(
+    initialQueue: readonly PromptInput[],
+    resumed: boolean
+  ): Result<() => void, InvalidStateError> {
+    if (this.preparedPromptEffects) {
+      return acpErr.invalidState('Session activation is already prepared.');
+    }
+    const effects: Effect[] = [];
+    this.preparedPromptEffects = effects;
+    for (const prompt of initialQueue) {
+      const queued = this.queuePrompt(prompt);
+      if (!queued.success) return queued;
+    }
+    if (resumed) this.endReplay();
+    else this.applySessionReady();
+    return ok(() => {
+      if (this.preparedPromptEffects !== effects) return;
+      this.preparedPromptEffects = null;
+      this.interpretEffects(effects);
+    });
+  }
+
   endReplay(at = Date.now()): void {
     const previousRunningAgentCount = this.lastRunningAgentCount;
     this.transcript.endReplay(at);
@@ -207,6 +238,11 @@ export class SessionCell {
 
   push(event: NormalizedEvent): void {
     if (event.kind === 'ignored') return;
+    if (event.kind === 'mcp_startup_failure') {
+      this.mcpStartupFailures.set(event.server, event.error);
+      this.deps.callbacks?.onSessionStateChanged?.();
+      return;
+    }
 
     const idleTranscriptEvent = this.isIdleAgentTranscriptEvent(event);
     if (idleTranscriptEvent) this.applyEvent({ type: 'AgentActivity', active: true });
@@ -434,6 +470,7 @@ export class SessionCell {
 
   dispose(): void {
     this.clearQuiesce();
+    this.preparedPromptEffects = null;
     this.effectDriver.dispose();
     this.permissions.drain(this.machine.pendingPermissions);
   }
@@ -481,6 +518,10 @@ export class SessionCell {
         this.settleRunningAgents(effect.scope, effect.status);
         break;
       case 'sendPrompt':
+        if (this.preparedPromptEffects) {
+          this.preparedPromptEffects.push(effect);
+          break;
+        }
         this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
         void this.sendPromptInternal(effect.prompt).then((result) => {
           if (!result.success) {
@@ -699,7 +740,7 @@ export class SessionCell {
   private isIdleAgentTranscriptEvent(event: NormalizedEvent): boolean {
     return (
       this.machine.phase.kind === 'ready' &&
-      this.isTranscriptEvent(event) &&
+      this.transcript.advancesForeground(event) &&
       !(event.kind === 'message' && event.role === 'user')
     );
   }

@@ -56,44 +56,55 @@ describe('WorkspaceIdentityService', () => {
     });
   });
 
-  it('caches by id and reverse-indexes host plus path', async () => {
-    const source = createSource([remoteRow]);
+  it('reads changed project, host and path associations on each id lookup', async () => {
+    const rows = [{ ...localRow }];
+    const source = createSource(rows);
     const service = new WorkspaceIdentityService(source);
 
-    await service.resolve(remoteRow.workspaceId);
-    expect(await service.resolve(remoteRow.workspaceId)).not.toBeNull();
-    expect(
-      await service.findByPath(remoteRow.path, hostRef('remote', remoteRow.sshConnectionId!))
-    ).toMatchObject({ workspaceId: remoteRow.workspaceId });
-    expect(source.findById).toHaveBeenCalledTimes(1);
-    expect(source.findByPath).not.toHaveBeenCalled();
-  });
+    await service.resolve(localRow.workspaceId);
+    rows[0] = { ...remoteRow, workspaceId: localRow.workspaceId };
 
-  it('reverse-indexes Windows path casing variants to one cached identity', async () => {
-    const windowsRow = { ...localRow, path: 'C:\\Repo' };
-    const source = createSource([windowsRow]);
-    const service = new WorkspaceIdentityService(source);
-
-    await service.resolve(windowsRow.workspaceId);
-
-    expect(await service.findByPath('c:\\REPO', LOCAL_HOST_REF)).toMatchObject({
-      workspaceId: windowsRow.workspaceId,
-      path: 'C:\\Repo',
+    expect(await service.resolve(localRow.workspaceId)).toEqual({
+      workspaceId: localRow.workspaceId,
+      host: hostRef('remote', 'ssh-1'),
+      path: remoteRow.path,
+      projectId: remoteRow.projectId,
     });
-    expect(source.findByPath).not.toHaveBeenCalled();
   });
 
-  it('resolves repository identities by project id', async () => {
-    const source = createSource([localRow]);
+  it('reads a replacement repository on each project lookup', async () => {
+    const rows = [{ ...localRow }];
+    const source = createSource(rows);
     const service = new WorkspaceIdentityService(source);
 
     expect(await service.resolveProject(localRow.projectId)).toMatchObject({
       workspaceId: localRow.workspaceId,
       projectId: localRow.projectId,
     });
-    await service.resolveProject(localRow.projectId);
+    rows[0] = { ...localRow, workspaceId: 'replacement', path: '/replacement/repo' };
+    expect(await service.resolveProject(localRow.projectId)).toMatchObject({
+      workspaceId: 'replacement',
+      path: '/replacement/repo',
+      projectId: localRow.projectId,
+    });
+  });
 
-    expect(source.findRepositoryForProject).toHaveBeenCalledTimes(1);
+  it('reads changed project associations and moved paths on each path lookup', async () => {
+    const rows = [{ ...localRow }];
+    const service = new WorkspaceIdentityService(createSource(rows));
+    await service.findByPath(localRow.path, LOCAL_HOST_REF);
+
+    rows[0] = { ...localRow, projectId: 'replacement-project' };
+    expect(await service.findByPath(localRow.path, LOCAL_HOST_REF)).toMatchObject({
+      projectId: 'replacement-project',
+    });
+
+    rows[0] = { ...rows[0], path: '/moved/repo' };
+    expect(await service.findByPath(localRow.path, LOCAL_HOST_REF)).toBeNull();
+    expect(await service.findByPath('/moved/repo', LOCAL_HOST_REF)).toMatchObject({
+      workspaceId: localRow.workspaceId,
+      path: '/moved/repo',
+    });
   });
 
   it('retries id misses instead of caching them', async () => {
@@ -124,7 +135,7 @@ describe('WorkspaceIdentityService', () => {
     expect(source.findRepositoryForProject).toHaveBeenCalledTimes(2);
   });
 
-  it('selects the same identity for an ambiguous path regardless of row or cache order', async () => {
+  it('selects the same identity for an ambiguous path regardless of row or lookup order', async () => {
     const remoteAtLocalPath = { ...remoteRow, path: localRow.path };
     const remoteFirst = new WorkspaceIdentityService(createSource([remoteAtLocalPath, localRow]));
     const localFirst = new WorkspaceIdentityService(createSource([localRow, remoteAtLocalPath]));
@@ -142,15 +153,18 @@ describe('WorkspaceIdentityService', () => {
     ).toMatchObject({ workspaceId: remoteRow.workspaceId });
   });
 
-  it('invalidates cached identities', async () => {
-    const source = createSource([localRow]);
-    const service = new WorkspaceIdentityService(source);
+  it('stops resolving removed identities through every lookup', async () => {
+    const rows = [{ ...localRow }];
+    const service = new WorkspaceIdentityService(createSource(rows));
     await service.resolve(localRow.workspaceId);
+    await service.resolveProject(localRow.projectId);
+    await service.findByPath(localRow.path, LOCAL_HOST_REF);
 
-    service.invalidate(localRow.workspaceId);
-    await service.resolve(localRow.workspaceId);
+    rows.length = 0;
 
-    expect(source.findById).toHaveBeenCalledTimes(2);
+    expect(await service.resolve(localRow.workspaceId)).toBeNull();
+    expect(await service.resolveProject(localRow.projectId)).toBeNull();
+    expect(await service.findByPath(localRow.path, LOCAL_HOST_REF)).toBeNull();
   });
 
   it('does not silently route an invalid remote workspace to local', async () => {

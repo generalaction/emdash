@@ -1,10 +1,9 @@
 import { tokens } from '@emdash/theme';
 import { style } from '@styles/index';
-import { kfSpin } from '@styles/effects/animations.css';
 
 export const card = style({
-  display: 'grid',
   minWidth: 0,
+  display: 'grid',
   gap: '0.75rem',
 });
 
@@ -49,61 +48,49 @@ export const rowControls = style({
   gap: '0.5rem',
 });
 
-export const versionBadge = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  height: '1.25rem',
-  paddingLeft: '0.5rem',
-  paddingRight: '0.5rem',
-  borderRadius: '999px',
-  border: `1px solid ${tokens.border.default}`,
-  fontFamily: tokens.typography.family.mono,
-  fontSize: tokens.typography.size.xs,
-  color: tokens.foreground.muted,
-  whiteSpace: 'nowrap',
+export const errorPanel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.5rem',
+  minWidth: 0,
+  padding: '0.75rem',
+  borderRadius: tokens.radius.md,
+  backgroundColor: tokens.feedback.error.background,
+  color: tokens.feedback.error.foreground,
 });
 
-export const statusSuccess = style({
-  color: tokens.feedback.success.foreground,
+export const errorMessage = style({
+  fontSize: tokens.typography.size.sm,
+  lineHeight: 1.5,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  userSelect: 'text',
 });
 
-export const statusWarning = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.25rem',
-  borderRadius: tokens.radius.sm,
-  border: `1px solid ${tokens.feedback.warning.border}`,
-  backgroundColor: tokens.feedback.warning.background,
-  paddingLeft: '0.5rem',
-  paddingRight: '0.5rem',
-  paddingTop: '0.125rem',
-  paddingBottom: '0.125rem',
-  fontSize: tokens.typography.size.xs,
-  color: tokens.feedback.warning.foreground,
+export const errorActions = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  flexWrap: 'wrap',
+  gap: '0.5rem',
 });
 
-export const iconSpin = style({
-  animationName: kfSpin,
-  animationDuration: '1s',
-  animationTimingFunction: 'linear',
-  animationIterationCount: 'infinite',
+export const errorDetails = style({
+  flex: '1 1 12rem',
+  minWidth: 0,
+  fontSize: tokens.typography.size.sm,
 });
 
-export const progressTrack = style({
-  height: '0.375rem',
-  width: '4.5rem',
-  overflow: 'hidden',
-  borderRadius: '999px',
-  backgroundColor: tokens.palette.neutral.step3,
+export const errorSummary = style({
+  cursor: 'pointer',
+  paddingBlock: '0.25rem',
 });
 
-export const progressFill = style({
-  height: '100%',
-  borderRadius: '999px',
-  backgroundColor: tokens.foreground.default,
-  transition: 'width 300ms ease-out',
-});
-
-export const errorPill = style({
-  maxWidth: '12rem',
+export const errorDetailsText = style({
+  marginTop: '0.5rem',
+  maxHeight: '12rem',
+  overflowY: 'auto',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  lineHeight: 1.5,
+  userSelect: 'text',
 });

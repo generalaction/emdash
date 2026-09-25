@@ -1,6 +1,6 @@
 {
   "name": "@emdash/workspace-server",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "private": true,
   "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via wire",
   "license": "Apache-2.0",
@@ -21,7 +21,7 @@
     "upload:r2": "tsx scripts/upload-r2.ts",
     "run:docker-remote": "docker compose up --build -d minio minio-setup workspace-remote",
     "start": "node dist/index.mjs",
-    "test": "vitest run",
+    "test": "pnpm exec nx test @emdash/workspace-server",
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
@@ -48,5 +48,16 @@
   "engines": {
     "node": ">=24.0.0",
     "pnpm": ">=10.28.0"
+  },
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "apps/workspace-server"
+        }
+      }
+    }
   }
 }

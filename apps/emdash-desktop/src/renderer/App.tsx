@@ -2,7 +2,8 @@ import { Tooltip } from '@emdash/ui/react/primitives';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccountSession } from '@core/features/account/api/browser/useAccount';
-import { GithubContextProvider } from '@core/features/github/api/browser/github-context-provider';
+import { useGitHubAuthEvents } from '@core/features/github/api/browser/use-github-auth-events';
+import { useIntegrationAccountEvents } from '@core/features/integrations/api/browser/use-integration-account-events';
 import { IntegrationsProvider } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { useLegacyPortStatus } from '@core/features/legacy-port/api/browser/useLegacyPort';
 import { TerminalPoolProvider } from '@core/features/terminals/browser/pty/pty-pool-provider';
@@ -29,6 +30,8 @@ type AppView = 'onboarding' | 'welcome' | 'workspace';
 type OnboardingStep = 'sign-in' | 'import';
 
 function AppContent() {
+  useIntegrationAccountEvents();
+  useGitHubAuthEvents();
   const [view, setView] = useState<AppView>(() =>
     localStorage.getItem(HAS_SEEN_ONBOARDING) === 'true' ? 'workspace' : 'onboarding'
   );
@@ -106,21 +109,19 @@ function AppContent() {
     <Tooltip.Provider delay={300}>
       <WorkspaceLayoutContextProvider>
         <TerminalPoolProvider>
-          <GithubContextProvider>
-            <IntegrationsProvider>
-              <WorkspaceViewProvider>
-                <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
-                <ExternalLinkProvider openExternalLink={confirmOpenExternalLink}>
-                  <ThemeProvider>
-                    <ModalRenderer />
-                    <AppShutdownLifecycle />
-                    <HostRecoveryWakeups />
-                    {renderContent()}
-                  </ThemeProvider>
-                </ExternalLinkProvider>
-              </WorkspaceViewProvider>
-            </IntegrationsProvider>
-          </GithubContextProvider>
+          <IntegrationsProvider>
+            <WorkspaceViewProvider>
+              <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
+              <ExternalLinkProvider openExternalLink={confirmOpenExternalLink}>
+                <ThemeProvider>
+                  <ModalRenderer />
+                  <AppShutdownLifecycle />
+                  <HostRecoveryWakeups />
+                  {renderContent()}
+                </ThemeProvider>
+              </ExternalLinkProvider>
+            </WorkspaceViewProvider>
+          </IntegrationsProvider>
         </TerminalPoolProvider>
       </WorkspaceLayoutContextProvider>
     </Tooltip.Provider>

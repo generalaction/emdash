@@ -240,7 +240,29 @@ export const toolbar = style({
   paddingBottom: '0.5rem',
 });
 
-export const toolbarLeft = style({ display: 'flex', alignItems: 'center', gap: '0.375rem' });
+export const toolbarLeft = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  minHeight: '2rem',
+});
+
+export const mcpNameGroup = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  minWidth: 0,
+});
+
+export const mcpInfoIcon = style({
+  transform: 'translateY(1px)',
+});
+
+export const mcpErrorText = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+  whiteSpace: 'pre-wrap',
+});
 export const toolbarRight = style({ display: 'flex', alignItems: 'center', gap: '0.25rem' });
 
 export const permissionModeTrigger = style({
@@ -265,6 +287,7 @@ export const mcpTrigger = style({
   lineHeight: 1,
   outline: 'none',
   selectors: {
+    '&[data-failed]': { color: tokens.surface.tone.destructive.foreground },
     '&:hover': { backgroundColor: tokens.surface.current.selected },
     '&[data-popup-open]': { backgroundColor: tokens.surface.current.selected },
     '&:focus-visible': {
@@ -297,6 +320,9 @@ export const mcpRow = style({
   padding: '0.375rem 0.5rem',
   fontSize: tokens.typography.size.sm,
   color: tokens.foreground.default,
+  selectors: {
+    '&[data-failed]': { color: tokens.surface.tone.destructive.foreground },
+  },
 });
 
 export const mcpName = style({
@@ -313,6 +339,9 @@ export const mcpBadge = style({
   padding: '0.0625rem 0.3125rem',
   fontSize: tokens.typography.size.xs,
   color: tokens.foreground.muted,
+  selectors: {
+    '&[data-failed]': { color: tokens.surface.tone.destructive.foreground },
+  },
 });
 
 // ── Agent trigger ─────────────────────────────────────────────────────────────

@@ -76,18 +76,20 @@ describe('desktop Host availability supervisor projection', () => {
     expect(fixture.availability.stateFor(remoteHost)).toEqual(fixture.driver.state);
   });
 
-  it.each(['online', 'focus'] as const)('does not trust cached ready after %s', async (cause) => {
-    await fixture.availability.ensureReady(remoteHost, 'connect');
-    fixture.peer.current.dropReplies = true;
-    fixture.peer.setOffline(true);
-    fixture.availability.wakeDemanded(cause);
-    expect(fixture.availability.stateFor(remoteHost)).toMatchObject({
-      kind: 'preparing',
-      phase: 'checking',
-    });
-    await vi.advanceTimersByTimeAsync(5_001);
-    expect(fixture.availability.requireReady(remoteHost).success).toBe(false);
-  });
+  it.each(['online', 'focus'] as const)(
+    'keeps recent readiness during %s validation, then revokes it on failure',
+    async (cause) => {
+      await fixture.availability.ensureReady(remoteHost, 'connect');
+      const ready = fixture.availability.stateFor(remoteHost);
+      fixture.peer.current.dropReplies = true;
+      fixture.peer.setOffline(true);
+      fixture.availability.wakeDemanded(cause);
+      expect(fixture.availability.stateFor(remoteHost)).toBe(ready);
+      expect(fixture.availability.requireReady(remoteHost).success).toBe(true);
+      await vi.advanceTimersByTimeAsync(5_001);
+      expect(fixture.availability.requireReady(remoteHost).success).toBe(false);
+    }
+  );
 
   it('keeps disconnected intent authoritative over automatic demand', async () => {
     await fixture.availability.ensureReady(remoteHost, 'connect');

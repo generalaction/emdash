@@ -4,12 +4,10 @@ import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { githubAuthContract, type GitHubAuthError } from '@core/services/pull-requests/api';
 import type { PullRequestSyncIdentityResolver } from './sync-identity';
 
-type GitHubTokenService = {
-  getToken(
-    host: string,
-    context?: { accountId?: string }
-  ): Promise<Result<string, GitHubAuthError>>;
-};
+type ReadGitHubCredentials = (
+  accountId: string,
+  expectedHost: string
+) => Promise<Result<{ accessToken: string; apiBaseUrl: string }, GitHubAuthError>>;
 
 /**
  * Desktop-side answer to the worker's per-sync identity request (spec:
@@ -19,8 +17,7 @@ type GitHubTokenService = {
  * different account.
  */
 export function createPullRequestsGitHubAuthController(
-  tokenService: GitHubTokenService,
-  apiBaseUrlForHost: (host: string) => string,
+  readCredentials: ReadGitHubCredentials,
   resolveSyncIdentity: PullRequestSyncIdentityResolver
 ): Controller {
   return createController(githubAuthContract, {
@@ -35,14 +32,12 @@ export function createPullRequestsGitHubAuthController(
       }
       const identity = await resolveSyncIdentity(input.repositoryUrl);
       if (!identity.success) return identity;
-      const token = await tokenService.getToken(repository.host, {
-        accountId: identity.data.accountId,
-      });
-      if (!token.success) return token;
+      const credentials = await readCredentials(identity.data.accountId, repository.host);
+      if (!credentials.success) return credentials;
       return ok({
-        token: token.data,
+        token: credentials.data.accessToken,
         host: repository.host,
-        apiBaseUrl: apiBaseUrlForHost(repository.host),
+        apiBaseUrl: credentials.data.apiBaseUrl,
         accountId: identity.data.accountId,
       });
     },

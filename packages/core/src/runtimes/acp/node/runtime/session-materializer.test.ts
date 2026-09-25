@@ -8,15 +8,10 @@ import type { ConfigOverrides, SessionRecord } from './conversation-types';
 import { SessionMaterializer, type SessionMaterializerCallbacks } from './session-materializer';
 
 describe('SessionMaterializer', () => {
-  it('falls back to a fresh session and reapplies retained config overrides', async () => {
+  it('preserves the existing session after a failed load and cleans up its provisional route', async () => {
     const h = makeAcpHarness();
     h.agent.loadSession.mockRejectedValueOnce(new Error('session file is gone'));
-    h.agent.newSession.mockResolvedValueOnce({
-      sessionId: 'replacement',
-      configOptions: [effortConfigOption('low'), collaborationModeConfigOption('default')],
-    });
     const setup = materializerHarness(h, { effort: 'high', collaborationMode: 'plan' });
-
     const result = await setup.materializer.materialize(
       setup.entry,
       setup.entry.descriptor,
@@ -24,27 +19,49 @@ describe('SessionMaterializer', () => {
       setup.scope,
       setup.controller.signal
     );
-
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.data.record.cell.acpSessionId).toBe('replacement');
-    expect(result.data.record.resumeOutcome).toBe('replaced-by-new');
-    expect(h.agent.loadSession).toHaveBeenCalledTimes(1);
-    expect(h.agent.newSession).toHaveBeenCalledTimes(1);
-    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
-      sessionId: 'replacement',
-      configId: 'reasoning_effort',
-      value: 'high',
-    });
-    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
-      sessionId: 'replacement',
-      configId: 'collaboration_mode',
-      value: 'plan',
-    });
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_state' } });
+    expect(h.agent.newSession).not.toHaveBeenCalled();
+    expect(setup.entry.descriptor.sessionId).toBe('retained-session');
+    expect(setup.entry.configOverrides).toEqual({ effort: 'high', collaborationMode: 'plan' });
     expect(setup.discarded).toHaveLength(1);
-
+    expect(setup.loading).toEqual([]);
     await setup.scope.dispose();
-    expect(setup.release).toHaveBeenCalledTimes(1);
+    expect(setup.release).toHaveBeenCalledOnce();
+  });
+
+  it('logs the sanitized provider explanation carried in JSON-RPC error data', async () => {
+    const h = makeAcpHarness();
+    const warn = vi.fn();
+    h.deps.logger = { ...h.deps.logger, warn };
+    const secret = `ghp_${'a'.repeat(36)}`;
+    h.agent.loadSession.mockRejectedValueOnce(
+      Object.assign(new Error('Internal error'), {
+        code: -32600,
+        data: `no rollout found; token: ${secret}`,
+      })
+    );
+    const setup = materializerHarness(h);
+    try {
+      await setup.materializer.materialize(
+        setup.entry,
+        setup.entry.descriptor,
+        1,
+        setup.scope,
+        setup.controller.signal
+      );
+      expect(warn).toHaveBeenCalledWith(
+        'SessionMaterializer: failed to restore existing session',
+        expect.objectContaining({
+          sessionId: 'retained-session',
+          operation: 'loadSession',
+          code: -32600,
+          providerMessage: expect.stringContaining('no rollout found'),
+        })
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(secret);
+    } finally {
+      await setup.scope.dispose();
+    }
   });
 
   it('loads an existing session without creating a replacement', async () => {
@@ -233,7 +250,7 @@ function materializerHarness(
     onRecordCreated: (record, recordScope) => ownRecord(record, recordScope),
     onRecordChanged: () => {},
     onRecordClosed: () => {},
-    discardRecord: (record) => {
+    discardRecord: async (record) => {
       discarded.push(record);
       record.cell.dispose();
     },
@@ -277,32 +294,4 @@ function ownRecord(record: SessionRecord, scope: Scope): void {
     record.machineStateBinding.dispose();
     record.cell.dispose();
   });
-}
-
-function effortConfigOption(currentValue: string) {
-  return {
-    id: 'reasoning_effort',
-    name: 'Reasoning effort',
-    category: 'thought_level',
-    type: 'select',
-    currentValue,
-    options: [
-      { value: 'low', name: 'Low' },
-      { value: 'high', name: 'High' },
-    ],
-  };
-}
-
-function collaborationModeConfigOption(currentValue: string) {
-  return {
-    id: 'collaboration_mode',
-    name: 'Collaboration mode',
-    category: 'collaboration_mode',
-    type: 'select',
-    currentValue,
-    options: [
-      { value: 'default', name: 'Default' },
-      { value: 'plan', name: 'Plan' },
-    ],
-  };
 }

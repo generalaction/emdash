@@ -133,8 +133,11 @@ An ordinary RPC timeout requests validation; it is not conclusive evidence that 
 
 Initial tuning is a 15-second health interval and a five-second response deadline while a
 runtime attachment is maintained. These are configurable policy inputs to the supervisor,
-not timing constants scattered through transports. Idle polling need not cause visible
-`checking` while previous evidence remains fresh. Expiry or an explicit failure demotes
+not timing constants scattered through transports. Routine focus/online hints and idle polling
+keep a ready attachment usable while previous evidence remains fresh (within the health interval
+plus its response deadline). These probes preserve the ready snapshot on success, avoiding UI
+flicker, unnecessary store refreshes, and rejected terminal input. A failed probe demotes availability
+within its response deadline. Expiry or an explicit failure demotes
 availability; a small amount of incidental traffic must not indefinitely hide a wedged
 request/response path. Serving readiness or SSH-access requests does not move an already scheduled
 health deadline.
@@ -188,8 +191,10 @@ readiness waiters. A Connect cannot bypass an in-flight daemon operation.
 ## UI and operation semantics
 
 Machine and task usability indicators derive from Host availability. Preserve Project contexts,
-transcripts, terminal display, and logical session identities through outages. Show checking,
-reconnecting, or a specific blocked issue; gate Host-dependent actions. Do not silently queue
+transcripts, terminal display, and logical session identities through outages. Routine checks of
+a recently healthy attachment remain invisible and accept live input. Show checking after sleep,
+expired evidence, or an explicit request failure; show reconnecting or a specific blocked issue
+when recovery is needed, and gate Host-dependent actions. Do not silently queue
 terminal keystrokes for later execution.
 
 Transport recovery does not replay already-sent mutations. A lost reply leaves the operation's

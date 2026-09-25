@@ -33,7 +33,8 @@ describe('createWorkspaceWireController', () => {
     const wireClient = createClient(workspaceWireContract, connect(transport));
 
     try {
-      const result = await wireClient.acp.launch({
+      const result = await wireClient.acp.startSession({
+        mode: 'fresh',
         conversationId: 'conversation-1',
         providerId: 'codex',
         cwd: '/tmp/project',
@@ -42,7 +43,7 @@ describe('createWorkspaceWireController', () => {
       });
 
       expect(result).toEqual(ok({ sessionId: 'acp-session-1' }));
-      expect(acp.launch).toHaveBeenCalledWith(
+      expect(acp.startSession).toHaveBeenCalledWith(
         expect.objectContaining({ conversationId: 'conversation-1' }),
         expect.any(Object)
       );
@@ -90,7 +91,7 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
 
   return {
     attach: vi.fn(),
-    launch: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
+    startSession: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
     terminate: vi.fn(),
     sendPrompt: vi.fn(async () => ok({ queued: false })),
     editQueuedPrompt: vi.fn(),
@@ -101,10 +102,6 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
     resolvePermission: vi.fn(),
     exportAcpTranscript: vi.fn(),
     exportRawAcpLog: vi.fn(),
-    uploadAttachment: vi.fn(),
-    downloadAttachment: vi.fn(),
-    deleteAttachment: vi.fn(),
-    purgeConversationData: vi.fn(),
     loadHistory: vi.fn(),
     sessions: liveModel(workspaceWireContract.acp.sessions),
     session: liveModel(workspaceWireContract.acp.session),

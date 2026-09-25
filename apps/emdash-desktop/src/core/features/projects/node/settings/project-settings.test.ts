@@ -7,7 +7,9 @@ import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
+import { DesktopProjectSettingsAuthority } from './durable-project-settings';
 import { migrateProjectSettingsOnAttachment } from './migrations/migrate-project-settings-on-attachment';
+import type { StoredProjectSettings } from './project-settings-storage';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { HostProjectSettingsProvider } from './providers/host-project-settings-provider';
 
@@ -125,8 +127,10 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       insertIfMissing: async (projectId, settings) => {
         if (!rows.has(projectId)) rows.set(projectId, settings);
       },
-      update: async (projectId, settings) => {
-        rows.set(projectId, { ...rows.get(projectId)!, ...settings });
+      mutate: async (projectId, settings) => {
+        const next = { ...rows.get(projectId)!, ...settings(rows.get(projectId)!) };
+        rows.set(projectId, next);
+        return next;
       },
     };
   };
@@ -261,7 +265,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       provider,
       registry as never
     );
-    expect((await provider.patch({})).success).toBe(true);
+    expect((await provider.setWorktreeRoot(null)).success).toBe(true);
     await expect(provider.getStoredGitSettings()).resolves.toEqual({});
     await expect(provider.readLegacyLifecycleSettings()).resolves.toEqual({
       preservePatterns: [],
@@ -320,31 +324,31 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('does not persist preserve patterns through ordinary DB settings writes', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const row = {
+    const row: StoredProjectSettings = {
       baseProjectSettingsJson: '{}',
       shareableProjectSettingsJson: '{}',
       legacyConfigMigratedAt: new Date().toISOString(),
     };
-    const update = vi.fn(async (_projectId: string, settings: Partial<typeof row>) => {
-      Object.assign(row, settings);
-    });
+    const update = vi.fn(
+      async (_projectId: string, settings: (current: typeof row) => Partial<typeof row>) => {
+        Object.assign(row, settings(row));
+        return row;
+      }
+    );
     storageMockState.storage = {
       get: async () => row,
       insertIfMissing: vi.fn(),
-      update,
+      mutate: update,
     };
     const provider = makeLocalProvider(projectPath);
     await provider.finalizeLegacyLifecycleSettings();
     update.mockClear();
 
-    const result = await provider.patch({});
+    const result = await provider.setWorktreeRoot(null);
 
     expect(result.success).toBe(true);
     expect(JSON.parse(row.shareableProjectSettingsJson)).toEqual({});
-    expect(update).toHaveBeenCalledOnce();
-    expect(update.mock.calls[0]?.[1]).toEqual({
-      baseProjectSettingsJson: JSON.stringify({ tmuxDefaultMigrated: true }),
-    });
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({ tmuxDefaultMigrated: true });
   });
 
   it('migrates local-only shareable settings for rows already base-migrated', async () => {
@@ -360,7 +364,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
         },
       })
     );
-    const row = {
+    const row: StoredProjectSettings = {
       baseProjectSettingsJson: JSON.stringify({ defaultBranch: 'main' }),
       shareableProjectSettingsJson: '{}',
       legacyConfigMigratedAt: new Date().toISOString(),
@@ -368,8 +372,9 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const settingsStorage: ProjectSettingsStorage = {
       get: async () => row,
       insertIfMissing: vi.fn(),
-      update: async (_projectId, settings) => {
-        Object.assign(row, settings);
+      mutate: async (_projectId, settings) => {
+        Object.assign(row, settings(row));
+        return row;
       },
     };
     storageMockState.storage = settingsStorage;
@@ -386,7 +391,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     await expect(provider.getStoredGitSettings()).resolves.not.toHaveProperty('shellSetup');
     expect(git.isFileCleanlyTracked).toHaveBeenCalledWith(path.join(projectPath, '.emdash.json'));
 
-    const result = await provider.patch({});
+    const result = await provider.setWorktreeRoot(null);
     expect(result.success).toBe(true);
     await expect(provider.getStoredGitSettings()).resolves.not.toHaveProperty('shellSetup');
     await expect(provider.getStoredGitSettings()).resolves.not.toHaveProperty('scripts');
@@ -438,7 +443,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('migrates legacy remote setting to baseRemote', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const row = {
+    const row: StoredProjectSettings = {
       baseProjectSettingsJson: JSON.stringify({ remote: 'upstream' }),
       shareableProjectSettingsJson: '{}',
       legacyConfigMigratedAt: null,
@@ -446,8 +451,9 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const settingsStorage: ProjectSettingsStorage = {
       get: async () => row,
       insertIfMissing: vi.fn(),
-      update: async (_projectId, settings) => {
-        Object.assign(row, settings);
+      mutate: async (_projectId, settings) => {
+        Object.assign(row, settings(row));
+        return row;
       },
     };
     storageMockState.storage = settingsStorage;
@@ -468,9 +474,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     tempDirs.push(projectPath);
     const provider = makeLocalProvider(projectPath);
     const expectedOverridePath = path.resolve(projectPath, 'worktrees');
-    const result = await provider.patch({
-      placement: { stored: { worktreeRoot: expectedOverridePath } },
-    });
+    const result = await provider.setWorktreeRoot(expectedOverridePath);
     expect(result.success).toBe(true);
 
     const expectedOverride = fs.realpathSync(expectedOverridePath);
@@ -485,39 +489,45 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('stores the selected GitHub account as base project settings', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const provider = makeLocalProvider(projectPath);
+    const id = projectId();
+    const provider = makeLocalProvider(projectPath, undefined, id);
+    await provider.getStoredGitSettings();
+    const authority = new DesktopProjectSettingsAuthority(storageMockState.storage!);
 
-    const result = await provider.patch({
-      gitIdentity: {
-        stored: { githubAccount: { kind: 'account', accountId: 'github.com:42' } },
+    const result = await authority.patch(id, {
+      integrationAccounts: {
+        stored: { github: { kind: 'account', accountId: 'github.com:42' } },
       },
     });
 
     expect(result.success).toBe(true);
-    await expect(provider.getStoredGitSettings()).resolves.toMatchObject({
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+    await expect(provider.getStoredIntegrationAccounts()).resolves.toEqual({
+      github: { kind: 'account', accountId: 'github.com:42' },
     });
   });
 
   it('stores null GitHub account selection as an explicit project override', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const provider = makeLocalProvider(projectPath);
+    const id = projectId();
+    const provider = makeLocalProvider(projectPath, undefined, id);
+    await provider.getStoredGitSettings();
+    const authority = new DesktopProjectSettingsAuthority(storageMockState.storage!);
 
-    const result = await provider.patch({
-      gitIdentity: { stored: { githubAccount: { kind: 'none' } } },
+    const result = await authority.patch(id, {
+      integrationAccounts: { stored: { github: { kind: 'none' } } },
     });
 
     expect(result.success).toBe(true);
-    await expect(provider.getStoredGitSettings()).resolves.toMatchObject({
-      githubAccount: { kind: 'none' },
+    await expect(provider.getStoredIntegrationAccounts()).resolves.toEqual({
+      github: { kind: 'none' },
     });
   });
 
   it('patches the selected GitHub account without replacing other base settings', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const row = {
+    const row: StoredProjectSettings = {
       baseProjectSettingsJson: JSON.stringify({
         defaultBranch: 'develop',
         baseRemote: 'upstream',
@@ -531,16 +541,20 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const settingsStorage: ProjectSettingsStorage = {
       get: async () => row,
       insertIfMissing: vi.fn(),
-      update: async (_projectId, settings) => {
-        Object.assign(row, settings);
+      mutate: async (_projectId, settings) => {
+        Object.assign(row, settings(row));
+        return row;
       },
     };
     storageMockState.storage = settingsStorage;
-    const provider = makeLocalProvider(projectPath);
+    const id = projectId();
+    const provider = makeLocalProvider(projectPath, undefined, id);
+    await provider.getStoredGitSettings();
+    const authority = new DesktopProjectSettingsAuthority(storageMockState.storage!);
 
-    const result = await provider.patch({
-      gitIdentity: {
-        stored: { githubAccount: { kind: 'account', accountId: 'github.com:42' } },
+    const result = await authority.patch(id, {
+      integrationAccounts: {
+        stored: { github: { kind: 'account', accountId: 'github.com:42' } },
       },
     });
 
@@ -551,14 +565,16 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
       defaultBranch: { remote: null, branch: 'develop' },
       baseRemote: 'upstream',
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+      integrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
       tmux: true,
       tmuxDefaultMigrated: true,
     });
     await expect(provider.getStoredGitSettings()).resolves.toMatchObject({
       defaultBranch: { remote: null, branch: 'develop' },
       baseRemote: 'upstream',
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+    });
+    await expect(provider.getStoredIntegrationAccounts()).resolves.toEqual({
+      github: { kind: 'account', accountId: 'github.com:42' },
     });
     await expect(provider.getStoredPlacementSettings()).resolves.toEqual({ tmux: true });
     await expect(provider.getStoredGitSettings()).resolves.not.toHaveProperty('preservePatterns');
@@ -567,7 +583,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('retries legacy config migration after a failed attempt', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const row = {
+    const row: StoredProjectSettings = {
       baseProjectSettingsJson: '{}',
       shareableProjectSettingsJson: '{}',
       legacyConfigMigratedAt: null,
@@ -576,10 +592,11 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const settingsStorage: ProjectSettingsStorage = {
       get: async () => row,
       insertIfMissing: vi.fn(),
-      update: async (_projectId, settings) => {
+      mutate: async (_projectId, settings) => {
         updateAttempts += 1;
         if (updateAttempts === 1) throw new Error('db write failed');
-        Object.assign(row, settings);
+        Object.assign(row, settings(row));
+        return row;
       },
     };
     storageMockState.storage = settingsStorage;
@@ -595,7 +612,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('patches DB settings without mutating legacy shareable settings', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const row = {
+    const row: StoredProjectSettings = {
       baseProjectSettingsJson: JSON.stringify({
         worktreeDirectory: path.join(projectPath, 'not-yet-created'),
       }),
@@ -611,16 +628,20 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const settingsStorage: ProjectSettingsStorage = {
       get: async () => row,
       insertIfMissing: vi.fn(),
-      update: async (_projectId, settings) => {
-        Object.assign(row, settings);
+      mutate: async (_projectId, settings) => {
+        Object.assign(row, settings(row));
+        return row;
       },
     };
     storageMockState.storage = settingsStorage;
-    const provider = makeLocalProvider(projectPath);
+    const id = projectId();
+    const provider = makeLocalProvider(projectPath, undefined, id);
+    await provider.getStoredGitSettings();
+    const authority = new DesktopProjectSettingsAuthority(storageMockState.storage!);
 
-    const result = await provider.patch({
-      gitIdentity: {
-        stored: { githubAccount: { kind: 'account', accountId: 'github.com:42' } },
+    const result = await authority.patch(id, {
+      integrationAccounts: {
+        stored: { github: { kind: 'account', accountId: 'github.com:42' } },
       },
     });
 
@@ -633,7 +654,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       },
     });
     expect(JSON.parse(row.baseProjectSettingsJson)).toMatchObject({
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+      integrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
     });
   });
 
@@ -643,9 +664,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
 
     const provider = makeLocalProvider(projectPath);
     const expectedPath = path.resolve(projectPath, 'worktrees');
-    const result = await provider.patch({
-      placement: { stored: { worktreeRoot: expectedPath } },
-    });
+    const result = await provider.setWorktreeRoot(expectedPath);
     expect(result.success).toBe(true);
 
     expect(fs.existsSync(expectedPath)).toBe(true);
@@ -659,44 +678,48 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     const worktreeRoot = path.join(projectPath, 'worktrees');
-    const provider = makeLocalProvider(projectPath);
+    const id = projectId();
+    const provider = makeLocalProvider(projectPath, undefined, id);
+    await provider.getStoredGitSettings();
+    const authority = new DesktopProjectSettingsAuthority(storageMockState.storage!);
 
+    await provider.setWorktreeRoot(worktreeRoot);
     await expect(
-      provider.patch({
+      authority.patch(id, {
         gitIdentity: {
           stored: {
             baseRemote: 'origin',
-            githubAccount: { kind: 'none' },
             agentGitCredentials: 'none',
           },
         },
+        integrationAccounts: { stored: { github: { kind: 'none' } } },
         placement: {
-          stored: { worktreeRoot, tmux: true },
+          stored: { tmux: true },
         },
       })
     ).resolves.toEqual({ success: true, data: undefined });
     await expect(provider.getStoredGitSettings()).resolves.toMatchObject({
       baseRemote: 'origin',
-      githubAccount: { kind: 'none' },
       agentGitCredentials: 'none',
       worktreeRoot: fs.realpathSync(worktreeRoot),
     });
     await expect(provider.getStoredPlacementSettings()).resolves.toEqual({ tmux: true });
 
     await expect(
-      provider.patch({
+      authority.patch(id, {
         gitIdentity: {
           stored: {
             baseRemote: null,
-            githubAccount: null,
             agentGitCredentials: null,
           },
         },
+        integrationAccounts: { stored: { github: null } },
         placement: {
-          stored: { worktreeRoot: null, tmux: null },
+          stored: { tmux: null },
         },
       })
     ).resolves.toEqual({ success: true, data: undefined });
+    await provider.setWorktreeRoot(null);
     await expect(provider.getStoredGitSettings()).resolves.toEqual({});
     await expect(provider.getStoredPlacementSettings()).resolves.toEqual({});
     await expect(provider.getStoredGitSettings()).resolves.not.toHaveProperty(
@@ -709,9 +732,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     tempDirs.push(projectPath);
 
     const provider = makeLocalProvider(projectPath);
-    const result = await provider.patch({
-      placement: { stored: { worktreeRoot: 'worktrees' } },
-    });
+    const result = await provider.setWorktreeRoot('worktrees');
 
     expect(result).toEqual({
       success: false,
@@ -725,9 +746,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
 
     const provider = makeLocalProvider(projectPath);
     const foreignPath = 'C:\\worktrees';
-    const result = await provider.patch({
-      placement: { stored: { worktreeRoot: foreignPath } },
-    });
+    const result = await provider.setWorktreeRoot(foreignPath);
 
     expect(result).toEqual({
       success: false,
@@ -741,11 +760,9 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     fs.writeFileSync(path.join(projectPath, 'not-a-directory'), 'file');
 
     const provider = makeLocalProvider(projectPath);
-    const result = await provider.patch({
-      placement: {
-        stored: { worktreeRoot: path.join(projectPath, 'not-a-directory', 'worktrees') },
-      },
-    });
+    const result = await provider.setWorktreeRoot(
+      path.join(projectPath, 'not-a-directory', 'worktrees')
+    );
     expect(result).toEqual({
       success: false,
       error: { type: 'invalid-worktree-directory' },
@@ -757,9 +774,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     tempDirs.push(projectPath);
 
     const provider = makeLocalProvider(projectPath);
-    const result = await provider.patch({
-      placement: { stored: { worktreeRoot: '   ' } },
-    });
+    const result = await provider.setWorktreeRoot('   ');
     expect(result.success).toBe(true);
 
     await expect(provider.getStoredGitSettings()).resolves.not.toHaveProperty('worktreeRoot');

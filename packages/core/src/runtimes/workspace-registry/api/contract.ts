@@ -1,5 +1,6 @@
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { workspaceAttachmentsContract } from '#services/attachments/api';
 import {
   activateWorkspaceErrorSchema,
   createWorkspaceErrorSchema,
@@ -41,6 +42,7 @@ import {
  * in-memory runtime overlay.
  */
 export const workspaceRegistryContract = defineContract({
+  attachments: workspaceAttachmentsContract.attachments,
   /**
    * Sole read path. Full map on subscribe; durable records merged with the in-memory
    * runtime overlay; republished on every registry mutation, overlay change, and scan
@@ -166,7 +168,9 @@ export const workspaceRegistryContract = defineContract({
    * every in-flight lifecycle run, awaits its cancelled settlement, runs teardown
    * time-boxed and non-fatal, then kills the workspace's remaining sessions. A failed
    * or hanging teardown becomes a notice, never a verb error.
-   * Idempotent on inactive workspaces: teardown runs at most once per activation.
+   * Runs even without an in-memory activation. A succeeded/failed teardown lifecycle
+   * step consumes the attempt until reactivation, including across host restarts;
+   * cancelled or absent steps remain eligible. Unreachable hosts are never queued.
    */
   deactivateWorkspace: fallible({
     input: deactivateWorkspaceInputSchema,
@@ -175,7 +179,7 @@ export const workspaceRegistryContract = defineContract({
   }),
 
   /**
-   * Deactivate-if-active + unregister. Never touches disk, valid on every kind.
+   * Deactivate-if-active + unregister. Never removes workspace files; cleans owned attachments. Valid on every kind.
    * Idempotent: an absent id succeeds. A failing teardown is a removal-stage failure
    * (ADR 0006): recorded durably as lastRemovalAttempt before the error returns; the
    * record stays registered so the delete is retryable.

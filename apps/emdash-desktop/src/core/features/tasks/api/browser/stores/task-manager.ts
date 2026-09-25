@@ -294,6 +294,9 @@ export class TaskManagerStore {
       },
       update: (current, row) => {
         const task = this._taskFromRow(row);
+        if (isRegistered(current) && current.data.archivedAt && !task.archivedAt) {
+          current.restoreOperationalStores();
+        }
         current.setWorkspaceProjection(
           task.workspaceId ? this._taskStats.workspaceById?.[task.workspaceId] : undefined
         );
@@ -739,7 +742,6 @@ export class TaskManagerStore {
   async archiveTask(taskId: string): Promise<void> {
     const currentTask = this.tasks.get(taskId);
     if (!currentTask || !isRegistered(currentTask)) return;
-    if (isProvisioned(currentTask) && !this.host.requireLive().success) return;
     const archivedAt = new Date().toISOString();
     const result = await this._runTaskListMutation(
       (member) => member.mutations.archive,

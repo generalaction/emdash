@@ -1,4 +1,4 @@
-import type { AttachmentRef } from '@emdash/core/runtimes/acp/api/client';
+import type { AttachmentRef } from '@emdash/core/services/attachments/api';
 import { ChatComposer, ImageViewerDialog, MermaidViewerDialog } from '@emdash/ui/react/components';
 import type {
   CommandItem,
@@ -47,6 +47,7 @@ import { openModal } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
+import { resolveIssueMentionSource } from '@core/primitives/issues/api/issue-context';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -83,7 +84,7 @@ function commandMatchesQuery(command: CommandItem, query: string): boolean {
 }
 
 function toIssueMentionItem(issue: LinkedIssue): MentionItem {
-  const token = issueMentionToken(issue.provider, issue.identifier);
+  const token = issueMentionToken(issue.provider, issue.identifier, issue);
   return {
     id: token,
     label: token,
@@ -193,8 +194,8 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 // ── Composer for a single store ────────────────────────────────────────────────
 //
-// Keyed by conversationId in the parent so that drafts, focus, and editor state
-// reset when switching conversations — the same isolation the old remount gave.
+// Keyed by conversationId to isolate view-local UI. The store owns the editor
+// model so the document, selection, viewport and undo history survive remounts.
 
 const ComposerForStore = observer(function ComposerForStore({
   store,
@@ -214,16 +215,26 @@ const ComposerForStore = observer(function ComposerForStore({
   // Autofocus when the slot becomes available.
   useEffect(() => {
     editorApiRef.current?.focus();
-  }, []);
+  }, [composerSlot]);
 
   const buildHiddenIssueContext = useCallback(
     (value: string) =>
       buildIssueMentionHiddenContext(value, async (target) => {
+        const source = resolveIssueMentionSource(
+          target,
+          getRegisteredTaskData(store.projectId, store.taskId)?.linkedIssue
+        );
+        if (!source) return null;
         const result = await (
           await getIssuesClient()
         ).getIssueContext({
           provider: target.provider,
-          options: { identifier: target.identifier, projectId: store.projectId },
+          options: {
+            identifier: source.identifier,
+            accountId: source.accountId,
+            issueUrl: source.issueUrl,
+            projectId: store.projectId,
+          },
         });
         if (!result.success) {
           log.warn('Failed to resolve issue mention context', {
@@ -234,7 +245,7 @@ const ComposerForStore = observer(function ComposerForStore({
         }
         return result.data;
       }),
-    [store.projectId]
+    [store.projectId, store.taskId]
   );
 
   const handleSubmit = useCallback(
@@ -243,7 +254,6 @@ const ComposerForStore = observer(function ComposerForStore({
       if (!value.trim() && promptAttachments.length === 0) return;
       const hiddenContext = buildHiddenIssueContext(value);
       store.submitPrompt(value, promptAttachments, hiddenContext);
-      editorApiRef.current?.clear();
     },
     [store, buildHiddenIssueContext]
   );
@@ -412,6 +422,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const issueProviderContext = useObserver(() => {
     const project = projectData(getProjectStore(store.projectId));
     return {
+      projectId: store.projectId,
       projectPath: project?.path,
       repositoryUrl:
         getGitRepositoryStore(store.projectId)?.issueRepositoryUrl ??
@@ -568,18 +579,32 @@ const ComposerForStore = observer(function ComposerForStore({
       {!disabledReason && store.loadError && (
         <div className="border-destructive/30 bg-destructive/5 mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
           <span className="truncate text-foreground-muted">{store.loadError.message}</span>
-          <Button variant="secondary" size="sm" onClick={() => store.retry()}>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={store.historyLoading}
+            onClick={() => store.retry()}
+          >
             Retry
           </Button>
+          {store.loadError.kind === 'session_not_found' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={store.historyLoading}
+              onClick={() => store.retry({ mode: 'fresh' })}
+            >
+              Start fresh session
+            </Button>
+          )}
         </div>
       )}
       <div>
         <ChatComposer
+          model={store.composerModel}
           isWorking={a.isWorking}
           canSubmit={a.canSubmit}
-          value={store.draftText}
           onSubmit={handleSubmit}
-          onInputChange={(text) => store.setDraftText(text)}
           onSubmitWhileWorking={store.liveActionsEnabled ? handleSubmit : undefined}
           onStop={a.canCancel ? handleStop : undefined}
           permissionRequest={permissionRequest}
@@ -646,8 +671,8 @@ const ComposerForStore = observer(function ComposerForStore({
 // triggers ChatTranscript's setModel effect — the Solid view swaps ChatState
 // in-place without dispose/recreate, preserving per-conversation scroll.
 //
-// The composer subtree is keyed by conversationId so draft text, focus, and
-// editor state reset on each switch (equivalent to the old remount behavior).
+// The composer subtree is keyed by conversationId; each store retains its own
+// editor model while only the active conversation has a mounted editor view.
 
 export const AcpChatPanel = observer(function AcpChatPanel() {
   const { pane } = usePaneContext();
@@ -797,11 +822,21 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         if (arg.kind === 'issue') {
           const target = parseIssueMentionToken(arg.id);
           if (!target) return;
+          const source = resolveIssueMentionSource(
+            target,
+            getRegisteredTaskData(store.projectId, store.taskId)?.linkedIssue
+          );
+          if (!source) return;
           void getIssuesClient()
             .then((client) =>
               client.getIssueContext({
                 provider: target.provider,
-                options: { identifier: target.identifier, projectId: store.projectId },
+                options: {
+                  identifier: source.identifier,
+                  accountId: source.accountId,
+                  issueUrl: source.issueUrl,
+                  projectId: store.projectId,
+                },
               })
             )
             .then((result) => {
@@ -818,12 +853,13 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const unavailableWithoutTranscript =
     store.loadError?.kind === 'unavailable' && store.messageCount === 0;
+  const showComposer =
+    store.loadError?.kind !== 'auth_required' && (store.historyKnown || store.messageCount > 0);
   const showBlockingOverlay =
-    store.session === null &&
+    !showComposer &&
     (store.historyLoading ||
       (store.loadError !== null && store.loadError.kind !== 'unavailable') ||
       unavailableWithoutTranscript);
-  const showComposer = store.session !== null;
   const showHero = showComposer && store.isEmpty && store.loadError === null;
 
   return (
@@ -845,8 +881,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         style={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* Before attach, loading/errors own the content area. Once attached, activation errors are
-          non-blocking and render beside the still-usable composer. */}
+      {/* Authentication errors own the content area so sign-in remains accessible even after
+          attachment. Otherwise, show the composer as soon as history is known. */}
       {overlaySlot &&
         showBlockingOverlay &&
         createPortal(
@@ -895,6 +931,15 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
                   >
                     Retry
                   </Button>
+                  {store.loadError.kind === 'session_not_found' && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => store.retry({ mode: 'fresh' })}
+                    >
+                      Start fresh session
+                    </Button>
+                  )}
                 </div>
               )
             ) : (

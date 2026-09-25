@@ -90,7 +90,6 @@ describe('executeConversationRemoval', () => {
     terminateAcp?: SessionKillMock;
     deleteTui?: SessionKillMock;
     deleteRecord?: IndexDeleteMock;
-    purgeConversationData?: SessionKillMock;
   }) {
     const calls: string[] = [];
     const terminateAcp: SessionKillMock =
@@ -111,23 +110,17 @@ describe('executeConversationRemoval', () => {
         calls.push('conversations.delete');
         return ok(undefined);
       });
-    const purgeConversationData: SessionKillMock =
-      overrides.purgeConversationData ??
-      vi.fn(async () => {
-        calls.push('acp.purgeConversationData');
-        return ok(undefined);
-      });
     const broker: ConversationRemovalBroker = {
       client: async () =>
         (overrides.reachable ?? true)
           ? ok({
-              acp: { terminate: terminateAcp, purgeConversationData },
+              acp: { terminate: terminateAcp },
               tuiAgents: { delete: deleteTui },
               conversations: { delete: deleteRecord },
             })
           : err({ type: 'ssh-connection-failed', message: 'down' }),
     };
-    return { broker, calls, terminateAcp, deleteTui, deleteRecord, purgeConversationData };
+    return { broker, calls, terminateAcp, deleteTui, deleteRecord };
   }
 
   it('kills both session surfaces before deleting the index record', async () => {
@@ -137,17 +130,11 @@ describe('executeConversationRemoval', () => {
 
     expect(outcome).toBe('ok');
     // Session kill is part of the verb (spec §4.3) — strictly ordered before the delete;
-    // attachment cleanup (spec §3.6) follows the successful index delete.
-    expect(host.calls).toEqual([
-      'acp.terminate',
-      'tuiAgents.delete',
-      'conversations.delete',
-      'acp.purgeConversationData',
-    ]);
+    // the conversations runtime also owns best-effort attachment cleanup.
+    expect(host.calls).toEqual(['acp.terminate', 'tuiAgents.delete', 'conversations.delete']);
     expect(host.terminateAcp).toHaveBeenCalledWith({ conversationId: 'conv-1' });
     expect(host.deleteTui).toHaveBeenCalledWith({ conversationId: 'conv-1' });
     expect(host.deleteRecord).toHaveBeenCalledWith({ conversationId: 'conv-1' });
-    expect(host.purgeConversationData).toHaveBeenCalledWith({ conversationId: 'conv-1' });
   });
 
   it('deletes the record even when session kills fail', async () => {
@@ -173,29 +160,6 @@ describe('executeConversationRemoval', () => {
 
     expect(outcome).toBe('unreachable');
     expect(host.deleteRecord).not.toHaveBeenCalled();
-  });
-
-  it('reports ok even when attachment cleanup fails after the record delete', async () => {
-    const host = fakeBroker({
-      purgeConversationData: vi.fn(async () => {
-        throw new Error('acp runtime crashed');
-      }),
-    });
-
-    const outcome = await executeConversationRemoval(host.broker, LOCAL_HOST_REF, 'conv-1');
-
-    expect(outcome).toBe('ok');
-    expect(host.deleteRecord).toHaveBeenCalledWith({ conversationId: 'conv-1' });
-  });
-
-  it('skips attachment cleanup when the index delete fails', async () => {
-    const host = fakeBroker({
-      deleteRecord: vi.fn(async () => err({ type: 'index-io-error', message: 'disk' })),
-    });
-
-    await executeConversationRemoval(host.broker, LOCAL_HOST_REF, 'conv-1');
-
-    expect(host.purgeConversationData).not.toHaveBeenCalled();
   });
 
   it('classifies a mid-call unreachability error as unreachable, others as failed', async () => {

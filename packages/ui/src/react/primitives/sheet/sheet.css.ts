@@ -14,7 +14,10 @@ import {
   kfSlideOutToBottom,
 } from '@styles/effects/animations.css';
 
+const noDragRegion = { WebkitAppRegion: 'no-drag' } as Record<string, string>;
+
 export const backdrop = style({
+  ...noDragRegion,
   position: 'fixed',
   inset: 0,
   zIndex: 50,
@@ -29,6 +32,7 @@ export const sheetContent = recipe({
   base: [
     popup({ level: 'base', motion: 'none', radius: 'none', shadow: 'lg' }),
     {
+      ...noDragRegion,
       position: 'fixed',
       display: 'flex',
       flexDirection: 'column',

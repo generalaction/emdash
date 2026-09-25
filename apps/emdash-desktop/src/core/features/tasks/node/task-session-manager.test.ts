@@ -110,4 +110,33 @@ describe('executeTeardown', () => {
     await manager.teardownTask('task-1', 'archive');
     expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace-1' });
   });
+
+  it('archives an unmounted task using its persisted workspace identity', async () => {
+    const manager = new TaskSessionManager(dependencies);
+    expect(await manager.teardownTask('task-1', 'archive', 'workspace-1')).toMatchObject({
+      success: true,
+    });
+    expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace-1' });
+  });
+
+  it('does not deactivate a shared workspace while another task is mounted', async () => {
+    const manager = new TaskSessionManager(dependencies);
+    const { task } = makeTask('task-2');
+    await manager.registerTask(
+      'task-2',
+      { taskProvider: task, persistData: { workspaceId: 'workspace-1' } },
+      'project-1'
+    );
+    await manager.teardownTask('task-1', 'archive', 'workspace-1');
+    expect(hostDeactivate).not.toHaveBeenCalled();
+  });
+
+  it('completes archive when the host cannot be reached', async () => {
+    hostDeactivate.mockRejectedValueOnce(new Error('Host disconnected'));
+    const manager = new TaskSessionManager(dependencies);
+    expect(await manager.teardownTask('task-1', 'archive', 'workspace-1')).toMatchObject({
+      success: true,
+    });
+    expect(hostDeactivate).toHaveBeenCalledOnce();
+  });
 });

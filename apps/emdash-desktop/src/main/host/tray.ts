@@ -28,7 +28,16 @@ function createTrayIcon(): Electron.NativeImage {
   return nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 });
 }
 
-export function initializeTray(): Tray {
+export function setTrayVisible(visible: boolean): void {
+  if (visible) {
+    initializeTray();
+  } else {
+    if (tray && !tray.isDestroyed()) tray.destroy();
+    tray = null;
+  }
+}
+
+function initializeTray(): Tray {
   if (tray && !tray.isDestroyed()) return tray;
 
   tray = new Tray(createTrayIcon());

@@ -233,8 +233,7 @@ async function loadDeploymentProjectSettings(
     // The worktree pool comes from resolveWorktreePool, so the resolver's
     // worktreeRoot output is unused here.
     { project: stored, builtInWorktreeRoot: '' },
-    facts ?? { remotes: [], localBranches: [] },
-    []
+    facts ?? { remotes: [], localBranches: [] }
   );
   return {
     baseRemote: effective.baseRemote.value,

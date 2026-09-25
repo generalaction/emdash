@@ -50,6 +50,7 @@ export type TerminalSettings = {
 export type Theme = ThemeProfileSelection;
 
 export type InterfaceSettings = {
+  showTrayIcon: boolean;
   taskHoverAction: 'delete' | 'archive';
   autoRightSidebarBehavior: boolean;
   showLeftSidebarLineChanges: boolean;

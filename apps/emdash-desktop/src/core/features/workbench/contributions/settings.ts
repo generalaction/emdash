@@ -28,6 +28,7 @@ const keyboardSettingsSchema = z
   .default({});
 
 const interfaceSettingsSchema = z.object({
+  showTrayIcon: z.boolean(),
   taskHoverAction: z.enum(['delete', 'archive']),
   autoRightSidebarBehavior: z.boolean(),
   showLeftSidebarLineChanges: z.boolean(),
@@ -63,6 +64,7 @@ export const interfaceSettingsContribution = defineSettingsContribution<
   key: 'interface',
   schema: interfaceSettingsSchema,
   defaults: {
+    showTrayIcon: true,
     taskHoverAction: 'delete',
     autoRightSidebarBehavior: false,
     showLeftSidebarLineChanges: true,

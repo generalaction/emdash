@@ -43,43 +43,39 @@ const authMethodSchema = z.discriminatedUnion('kind', [
 
 const authDescriptorSchema = z.object({
   methods: z.array(authMethodSchema).min(1),
+  accountLabelRequired: z.boolean().optional(),
 });
 
 export type IntegrationAuthField = z.infer<typeof authFieldSchema>;
 export type IntegrationAuthMethod = z.infer<typeof authMethodSchema>;
 export type IntegrationAuthDescriptor = z.infer<typeof authDescriptorSchema>;
 
+export type VerifiedAccountIdentity = {
+  id: string;
+  login?: string;
+  avatarUrl?: string;
+  host?: string;
+  scope?: string;
+};
+
 export type VerifyResult =
   | {
       connected: true;
-      /**
-       * Stable identity for account upsert/dedupe. Required for multi-account
-       * services; single-account services may omit it.
-       */
-      account?: {
-        /** Provider-side stable id, e.g. the GitHub user id. */
-        id: string;
-        login: string;
-        avatarUrl?: string;
-        /** Service host when it varies per account, e.g. a GHES instance. */
-        host?: string;
-      };
+      account?: VerifiedAccountIdentity;
       displayName?: string; // user or workspace name
       displayDetail?: string; // e.g. organization or host
-      /**
-       * Normalized record for the host to persist when it differs from the
-       * verified input (e.g. derived ids resolved during validation). When
-       * omitted, the host persists the input credentials as-is.
-       */
-      credentials?: IntegrationCredentials;
+      credentials: IntegrationCredentials;
     }
   | { connected: false; error?: string };
 
 export type IIntegrationAuthBehavior = {
+  credentialsSchema: z.ZodType<IntegrationCredentials>;
   verify(host: IntegrationHostContext, credentials: IntegrationCredentials): Promise<VerifyResult>;
 };
 
 export const integrationAuthCapability = definePluginCapability<IIntegrationAuthBehavior>()(
   'auth',
-  authDescriptorSchema
+  authDescriptorSchema,
+  undefined,
+  { requiresBehavior: () => true }
 );

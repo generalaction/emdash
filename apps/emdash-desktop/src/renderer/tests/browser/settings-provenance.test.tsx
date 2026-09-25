@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { resolveProjectAccount } from '@core/features/integrations/api/project-account-resolution';
 import {
   BrokenSettingNotice,
   ProvenanceBadge,
@@ -11,7 +12,7 @@ import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
   resolveEffectiveSettings,
   type RepoFacts,
-  type StoredProjectGitSettings,
+  type StoredBaseProjectSettings,
 } from '@core/primitives/project-settings/api';
 
 beforeAll(() => {
@@ -30,6 +31,8 @@ const repoFacts: RepoFacts = {
 
 const accounts: GitHubAccountSummary[] = [
   {
+    providerId: 'github',
+    displayName: '@dkonopka',
     accountId: 'row-1',
     host: 'github.com',
     login: 'dkonopka',
@@ -39,11 +42,15 @@ const accounts: GitHubAccountSummary[] = [
   },
 ];
 
-function resolve(project: StoredProjectGitSettings) {
+function resolve(stored: StoredBaseProjectSettings) {
+  const { integrationAccounts: _accounts, ...project } = stored;
   return resolveEffectiveSettings(
-    { project, hostWorktreeRoot: '/hosts/worktrees', builtInWorktreeRoot: '/built-in/worktrees' },
-    repoFacts,
-    accounts
+    {
+      project,
+      hostWorktreeRoot: '/hosts/worktrees',
+      builtInWorktreeRoot: '/built-in/worktrees',
+    },
+    repoFacts
   );
 }
 
@@ -64,13 +71,19 @@ describe('provenance rendering layer over resolver output', () => {
 
   it('renders inferred values with a badge and their inference source', async () => {
     const effective = resolve({});
+    const resolvedAccount = resolveProjectAccount({
+      providerId: 'github',
+      stored: {},
+      accounts,
+      repository: { kind: 'project', storedGitSettings: {}, repoFacts },
+    });
 
     await act(async () => {
       root.render(
         <div>
           <ProvenanceBadge provenance={effective.baseRemote.provenance} />
           <ProvenanceSourceLine provenance={effective.defaultBranch.provenance} />
-          <ProvenanceSourceLine provenance={effective.githubAccount.provenance} />
+          <ProvenanceSourceLine provenance={resolvedAccount.provenance} />
         </div>
       );
     });
@@ -125,14 +138,18 @@ describe('provenance rendering layer over resolver output', () => {
   });
 
   it('renders a dangling account pin as Unavailable, never another identity', async () => {
-    const effective = resolve({ githubAccount: { kind: 'account', accountId: 'gone-row' } });
-
-    await act(async () => {
-      root.render(<ProvenanceBadge provenance={effective.githubAccount.provenance} />);
+    const resolvedAccount = resolveProjectAccount({
+      providerId: 'github',
+      stored: { github: { kind: 'account', accountId: 'gone-row' } },
+      accounts,
     });
 
-    expect(effective.githubAccount.value).toBeNull();
-    expect(effective.githubAccount.provenance.kind).toBe('unresolvable');
+    await act(async () => {
+      root.render(<ProvenanceBadge provenance={resolvedAccount.provenance} />);
+    });
+
+    expect(resolvedAccount.value).toBeNull();
+    expect(resolvedAccount.provenance.kind).toBe('unresolvable');
     expect(host.textContent).toContain('Unavailable');
   });
 

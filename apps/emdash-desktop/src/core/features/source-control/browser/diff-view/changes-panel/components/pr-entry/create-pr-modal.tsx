@@ -9,17 +9,14 @@ import {
   SplitButton,
   Textarea,
 } from '@emdash/ui/react/primitives';
-import { ChevronDown, GitBranch, GitPullRequest } from 'lucide-react';
+import { ChevronDown, GitBranch, Github, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
-import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
-import { GitHubIdentityStrip } from '@core/features/github/contributions/browser/identity-strip';
-import { persistProjectGitHubAccount } from '@core/features/github/contributions/browser/identity-strip-persist';
-import {
-  identityStripBlocksAction,
-  identityStripView,
-} from '@core/features/github/contributions/browser/identity-strip-state';
-import { useEffectiveSettings } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
+import { useMemo, useRef, useState } from 'react';
+import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
+import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
+import { identityStripView } from '@core/features/integrations/api/identity-strip-state';
+import { ProviderIdentityStrip } from '@core/features/integrations/contributions/browser/provider-identity-strip';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { BrokenSettingNotice } from '@core/features/projects/contributions/browser/settings-provenance';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
@@ -29,6 +26,7 @@ import { RemoteSelector } from '@core/features/source-control/contributions/brow
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
+import { isGitHubAccountSummary } from '@core/primitives/github/api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -57,7 +55,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   workspaceId,
 }: CreatePrModalArgs) {
   const { complete } = useModalController('createPrModal');
-  const openGithubConnectModal = useOpenModal('githubConnectModal');
+  const openIntegrationSetup = useOpenModal('integrationSetupModal');
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<GitBranchRef | undefined>();
@@ -66,24 +64,50 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [createActionId, setCreateActionId] = useState('push-and-create');
   const [error, setError] = useState<string | null>(null);
   const [accountOverride, setAccountOverride] = useState<GitHubAccountSummary | null>(null);
+  const [accountSaveState, setAccountSaveState] = useState<'idle' | 'saving' | 'failed'>('idle');
+  const accountSaveInFlight = useRef(false);
   const repo = getGitRepositoryStore(projectId);
   const checkout = workspaceRegistry.get(workspaceId)?.get(gitCheckoutStoreToken);
   // Identity strip inputs (spec §9): the resolver's effective account plus the
   // per-action override. Create-PR is fail-closed (spec §5/§7): while the
   // inputs load or when no account resolves, the primary action stays blocked.
-  const effective = useEffectiveSettings(projectId);
-  const { data: accounts } = useGitHubAccounts();
-  const resolvedAccount = effective?.githubAccount ?? null;
+  const resolvedAccount = useProjectAccount(projectId, 'github', {
+    repository: { kind: 'project' },
+    accepts: isGitHubAccountSummary,
+  });
+  const { data: accounts } = useAccounts('github', isGitHubAccountSummary);
   const identityBlocked =
+    accountSaveState !== 'idle' ||
     !resolvedAccount ||
     !accounts ||
-    identityStripBlocksAction(identityStripView(resolvedAccount, accountOverride, accounts), true);
+    identityStripView('GitHub', resolvedAccount, accountOverride, accounts).kind !== 'account';
   // The PR execution path resolves *as whom* node-side from the stored
   // per-project setting, so a popover selection persists immediately (the
   // popover says so) instead of riding a per-action parameter.
-  const handleSelectAccount = (account: GitHubAccountSummary) => {
+  const handleSelectAccount = async (account: GitHubAccountSummary) => {
+    if (accountSaveInFlight.current || isCreating) return;
+    accountSaveInFlight.current = true;
+    setAccountSaveState('saving');
     setAccountOverride(account);
-    void persistProjectGitHubAccount(projectId, account.accountId);
+    setError(null);
+    try {
+      const settings = getProjectSettingsStore(projectId);
+      if (!settings) throw new Error('Project settings are unavailable.');
+      const result = await settings.save({
+        integrationAccounts: {
+          stored: { github: { kind: 'account', accountId: account.accountId } },
+        },
+      });
+      if (!result.success) throw new Error('Could not save the selected account.');
+      setAccountSaveState('idle');
+    } catch {
+      setAccountSaveState('failed');
+      setError(
+        'Could not save the selected account. Select it again to retry before creating the PR.'
+      );
+    } finally {
+      accountSaveInFlight.current = false;
+    }
   };
   const defaultBranch = repo?.defaultBranchRef;
   const needsPush = !checkout?.isPublished || checkout.aheadCount > 0;
@@ -122,6 +146,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   };
 
   const doCreate = async (push: boolean) => {
+    if (identityBlocked || accountSaveInFlight.current || isCreating) return;
     if (!selectedBase?.branch) {
       setError('Select a base branch before creating the pull request.');
       return;
@@ -265,14 +290,23 @@ export const CreatePrModal = observer(function CreatePrModal({
           </Field.Root>
         </Field.Group>
         {resolvedAccount && accounts ? (
-          <GitHubIdentityStrip
+          <ProviderIdentityStrip
+            providerName="GitHub"
+            providerIcon={<Github className="size-4 text-foreground-muted" />}
+            actionLabel="Creating as"
+            emptyState={{
+              connect: 'Connect a GitHub account to continue.',
+              unavailable: 'Choose a GitHub account to continue.',
+              noMatch: 'No connected account matches this repository.',
+            }}
             resolved={resolvedAccount}
             accounts={accounts}
             override={accountOverride}
             persistence="project"
             accountRequired
-            onSelect={handleSelectAccount}
-            onConnect={() => void openGithubConnectModal({})}
+            disabled={accountSaveState === 'saving' || isCreating}
+            onSelect={(account) => void handleSelectAccount(account)}
+            onConnect={() => void openIntegrationSetup({ integration: 'github' })}
           />
         ) : null}
         {error && (

@@ -4,6 +4,8 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
+import type { AttachmentStore } from '#services/attachments/node/attachment-store';
+import { OwnedAttachments } from '#services/attachments/node/owned-attachments';
 import { conversationsContract } from '../api/contract';
 import type {
   ConversationMutationError,
@@ -27,6 +29,7 @@ import type { ConversationsDb } from './persistence/store';
 
 export type ConversationsRuntimeOptions = {
   handle: StoreHandle<ConversationsDb>;
+  attachments: AttachmentStore;
   clock?: Clock;
   logger?: Logger;
 };
@@ -46,6 +49,7 @@ const IMMUTABLE_CREATE_FIELDS = [
  * report surface (ticket 12). Nothing else touches the storage.
  */
 export class ConversationsRuntime {
+  readonly attachments: OwnedAttachments;
   private readonly store: ConversationRecordStore;
   private readonly clock: Clock;
   private readonly logger: Logger;
@@ -56,6 +60,12 @@ export class ConversationsRuntime {
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
     this.store = new ConversationRecordStore(options.handle);
+    this.attachments = new OwnedAttachments({
+      kind: 'conversation',
+      store: options.attachments,
+      exists: (id) => Boolean(this.store.get(id)),
+      logger: this.logger,
+    });
 
     const initial: ConversationRecords = {};
     for (const record of this.store.list()) {
@@ -121,19 +131,16 @@ export class ConversationsRuntime {
     return this.mutate(input.conversationId, (record) => ({ ...record, config: input.config }));
   }
 
-  delete(input: DeleteConversationInput): Result<void, DeleteConversationError> {
-    const deleted = this.store.delete(input.conversationId);
-    if (deleted) {
-      this.recordsCell.update((previous) => {
-        const next = { ...previous };
-        delete next[input.conversationId];
-        return next;
-      });
-    } else {
-      this.logger.debug?.(
-        `delete of absent conversation '${input.conversationId}' — idempotent no-op`
-      );
-    }
+  async delete(input: DeleteConversationInput): Promise<Result<void, DeleteConversationError>> {
+    await this.attachments.deleteOwner(input.conversationId, () => {
+      if (this.store.delete(input.conversationId)) {
+        this.recordsCell.update((previous) => {
+          const next = { ...previous };
+          delete next[input.conversationId];
+          return next;
+        });
+      }
+    });
     return ok(undefined);
   }
 

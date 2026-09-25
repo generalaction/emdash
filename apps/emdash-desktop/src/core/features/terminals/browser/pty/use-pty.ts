@@ -16,6 +16,7 @@ import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
+  getMacOptionArrowSequence,
   shouldCopySelectionFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
@@ -47,6 +48,8 @@ export interface UsePtyOptions {
   /** Pre-connected FrontendPty instance owned by the entity's PtySession store. */
   pty: FrontendPty;
   theme?: SessionTheme;
+  /** Shell panes use macOS editing shortcuts; agents receive native Alt+arrows. */
+  inputContext?: 'shell' | 'agent';
   mapShiftEnterToCtrlJ?: boolean;
   readOnly?: boolean;
   onActivity?: () => void;
@@ -93,6 +96,7 @@ export function usePty(
     sessionId,
     pty,
     theme,
+    inputContext = 'shell',
     mapShiftEnterToCtrlJ,
     readOnly = false,
     onActivity,
@@ -117,6 +121,8 @@ export function usePty(
   themeRef.current = theme;
   const readOnlyRef = useRef(readOnly);
   readOnlyRef.current = readOnly;
+  const inputContextRef = useRef(inputContext);
+  inputContextRef.current = inputContext;
 
   // The per-pane controller owns PTY backend resizes (broadcast to ALL sessions)
   // and exposes an observable controllerDims box so this terminal can call
@@ -429,6 +435,17 @@ export function usePty(
         if (shouldHandleInterruptFromTerminal(event)) {
           onInterruptPressRef.current?.();
           return true;
+        }
+
+        if (inputContextRef.current === 'shell') {
+          const optionArrowSequence = getMacOptionArrowSequence(event, IS_MAC_PLATFORM);
+          if (optionArrowSequence) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            event.stopPropagation();
+            sendInput(optionArrowSequence);
+            return false;
+          }
         }
 
         if (

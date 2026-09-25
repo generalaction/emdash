@@ -26,7 +26,7 @@ import type {
   ToolNode,
   ToolStatus,
 } from '../models/turns';
-import { makeDiffId, makeMessageId, makePlanId, makeThinkingId, makeToolId } from './ids';
+import { makeDiffId, makePlanId, makeToolId } from './ids';
 import type {
   NormalizedDiff,
   NormalizedEvent,
@@ -37,8 +37,7 @@ import { toolRunStatus, wrapToolRuns } from './tool-runs';
 
 export type FoldEvent =
   | Exclude<NormalizedEvent, { kind: 'message' | 'thinking' }>
-  | (Extract<NormalizedEvent, { kind: 'message' }> & { messageId: string })
-  | (Extract<NormalizedEvent, { kind: 'thinking' }> & { messageId: string });
+  | (Extract<NormalizedEvent, { kind: 'message' | 'thinking' }> & { itemId: string });
 
 function mapToolStatus(status: NormalizedToolStatus | null | undefined): ToolStatus | undefined {
   switch (status) {
@@ -316,7 +315,7 @@ function upsertSpecialEvent(
   );
   const seq = existing?.seq ?? nextSeq(items);
   const parentToolCallId = event.parentToolCallId ?? undefined;
-  const mapped = mapToolStatus(event.status) ?? 'running';
+  const mapped = mapToolStatus(event.status) ?? existing?.status ?? 'running';
 
   let next: ToolCallItem;
   switch (event.kind) {
@@ -377,27 +376,7 @@ function upsertSpecialEvent(
       break;
   }
 
-  return normalizeToolStructure(upsertToolCallItem(items, next), turnId);
-}
-
-/**
- * Auto-finalize any open thinking rows when a non-thinking content event
- * arrives. Mirrors the renderer's applyFinalizeOpenThinking behavior.
- */
-function finalizeOpenThinking(items: TranscriptItem[], now: number): TranscriptItem[] {
-  let changed = false;
-  const result = items.map((item) => {
-    if (item.kind === 'thinking' && item.status === 'thinking') {
-      changed = true;
-      return {
-        ...item,
-        status: 'done' as const,
-        durationMs: now - item.startedAt,
-      } satisfies TranscriptThinking;
-    }
-    return item;
-  });
-  return changed ? result : items;
+  return normalizeToolStructure(upsertToolCallItem(items, { ...existing, ...next }), turnId);
 }
 
 function replaceFileOperations(
@@ -602,8 +581,8 @@ function normalizeToolStructure(items: TranscriptItem[], turnId: string): Transc
  * Apply one NormalizedEvent to a turn's item list, returning an updated list.
  * The turnId is used for id synthesis — all item ids are scoped to the turn.
  *
- * Content-bearing events (message, tool, diff, plan) auto-finalize any open
- * thinking rows before appending (the agent has moved past the reasoning phase).
+ * Content identity and finalization are resolved by the reducer before folding.
+ * Updating tool/plan state does not imply that foreground reasoning has ended.
  */
 export function foldItem(
   items: TranscriptItem[],
@@ -614,8 +593,8 @@ export function foldItem(
   const flatItems = flattenItems(items);
   switch (event.kind) {
     case 'message': {
-      const id = makeMessageId(turnId, event.messageId, event.role);
-      const base = finalizeOpenThinking(flatItems, at);
+      const id = event.itemId;
+      const base = flatItems;
       const idx = base.findIndex((it) => it.kind === 'message' && it.id === id);
       if (idx >= 0) {
         // Append chunk to existing message.
@@ -646,7 +625,7 @@ export function foldItem(
     }
 
     case 'thinking': {
-      const id = makeThinkingId(turnId, event.messageId);
+      const id = event.itemId;
       const idx = flatItems.findIndex(
         (it) => it.kind === 'thinking' && it.id === id && it.status === 'thinking'
       );
@@ -661,18 +640,19 @@ export function foldItem(
         kind: 'thinking',
         id,
         seq: nextSeq(flatItems),
-        segmentId: event.messageId,
+        segmentId: event.itemId,
         text: event.text,
         status: 'thinking',
         startedAt: at,
       };
-      return normalizeToolStructure([...finalizeOpenThinking(flatItems, at), newThinking], turnId);
+      return normalizeToolStructure([...flatItems, newThinking], turnId);
     }
 
     case 'tool_call': {
       const toolId = makeToolId(turnId, event.toolCallId);
       const parentToolCallId = event.parentToolCallId ?? undefined;
-      const base = finalizeOpenThinking(flatItems, at);
+      const base = flatItems;
+      const existing = base.find((item) => isToolCallItem(item) && item.id === toolId);
       if (event.diffs.length > 0) {
         const next = replaceFileOperations(
           base,
@@ -690,7 +670,7 @@ export function foldItem(
 
       const tool = createToolCallItem({
         id: toolId,
-        seq: nextSeq(base),
+        seq: existing?.seq ?? nextSeq(base),
         toolCallId: event.toolCallId,
         title: event.title,
         toolKind: event.toolKind,
@@ -708,7 +688,7 @@ export function foldItem(
     case 'tool_update': {
       const toolId = makeToolId(turnId, event.toolCallId);
       const parentToolCallId = event.parentToolCallId ?? undefined;
-      let base = finalizeOpenThinking(flatItems, at);
+      let base = flatItems;
       const hadFileOperations = hasFileOperationsForToolCall(base, event.toolCallId);
       if (event.diffs !== undefined) {
         base = replaceFileOperations(
@@ -769,12 +749,12 @@ export function foldItem(
     case 'search':
     case 'mcp_tool':
     case 'web_fetch': {
-      const base = finalizeOpenThinking(flatItems, at);
+      const base = flatItems;
       return upsertSpecialEvent(base, event, turnId);
     }
 
     case 'plan': {
-      const base = finalizeOpenThinking(flatItems, at);
+      const base = flatItems;
       return normalizeToolStructure(upsertPlanToolCall(base, turnId, event), turnId);
     }
 
@@ -790,19 +770,20 @@ export function foldItem(
  * Settle all in-progress states for a committed turn.
  *
  * - thinking status 'thinking' → 'done' + computed durationMs
- * - tool status 'running' → 'done'
+ * - foreground tool status 'running' → 'done'; background subtrees retain live status
  *
  * Input must be plain objects (not Solid/MobX proxies).
  */
 export function finalizeItems(items: TranscriptItem[], at: number): TranscriptItem[] {
-  const finalizeNode = (item: ToolNode): ToolNode => {
+  const finalizeNode = (item: ToolNode, backgroundAncestor = false): ToolNode => {
+    const background = backgroundAncestor || ('background' in item && item.background === true);
     if (isToolGroup(item)) {
-      const children = item.children.map(finalizeNode);
+      const children = item.children.map((child) => finalizeNode(child, background));
       return { ...item, children, status: toolRunStatus(children) };
     }
 
-    const children = item.children?.map(finalizeNode);
-    const status = item.status === 'running' ? 'done' : item.status;
+    const children = item.children?.map((child) => finalizeNode(child, background));
+    const status = item.status === 'running' && !background ? 'done' : item.status;
     return {
       ...item,
       status,

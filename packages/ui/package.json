@@ -74,7 +74,7 @@
     "dev": "tsx watch scripts/build-library.ts",
     "build": "tsx scripts/build-library.ts && pnpm run build:css",
     "build:css": "tsx scripts/build-styles.ts",
-    "test": "vitest run",
+    "test": "pnpm exec nx test @emdash/ui",
     "build:theme": "pnpm --filter @emdash/theme run build:theme",
     "watch:theme": "pnpm --filter @emdash/theme run watch:theme",
     "storybook": "node ../../tooling/scripts/ensure-packages-built.mjs && storybook dev -p 6006 -c .storybook",
@@ -156,10 +156,15 @@
   "nx": {
     "targets": {
       "test": {
+        "executor": "nx:run-commands",
         "dependsOn": [
           "build",
           "^build"
-        ]
+        ],
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/ui"
+        }
       }
     }
   }

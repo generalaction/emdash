@@ -1,7 +1,5 @@
 import { ok, type Result, type SerializedError } from '@emdash/shared';
-import { blobSourceFromBytes, type WireFile } from '@emdash/wire/rpc';
 import type {
-  AcpAttachmentError,
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
   AcpDeleteQueuedPromptError,
@@ -9,15 +7,12 @@ import type {
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpLoadHistoryError,
-  AcpPurgeConversationDataError,
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetOptionError,
-  AcpStartError,
+  AcpSessionStartMode,
   AcpStartInputWire,
   AcpTerminateError,
-  AttachmentMimeType,
-  AttachmentRef,
   LoadHistoryResult,
   PromptInput,
   PromptPlacement,
@@ -30,11 +25,14 @@ export type SessionDescriptorInput = AcpStartInputWire;
 
 export function createAcpProcedures(runtime: AcpRuntime) {
   return {
-    attach(input: SessionDescriptorInput): Promise<Result<void, AcpStartError>> {
+    attach(input: SessionDescriptorInput): ReturnType<AcpRuntime['attachSession']> {
       return runtime.attachSession(input);
     },
-    launch(input: SessionDescriptorInput): ReturnType<AcpRuntime['launchSession']> {
-      return runtime.launchSession(input);
+    startSession(
+      input: SessionDescriptorInput & { mode: AcpSessionStartMode }
+    ): ReturnType<AcpRuntime['startSession']> {
+      const { mode, ...descriptor } = input;
+      return runtime.startSession(descriptor, mode);
     },
     terminate(input: { conversationId: string }): Promise<Result<void, AcpTerminateError>> {
       return runtime.terminateSession(input.conversationId);
@@ -105,42 +103,6 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Result<{ log: string }, AcpExportRawLogError> {
       const result = runtime.exportRawAcpLog(input.conversationId);
       return result.success ? ok({ log: result.data }) : result;
-    },
-    async uploadAttachment(
-      input: { conversationId: string },
-      file: WireFile
-    ): Promise<Result<AttachmentRef, AcpAttachmentError>> {
-      const data = await file.bytes();
-      return runtime.uploadAttachment({
-        conversationId: input.conversationId,
-        data,
-        mimeType: file.mimeType as AttachmentMimeType,
-        name: file.name,
-      });
-    },
-    async downloadAttachment(input: {
-      conversationId: string;
-      attachmentId: string;
-    }): Promise<
-      Result<{ meta: AttachmentRef; source: AsyncIterable<Uint8Array> }, AcpAttachmentError>
-    > {
-      const result = await runtime.downloadAttachment(input.conversationId, input.attachmentId);
-      if (!result.success) return result;
-      return ok({
-        meta: result.data.ref,
-        source: blobSourceFromBytes(result.data.data),
-      });
-    },
-    deleteAttachment(input: {
-      conversationId: string;
-      attachmentId: string;
-    }): Promise<Result<void, AcpAttachmentError>> {
-      return runtime.deleteAttachment(input.conversationId, input.attachmentId);
-    },
-    purgeConversationData(input: {
-      conversationId: string;
-    }): Promise<Result<void, AcpPurgeConversationDataError>> {
-      return runtime.purgeConversationData(input.conversationId);
     },
     loadHistory(input: {
       conversationId: string;

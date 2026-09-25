@@ -45,6 +45,9 @@ type PullRequestDbRow = {
   mergeableStatus: PullRequest['mergeableStatus'];
   mergeStateStatus: PullRequest['mergeStateStatus'];
   reviewDecision: string | null;
+  checkSummary: PullRequest['checkSummary'];
+  metadataFetchedAt: number | null;
+  checksFetchedAt: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -357,8 +360,8 @@ export class PullRequestStore {
           title, description, status, is_draft, author_user_id, additions,
           deletions, changed_files, commit_count, mergeable_status,
           merge_state_status, review_decision, pull_request_created_at,
-          pull_request_updated_at
-        ) VALUES (${placeholders(23)})
+          pull_request_updated_at, check_summary, metadata_fetched_at
+        ) VALUES (${placeholders(25)})
         ON CONFLICT(url) DO UPDATE SET
           provider = excluded.provider,
           repository_url = excluded.repository_url,
@@ -381,7 +384,10 @@ export class PullRequestStore {
           merge_state_status = excluded.merge_state_status,
           review_decision = excluded.review_decision,
           pull_request_created_at = excluded.pull_request_created_at,
-          pull_request_updated_at = excluded.pull_request_updated_at`,
+          pull_request_updated_at = excluded.pull_request_updated_at,
+          check_summary = excluded.check_summary,
+          metadata_fetched_at = excluded.metadata_fetched_at,
+          checks_fetched_at = CASE WHEN head_ref_oid != excluded.head_ref_oid THEN NULL ELSE checks_fetched_at END`,
         [
           pr.url,
           pr.provider,
@@ -406,10 +412,16 @@ export class PullRequestStore {
           pr.reviewDecision,
           pr.createdAt,
           pr.updatedAt,
+          pr.checkSummary ?? null,
+          pr.metadataFetchedAt ?? null,
         ]
       );
       this.replaceLabels(pr.url, pr.labels);
       this.replaceAssignees(pr.url, pr.assignees);
+      this.handle.connection.run(
+        'DELETE FROM pull_request_checks WHERE pull_request_url = ? AND commit_sha != ?',
+        [pr.url, pr.headRefOid]
+      );
     });
     return this.getPullRequestByUrl(pr.url) ?? pr;
   }
@@ -443,6 +455,16 @@ export class PullRequestStore {
     );
   }
 
+  getOpenPullRequestNumbers(repositoryUrl: string): number[] {
+    return this.handle.connection
+      .all<{ identifier: string }>(
+        "SELECT identifier FROM pull_requests WHERE repository_url = ? AND status = 'open'",
+        [repositoryUrl]
+      )
+      .map(({ identifier }) => Number(identifier?.replace('#', '')))
+      .filter((number) => Number.isInteger(number) && number > 0);
+  }
+
   getChecksCommitSha(pullRequestUrl: string): string | null {
     return (
       this.handle.connection.get<{ commitSha: string }>(
@@ -455,73 +477,115 @@ export class PullRequestStore {
     );
   }
 
-  replaceChecks(pullRequestUrl: string, checks: PullRequestCheck[]): void {
-    this.handle.transaction(() => {
-      this.handle.connection.run('DELETE FROM pull_request_checks WHERE pull_request_url = ?', [
-        pullRequestUrl,
-      ]);
-      for (const check of checks) {
-        this.handle.connection.run(
-          `INSERT INTO pull_request_checks (
-            id, pull_request_url, commit_sha, name, status, conclusion,
-            details_url, started_at, completed_at, workflow_name, app_name, app_logo_url
-          ) VALUES (${placeholders(12)})`,
-          [
-            check.id,
-            check.pullRequestUrl,
-            check.commitSha,
-            check.name,
-            check.status,
-            check.conclusion,
-            check.detailsUrl,
-            check.startedAt,
-            check.completedAt,
-            check.workflowName,
-            check.appName,
-            check.appLogoUrl,
-          ]
-        );
-      }
+  replaceChecksForHead(
+    pullRequestUrl: string,
+    headRefOid: string,
+    checks: PullRequestCheck[],
+    fetchedAt: number
+  ): boolean {
+    return this.handle.transaction(() => {
+      if (
+        this.getPullRequestByUrl(pullRequestUrl)?.headRefOid !== headRefOid ||
+        checks.some(
+          (check) => check.commitSha !== headRefOid || check.pullRequestUrl !== pullRequestUrl
+        )
+      )
+        return false;
+      this.writeChecks(pullRequestUrl, checks, fetchedAt);
+      return true;
     });
   }
 
+  replaceChecks(pullRequestUrl: string, checks: PullRequestCheck[], fetchedAt = Date.now()): void {
+    this.handle.transaction(() => this.writeChecks(pullRequestUrl, checks, fetchedAt));
+  }
+
+  private writeChecks(pullRequestUrl: string, checks: PullRequestCheck[], fetchedAt: number): void {
+    this.handle.connection.run('UPDATE pull_requests SET checks_fetched_at = ? WHERE url = ?', [
+      fetchedAt,
+      pullRequestUrl,
+    ]);
+    this.handle.connection.run('DELETE FROM pull_request_checks WHERE pull_request_url = ?', [
+      pullRequestUrl,
+    ]);
+    for (const check of checks) {
+      this.handle.connection.run(
+        `INSERT INTO pull_request_checks (
+            id, pull_request_url, commit_sha, name, status, conclusion,
+            details_url, started_at, completed_at, workflow_name, app_name, app_logo_url
+          ) VALUES (${placeholders(12)})`,
+        [
+          check.id,
+          check.pullRequestUrl,
+          check.commitSha,
+          check.name,
+          check.status,
+          check.conclusion,
+          check.detailsUrl,
+          check.startedAt,
+          check.completedAt,
+          check.workflowName,
+          check.appName,
+          check.appLogoUrl,
+        ]
+      );
+    }
+  }
+
   clearChecks(pullRequestUrl: string): void {
+    this.handle.connection.run('UPDATE pull_requests SET checks_fetched_at = NULL WHERE url = ?', [
+      pullRequestUrl,
+    ]);
     this.handle.connection.run('DELETE FROM pull_request_checks WHERE pull_request_url = ?', [
       pullRequestUrl,
     ]);
   }
 
-  replaceComments(pullRequestUrl: string, comments: PullRequestComment[]): void {
+  saveCommentObservation(
+    pullRequestUrl: string,
+    comments: PullRequestComment[],
+    fetchedAt: number
+  ): void {
     this.handle.transaction(() => {
-      for (const comment of comments) {
-        if (comment.author) this.upsertUser(comment.author);
-      }
-      this.handle.connection.run('DELETE FROM pull_request_comments WHERE pull_request_url = ?', [
-        pullRequestUrl,
-      ]);
-      for (const comment of comments) {
-        this.handle.connection.run(
-          `INSERT INTO pull_request_comments (
+      if (!this.getPullRequestByUrl(pullRequestUrl)) return;
+      this.writeComments(pullRequestUrl, comments);
+      this.setCommentState(pullRequestUrl, null, fetchedAt);
+    });
+  }
+
+  replaceComments(pullRequestUrl: string, comments: PullRequestComment[]): void {
+    this.handle.transaction(() => this.writeComments(pullRequestUrl, comments));
+  }
+
+  private writeComments(pullRequestUrl: string, comments: PullRequestComment[]): void {
+    for (const comment of comments) {
+      if (comment.author) this.upsertUser(comment.author);
+    }
+    this.handle.connection.run('DELETE FROM pull_request_comments WHERE pull_request_url = ?', [
+      pullRequestUrl,
+    ]);
+    for (const comment of comments) {
+      this.handle.connection.run(
+        `INSERT INTO pull_request_comments (
             id, pull_request_url, kind, body, url, author_user_id, path, line,
             is_resolved, is_outdated, comment_created_at, comment_updated_at
           ) VALUES (${placeholders(12)})`,
-          [
-            comment.id,
-            pullRequestUrl,
-            comment.kind,
-            comment.body,
-            comment.url,
-            comment.author?.userId ?? null,
-            comment.path,
-            comment.line,
-            comment.isResolved ? 1 : 0,
-            comment.isOutdated ? 1 : 0,
-            comment.createdAt,
-            comment.updatedAt,
-          ]
-        );
-      }
-    });
+        [
+          comment.id,
+          pullRequestUrl,
+          comment.kind,
+          comment.body,
+          comment.url,
+          comment.author?.userId ?? null,
+          comment.path,
+          comment.line,
+          comment.isResolved ? 1 : 0,
+          comment.isOutdated ? 1 : 0,
+          comment.createdAt,
+          comment.updatedAt,
+        ]
+      );
+    }
   }
 
   getComments(pullRequestUrl: string): PullRequestComment[] {
@@ -573,14 +637,14 @@ export class PullRequestStore {
     );
   }
 
-  setCommentState(pullRequestUrl: string, etag: string | null): void {
+  setCommentState(pullRequestUrl: string, etag: string | null, fetchedAt = Date.now()): void {
     this.handle.connection.run(
       `INSERT INTO pull_request_comment_state (pull_request_url, etag, last_fetched_at)
       VALUES (?, ?, ?)
       ON CONFLICT(pull_request_url) DO UPDATE SET
         etag = excluded.etag,
         last_fetched_at = excluded.last_fetched_at`,
-      [pullRequestUrl, etag, Date.now()]
+      [pullRequestUrl, etag, fetchedAt]
     );
   }
 
@@ -695,9 +759,9 @@ export class PullRequestStore {
           app_name AS appName,
           app_logo_url AS appLogoUrl
         FROM pull_request_checks
-        WHERE pull_request_url = ?
+        WHERE pull_request_url = ? AND commit_sha = ?
         ORDER BY name`,
-        [row.url]
+        [row.url, row.headRefOid]
       );
       return {
         url: row.url,
@@ -720,6 +784,9 @@ export class PullRequestStore {
         mergeableStatus: row.mergeableStatus,
         mergeStateStatus: row.mergeStateStatus,
         reviewDecision: row.reviewDecision,
+        checkSummary: row.checkSummary,
+        metadataFetchedAt: row.metadataFetchedAt,
+        checksFetchedAt: row.checksFetchedAt,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         author,
@@ -764,6 +831,9 @@ const pullRequestSelectSql = `SELECT
   mergeable_status AS mergeableStatus,
   merge_state_status AS mergeStateStatus,
   review_decision AS reviewDecision,
+  check_summary AS checkSummary,
+  metadata_fetched_at AS metadataFetchedAt,
+  checks_fetched_at AS checksFetchedAt,
   pull_request_created_at AS createdAt,
   pull_request_updated_at AS updatedAt
 FROM pull_requests`;

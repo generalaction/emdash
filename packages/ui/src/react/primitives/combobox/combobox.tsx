@@ -1,7 +1,7 @@
 import { Combobox as ComboboxPrimitive } from '@base-ui/react';
 import { Button } from '@react/primitives/button';
 import { Icon } from '@react/primitives/icon';
-import { InputGroup } from '@react/primitives/input-group';
+import { InputGroup, type InputGroupAppearance } from '@react/primitives/input-group';
 import { ScrollContainer } from '@react/primitives/scroll-container';
 import { joinClassNames as cx } from '@styles/classnames';
 import { CheckIcon, XIcon } from 'lucide-react';
@@ -71,6 +71,8 @@ interface ComboboxInputProps extends Omit<ComboboxPrimitive.Input.Props, 'classN
   /** Caller-owned trailing adornment slot. */
   rightAddon?: React.ReactNode;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Field-shell containment. @default 'embedded' */
+  appearance?: InputGroupAppearance;
 }
 
 /**
@@ -90,11 +92,12 @@ function ComboboxInput({
   leftAddon,
   rightAddon,
   inputRef,
+  appearance = 'embedded',
   ...props
 }: ComboboxInputProps) {
   return (
     <InputGroup.Root
-      appearance="embedded"
+      appearance={appearance}
       className={className}
       disabled={disabled}
       invalid={invalid}

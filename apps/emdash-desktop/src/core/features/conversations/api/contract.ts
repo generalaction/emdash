@@ -3,8 +3,14 @@ import {
   runtimeResolveErrorSchema,
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
-import { acpApiContract, sessionSummarySchema } from '@emdash/core/runtimes/acp/api/client';
+import {
+  acpApiContract,
+  acpSessionStartModeSchema,
+  sessionSummarySchema,
+} from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
+import { attachmentErrorSchema } from '@emdash/core/services/attachments/api';
+import { conversationAttachmentsContract } from '@emdash/core/services/attachments/api';
 import type { Result } from '@emdash/shared';
 import {
   defineContract,
@@ -28,6 +34,10 @@ import type {
   CreateConversationParams,
   HostConversationRow,
 } from '@core/primitives/conversations/api';
+import {
+  localTerminalFilesSchema,
+  preparedTerminalFileSchema,
+} from '@core/services/attachments/api/terminal-files';
 
 const conversationKey = z.object({ conversationId: z.string() });
 const conversationLocation = z.object({
@@ -89,6 +99,10 @@ const desktopTuiSessions = liveModel({
 
 const conversationsAcpContract = defineContract({
   attach: runtimeFallibleProcedure(conversationKey, acpApiContract.attach.output),
+  startSession: runtimeFallibleProcedure(
+    conversationKey.extend({ mode: acpSessionStartModeSchema }),
+    acpApiContract.startSession.output
+  ),
   terminate: runtimeFallibleProcedure(
     acpApiContract.terminate.input,
     acpApiContract.terminate.output
@@ -129,18 +143,6 @@ const conversationsAcpContract = defineContract({
     acpApiContract.exportRawAcpLog.input,
     acpApiContract.exportRawAcpLog.output
   ),
-  uploadAttachment: uploadFile({
-    input: acpApiContract.uploadAttachment.input,
-    accept: acpApiContract.uploadAttachment.accept,
-    result: acpApiContract.uploadAttachment.result,
-    error: projectAttachmentErrorUnion(acpApiContract.uploadAttachment.error),
-  }),
-  downloadAttachment: downloadFile({
-    input: attachmentKey,
-    meta: acpApiContract.downloadAttachment.meta,
-    error: projectAttachmentErrorUnion(acpApiContract.downloadAttachment.error),
-  }),
-  deleteAttachment: runtimeFallibleProcedure(attachmentKey, acpApiContract.deleteAttachment.output),
   loadHistory: runtimeFallibleProcedure(
     acpApiContract.loadHistory.input,
     acpApiContract.loadHistory.output
@@ -153,7 +155,10 @@ const conversationsAcpContract = defineContract({
 });
 
 const conversationsTuiContract = defineContract({
-  start: runtimeFallibleProcedure(tuiAgentsContract.start.input, tuiAgentsContract.start.output),
+  startSession: runtimeFallibleProcedure(
+    tuiAgentsContract.startSession.input,
+    tuiAgentsContract.startSession.output
+  ),
   resume: runtimeFallibleProcedure(tuiAgentsContract.resume.input, tuiAgentsContract.resume.output),
   stop: runtimeFallibleProcedure(tuiAgentsContract.stop.input, tuiAgentsContract.stop.output),
   delete: runtimeFallibleProcedure(tuiAgentsContract.delete.input, tuiAgentsContract.delete.output),
@@ -170,6 +175,30 @@ const conversationsTuiContract = defineContract({
 export const conversationsDomain = 'conversations' as const;
 
 export const conversationsContract = defineContract({
+  attachments: defineContract({
+    prepareLocalFiles: fallible({
+      input: z.object({ conversationId: z.string(), sources: localTerminalFilesSchema }),
+      data: z.array(preparedTerminalFileSchema),
+      error: projectAttachmentErrorUnion(attachmentErrorSchema),
+    }),
+    upload: uploadFile({
+      input: conversationAttachmentsContract.attachments.upload.input,
+      maxSize: conversationAttachmentsContract.attachments.upload.maxSize,
+      result: conversationAttachmentsContract.attachments.upload.result,
+      error: projectAttachmentErrorUnion(conversationAttachmentsContract.attachments.upload.error),
+    }),
+    download: downloadFile({
+      input: attachmentKey,
+      meta: conversationAttachmentsContract.attachments.download.meta,
+      error: projectAttachmentErrorUnion(
+        conversationAttachmentsContract.attachments.download.error
+      ),
+    }),
+    delete: runtimeFallibleProcedure(
+      attachmentKey,
+      conversationAttachmentsContract.attachments.delete.output
+    ),
+  }),
   getConversations: procedure({
     input: z.void(),
     output: z.custom<Conversation[]>(),
