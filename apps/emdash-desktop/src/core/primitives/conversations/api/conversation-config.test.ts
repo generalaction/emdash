@@ -78,7 +78,7 @@ describe('conversation-config v1 schema', () => {
     const config = conversationConfig.safeParse({
       version: '1',
       type: 'acp',
-      initialPrompt: 'hello',
+      initialQueue: [{ text: 'hello' }],
     });
     expect(config.status).toBe('ok');
     if (config.status === 'ok') {

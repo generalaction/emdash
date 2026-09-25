@@ -29,8 +29,6 @@ const acpConfigV1 = z.object({
   options: z.record(z.string(), z.union([z.string(), z.boolean()])).optional(),
   version: z.literal('1'),
   type: z.literal('acp'),
-  /** @deprecated Use initialQueue; kept so older in-progress ACP configs remain readable. */
-  initialPrompt: z.string().optional(),
   /** Initial queued prompts to deliver once, before the first successful ACP session id is persisted. */
   initialQueue: z.array(initialQueuePromptSchema).optional(),
 });

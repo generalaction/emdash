@@ -127,12 +127,12 @@ describe('createConversationsWireController', () => {
     {
       sessionId: 'saved',
       config: { initialPrompt: 'legacy' },
-      expectedQueue: [{ text: 'legacy' }],
+      expectedQueue: undefined,
     },
     {
       sessionId: 'saved',
       config: { initialQueue: [], initialPrompt: 'legacy' },
-      expectedQueue: [{ text: 'legacy' }],
+      expectedQueue: undefined,
     },
     { sessionId: 'saved', config: { initialPrompt: '  ' }, expectedQueue: undefined },
     { sessionId: 'saved', config: {}, expectedQueue: undefined },

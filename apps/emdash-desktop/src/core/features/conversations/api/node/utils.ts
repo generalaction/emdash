@@ -11,9 +11,7 @@ function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undef
   if (row.providerSessionId !== null) return undefined;
   const config = row.config;
   if (config?.type !== 'acp') return undefined;
-  if (config.initialQueue?.length) return config.initialQueue;
-  const legacyPrompt = config.initialPrompt?.trim();
-  return legacyPrompt ? [{ text: legacyPrompt }] : undefined;
+  return config.initialQueue?.length ? config.initialQueue : undefined;
 }
 
 /**
