@@ -289,8 +289,10 @@ export function createConversationsWireController(
         ),
     },
     tui: {
-      start: (input, meta) =>
-        run(input.conversationId, (client) => client.tuiAgents.start(input, callOptions(meta))),
+      startSession: (input, meta) =>
+        run(input.conversationId, (client) =>
+          client.tuiAgents.startSession(input, callOptions(meta))
+        ),
       resume: (input, meta) =>
         run(input.conversationId, (client) => client.tuiAgents.resume(input, callOptions(meta))),
       stop: (input, meta) =>

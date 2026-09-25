@@ -355,8 +355,9 @@ rules:
 
 Protocol 11 replaces `launch` with `startSession` and its required `resume`/`fresh` mode, returns
 the current provider reference from attachment, makes history reads non-waking, and adds the
-`session_not_found` error variant. These are breaking changes, including a closed error-union
-change for older clients. ACP resource-not-found errors must identify the
-requested session; provider-specific evidence (such as Codex's missing-rollout response wrapped in
+`session_not_found` error variant. TUI also renames `start` to `startSession` to use the same
+operation name. These are breaking changes, including a closed error-union change for older clients.
+ACP resource-not-found errors must identify the requested session; provider-specific evidence (such
+as Codex's missing-rollout response wrapped in
 `-32603`) is recognized by the plugin's `isSessionNotFound` hook. Generic internal errors and missing
 files are not evidence that conversation history is gone.

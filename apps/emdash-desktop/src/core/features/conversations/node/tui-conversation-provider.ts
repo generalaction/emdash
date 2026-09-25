@@ -89,7 +89,7 @@ export class TuiConversationProvider implements ConversationProvider {
     const agentSession = resolveAgentSession(conversation, mode);
     const result = agentSession.isResuming
       ? await this.tuiAgents.resume(input)
-      : await this.tuiAgents.start(input);
+      : await this.tuiAgents.startSession(input);
     if (!result.success) {
       throw new Error(`TUI session failed to start: ${JSON.stringify(result.error)}`);
     }

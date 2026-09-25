@@ -155,7 +155,10 @@ const conversationsAcpContract = defineContract({
 });
 
 const conversationsTuiContract = defineContract({
-  start: runtimeFallibleProcedure(tuiAgentsContract.start.input, tuiAgentsContract.start.output),
+  startSession: runtimeFallibleProcedure(
+    tuiAgentsContract.startSession.input,
+    tuiAgentsContract.startSession.output
+  ),
   resume: runtimeFallibleProcedure(tuiAgentsContract.resume.input, tuiAgentsContract.resume.output),
   stop: runtimeFallibleProcedure(tuiAgentsContract.stop.input, tuiAgentsContract.stop.output),
   delete: runtimeFallibleProcedure(tuiAgentsContract.delete.input, tuiAgentsContract.delete.output),
