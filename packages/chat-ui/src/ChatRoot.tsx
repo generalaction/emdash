@@ -898,7 +898,6 @@ export function ChatRoot(props: ChatRootProps) {
     setScrollTop: (px) => {
       if (scrollEl) scrollEl.scrollTop = px;
     },
-    smoothScrollTo: (top) => scrollEl?.scrollTo({ top, behavior: 'smooth' }),
     requestFrame: () => scheduler.request(),
     raf: (fn) => requestAnimationFrame(fn),
     now: () => performance.now(),
@@ -973,16 +972,11 @@ export function ChatRoot(props: ChatRootProps) {
     shadowScrollTop = st;
     shadowViewHeight = viewHeight();
 
-    // Classify the observed scrollTop (self-write echo / smooth-scroll frame /
-    // real user scroll) and re-derive intent on user movement. All gesture and
-    // suppression state lives in the scroll module.
+    // Classify the observed scrollTop (self-write/tween echo vs. real user
+    // scroll) and re-derive intent on user movement. All gesture state lives
+    // in the scroll module.
     const obs = scroll.observeScroll(st);
     setScrollVelocity(obs.userDelta);
-
-    if (obs.kind === 'smooth') {
-      schedulePrefetch();
-      return;
-    }
 
     if (obs.kind === 'user') {
       emitAtBottom(obs.atBottom);
@@ -1043,10 +1037,16 @@ export function ChatRoot(props: ChatRootProps) {
       totalDirty = false;
       setTotalHeight(virt.total());
     }
+    // Advance any smooth-scroll tween first: its write must land before the
+    // visible-set derivation so this frame renders the tweened position.
+    if (scroll.advanceTween()) {
+      if (scrollEl) shadowScrollTop = scrollEl.scrollTop;
+    }
     // Projection is coalesced by the scroll module: at most one projection per
-    // frame (not per row), gated on the scroll-settle window. While unsettled,
-    // the module re-arms the scheduler (request() does not increment the
-    // converge counter, so it cannot trip the MAX_CONVERGE halt).
+    // frame (not per row), gated on the scroll-settle window and deferred while
+    // a tween is active. While unsettled, the module re-arms the scheduler
+    // (request() does not increment the converge counter, so it cannot trip
+    // the MAX_CONVERGE halt).
     if (scroll.projectIfNeeded()) {
       // The projection flushed canvas height and wrote scrollTop; re-capture
       // shadow scrollTop so computeVisible/computePin use the projected value.

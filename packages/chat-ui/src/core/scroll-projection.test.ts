@@ -29,7 +29,6 @@ type Harness = {
   scrollTop: number | undefined;
   scrollWrites: number[];
   canvasWrites: number[];
-  smoothTargets: number[];
   frameRequests: number;
   rafQueue: Array<() => void>;
   deps: ScrollProjectionDeps;
@@ -61,7 +60,6 @@ function makeHarness(
     scrollTop: undefined,
     scrollWrites: [],
     canvasWrites: [],
-    smoothTargets: [],
     frameRequests: 0,
     rafQueue: [],
     deps: undefined as unknown as ScrollProjectionDeps,
@@ -107,9 +105,6 @@ function makeHarness(
     setScrollTop: (px) => {
       h.scrollTop = px;
       h.scrollWrites.push(px);
-    },
-    smoothScrollTo: (top) => {
-      h.smoothTargets.push(top);
     },
     requestFrame: () => {
       h.frameRequests++;
@@ -226,18 +221,81 @@ describe('observeScroll', () => {
     });
   });
 
-  it('suppresses intent re-derivation during a smooth scroll and ends at target', () => {
+  it('classifies tween-frame echoes as idle (expectedScrollTop stays in sync)', () => {
     const h = makeHarness();
     const s = createScrollProjection(h.deps);
     s.scrollToBottom({ behavior: 'smooth' });
-    expect(h.smoothTargets).toEqual([632]);
-    const anchorBefore = h.anchor;
-    expect(s.observeScroll(200).kind).toBe('smooth');
-    expect(s.observeScroll(500).kind).toBe('smooth');
-    expect(h.anchor).toBe(anchorBefore); // no re-derivation mid-animation
-    expect(s.observeScroll(631.6).kind).toBe('smooth'); // within 1px → ends
-    // Next frame with movement is classified as user again.
-    expect(s.observeScroll(400).kind).toBe('user');
+    h.now += 100;
+    s.advanceTween();
+    const written = h.scrollWrites[h.scrollWrites.length - 1]!;
+    expect(s.observeScroll(written).kind).toBe('idle');
+    expect(h.anchor).toEqual({ kind: 'tail' }); // intent untouched by echoes
+  });
+});
+
+describe('smooth-scroll tween', () => {
+  it('animates to the target through writeScrollTop and ends exactly on it', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    h.now = 5_000;
+    s.scrollToBottom({ behavior: 'smooth' });
+    expect(h.scrollWrites).toEqual([]); // no write until the write phase runs
+
+    const positions: number[] = [];
+    for (let frame = 0; frame < 40; frame++) {
+      h.now += 16;
+      if (!s.advanceTween() && positions.length > 0) break;
+      positions.push(h.scrollWrites[h.scrollWrites.length - 1]!);
+    }
+    expect(positions[positions.length - 1]).toBe(632);
+    // Monotonic decelerating approach — never overshoots.
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]!).toBeGreaterThanOrEqual(positions[i - 1]!);
+      expect(positions[i]!).toBeLessThanOrEqual(632);
+    }
+  });
+
+  it('short hops (< 1px) write immediately without a tween', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    s.writeScrollTop(632);
+    s.scrollToBottom({ behavior: 'smooth' }); // already there
+    expect(h.scrollWrites).toEqual([632, 632]);
+    expect(s.advanceTween()).toBe(false);
+  });
+
+  it('a user scroll mid-tween cancels the tween', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    h.now = 5_000;
+    s.scrollToBottom({ behavior: 'smooth' });
+    h.now += 32;
+    s.advanceTween();
+    // User wheels away mid-animation.
+    const obs = s.observeScroll(50);
+    expect(obs.kind).toBe('user');
+    const writesBefore = h.scrollWrites.length;
+    expect(s.advanceTween()).toBe(false);
+    expect(h.scrollWrites.length).toBe(writesBefore);
+  });
+
+  it('defers projection while a tween is active and projects after it ends', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    h.now = 5_000;
+    s.scrollToBottom({ behavior: 'smooth' });
+    s.invalidate();
+    h.now += 16;
+    s.advanceTween();
+    const before = h.frameRequests;
+    expect(s.projectIfNeeded()).toBe(false); // tween owns the position
+    expect(h.frameRequests).toBe(before + 1);
+
+    // Finish the tween, then projection runs (tail: already at max → nop write
+    // is fine; the projection itself must fire).
+    h.now += 10_000;
+    s.advanceTween();
+    expect(s.projectIfNeeded()).toBe(true);
   });
 });
 

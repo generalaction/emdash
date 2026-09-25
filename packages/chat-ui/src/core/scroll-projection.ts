@@ -19,11 +19,11 @@
  * Solid signal access is injected through {@link ScrollProjectionDeps}, so the
  * whole state machine is unit-testable in node.
  *
- * Behavior contract (as of the M1 extraction — bit-for-bit with the previous
- * ChatRoot closure implementation, including its known bugs; the M1 follow-up
- * tickets change behavior *inside* this module):
- *   - Exactly one code path writes scrollTop: {@link ScrollProjection.writeScrollTop}
- *     (plus the browser's own smooth-scroll animation until ticket 04 lands).
+ * Behavior contract:
+ *   - Exactly one code path writes scrollTop: {@link ScrollProjection.writeScrollTop}.
+ *     Smooth scrolls are scheduler-driven tweens advanced in the write phase —
+ *     there is no native scrollTo({behavior:'smooth'}) and no suppression flag;
+ *     tween frames are ordinary self-writes tracked by expectedScrollTop.
  *   - project() flushes canvas height before writing scrollTop so the browser
  *     never clamps against a stale canvas height.
  */
@@ -43,11 +43,19 @@ export const STICK_THRESHOLD_PX = 48;
 // adjustments that should also be treated as self-writes.
 export const USER_SCROLL_EPSILON = 0.5;
 
-// After a user/smooth scroll, suppress anchor projection until the gesture has
-// been quiet this long. Must be comfortably longer than one rAF frame (~16 ms)
-// so a momentary hold or an inter-event gap mid-drag does not open the gate
-// and let project() jump the thumb forward. Tunable.
+// After a user scroll, suppress anchor projection until the gesture has been
+// quiet this long. Must be comfortably longer than one rAF frame (~16 ms) so a
+// momentary hold or an inter-event gap mid-drag does not open the gate and let
+// project() jump the thumb forward. Tunable.
 export const SCROLL_SETTLE_MS = 120;
+
+// Scheduler-driven smooth-scroll tween duration: proportional to distance,
+// clamped so short hops stay snappy and long jumps don't drag on.
+export const SCROLL_TWEEN_MIN_MS = 160;
+export const SCROLL_TWEEN_MAX_MS = 420;
+
+/** Decelerating ease — approximates the feel of native smooth scrolling. */
+const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 
 // ── Dependency port ───────────────────────────────────────────────────────────
 
@@ -88,8 +96,6 @@ export type ScrollProjectionDeps = {
   // ── Effects ──
   setCanvasHeight(px: number): void;
   setScrollTop(px: number): void;
-  /** Native smooth scroll (removed by ticket 04 in favor of scheduler tweens). */
-  smoothScrollTo(top: number): void;
   /** Arm the frame scheduler. */
   requestFrame(): void;
   /** requestAnimationFrame seam (scrollToItem's post-write correction). */
@@ -101,11 +107,9 @@ export type ScrollProjectionDeps = {
 // ── Observation result ────────────────────────────────────────────────────────
 
 export type ScrollObservation =
-  /** No user movement (self-write echo or idle frame). */
+  /** No user movement (self-write echo — including tween frames — or idle). */
   | { kind: 'idle'; userDelta: number }
-  /** A smooth-scroll animation frame; intent re-derivation suppressed. */
-  | { kind: 'smooth'; userDelta: number }
-  /** A real user scroll; intent was re-derived. */
+  /** A real user scroll; intent was re-derived (and any tween cancelled). */
   | { kind: 'user'; userDelta: number; atBottom: boolean };
 
 export type ScrollProjection = {
@@ -123,6 +127,12 @@ export type ScrollProjection = {
   projectIfNeeded(): boolean;
   /** Mark projection as needed (geometry changed). Coalesced per frame. */
   invalidate(): void;
+  /**
+   * Advance the scroll tween one frame (write phase). Returns true when a
+   * scrollTop write happened this frame (caller re-captures shadow scrollTop).
+   * The tween keeps the scheduler alive through writeScrollTop's requestFrame.
+   */
+  advanceTween(): boolean;
   /** Project a scroll intent immediately (attach / host setScrollMode). */
   project(mode: ScrollMode): void;
   /** The one clamped scrollTop writer. */
@@ -145,11 +155,11 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
   // after each write so clamped positions are never counted as user movement.
   let expectedScrollTop = 0;
 
-  // Smooth-scroll suppression: when a smooth-scroll animation is in flight,
-  // intermediate scrollTop updates are browser-driven and must not be treated
-  // as user input.
-  let smoothScrolling = false;
-  let smoothScrollTarget: number | undefined;
+  // Scheduler-driven smooth-scroll tween. Replaces native scrollTo({behavior:
+  // 'smooth'}) so this module stays the ONLY scrollTop writer: every tween
+  // frame goes through writeScrollTop, which keeps expectedScrollTop in sync —
+  // tween echoes classify as self-writes with no suppression flag needed.
+  let tween: { from: number; to: number; start: number; duration: number } | null = null;
 
   // now() of the last real user scroll or smooth-scroll animation frame.
   // Projection is suppressed until SCROLL_SETTLE_MS after this timestamp —
@@ -177,11 +187,48 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     deps.requestFrame();
   };
 
+  const startTween = (to: number): void => {
+    const from = expectedScrollTop;
+    const dist = Math.abs(to - from);
+    if (dist < 1) {
+      writeScrollTop(to);
+      return;
+    }
+    tween = {
+      from,
+      to,
+      start: deps.now(),
+      duration: Math.min(SCROLL_TWEEN_MAX_MS, Math.max(SCROLL_TWEEN_MIN_MS, dist / 2)),
+    };
+    deps.requestFrame();
+  };
+
+  const cancelTween = (): void => {
+    tween = null;
+  };
+
+  const advanceTween = (): boolean => {
+    if (!tween) return false;
+    const t = Math.min(1, (deps.now() - tween.start) / tween.duration);
+    const pos = tween.from + (tween.to - tween.from) * easeOutCubic(t);
+    if (t >= 1) {
+      const target = tween.to;
+      tween = null;
+      writeScrollTop(target);
+      return true;
+    }
+    writeScrollTop(pos);
+    return true;
+  };
+
   // The ONE function that applies a scroll intent. Flush canvas height first so
   // the browser never clamps scrollTop to a stale (outgoing) canvas height —
   // this is the root cause of "open at top after tab switch".
+  // Cancels any in-flight tween: an explicit intent application (attach, host
+  // setScrollMode, settled projection) supersedes an animation in progress.
   const project = (m: ScrollMode): void => {
     if (!deps.mounted()) return;
+    cancelTween();
     // Synchronously update canvas height so scrollTop is never clamped.
     deps.setCanvasHeight(deps.contentH());
 
@@ -214,25 +261,12 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
   const observeScroll = (st: number): ScrollObservation => {
     const userDelta = st - expectedScrollTop;
 
-    // Smooth-scroll suppression: while a smooth scroll animation is in flight
-    // the browser moves scrollTop without user input. Keep expectedScrollTop in
-    // sync so we don't misread intermediate frames as user scrolls. Treat
-    // animation frames identically to user scrolls for settle-window purposes
-    // so project() never fights an in-flight animation.
-    if (smoothScrolling) {
-      lastUserScrollAt = deps.now();
-      expectedScrollTop = st;
-      const target = smoothScrollTarget;
-      if (target !== undefined && Math.abs(st - target) < 1) {
-        smoothScrolling = false;
-      }
-      return { kind: 'smooth', userDelta };
-    }
-
     // Only re-derive intent when the user actually moved the scrollbar.
-    // USER_SCROLL_EPSILON filters sub-pixel self-write rounding so the
-    // arithmetic clamp in writeScrollTop is never misread as a user scroll.
+    // USER_SCROLL_EPSILON filters sub-pixel self-write rounding (including
+    // tween-frame echoes) so writeScrollTop is never misread as a user scroll.
     if (Math.abs(userDelta) > USER_SCROLL_EPSILON) {
+      // A real user gesture supersedes any in-flight smooth-scroll tween.
+      cancelTween();
       lastUserScrollAt = deps.now();
       expectedScrollTop = st;
       const nowAtBottom = isAtBottom(st);
@@ -264,11 +298,16 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     // Projection is coalesced: at most one project() per frame (not per row).
     //
     // Gate on a settle window instead of a per-frame flag: if the user scrolled
-    // (or a smooth-scroll animation ran) within the last SCROLL_SETTLE_MS, skip
-    // the correction so the browser thumb is never fought mid-gesture. While
-    // unsettled, requestFrame() keeps the loop alive so the projection fires
-    // after the window without any further events.
+    // within the last SCROLL_SETTLE_MS, skip the correction so the browser
+    // thumb is never fought mid-gesture. While unsettled, requestFrame() keeps
+    // the loop alive so the projection fires after the window without any
+    // further events. An active tween defers projection the same way — the
+    // tween owns the scroll position until it completes or is cancelled.
     if (!needsProject) return false;
+    if (tween) {
+      deps.requestFrame();
+      return false;
+    }
     const settled = deps.now() - lastUserScrollAt > SCROLL_SETTLE_MS;
     if (!settled) {
       deps.requestFrame();
@@ -281,14 +320,13 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
 
   const scrollToTop = (opts?: { behavior?: ScrollBehavior }): void => {
     if (!deps.mounted()) return;
+    cancelTween();
     const firstUnitId = deps.unitIdAt(0);
     if (firstUnitId !== undefined) {
       deps.setAnchor({ kind: 'anchor', itemId: firstUnitId, edge: 'top', offset: -deps.padTop() });
     }
     if (opts?.behavior === 'smooth') {
-      smoothScrolling = true;
-      smoothScrollTarget = 0;
-      deps.smoothScrollTo(0);
+      startTween(0);
     } else {
       writeScrollTop(0);
     }
@@ -296,12 +334,11 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
 
   const scrollToBottom = (opts?: { behavior?: ScrollBehavior }): void => {
     if (!deps.mounted()) return;
+    cancelTween();
     const target = deps.maxScrollTop();
     deps.setAnchor({ kind: 'tail' });
     if (opts?.behavior === 'smooth') {
-      smoothScrolling = true;
-      smoothScrollTarget = target;
-      deps.smoothScrollTo(target);
+      startTween(target);
     } else {
       writeScrollTop(target);
     }
@@ -309,6 +346,7 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
 
   const scrollToItem = (id: string, opts?: ScrollToItemOptions): void => {
     if (!deps.mounted()) return;
+    cancelTween();
 
     const n = deps.unitCount();
     let unitIdx = -1;
@@ -363,9 +401,7 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     }
 
     if (behavior === 'smooth') {
-      smoothScrolling = true;
-      smoothScrollTarget = t0;
-      deps.smoothScrollTo(t0);
+      startTween(t0);
     } else {
       writeScrollTop(t0);
       deps.raf(() => {
@@ -398,6 +434,7 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     invalidate: () => {
       needsProject = true;
     },
+    advanceTween,
     project,
     writeScrollTop,
     isAtBottom,
