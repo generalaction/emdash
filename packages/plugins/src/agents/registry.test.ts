@@ -29,32 +29,31 @@ const GLOBAL_HOOK_PROVIDERS = [
 ].sort();
 
 describe('agent plugin registry', () => {
-  it('advertises Claude Fable 5.1', () => {
-    const claude = pluginRegistry.get('claude');
+  it('advertises Claude models by the ids its chat model selector uses', () => {
+    const models = pluginRegistry.get('claude')?.capabilities.models;
 
-    expect(claude).toBeDefined();
-    expect(claude?.capabilities.models).toMatchObject({
-      kind: 'selectable',
-      modelOptions: {
-        'claude-fable-5-1': {
-          name: 'Claude Fable 5.1',
-        },
-      },
-    });
+    expect(models?.kind).toBe('selectable');
+    expect(models?.kind === 'selectable' && Object.keys(models.modelOptions)).toEqual([
+      'opus[1m]',
+      'claude-fable-5-1[1m]',
+      'sonnet',
+      'haiku',
+    ]);
   });
 
-  it('advertises Claude Opus 5', () => {
-    const claude = pluginRegistry.get('claude');
+  it('advertises Codex models by the ids its chat model selector uses', () => {
+    const models = pluginRegistry.get('codex')?.capabilities.models;
 
-    expect(claude).toBeDefined();
-    expect(claude?.capabilities.models).toMatchObject({
-      kind: 'selectable',
-      modelOptions: {
-        'claude-opus-5': {
-          name: 'Claude Opus 5',
-        },
-      },
-    });
+    expect(models?.kind).toBe('selectable');
+    expect(models?.kind === 'selectable' && Object.keys(models.modelOptions)).toEqual([
+      'gpt-6-astra',
+      'gpt-6-sol',
+      'gpt-6-luna',
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
+      'gpt-5.5',
+    ]);
   });
 
   it('keeps every shipped hook integration user-global', () => {
