@@ -874,13 +874,14 @@ export class WorkspaceRegistryRuntime {
       return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
     }
     const workspacePath = path.resolve(record.path);
-    const excludePaths = this.store
-      .list()
-      .filter(
-        (other) =>
-          other.id !== record.id && isNestedWorkspacePath(workspacePath, path.resolve(other.path))
-      )
-      .map((other) => other.path);
+    const excludePaths = (input.excludeWorkspaceIds ?? []).flatMap((workspaceId) => {
+      const other = this.store.get(workspaceId);
+      return other &&
+        other.id !== record.id &&
+        isNestedWorkspacePath(workspacePath, path.resolve(other.path))
+        ? [other.path]
+        : [];
+    });
     return measureWorkspaceUsage({ workspacePath, excludePaths, signal });
   }
 

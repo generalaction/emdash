@@ -775,7 +775,10 @@ describe('workspace registry contract', () => {
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     await wire.client.createWorkspace({ workspaceId: 'ws-nested', path: nestedPath });
 
-    const repositoryUsage = await wire.client.measureUsage({ workspaceId: 'ws-repo' });
+    const repositoryUsage = await wire.client.measureUsage({
+      workspaceId: 'ws-repo',
+      excludeWorkspaceIds: ['ws-nested'],
+    });
     const nestedUsage = await wire.client.measureUsage({ workspaceId: 'ws-nested' });
     const fullTree = await measureAbsolutePathUsage(repoPath, '');
 
@@ -786,6 +789,22 @@ describe('workspace registry contract', () => {
       fullTree.exclusiveDiskBytes
     );
     expect(repositoryUsage.data.totalBytes).toBeLessThan(fullTree.exclusiveDiskBytes);
+  });
+
+  it('keeps an unlisted registered directory in the repository usage', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const nestedPath = path.join(repoPath, 'unlisted');
+    await fs.mkdir(nestedPath);
+    await fs.writeFile(path.join(nestedPath, 'data.bin'), 'x'.repeat(4_096));
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-unlisted', path: nestedPath });
+
+    const repositoryUsage = await wire.client.measureUsage({ workspaceId: 'ws-repo' });
+    const fullTree = await measureAbsolutePathUsage(repoPath, '');
+
+    expect(repositoryUsage.success).toBe(true);
+    if (!repositoryUsage.success) throw new Error('expected usage');
+    expect(repositoryUsage.data.totalBytes).toBe(fullTree.exclusiveDiskBytes);
   });
 
   it('measureUsage of an unknown workspaceId is a typed not-found error', async () => {

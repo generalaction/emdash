@@ -10,7 +10,8 @@
 
 ## Current Behavior
 
-- disk usage scans count nested registered worktrees separately from their parent repository
+- disk usage scans exclude nested workspaces from a parent only when both are measured in the
+  same request; unlisted nested directories remain in the parent's count
 - closing the usage view cancels disk usage scans still in progress
 - task worktrees are created under the project's DB-backed worktree directory setting
 - branch prefix defaults to `emdash` and is configurable in app settings

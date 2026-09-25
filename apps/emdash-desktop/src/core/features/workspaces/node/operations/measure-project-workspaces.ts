@@ -37,6 +37,10 @@ export async function measureProjectWorkspaces(
   const rowsByPath = new Map(
     listed.rows.map((row) => [workspacePathIdentityKey(row.path), row] as const)
   );
+  const measuredWorkspaceIds = input.paths.flatMap((targetPath) => {
+    const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
+    return row?.pathState === 'measured' && row.workspaceId ? [row.workspaceId] : [];
+  });
   const results = await mapWithConcurrency(input.paths, MEASURE_CONCURRENCY, async (targetPath) => {
     signal?.throwIfAborted();
     const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
@@ -47,7 +51,7 @@ export async function measureProjectWorkspaces(
         message: 'Workspace was not found.',
       } satisfies ProjectWorkspaceUsageResult;
     }
-    const result = await measureRow(dependencies, project, row, signal);
+    const result = await measureRow(dependencies, project, row, measuredWorkspaceIds, signal);
     signal?.throwIfAborted();
     return result;
   });
@@ -63,6 +67,7 @@ async function measureRow(
   dependencies: { runtimes: Pick<RuntimeBroker, 'client'> },
   project: Awaited<ReturnType<typeof getProjectWorkspaceProject>>,
   row: ProjectWorkspaceRow,
+  measuredWorkspaceIds: string[],
   signal?: AbortSignal
 ): Promise<ProjectWorkspaceUsageResult> {
   if (row.pathState === 'missing') {
@@ -79,8 +84,12 @@ async function measureRow(
     const host = projectWorkspaceHost(project);
     const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    const excludeWorkspaceIds = measuredWorkspaceIds.filter((id) => id !== row.workspaceId);
     const usage = await runtime.data.workspaceRegistry.measureUsage(
-      { workspaceId: row.workspaceId },
+      {
+        workspaceId: row.workspaceId,
+        ...(excludeWorkspaceIds.length > 0 ? { excludeWorkspaceIds } : {}),
+      },
       { signal }
     );
     if (!usage.success) {

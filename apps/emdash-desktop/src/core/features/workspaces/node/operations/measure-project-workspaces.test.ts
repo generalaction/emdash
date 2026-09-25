@@ -111,6 +111,71 @@ describe('measureProjectWorkspaces', () => {
     ]);
   });
 
+  it('excludes only workspaces included in the usage request', async () => {
+    const rootRow: ProjectWorkspaceRow = {
+      kind: 'root',
+      projectId: 'project-1',
+      workspaceId: 'workspace-root',
+      path: '/srv/repo',
+      tasks: [],
+      usage: null,
+      gitStats: null,
+      pathState: 'measured',
+      canCleanArtifacts: false,
+      canDelete: false,
+      hasActiveSessions: false,
+      pendingRemoval: false,
+      errors: [],
+    };
+    const nestedRow: ProjectWorkspaceRow = {
+      ...rootRow,
+      kind: 'workspace',
+      workspaceId: 'workspace-nested',
+      path: '/srv/repo/nested',
+    };
+    mocks.getProject.mockResolvedValue({
+      id: 'project-1',
+      path: '/srv/repo',
+      workspaceProvider: 'local',
+      sshConnectionId: null,
+      repositoryWorkspaceId: 'workspace-root',
+    });
+    mocks.list.mockResolvedValue({
+      scannedAt: new Date().toISOString(),
+      projectId: 'project-1',
+      rows: [rootRow, nestedRow],
+      totalBytes: 0,
+      artifactBytes: 0,
+      warnings: [],
+    });
+    const measureUsage = vi.fn(async () => ok({ totalBytes: 1_024, artifactBytes: 0, errors: [] }));
+    const client = vi.fn(async () => ok({ workspaceRegistry: { measureUsage } } as never));
+    const dependencies = {
+      db: {} as never,
+      runtimes: { client },
+      taskSessions: { getTask: vi.fn() },
+    };
+
+    await measureProjectWorkspaces(dependencies, {
+      projectId: 'project-1',
+      paths: [rootRow.path],
+    });
+    expect(measureUsage).toHaveBeenCalledWith(
+      { workspaceId: 'workspace-root' },
+      { signal: undefined }
+    );
+
+    measureUsage.mockClear();
+    await measureProjectWorkspaces(dependencies, {
+      projectId: 'project-1',
+      paths: [rootRow.path, nestedRow.path],
+    });
+    expect(measureUsage).toHaveBeenCalledWith(
+      { workspaceId: 'workspace-root', excludeWorkspaceIds: ['workspace-nested'] },
+      { signal: undefined }
+    );
+  });
+
   it('fails a row without a registered workspace id instead of calling the host', async () => {
     const row: ProjectWorkspaceRow = {
       kind: 'candidate',
