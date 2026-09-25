@@ -4,6 +4,7 @@ import {
   type AcpSessionStartMode,
   type PromptAttachment,
   type PromptInput,
+  type ProviderConfigOption,
   type QueuedPrompt,
   type SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
@@ -116,6 +117,10 @@ export class AcpChatStore {
   private _bootstrapped = false;
   private _unsubs: Array<() => void> = [];
   private readonly _scope: Scope;
+  private readonly _lastProviderOptions = observable.box<ProviderConfigOption[] | undefined>(
+    undefined,
+    { deep: false }
+  );
   private readonly _draftSpace: SubjectSpace<'conversation'>;
   private readonly _draftHandle: MementoHandle<AcpDraftState>;
   private readonly _disposeComposerSubscription: () => void;
@@ -181,6 +186,14 @@ export class AcpChatStore {
       exportTranscript: action,
       retry: action,
     });
+    this._scope.add(
+      reaction(
+        () => this.session?.config.current().options,
+        (options) => {
+          if (options !== undefined) this._lastProviderOptions.set(options);
+        }
+      )
+    );
     this._disposeComposerSubscription = this.composerModel.subscribe(() => {
       runInAction(() => this._draftText.set(this.composerModel.getText()));
     });
@@ -474,14 +487,21 @@ export class AcpChatStore {
   }
 
   get providerOptions() {
-    return this.session?.config.current().options ?? [];
+    return this.session?.config.current().options ?? this._lastProviderOptions.get();
   }
   get configuredOptions() {
-    return this.session?.config.current().configuredOptions ?? {};
+    const conversation = conversationRegistry
+      .get(this.taskId)
+      ?.conversations.get(this.conversationId)?.data;
+    return this.session?.config.current().configuredOptions ?? conversation?.options ?? {};
+  }
+
+  get canSetOptions() {
+    return this.liveActionsEnabled && this.session?.config.current().options !== undefined;
   }
 
   setOption(configId: string, value: string | boolean): void {
-    if (!this.liveActionsEnabled || !configId) return;
+    if (!this.canSetOptions || !configId) return;
     void this.session
       ?.setOption(configId, value)
       .then((result) => {

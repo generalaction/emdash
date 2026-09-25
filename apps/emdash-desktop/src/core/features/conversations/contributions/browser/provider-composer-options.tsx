@@ -45,12 +45,11 @@ export function providerComposerOptions(
           { name: choice.name, description: choice.description ?? undefined },
         ])
       ),
-      selected:
-        typeof values[option.id] === 'string'
+      selected: live
+        ? option.currentValue
+        : typeof values[option.id] === 'string'
           ? (values[option.id] as string)
-          : live
-            ? option.currentValue
-            : undefined,
+          : undefined,
       change: enabled ? (value: string) => onChange(option.id, value) : undefined,
     };
   };

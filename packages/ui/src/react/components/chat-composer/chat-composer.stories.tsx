@@ -634,6 +634,25 @@ export const WithProviderConfiguration: Story = {
   },
 };
 
+export const CachedConfigurationWhileStarting: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        modelOptions={MOCK_MODELS}
+        selectedModel="claude-sonnet-4-5"
+        effortOptions={{ medium: { name: 'Medium' }, high: { name: 'High' } }}
+        selectedEffort="high"
+        permissionModeOptions={MOCK_PERMISSION_MODES}
+        selectedPermissionMode="default"
+        collaborationModeOptions={MOCK_COLLABORATION_MODES}
+        selectedCollaborationMode="default"
+        canSubmit={false}
+        onSubmit={() => {}}
+      />
+    </Box>
+  ),
+};
+
 export const WithMcpServers: Story = {
   render: () => (
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">

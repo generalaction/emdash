@@ -132,6 +132,12 @@ share discovered composer controls. Creation waits for pending preference writes
 into the new conversation. Later changes do not alter other existing conversations. TUI task creation
 retains its plugin model list as a one-off choice; only its approval toggle is remembered.
 
+The active composer uses cached option definitions with the conversation's own saved selections
+while session configuration is unavailable. Cached controls are visible but disabled; cached current
+values are never treated as resolved defaults. Session options replace the cache, including an empty
+catalog. During reconnect, the conversation retains its last reported controls until new session
+options arrive. Preference changes in another conversation do not alter these selections.
+
 Main observes successful live ACP configuration snapshots, including sessions without a mounted
 renderer. Discovery does not launch a process or run periodic scans. The cache includes native
 select/boolean options, groups and categories. All projects share their host/provider/transport cache.

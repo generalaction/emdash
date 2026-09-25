@@ -85,4 +85,16 @@ describe('discovered composer configuration', () => {
     expect(props.selectedModel).toBeUndefined();
     expect(props.selectedEffort).toBeUndefined();
   });
+  it('uses live values instead of saved overrides after discovery', () => {
+    const props = providerComposerOptions(
+      [model, effort, mode],
+      { model: 'b', reasoning_effort: 'low', mode: 'ask' },
+      vi.fn(),
+      true,
+      true
+    );
+    expect(props.selectedModel).toBe('a');
+    expect(props.selectedEffort).toBe('high');
+    expect(props.selectedPermissionMode).toBe('bypass');
+  });
 });

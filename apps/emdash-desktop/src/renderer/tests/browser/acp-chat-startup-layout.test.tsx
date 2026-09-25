@@ -29,6 +29,8 @@ import { beforeAll, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
+import { emptyProviderSettings } from '@core/features/conversations/api/provider-settings';
+import type { ProviderSettingsSnapshot } from '@core/features/conversations/api/provider-settings';
 import { AcpChatPanel } from '@core/features/conversations/browser/acp/acp-chat-panel';
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import { openModal } from '@core/manifests/browser/modal-api';
@@ -40,6 +42,8 @@ const fixture = vi.hoisted(() => ({
   store: undefined as unknown,
   restored: false,
   providerId: 'codex',
+  savedOptions: {} as Record<string, string | boolean>,
+  settings: undefined as ProviderSettingsSnapshot | undefined,
   agents: [] as Array<
     Pick<AgentMetadata, 'id' | 'name'> & {
       capabilities: Pick<AgentMetadata['capabilities'], 'auth'>;
@@ -61,6 +65,9 @@ beforeAll(() => {
 vi.mock('@core/features/conversations/api/browser/client', () => ({
   getConversationsClient: async () => fixture.client,
 }));
+vi.mock('@core/features/conversations/api/browser/provider-preferences', () => ({
+  useProviderSettings: () => ({ settings: fixture.settings ?? emptyProviderSettings, ready: true }),
+}));
 vi.mock('@core/features/conversations/api/browser/chat/shared-chat-context', () => ({
   getSharedChatContext: () => fixture.context,
 }));
@@ -75,6 +82,7 @@ vi.mock('@core/features/conversations/api/browser/stores/conversation-registry',
             data: {
               providerId: fixture.providerId,
               sessionId: fixture.restored ? 'existing-session' : undefined,
+              options: fixture.savedOptions,
             },
           },
         ],
@@ -418,9 +426,53 @@ it.each([
   { restored: true, populated: false },
   { restored: true, populated: true },
   { restored: false, populated: false, controls: false },
-])('keeps startup layout stable (%j)', async ({ restored, populated, controls = true }) => {
+  { restored: false, populated: false, cached: true },
+])('keeps startup layout stable (%j)', async (scenario) => {
+  const { restored, populated, controls = true, cached = false } = scenario;
   await page.viewport(1100, 800);
   fixture.restored = restored;
+  if (cached) {
+    fixture.savedOptions = { model: 'cached-model', effort: 'medium', mode: 'ask', fast: true };
+    fixture.settings = {
+      ...emptyProviderSettings,
+      acp: { version: '1', options: { model: 'another-conversations-choice' } },
+      catalogs: [
+        [
+          {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: 'another-conversations-choice',
+            options: [{ value: 'cached-model', name: 'Cached model' }],
+          },
+          {
+            id: 'effort',
+            name: 'Effort',
+            category: 'thought_level',
+            type: 'select',
+            currentValue: 'high',
+            options: [
+              { value: 'medium', name: 'Medium' },
+              { value: 'high', name: 'High' },
+            ],
+          },
+          {
+            id: 'mode',
+            name: 'Mode',
+            category: 'mode',
+            type: 'select',
+            currentValue: 'full',
+            options: [
+              { value: 'ask', name: 'Ask permissions' },
+              { value: 'full', name: 'Full access' },
+            ],
+          },
+          { id: 'fast', name: 'Fast mode', type: 'boolean', currentValue: false },
+        ],
+      ],
+    };
+  }
   installChatUiRuntime(chatUi);
   const context = chatUi.createChatContext();
   fixture.context = context;
@@ -441,7 +493,6 @@ it.each([
   });
   const config = cell<SessionConfigState>({
     availableCommands: [],
-    options: [],
   });
   const mcpServers = cell<SessionMcpServer[]>([{ name: 'docs', transport: 'http' }]);
   const contract = defineContract({
@@ -506,6 +557,22 @@ it.each([
   let initialEditorY: number | undefined;
   try {
     await act(async () => root.render(<AcpChatPanel />));
+    if (cached) {
+      expect(parent.textContent).toContain('Cached model');
+      expect(parent.textContent).toContain('Medium');
+      expect(parent.textContent).toContain('Ask permissions');
+      await expect.element(page.getByRole('combobox', { name: 'Permission mode' })).toBeDisabled();
+      await expect.element(page.getByRole('switch', { name: 'Fast mode' })).toBeDisabled();
+      await expect
+        .element(page.getByRole('switch', { name: 'Fast mode' }))
+        .toHaveAttribute('aria-checked', 'true');
+      await expect
+        .element(page.elementLocator(parent.querySelector('[data-slot=combobox-trigger]')!))
+        .toBeVisible();
+      await expect
+        .element(page.elementLocator(parent.querySelector('[data-slot=combobox-trigger]')!))
+        .toBeDisabled();
+    }
     if (!restored) {
       await vi.waitFor(() => expect(editor()).not.toBeNull());
       expect(editorY()).toBeLessThan(450);
@@ -522,7 +589,11 @@ it.each([
       expect(store.isEmpty).toBe(true);
       expect(editorY()).toBeLessThan(450);
       expect(parent.textContent).not.toContain('Loading controls');
-      expect(parent.querySelector('[data-slot="combobox-trigger"]')).toBeNull();
+      if (!cached) expect(parent.querySelector('[data-slot="combobox-trigger"]')).toBeNull();
+      else
+        await expect
+          .element(page.elementLocator(parent.querySelector('[data-slot=combobox-trigger]')!))
+          .toBeDisabled();
     }
     if (controls)
       config.set({
@@ -552,6 +623,25 @@ it.each([
     if (!restored && controls) {
       await vi.waitFor(() => expect(parent.textContent).toContain('Diagnostic Model'));
       expect(editorY()).toBeLessThan(450);
+      if (cached) {
+        expect(parent.textContent).not.toContain('Cached model');
+        await expect
+          .element(page.elementLocator(parent.querySelector('[data-slot=combobox-trigger]')!))
+          .toBeEnabled();
+        // Revalidation can briefly withdraw config; keep this conversation's last live controls.
+        config.set({ availableCommands: [] });
+        flushStateTurn();
+        await vi.waitFor(() => expect(store.canSetOptions).toBe(false));
+        await expect
+          .element(page.elementLocator(parent.querySelector('[data-slot=combobox-trigger]')!))
+          .toBeDisabled();
+        expect(parent.textContent).not.toContain('Cached model');
+        config.set({ availableCommands: [], options: [] });
+        flushStateTurn();
+        await vi.waitFor(() => expect(store.providerOptions).toEqual([]));
+        expect(parent.textContent).not.toContain('Diagnostic Model');
+        expect(parent.textContent).not.toContain('Cached model');
+      }
     }
     historyGate.resolve();
     await vi.waitFor(() => expect(store.historyLoading).toBe(false));
@@ -621,6 +711,8 @@ it.each([
       expect(editor()).toBe(originalEditor);
     }
   } finally {
+    fixture.savedOptions = {};
+    fixture.settings = undefined;
     historyGate.resolve();
     await act(async () => root.unmount());
     store.dispose();

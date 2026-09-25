@@ -1006,7 +1006,7 @@ export function ChatComposer({
                 onValueChange={(id) => onModelChange?.(id)}
                 itemToKey={(item) => item.id}
                 itemToLabel={(item) => item.name}
-                disabled={disabled}
+                disabled={disabled || !onModelChange}
                 searchPlaceholder="Search models…"
                 contentClassName={composerThemeScope}
                 contentStyle={{ minWidth: '12.5rem' }}
@@ -1067,7 +1067,10 @@ export function ChatComposer({
                   effortItems.length > 0
                     ? () => (
                         <DropdownMenu.Root>
-                          <DropdownMenu.Trigger className={styles.effortRow}>
+                          <DropdownMenu.Trigger
+                            className={styles.effortRow}
+                            disabled={disabled || !onEffortChange}
+                          >
                             <span className={styles.effortRowLabel}>Effort</span>
                             <span className={styles.effortRowValue}>
                               {selectedEffortItem?.name ?? 'Default'}
@@ -1104,7 +1107,7 @@ export function ChatComposer({
                 items={collaborationModeItems}
                 selectedId={selectedCollaborationMode}
                 onChange={onCollaborationModeChange}
-                disabled={disabled}
+                disabled={disabled || !onCollaborationModeChange}
                 isFirst={collaborationModeIsFirst}
                 ariaLabel="Collaboration mode"
                 placeholder="Collaboration…"
@@ -1116,7 +1119,7 @@ export function ChatComposer({
                 items={permissionModeItems}
                 selectedId={selectedPermissionMode}
                 onChange={onPermissionModeChange}
-                disabled={disabled}
+                disabled={disabled || !onPermissionModeChange}
                 isFirst={permissionModeIsFirst}
                 ariaLabel="Permission mode"
                 placeholder="Permissions…"

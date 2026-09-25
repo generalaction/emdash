@@ -1,3 +1,4 @@
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type { AttachmentRef } from '@emdash/core/services/attachments/api';
 import { ChatComposer, ImageViewerDialog, MermaidViewerDialog } from '@emdash/ui/react/components';
 import type {
@@ -23,8 +24,12 @@ import type {
   ChatCommands,
   ChatView,
 } from '@core/features/conversations/api/browser/chat/chat-transcript';
+import { useProviderSettings } from '@core/features/conversations/api/browser/provider-preferences';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { providerComposerOptions } from '@core/features/conversations/contributions/browser/provider-composer-options';
+import {
+  providerComposerOptions,
+  selectCachedProviderOptions,
+} from '@core/features/conversations/contributions/browser/provider-composer-options';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
@@ -504,6 +509,17 @@ const ComposerForStore = observer(function ComposerForStore({
   const providerId =
     conversationRegistry.get(store.taskId)?.conversations.get(store.conversationId)?.data
       .providerId ?? null;
+  const providerOptions = store.providerOptions;
+  const { settings } = useProviderSettings(
+    providerOptions === undefined && providerId
+      ? {
+          host: formatHostRef(hostRefFromConnectionId(getProjectSshConnectionId(store.projectId))),
+          providerId,
+        }
+      : null
+  );
+  const composerOptions =
+    providerOptions ?? selectCachedProviderOptions(settings.catalogs, store.configuredOptions);
   const renderMentionIcon = useCallback(({ id, kind }: { id: string; kind: string }) => {
     if (kind !== 'issue') return null;
     const target = parseIssueMentionToken(id);
@@ -588,11 +604,11 @@ const ComposerForStore = observer(function ComposerForStore({
           onSendQueuedPromptNow={handleSendQueuedPromptNow}
           editorApiRef={editorApiRef}
           {...providerComposerOptions(
-            store.providerOptions,
+            composerOptions,
             store.configuredOptions,
             (id, value) => store.setOption(id, value),
-            store.liveActionsEnabled,
-            true
+            store.canSetOptions,
+            providerOptions !== undefined
           )}
           mcpServers={store.mcpServers}
           agentOptions={agentOptions}
