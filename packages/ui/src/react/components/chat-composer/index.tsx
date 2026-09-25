@@ -213,6 +213,8 @@ export interface ChatComposerProps {
    */
   agentLocked?: boolean;
 
+  /** Additional host-owned provider configuration controls. */
+  configurationControls?: React.ReactNode;
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
@@ -581,13 +583,13 @@ function ComposerModeSelect({
   placeholder,
   icon,
 }: ComposerModeSelectProps) {
-  const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
+  const selected = items.find((item) => item.id === selectedId) ?? null;
 
   return (
     <Select.Root
       value={selectedId}
       onValueChange={(id) => {
-        if (id) onChange?.(id);
+        if (id !== null) onChange?.(id);
       }}
       disabled={disabled}
     >
@@ -666,6 +668,7 @@ export function ChatComposer({
   selectedAgent,
   onAgentChange,
   agentLocked = false,
+  configurationControls,
   modelOptions,
   selectedModel,
   onModelChange,
@@ -847,9 +850,10 @@ export function ChatComposer({
     ? Object.entries(effortOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
 
-  const selectedEffortItem = selectedEffort
-    ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
-    : null;
+  const selectedEffortItem =
+    selectedEffort !== undefined
+      ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
+      : null;
 
   // ── Permission mode items ────────────────────────────────────────────────────
 
@@ -1121,6 +1125,7 @@ export function ChatComposer({
                 }
               />
             )}
+            {configurationControls}
             {mcpServers.length > 0 && (
               <Popover.Root>
                 <Popover.Trigger
