@@ -29,7 +29,7 @@ export function ConversationTransportToggle({
       >
         {useChatUi ? <MessageSquare aria-hidden /> : <SquareTerminal aria-hidden />}
       </Tooltip.Trigger>
-      <Tooltip.Content>{useChatUi ? 'TUI' : 'Chat UI'}</Tooltip.Content>
+      <Tooltip.Content>{useChatUi ? 'Chat UI' : 'TUI'}</Tooltip.Content>
     </Tooltip.Root>
   );
 }

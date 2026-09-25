@@ -1,5 +1,5 @@
 import { formatHostRef } from '@emdash/core/primitives/host/api';
-import { Dialog, Field, InputGroup, Separator, Switch } from '@emdash/ui/react/primitives';
+import { Dialog, Field, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
@@ -125,28 +125,21 @@ export const CreateConversationModal = observer(function CreateConversationModal
       <Dialog.Body>
         <Field.Group>
           <Field.Root>
-            <Field.Label>Agent</Field.Label>
-            <InputGroup.Root aria-label="Agent and interface">
-              <div className="h-full min-w-0 flex-1">
-                <AgentSelector
-                  className="h-full border-0"
-                  autoFocus
-                  value={providerId}
-                  onChange={handleProviderChange}
-                  connectionId={connectionId}
-                />
-              </div>
-              {showAcpToggle ? (
-                <>
-                  <Separator orientation="vertical" />
+            <AgentSelector
+              autoFocus
+              value={providerId}
+              onChange={handleProviderChange}
+              connectionId={connectionId}
+              trailingControl={
+                showAcpToggle ? (
                   <ConversationTransportToggle
                     value={transport}
                     disabled={!launchSettings.ready || isSubmitting}
                     onValueChange={(value) => launchSettings.setUseChatUi(value === 'acp')}
                   />
-                </>
-              ) : null}
-            </InputGroup.Root>
+                ) : null
+              }
+            />
           </Field.Root>
           {showAutoApproveToggle ? (
             <Field.Root>

@@ -6,7 +6,7 @@ import { page, userEvent } from 'vitest/browser';
 import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
 import type { ConversationType } from '@core/primitives/conversations/api';
 
-it('switches interfaces directly without a highlight and names the next interface in its tooltip', async () => {
+it('switches interfaces directly without a highlight and names the current interface in its tooltip', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const container = document.createElement('div');
   container.className = 'emlight';
@@ -34,7 +34,7 @@ it('switches interfaces directly without a highlight and names the next interfac
     expect(toggle.element().querySelectorAll('svg')).toHaveLength(1);
     expect(toggle.element().querySelector('.lucide-message-square')).not.toBeNull();
     await act(async () => toggle.hover());
-    await expect.element(page.getByText('TUI', { exact: true })).toBeVisible();
+    await expect.element(page.getByText('Chat UI', { exact: true })).toBeVisible();
     expect(getComputedStyle(toggle.element()).backgroundColor).toBe('rgba(0, 0, 0, 0)');
     await act(async () => toggle.click());
     expect(change).toHaveBeenLastCalledWith('pty');

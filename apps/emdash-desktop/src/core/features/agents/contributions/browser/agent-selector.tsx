@@ -32,6 +32,7 @@ interface AgentSelectorProps {
   installable?: boolean;
   autoFocus?: boolean;
   placeholder?: string;
+  trailingControl?: React.ReactNode;
 }
 
 export const AgentSelector: React.FC<AgentSelectorProps> = observer(
@@ -46,6 +47,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     installable = true,
     autoFocus = false,
     placeholder = 'No agent installed',
+    trailingControl,
   }) => {
     const [open, setOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -91,25 +93,36 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
         }
         autoHighlight
       >
-        <Combobox.Trigger
-          data-autofocus={autoFocus || undefined}
-          disabled={disabled}
+        <div
+          role="group"
+          aria-label={trailingControl ? 'Agent and interface' : 'Agent'}
           className={cn(
-            'flex h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-border bg-transparent px-2.5 py-1 text-sm outline-none',
+            'flex h-9 w-full min-w-0 items-center rounded-lg border border-border bg-transparent text-sm',
             disabled && 'cursor-not-allowed opacity-60',
             className
           )}
         >
-          {value ? (
-            <>
-              <AgentIcon id={value} size={16} className="rounded-sm" />
-              <span className="flex-1 truncate text-left">{selectedOption?.label ?? value}</span>
-            </>
-          ) : (
-            <span className="flex-1 truncate text-foreground-muted">{placeholder}</span>
+          <Combobox.Trigger
+            data-autofocus={autoFocus || undefined}
+            disabled={disabled}
+            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-[inherit] bg-transparent px-2.5 py-1 outline-none"
+          >
+            {value ? (
+              <>
+                <AgentIcon id={value} size={16} className="rounded-sm" />
+                <span className="flex-1 truncate text-left">{selectedOption?.label ?? value}</span>
+              </>
+            ) : (
+              <span className="flex-1 truncate text-foreground-muted">{placeholder}</span>
+            )}
+            <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
+          </Combobox.Trigger>
+          {trailingControl && (
+            <div className="flex h-full shrink-0 items-center border-l border-border">
+              {trailingControl}
+            </div>
           )}
-          <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
-        </Combobox.Trigger>
+        </div>
         <Combobox.Content
           ref={setAnchorEl}
           className={cn('min-w-(--anchor-width)', contentClassName)}

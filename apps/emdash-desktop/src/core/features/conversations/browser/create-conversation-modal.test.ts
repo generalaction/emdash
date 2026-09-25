@@ -78,8 +78,6 @@ vi.mock('@emdash/ui/react/primitives', () => {
   return {
     Dialog: { Header: container, Title: container, Body: container, Footer: container },
     Field: { Root: container, Label: container, Group: container },
-    InputGroup: { Root: container },
-    Separator: () => null,
     Select: {
       Root: mocks.select,
       Trigger: container,

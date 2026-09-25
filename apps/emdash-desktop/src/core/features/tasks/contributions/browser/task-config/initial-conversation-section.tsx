@@ -2,7 +2,7 @@ import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
-import { Field, InputGroup, Separator, Switch } from '@emdash/ui/react/primitives';
+import { Field, Switch } from '@emdash/ui/react/primitives';
 import {
   useCallback,
   useEffect,
@@ -377,28 +377,22 @@ export function InitialConversationField({
         onBlur={onPromptBlur}
         {...(canDeliverInitialPrompt ? dropHandlers : {})}
       >
-        <InputGroup.Root aria-label="Agent and interface">
-          <div className="h-full min-w-0 flex-1">
-            <AgentSelector
-              className="h-full border-0"
-              value={state.provider}
-              onChange={(provider) => state.setProvider(provider)}
-              connectionId={state.connectionId}
-              getDisabledReason={getDisabledReason}
-              contentClassName="w-64"
-            />
-          </div>
-          {canToggleChatUi ? (
-            <>
-              <Separator orientation="vertical" />
+        <AgentSelector
+          value={state.provider}
+          onChange={(provider) => state.setProvider(provider)}
+          connectionId={state.connectionId}
+          getDisabledReason={getDisabledReason}
+          contentClassName="w-64"
+          trailingControl={
+            canToggleChatUi ? (
               <ConversationTransportToggle
                 value={state.useChatUi ? 'acp' : 'pty'}
                 disabled={!state.settingsReady}
                 onValueChange={(value) => state.setUseChatUi(value === 'acp')}
               />
-            </>
-          ) : null}
-        </InputGroup.Root>
+            ) : null
+          }
+        />
 
         {showAutoApproveToggle && canToggleAutoApprove ? (
           <div className="flex items-center gap-2">
