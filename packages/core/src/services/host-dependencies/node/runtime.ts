@@ -504,12 +504,16 @@ export class HostDependenciesRuntime {
   }
 
   private async computeSnapshot(): Promise<HostDependencySnapshot> {
-    const hostElevation = await probeHostElevation(this.deps.exec);
     const dependencies: Record<string, HostDependencyView> = {};
-    for (const id of this.definitions.keys()) {
-      const view = await this.buildView(id);
-      if (view.success) dependencies[id] = view.data;
-    }
+    const [hostElevation] = await Promise.all([
+      probeHostElevation(this.deps.exec),
+      Promise.all(
+        [...this.definitions.keys()].map(async (id) => {
+          const view = await this.buildView(id);
+          if (view.success) dependencies[id] = view.data;
+        })
+      ),
+    ]);
     return {
       hostId: this.deps.hostId,
       generation: (peek(this.current)?.generation ?? 0) + 1,

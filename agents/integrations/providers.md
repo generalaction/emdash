@@ -76,6 +76,9 @@ you select an OrcaRouter model from the OpenCode model picker.
   Provider plugins declare PATH-only definitions (`binaryNames`, install guidance, and optional
   update argv). Runtimes receive only the narrow resolver contract and must not infer package
   managers, fetch latest versions, or keep a second executable cache.
+- Agent list/status reads observe the demand-driven dependency snapshot; they must not force a
+  full refresh. Explicit overlapping desktop refreshes share one request, and independent provider
+  PATH probes run concurrently so Windows lookup latency does not accumulate across every provider.
 - Install command metadata stays sudo-free and declares an elevation policy. Commands that always
   require elevation are wrapped by the host-dependency runtime, while npm-style `on-failure`
   commands first run with user privileges and may be explicitly retried with passwordless sudo

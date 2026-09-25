@@ -15,9 +15,20 @@ export function createDependencyManagerResolver(localDependencyManager: HostDepe
   };
 }
 
-export async function ensureAgentDependenciesProbed(
+const pendingRefreshes = new WeakMap<HostDependenciesClient, Promise<void>>();
+
+export function ensureAgentDependenciesProbed(
   manager: HostDependenciesClient,
   _options: { refreshShellEnv?: boolean } = { refreshShellEnv: true }
 ): Promise<void> {
-  await manager.snapshot.mutate('refresh', { key: undefined, input: {} });
+  const pending = pendingRefreshes.get(manager);
+  if (pending) return pending;
+  const refresh = manager.snapshot
+    .mutate('refresh', { key: undefined, input: {} })
+    .then((result) => {
+      if (!result.success) throw new Error(JSON.stringify(result.error));
+    })
+    .finally(() => pendingRefreshes.delete(manager));
+  pendingRefreshes.set(manager, refresh);
+  return refresh;
 }
