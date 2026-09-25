@@ -94,6 +94,10 @@ you select an OrcaRouter model from the OpenCode model picker.
   with a `command` field. Overrides accept executable files or PATH names; use a wrapper script for
   commands with arguments, such as `srt claude`.
 - Claude uses deterministic `--session-id` values for conversation isolation.
+- Static plugin model catalogs supply suggestions before a conversation starts. Keep their IDs
+  compatible with the provider's ACP catalog and terminal model flag. Preserve saved IDs that are
+  absent from the static suggestions; only the live ACP catalog can determine whether a chat
+  selection is unsupported on that host.
 - Codex ACP exposes collaboration mode separately from permission mode. The ACP runtime maps the
   provider-owned `collaboration_mode` config category to the chat composer's Default/Plan selector
   and persists that selection with the conversation; filesystem and approval controls remain in
