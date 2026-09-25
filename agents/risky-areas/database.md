@@ -23,6 +23,8 @@
 - Core Node services receive `AppDb` through constructor/factory injection
 - main free-function code uses the throwing `@main/db/instance` accessor at call time
 - shutdown closes and clears the initialized database after scoped services are disposed
+- v0 imports seed existing worktree paths and known provider resume handles, and invalidate
+  completion markers so subsequent Host backfill registers the imported records.
 
 ## Development Workflow
 

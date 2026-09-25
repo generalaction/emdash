@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { like, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
@@ -217,7 +218,7 @@ export async function runLegacyPort(
         skipLegacyProjectIds: selection.skipLegacyProjectIds,
       });
       const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
-      ensureImportedTaskWorkspaces(appTarget.db);
+      ensureImportedTaskWorkspaces(appTarget.db, taskResult.workspacePaths);
       const conversationsSummary = await portConversations({
         appDb: appTarget.db,
         legacyDb,
@@ -226,6 +227,16 @@ export async function runLegacyPort(
         userDataPath: legacyUserDataPath,
         tmuxExec: runLocalCommand,
       });
+
+      appTarget.db
+        .delete(schema.kv)
+        .where(
+          or(
+            like(schema.kv.key, 'workspace-registry-backfill:%'),
+            like(schema.kv.key, 'conversation-backfill:%')
+          )
+        )
+        .run();
 
       return { sshSummary, projectsSummary, taskResult, conversationsSummary };
     });
