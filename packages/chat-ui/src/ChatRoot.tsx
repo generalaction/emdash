@@ -935,13 +935,17 @@ export function ChatRoot(props: ChatRootProps) {
   };
 
   // ── onHeightChanged — deferred (no per-row DOM read) ─────────────────────
-  // Invalidates the scroll module instead of projecting synchronously so that
-  // N row-height changes during a scroll sweep produce at most ONE projection
-  // (and thus at most ONE forced reflow) in the write phase per rAF frame.
-  // This collapses the per-row layout-thrash regression from the scroll rework.
-  const onHeightChanged = (_index: number, delta: number) => {
+  // Feeds the scroll module instead of projecting synchronously so that N
+  // row-height changes during a scroll sweep produce at most ONE compensation
+  // write + ONE projection (and thus at most one forced reflow) in the write
+  // phase per rAF frame. compensateHeightChange applies estimate→exact deltas
+  // from rows above the viewport same-frame (settle window or not) so content
+  // never shifts under the user; invalidate() covers everything else (tail
+  // re-pin, reserve growth) via the settled projection.
+  const onHeightChanged = (index: number, delta: number) => {
     if (delta === 0) return;
     queueTotalFlush();
+    scroll.compensateHeightChange(index, delta);
     scroll.invalidate();
     scheduler.request();
   };
@@ -1037,19 +1041,13 @@ export function ChatRoot(props: ChatRootProps) {
       totalDirty = false;
       setTotalHeight(virt.total());
     }
-    // Advance any smooth-scroll tween first: its write must land before the
-    // visible-set derivation so this frame renders the tweened position.
-    if (scroll.advanceTween()) {
-      if (scrollEl) shadowScrollTop = scrollEl.scrollTop;
-    }
-    // Projection is coalesced by the scroll module: at most one projection per
-    // frame (not per row), gated on the scroll-settle window and deferred while
-    // a tween is active. While unsettled, the module re-arms the scheduler
-    // (request() does not increment the converge counter, so it cannot trip
-    // the MAX_CONVERGE halt).
-    if (scroll.projectIfNeeded()) {
-      // The projection flushed canvas height and wrote scrollTop; re-capture
-      // shadow scrollTop so computeVisible/computePin use the projected value.
+    // Scroll module write phase: tween advance → same-frame height
+    // compensation → settle-gated intent re-derivation → coalesced projection.
+    // All scrollTop writes happen inside; re-capture shadow scrollTop so
+    // computeVisible/computePin use the written value. (The module re-arms the
+    // scheduler while work is pending; request() does not increment the
+    // converge counter, so it cannot trip the MAX_CONVERGE halt.)
+    if (scroll.runWritePhase()) {
       if (scrollEl) shadowScrollTop = scrollEl.scrollTop;
     }
     const nextVisible = computeVisible();
@@ -1304,8 +1302,13 @@ export function ChatRoot(props: ChatRootProps) {
 
     // On dispose: snapshot measured row heights and scroll anchor into ChatState
     // so the next mount can seed the Virtualizer and restore position without
-    // scrollbar drift (e.g. when switching conversation tabs).
-    onCleanup(() => snapshotInto(state()));
+    // scrollbar drift (e.g. when switching conversation tabs). flushIntent
+    // first: if a gesture ended inside the settle window, derive the final
+    // anchor now so the persisted intent matches what the user last saw.
+    onCleanup(() => {
+      scroll.flushIntent();
+      snapshotInto(state());
+    });
 
     const roHeight = new ResizeObserver((entries) => {
       const h = entries[0]?.contentRect.height;

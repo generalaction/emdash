@@ -1,9 +1,13 @@
 /**
  * Node-level unit tests for the scroll-projection module (improvement-plan M1,
  * D7). Drives the state machine through its dependency port with a fake host —
- * no DOM, no Solid. These tests pin the CURRENT behavior contract as extracted
- * from ChatRoot; the M1 behavior tickets (single writer, same-frame
- * compensation, derived invalidation, mode-aware prepend) evolve them.
+ * no DOM, no Solid.
+ *
+ * Behavior contract under test:
+ *   - one clamped scrollTop writer; smooth scrolls are scheduler tweens
+ *   - same-frame height compensation for rows above the viewport (ticket 05)
+ *   - intent re-derivation deferred to the settle window (ticket 05)
+ *   - projection coalesced, deferred while a tween runs or intent is dirty
  */
 
 import type { ScrollMode } from '@state/chat-state';
@@ -21,7 +25,6 @@ type Harness = {
   units: Unit[];
   padTop: number;
   viewHeight: number;
-  extraContent: number;
   stickToBottom: boolean;
   mounted: boolean;
   now: number;
@@ -52,7 +55,6 @@ function makeHarness(
     ],
     padTop: opts.padTop ?? 32,
     viewHeight: opts.viewHeight ?? 400,
-    extraContent: 0,
     stickToBottom: opts.stickToBottom ?? true,
     mounted: true,
     now: 1_000,
@@ -72,7 +74,7 @@ function makeHarness(
   };
   const totalHeight = () => topOf(h.units.length);
   // Mirrors ChatRoot: contentH = total + padTop + padBottom(0 here) + reserve.
-  const contentH = () => totalHeight() + h.padTop + h.extraContent;
+  const contentH = () => totalHeight() + h.padTop;
 
   h.deps = {
     mounted: () => h.mounted,
@@ -117,6 +119,10 @@ function makeHarness(
 
   return h;
 }
+
+const settle = (h: Harness) => {
+  h.now += SCROLL_SETTLE_MS + 1;
+};
 
 describe('writeScrollTop', () => {
   it('clamps into [0, maxScrollTop] and arms the scheduler', () => {
@@ -189,7 +195,7 @@ describe('project', () => {
   });
 });
 
-describe('observeScroll', () => {
+describe('observeScroll + deferred intent re-derivation', () => {
   it('classifies a self-write echo as idle and leaves intent alone', () => {
     const h = makeHarness({ anchor: { kind: 'anchor', itemId: 'b', edge: 'top', offset: 4 } });
     const s = createScrollProjection(h.deps);
@@ -199,20 +205,32 @@ describe('observeScroll', () => {
     expect(h.anchor).toEqual({ kind: 'anchor', itemId: 'b', edge: 'top', offset: 4 });
   });
 
-  it('user scroll near the bottom re-derives tail intent and reports atBottom', () => {
+  it('reports atBottom on user scrolls but defers intent to the settle window', () => {
     const h = makeHarness({ anchor: { kind: 'anchor', itemId: 'a', edge: 'top', offset: 0 } });
     const s = createScrollProjection(h.deps);
     const st = h.deps.maxScrollTop() - STICK_THRESHOLD_PX + 1;
     const obs = s.observeScroll(st);
     expect(obs).toEqual({ kind: 'user', userDelta: st, atBottom: true });
+    // Not yet re-derived: mid-gesture derivation is the ticket-01 drift source.
+    expect(h.anchor).toEqual({ kind: 'anchor', itemId: 'a', edge: 'top', offset: 0 });
+
+    // Unsettled write phase keeps the loop alive and does not derive.
+    const before = h.frameRequests;
+    s.runWritePhase();
+    expect(h.frameRequests).toBe(before + 1);
+    expect(h.anchor.kind).toBe('anchor');
+
+    settle(h);
+    s.runWritePhase();
     expect(h.anchor).toEqual({ kind: 'tail' });
   });
 
-  it('user scroll mid-list re-derives a top-edge anchor with the exact offset', () => {
+  it('derives a top-edge anchor with the exact offset once settled', () => {
     const h = makeHarness();
     const s = createScrollProjection(h.deps);
-    const obs = s.observeScroll(150); // 150-32=118 → inside unit b (top 100)
-    expect(obs.kind).toBe('user');
+    s.observeScroll(150); // 150-32=118 → inside unit b (top 100)
+    settle(h);
+    s.runWritePhase();
     expect(h.anchor).toEqual({
       kind: 'anchor',
       itemId: 'b',
@@ -221,15 +239,141 @@ describe('observeScroll', () => {
     });
   });
 
-  it('classifies tween-frame echoes as idle (expectedScrollTop stays in sync)', () => {
+  it('an explicit command supersedes a pending gesture derivation', () => {
     const h = makeHarness();
     const s = createScrollProjection(h.deps);
-    s.scrollToBottom({ behavior: 'smooth' });
-    h.now += 100;
-    s.advanceTween();
-    const written = h.scrollWrites[h.scrollWrites.length - 1]!;
-    expect(s.observeScroll(written).kind).toBe('idle');
-    expect(h.anchor).toEqual({ kind: 'tail' }); // intent untouched by echoes
+    s.observeScroll(150); // gesture → intent dirty
+    s.scrollToBottom(); // explicit intent
+    expect(h.anchor).toEqual({ kind: 'tail' });
+    settle(h);
+    s.runWritePhase();
+    // The settled derivation must NOT overwrite the explicit tail intent.
+    expect(h.anchor).toEqual({ kind: 'tail' });
+  });
+
+  it('flushIntent derives immediately (dispose path)', () => {
+    const h = makeHarness({ anchor: { kind: 'tail' } });
+    const s = createScrollProjection(h.deps);
+    s.observeScroll(150);
+    s.flushIntent(); // still inside the settle window
+    expect(h.anchor).toEqual({
+      kind: 'anchor',
+      itemId: 'b',
+      edge: 'top',
+      offset: 18,
+    });
+  });
+});
+
+describe('same-frame height compensation (ticket 05)', () => {
+  it('applies estimate→exact deltas above the viewport in the same write phase, mid-gesture', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    h.now = 10_000;
+    s.observeScroll(400); // active gesture; viewport top inside unit c
+    // Row a (index 0, above viewport) settles +80.
+    h.units[0]!.size = 180;
+    s.compensateHeightChange(0, 80);
+    s.runWritePhase(); // still unsettled — compensation must land anyway
+    expect(h.scrollWrites).toEqual([480]);
+    // Canvas was flushed before the write so the browser can't clamp stale.
+    expect(h.canvasWrites[h.canvasWrites.length - 1]).toBe(1112);
+  });
+
+  it('ignores height changes at or below the viewport top', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    s.observeScroll(150); // viewport top inside unit b (index 1)
+    h.units[2]!.size = 500; // below viewport
+    s.compensateHeightChange(2, 200);
+    h.units[1]!.size = 260; // the anchor row itself
+    s.compensateHeightChange(1, 60);
+    s.runWritePhase();
+    expect(h.scrollWrites).toEqual([]);
+  });
+
+  it('coalesces multiple deltas into one write', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    s.observeScroll(400);
+    h.units[0]!.size = 150;
+    s.compensateHeightChange(0, 50);
+    h.units[1]!.size = 170;
+    s.compensateHeightChange(1, -30);
+    s.runWritePhase();
+    expect(h.scrollWrites).toEqual([420]);
+  });
+
+  it('keeps content stable across a continuous gesture with settling rows (drift repro)', () => {
+    // Continuous upward wheel: each step moves the viewport up while rows above
+    // settle. The offset of the content the user reads must be preserved:
+    // final scrollTop = sum(user positions) compensated by every above-delta.
+    const h = makeHarness({
+      units: Array.from({ length: 20 }, (_, i) => ({ id: `u${i}`, size: 100 })),
+      viewHeight: 300,
+    });
+    const s = createScrollProjection(h.deps);
+    h.now = 10_000;
+    let st = 1_500;
+    s.observeScroll(st);
+    for (let step = 0; step < 5; step++) {
+      st -= 120; // wheel step upward
+      h.now += 30; // gesture stays inside the settle window
+      s.observeScroll(st);
+      // A row far above the viewport settles +40 (estimate → exact).
+      const idx = step;
+      h.units[idx]!.size += 40;
+      s.compensateHeightChange(idx, 40);
+      const wrote = s.runWritePhase();
+      expect(wrote).toBe(true);
+      // Compensation shifted the viewport by exactly the delta.
+      expect(h.scrollTop).toBe(st + 40);
+      st = h.scrollTop!;
+      s.observeScroll(st); // echo of our own write → idle, no drift into intent
+    }
+    // After settling, the derived anchor reflects the final compensated view.
+    settle(h);
+    s.runWritePhase();
+    expect(h.anchor.kind).toBe('anchor');
+  });
+});
+
+describe('projection gating', () => {
+  it('does nothing when not invalidated', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    expect(s.runWritePhase()).toBe(false);
+    expect(h.scrollWrites).toEqual([]);
+  });
+
+  it('projects immediately when idle (no gesture)', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    s.invalidate();
+    expect(s.runWritePhase()).toBe(true);
+    expect(h.scrollWrites).toEqual([632]); // tail projection
+  });
+
+  it('defers projection while intent is dirty, projects after settle', () => {
+    const h = makeHarness();
+    const s = createScrollProjection(h.deps);
+    h.now = 10_000;
+    s.observeScroll(150);
+    s.invalidate();
+    expect(s.runWritePhase()).toBe(false); // dirty intent → no projection
+    expect(h.scrollWrites).toEqual([]);
+
+    // A row above settles while still unsettled → compensation, not projection.
+    h.units[0]!.size = 150;
+    s.compensateHeightChange(0, 50);
+    s.runWritePhase();
+    expect(h.scrollWrites).toEqual([200]);
+
+    settle(h);
+    s.runWritePhase(); // derives intent, then projects
+    // The projection's target equals the compensated position — no extra write.
+    expect(h.scrollWrites).toEqual([200]);
+    expect(h.anchor).toEqual({ kind: 'anchor', itemId: 'b', edge: 'top', offset: 18 });
   });
 });
 
@@ -244,7 +388,7 @@ describe('smooth-scroll tween', () => {
     const positions: number[] = [];
     for (let frame = 0; frame < 40; frame++) {
       h.now += 16;
-      if (!s.advanceTween() && positions.length > 0) break;
+      if (!s.runWritePhase() && positions.length > 0) break;
       positions.push(h.scrollWrites[h.scrollWrites.length - 1]!);
     }
     expect(positions[positions.length - 1]).toBe(632);
@@ -261,7 +405,7 @@ describe('smooth-scroll tween', () => {
     s.writeScrollTop(632);
     s.scrollToBottom({ behavior: 'smooth' }); // already there
     expect(h.scrollWrites).toEqual([632, 632]);
-    expect(s.advanceTween()).toBe(false);
+    expect(s.runWritePhase()).toBe(false);
   });
 
   it('a user scroll mid-tween cancels the tween', () => {
@@ -270,70 +414,45 @@ describe('smooth-scroll tween', () => {
     h.now = 5_000;
     s.scrollToBottom({ behavior: 'smooth' });
     h.now += 32;
-    s.advanceTween();
+    s.runWritePhase();
     // User wheels away mid-animation.
     const obs = s.observeScroll(50);
     expect(obs.kind).toBe('user');
     const writesBefore = h.scrollWrites.length;
-    expect(s.advanceTween()).toBe(false);
+    settle(h);
+    s.runWritePhase(); // derives intent; tween must not write anymore
     expect(h.scrollWrites.length).toBe(writesBefore);
   });
 
-  it('defers projection while a tween is active and projects after it ends', () => {
+  it('folds above-viewport height deltas into an active tween', () => {
     const h = makeHarness();
     const s = createScrollProjection(h.deps);
     h.now = 5_000;
-    s.scrollToBottom({ behavior: 'smooth' });
-    s.invalidate();
+    s.writeScrollTop(500);
+    s.scrollToItem('d', { behavior: 'smooth' }); // target top(d)+pad = 632 clamped
     h.now += 16;
-    s.advanceTween();
-    const before = h.frameRequests;
-    expect(s.projectIfNeeded()).toBe(false); // tween owns the position
-    expect(h.frameRequests).toBe(before + 1);
-
-    // Finish the tween, then projection runs (tail: already at max → nop write
-    // is fine; the projection itself must fire).
+    s.runWritePhase();
+    // Row a grows +100 above everything while the tween flies.
+    h.units[0]!.size = 200;
+    s.compensateHeightChange(0, 100);
+    // Finish the tween: it must land on the shifted target, not the stale one.
     h.now += 10_000;
-    s.advanceTween();
-    expect(s.projectIfNeeded()).toBe(true);
-  });
-});
-
-describe('projectIfNeeded (settle window)', () => {
-  it('does nothing when not invalidated', () => {
-    const h = makeHarness();
-    const s = createScrollProjection(h.deps);
-    expect(s.projectIfNeeded()).toBe(false);
-    expect(h.scrollWrites).toEqual([]);
+    s.runWritePhase();
+    const last = h.scrollWrites[h.scrollWrites.length - 1]!;
+    // Stale target was 632 (clamped max before growth: 1000+32-400); shifted
+    // target is 732 — also the new maxScrollTop (1100+32-400).
+    expect(last).toBe(732);
   });
 
-  it('projects immediately when no gesture happened', () => {
+  it('classifies tween-frame echoes as idle', () => {
     const h = makeHarness();
     const s = createScrollProjection(h.deps);
-    s.invalidate();
-    expect(s.projectIfNeeded()).toBe(true);
-    expect(h.scrollWrites).toEqual([632]); // tail projection
-  });
-
-  it('suppresses projection inside the settle window and re-arms the scheduler', () => {
-    const h = makeHarness();
-    const s = createScrollProjection(h.deps);
-    h.now = 10_000;
-    s.observeScroll(150); // user scroll at t=10000
-    s.invalidate();
-    h.now = 10_000 + SCROLL_SETTLE_MS - 20;
-    const before = h.frameRequests;
-    expect(s.projectIfNeeded()).toBe(false);
-    expect(h.frameRequests).toBe(before + 1); // keeps the loop alive
-    expect(h.scrollWrites).toEqual([]);
-
-    // A row above the anchor settles from estimate to exact (+50px) while the
-    // window is still open — the correction lands only after the window closes.
-    h.units[0]!.size = 150;
-    h.now = 10_000 + SCROLL_SETTLE_MS + 1;
-    expect(s.projectIfNeeded()).toBe(true);
-    // Anchor b (offset 18) now sits 50px lower: 150 + 32 + 18 = 200.
-    expect(h.scrollWrites).toEqual([200]);
+    s.scrollToBottom({ behavior: 'smooth' });
+    h.now += 100;
+    s.runWritePhase();
+    const written = h.scrollWrites[h.scrollWrites.length - 1]!;
+    expect(s.observeScroll(written).kind).toBe('idle');
+    expect(h.anchor).toEqual({ kind: 'tail' }); // intent untouched by echoes
   });
 });
 

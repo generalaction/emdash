@@ -109,30 +109,41 @@ export type ScrollProjectionDeps = {
 export type ScrollObservation =
   /** No user movement (self-write echo — including tween frames — or idle). */
   | { kind: 'idle'; userDelta: number }
-  /** A real user scroll; intent was re-derived (and any tween cancelled). */
+  /**
+   * A real user scroll. Any tween is cancelled and intent re-derivation is
+   * scheduled for when the gesture settles (the settle window gates intent
+   * re-derivation only — height compensation stays same-frame).
+   */
   | { kind: 'user'; userDelta: number; atBottom: boolean };
 
 export type ScrollProjection = {
   /**
    * Read-phase entry point: classify the observed scrollTop against
-   * expectedScrollTop, keep gesture/suppression state current, and re-derive
-   * scroll intent on real user movement.
+   * expectedScrollTop and keep gesture state current. Real user movement marks
+   * intent dirty; re-derivation happens in the write phase once settled.
    */
   observeScroll(st: number): ScrollObservation;
   /**
-   * Write-phase entry point: run at most one projection if invalidated and the
-   * gesture has settled. Returns true when a projection ran (the caller must
-   * re-capture shadow scrollTop). While unsettled, re-arms the scheduler.
+   * Write-phase entry point. In order: advance the smooth-scroll tween, apply
+   * pending same-frame height compensation, re-derive intent if the gesture
+   * has settled, then run at most one projection. Returns true when any
+   * scrollTop write happened (the caller must re-capture shadow scrollTop).
    */
-  projectIfNeeded(): boolean;
+  runWritePhase(): boolean;
   /** Mark projection as needed (geometry changed). Coalesced per frame. */
   invalidate(): void;
   /**
-   * Advance the scroll tween one frame (write phase). Returns true when a
-   * scrollTop write happened this frame (caller re-captures shadow scrollTop).
-   * The tween keeps the scheduler alive through writeScrollTop's requestFrame.
+   * Same-frame height compensation: a row height changed by `delta`. If the
+   * row sits entirely above the viewport top, scrollTop is adjusted by the
+   * same delta in the next write phase — unconditionally, settle window or
+   * not — so content under the viewport never shifts.
    */
-  advanceTween(): boolean;
+  compensateHeightChange(index: number, delta: number): void;
+  /**
+   * Re-derive intent immediately from the last observed position if a gesture
+   * left it dirty (dispose path: persist a current anchor, not a stale one).
+   */
+  flushIntent(): void;
   /** Project a scroll intent immediately (attach / host setScrollMode). */
   project(mode: ScrollMode): void;
   /** The one clamped scrollTop writer. */
@@ -170,6 +181,16 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
   // Set on geometry change so a single projection runs in the write phase
   // instead of one per measured row.
   let needsProject = false;
+
+  // Sum of height deltas from rows entirely above the viewport top, awaiting
+  // same-frame application in the write phase. Keeps content visually
+  // stationary during active gestures (the ticket-01 scroll-jump fix).
+  let pendingCompensation = 0;
+
+  // True after a real user scroll until intent is re-derived (at settle) or an
+  // explicit intent supersedes it. While dirty, projection is deferred — a
+  // stale anchor must never be projected over the user's position.
+  let intentDirty = false;
 
   const isAtBottom = (st: number): boolean => deps.maxScrollTop() - st <= STICK_THRESHOLD_PX;
 
@@ -229,6 +250,10 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
   const project = (m: ScrollMode): void => {
     if (!deps.mounted()) return;
     cancelTween();
+    // An absolute projection supersedes any pending relative correction and any
+    // pending gesture-driven re-derivation.
+    pendingCompensation = 0;
+    intentDirty = false;
     // Synchronously update canvas height so scrollTop is never clamped.
     deps.setCanvasHeight(deps.contentH());
 
@@ -258,10 +283,34 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     }
   };
 
+  // Re-derive scroll intent from a settled position: tail when within the
+  // stick threshold of the bottom, otherwise a top-edge anchor on the unit
+  // under the viewport top.
+  const rederiveIntent = (st: number): void => {
+    const nowAtBottom = isAtBottom(st);
+    const prevAtBottom = deps.getAnchor().kind === 'tail';
+    if (nowAtBottom) {
+      if (!prevAtBottom) {
+        deps.setAnchor({ kind: 'tail' });
+      }
+    } else {
+      const pt = deps.padTop();
+      const anchorUnitIdx = deps.findIndexAt(Math.max(0, st - pt));
+      const anchorUnitId = deps.unitIdAt(anchorUnitIdx);
+      if (anchorUnitId !== undefined) {
+        deps.setAnchor({
+          kind: 'anchor',
+          itemId: anchorUnitId,
+          edge: 'top',
+          offset: st - (deps.topOf(anchorUnitIdx) + pt),
+        });
+      }
+    }
+  };
+
   const observeScroll = (st: number): ScrollObservation => {
     const userDelta = st - expectedScrollTop;
 
-    // Only re-derive intent when the user actually moved the scrollbar.
     // USER_SCROLL_EPSILON filters sub-pixel self-write rounding (including
     // tween-frame echoes) so writeScrollTop is never misread as a user scroll.
     if (Math.abs(userDelta) > USER_SCROLL_EPSILON) {
@@ -269,47 +318,70 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
       cancelTween();
       lastUserScrollAt = deps.now();
       expectedScrollTop = st;
-      const nowAtBottom = isAtBottom(st);
-      const prevAtBottom = deps.getAnchor().kind === 'tail';
-      if (nowAtBottom) {
-        if (!prevAtBottom) {
-          deps.setAnchor({ kind: 'tail' });
-        }
-      } else {
-        const pt = deps.padTop();
-        const anchorUnitIdx = deps.findIndexAt(Math.max(0, st - pt));
-        const anchorUnitId = deps.unitIdAt(anchorUnitIdx);
-        if (anchorUnitId !== undefined) {
-          deps.setAnchor({
-            kind: 'anchor',
-            itemId: anchorUnitId,
-            edge: 'top',
-            offset: st - (deps.topOf(anchorUnitIdx) + pt),
-          });
-        }
-      }
-      return { kind: 'user', userDelta, atBottom: nowAtBottom };
+      // Intent re-derivation is deferred to the settle window (write phase):
+      // deriving per scroll event bakes uncompensated geometry shifts into the
+      // anchor offset — the ticket-01 continuous-wheel drift.
+      intentDirty = true;
+      return { kind: 'user', userDelta, atBottom: isAtBottom(st) };
     }
 
     return { kind: 'idle', userDelta };
   };
 
+  // An explicit intent (scroll command / host setScrollMode) supersedes any
+  // pending gesture-driven re-derivation.
+  const applyIntent = (m: ScrollMode): void => {
+    intentDirty = false;
+    deps.setAnchor(m);
+  };
+
+  const flushIntent = (): void => {
+    if (!intentDirty) return;
+    intentDirty = false;
+    rederiveIntent(expectedScrollTop);
+  };
+
+  // Same-frame compensation: rows entirely above the viewport top shift the
+  // content under the viewport when they settle from estimate to exact; the
+  // exact delta is applied to scrollTop in the next write phase regardless of
+  // the settle window. Rows intersecting or below the viewport top don't move
+  // what the user sees — no compensation.
+  //
+  // Classification uses the row's PRE-change extent: its own top is unchanged
+  // by its resize and its old bottom = new bottom − delta. A row that grows
+  // across the viewport top was above it when the user was looking.
+  const compensateHeightChange = (index: number, delta: number): void => {
+    if (delta === 0) return;
+    const viewportTop = expectedScrollTop + pendingCompensation - deps.padTop();
+    const oldBottom = deps.topOf(index) + deps.sizeOf(index) - delta;
+    if (oldBottom > viewportTop) return;
+    if (tween) {
+      // Fold the shift into the tween so its curve lands on shifted content.
+      tween.from += delta;
+      tween.to += delta;
+      return;
+    }
+    pendingCompensation += delta;
+    deps.requestFrame();
+  };
+
+  const applyCompensation = (): boolean => {
+    if (pendingCompensation === 0) return false;
+    const delta = pendingCompensation;
+    pendingCompensation = 0;
+    // Flush canvas height first so the DOM write is never clamped stale.
+    deps.setCanvasHeight(deps.contentH());
+    writeScrollTop(expectedScrollTop + delta);
+    return true;
+  };
+
   const projectIfNeeded = (): boolean => {
     // Projection is coalesced: at most one project() per frame (not per row).
-    //
-    // Gate on a settle window instead of a per-frame flag: if the user scrolled
-    // within the last SCROLL_SETTLE_MS, skip the correction so the browser
-    // thumb is never fought mid-gesture. While unsettled, requestFrame() keeps
-    // the loop alive so the projection fires after the window without any
-    // further events. An active tween defers projection the same way — the
-    // tween owns the scroll position until it completes or is cancelled.
+    // Deferred while a tween owns the position or while intent is dirty (a
+    // stale anchor must never be projected over the user's live position);
+    // same-frame compensation covers visual stability in the meantime.
     if (!needsProject) return false;
-    if (tween) {
-      deps.requestFrame();
-      return false;
-    }
-    const settled = deps.now() - lastUserScrollAt > SCROLL_SETTLE_MS;
-    if (!settled) {
+    if (tween || intentDirty) {
       deps.requestFrame();
       return false;
     }
@@ -318,12 +390,29 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     return true;
   };
 
+  const runWritePhase = (): boolean => {
+    let wrote = advanceTween();
+    if (applyCompensation()) wrote = true;
+    // Re-derive intent once the gesture has settled; keep the loop alive while
+    // waiting so the derivation fires without further events.
+    if (intentDirty && !tween) {
+      if (deps.now() - lastUserScrollAt > SCROLL_SETTLE_MS) {
+        intentDirty = false;
+        rederiveIntent(expectedScrollTop);
+      } else {
+        deps.requestFrame();
+      }
+    }
+    if (projectIfNeeded()) wrote = true;
+    return wrote;
+  };
+
   const scrollToTop = (opts?: { behavior?: ScrollBehavior }): void => {
     if (!deps.mounted()) return;
     cancelTween();
     const firstUnitId = deps.unitIdAt(0);
     if (firstUnitId !== undefined) {
-      deps.setAnchor({ kind: 'anchor', itemId: firstUnitId, edge: 'top', offset: -deps.padTop() });
+      applyIntent({ kind: 'anchor', itemId: firstUnitId, edge: 'top', offset: -deps.padTop() });
     }
     if (opts?.behavior === 'smooth') {
       startTween(0);
@@ -336,7 +425,7 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     if (!deps.mounted()) return;
     cancelTween();
     const target = deps.maxScrollTop();
-    deps.setAnchor({ kind: 'tail' });
+    applyIntent({ kind: 'tail' });
     if (opts?.behavior === 'smooth') {
       startTween(target);
     } else {
@@ -392,7 +481,7 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     const anchorUnitId = deps.unitIdAt(idx);
     if (anchorUnitId !== undefined) {
       const newOffset = t0 - (deps.topOf(idx) + deps.padTop());
-      deps.setAnchor({
+      applyIntent({
         kind: 'anchor',
         itemId: anchorUnitId,
         edge: 'top',
@@ -430,11 +519,12 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
 
   return {
     observeScroll,
-    projectIfNeeded,
+    runWritePhase,
     invalidate: () => {
       needsProject = true;
     },
-    advanceTween,
+    compensateHeightChange,
+    flushIntent,
     project,
     writeScrollTop,
     isAtBottom,
