@@ -241,7 +241,22 @@ export function createTranscript(): TranscriptApi {
     prepend(turns) {
       if (turns.length === 0) return;
       setCommitted((prev) => {
-        const next = [...turns, ...prev];
+        // Dedupe by turn id: pagination seams can deliver overlapping pages
+        // (e.g. a retried request). Accepting a duplicate corrupts id-keyed
+        // lookups (heightmap, scroll anchor, reconcile).
+        const existing = new Set(prev.map((turn) => turn.id));
+        const fresh = turns.filter((turn) => {
+          if (!existing.has(turn.id)) return true;
+          if (import.meta.env.DEV) {
+            console.error(
+              `[chat-ui] history.prepend received already-present turn "${turn.id}" — dropped. ` +
+                'Turn ids must be unique across the transcript.'
+            );
+          }
+          return false;
+        });
+        if (fresh.length === 0) return prev;
+        const next = [...fresh, ...prev];
         assertOrderedTurns(next, 'history.prepend');
         return next;
       });

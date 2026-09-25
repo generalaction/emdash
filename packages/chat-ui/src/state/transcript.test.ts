@@ -89,6 +89,25 @@ describe('history', () => {
     expect(tx.state.committedTurns.map((t) => t.id)).toEqual(['t0', 't1', 't2']);
   });
 
+  it('prepend drops turns whose id is already present (duplicate page delivery)', () => {
+    const tx = createTranscript();
+    tx.history.seed([turn('t1', 1, msg('b', 0)), turn('t2', 2, msg('c', 0))]);
+    const identity = tx.state.committedTurns[0];
+    // Overlapping page: t1 again plus genuinely older t0.
+    tx.history.prepend([turn('t0', 0, msg('a', 0)), turn('t1', 1, msg('b-dupe', 0))]);
+    expect(tx.state.committedTurns.map((t) => t.id)).toEqual(['t0', 't1', 't2']);
+    // The original t1 object survives — identity-keyed caches stay valid.
+    expect(tx.state.committedTurns[1]).toBe(identity);
+  });
+
+  it('prepend of only-duplicate turns leaves history identity untouched', () => {
+    const tx = createTranscript();
+    tx.history.seed([turn('t1', 1, msg('b', 0))]);
+    const before = tx.state.committedTurns;
+    tx.history.prepend([turn('t1', 1, msg('b-dupe', 0))]);
+    expect(tx.state.committedTurns).toBe(before);
+  });
+
   it('append adds turns after committed history', () => {
     const tx = createTranscript();
     tx.history.seed([turn('t0', 0, msg('a', 0))]);

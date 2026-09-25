@@ -32,6 +32,8 @@ type Harness = {
   scrollTop: number | undefined;
   scrollWrites: number[];
   canvasWrites: number[];
+  /** Interleaved effect log for ordering assertions. */
+  ops: Array<['canvas' | 'scroll', number]>;
   frameRequests: number;
   rafQueue: Array<() => void>;
   deps: ScrollProjectionDeps;
@@ -62,6 +64,7 @@ function makeHarness(
     scrollTop: undefined,
     scrollWrites: [],
     canvasWrites: [],
+    ops: [],
     frameRequests: 0,
     rafQueue: [],
     deps: undefined as unknown as ScrollProjectionDeps,
@@ -103,10 +106,12 @@ function makeHarness(
     stickToBottom: () => h.stickToBottom,
     setCanvasHeight: (px) => {
       h.canvasWrites.push(px);
+      h.ops.push(['canvas', px]);
     },
     setScrollTop: (px) => {
       h.scrollTop = px;
       h.scrollWrites.push(px);
+      h.ops.push(['scroll', px]);
     },
     requestFrame: () => {
       h.frameRequests++;
@@ -495,9 +500,9 @@ describe('scroll commands', () => {
   });
 });
 
-describe('prepend compensation', () => {
-  it('captures the top-edge anchor and restores it after units shift', () => {
-    const h = makeHarness();
+describe('prepend compensation (mode-aware, write-phase committed)', () => {
+  it('anchor intent: restores the captured anchor position exactly, in the write phase', () => {
+    const h = makeHarness({ anchor: { kind: 'anchor', itemId: 'b', edge: 'top', offset: 18 } });
     const s = createScrollProjection(h.deps);
     const st = 150; // inside unit b at offset 18
     const cap = s.capturePrependAnchor(st);
@@ -505,8 +510,33 @@ describe('prepend compensation', () => {
 
     // Simulate a prepend of 500px worth of older rows.
     h.units.unshift({ id: 'old-2', size: 300 }, { id: 'old-1', size: 200 });
-    s.compensatePrepend(cap.anchorId!, cap.anchorOffset);
+    s.schedulePrependCompensation(cap);
+    expect(h.scrollWrites).toEqual([]); // nothing until the write phase
+
+    s.runWritePhase();
     // b's top is now 600 → 600 + 32 + 18 = 650
     expect(h.scrollWrites).toEqual([650]);
+    // Ordered commit: canvas height (1532) lands before the scrollTop write so
+    // the browser can never clamp against the stale (shorter) canvas.
+    expect(h.ops).toEqual([
+      ['canvas', 1532],
+      ['scroll', 650],
+    ]);
+  });
+
+  it('tail intent: re-pins to the bottom instead of anchor math', () => {
+    const h = makeHarness({ anchor: { kind: 'tail' } });
+    const s = createScrollProjection(h.deps);
+    s.writeScrollTop(h.deps.maxScrollTop()); // pinned at 632
+    h.ops.length = 0;
+    h.scrollWrites.length = 0;
+
+    const cap = s.capturePrependAnchor(632);
+    h.units.unshift({ id: 'old-1', size: 500 });
+    s.schedulePrependCompensation(cap);
+    s.runWritePhase();
+    // New maxScrollTop = 1500 + 32 - 400 = 1132; the pin survives the prepend.
+    expect(h.scrollWrites[0]).toBe(1132);
+    expect(h.ops[0]).toEqual(['canvas', 1532]);
   });
 });

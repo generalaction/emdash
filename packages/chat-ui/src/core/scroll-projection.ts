@@ -155,8 +155,16 @@ export type ScrollProjection = {
   scrollToItem(id: string, opts?: ScrollToItemOptions): void;
   /** Capture the top-edge anchor before a history prepend. */
   capturePrependAnchor(st: number): { anchorId: string | undefined; anchorOffset: number };
-  /** Restore the captured anchor after the prepend landed. */
-  compensatePrepend(anchorId: string, anchorOffset: number): void;
+  /**
+   * Schedule mode-aware prepend compensation for the next write phase, where
+   * canvas height and scrollTop commit together, in order. Tail intent re-pins
+   * to the bottom; anchor intent restores the captured anchor's viewport
+   * position exactly.
+   */
+  schedulePrependCompensation(capture: {
+    anchorId: string | undefined;
+    anchorOffset: number;
+  }): void;
 };
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -392,6 +400,7 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
 
   const runWritePhase = (): boolean => {
     let wrote = advanceTween();
+    if (applyPrependCompensation()) wrote = true;
     if (applyCompensation()) wrote = true;
     // Re-derive intent once the gesture has settled; keep the loop alive while
     // waiting so the derivation fires without further events.
@@ -509,12 +518,42 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     return { anchorId, anchorOffset };
   };
 
-  const compensatePrepend = (anchorId: string, anchorOffset: number): void => {
-    const newUnitIdx = deps.unitIndexOf(anchorId);
-    if (newUnitIdx >= 0) {
-      const newTop = deps.topOf(newUnitIdx) + deps.padTop() + anchorOffset;
-      writeScrollTop(newTop);
+  // Pending prepend compensation, applied in the write phase so the canvas
+  // height and scrollTop commit together in order — a synchronous scrollTop
+  // write from the load-older path lands against a stale canvas height and
+  // tears for one frame.
+  let pendingPrepend: { anchorId: string | undefined; anchorOffset: number } | null = null;
+
+  const schedulePrependCompensation = (capture: {
+    anchorId: string | undefined;
+    anchorOffset: number;
+  }): void => {
+    pendingPrepend = capture;
+    deps.requestFrame();
+  };
+
+  const applyPrependCompensation = (): boolean => {
+    if (!pendingPrepend) return false;
+    const { anchorId, anchorOffset } = pendingPrepend;
+    pendingPrepend = null;
+    // Ordered commit: canvas height first so the scrollTop write is never
+    // clamped against the outgoing (shorter) canvas.
+    deps.setCanvasHeight(deps.contentH());
+    // Mode-aware: with tail intent the user is pinned to the live end — re-pin
+    // there instead of doing top-edge anchor math through the prepended rows
+    // (the reproduced permanent tail-pin loss).
+    if (deps.getAnchor().kind === 'tail') {
+      writeScrollTop(deps.maxScrollTop());
+      return true;
     }
+    if (anchorId !== undefined) {
+      const newUnitIdx = deps.unitIndexOf(anchorId);
+      if (newUnitIdx >= 0) {
+        writeScrollTop(deps.topOf(newUnitIdx) + deps.padTop() + anchorOffset);
+        return true;
+      }
+    }
+    return false;
   };
 
   return {
@@ -532,6 +571,6 @@ export function createScrollProjection(deps: ScrollProjectionDeps): ScrollProjec
     scrollToBottom,
     scrollToItem,
     capturePrependAnchor,
-    compensatePrepend,
+    schedulePrependCompensation,
   };
 }

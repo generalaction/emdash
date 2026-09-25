@@ -1206,10 +1206,21 @@ export function ChatRoot(props: ChatRootProps) {
     const el = scrollEl;
     if (!el || turns.length === 0) return;
 
-    const t = theme();
-    const prependedUnits = flattenTier(turns, segmentCtx(false), SEGMENTERS, UNIT_REGISTRY);
+    // Dedupe by turn id BEFORE seeding the virtualizer: history.prepend drops
+    // duplicates too, and prepending phantom heights for turns the transcript
+    // rejects would desync the heightmap from the unit list.
+    const existingIds = new Set(state().transcript.state.committedTurns.map((turn) => turn.id));
+    const fresh = turns.filter((turn) => !existingIds.has(turn.id));
+    if (fresh.length === 0) {
+      // Still route through the transcript so its dev warning fires.
+      state().transcript.history.prepend(turns);
+      return;
+    }
 
-    const { anchorId, anchorOffset } = scroll.capturePrependAnchor(el.scrollTop);
+    const t = theme();
+    const prependedUnits = flattenTier(fresh, segmentCtx(false), SEGMENTERS, UNIT_REGISTRY);
+
+    const capture = scroll.capturePrependAnchor(el.scrollTop);
 
     const loadEstimateCtx: MeasureCtx = {
       theme: t,
@@ -1232,9 +1243,13 @@ export function ChatRoot(props: ChatRootProps) {
     state().transcript.history.prepend(turns);
     refreshTotal();
 
-    if (anchorId !== undefined) {
-      scroll.compensatePrepend(anchorId, anchorOffset);
-    }
+    // Mode-aware compensation commits canvas height + scrollTop together in
+    // the write phase. Flush that write phase synchronously: the transcript
+    // effects above already re-rendered visible rows for their shifted
+    // indexes, so letting the browser paint before the compensation + commit
+    // land would show one torn frame (the reproduced 532px flash).
+    scroll.schedulePrependCompensation(capture);
+    writePhase();
   };
 
   // ── Snapshot / restore helpers ────────────────────────────────────────────
