@@ -40,7 +40,15 @@ export const proseBlockDef = defineBlock<ProseBlock, ProseLeafLayout>({
   },
 
   Render(props: { node: Measured<ProseLeafLayout> }) {
-    const l = props.node.layout;
-    return <Prose block={l} runs={l.raw.runs} variant={l.raw.variant} />;
+    // Reactive reads (no setup-time snapshot): BlockStackView keys rows by
+    // block id, so this component instance survives streaming re-layouts of
+    // the same block and must track props.node.
+    return (
+      <Prose
+        block={props.node.layout}
+        runs={props.node.layout.raw.runs}
+        variant={props.node.layout.raw.variant}
+      />
+    );
   },
 });

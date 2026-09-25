@@ -1,14 +1,17 @@
 /**
  * Regression suite: render isolation in ChatRoot.
  *
- * Guards audit finding F1: expanding one user message card must not recreate
- * the DOM of any other visible row. The global expanded-card id is scoped to a
- * per-row `expandedSelf` boolean before it enters MeasureCtx, so rows the
- * expand cannot affect never see a changed measure input.
+ * Guards audit findings F1 and F2 by node-identity sampling:
  *
- * Verified by node-identity sampling: capture element references from other
- * rows' message bodies before the expand and assert the exact same nodes are
- * still connected afterwards.
+ *   F1 — expanding one user message card must not recreate the DOM of any
+ *   other visible row. The global expanded-card id is scoped to a per-row
+ *   `expandedSelf` boolean before it enters MeasureCtx, so rows the expand
+ *   cannot affect never see a changed measure input.
+ *
+ *   F2 — a streaming chunk must not recreate the DOM of blocks that already
+ *   crossed a safe parse boundary (the settled prefix). BlockStackView keys
+ *   rows by stable block id and leaf renders read their layout reactively, so
+ *   only the growing tail re-renders per chunk.
  *
  * Run:
  *   cd packages/chat-ui
@@ -112,6 +115,69 @@ describe('render isolation regression', () => {
 
       // Core assertion: every sampled node from other rows survived untouched.
       const disconnected = otherRowNodes.filter((n) => !n.isConnected);
+      expect(disconnected).toEqual([]);
+    } finally {
+      dispose();
+      state.dispose();
+      ctx.dispose();
+      host.remove();
+    }
+  }, 30000);
+
+  it('a streaming chunk does not recreate DOM of settled blocks', async () => {
+    const host = document.createElement('div');
+    host.style.cssText = 'width:880px;height:600px;overflow:hidden;position:relative;';
+    document.body.appendChild(host);
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    state.transcript.history.seed(makeTurns());
+    const dispose = render(() => <ChatRoot context={ctx} state={state} />, host);
+
+    try {
+      await sleep(400);
+
+      const setActive = (text: string) => {
+        state.transcript.activeTurn.set(
+          {
+            id: 'turn-active',
+            seq: 100,
+            initiator: 'agent',
+            items: [
+              { kind: 'message', id: 'm-active', seq: 0, role: 'assistant', text } as TurnItem,
+            ],
+          },
+          'generating'
+        );
+      };
+
+      // Chunks 1-2 settle two blocks (blank-line boundaries), then the tail grows.
+      let text = 'First paragraph of the streamed answer, fully settled early.\n\n';
+      setActive(text);
+      await sleep(120);
+      text += '```ts\nconst settled = true;\n```\n\n';
+      setActive(text);
+      await sleep(120);
+      text += 'Growing tail paragraph that keeps ';
+      setActive(text);
+      await sleep(200);
+
+      // Sample the DOM of the settled prefix (block ids m-active#0 / m-active#1).
+      const settledNodes: Element[] = [];
+      for (const idx of [0, 1]) {
+        const block = host.querySelector(`[data-block-id="m-active#${idx}"]`);
+        expect(block, `settled block m-active#${idx} should be mounted`).not.toBeNull();
+        settledNodes.push(block!, ...Array.from(block!.querySelectorAll('*')));
+      }
+      expect(settledNodes.length).toBeGreaterThan(5);
+
+      // Stream 10 more chunks into the growing tail.
+      for (let i = 0; i < 10; i++) {
+        text += `receiving words chunk ${i} with more content `;
+        setActive(text);
+        await sleep(60);
+      }
+
+      const disconnected = settledNodes.filter((n) => !n.isConnected);
       expect(disconnected).toEqual([]);
     } finally {
       dispose();

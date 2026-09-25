@@ -100,20 +100,26 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
     return layoutBlockStack(blocks, ctx, { isCollapsed: ctx.isCollapsed });
   });
 
+  // Derive the total height from the SAME stack() memo the renderer uses
+  // (measureMessage would lay the block stack out a second time per
+  // invalidation). Mirrors the assistant/thought arithmetic in measureMessage:
+  // stack height (or one line height for empty content) + footer.
   const totalH = createMemo(() => {
     const ctx = mCtx();
-    if (!ctx) return props.data.role === 'assistant' ? props.vars.footerH : 0;
-    return measureMessage(props.data, ctx, props.vars);
+    const footer = props.data.role === 'assistant' ? props.vars.footerH : 0;
+    if (!ctx) return footer;
+    const s = stack();
+    return (s ? s.height : ctx.theme.fonts.body.lineHeight) + footer;
   });
 
-  const plainText = () => {
+  const plainText = createMemo(() => {
     const ctx = mCtx();
     if (!ctx) return props.data.text;
     // Use the same parse path as the renderer so we don't trigger a full reparse
     // during streaming just for the screen-reader text.
     const parse = props.data.streaming ? ctx.caches.parseBlocksStreaming : ctx.caches.parseBlocks;
     return parse(props.data.id, props.data.text).map(blockPlainText).join('\n\n');
-  };
+  });
 
   const role = () =>
     (props.data.role === 'thought' ? 'thought' : 'assistant') as 'thought' | 'assistant';

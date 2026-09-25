@@ -16,7 +16,7 @@ export const codeBlockDef = defineBlock<CodeBlock, CodeLeafLayout>({
   },
 
   Render(props: { node: Measured<CodeLeafLayout> }) {
-    const l = props.node.layout;
-    return <Code block={l} rawBlock={l.raw} />;
+    // Reactive reads (no setup-time snapshot) — see prose.def.tsx.
+    return <Code block={props.node.layout} rawBlock={props.node.layout.raw} />;
   },
 });

@@ -16,7 +16,7 @@ import type {
 } from '@core/layout/layout-types';
 import { mentionDisplayText } from '@core/markdown/document';
 import type { InlineMention, InlineRun } from '@core/markdown/document';
-import { For, Match, Show, Switch, createMemo, onMount } from 'solid-js';
+import { For, Match, Show, Switch, createEffect, createMemo } from 'solid-js';
 import {
   bulletColor,
   commandChip,
@@ -363,9 +363,12 @@ export function Prose(props: ProseProps) {
     };
   });
 
-  // After rendering, advance the frontier so the next chunk only animates
-  // words appended after this render.
-  onMount(() => {
+  // After each render, advance the frontier so the next chunk only animates
+  // words appended after this render. An effect (not onMount): with
+  // BlockStackView keying rows by block id, this component instance survives
+  // streaming re-layouts of the same block, so the advance must re-run per
+  // chunk, not once per mount.
+  createEffect(() => {
     if (!streamAnim) return;
     const d = fragData();
     if (d) streamAnim.frontier.set(props.block.id, d.totalWords);

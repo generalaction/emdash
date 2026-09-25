@@ -28,7 +28,7 @@ export const mermaidBlockDef = defineBlock<MermaidBlock, MermaidLeafLayout>({
   },
 
   Render(props: { node: Measured<MermaidLeafLayout> }) {
-    const l = props.node.layout;
-    return <Mermaid block={l} rawBlock={l.raw} />;
+    // Reactive reads (no setup-time snapshot) — see prose.def.tsx.
+    return <Mermaid block={props.node.layout} rawBlock={props.node.layout.raw} />;
   },
 });
