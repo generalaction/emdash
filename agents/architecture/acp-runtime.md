@@ -146,11 +146,21 @@ upgrade through the existing protocol-incompatibility flow; there is no legacy s
 
 The handle persists an explicitly allowlisted, versioned intent containing provider/session
 identity, cwd, desired model/mode/effort, and a bounded non-secret presentation snapshot.
-An optional `unstarted` marker is affirmative evidence that Emdash has neither dispatched a prompt
-nor adopted nonempty provider history. An empty replay preserves the marker. Before either action,
-the handle clears that marker through an awaited FIFO intent write. Persistence failure prevents
-dispatch. Legacy intents without the marker
-are never assumed empty. Configuration and presentation writes use the same persistence queue.
+An optional `unstarted` marker is affirmative evidence that automatic replacement is safe.
+Before loading a saved provider session, the handle durably clears the marker: replay can reveal
+history, so a worker crash or a subsequent failed write must leave the old pointer protected.
+Only that uninterrupted attempt can use its prior untouched evidence to replace a precisely
+identified missing session with no replayed history. Successful empty replay restores eligibility;
+interrupted or uncertain replay leaves it disabled. Legacy intents without the marker are never
+assumed empty. Before dispatching a prompt, the handle also durably clears the marker.
+
+Provider creation and replay produce provisional state. The runtime writes a proposed pointer,
+continuity marker, and retained presentation through the per-conversation FIFO queue before
+adopting them or dispatching initial prompts. A failed write leaves the prior identity and
+presentation intact. The synchronous commit callback runs before later background writes, whose
+payloads are read at execution time so they cannot restore stale state. The file-backed store
+likewise publishes its cache only after atomic file replacement; failed mutations cannot leak
+into a subsequent write. Configuration and presentation writes use the same persistence queue.
 Provider environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never
 persisted.
 The runtime reports provider session identity and resume outcomes through the host conversation

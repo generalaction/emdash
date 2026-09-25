@@ -291,11 +291,40 @@ export class SessionManager {
     );
     if (!materialized.success) return materialized;
 
-    const { record } = materialized.data;
-    entry.markMaterialized(record, materialized.data.initialQueueConsumed);
-    if (record.resumeOutcome === 'replaced-by-new') {
-      const persisted = await entry.persistSession(record);
-      if (!persisted.success) return persisted;
+    const { record, unstarted } = materialized.data;
+    let { unsupportedSelections } = materialized.data;
+    const configuredRevision = entry.desiredRevision;
+    const committed = await entry.commitMaterialization(record, unstarted);
+    if (!committed.success) return committed;
+    try {
+      if (entry.desiredRevision !== configuredRevision) {
+        unsupportedSelections = await this.materializer.applyDesiredConfiguration(
+          record,
+          entry,
+          record.cell.configCatalog.kind === 'ready'
+        );
+        if (!entry.isCurrentRecord(record))
+          return acpErr.conversationNotFound(entry.conversationId);
+      }
+      for (const prompt of record.input.initialQueue ?? []) {
+        const queued = record.cell.queuePrompt(prompt);
+        if (!queued.success) return queued;
+      }
+      if (record.resumeOutcome === 'loaded') record.cell.endReplay();
+      else record.cell.applySessionReady();
+    } catch (error) {
+      return acpErr.initializeFailed(toSerializedError(error));
+    }
+    entry.initialQueueConsumed = true;
+    for (const { key, value } of unsupportedSelections) {
+      if (key === 'modeId') {
+        if (entry.descriptor.modeId !== value) continue;
+        entry.clearMode();
+      } else {
+        if (entry.configOverrides[key] !== value) continue;
+        entry.clearConfig(key);
+      }
+      record.clearedConfiguration.push(key);
     }
     return ok(record);
   }
@@ -765,7 +794,7 @@ export class SessionManager {
         listProjector: this.listProjector,
         terminals: this.terminals,
         saveIntent: () => this.lifecycle.saveIntent(input.conversationId),
-        persistIntent: () => this.lifecycle.persistIntent(input.conversationId),
+        persistIntent: (prepare) => this.lifecycle.persistIntent(input.conversationId, prepare),
         materialize: (scope) => this.startActivation(entry, scope),
         interruptRecord: (record) => this.interruptRecord(record),
         onActivated: (record) => {

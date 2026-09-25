@@ -17,6 +17,7 @@ import {
   type SessionLifecycle,
   type SessionLifecycleOptions,
   type SessionSnapshotJudgment,
+  type SessionIntentUpdate,
 } from '#services/session-lifecycle/api';
 
 type ReapDecision = { action: 'keep' } | { action: 'deactivate'; reason: string };
@@ -179,19 +180,24 @@ export function createSessionLifecycle<TResume, TCtx>(
     return next;
   }
 
-  async function writeActiveIntent(key: string): Promise<Result<void, SessionIntentError>> {
+  async function writeActiveIntent(
+    key: string,
+    prepare?: () => SessionIntentUpdate | null
+  ): Promise<Result<void, SessionIntentError>> {
     if (!conversation) return ok();
-    const active = conversation.activePayload(key);
-    if (!active) return ok();
     let outcome: Result<void, SessionIntentError> = ok();
     await enqueueIntentWrite(key, async () => {
       try {
+        const update = prepare?.();
+        const active = prepare ? update : conversation.activePayload(key);
+        if (!active) return;
         const result = await conversation.intents.saveActive({
           conversationId: key,
           payload: active.payload,
           sessionId: active.sessionId,
         });
         outcome = result;
+        if (result.success) update?.onPersisted();
         if (!result.success) {
           logger.warn(`${name}: failed to persist active session intent`, {
             conversationId: key,

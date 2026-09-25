@@ -24,7 +24,8 @@ export type MaterializationStartError = AcpStartError | ConversationNotFoundErro
 
 export type MaterializedSession = {
   record: SessionRecord;
-  initialQueueConsumed: true;
+  unstarted: boolean;
+  unsupportedSelections: UnsupportedSelection[];
 };
 
 type UnsupportedSelection = {
@@ -92,6 +93,7 @@ export class SessionMaterializer {
     let resumeOutcome: SessionRecord['resumeOutcome'] =
       entry.isStartingFresh && entry.descriptor.sessionId !== null ? 'replaced-by-new' : null;
     let unsupportedSelections: UnsupportedSelection[] = [];
+    let unstarted = true;
 
     try {
       if (input.sessionId && (!connection.supportsLoadSession || !connection.agent.loadSession)) {
@@ -115,10 +117,15 @@ export class SessionMaterializer {
           epoch,
           scope
         );
+        const wasUntouched = entry.canStartFresh;
         let loaded = false;
         let replaceUntouched = false;
         let endLoad = () => {};
         try {
+          if (wasUntouched) {
+            const preserved = await entry.preserveSession(record);
+            if (!preserved.success) return preserved;
+          }
           endLoad = this.callbacks.beginLoad(processOwner, input.sessionId, input.conversationId);
           record.cell.beginReplay();
           const response = await abortable(
@@ -130,11 +137,6 @@ export class SessionMaterializer {
           if (!this.callbacks.isCurrent(entry, epoch) || record.disposed) {
             return acpErr.conversationNotFound(entry.conversationId);
           }
-          const history = record.cell.history();
-          if (entry.canStartFresh && (history.committed.length > 0 || history.active)) {
-            const preserved = await entry.preserveSession(record);
-            if (!preserved.success) return preserved;
-          }
           record.cell.applySessionLoaded({
             modes: response.modes,
             configOptions: response.configOptions,
@@ -144,9 +146,8 @@ export class SessionMaterializer {
             entry,
             response.configOptions !== undefined
           );
-          const queueResult = await this.queueInitialPrompts(record, input);
-          if (!queueResult.success) return queueResult;
-          record.cell.endReplay();
+          const history = record.cell.history();
+          unstarted = wasUntouched && history.committed.length === 0 && !history.active;
           loaded = true;
           resumeOutcome = 'loaded';
         } catch (error) {
@@ -154,10 +155,6 @@ export class SessionMaterializer {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           const history = record.cell.history();
-          if (entry.canStartFresh && (history.committed.length > 0 || history.active)) {
-            const preserved = await entry.preserveSession(record);
-            if (!preserved.success) return preserved;
-          }
           if (isAuthRequiredError(error)) throw error;
           this.deps.logger.warn('SessionMaterializer: failed to restore existing session', {
             conversationId: input.conversationId,
@@ -167,7 +164,7 @@ export class SessionMaterializer {
             ...providerErrorDetails(error),
           });
           if (isSessionNotFound(error, input.sessionId, binding.behavior.isSessionNotFound)) {
-            if (!entry.canStartFresh) {
+            if (!wasUntouched || history.committed.length > 0 || history.active) {
               return acpErr.sessionNotFound();
             }
             replaceUntouched = true;
@@ -222,9 +219,6 @@ export class SessionMaterializer {
           entry,
           response.configOptions !== undefined
         );
-        const queueResult = await this.queueInitialPrompts(record, input);
-        if (!queueResult.success) return queueResult;
-        record.cell.applySessionReady();
       }
 
       if (!this.callbacks.isCurrent(entry, epoch) || record.disposed) {
@@ -237,17 +231,7 @@ export class SessionMaterializer {
       );
       record.mcpServers = mcpServerSummary;
       record.resumeOutcome = resumeOutcome;
-      for (const { key, value } of unsupportedSelections) {
-        if (key === 'modeId') {
-          if (entry.descriptor.modeId !== value) continue;
-          entry.clearMode();
-        } else {
-          if (entry.configOverrides[key] !== value) continue;
-          entry.clearConfig(key);
-        }
-        record.clearedConfiguration.push(key);
-      }
-      return { success: true, data: { record, initialQueueConsumed: true } };
+      return { success: true, data: { record, unstarted, unsupportedSelections } };
     } catch (error) {
       if (isAuthRequiredError(error)) return acpErr.authRequired(toSerializedError(error));
       return acpErr.initializeFailed(toSerializedError(error));
@@ -345,21 +329,6 @@ export class SessionMaterializer {
     return record;
   }
 
-  private async queueInitialPrompts(
-    record: SessionRecord,
-    input: AcpStartInput
-  ): Promise<Result<void, MaterializationStartError>> {
-    if (input.initialQueue?.length) {
-      const preserved = await record.conversation.preserveSession(record);
-      if (!preserved.success) return preserved;
-    }
-    for (const prompt of input.initialQueue ?? []) {
-      const result = record.cell.queuePrompt(prompt);
-      if (!result.success) return result;
-    }
-    return { success: true, data: undefined };
-  }
-
   private async applyConfigOverrides(
     record: SessionRecord,
     entry: ConversationHandle,
@@ -395,7 +364,7 @@ export class SessionMaterializer {
     return unsupported;
   }
 
-  private async applyDesiredConfiguration(
+  async applyDesiredConfiguration(
     record: SessionRecord,
     entry: ConversationHandle,
     hasAuthoritativeCatalog: boolean
