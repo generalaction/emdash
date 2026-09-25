@@ -4,19 +4,23 @@
 renderer built on **SolidJS**. It is designed to render very long, continuously
 streaming AI conversations (10k+ rows) at 60fps without layout thrash.
 
-It achieves this by separating three concerns that most chat UIs entangle:
+It achieves this by separating four concerns that most chat UIs entangle:
 
-1. **Measurement** — computing the exact pixel height/geometry of every row in
-   pure JavaScript _before_ touching the DOM (using [`pretext`](#3-pretext--off-dom-text-measurement) for text shaping).
+1. **Measurement** — computing the exact pixel height of every row in pure
+   JavaScript _before_ touching the DOM (using
+   [`pretext`](#3-pretext--off-dom-text-measurement) for text shaping).
 2. **Virtualization** — only mounting the handful of rows currently on screen,
    using a [Fenwick tree](#4-the-fenwick-tree-virtualizer) for O(log n) scroll math.
-3. **Projection** — rendering each visible row by walking a precomputed
-   [layout tree](#5-the-measurecomposeproject-rendering-pipeline) and applying
-   geometry via inline styles (no CSS-driven reflow).
+3. **Scroll projection** — an [event-sourced scroll intent](#6-scroll-intent-and-the-projection-module)
+   (`tail` / `anchor`) projected onto `scrollTop` by exactly one writer, inside
+   a [phased frame scheduler](#7-the-frame-scheduler).
+4. **Rendering** — each visible row is a flat [render unit](#5-the-flat-unit-model)
+   whose DOM is a pure projection of precomputed geometry (inline `top`/`height`,
+   no CSS-driven reflow).
 
 The result is a renderer where adding a token to a streaming message, or
 scrolling through thousands of rows, costs `O(log n)` rather than `O(n)`, and
-where the browser never re-flows content it has already laid out.
+where the browser never re-flows content the engine already laid out.
 
 ---
 
@@ -26,53 +30,58 @@ where the browser never re-flows content it has already laid out.
 - [2. SolidJS — the reactive substrate](#2-solidjs--the-reactive-substrate)
 - [3. pretext — off-DOM text measurement](#3-pretext--off-dom-text-measurement)
 - [4. The Fenwick tree virtualizer](#4-the-fenwick-tree-virtualizer)
-- [5. The measure/compose/project rendering pipeline](#5-the-measurecomposeproject-rendering-pipeline)
-- [6. The data model & transcript store](#6-the-data-model--transcript-store)
-- [7. End-to-end flow: a streaming token](#7-end-to-end-flow-a-streaming-token)
-- [8. Scroll virtualization in motion](#8-scroll-virtualization-in-motion)
-- [9. Caching strategy](#9-caching-strategy)
-- [10. How the concepts interact](#10-how-the-concepts-interact)
+- [5. The flat unit model](#5-the-flat-unit-model)
+- [6. Scroll intent and the projection module](#6-scroll-intent-and-the-projection-module)
+- [7. The frame scheduler](#7-the-frame-scheduler)
+- [8. The data model & transcript store](#8-the-data-model--transcript-store)
+- [9. End-to-end flow: a streaming token](#9-end-to-end-flow-a-streaming-token)
+- [10. Caching strategy](#10-caching-strategy)
+- [Adding a new row kind](#adding-a-new-row-kind)
+- [File map](#file-map)
 
 ---
 
 ## 1. High-level architecture
 
-The package exposes three primitives modeled on the CodeMirror `EditorState`/`EditorView`
-split (`src/index.tsx`). Everything else is internal.
+The package exposes three primitives modeled on the CodeMirror
+`EditorState`/`EditorView` split (`src/index.tsx`). Everything else is internal.
 
 ```
 ChatContext (global singleton, process-long)
-  theme, Shiki highlighter, content-addressed caches, measureEpoch
+  theme, highlighter, SharedCaches (content-addressed), measureEpoch
 
 ChatState (per conversation, survives view mounts)
-  transcript (history + active turn), messageId parse caches
+  transcript (history + active turn), ParseCaches (messageId-keyed),
+  scroll intent (ScrollMode), collapse view-state, persisted geometry
+  (heightmap snapshot)
 
 ChatView (per mount, DOM-scoped)
-  Solid root, virtualizer, scroll, scheduler, composer slot
+  Solid root (ChatRoot), virtualizer, scroll projection, frame scheduler,
+  composer slot
 ```
 
 ```mermaid
 flowchart TD
   Host["Host app"]
-  Host -->|"createChatContext()"| Ctx["ChatContext<br/>(theme, caches, measureEpoch)"]
-  Host -->|"createChatState(ctx)"| State["ChatState<br/>(transcript + parse caches)"]
-  Host -->|"createChatView(ctx, state, parent)"| View["ChatView<br/>(scroll, collapse, composerSlot)"]
-  Host -->|"state.transcript.history.seed(items)"| State
+  Host -->|"createChatContext()"| Ctx["ChatContext<br/>(theme, SharedCaches, measureEpoch)"]
+  Host -->|"createChatState(ctx)"| State["ChatState<br/>(transcript, ParseCaches, scroll intent)"]
+  Host -->|"createChatView({context, state, parent})"| View["ChatView<br/>(ChatRoot, collapse state, composer slot)"]
+  Host -->|"state.transcript.history.seed(turns)"| State
   Ctx --> View
   State --> View
 
   subgraph Engine["ChatRoot (Solid root, owned by ChatView)"]
-    Transcript["transcript signals"] --> CountEffect["count-sync effect<br/>virt.setCount(estimate)"]
+    Transcript["transcript signals"] --> Flatten["flatten memos<br/>(committedUnits + activeUnits)"]
+    Flatten --> CountEffect["count-sync effect<br/>virt.setCount(estimate)"]
     CountEffect --> Virt["Virtualizer<br/>(Fenwick tree)"]
-    Scroll["scroll / resize signals"] --> VisRange["visibleRange memo"]
-    Virt --> VisRange
-    VisRange --> For["For each visible index"]
-    For --> Row["Row"]
-    Row -->|measure| Measure["ComponentDef.measure()"]
-    Measure -->|"Measured tree"| Project["Project (tree walker)"]
+    Sched["frame scheduler<br/>read → animate → write → prefetch"] --> Proj["ScrollProjection<br/>(sole scrollTop writer)"]
+    Virt --> Proj
+    Proj --> DOM["canvas height + scrollTop"]
+    Virt --> For["For each visible unit index"]
+    For --> Row["UnitRow"]
+    Row -->|"measureUnitCached"| Measure["UnitDef.measure()"]
     Measure -->|"exact height"| Virt
-    Project --> DOM["Positioned DOM"]
-    Slot["Composer slot<br/>(sticky bottom)"] -->|ResizeObserver| PadBottom["padBottom signal"]
+    Row --> RDOM["Positioned row DOM"]
   end
 
   subgraph Support["Cross-cutting services"]
@@ -88,28 +97,22 @@ flowchart TD
 
 The key architectural inversion: **layout is computed first, in JS, and the DOM
 is a pure projection of that layout.** The browser is never asked to measure or
-wrap text — `pretext` does that off-DOM, and every element is positioned with an
-explicit `top`/`left`/`height`.
+wrap text — `pretext` does that off-DOM, and every row is positioned with an
+explicit `top`/`height`.
 
 ### State-view separation
 
 `ChatState` outlives `ChatView`. A view can be disposed and re-created (e.g.
-when a tab is shown/hidden) without losing the transcript. Block object identities
-are stable across view cycles, so WeakMap measurement caches continue to hit on
-re-mount.
+when a tab is shown/hidden) without losing the transcript. Block object
+identities are stable across view cycles, so WeakMap measurement caches
+continue to hit on re-mount. On dispose, ChatRoot snapshots measured row
+heights and the scroll anchor into `ChatState` (`state/geometry.ts` types) so
+the next mount restores position without scrollbar drift.
 
-Collapse state is owned by `ChatView` (it is view state, not model state). The
-`view.saveState()` / `view.restoreState()` API snapshots and restores it across
-re-mounts.
-
-### Hardened scheduler
-
-`ChatRoot` runs a three-phase measure cycle (`read → animate → write`) driven by
-`requestAnimationFrame`. The scheduler is created eagerly (before any row
-mounts), is exception-safe (phases run in `try/finally`), and includes a bounded
-converge check (halts after `MAX_CONVERGE` consecutive write-requests to prevent
-infinite loops). A `forceReconcile()` call is fired on visibility regain so the
-view self-heals after being hidden or inert.
+Collapse state (`state/view-state.ts`, a per-id map with inverted semantics for
+default-collapsed kinds: stored `true` = expanded) also lives on `ChatState`,
+so disposing a view and re-creating one against the same state — a tab switch —
+restores collapse positions with no explicit snapshot API.
 
 ### Cache split
 
@@ -118,10 +121,14 @@ view self-heals after being hidden or inert.
 | `SharedCaches` | `ChatContext` | Content hash | Process-long |
 | `ParseCaches` | `ChatState` | messageId | Conversation lifetime |
 
-`SharedCaches` are safe to share across conversations because they are keyed by
-content (a different conversation with the same code block reuses the highlight
-result). `ParseCaches` are messageId-keyed and provide object-stable `Block`
-identities so WeakMap measurement caches hit across streaming updates.
+`SharedCaches` (highlight, diff, mermaid, rich-inline shaping) are safe to
+share across conversations because they are keyed by content — a different
+conversation with the same code block reuses the highlight result.
+`ParseCaches` are messageId-keyed and provide object-stable `Block` identities
+so WeakMap measurement caches hit across streaming updates. ChatRoot composes
+the two into one `ChatCaches` bundle (`type ChatCaches = SharedCaches &
+ParseCaches`) that flows to measure code via `ctx.caches` and to render leaves
+via `CachesContext` / `useCaches()`.
 
 ---
 
@@ -130,34 +137,34 @@ identities so WeakMap measurement caches hit across streaming updates.
 The renderer is built on Solid because Solid's **fine-grained reactivity** maps
 perfectly onto "only re-run the computation whose specific input changed."
 
-Unlike React's re-render-the-component-tree model, Solid components run **once**;
-afterward, only the individual reactive computations (`createMemo`,
+Unlike React's re-render-the-component-tree model, Solid components run
+**once**; afterward, only the individual reactive computations (`createMemo`,
 `createEffect`, JSX expressions) that read a changed signal re-execute.
 
 ### Primitives in use
 
 | Primitive | Where | Purpose |
 | --- | --- | --- |
-| `createSignal` | `ChatRoot` (`scrollTop`, `viewHeight`, `totalHeight`, `containerWidth`) | Scalar reactive state driving the visible range. |
+| `createSignal` | `ChatRoot` (`totalHeight`, `viewHeight`, `containerWidth`, `scrollVelocity`) | Scalar reactive state driving the visible range. |
 | `createStore` | `state/transcript.ts` | Fine-grained nested reactivity: mutating one item's `text` only notifies readers of that path. |
-| `createMemo` | `ChatRoot` (`visibleRange`, `visibleIndexes`), `Row` (`layout`) | Cached derived values; recompute only when dependencies change. |
-| `createEffect` | `Row` (height bridge), `ChatRoot` (count-sync, width flush) | Side effects synchronizing JS state into the virtualizer / DOM. |
-| `createContext` / `useContext` | `ThemeContext`, `CachesContext`, `CommandsContext` | Dependency injection without prop drilling. |
-| `createRoot` | `createChatState`, `createChatContext` | Owner-scoped reactive roots; `dispose()` cleans up all signals and effects. |
-| `<For>` | `ChatRoot` (visible rows), `Project` (placed children) | Keyed list rendering — reuses DOM nodes by key. |
-| `<Switch>/<Match>` | `Project` | Dispatch a layout node to the right sub-renderer by `layout.kind`. |
+| `createMemo` | `ChatRoot` (`committedUnits`, `activeUnits`, visible indexes), `UnitRow` (`contentH`, `rowExpandedSelf`) | Cached derived values; recompute only when dependencies change. |
+| `createEffect` | `UnitRow` (height bridge into the virtualizer), `ChatRoot` (count-sync) | Side effects synchronizing JS state into the virtualizer / DOM. |
+| `createContext` / `useContext` | `ThemeContext`, `CachesContext`, `StreamContext` | Dependency injection without prop drilling. |
+| `createRoot` | `createChatContext`, `createChatState` | Owner-scoped reactive roots; `dispose()` cleans up all signals and effects. |
+| `<For>` | `ChatRoot` (visible unit indexes), `BlockStackView` (block ids) | Keyed list rendering — reuses DOM nodes by key. |
+| `<Dynamic>` | `UnitRow` | Dispatch a unit to its `UnitDef.Render` by `unit.kind`. |
 
 ### The "Lane A / Lane B" state split
 
 A core discipline (documented in `src/core/define.ts`) divides state into two lanes:
 
-- **Lane A — layout-affecting state.** Only `width`, `theme.version`, and
-  resolved `expanded` state may flow into `measure()`/`estimate()`. These are the
-  _only_ inputs allowed in the memo fingerprint and the _only_ things that can
-  trigger `virt.setSize`.
-- **Lane B — presentational/ephemeral state.** Copy-button "copied" flags, hover,
-  shimmer, timer ticks — these live as local signals inside `Render` components
-  and **never** enter measurement.
+- **Lane A — layout-affecting state.** Only `width`, `measureEpoch`, and
+  resolved collapse/expand state may flow into `measure()`/`estimate()`. These
+  are the _only_ inputs allowed in memo fingerprints and the _only_ things that
+  can trigger `virt.setSize`.
+- **Lane B — presentational/ephemeral state.** Copy-button "copied" flags,
+  hover, shimmer, timer ticks — these live as local signals inside `Render`
+  components and **never** enter measurement.
 
 This separation is what guarantees that a hover or a copy-click can never
 invalidate a height and cause a scroll jump.
@@ -166,8 +173,8 @@ invalidate a height and cause a scroll jump.
 flowchart LR
   subgraph LaneA["Lane A — affects height"]
     W[width] --> Measure
-    TV[theme.version] --> Measure
-    EX["expanded(id)"] --> Measure
+    ME[measureEpoch] --> Measure
+    EX["isCollapsed(id) / expanded(id) / expandedSelf"] --> Measure
     Measure["measure() / estimate()"] --> Fingerprint["memo fingerprint"]
     Fingerprint --> Virt["virt.setSize"]
   end
@@ -178,6 +185,12 @@ flowchart LR
     Render["Render component (local signals)"]
   end
 ```
+
+One subtlety worth naming: `expandedSelf` is scoped **per unit** by the ctx
+builder — the globally-expanded card id never appears in `MeasureCtx`. Expanding
+one message card therefore cannot change any other row's fingerprint, so no
+other row re-measures or rebuilds DOM (a regression test in
+`src/tests/regression/render-isolation.contract.test.tsx` guards this).
 
 ---
 
@@ -196,13 +209,15 @@ engine can compute exact prose height in pure JS.
 Because measurement happens off-DOM, the rendered DOM must reproduce pretext's
 metrics _exactly_. This is enforced by:
 
-- **Font shorthands** in `FontConfig` (`src/core/measure/fonts.ts`) that exactly
-  match the CSS `font` applied to each fragment variant (body/bold/italic/code/…).
-- **Geometry-coupled CSS** in `prose.module.css` (`font-size`, `font-family`,
-  `white-space: pre`, `line-height: 1`, inline-code chip padding) that pretext
-  also accounts for via `extraWidth`.
-- **Browser contract tests** (`*.contract.test.tsx`) that mount the real
-  component and assert `def.measure(...).height === element.offsetHeight`.
+- **Font shorthands** in `FontConfig` (`src/core/measure/fonts.ts`) that
+  exactly match the CSS `font` applied to each fragment variant
+  (body/bold/italic/code/…).
+- **Geometry-coupled CSS variables** emitted by `buildChatTheme`
+  (`src/core/config.ts`) and applied inline at the scroll-container root, so
+  measured metrics and rendered CSS come from one source.
+- **Browser contract tests** (`*.contract.test.tsx`, harness in
+  `src/tests/contract.tsx`) that mount the real `UnitDef.Render` and assert
+  `def.measure(data, ctx) === element.offsetHeight` at exact integer px.
 
 ### The pipeline for one prose block
 
@@ -216,22 +231,14 @@ flowchart LR
   Mat -->|"fragments + x offsets"| Laid["ProseLaidOut<br/>(lines, fragments, height)"]
 ```
 
-`layoutProse` (`src/components/prose/layout.ts`) drives this:
+`layoutProse` (`src/components/rows/markdown/prose/layout.ts`) drives this and
+produces absolute per-line `top` and per-fragment `x` — pure geometry, no DOM.
+The `Prose` renderer then just emits absolutely positioned `<span>`s at the
+precomputed `(x, top)` — no wrapping, no reflow.
 
-1. Splits `runs` at `{ kind: 'break' }` markers into independently-shaped segments.
-2. For each segment, converts runs → `RichInlineItem[]` (mapping bold/italic/
-   code/mention to the matching font shorthand + extra width).
-3. Calls `prepareRichInline` (memoized — see [§9](#9-caching-strategy)).
-4. `walkRichInlineLineRanges(prepared, effectiveWidth, …)` yields each wrapped
-   line; `materializeRichInlineLineRange` gives the fragments and their x offsets.
-5. Produces a `ProseLaidOut` with absolute per-line `top` and per-fragment `x` —
-   pure geometry, no DOM.
-
-`measureProseNaturalWidth` runs the same shaping with an unbounded width to get
-the intrinsic content width — used by the user-bubble hug algorithm.
-
-The `Prose` renderer (`src/components/prose/Prose.tsx`) then just emits absolutely
-positioned `<span>`s at the precomputed `(x, top)` — no wrapping, no reflow.
+Pretext heights are still treated as _measurements to verify_, not gospel: the
+contract tests and the debug overlay (dashed outline, red on mismatch) are the
+divergence detectors.
 
 ---
 
@@ -247,194 +254,245 @@ the scroll loop needs are all `O(log n)`:
 | `top(i)` | prefix sum — pixel offset of row `i` | `O(log n)` |
 | `total()` | total canvas height | `O(1)` (running sum) |
 | `findIndex(offset)` | binary-lift: which row is at pixel `offset` | `O(log n)` |
-| `range(scrollTop, viewH)` | inclusive visible `{start, end}` | `O(log n)` |
+| `range(scrollTop, viewH, before?, after?)` | inclusive visible `{start, end}` | `O(log n)` |
 
 ### Why a Fenwick tree?
 
 A naive virtualizer recomputes cumulative offsets in `O(n)` whenever any row's
 height changes — catastrophic when a streaming row's height changes every token.
-The BIT makes both the update (`setSize`) and the reverse lookup (`findIndex` via
-**binary lifting** over the tree) logarithmic.
-
-```mermaid
-flowchart TD
-  subgraph BIT["Fenwick tree (1-indexed)"]
-    direction TB
-    Sizes["sizes[]: per-row truth (Float64Array)"]
-    Tree["bit[]: range partial sums"]
-    Total["totalSize: running O(1) sum"]
-  end
-
-  setSize["setSize(i, h)"] -->|"delta = h - old"| Tree
-  setSize --> Total
-  top["top(i)"] -->|"prefix sum [0,i)"| Tree
-  findIndex["findIndex(offset)"] -->|"binary lift"| Tree
-  Total --> total["total()"]
-```
+The BIT makes both the update (`setSize`) and the reverse lookup (`findIndex`
+via **binary lifting** over the tree) logarithmic.
 
 ### Growth strategy
 
-Streaming appends one message per turn, so `setCount` is tuned for the
-append-at-tail case: growing keeps existing BIT entries valid and builds only the
-new high-index nodes from their children — `O(log n)` per appended row.
-`prepend` (history pagination) shifts sizes and rebuilds the BIT in one `O(n)`
-pass, which is acceptable for user-paced "load older" actions.
+Streaming appends one unit per turn item, so `setCount` is tuned for the
+append-at-tail case: growing keeps existing BIT entries valid and builds only
+the new high-index nodes from their children — `O(log n)` per appended row.
+`prepend(count, estimate)` (history pagination) shifts sizes and rebuilds the
+BIT in one `O(n)` pass, acceptable for user-paced "load older" actions.
 
-### Scroll-anchor correction
+### Estimates seed the tree; measures correct it
 
-`setSize` returns the signed pixel delta `(newH - oldH)`. When a row _above_ the
-viewport changes height (e.g. a collapsed thinking row expands off-screen, or an
-estimated row settles to its real height), `ChatRoot.onHeightChanged` adds that
-delta to `scrollTop` so the content the user is looking at doesn't jump.
+When the unit count changes, ChatRoot's count-sync effect seeds every new row
+with a cheap estimate (see [§10](#10-caching-strategy) for the estimator
+model). Visible rows are corrected to exact heights by `UnitRow`'s measure
+bridge; near-viewport rows are corrected by the scheduler's **prefetch** phase
+before they enter the window. `setSize` returns the signed pixel delta, which
+flows into the scroll-projection module for same-frame compensation (see §6) —
+an estimate settling above the viewport can never visibly jump the content.
 
 ---
 
-## 5. The measure/compose/project rendering pipeline
+## 5. The flat unit model
 
-Every row kind (message, thinking, diff, tool, file-op, execute) and every block
-tier (prose, code, table) is described by a **`ComponentDef`** (`src/core/define.ts`):
+The engine virtualizes over a flat **`RenderUnit[]`** produced by
+`state/flatten.ts`. A `RenderUnit` is one independently mounted, measured, and
+rendered row:
 
 ```ts
-type ComponentDef<TNode, L> = {
-  kind: string;
-  padY?: number;
-  collapse?: CollapseDecl;
-  estimate(node, ctx: MeasureCtx): number;          // O(1) heuristic
-  measure(node, ctx: MeasureCtx): Measured<L>;       // exact geometry
-  Render: Component<{ item; layout: Measured<L>; ctx }>;
+type RenderUnit<D = unknown> = {
+  id: string;        // `${itemId}#${segmentKey}` — stable across ticks
+  itemId: string;    // source ChatItem id (scrollToItem, grouping)
+  groupId: string;   // units from one item share a group
+  kind: string;      // dispatches to UNIT_REGISTRY
+  data: D;           // typed per-kind segment payload
+  groupRole: GroupRole;   // solo | first | middle | last (per-unit chrome)
+  gapBefore: number;      // seam gap above, resolved via margin-collapse
+  chrome?: GroupChrome;   // e.g. user-bubble insetX for multi-unit groups
 };
 ```
 
-All defs are gathered in a single `REGISTRY` (`src/components/registry.ts`) keyed
-by node kind. `Row.tsx` dispatches through it; composite rows dispatch their
-block children through the same map.
+Two registries drive the model (`src/components/engine/unit-registry.ts`):
 
-### Step 1 — `estimate`: cheap height for every row
+- **`SEGMENTERS`** — `ChatItem.kind → ItemSegmenter`: how a transcript item is
+  split into units. Message items segment per markdown block; composites
+  (diff / plan / thinking / file-op / subagent) are single-unit segmenters.
+- **`UNIT_REGISTRY`** — `unit.kind → UnitDef`: how each unit kind is measured
+  and rendered.
 
-When the item count changes, `ChatRoot` seeds the virtualizer with an `O(1)`
-character-count heuristic for **every** row (visible or not). This gives a
-plausible total canvas height instantly without measuring off-screen content.
-
-### Step 2 — `measure`: exact geometry for visible rows only
-
-`measure` runs only for rows in the visible range. It returns a `Measured<L>`:
+A `UnitDef` (`src/core/units.ts`) is deliberately small — measure returns a
+**number**, not a layout tree:
 
 ```ts
-type Measured<L> = { height: number; width: number; layout: L };
-```
-
-Rather than each def hand-rolling its geometry, layout is assembled from **pure
-combinators** in `src/core/compose.ts`. Each returns a `Measured` whose
-`layout.kind` discriminates its payload:
-
-| Combinator | Builds |
-| --- | --- |
-| `stack(children, {padY, gap})` | vertical sequence; accumulates child heights |
-| `pad(child, {padX, padY, border})` | uniform padding + border |
-| `bubble(child, {padX, variantClass, width})` | hug-width user message bubble |
-| `collapsible({headerH, headerSlot, expanded, body})` | header + optional body |
-| `scrollWindow(child, maxH, {overlay, autoScrollBottom})` | clip tall content to a viewport |
-| `slot(name, height)` | named placeholder for non-generic chrome (headers/footers) |
-
-> **Width flows down, height flows up.** Callers narrow the width budget before
-> calling `measure`; combinators sum child heights upward. This is the
-> single invariant that keeps the whole tree consistent.
-
-For example, an assistant message's `measure` produces:
-
-```mermaid
-flowchart TD
-  msg["messageDef.measure()"] --> stack["stack"]
-  stack --> bs["layoutBlockStack(blocks)"]
-  stack --> footer["slot('message:footer')"]
-  bs --> p1["prose leaf"]
-  bs --> c1["code leaf"]
-  bs --> p2["prose leaf"]
-```
-
-### Step 3 — `Project`: render the tree
-
-`src/components/Project.tsx` is a generic tree-walker. Given the `Measured` tree,
-it recurses by `layout.kind` through a Solid `<Switch>`:
-
-- **Combinator nodes** (stack/pad/bubble/collapsible/window) → positioned `<div>`s
-  with explicit geometry, recursing into children.
-- **Slot nodes** → resolved from the `slots` map the Render shell supplies
-  (this is how non-generic chrome like a diff header or message footer is injected
-  into the otherwise-generic walk).
-- **Block leaves** (prose/code/table) → `renderBlockLeaf`, which uses the `raw`
-  back-reference on each leaf to construct `Prose`/`Code`/`Table` without a
-  second lookup.
-
-So a `Render` component is a thin shell: it sets the row height, supplies slots,
-and delegates the entire body to `<Project>`.
-
-```mermaid
-flowchart TD
-  Render["ComponentDef.Render (shell)"] --> Project["Project(node, slots)"]
-  Project -->|"kind === 'stack'"| PStack["ProjectStack"]
-  Project -->|"kind === 'collapsible'"| PColl["ProjectCollapsible"]
-  Project -->|"kind === 'window'"| PWin["ProjectWindow (auto-scroll)"]
-  Project -->|"kind === 'slot'"| Slots["slots[name] → header/footer chrome"]
-  Project -->|"block leaf"| Leaf["renderBlockLeaf → Prose / Code / Table"]
-  PStack --> Project
-  PColl --> Project
-  PWin --> Project
-```
-
-### The height bridge (`Row.tsx`)
-
-`Row` ties measurement to the virtualizer:
-
-```ts
-const layout = createMemo(() => cachedMeasure(item, isActiveTurn, measureCtx()));
-const reserved = () => layout().height + 2 * padY();
-createEffect(() => {
-  const delta = virt.setSize(index, reserved());
-  if (delta !== 0) onHeightChanged(index, delta);
+defineUnit<D, Vars>({
+  kind: string,
+  margin: Margin,                     // seam margins, collapsed at flatten time
+  vars?: Vars,                        // px constants shared by measure + Render
+  estimate?(data, ctx, vars): number, // O(1) heuristic for off-screen rows
+  measure(data, ctx, vars): number,   // exact content height
+  Render(props: { data, ctx, vars }), // Solid component
 });
 ```
 
-When measurement yields a new height, the effect writes it into the Fenwick tree
-and triggers scroll-anchor correction if needed — closing the loop.
+### Two-tier flatten
+
+`flatten.ts` segments the transcript in two tier-scoped memos:
+
+- **`committedUnits`** — recomputes only when the committed array identity
+  changes (`turn_done` / `prepend` / `seed`). Stable across streaming ticks.
+- **`activeUnits`** — recomputes per streaming tick, but only over the small
+  `activeTurn` array. No `O(total)` work during streaming.
+
+The two tiers join into a `UnitsView` (virtual concat: `.length` / `.at(i)`)
+that never allocates a full array per tick. Seam gaps between units are
+resolved once at flatten time via margin-collapse (max of adjacent `UnitDef`
+margins) and stamped onto `gapBefore` — inter-row spacing lives inside each
+row's reserved slot, never in CSS margins the measurer can't see.
+
+### UnitRow — the height bridge
+
+`src/components/engine/UnitRow.tsx` renders one visible unit and ties
+measurement to the virtualizer:
+
+- `contentH` memo calls `measureUnitCached(unit, ctx, def)` (see §10).
+- Reserved height = `gapBefore + contentH`. An effect writes it into the
+  Fenwick tree via `virt.setSize(index, reserved)`; the returned delta feeds
+  scroll compensation.
+- Collapse/expand transitions run through `createHeightTween` registered in a
+  `TweenRegistry`: the virtualizer is driven from the animated value so rows
+  below reposition in lockstep, while a display-lagged collapse state keeps the
+  expanded DOM mounted and clipped during the tween.
+- `UnitDef.Render` is mounted via `<Dynamic>`; markdown-bearing units render a
+  `BlockStackView` whose `<For>` is keyed by stable block id, so a streaming
+  re-layout of one block never remounts its siblings.
+
+### Markdown blocks
+
+Inside message-like units, markdown is a first-class sub-model: `Block[]`
+(prose / code / table / rule / mermaid) with per-kind `BlockDef`s in
+`BLOCK_REGISTRY` (`src/components/rows/markdown/block-registry.ts`). Blocks are
+measured by `measureBlockCached` (WeakMap by `Block` identity, fingerprint
+`measureEpoch|width|collapsed`) and stacked by `layoutBlockStack`, which
+resolves inter-block gaps by margin-collapse of per-block margins.
+
+> **Width flows down, height flows up.** Callers narrow the width budget before
+> measuring children; stacks sum child heights upward. This is the single
+> invariant that keeps the whole tree consistent.
 
 ---
 
-## 6. The data model & transcript store
+## 6. Scroll intent and the projection module
 
-`src/state/transcript.ts` is a Solid `createStore` with a **two-tier** structure:
+Scroll behavior is split into **intent** (what the viewport should show) and
+**projection** (how scrollTop gets there).
 
-- `committed: readonly ChatItem[]` — finalized rows; never mutated.
-- `activeTurn: ChatItem[] | null` — the in-flight turn; accumulates streaming
-  deltas.
+### Event-sourced intent: `ScrollMode`
 
-Writes go through a single `dispatch(event)` reducer. Events are deltas
-(`message_chunk`, `thinking_chunk`, `diff_update`, …); `turn_done` migrates the
-active turn into `committed`.
+`state/scroll-mode.ts` defines the declarative intent owned by `ChatState`:
 
-```mermaid
-flowchart LR
-  Ev["dispatch(event)"] --> Reducer["produce() reducer"]
-  Reducer -->|"streaming deltas"| AT["activeTurn[]"]
-  Reducer -->|"turn_done"| Commit["committed[]"]
-  AT -->|"item.text += chunk"| Path["fine-grained path-set"]
-  Path --> Solid["Solid notifies only<br/>readers of that path"]
+```ts
+type ScrollMode =
+  | { kind: 'tail' }   // follow newest content
+  | { kind: 'anchor'; itemId: string; edge: 'top' | 'bottom'; offset: number };
 ```
 
-The two-tier split is a **performance boundary**: committed items are stable
-object references, which lets the identity-based memo (`nodeMemo`, a `WeakMap`
-keyed by the item object) skip re-measuring them entirely. Only `activeTurn` rows
-— the ones actually changing — bypass that cache and re-measure each tick.
+Intent is **event-sourced**: it changes only on discrete user gestures or host
+calls, never derived from geometry. Geometry (scrollTop, reserve heights) can
+therefore never feed back into intent and cause scroll jumps. "Pinned to
+bottom" is `tail`; a user-parked position is an `anchor` on the unit at the
+viewport top; pin-to-top-on-send is an `anchor` with `edge:'top', offset:0`.
 
-Collapse flags are owned by `ChatView` as view state (a `createStore` keyed by
-item id). They survive within a view's lifetime and can be snapshotted via
-`view.saveState()` / `view.restoreState()` when the view is torn down and re-created.
+### The projection module
+
+`src/core/scroll-projection.ts` is the single owner of scroll application,
+extracted from ChatRoot behind an injected dependency port
+(`ScrollProjectionDeps`) so the whole state machine is unit-testable in node
+(`scroll-projection.test.ts`). Its behavior contract:
+
+- **Exactly one scrollTop writer.** Every write goes through
+  `writeScrollTop()`, which records `expectedScrollTop`. Scroll events are
+  classified against it: deltas within `USER_SCROLL_EPSILON` (0.5px) are
+  self-write echoes; anything larger is a real user gesture.
+- **Smooth scrolls are scheduler tweens.** `scrollToTop/Bottom/Item` animate
+  via eased tweens advanced in the scheduler's write phase — there is no native
+  `scrollTo({behavior:'smooth'})` and no suppression flag; tween frames are
+  ordinary self-writes.
+- **Settle window.** After a user gesture, anchor projection is suppressed
+  until the gesture has been quiet for `SCROLL_SETTLE_MS` (120ms). The settle
+  window gates intent re-derivation only — **height compensation stays
+  same-frame** (an estimate settling above the viewport compensates scrollTop
+  in the same write, inside or outside the window).
+- **Coalescing.** N geometry invalidations per frame collapse into at most one
+  projection (`needsProject`), and `project()` flushes canvas height before
+  writing scrollTop so the browser never clamps against a stale canvas.
+- **Prepend compensation.** History prepends commit canvas height and
+  scrollTop together, mode-aware: `tail` stays glued to the bottom; `anchor`
+  keeps the anchored unit fixed on screen.
+
+Stickiness constants: `STICK_THRESHOLD_PX = 48` (distance from the bottom
+within which the viewport counts as "at bottom" for tail re-derivation).
 
 ---
 
-## 7. End-to-end flow: a streaming token
+## 7. The frame scheduler
 
-This sequence shows what happens when the host appends one token to a streaming
+`src/components/engine/frame-scheduler.ts` runs a demand-driven, phased rAF
+loop. It re-arms only while a phase reports pending work, so the loop sleeps
+completely when the UI is idle.
+
+```
+read     — DOM geometry reads (scrollTop, clientHeight) into signals; once per frame
+animate  — advance height tweens + scroll tweens; true while any remain active
+write    — commit coalesced canvas height, at most one scrollTop write (projection)
+prefetch — budgeted background measurement of off-screen rows (optional phase)
+```
+
+Hardened invariants (aligned with CodeMirror's measure cycle):
+
+1. **Liveness through failure** — phases run in try/catch; the re-arm decision
+   executes in `finally`, so a throwing phase cannot stall the loop.
+2. **Bounded converge** — if `write` keeps requesting more work for
+   `MAX_CONVERGE` (6) consecutive frames, the loop halts re-arming and logs in
+   development, preventing spin loops.
+3. **Force reconcile** — `forceReconcile()` marks work dirty and re-arms; called
+   on view reattach and visibility regain to self-heal missed wakes.
+
+### The prefetch phase
+
+Prefetch replaces what used to be a standalone `requestIdleCallback` loop. Each
+frame after `write`, it walks the window around the last committed visible
+range — `PREFETCH_AHEAD = 40` units ahead of travel first, then
+`PREFETCH_BEHIND = 20` behind — measuring rows exactly and writing corrections
+into the virtualizer, under a `PREFETCH_FRAME_BUDGET_MS = 3` per-frame budget.
+Rows whose height is already exact at the current fingerprint are skipped via
+the unit measure memo. Prefetch's re-arm is deliberately exempt from the write
+converge guard: a long prefetch walk across many frames is normal, not a spin.
+
+The effect: by the time a row scrolls into view it is usually already measured,
+so estimate→exact settling (and its compensation) happens off-screen.
+
+---
+
+## 8. The data model & transcript store
+
+`state/transcript.ts` is a Solid `createStore` with a **two-tier** structure:
+
+- `committed: readonly TranscriptTurn[]` — finalized turns; never mutated.
+- `activeTurn` — the in-flight turn; accumulates streaming deltas.
+
+The host writes through a small imperative surface:
+
+- `history.seed(turns)` — initial load.
+- `history.prepend(turns)` — older pages; **dedupes by turn id** (an
+  already-present turn is dropped with a dev warning) so an at-least-once host
+  seam cannot double-insert.
+- `history.append(turns)` / `activeTurn.set(turn)` — streaming path;
+  `turn_done` migrates the active turn into `committed`.
+
+The two-tier split is a **performance boundary**: committed turns are stable
+object references, so `committedUnits` (flatten memo) and the identity-keyed
+measure memos skip them entirely. Only `activeTurn` — the data actually
+changing — is re-segmented and re-measured per tick.
+
+Collapse flags live in `ChatState.viewState` (`state/view-state.ts`, keyed by
+item/block id) and survive view remounts along with the rest of the state; the
+view exposes `toggleCollapsed(id)` for programmatic toggles.
+
+---
+
+## 9. End-to-end flow: a streaming token
+
+This sequence shows what happens when the host appends one chunk to a streaming
 assistant message — the hot path that must stay cheap.
 
 ```mermaid
@@ -442,200 +500,120 @@ sequenceDiagram
   participant Host
   participant Store as Transcript store
   participant Root as ChatRoot
-  participant Row
-  participant Def as messageDef
+  participant Row as UnitRow
+  participant Def as messageUnitDef
   participant Pretext
   participant Virt as Virtualizer
-  participant DOM
+  participant Proj as ScrollProjection
 
-  Host->>Store: dispatch(message_chunk)
-  Store->>Store: activeTurn item.text += chunk (path-set)
-  Store-->>Row: reactive: item.text changed
-  Row->>Def: measure(item, ctx)  (activeTurn → bypass nodeMemo)
-  Def->>Def: parseBlocks(id, text) (cached; reuses old Block refs)
-  Def->>Pretext: prepareRichInline(last block only)
-  Note over Def,Pretext: earlier blocks hit blockMemo (WeakMap by Block identity)
+  Host->>Store: activeTurn.set(turn with longer text)
+  Store-->>Root: activeUnits memo re-segments (active tier only)
+  Root->>Virt: setCount (append-at-tail, O(log n))
+  Store-->>Row: reactive: unit.data changed
+  Row->>Def: measureUnitCached → miss (data identity changed)
+  Def->>Def: parseBlocksStreaming(id, text) — O(tail): only text after the last safe boundary re-parses
+  Def->>Pretext: shape the last (growing) block only
+  Note over Def,Pretext: settled blocks hit blockMemo (WeakMap by Block identity)
   Pretext-->>Def: line geometry
-  Def-->>Row: Measured tree (new height)
-  Row->>Virt: setSize(index, height) → delta
-  alt row above viewport
-    Virt-->>Root: onHeightChanged → adjust scrollTop
-  end
-  Row->>DOM: Project walks tree → positioned spans
-  alt stuck to bottom
-    Root->>DOM: scroll to bottom
-  end
+  Def-->>Row: exact content height
+  Row->>Virt: setSize(index, reserved) → delta
+  Virt-->>Proj: height delta above viewport?
+  Proj->>Proj: same-frame compensation / tail re-pin (write phase)
 ```
 
-The reason this is cheap despite firing on every token:
+Why this stays cheap at any transcript length:
 
-- **`parseBlocks`** reuses Block object references for unchanged content, so only
-  the last (growing) block is new.
-- **`blockMemo`** (a `WeakMap` keyed by Block identity) means every earlier block
-  is a measurement cache hit; only the last block is reshaped by pretext.
-- **`setSize`** is `O(log n)` regardless of transcript length.
+- **`parseBlocksStreaming`** re-parses only the growing tail after the last
+  safe boundary (closed code fence, or blank line outside a fence); the settled
+  prefix keeps its `Block` object identities.
+- **`blockMemo`** (WeakMap by Block identity) makes every settled block a
+  measurement cache hit; only the last block is reshaped by pretext.
+- **Settled-block DOM never rebuilds**: `BlockStackView` keys by block id, and
+  leaf components read layout reactively — a streaming chunk updates the last
+  block's DOM in place (regression-tested by node-identity sampling).
+- **`setSize`** is `O(log n)` regardless of transcript length, and tail re-pin
+  is one projection in the same frame's write phase.
+
+Syntax highlighting never blocks this path: `Code.tsx` defers Shiki until a
+block is **settled** (crossed a safe parse boundary), then tokenizes it in
+idle-budgeted slices (see §10).
 
 ---
 
-## 8. Scroll virtualization in motion
+## 10. Caching strategy
 
-When the user scrolls, only signals change — no data is touched.
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant Scroll as scroll listener (rAF)
-  participant Root as ChatRoot
-  participant Virt as Virtualizer
-  participant For as For (visible rows)
-  participant Row
-
-  User->>Scroll: scroll event
-  Scroll->>Root: setScrollTop / setScrollVelocity (rAF-batched)
-  Root->>Virt: range(scrollTop, viewH, before, after)
-  Note over Root,Virt: direction-aware overscan<br/>(more buffer ahead of travel)
-  Virt-->>Root: { start, end } (binary lift, O(log n))
-  Root->>For: visibleIndexes memo updates
-  For->>Row: mount entering rows / unmount leaving rows
-  Row->>Row: measure on first appearance
-  Row->>Virt: setSize (estimate → exact); settle scroll
-```
-
-Key details:
-
-- The scroll handler is **rAF-batched** and writes only signals; the visible
-  range is a `createMemo` so it recomputes only when `scrollTop`/`velocity`/
-  `totalHeight` change.
-- **Direction-aware overscan**: a larger leading buffer in the direction of
-  travel (`OVERSCAN_LEADING = 12`) and a small trailing one (`OVERSCAN_TRAILING = 3`)
-  pre-mount rows just before they enter, avoiding blank flashes.
-- Rows are positioned with `transform: translateY(top)` against an absolutely
-  sized canvas (`totalHeight + padTop + padBottom`), and carry
-  `contain: layout paint style` to isolate their reflow.
-
----
-
-## 9. Caching strategy
-
-Caching is layered, and **all mutable data caches are per-instance** (owned by a
-`ChatCaches` bundle created in `ChatRoot`, `src/core/caches.ts`) so two mounted
-chats never share state and teardown is a single `caches.clear()`.
-
-```mermaid
-flowchart TD
-  subgraph PerInstance["ChatCaches (per ChatRoot)"]
-    PB["parseBlocks — markdown→Block[] by id"]
-    RI["prepareRichInline — pretext shaping by content"]
-    HL["highlight — Shiki tokens (LRU 200)"]
-    DF["computeDiff — Myers rows (LRU 100)"]
-  end
-
-  subgraph Identity["Identity memos (WeakMap, GC'd)"]
-    NM["nodeMemo — by ChatItem (Row.tsx)"]
-    BM["blockMemo — by Block (block-stack.ts)"]
-  end
-
-  subgraph Global["Shared global (stateless / immutable)"]
-    Engine["Shiki highlighter engine"]
-    Consts["fonts, lang tables, metrics"]
-  end
-
-  Measure["measure path"] -->|ctx.caches| PerInstance
-  Render["render leaves (Code, Diff)"] -->|useCaches()| PerInstance
-  Row --> NM
-  BlockStack["layoutBlockStack"] --> BM
-  PerInstance -.token engine.-> Engine
-```
+Caching is layered. Content-addressed caches live on `ChatContext`
+(`SharedCaches`), parse caches on `ChatState` (`ParseCaches`), and identity
+memos are module-level WeakMaps (GC'd with their keys).
 
 | Layer | Key | Bound | Reach |
 | --- | --- | --- | --- |
-| `nodeMemo` | `ChatItem` identity | `WeakMap` (auto-GC) | skips whole-row re-measure for committed rows |
-| `blockMemo` | `Block` identity | `WeakMap` (auto-GC) | skips per-block re-measure inside streaming rows |
-| `parseBlocks` | `messageId` + text | per-instance Map | identity-stable Block refs across re-renders |
-| `prepareRichInline` | shaped content | per-instance Map | reuse pretext shaping; flushed on width/font change |
-| `highlight` | `lang + code` | per-instance LRU(200) | Shiki tokenisation |
-| `computeDiff` | `oldText + newText` | per-instance LRU(100) | Myers diff rows |
+| unit memo (`measureUnitCached`) | `unit.data` identity | WeakMap (auto-GC) | skips whole-unit re-measure for committed units |
+| `blockMemo` (`measureBlockCached`) | `Block` identity | WeakMap (auto-GC) | skips per-block re-measure inside streaming rows |
+| `parseBlocks` / `parseBlocksStreaming` | messageId + text | `ParseCaches` Map | identity-stable Block refs across ticks |
+| `prepareRichInline` | shaped content | `SharedCaches` Map | reuse pretext shaping across rows/conversations |
+| `highlight` / `highlightIncremental` | lang + code | `SharedCaches` LRU (200) | Shiki tokenization |
+| `computeDiff` | oldText + newText | `SharedCaches` LRU (100) | diff rows |
+| `renderMermaid` | source | `SharedCaches` LRU (100) | Mermaid SVG (CSS-var themed, light/dark reuse) |
 
-Two reach channels exist because caches are touched in two execution contexts:
+### The unit measure memo
 
-- **Measure path** has a `MeasureCtx` → reached via `ctx.caches`.
-- **Render leaves** (`Code`, `Diff`) live deep in `Project` with no `MeasureCtx`
-  → reached via a Solid `CachesContext` + `useCaches()`.
+`src/core/unit-measure.ts` is the row-level memo. Its entry stores:
 
-**Invalidation:** on container-width or font-load change, `caches.clearTextMeasure()`
-drops the rich-inline cache _and_ flushes pretext's internal global metrics (which
-are keyed only by font string and would otherwise hold stale fallback-font widths
-from before the webfont loaded). The identity memos self-invalidate via their
-fingerprint (`theme.version | width | collapsed | expanded`).
+- a **base fingerprint** — `kind|measureEpoch|width|expandedSelf` (note:
+  `expandedSelf` is per-unit; the global expanded id never enters the
+  fingerprint), and
+- **recorded collapse reads** — every `ctx.isCollapsed(id)` / `ctx.expanded(id)`
+  call made during measure, with its value. A lookup re-reads the recorded ids
+  and misses when any changed. Re-reading on hits also preserves Solid
+  dependency tracking: a memo that hits the cache still subscribes to exactly
+  the collapse signals that affect its height.
 
-The **Shiki highlighter engine** stays a global singleton — it is stateless and
-expensive to initialize (grammar/theme construction); only its token _results_
-are cached per-instance.
+Committed units keep their `data` object identity across ticks, so UnitRow
+re-runs and prefetch sweeps hit this memo; streaming units rebuild `data` each
+tick and correctly miss.
 
----
+### Estimators
 
-## 10. How the concepts interact
+Off-screen rows are seeded with `estimate()` — accuracy matters because it
+shapes scrollbar proportion and the size of settle corrections.
+`src/core/layout/estimate-text.ts` provides a width-aware markdown model
+(fenced code at code line-height plus box chrome; headings/lists/quotes at
+their prose variants' line heights and margins; margin-collapse between blocks;
+chars-per-line derived from column width and body font size). Measured against
+the rendering-audit harness this holds p50 abs error ≈ 11% (was ~34% under the
+old fixed chars-per-line model). ChatRoot probes column geometry before the
+first estimate pass so estimators see the real width.
 
-Putting it together, the four pillars compose into one tight loop:
+### Incremental highlighting
 
-```mermaid
-flowchart TB
-  subgraph Data["Data layer (SolidJS stores)"]
-    TS["Transcript store (committed + activeTurn)"]
-    VS["View state (collapse flags, expandedUserId)"]
-  end
+`ChatCaches.highlightIncremental` tokenizes on a time budget via
+`@shikijs/stream` (`src/core/highlight/incremental.ts`): one line per enqueue
+with TextMate grammar state carried across slices, ~6ms of synchronous work per
+slice, yielding to `requestIdleCallback` between slices. Output is
+byte-identical to the synchronous path (equivalence-tested). `Code.tsx` and
+`Diff.tsx` drive it after their content settles; the LRU serves re-mounts
+synchronously via `peekHighlight`.
 
-  subgraph MeasureLayer["Measurement (pure JS, off-DOM)"]
-    Parse["markdown → Block[]"]
-    PT["pretext: glyph metrics + line-breaking"]
-    Comp["compose combinators → Measured tree"]
-  end
+**Invalidation:** font load bumps `measureEpoch` (invalidating all geometry
+memos and flushing pretext's internal metrics via `clearTextMeasure()` — they
+are keyed only by font string and would otherwise keep stale fallback-font
+widths). Width changes need no flush: the fingerprints carry `width`, and
+rich-inline shaping is width-independent (intrinsic glyph widths).
 
-  subgraph VirtLayer["Virtualization"]
-    FT["Fenwick tree: heights, offsets, visible range"]
-  end
-
-  subgraph RenderLayer["Projection (SolidJS DOM)"]
-    Pr["Project: walk tree, position via inline styles"]
-  end
-
-  TS -->|"item count"| FT
-  TS -->|"visible item text"| Parse
-  Parse --> PT
-  PT --> Comp
-  Comp -->|"exact height"| FT
-  Comp -->|"Measured tree"| Pr
-  VS -->|"expanded/collapsed"| Comp
-  FT -->|"which rows + offsets"| Pr
-  Pr --> Screen["Screen"]
-  Screen -->|"scroll / resize"| FT
-```
-
-1. **SolidJS** stores hold the conversation and view state, and notify exactly the
-   computations that read changed paths.
-2. **pretext** turns text into exact geometry _before_ the DOM exists, satisfying
-   the precondition for virtualization.
-3. The **Fenwick tree** uses those heights to answer "what's on screen?" and
-   "where does row _i_ sit?" in `O(log n)`, and absorbs height changes without
-   `O(n)` recomputation.
-4. **Projection** renders only the visible rows by walking the precomputed
-   `Measured` tree and applying geometry as inline styles — so the browser never
-   re-wraps or re-flows content the engine already laid out.
-
-The discipline that makes it hold together is the **Lane A / Lane B** split and
-the **width-down / height-up** invariant: measurement depends only on layout
-inputs, geometry is computed purely, and the DOM is a faithful projection of that
-geometry — never a source of truth.
+The **Shiki engine** stays a global singleton — stateless and expensive to
+initialize; only its token _results_ are cached.
 
 ---
 
 ## Adding a new row kind
 
-This recipe walks through adding a hypothetical `'status'` row kind. Replace `status` / `ChatStatus` / `StatusLayout` with your actual names throughout.
+This recipe adds a hypothetical `'status'` row kind. Replace `status` /
+`ChatStatus` with your actual names.
 
 ### 1. Define the model type
 
-Add your item shape to `src/model.ts`:
+Add your item shape to `src/model.ts` and include it in the `ChatItem` union:
 
 ```ts
 export type ChatStatus = {
@@ -643,138 +621,75 @@ export type ChatStatus = {
   id: string;
   text: string;
 };
-
-export type ChatItem = ChatMessage | ChatThinking | ChatDiff | ChatFileOpToolCall | ChatStatus;
 ```
 
-### 2. Implement the `ComponentDef`
+### 2. Implement the `UnitDef`
 
-Create `src/components/status/status.def.tsx`. A `ComponentDef<Item, Layout>` requires:
-
-| Member | Role |
-| --- | --- |
-| `kind` | String literal matching `ChatItem.kind` |
-| `padY` | Symmetric vertical padding (px) around the row |
-| `estimate(item, ctx)` | O(1) height heuristic; used before measure for scroll-thumb sizing |
-| `measure(item, ctx)` | Exact geometry; returns `Measured<Layout>` (may use compose combinators) |
-| `Render` | SolidJS component `(props: { item, layout, ctx }) => JSX.Element` |
-
-Example skeleton:
+Create `src/components/rows/status/status.def.tsx`:
 
 ```tsx
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
-import type { ChatStatus } from '../../model';
+import { defineUnit } from '@core/units';
+import type { ChatStatus } from '@/model';
 
-type StatusLayout = { kind: 'status'; height: number };
-
-export const statusDef = defineComponent<ChatStatus, StatusLayout>({
+export const statusUnitDef = defineUnit<ChatStatus>({
   kind: 'status',
-  padY: 4,
+  margin: { top: 2, bottom: 2 },
 
-  estimate(_item, ctx: MeasureCtx): number {
+  estimate(_item, ctx): number {
     return ctx.theme.fonts.body.lineHeight;
   },
 
-  measure(item, ctx: MeasureCtx): Measured<StatusLayout> {
-    const height = ctx.theme.fonts.body.lineHeight;
-    return { height, width: ctx.width, layout: { kind: 'status', height } };
+  measure(_item, ctx): number {
+    return ctx.theme.fonts.body.lineHeight;
   },
 
-  Render(props: { item: ChatStatus; layout: Measured<StatusLayout>; ctx: RenderCtx }) {
-    return (
-      <div style={{ height: `${props.layout.height}px` }}>
-        {props.item.text}
-      </div>
-    );
+  Render(props) {
+    const height = () => {
+      const ctx = props.ctx.measureCtx?.();
+      return ctx ? ctx.theme.fonts.body.lineHeight : 20;
+    };
+    return <div style={{ height: `${height()}px` }}>{props.data.text}</div>;
   },
 });
 ```
 
-#### Using slots
+Keep Lane A discipline: only `ctx.width`, theme metrics, and collapse state may
+influence `measure`. Anything the row renders at a height not derived from
+those inputs will trip the debug overlay and the contract test.
 
-If your row needs injected chrome (a header, footer, or side-panel):
+### 3. Register it
 
-1. Add a new entry to `SLOT_NAMES` in `src/core/compose.ts`:
+In `src/components/engine/unit-registry.ts`:
 
-   ```ts
-   STATUS_HEADER: 'status:header',
-   ```
+- add the `UnitDef` to `UNIT_REGISTRY` under its `kind`;
+- add an `ItemSegmenter` to `SEGMENTERS` (for a single-row kind, segment to
+  exactly one unit whose `data` is the item itself, id `${item.id}#0`).
 
-2. Use it in `measure()`:
+### 4. Add a measurement contract test
 
-   ```ts
-   import { SLOT_NAMES, slot, stack } from '../../core/compose';
-
-   const headerSlot = SLOT_NAMES.STATUS_HEADER;
-   const tree = stack([
-     { id: `${item.id}:header`, measured: slot(headerSlot, headerH) },
-     { id: `${item.id}:body`,   measured: body },
-   ], { gap: 0 });
-   ```
-
-3. Supply the slot renderer in `Render`:
-
-   ```tsx
-   <Project
-     node={props.layout.layout.tree}
-     slots={{ [SLOT_NAMES.STATUS_HEADER]: () => <StatusHeader item={props.item} /> }}
-   />
-   ```
-
-### 3. Register the def
-
-Add one line to `src/components/registry.ts`:
-
-```ts
-import { statusDef } from './status/status.def';
-
-export const REGISTRY: Record<string, ComponentDef<ChatItem, any>> = {
-  // … existing entries …
-  status: statusDef,
-};
-```
-
-### 4. Add fixtures
-
-Add representative `ChatStatus` items to the mock transcript fixture
-(`src/mock-transcript.ts` or the fixture generator) so that the benchmark
-and visual snapshot tests cover the new kind:
-
-```ts
-{ kind: 'status', id: 'status-1', text: 'Indexing…' },
-```
-
-### 5. Add a height contract test
-
-Create `src/tests/status.contract.test.tsx`. The contract test verifies that
-`measure()` returns an exact height, protecting against slot-height drift:
+Extend `src/components/rows/rows-measure.contract.test.tsx` (or add a sibling
+file) using the shared harness:
 
 ```tsx
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_THEME } from '../core/theme';
-import { createChatCaches } from '../core/caches';
-import { makeContractCtx, renderAndMeasure } from './contract';
-import { statusDef } from '../components/status/status.def';
+import { makeContractCtx, renderAndMeasureUnit } from '@/tests/contract';
 
-const ctx = makeContractCtx({ width: 640 });
-const item: ChatStatus = { kind: 'status', id: 's1', text: 'Indexing…' };
-
-describe('statusDef height contract', () => {
-  it('measure height matches rendered height', async () => {
-    const layout = statusDef.measure(item, ctx);
-    const renderedH = await renderAndMeasure(
-      <statusDef.Render item={item} layout={layout} ctx={/* RenderCtx */} />,
-      layout.height
-    );
-    expect(renderedH).toBe(layout.height);
-  });
+it('status row measures exactly', async () => {
+  const ctx = makeContractCtx({ width: 640 });
+  const item: ChatStatus = { kind: 'status', id: 's1', text: 'Indexing…' };
+  const { computed, dom } = await renderAndMeasureUnit(statusUnitDef, item, ctx);
+  expect(computed).toBe(dom);
 });
 ```
 
-The `renderAndMeasure` helper (see `src/tests/contract.tsx`) mounts the
-component in a headless browser, reads the actual DOM height, and compares
-it to the engine's prediction. A failing test here means a slot height
-constant or padding value is wrong.
+Run it with `pnpm exec vitest run --project browser <file>`. A failing test
+means the rendered chrome (padding, border, line-height) disagrees with
+`measure` — fix the def, not the test.
+
+### 5. Add fixtures
+
+Add representative items to `src/mock-transcript.ts` (used by stories and
+perf/regression harnesses) so the new kind participates in streaming and
+scroll sweeps.
 
 ---
 
@@ -787,14 +702,19 @@ constant or padding value is wrong.
 | Per-conversation state | `src/state/chat-state.ts`, `src/state/transcript.ts` |
 | Per-mount view | `src/chat-view.tsx`, `src/ChatRoot.tsx` |
 | Data model | `src/model.ts` |
-| Markdown | `src/core/markdown/{document,parse,plain-text}.ts` |
-| Measurement | `src/core/measure/*`, `src/components/prose/layout.ts` (pretext) |
-| Virtualization | `src/core/virtualizer.ts`, `src/core/stick-to-bottom.ts` |
-| Frame scheduler | `src/components/engine/frame-scheduler.ts`, `src/core/tween-registry.ts` |
-| Layout system | `src/core/define.ts`, `src/core/compose.ts`, `src/core/layout/*` |
-| Rendering | `src/components/Project.tsx`, `src/components/Row.tsx`, `src/components/*/` |
-| Registry | `src/components/registry.ts` |
-| Slot names | `src/core/compose.ts` (`SLOT_NAMES`, `SlotName`) |
-| Caching | `src/core/caches.ts`, `src/components/CachesContext.ts` |
-| Theme | `src/core/theme.ts`, `src/core/metrics.ts`, `src/core/measure/fonts.ts` |
-| Contexts | `src/components/{ThemeContext,CachesContext,CommandsContext}.ts` |
+| Unit model | `src/core/units.ts`, `src/state/flatten.ts`, `src/components/engine/unit-registry.ts` |
+| Row rendering | `src/components/engine/UnitRow.tsx`, `src/components/primitives/BlockStackView.tsx` |
+| Measurement memos | `src/core/unit-measure.ts`, `src/components/rows/markdown/block-stack.ts` |
+| Estimators | `src/core/layout/estimate-text.ts`, `src/core/layout/generic-estimate.ts` |
+| Virtualization | `src/core/virtualizer.ts` |
+| Scroll intent | `src/state/scroll-mode.ts` (`ScrollMode`), `src/state/chat-state.ts` |
+| Scroll projection | `src/core/scroll-projection.ts` (+ node tests) |
+| Frame scheduler | `src/components/engine/frame-scheduler.ts`, `src/components/engine/tween-registry.ts`, `src/components/engine/create-height-tween.ts` |
+| Geometry snapshots | `src/state/geometry.ts` |
+| Markdown | `src/core/markdown/*`, `src/components/rows/markdown/*` |
+| Text measurement | `src/core/measure/*`, `src/components/rows/markdown/prose/layout.ts` |
+| Highlighting | `src/core/highlight/{highlighter,incremental,apply-tokens}.ts` |
+| Caching | `src/core/caches.ts`, `src/components/contexts/CachesContext.ts` |
+| Theme | `src/core/config.ts`, `src/core/theme.ts` |
+| View state | `src/state/view-state.ts`, `src/state/tool-header-state.ts` |
+| Contract test harness | `src/tests/contract.tsx`, `src/tests/regression/*` |
