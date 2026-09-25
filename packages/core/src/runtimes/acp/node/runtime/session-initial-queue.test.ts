@@ -55,9 +55,75 @@ describe('ACP initial queue persistence', () => {
   }
 
   for (const retry of ['same worker', 'restarted worker'] as const) {
-    it.each(['result', 'throw'] as const)(
-      `retains prepared prompts after a failed dispatch commit (%s, ${retry})`,
+    it.each(['provider creation', 'pointer write', 'dispatch write'] as const)(
+      `keeps pending prompts retryable after fresh %s fails (${retry})`,
       async (failure) => {
+        const intents = createMemorySessionIntentStore();
+        const h = makeAcpHarness({ intents });
+        let runtime = new AcpRuntime(h.deps);
+        const queueFault = vi
+          .spyOn(SessionCell.prototype, 'queuePrompt')
+          .mockReturnValueOnce(acpErr.invalidState('initial startup failed'));
+        const originalSave = intents.saveActive.bind(intents);
+        const save = vi.spyOn(intents, 'saveActive');
+        try {
+          expect((await runtime.startSession(input, 'resume')).success).toBe(false);
+          if (failure === 'provider creation') {
+            h.agent.newSession.mockRejectedValueOnce(new Error('provider unavailable'));
+          } else {
+            h.agent.newSession.mockResolvedValueOnce({ sessionId: 'provisional' });
+            save.mockImplementation(async (intent) => {
+              const consumed = (intent.payload as { initialQueueConsumed: boolean })
+                .initialQueueConsumed;
+              if (intent.sessionId === 'provisional' && (failure === 'pointer write' || consumed)) {
+                return err({ type: 'io', message: 'disk full' });
+              }
+              return originalSave(intent);
+            });
+          }
+          expect((await runtime.startSession(input, 'fresh')).success).toBe(false);
+          expect(h.agent.prompt).not.toHaveBeenCalled();
+          expect(intents.snapshot()[0]).toMatchObject({
+            sessionId: failure === 'dispatch write' ? 'provisional' : 'session-1',
+            payload: { initialQueueConsumed: false },
+          });
+          save.mockRestore();
+          if (retry === 'restarted worker') {
+            await runtime.dispose();
+            runtime = new AcpRuntime(h.deps);
+            await runtime.reconcile();
+          }
+          h.agent.newSession.mockResolvedValueOnce({ sessionId: 'replacement' });
+          expect((await runtime.startSession(input, 'fresh')).success).toBe(true);
+          await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(2));
+          expect(h.agent.prompt.mock.calls.map(([request]) => request.sessionId)).toEqual([
+            'replacement',
+            'replacement',
+          ]);
+          expect(h.agent.loadSession).not.toHaveBeenCalled();
+          expect(intents.snapshot()[0]).toMatchObject({
+            sessionId: 'replacement',
+            payload: { initialQueueConsumed: true },
+          });
+          await runtime.stopSession(input.conversationId);
+          expect((await runtime.startSession(input, 'fresh')).success).toBe(true);
+          expect(h.agent.prompt).toHaveBeenCalledTimes(2);
+        } finally {
+          queueFault.mockRestore();
+          save.mockRestore();
+          await runtime.dispose();
+        }
+      }
+    );
+
+    it.each([
+      { failure: 'result', mode: 'resume' },
+      { failure: 'throw', mode: 'resume' },
+      { failure: 'result', mode: 'fresh' },
+      { failure: 'throw', mode: 'fresh' },
+    ] as const)(
+      `retains prepared prompts after a failed dispatch commit ($failure, $mode, ${retry})`,
+      async ({ failure, mode }) => {
         const intents = createMemorySessionIntentStore();
         const h = makeAcpHarness({ intents });
         let runtime = new AcpRuntime(h.deps);
@@ -90,8 +156,16 @@ describe('ACP initial queue persistence', () => {
             runtime = new AcpRuntime(h.deps);
             await runtime.reconcile();
           }
-          expect((await runtime.startSession(input, 'resume')).success).toBe(true);
+          if (mode === 'fresh')
+            h.agent.newSession.mockResolvedValueOnce({ sessionId: 'replacement' });
+          expect((await runtime.startSession(input, mode)).success).toBe(true);
           await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(2));
+          expect(h.agent.newSession).toHaveBeenCalledTimes(mode === 'fresh' ? 2 : 1);
+          expect(h.agent.loadSession).toHaveBeenCalledTimes(mode === 'resume' ? 1 : 0);
+          expect(h.agent.prompt.mock.calls.map(([request]) => request.sessionId)).toEqual([
+            mode === 'fresh' ? 'replacement' : 'session-1',
+            mode === 'fresh' ? 'replacement' : 'session-1',
+          ]);
           expect(h.agent.prompt.mock.calls.map(([request]) => request.prompt)).toEqual([
             [{ type: 'text', text: 'first' }],
             [
@@ -112,9 +186,14 @@ describe('ACP initial queue persistence', () => {
     );
   }
 
-  it.each(['second queue entry', 'readiness after transition'] as const)(
-    'does not dispatch a partially prepared queue when %s fails',
-    async (failure) => {
+  it.each([
+    { failure: 'second queue entry', mode: 'resume' },
+    { failure: 'readiness after transition', mode: 'resume' },
+    { failure: 'second queue entry', mode: 'fresh' },
+    { failure: 'readiness after transition', mode: 'fresh' },
+  ] as const)(
+    'does not dispatch a partially prepared queue when $failure fails before $mode retry',
+    async ({ failure, mode }) => {
       const intents = createMemorySessionIntentStore();
       const h = makeAcpHarness({ intents });
       let runtime = new AcpRuntime(h.deps);
@@ -142,7 +221,7 @@ describe('ACP initial queue persistence', () => {
         await runtime.dispose();
         runtime = new AcpRuntime(h.deps);
         await runtime.reconcile();
-        expect((await runtime.startSession(input, 'resume')).success).toBe(true);
+        expect((await runtime.startSession(input, mode)).success).toBe(true);
         await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(2));
       } finally {
         fault.mockRestore();
@@ -196,9 +275,14 @@ describe('ACP initial queue persistence', () => {
     }
   });
 
-  it.each([false, true])(
-    'requires the trusted prompt payload when restoring pending work (materialized=%s)',
-    async (materialized) => {
+  it.each([
+    { materialized: false, mode: 'resume' },
+    { materialized: true, mode: 'resume' },
+    { materialized: false, mode: 'fresh' },
+    { materialized: true, mode: 'fresh' },
+  ] as const)(
+    'requires the trusted prompt payload when restoring pending work (materialized=$materialized, mode=$mode)',
+    async ({ materialized, mode }) => {
       const intents = createMemorySessionIntentStore();
       const h = makeAcpHarness({ intents });
       let runtime = new AcpRuntime(h.deps);
@@ -214,11 +298,11 @@ describe('ACP initial queue persistence', () => {
         runtime = new AcpRuntime(h.deps);
         await runtime.reconcile();
         expect(
-          await runtime.startSession({ ...input, initialQueue: undefined }, 'resume')
+          await runtime.startSession({ ...input, initialQueue: undefined }, mode)
         ).toMatchObject({ success: false, error: { type: 'invalid_state' } });
         expect(h.agent.newSession).toHaveBeenCalledTimes(materialized ? 1 : 0);
         expect(intents.snapshot()[0]?.payload).toMatchObject({ initialQueueConsumed: false });
-        expect((await runtime.startSession(input, 'resume')).success).toBe(true);
+        expect((await runtime.startSession(input, mode)).success).toBe(true);
         await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(2));
       } finally {
         fault?.mockRestore();
@@ -227,9 +311,14 @@ describe('ACP initial queue persistence', () => {
     }
   );
 
-  it.each(['completed', 'provider failure'] as const)(
-    'does not redeliver a consumed initial queue after restart (%s)',
-    async (outcome) => {
+  it.each([
+    { outcome: 'completed', mode: 'resume' },
+    { outcome: 'provider failure', mode: 'resume' },
+    { outcome: 'completed', mode: 'fresh' },
+    { outcome: 'provider failure', mode: 'fresh' },
+  ] as const)(
+    'does not redeliver a consumed initial queue after restart ($outcome, $mode)',
+    async ({ outcome, mode }) => {
       const intents = createMemorySessionIntentStore();
       const h = makeAcpHarness({ intents });
       let runtime = new AcpRuntime(h.deps);
@@ -242,7 +331,7 @@ describe('ACP initial queue persistence', () => {
         runtime = new AcpRuntime(h.deps);
         await runtime.reconcile();
         await runtime.attachSession(input);
-        expect((await runtime.startSession(input, 'resume')).success).toBe(true);
+        expect((await runtime.startSession(input, mode)).success).toBe(true);
         expect(h.agent.prompt).toHaveBeenCalledTimes(2);
       } finally {
         await runtime.dispose();
@@ -250,25 +339,32 @@ describe('ACP initial queue persistence', () => {
     }
   );
 
-  it('never treats a legacy intent as proof of an unconsumed queue', async () => {
-    const intents = createMemorySessionIntentStore();
-    const h = makeAcpHarness({ intents });
-    let runtime = new AcpRuntime(h.deps);
-    try {
-      await runtime.attachSession(input);
-      await runtime.dispose();
-      const saved = intents.snapshot()[0]!;
-      const { initialQueueConsumed: _removed, ...payload } = saved.payload as Record<
-        string,
-        Serializable
-      >;
-      await intents.saveActive({ ...saved, payload });
-      runtime = new AcpRuntime(h.deps);
-      await runtime.reconcile();
-      expect((await runtime.startSession(input, 'resume')).success).toBe(true);
-      expect(h.agent.prompt).not.toHaveBeenCalled();
-    } finally {
-      await runtime.dispose();
+  it.each(['resume', 'fresh'] as const)(
+    'never treats a legacy intent as proof of an unconsumed queue (%s)',
+    async (mode) => {
+      const intents = createMemorySessionIntentStore();
+      const h = makeAcpHarness({ intents });
+      let runtime = new AcpRuntime(h.deps);
+      try {
+        await runtime.attachSession(input);
+        await runtime.dispose();
+        const saved = intents.snapshot()[0]!;
+        const { initialQueueConsumed: _removed, ...payload } = saved.payload as Record<
+          string,
+          Serializable
+        >;
+        await intents.saveActive({
+          ...saved,
+          sessionId: 'legacy-session',
+          payload: { ...payload, sessionId: 'legacy-session' },
+        });
+        runtime = new AcpRuntime(h.deps);
+        await runtime.reconcile();
+        expect((await runtime.startSession(input, mode)).success).toBe(true);
+        expect(h.agent.prompt).not.toHaveBeenCalled();
+      } finally {
+        await runtime.dispose();
+      }
     }
-  });
+  );
 });

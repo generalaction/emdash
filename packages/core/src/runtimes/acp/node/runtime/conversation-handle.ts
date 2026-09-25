@@ -386,10 +386,7 @@ export class ConversationHandle {
     return {
       ...this.descriptor,
       ...(this.isStartingFresh ? { sessionId: null } : {}),
-      initialQueue:
-        (this.isStartingFresh && this.descriptor.sessionId !== null) || this.initialQueueConsumed
-          ? undefined
-          : this.descriptor.initialQueue,
+      initialQueue: this.initialQueueConsumed ? undefined : this.descriptor.initialQueue,
     };
   }
 
@@ -502,10 +499,7 @@ export class ConversationHandle {
       const retained = replacePresentation
         ? emptyRetainedPresentation(this.retainedValue.configured)
         : this.retainedValue;
-      const initialQueueConsumed =
-        this.initialQueueConsumed ||
-        consumeInitialQueue ||
-        (materialized && !record.input.initialQueue?.length);
+      const initialQueueConsumed = this.initialQueueConsumed || consumeInitialQueue;
       return {
         ...this.buildIntent(sessionId, retained, unstarted, initialQueueConsumed),
         onPersisted: () => {
