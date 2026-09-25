@@ -64,6 +64,7 @@ export const automationScheduleSchema = z.object({
 export const automationAcpAgentConfigSchema = z.object({
   type: z.literal('acp'),
   start: acpSessionLaunchInputSchema.omit({
+    mode: true,
     conversationId: true,
     cwd: true,
     sessionId: true,

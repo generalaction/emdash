@@ -18,6 +18,7 @@ export const headlessPromptInputSchema = z.object({
 });
 
 export const acpSessionLaunchInputSchema = z.object({
+  mode: z.literal('fresh'),
   conversationId: nonBlankStringSchema,
   providerId: nonBlankStringSchema,
   cwd: nonBlankStringSchema,

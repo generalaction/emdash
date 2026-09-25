@@ -25,7 +25,7 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace,
         activateWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: { create } as unknown as ContractClient<ConversationIndexContract>,
     });
@@ -86,6 +86,7 @@ describe('createSessionPortFromDependencies', () => {
         providerId: 'claude',
         cwd: '/tmp/workspace',
         sessionId: null,
+        mode: 'fresh',
         model: 'opus',
         modeId: 'agent',
         initialQueue: [{ text: 'Review this repository' }],
@@ -102,7 +103,7 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace: vi.fn(async () => ok({ id: 'existing-workspace' })),
         activateWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
@@ -183,7 +184,7 @@ describe('createSessionPortFromDependencies', () => {
       workspaceRegistry: {
         createWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as unknown as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: {
         create: async () => err({ type: 'invalid-input', message: 'Bad record' }),
@@ -213,7 +214,7 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace: async () => err({ type: 'path-not-found', path: '/tmp/workspace' }),
         activateWorkspace: vi.fn(),
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as unknown as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
@@ -243,7 +244,7 @@ describe('createSessionPortFromDependencies', () => {
         activateWorkspace: async () =>
           err({ type: 'workspace-missing', workspaceId: 'workspace-1' }),
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as unknown as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
@@ -272,7 +273,8 @@ describe('createSessionPortFromDependencies', () => {
     const unavailable = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: {
-        launch: async () => err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
+        startSession: async () =>
+          err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
       },
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
@@ -280,7 +282,7 @@ describe('createSessionPortFromDependencies', () => {
     const rejected = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: {
-        launch: async () => {
+        startSession: async () => {
           throw new Error('connection closed');
         },
       },
@@ -325,7 +327,7 @@ function creatingConversationIndex(): ContractClient<ConversationIndexContract> 
 }
 
 function unusedAcpClient(): ContractClient<AcpSessionLaunchContract> {
-  return { launch: vi.fn() };
+  return { startSession: vi.fn() };
 }
 
 function unusedTuiClient(): ContractClient<TuiSessionStartContract> {

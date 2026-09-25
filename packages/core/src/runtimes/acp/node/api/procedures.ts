@@ -10,7 +10,7 @@ import type {
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetOptionError,
-  AcpStartError,
+  AcpSessionStartMode,
   AcpStartInputWire,
   AcpTerminateError,
   LoadHistoryResult,
@@ -25,11 +25,14 @@ export type SessionDescriptorInput = AcpStartInputWire;
 
 export function createAcpProcedures(runtime: AcpRuntime) {
   return {
-    attach(input: SessionDescriptorInput): Promise<Result<void, AcpStartError>> {
+    attach(input: SessionDescriptorInput): ReturnType<AcpRuntime['attachSession']> {
       return runtime.attachSession(input);
     },
-    launch(input: SessionDescriptorInput): ReturnType<AcpRuntime['launchSession']> {
-      return runtime.launchSession(input);
+    startSession(
+      input: SessionDescriptorInput & { mode: AcpSessionStartMode }
+    ): ReturnType<AcpRuntime['startSession']> {
+      const { mode, ...descriptor } = input;
+      return runtime.startSession(descriptor, mode);
     },
     terminate(input: { conversationId: string }): Promise<Result<void, AcpTerminateError>> {
       return runtime.terminateSession(input.conversationId);

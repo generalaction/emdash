@@ -77,7 +77,7 @@ describe('ACP restoration continuity', () => {
               .spyOn(SessionCell.prototype, 'queuePrompt')
               .mockReturnValueOnce(acpErr.invalidState('initial queue rejected'));
       try {
-        expect((await runtime.launchSession(input)).success).toBe(false);
+        expect((await runtime.startSession(input, 'resume')).success).toBe(false);
         expect(fault).toHaveBeenCalledOnce();
         expect(h.agent.prompt).not.toHaveBeenCalled();
         expect(intents.snapshot()[0]).toMatchObject({
@@ -86,7 +86,7 @@ describe('ACP restoration continuity', () => {
         });
 
         // Retry the same handle to verify its in-memory overrides survived too.
-        expect((await runtime.loadHistory(input.conversationId)).success).toBe(true);
+        expect((await startAndLoadHistory(runtime, input)).success).toBe(true);
         for (const option of restorationConfigOptions(true)) {
           expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
             sessionId: 'original',
@@ -117,7 +117,7 @@ describe('ACP restoration continuity', () => {
     });
     h.agent.loadSession.mockResolvedValueOnce({ configOptions: restorationConfigOptions(false) });
     try {
-      expect(await runtime.launchSession(input)).toMatchObject({
+      expect(await runtime.startSession(input, 'resume')).toMatchObject({
         success: true,
         data: { clearedConfiguration: ['model', 'effort', 'collaborationMode', 'modeId'] },
       });
@@ -143,7 +143,7 @@ describe('ACP restoration continuity', () => {
     h.agent.loadSession.mockResolvedValueOnce({ configOptions: restorationConfigOptions(true) });
     const applying = deferred<Record<string, never>>();
     h.agent.setSessionConfigOption.mockImplementationOnce(() => applying.promise);
-    const loading = runtime.launchSession(input);
+    const loading = runtime.startSession(input, 'resume');
     try {
       await vi.waitFor(() => expect(h.agent.setSessionConfigOption).toHaveBeenCalledOnce());
       expect(
@@ -173,7 +173,7 @@ describe('ACP restoration continuity', () => {
     const input = makeStartInput({ conversationId: 'unsupported-replay', sessionId: 'original' });
     try {
       await runtime.attachSession(input);
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(false);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(false);
       expect(h.agent.newSession).not.toHaveBeenCalled();
       expect(h.agent.loadSession).not.toHaveBeenCalled();
     } finally {
@@ -185,11 +185,11 @@ describe('ACP restoration continuity', () => {
     const h = makeAcpHarness();
     const runtime = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'retry-close' });
-    await runtime.launchSession(input);
+    await runtime.startSession(input, 'resume');
     h.agent.closeSession.mockRejectedValueOnce(new Error('temporarily unavailable'));
     try {
       await runtime.stopSession(input.conversationId);
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(true);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(true);
       expect(h.agent.closeSession).toHaveBeenCalledTimes(2);
       expect(h.agent.loadSession).toHaveBeenCalledOnce();
       expect(h.agent.newSession).toHaveBeenCalledOnce();
@@ -215,9 +215,9 @@ describe('ACP restoration continuity', () => {
     });
     try {
       await runtime.attachSession(input);
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(false);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(false);
       expect(intents.snapshot()[0]?.sessionId).toBe('original');
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(true);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(true);
       expect(h.agent.loadSession).toHaveBeenLastCalledWith(
         expect.objectContaining({ sessionId: 'original' })
       );
@@ -231,11 +231,11 @@ describe('ACP restoration continuity', () => {
     const runtime = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'close-before-resume' });
     const closed = deferred<void>();
-    await runtime.launchSession(input);
+    await runtime.startSession(input, 'resume');
     h.agent.closeSession.mockImplementationOnce(() => closed.promise);
     const stopping = runtime.stopSession(input.conversationId);
     await vi.waitFor(() => expect(h.agent.closeSession).toHaveBeenCalledOnce());
-    const loading = runtime.loadHistory(input.conversationId);
+    const loading = startAndLoadHistory(runtime, input);
     try {
       // Allow the competing wake to reach materialization while close is held.
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -256,17 +256,17 @@ describe('ACP restoration continuity', () => {
     const runtime = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'close-timeout' });
     const closed = deferred<void>();
-    await runtime.launchSession(input);
+    await runtime.startSession(input, 'resume');
     h.agent.closeSession.mockImplementationOnce(() => closed.promise);
     try {
       await runtime.stopSession(input.conversationId);
-      const failed = await runtime.loadHistory(input.conversationId);
+      const failed = await startAndLoadHistory(runtime, input);
       expect(failed.success).toBe(false);
       expect(h.agent.loadSession).not.toHaveBeenCalled();
       expect(h.agent.newSession).toHaveBeenCalledOnce();
       expect(h.agent.closeSession).toHaveBeenCalledOnce();
       closed.resolve();
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(true);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(true);
       expect(h.agent.loadSession).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: 'session-1' })
       );
@@ -281,7 +281,7 @@ describe('ACP restoration continuity', () => {
     const runtime = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'close-process-exited' });
     const closed = deferred<void>();
-    await runtime.launchSession(input);
+    await runtime.startSession(input, 'resume');
     h.agent.closeSession.mockImplementationOnce(() => closed.promise);
     try {
       await runtime.stopSession(input.conversationId);
@@ -291,7 +291,7 @@ describe('ACP restoration continuity', () => {
           runtime.connections.peek({ providerId: input.providerId, cwd: input.cwd })
         ).toBeUndefined()
       );
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(true);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(true);
       expect(h.children).toHaveLength(2);
       expect(h.agent.loadSession).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: 'session-1' })
@@ -310,10 +310,10 @@ describe('ACP restoration continuity', () => {
     await runtime.attachSession(input);
     h.agent.loadSession.mockRejectedValueOnce(new Error('Session original is closing'));
     try {
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(false);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(false);
       expect(h.agent.newSession).not.toHaveBeenCalled();
       expect(intents.snapshot()[0]?.sessionId).toBe('original');
-      expect((await runtime.loadHistory(input.conversationId)).success).toBe(true);
+      expect((await startAndLoadHistory(runtime, input)).success).toBe(true);
       expect(h.agent.loadSession).toHaveBeenLastCalledWith(
         expect.objectContaining({ sessionId: 'original' })
       );
@@ -341,7 +341,7 @@ describe('ACP restoration continuity', () => {
       return {};
     });
     await runtime.attachSession(input);
-    const loading = runtime.loadHistory(input.conversationId);
+    const loading = startAndLoadHistory(runtime, input);
     try {
       await replayed.promise;
       const live = runtime.sessionLiveModels(input.conversationId)!;
@@ -364,3 +364,8 @@ describe('ACP restoration continuity', () => {
     }
   });
 });
+
+async function startAndLoadHistory(runtime: AcpRuntime, input: ReturnType<typeof makeStartInput>) {
+  const started = await runtime.startSession(input, 'resume');
+  return started.success ? runtime.loadHistory(input.conversationId) : started;
+}

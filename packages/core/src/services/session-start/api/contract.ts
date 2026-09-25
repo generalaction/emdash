@@ -8,7 +8,7 @@ import {
 } from './schemas';
 
 export const acpSessionLaunchContract = defineContract({
-  launch: fallible({
+  startSession: fallible({
     input: acpSessionLaunchInputSchema,
     data: acpSessionLaunchResultSchema,
     error: sessionStartErrorSchema,

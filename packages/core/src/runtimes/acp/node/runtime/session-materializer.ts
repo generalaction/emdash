@@ -4,11 +4,7 @@ import { toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Scope } from '@emdash/shared/concurrency';
 import { redactSecrets, type Logger } from '@emdash/shared/logger';
-import type {
-  AcpStartError,
-  ConversationNotFoundError,
-  InvalidStateError,
-} from '#runtimes/acp/api';
+import type { AcpStartError, ConversationNotFoundError } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
 import {
   isAcpConnectionError,
@@ -41,7 +37,7 @@ export interface SessionMaterializerCallbacks {
   onRecordCreated(record: SessionRecord, scope: Scope): void;
   onRecordChanged(record: SessionRecord): void;
   onRecordClosed(record: SessionRecord): void;
-  discardRecord(record: SessionRecord): void;
+  discardRecord(record: SessionRecord): Promise<void>;
   registerRoute(processOwner: string, acpSessionId: string, conversationId: string): void;
   beginLoad(processOwner: string, acpSessionId: string, conversationId: string): () => void;
 }
@@ -93,7 +89,8 @@ export class SessionMaterializer {
     const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
     const processOwner = routeOwnerId(connection.key, connection.generation);
     let record: SessionRecord | null = null;
-    let resumeOutcome: SessionRecord['resumeOutcome'] = null;
+    let resumeOutcome: SessionRecord['resumeOutcome'] =
+      entry.isStartingFresh && entry.descriptor.sessionId !== null ? 'replaced-by-new' : null;
     let unsupportedSelections: UnsupportedSelection[] = [];
 
     try {
@@ -119,6 +116,7 @@ export class SessionMaterializer {
           scope
         );
         let loaded = false;
+        let replaceUntouched = false;
         let endLoad = () => {};
         try {
           endLoad = this.callbacks.beginLoad(processOwner, input.sessionId, input.conversationId);
@@ -132,6 +130,11 @@ export class SessionMaterializer {
           if (!this.callbacks.isCurrent(entry, epoch) || record.disposed) {
             return acpErr.conversationNotFound(entry.conversationId);
           }
+          const history = record.cell.history();
+          if (entry.canStartFresh && (history.committed.length > 0 || history.active)) {
+            const preserved = await entry.preserveSession(record);
+            if (!preserved.success) return preserved;
+          }
           record.cell.applySessionLoaded({
             modes: response.modes,
             configOptions: response.configOptions,
@@ -141,7 +144,7 @@ export class SessionMaterializer {
             entry,
             response.configOptions !== undefined
           );
-          const queueResult = this.queueInitialPrompts(record, input);
+          const queueResult = await this.queueInitialPrompts(record, input);
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
           loaded = true;
@@ -149,6 +152,11 @@ export class SessionMaterializer {
         } catch (error) {
           if (!this.callbacks.isCurrent(entry, epoch)) {
             return acpErr.conversationNotFound(entry.conversationId);
+          }
+          const history = record.cell.history();
+          if (entry.canStartFresh && (history.committed.length > 0 || history.active)) {
+            const preserved = await entry.preserveSession(record);
+            if (!preserved.success) return preserved;
           }
           if (isAuthRequiredError(error)) throw error;
           this.deps.logger.warn('SessionMaterializer: failed to restore existing session', {
@@ -158,13 +166,24 @@ export class SessionMaterializer {
             error: toSerializedError(error),
             ...providerErrorDetails(error),
           });
-          return acpErr.invalidState(
-            'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
-          );
+          if (isSessionNotFound(error, input.sessionId, binding.behavior.isSessionNotFound)) {
+            if (!entry.canStartFresh) {
+              return acpErr.sessionNotFound();
+            }
+            replaceUntouched = true;
+          } else {
+            return acpErr.invalidState(
+              'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
+            );
+          }
         } finally {
           endLoad();
           releaseHandshake();
-          if (!loaded) this.callbacks.discardRecord(record);
+          if (!loaded) await this.callbacks.discardRecord(record);
+        }
+        if (replaceUntouched) {
+          record = null;
+          resumeOutcome = 'replaced-by-new';
         }
       }
 
@@ -203,7 +222,7 @@ export class SessionMaterializer {
           entry,
           response.configOptions !== undefined
         );
-        const queueResult = this.queueInitialPrompts(record, input);
+        const queueResult = await this.queueInitialPrompts(record, input);
         if (!queueResult.success) return queueResult;
         record.cell.applySessionReady();
       }
@@ -326,10 +345,14 @@ export class SessionMaterializer {
     return record;
   }
 
-  private queueInitialPrompts(
+  private async queueInitialPrompts(
     record: SessionRecord,
     input: AcpStartInput
-  ): Result<void, InvalidStateError> {
+  ): Promise<Result<void, MaterializationStartError>> {
+    if (input.initialQueue?.length) {
+      const preserved = await record.conversation.preserveSession(record);
+      if (!preserved.success) return preserved;
+    }
     for (const prompt of input.initialQueue ?? []) {
       const result = record.cell.queuePrompt(prompt);
       if (!result.success) return result;
@@ -478,9 +501,35 @@ function providerErrorDetails(error: unknown): { code?: number; providerMessage?
       ? data
       : data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
         ? data.message
-        : undefined;
+        : data && typeof data === 'object' && 'details' in data && typeof data.details === 'string'
+          ? data.details
+          : undefined;
   return {
     ...(code !== undefined && { code }),
     ...(message !== undefined && { providerMessage: redactSecrets(message).slice(0, 2_000) }),
   };
+}
+
+function isSessionNotFound(
+  error: unknown,
+  sessionId: string,
+  providerCheck?: (error: unknown, sessionId: string) => boolean
+): boolean {
+  const seen = new Set<object>();
+  while (error && typeof error === 'object' && !seen.has(error)) {
+    seen.add(error);
+    if (providerCheck?.(error, sessionId)) return true;
+    const data = 'data' in error ? error.data : undefined;
+    if (
+      'code' in error &&
+      error.code === -32002 &&
+      data &&
+      typeof data === 'object' &&
+      'uri' in data &&
+      data.uri === sessionId
+    )
+      return true;
+    error = 'cause' in error ? error.cause : undefined;
+  }
+  return false;
 }

@@ -72,6 +72,7 @@ export function createContinuityHarness(
   const contract = defineContract({
     acp: defineContract({
       attach: conversationsContract.acp.attach,
+      startSession: conversationsContract.acp.startSession,
       session: conversationsContract.acp.session,
       sendPrompt: conversationsContract.acp.sendPrompt,
       loadHistory: conversationsContract.acp.loadHistory,
@@ -106,13 +107,19 @@ export function createContinuityHarness(
   const loadHistory = vi.fn(async (input: { before?: number; limit: number }) =>
     ok(historyPage(input.before, input.limit))
   );
-  const attach = vi.fn(async () => ok(undefined));
+  const attach = vi.fn(async () => ok({ sessionId: 'session-1' }));
   const sendPrompt = vi.fn(async () => ok({ queued: peek(state).isGenerating }));
   const hub = createWireSessionHub(
     createController(
       contract,
       {
-        acp: { attach, session, loadHistory, sendPrompt },
+        acp: {
+          attach,
+          startSession: async () => ok({ sessionId: 'session-1' }),
+          session,
+          loadHistory,
+          sendPrompt,
+        },
       },
       { validate: 'full' }
     )

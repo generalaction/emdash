@@ -18,6 +18,9 @@ export const acpStartInputSchema = z.object({
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
 
+export const acpSessionStartModeSchema = z.enum(['resume', 'fresh']);
+export type AcpSessionStartMode = z.infer<typeof acpSessionStartModeSchema>;
+
 export const sendPromptResponseSchema = z.object({ queued: z.boolean() });
 
 export const terminateCommandSchema = z.object({ conversationId: z.string() });
@@ -73,11 +76,7 @@ export const historyPageSchema = z.object({
 });
 export type HistoryPage = z.infer<typeof historyPageSchema>;
 
-export const loadHistoryResultSchema = historyPageSchema.extend({
-  clearedConfiguration: z
-    .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
-    .optional(),
-});
+export const loadHistoryResultSchema = historyPageSchema;
 export type LoadHistoryResult = z.infer<typeof loadHistoryResultSchema>;
 
 export { queuedPromptSchema };

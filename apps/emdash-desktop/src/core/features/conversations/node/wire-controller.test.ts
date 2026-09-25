@@ -51,8 +51,19 @@ const target = {
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
+  it.each(['resume', 'fresh'] as const)(
+    'starts in %s mode with the trusted descriptor',
+    async (mode) => {
+      const startSession = vi.fn(async () => ok({ sessionId: 'session-1' }));
+      const controller = setupController({ client: { acp: { startSession } } });
+      expect(
+        await controller.call('acp.startSession', { conversationId: target.conversationId, mode })
+      ).toEqual(ok({ sessionId: 'session-1' }));
+      expect(startSession).toHaveBeenCalledWith({ ...target.acpInput, mode }, { timeoutMs: 0 });
+    }
+  );
   it('adds project environment variables to trusted ACP spawn input', async () => {
-    const attach = vi.fn(async () => ok(undefined));
+    const attach = vi.fn(async () => ok({ sessionId: null }));
     const getProviderEnv = vi.fn(async () => ({
       CLAUDE_CONFIG_DIR: '/provider/config',
       PROVIDER_ONLY: 'provider',
@@ -112,7 +123,7 @@ describe('createConversationsWireController', () => {
 
     await expect(
       controller.call('acp.attach', { conversationId: target.conversationId })
-    ).resolves.toEqual(ok(undefined));
+    ).resolves.toEqual(ok({ sessionId: null }));
 
     expect(attach).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -131,14 +142,14 @@ describe('createConversationsWireController', () => {
     });
   });
 
-  it('attaches with the trusted descriptor and activates while loading history', async () => {
-    const attach = vi.fn(async () => ok(undefined));
+  it('attaches with the trusted descriptor and reads history without starting a session', async () => {
+    const attach = vi.fn(async () => ok({ sessionId: null }));
     const loadHistory = vi.fn(async () => ok({ turns: [], nextCursor: null }));
     const controller = setupController({ client: { acp: { attach, loadHistory } } });
 
     await expect(
       controller.call('acp.attach', { conversationId: target.conversationId })
-    ).resolves.toEqual(ok(undefined));
+    ).resolves.toEqual(ok({ sessionId: null }));
     await expect(
       controller.call('acp.loadHistory', { conversationId: target.conversationId, limit: 100 })
     ).resolves.toEqual(ok({ turns: [], nextCursor: null }));
@@ -174,22 +185,21 @@ describe('createConversationsWireController', () => {
   });
 
   it('clears unsupported selections reported by activation from host config', async () => {
-    const loadHistory = vi.fn(async () =>
+    const startSession = vi.fn(async () =>
       ok({
-        turns: [],
-        nextCursor: null,
+        sessionId: 'session-1',
         clearedConfiguration: ['model', 'modeId', 'collaborationMode'] as const,
       })
     );
     const persistAcpConfigOption = vi.fn(async () => {});
     const controller = setupController({
-      client: { acp: { loadHistory } },
+      client: { acp: { startSession } },
       hooks: { persistAcpConfigOption },
     });
 
-    await controller.call('acp.loadHistory', {
+    await controller.call('acp.startSession', {
       conversationId: target.conversationId,
-      limit: 50,
+      mode: 'resume',
     });
 
     expect(persistAcpConfigOption.mock.calls).toEqual([

@@ -23,6 +23,7 @@ import type {
   AcpSendPromptError,
   AcpSetOptionError,
   AcpStartError,
+  AcpSessionStartMode,
   HistoryPage,
   NormalizedEvent,
   SessionState,
@@ -96,6 +97,7 @@ export function isAcpWakeFailure(error: unknown): error is AcpWakeFailure {
 }
 
 type SuspendedIntentEntry = {
+  unstarted: boolean;
   descriptor: AcpStartInput;
   configOverrides: ConfigOverrides;
   retained: RetainedPresentation;
@@ -150,7 +152,7 @@ export class SessionManager {
       },
       discardRecord: (record) => {
         record.conversation.discardProvisional(record);
-        this.discardReplacedRecord(record);
+        return this.teardownRecord(record);
       },
       registerRoute: (processOwner, acpSessionId, conversationId) =>
         this.router.register(processOwner, acpSessionId, conversationId),
@@ -186,7 +188,7 @@ export class SessionManager {
     });
   }
 
-  async attach(input: AcpStartInput): Promise<Result<void, AcpStartError>> {
+  async attach(input: AcpStartInput): Promise<Result<{ sessionId: string | null }, AcpStartError>> {
     await this.retained.get(input.conversationId)?.waitForEviction();
     const existing = this.getOrRestoreHandle(input.conversationId);
     const entry =
@@ -198,25 +200,13 @@ export class SessionManager {
       });
     if (existing) entry.refreshDescriptor(input);
     entry.saveIntent();
-    return ok();
+    return ok({ sessionId: entry.descriptor.sessionId });
   }
 
-  async ensureActivation(conversationId: string): Promise<
-    Result<
-      {
-        sessionId: string;
-        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
-      },
-      AcpStartError
-    >
-  > {
-    const entry = this.retained.get(conversationId);
-    if (!entry) return acpErr.invalidState(`ACP conversation '${conversationId}' is not attached`);
-    await entry.waitForEviction();
-    return this.activateEntry(entry, false);
-  }
-
-  async launch(input: AcpStartInput): Promise<
+  async startSession(
+    input: AcpStartInput,
+    mode: AcpSessionStartMode
+  ): Promise<
     Result<
       {
         sessionId: string;
@@ -239,12 +229,13 @@ export class SessionManager {
     if (entry.descriptor.sessionId) entry.saveIntent();
     this.lifecycle.recordInput(input.conversationId);
 
-    return this.activateEntry(entry, !existing);
+    return this.activateEntry(entry, !existing, mode);
   }
 
   private async activateEntry(
     entry: ConversationHandle,
-    removeOnInitialFailure: boolean
+    removeOnInitialFailure: boolean,
+    mode: AcpSessionStartMode
   ): Promise<
     Result<
       {
@@ -254,11 +245,13 @@ export class SessionManager {
       AcpStartError
     >
   > {
-    const started = await entry.ensure();
+    const started = await entry.ensure(mode);
     if (!started.success) {
       if (started.error.type === 'conversation_not_found') {
         return acpErr.invalidState('ACP conversation was deleted while starting');
       }
+      // Rejecting a fresh request must not disturb a concurrent resume or a live session.
+      if (mode === 'fresh') return err(started.error);
       if (removeOnInitialFailure && !entry.everMaterialized && entry.state !== 'killed') {
         entry.kill(started.error);
         await entry.forceRemove(started.error);
@@ -300,6 +293,10 @@ export class SessionManager {
 
     const { record } = materialized.data;
     entry.markMaterialized(record, materialized.data.initialQueueConsumed);
+    if (record.resumeOutcome === 'replaced-by-new') {
+      const persisted = await entry.persistSession(record);
+      if (!persisted.success) return persisted;
+    }
     return ok(record);
   }
 
@@ -358,6 +355,8 @@ export class SessionManager {
         return acpErr.promptFailed(toSerializedError(error));
       }
       if (!entry.isCurrent()) return acpErr.conversationNotFound(input.conversationId);
+      const preserved = await entry.preserveSession(lease.value);
+      if (!preserved.success) return this.mapWakeError(preserved.error);
       this.lifecycle.recordInput(input.conversationId);
       if (input.placement === 'queue') {
         const state = lease.value.cell.sessionState;
@@ -754,6 +753,7 @@ export class SessionManager {
       consumed?: boolean;
       everMaterialized?: boolean;
       retained?: RetainedPresentation;
+      unstarted?: boolean;
     } = { suspended: false }
   ): ConversationHandle {
     const projection = this.sessionHost.models(input.conversationId);
@@ -765,6 +765,7 @@ export class SessionManager {
         listProjector: this.listProjector,
         terminals: this.terminals,
         saveIntent: () => this.lifecycle.saveIntent(input.conversationId),
+        persistIntent: () => this.lifecycle.persistIntent(input.conversationId),
         materialize: (scope) => this.startActivation(entry, scope),
         interruptRecord: (record) => this.interruptRecord(record),
         onActivated: (record) => {
@@ -809,7 +810,8 @@ export class SessionManager {
         } satisfies ConfigOverrides),
       options.consumed ?? false,
       options.everMaterialized ?? (options.suspended || input.sessionId !== null),
-      options.retained
+      options.retained,
+      options.unstarted
     );
     this.retained.set(input.conversationId, entry);
     if (options.suspended) entry.initializeSuspended();
@@ -860,6 +862,11 @@ export class SessionManager {
       retained = emptyRetainedPresentation(configured);
     }
     return {
+      unstarted:
+        descriptor.sessionId === null ||
+        (parsedV1.success &&
+          parsedV1.data.unstarted === true &&
+          descriptor.sessionId === parsedV1.data.sessionId),
       descriptor,
       configOverrides,
       retained,
@@ -883,6 +890,7 @@ export class SessionManager {
       consumed: true,
       everMaterialized: indexed.descriptor.sessionId !== null,
       retained: indexed.retained,
+      unstarted: indexed.unstarted,
     });
   }
 
@@ -899,7 +907,7 @@ export class SessionManager {
     intent: SessionIntent,
     indexed: SuspendedIntentEntry
   ): Promise<void> {
-    const payload = persistedIntentPayload(indexed.descriptor, indexed.retained);
+    const payload = persistedIntentPayload(indexed.descriptor, indexed.retained, indexed.unstarted);
     if (
       intent.status === 'suspended' &&
       JSON.stringify(intent.payload) === JSON.stringify(payload)
@@ -993,10 +1001,6 @@ export class SessionManager {
     await this.terminals.disposeConversation(record.input.conversationId);
   }
 
-  private discardReplacedRecord(record: SessionRecord): void {
-    void this.teardownRecord(record);
-  }
-
   private mapWakeError<E>(error: ActivationStartError): Result<never, E | AcpWakeFailure> {
     if (error.type === 'conversation_not_found') return err(error) as Result<never, E>;
     return err({ kind: 'wake-failed', error });
@@ -1031,7 +1035,8 @@ function configuredOverrides(configured: RetainedPresentation['configured']): Co
 
 function persistedIntentPayload(
   descriptor: AcpStartInput,
-  retained: RetainedPresentation
+  retained: RetainedPresentation,
+  unstarted: boolean
 ): Serializable {
   return {
     version: '1',
@@ -1039,6 +1044,7 @@ function persistedIntentPayload(
     providerId: descriptor.providerId,
     cwd: descriptor.cwd,
     sessionId: descriptor.sessionId,
+    unstarted,
     configured: retained.configured,
     presentation: retained,
   } as unknown as Serializable;

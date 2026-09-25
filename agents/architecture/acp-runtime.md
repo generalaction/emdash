@@ -106,13 +106,20 @@ hook, and asks the `SessionRouter` to resolve the owning conversation. The cell 
 through the reducer; its handle republishes the resulting activation snapshot through the
 conversation-keyed projection.
 
-The public API describes user intent instead of exposing lifecycle choreography. Desktop resolves
-the authoritative conversation configuration and fresh provider environment, then `attach` creates
-or refreshes the handle and publishes its retained projection without spawning a provider.
-`loadHistory` and `sendPrompt` ensure an activation internally and coalesce through the handle's
-lifecycle cell. `setOption` updates one of the provider's model, mode, or effort dimensions without
-waking a suspended session. Headless callers that need creation and activation as one atomic
-operation use `launch`; there is no public `ensureActivation`, `start`, or `resume` procedure.
+The public API separates session startup from observation. Desktop resolves the authoritative
+conversation configuration and provider environment. `attach` creates or refreshes the handle,
+publishes its retained projection, and returns the runtime-owned provider session reference without
+spawning a provider. After subscribing, the desktop calls `startSession` with `mode: 'resume' | 'fresh'`,
+then reads history. The reference returned by attachment selects `fresh` for a never-started
+Conversation and `resume` otherwise, even when the desktop's session reference has not converged.
+Headless callers use the same `startSession` operation with their trusted descriptor.
+
+`resume` uses the retained session reference; `fresh` skips loading it and uses `session/new`.
+Concurrent starts coalesce through the handle's lifecycle cell. A fresh request cannot replace
+an already-active session. `loadHistory` only reads available history and reports `unavailable`
+while suspended; it does not activate a provider. `sendPrompt` may still wake a suspended session
+as part of that explicit command. `setOption` updates the desired model, mode, or effort without
+waking a suspended session.
 
 `sendPrompt` (protocol 8) waits for activation and attachment validation, then acknowledges
 once the live session accepts the prompt for dispatch or queuing. Its host-owned operation retains
@@ -138,8 +145,14 @@ The changed acknowledgement semantics require protocol major 8. Older clients or
 upgrade through the existing protocol-incompatibility flow; there is no legacy sending fallback.
 
 The handle persists an explicitly allowlisted, versioned intent containing provider/session
-identity, cwd, desired model/mode/effort, and a bounded non-secret presentation snapshot. Provider
-environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never persisted.
+identity, cwd, desired model/mode/effort, and a bounded non-secret presentation snapshot.
+An optional `unstarted` marker is affirmative evidence that Emdash has neither dispatched a prompt
+nor adopted nonempty provider history. An empty replay preserves the marker. Before either action,
+the handle clears that marker through an awaited FIFO intent write. Persistence failure prevents
+dispatch. Legacy intents without the marker
+are never assumed empty. Configuration and presentation writes use the same persistence queue.
+Provider environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never
+persisted.
 The runtime reports provider session identity and resume outcomes through the host conversation
 index. Interactive callers therefore never persist lifecycle response data themselves.
 
@@ -210,21 +223,35 @@ trusted fresh descriptor and publishes the retained presentation. Terminating an
 deletes its intent without starting a provider. Legacy or over-broad intents are parsed through a
 restricted migration and rewritten in the safe schema.
 
-`loadHistory`, `sendPrompt`, and the headless `launch` operation materialize a suspended activation.
+`startSession` and `sendPrompt` materialize a suspended activation.
 Mode, model, and effort changes update desired state and persist without waking when suspended or
 materializing; the latest revision is applied after load and before the first queued prompt. Other
 reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
-one. Restoring a saved provider session never falls back to `newSession`: a failed or unsupported
-load preserves the saved pointer and returns a retryable error. An unavailable history page is not
-proof of an empty conversation; callers retain existing transcripts, and first loads with unknown
-history expose an error instead of the new-chat state. Provider restoration errors require explicit
-retry, while transient transport failures retain the existing bounded-backoff refresh behavior.
+one. Restoration always tries the saved provider session first. Only a provider-confirmed missing
+session whose persisted `unstarted` marker remains true may fall back to `newSession`, within the
+same conversation. Partial replay revokes that permission before a failure is returned. Other
+failed or unsupported loads preserve the saved pointer. A missing session with unknown or used
+history returns `session_not_found`; the desktop offers both explicit retry (after correcting the
+provider context) and a fresh bootstrap of the same Conversation. Both use the same `startSession`
+operation, choosing `resume` for retry or `fresh` for explicit replacement. A fresh replacement
+retains the draft and desired configuration and never replays the previous initial prompt. Initial
+queued prompts are still delivered on the first fresh start of a new Conversation. The old pointer
+remains intact if creation fails, and a successful replacement is persisted before startup succeeds.
+Lifecycle reports publish the replacement through the existing Conversation index. There is no
+session-id failure cache.
+An unavailable history page is not proof of an empty conversation; callers retain existing
+transcripts, and first loads with unknown history expose an error instead of the new-chat state.
+Provider restoration errors require explicit
+retry. Provisional replay revisions are not committed history changes and do not schedule history
+refresh. A failed restoration also clears refresh requests queued during that attempt. Transient
+history-read failures receive at most five retries with exponential backoff capped at 15 seconds,
+then expose an explicit retry action while retaining the transcript.
 
 Provider replay reconstructs committed history internally. While the session is replaying, its
 public projection exposes no active turn, so partial historical messages cannot briefly enter and
 leave the live renderer. A successful load publishes any rebound provider session identity; a
-failed or unsupported load preserves the original identity and returns a retryable error instead
-of creating a replacement session. Failures log the original serialized exception.
+failed or unsupported load preserves the original identity unless the untouched-session exception
+above applies. Failures log the original serialized exception.
 
 Unsupported saved selections are removed only after replay finalization, initial prompt queuing,
 and route registration succeed. Until then, desired settings remain intact in memory and in the
@@ -325,3 +352,11 @@ rules:
 - Keep wire envelopes such as history pages, terminal output stream events, and
   runtime errors in the ACP API layer because they are transport framing, not
   domain models.
+
+Protocol 11 replaces `launch` with `startSession` and its required `resume`/`fresh` mode, returns
+the current provider reference from attachment, makes history reads non-waking, and adds the
+`session_not_found` error variant. These are breaking changes, including a closed error-union
+change for older clients. ACP resource-not-found errors must identify the
+requested session; provider-specific evidence (such as Codex's missing-rollout response wrapped in
+`-32603`) is recognized by the plugin's `isSessionNotFound` hook. Generic internal errors and missing
+files are not evidence that conversation history is gone.

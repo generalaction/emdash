@@ -1,3 +1,4 @@
+import { ok } from '@emdash/shared';
 import { systemClock } from '@emdash/shared/scheduling';
 import { cell, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
@@ -280,6 +281,7 @@ function makeHandle(
       listProjector,
       terminals: { listByConversation: () => [] },
       saveIntent,
+      persistIntent: async () => ok(),
       materialize:
         options.materialize ??
         (async () => {

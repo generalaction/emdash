@@ -107,6 +107,7 @@ it.each(['live', 'submitted', 'disposed', 'unavailable', 'reattached'] as const)
       usage: remote(null),
       terminals: remote([]),
       mcpServers: remote([]),
+      startSession: vi.fn(async () => ok({ sessionId: 'session-1' })),
       loadHistory: vi.fn(async () => ok(await history.promise)),
       sendPrompt: vi.fn(async () => ok({ queued: false })),
       usable: true,

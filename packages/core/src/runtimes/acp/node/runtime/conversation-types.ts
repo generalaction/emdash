@@ -15,7 +15,7 @@ export interface SessionRecord {
   conversation: ConversationHandle;
   epoch: number;
   input: AcpStartInput;
-  resumeOutcome: 'loaded' | null;
+  resumeOutcome: 'loaded' | 'replaced-by-new' | null;
   clearedConfiguration: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
   processKey: string;
   processGeneration: number;

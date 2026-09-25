@@ -217,14 +217,21 @@ export function createConversationsWireController(
           client.acp.attach(input, callOptions(meta))
         );
       },
-      loadHistory: async (input, meta) => {
-        const runtimeTarget = await target(input.conversationId);
+      startSession: async ({ conversationId, mode }, meta) => {
+        const runtimeTarget = await target(conversationId);
+        const input = runtimeTarget.acpInput;
+        if (!input) throw missingAcpInputError(runtimeTarget);
         return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
-          const result = await client.acp.loadHistory(input, callOptions(meta));
+          const result = await client.acp.startSession(
+            { ...input, mode },
+            { ...callOptions(meta), timeoutMs: 0 }
+          );
           await persistClearedConfiguration(hooks, runtimeTarget, result, options.logger);
           return result;
         });
       },
+      loadHistory: (input, meta) =>
+        run(input.conversationId, (client) => client.acp.loadHistory(input, callOptions(meta))),
       terminate: (input, meta) =>
         run(input.conversationId, (client) => client.acp.terminate(input, callOptions(meta))),
       sendPrompt: (input, meta) =>

@@ -20,7 +20,10 @@ describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    const started = await rt.launchSession(makeStartInput({ conversationId: 'conv-contract' }));
+    const started = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-contract' }),
+      'resume'
+    );
     expect(isOk(started)).toBe(true);
 
     const live = rt.sessionLiveModels('conv-contract');
@@ -45,7 +48,7 @@ describe('ACP API contract schemas', () => {
     try {
       await summaries.states.list.refresh();
       const input = makeStartInput({ conversationId: 'conv-wire' });
-      const started = await contractClient.launch(input);
+      const started = await contractClient.startSession({ ...input, mode: 'resume' });
       expect(started).toEqual({ success: true, data: { sessionId: 'session-1' } });
 
       await vi.waitFor(() => {
@@ -65,17 +68,18 @@ describe('ACP API contract schemas', () => {
     }
   });
 
-  it('loads history through activation and keeps dormant settings non-waking', async () => {
+  it('starts explicitly before loading history and keeps dormant settings non-waking', async () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     const rt = new AcpRuntime(h.deps);
     const wire = createTestWire(acpApiContract, createAcpController(rt));
     const input = makeStartInput({ conversationId: 'conv-wire-suspended' });
 
     try {
-      await wire.client.launch(input);
+      await wire.client.startSession({ ...input, mode: 'resume' });
       await rt.stopSession(input.conversationId);
       h.agent.loadSession.mockClear();
       h.agent.newSession.mockClear();
+      await wire.client.startSession({ ...input, mode: 'resume' });
 
       await expect(
         wire.client.loadHistory({
@@ -127,6 +131,37 @@ describe('ACP API contract schemas', () => {
       expect(h.agent.newSession).not.toHaveBeenCalled();
     } finally {
       wire.dispose();
+    }
+  });
+
+  it('returns a missing saved session error over the wire', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const input = makeStartInput({ conversationId: 'conv-missing-wire', sessionId: 'missing' });
+    h.agent.loadSession.mockRejectedValueOnce(
+      Object.assign(new Error('Resource not found: missing'), {
+        code: -32002,
+        data: { uri: 'missing' },
+      })
+    );
+    try {
+      await wire.client.attach(input);
+      await expect(wire.client.startSession({ ...input, mode: 'resume' })).resolves.toMatchObject({
+        success: false,
+        error: { type: 'session_not_found' },
+      });
+      expect(await wire.client.startSession({ ...input, mode: 'fresh' })).toMatchObject({
+        success: true,
+      });
+      expect(
+        await wire.client.loadHistory({ conversationId: input.conversationId, limit: 50 })
+      ).toMatchObject({ success: true, data: { turns: [] } });
+      expect(h.agent.loadSession).toHaveBeenCalledOnce();
+      expect(h.agent.newSession).toHaveBeenCalledOnce();
+    } finally {
+      wire.dispose();
+      await rt.dispose();
     }
   });
 

@@ -84,11 +84,12 @@ export function createSessionPortFromDependencies(dependencies: {
           });
         }
         if (input.agent.type === 'acp') {
-          const result = await dependencies.acp.launch(
+          const result = await dependencies.acp.startSession(
             {
               conversationId: input.conversationId,
               cwd,
               sessionId: null,
+              mode: 'fresh',
               ...input.agent.start,
             },
             { signal: input.signal }
