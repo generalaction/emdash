@@ -25,9 +25,14 @@
  *   animate  — advance all active tweens; return true while any remain active.
  *   write    — flush coalesced height total and apply at most one scroll write;
  *              return true if more write work was queued this tick.
+ *   prefetch — optional budgeted background measurement of off-screen rows;
+ *              runs after write (so it sees the frame's committed visible
+ *              range); return true while more of the window remains. Its
+ *              re-arm is deliberately exempt from the write converge guard —
+ *              a long prefetch walk across many frames is normal, not a spin.
  *
  * Usage:
- *   const scheduler = createFrameScheduler({ read, animate, write });
+ *   const scheduler = createFrameScheduler({ read, animate, write, prefetch });
  *   scheduler.request();        // arm from any event handler or tween start
  *   scheduler.forceReconcile(); // re-arm + mark dirty on reattach/visibility
  *   scheduler.dispose();        // cancel in onCleanup
@@ -39,6 +44,7 @@ export type FrameSchedulerPhases = {
   read: () => void;
   animate: () => boolean;
   write: () => boolean;
+  prefetch?: () => boolean;
 };
 
 export type FrameScheduler = {
@@ -62,10 +68,12 @@ export function createFrameScheduler(phases: FrameSchedulerPhases): FrameSchedul
     rafId = null;
     let moreAnimate = false;
     let moreWrite = false;
+    let morePrefetch = false;
     try {
       phases.read();
       moreAnimate = phases.animate();
       moreWrite = phases.write();
+      morePrefetch = phases.prefetch?.() ?? false;
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('[chat-ui] frame scheduler phase error', err);
@@ -86,7 +94,9 @@ export function createFrameScheduler(phases: FrameSchedulerPhases): FrameSchedul
       } else {
         consecutiveWrites = 0;
       }
-      if (!halted && (moreAnimate || moreWrite)) request();
+      // Prefetch continuation re-arms even when a write-loop halt fired: the
+      // halt exists to stop write/invalidate spins, not background measures.
+      if ((!halted && (moreAnimate || moreWrite)) || morePrefetch) request();
     }
   };
 

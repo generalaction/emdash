@@ -192,6 +192,98 @@ describe('createFrameScheduler — sleeps when idle', () => {
   });
 });
 
+describe('createFrameScheduler — prefetch phase', () => {
+  it('runs prefetch after write in each tick', () => {
+    const raf = makeFakeRaf();
+    withFakeRaf(raf, () => {
+      const order: string[] = [];
+      const scheduler = createFrameScheduler({
+        read: () => {
+          order.push('read');
+        },
+        animate: () => {
+          order.push('animate');
+          return false;
+        },
+        write: () => {
+          order.push('write');
+          return false;
+        },
+        prefetch: () => {
+          order.push('prefetch');
+          return false;
+        },
+      });
+
+      scheduler.request();
+      raf.flush();
+
+      expect(order).toEqual(['read', 'animate', 'write', 'prefetch']);
+    });
+  });
+
+  it('re-schedules while prefetch returns true', () => {
+    const raf = makeFakeRaf();
+    withFakeRaf(raf, () => {
+      let slices = 0;
+      const scheduler = createFrameScheduler({
+        read: vi.fn(),
+        animate: vi.fn(() => false),
+        write: vi.fn(() => false),
+        prefetch: () => {
+          slices++;
+          return slices < 3;
+        },
+      });
+
+      scheduler.request();
+      raf.flush();
+      expect(raf.queueLength()).toBe(1);
+      raf.flush();
+      expect(raf.queueLength()).toBe(1);
+      raf.flush();
+      expect(raf.queueLength()).toBe(0);
+      expect(slices).toBe(3);
+    });
+  });
+
+  it('prefetch does not trip the write converge guard', () => {
+    const raf = makeFakeRaf();
+    withFakeRaf(raf, () => {
+      let slices = 0;
+      const scheduler = createFrameScheduler({
+        read: vi.fn(),
+        animate: vi.fn(() => false),
+        write: vi.fn(() => false),
+        prefetch: () => {
+          slices++;
+          return slices < 20; // longer than MAX_CONVERGE (6)
+        },
+      });
+
+      scheduler.request();
+      for (let i = 0; i < 25; i++) raf.flush();
+      // All 20 slices ran — the converge halt (write-loop guard) never fired.
+      expect(slices).toBe(20);
+      expect(raf.queueLength()).toBe(0);
+    });
+  });
+
+  it('works without a prefetch phase (optional)', () => {
+    const raf = makeFakeRaf();
+    withFakeRaf(raf, () => {
+      const scheduler = createFrameScheduler({
+        read: vi.fn(),
+        animate: vi.fn(() => false),
+        write: vi.fn(() => false),
+      });
+      scheduler.request();
+      raf.flush();
+      expect(raf.queueLength()).toBe(0);
+    });
+  });
+});
+
 describe('createFrameScheduler — dispose', () => {
   it('cancels a pending rAF and prevents the tick from running', () => {
     const raf = makeFakeRaf();

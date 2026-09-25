@@ -102,14 +102,14 @@ const OVERSCAN_BASE = 12;
 const OVERSCAN_LEADING = 20;
 const OVERSCAN_TRAILING = 8;
 
-// Idle-time prefetch: how many rows beyond the overscan window to pre-measure
-// during requestIdleCallback slices. Rows ahead in scroll direction get a
-// larger budget; behind get a smaller one.
+// Prefetch (scheduler phase): how many rows beyond the visible window to
+// pre-measure. Rows ahead in scroll direction get a larger budget; behind get
+// a smaller one.
 const PREFETCH_AHEAD = 40;
 const PREFETCH_BEHIND = 20;
-// Stop the current idle slice if less than this many ms remain (leaves headroom
-// for the browser's own idle tasks).
-const PREFETCH_MIN_REMAINING_MS = 3;
+// Per-frame prefetch time budget (ms). The phase runs after write inside the
+// frame scheduler; unfinished windows continue on the next frame.
+const PREFETCH_FRAME_BUDGET_MS = 3;
 
 // onReachStart fires when the top row is visible and scrollTop is within this
 // threshold of the canvas top. Debounced: only fires once until reset.
@@ -619,8 +619,8 @@ export function ChatRoot(props: ChatRootProps) {
   // lastLayout: previous LayoutSnapshot so commit() can diff field-by-field.
   let lastLayout: LayoutSnapshot | null = null;
 
-  // lastVisibleStart/End: mirrors of the last derived visible range, used by
-  // the idle prefetch slice (which runs outside the reactive scheduler).
+  // lastVisibleStart/End: mirrors of the last derived visible range, consumed
+  // by the scheduler's prefetch phase (which runs after write each frame).
   let lastVisibleStart = 0;
   let lastVisibleEnd = -1;
 
@@ -995,8 +995,6 @@ export function ChatRoot(props: ChatRootProps) {
     } else {
       reachStartFired = false;
     }
-
-    schedulePrefetch();
   };
 
   const animatePhase = (): boolean => tweenRegistry.advance(performance.now());
@@ -1076,10 +1074,72 @@ export function ChatRoot(props: ChatRootProps) {
     return false;
   };
 
+  // ── Prefetch phase — budgeted off-screen measurement ──────────────────────
+  //
+  // Runs after write (so it sees the frame's committed visible range) and
+  // walks a window of ±(PREFETCH_AHEAD / PREFETCH_BEHIND) rows around it,
+  // ahead-first, measuring through measureUnitCached so already-settled rows
+  // cost a fingerprint check, not a re-measure. A signature of the walk inputs
+  // (visible range, unit count, width, epoch) resets the cursor when the
+  // window itself changes; otherwise a finished walk is a no-op and the phase
+  // does not re-arm the scheduler.
+  let prefetchCursor = 0;
+  let prefetchSig = '';
+
+  const prefetchPhase = (): boolean => {
+    const visStart = lastVisibleStart;
+    const visEnd = lastVisibleEnd;
+    const us = units();
+    const n = us.length;
+    if (n === 0 || visEnd < 0) return false;
+
+    const sig = `${visStart}|${visEnd}|${n}|${containerWidth()}|${measureEpoch()}`;
+    if (sig !== prefetchSig) {
+      prefetchSig = sig;
+      prefetchCursor = 0;
+    }
+
+    const aheadCount = Math.max(0, Math.min(visEnd + PREFETCH_AHEAD, n - 1) - visEnd);
+    const behindCount = Math.max(0, visStart - Math.max(visStart - PREFETCH_BEHIND, 0));
+    const total = aheadCount + behindCount;
+    if (prefetchCursor >= total) return false;
+
+    const w = containerWidth();
+    const t = theme();
+    const deadline = performance.now() + PREFETCH_FRAME_BUDGET_MS;
+
+    while (prefetchCursor < total && performance.now() < deadline) {
+      const k = prefetchCursor++;
+      // Walk order: ahead in scroll direction first, then behind.
+      const ui = k < aheadCount ? visEnd + 1 + k : visStart - 1 - (k - aheadCount);
+      const u = us.at(ui);
+      if (!u) continue;
+      const unitDef = UNIT_REGISTRY[u.kind];
+      if (!unitDef) continue;
+      const unitInsetX = u.chrome?.insetX ?? 0;
+      const ctx: MeasureCtx = {
+        theme: t,
+        width: Math.max(0, w - 2 * unitInsetX),
+        isCollapsed: (id: string) => viewState().isCollapsed(id),
+        expanded: (id: string) => viewState().isCollapsed(id),
+        caches: caches(),
+        measureEpoch: measureEpoch(),
+        expandedId: expandedUserId(),
+      };
+      const contentH = measureUnitCached(u, ctx, unitDef);
+      const h = unitReservedHeight(u, contentH);
+      const delta = virt.setSize(ui, h);
+      if (delta !== 0) onHeightChanged(ui, delta);
+    }
+
+    return prefetchCursor < total;
+  };
+
   const scheduler = createFrameScheduler({
     read: readPhase,
     animate: animatePhase,
     write: writePhase,
+    prefetch: prefetchPhase,
   });
   onCleanup(() => scheduler.dispose());
 
@@ -1116,87 +1176,6 @@ export function ChatRoot(props: ChatRootProps) {
     scroll.invalidate();
     scheduler.request();
   });
-
-  // Idle-time prefetch state — referenced by readPhase / schedulePrefetch
-  let prefetchIdleId: ReturnType<typeof requestIdleCallback> | null = null;
-  let prefetchStart = -1;
-  let prefetchEnd = -1;
-
-  const schedulePrefetch = () => {
-    if (prefetchIdleId !== null) return;
-    prefetchIdleId = requestIdleCallback(runPrefetchSlice, { timeout: 500 });
-  };
-
-  const cancelPrefetch = () => {
-    if (prefetchIdleId !== null) {
-      cancelIdleCallback(prefetchIdleId);
-      prefetchIdleId = null;
-    }
-  };
-
-  const runPrefetchSlice = (deadline: IdleDeadline) => {
-    prefetchIdleId = null;
-
-    const visStart = lastVisibleStart;
-    const visEnd = lastVisibleEnd;
-    const us = units();
-    const n = us.length;
-    if (n === 0) return;
-
-    const ahead = Math.min(visEnd + PREFETCH_AHEAD, n - 1);
-    const behind = Math.max(visStart - PREFETCH_BEHIND, 0);
-
-    if (prefetchStart < 0 || prefetchEnd < 0) {
-      prefetchStart = visEnd + 1;
-      prefetchEnd = ahead;
-    }
-
-    const w = containerWidth();
-    const t = theme();
-
-    let measured = 0;
-
-    const prefetchUnit = (ui: number): void => {
-      const u = us.at(ui);
-      if (!u) return;
-      const unitDef = UNIT_REGISTRY[u.kind];
-      if (!unitDef) return;
-      const c = u.chrome;
-      const unitInsetX = c?.insetX ?? 0;
-      const ctx: MeasureCtx = {
-        theme: t,
-        width: Math.max(0, w - 2 * unitInsetX),
-        isCollapsed: (id: string) => viewState().isCollapsed(id),
-        expanded: (id: string) => viewState().isCollapsed(id),
-        caches: caches(),
-        measureEpoch: measureEpoch(),
-        expandedId: expandedUserId(),
-      };
-      const contentH = measureUnitCached(u, ctx, unitDef);
-      const h = unitReservedHeight(u, contentH);
-      const delta = virt.setSize(ui, h);
-      if (delta !== 0) onHeightChanged(ui, delta);
-    };
-
-    while (prefetchStart <= prefetchEnd && deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS) {
-      prefetchUnit(prefetchStart);
-      measured++;
-      prefetchStart++;
-    }
-
-    if (prefetchStart > prefetchEnd) {
-      let backCursor = visStart - 1;
-      while (backCursor >= behind && deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS) {
-        prefetchUnit(backCursor);
-        measured++;
-        backCursor--;
-      }
-    }
-
-    if (measured > 0 && prefetchStart <= prefetchEnd) {
-      schedulePrefetch();
-    }
-  };
 
   // ── Scroll helpers ────────────────────────────────────────────────────────
   // Scroll commands live in the scroll module; doLoadOlder stays here because
@@ -1319,7 +1298,6 @@ export function ChatRoot(props: ChatRootProps) {
     el.addEventListener('scroll', onScroll, { passive: true });
     onCleanup(() => {
       el.removeEventListener('scroll', onScroll);
-      cancelPrefetch();
     });
 
     // On dispose: snapshot measured row heights and scroll anchor into ChatState
