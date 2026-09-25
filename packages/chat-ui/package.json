@@ -21,6 +21,10 @@
       "import": "./dist/host-styles.js",
       "types": "./dist/src/host-styles.d.ts"
     },
+    "./mock-transcript": {
+      "import": "./dist/mock-transcript.js",
+      "types": "./dist/src/mock-transcript.d.ts"
+    },
     "./style.css": "./dist/style.css"
   },
   "scripts": {

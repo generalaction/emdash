@@ -27,6 +27,9 @@ export default defineConfig({
     lib: {
       entry: {
         'host-styles': resolve(__dirname, 'src/host-styles.ts'),
+        // Stories/test-only entry — intentionally outside the main index so the
+        // mock corpus never ships through the public app-facing export.
+        'mock-transcript': resolve(__dirname, 'src/mock-transcript.ts'),
         index: resolve(__dirname, 'src/index.tsx'),
         styles: resolve(__dirname, 'src/styles-entry.ts'),
       },

@@ -369,5 +369,6 @@ Key kinds:
 
 ## Exported values
 
-- Functions: `createChatContext`, `createChatState`, `createChatView`, `buildChatTheme`, `DEFAULT_THEME`, `DEFAULT_CONFIG`, `createDefaultHighlighter`, `createTranscript`, `applyTurnEvent`, `finalizeTurn`, `createStreamSmoother`, `generateMockTranscript`, `mockMentionProvider`, `createChatCaches`.
+- Functions: `createChatContext`, `createChatState`, `createChatView`, `buildChatTheme`, `DEFAULT_THEME`, `DEFAULT_CONFIG`, `createDefaultHighlighter`, `createTranscript`, `applyTurnEvent`, `finalizeTurn`, `createStreamSmoother`, `createChatCaches`.
+- Stories/test-only entry `@emdash/chat-ui/mock-transcript`: `generateMockTranscript`, `mockMentionProvider`.
 - Types: `ChatContext`, `ChatContextOptions`, `ChatState`, `ChatView`, `ChatViewOptions`, `ChatViewSnapshot`, `ChatCommands`, `ScrollToItemOptions`, `ChatItem` and variants, `TranscriptApi`, `ChatTheme`, `ChatConfig`, `ChatHighlighter`, `MentionProvider`, `ChatCaches`, `SharedCaches`, `ParseCaches`.

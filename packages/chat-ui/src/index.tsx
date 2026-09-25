@@ -121,10 +121,6 @@ export type {
   ScrollToItemOptions,
 } from './commands';
 
-// ── Dev helpers ───────────────────────────────────────────────────────────────
-
-export { generateMockTranscript, mockMentionProvider } from './mock-transcript';
-
 // ── Cache types (for advanced use) ────────────────────────────────────────────
 
 export type { ChatCaches, SharedCaches, ParseCaches } from './core/caches';

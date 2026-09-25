@@ -39,19 +39,16 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
   const [elapsed, setElapsed] = createSignal(startElapsed);
 
-  let timer: ReturnType<typeof setInterval> | undefined;
-
   createEffect(() => {
-    if (props.item.status === 'thinking') {
-      timer = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - props.item.startedAt) / 1000));
-      }, 1000);
-    } else {
-      clearInterval(timer);
-      timer = undefined;
-    }
+    if (props.item.status !== 'thinking') return;
+    // onCleanup inside the effect: cleared on re-run and on dispose, so a
+    // truthy→truthy re-run (item identity swap while still thinking) can never
+    // strand a previous interval.
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - props.item.startedAt) / 1000));
+    }, 1000);
+    onCleanup(() => clearInterval(timer));
   });
-  onCleanup(() => clearInterval(timer));
 
   const label = () => {
     if (props.item.status === 'thinking') {

@@ -5,7 +5,8 @@ import type {
   MentionProvider,
   TranscriptTurn,
 } from '@emdash/chat-ui';
-import { createChatContext, createChatState, generateMockTranscript } from '@emdash/chat-ui';
+import { createChatContext, createChatState } from '@emdash/chat-ui';
+import { generateMockTranscript } from '@emdash/chat-ui/mock-transcript';
 import { tokens } from '@emdash/theme';
 import { ChatTranscript } from '@react/chat-ui';
 import type { Meta, StoryObj } from '@storybook/react-vite';

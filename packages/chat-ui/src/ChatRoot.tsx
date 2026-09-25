@@ -56,7 +56,6 @@ import type { ChatCaches } from './core/caches';
 import type { ThemeVarKey } from './core/config';
 import type { MeasureCtx } from './core/define';
 import { genericEstimate } from './core/layout/generic-estimate';
-import { STICK_THRESHOLD_PX } from './core/stick-to-bottom';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatItem, ChatMessage, TranscriptTurn } from './model';
@@ -91,6 +90,9 @@ import { vars } from './styles/theme.css';
 // scrollbar sits at the viewport edge) while rows are measured and laid out
 // against this capped, centered canvas — matching the desktop composer width.
 const DEFAULT_CONTENT_CLASS = defaultContentClass;
+
+/** Distance from the bottom (px) within which the viewport counts as "at bottom". */
+const STICK_THRESHOLD_PX = 48;
 
 // Vertical breathing room added above the first row and below the last row.
 const TRANSCRIPT_VERTICAL_PADDING = 32;

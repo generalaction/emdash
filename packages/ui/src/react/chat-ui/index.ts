@@ -140,5 +140,4 @@ export {
   createChatState,
   createChatView,
   createDefaultHighlighter,
-  generateMockTranscript,
 } from '@emdash/chat-ui';
