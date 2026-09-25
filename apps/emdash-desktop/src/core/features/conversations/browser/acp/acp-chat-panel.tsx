@@ -577,9 +577,24 @@ const ComposerForStore = observer(function ComposerForStore({
       {!disabledReason && store.loadError && (
         <div className="border-destructive/30 bg-destructive/5 mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
           <span className="truncate text-foreground-muted">{store.loadError.message}</span>
-          <Button variant="secondary" size="sm" onClick={() => store.retry()}>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={store.historyLoading}
+            onClick={() => store.retry()}
+          >
             Retry
           </Button>
+          {store.loadError.kind === 'session_not_found' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={store.historyLoading}
+              onClick={() => store.retry({ mode: 'fresh' })}
+            >
+              Start fresh session
+            </Button>
+          )}
         </div>
       )}
       <div>
@@ -911,6 +926,15 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
                   >
                     Retry
                   </Button>
+                  {store.loadError.kind === 'session_not_found' && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => store.retry({ mode: 'fresh' })}
+                    >
+                      Start fresh session
+                    </Button>
+                  )}
                 </div>
               )
             ) : (

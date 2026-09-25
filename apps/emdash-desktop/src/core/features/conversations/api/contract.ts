@@ -3,7 +3,11 @@ import {
   runtimeResolveErrorSchema,
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
-import { acpApiContract, sessionSummarySchema } from '@emdash/core/runtimes/acp/api/client';
+import {
+  acpApiContract,
+  acpSessionStartModeSchema,
+  sessionSummarySchema,
+} from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
 import { attachmentErrorSchema } from '@emdash/core/services/attachments/api';
 import { conversationAttachmentsContract } from '@emdash/core/services/attachments/api';
@@ -95,6 +99,10 @@ const desktopTuiSessions = liveModel({
 
 const conversationsAcpContract = defineContract({
   attach: runtimeFallibleProcedure(conversationKey, acpApiContract.attach.output),
+  startSession: runtimeFallibleProcedure(
+    conversationKey.extend({ mode: acpSessionStartModeSchema }),
+    acpApiContract.startSession.output
+  ),
   terminate: runtimeFallibleProcedure(
     acpApiContract.terminate.input,
     acpApiContract.terminate.output
@@ -147,7 +155,10 @@ const conversationsAcpContract = defineContract({
 });
 
 const conversationsTuiContract = defineContract({
-  start: runtimeFallibleProcedure(tuiAgentsContract.start.input, tuiAgentsContract.start.output),
+  startSession: runtimeFallibleProcedure(
+    tuiAgentsContract.startSession.input,
+    tuiAgentsContract.startSession.output
+  ),
   resume: runtimeFallibleProcedure(tuiAgentsContract.resume.input, tuiAgentsContract.resume.output),
   stop: runtimeFallibleProcedure(tuiAgentsContract.stop.input, tuiAgentsContract.stop.output),
   delete: runtimeFallibleProcedure(tuiAgentsContract.delete.input, tuiAgentsContract.delete.output),

@@ -75,6 +75,7 @@ export class SessionCell {
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
   private readonly effectDriver: MachineEffectDriver<Effect>;
+  private preparedPromptEffects: Effect[] | null = null;
 
   constructor(private readonly deps: SessionCellDeps) {
     this._acpSessionId = deps.acpSessionId;
@@ -180,6 +181,28 @@ export class SessionCell {
     this.applyEvent({ type: 'ReplayStarted' });
     this.transcript.beginReplay(at);
     this.lastRunningAgentCount = 0;
+  }
+
+  prepareActivation(
+    initialQueue: readonly PromptInput[],
+    resumed: boolean
+  ): Result<() => void, InvalidStateError> {
+    if (this.preparedPromptEffects) {
+      return acpErr.invalidState('Session activation is already prepared.');
+    }
+    const effects: Effect[] = [];
+    this.preparedPromptEffects = effects;
+    for (const prompt of initialQueue) {
+      const queued = this.queuePrompt(prompt);
+      if (!queued.success) return queued;
+    }
+    if (resumed) this.endReplay();
+    else this.applySessionReady();
+    return ok(() => {
+      if (this.preparedPromptEffects !== effects) return;
+      this.preparedPromptEffects = null;
+      this.interpretEffects(effects);
+    });
   }
 
   endReplay(at = Date.now()): void {
@@ -447,6 +470,7 @@ export class SessionCell {
 
   dispose(): void {
     this.clearQuiesce();
+    this.preparedPromptEffects = null;
     this.effectDriver.dispose();
     this.permissions.drain(this.machine.pendingPermissions);
   }
@@ -494,6 +518,10 @@ export class SessionCell {
         this.settleRunningAgents(effect.scope, effect.status);
         break;
       case 'sendPrompt':
+        if (this.preparedPromptEffects) {
+          this.preparedPromptEffects.push(effect);
+          break;
+        }
         this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
         void this.sendPromptInternal(effect.prompt).then((result) => {
           if (!result.success) {

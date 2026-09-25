@@ -1,8 +1,8 @@
 import type { Lease, Result, Serializable } from '@emdash/shared';
-import { ok } from '@emdash/shared';
+import { ok, toSerializedError } from '@emdash/shared';
 import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
 import { runWithTimeout, type Clock } from '@emdash/shared/scheduling';
-import { acpErr } from '#runtimes/acp/api';
+import { acpErr, type AcpSessionStartMode } from '#runtimes/acp/api';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { SessionConfigCatalog } from '#runtimes/acp/node/session/cell';
 import {
@@ -14,6 +14,7 @@ import {
   type RetainedPresentation,
   type SessionLiveModels,
 } from '#runtimes/acp/node/state/live-models';
+import type { SessionIntentUpdate } from '#services/session-lifecycle/api';
 import type {
   ActivationStartError,
   ConfigDimension,
@@ -37,6 +38,9 @@ export interface ConversationHandleDeps {
   listProjector: SessionsListProjector;
   terminals: Pick<AgentTerminalManager, 'listByConversation'>;
   saveIntent(): void;
+  persistIntent(
+    prepare: () => SessionIntentUpdate | null
+  ): Promise<Result<void, { message: string }>>;
   materialize(scope: Scope): Promise<Result<SessionRecord, ActivationStartError>>;
   interruptRecord(record: SessionRecord): void | Promise<void>;
   onActivated(record: SessionRecord): void;
@@ -59,6 +63,7 @@ export class ConversationHandle {
   private evictionPromiseValue: Promise<void> | null = null;
   private retainedValue: RetainedPresentation;
   private desiredRevisionValue = 0;
+  private freshRequested = false;
   // A timed-out close must continue fencing later activations until it settles or its
   // provider connection is gone. Disposing the old cell alone cannot prove that.
   private providerClose: { record: SessionRecord; task: Promise<void>; failed: boolean } | null =
@@ -77,14 +82,21 @@ export class ConversationHandle {
     public configOverrides: ConfigOverrides,
     public initialQueueConsumed: boolean,
     public everMaterialized: boolean,
-    retained?: RetainedPresentation
+    retained?: RetainedPresentation,
+    private unstarted = descriptor.sessionId === null
   ) {
     this.conversationId = descriptor.conversationId;
     this.retainedValue =
       retained ?? emptyRetainedPresentation(configuredFromDescriptor(descriptor));
     this.activation = createLifecycleCell({
       label: `acp-conversation:${this.conversationId}`,
-      start: (_input, scope) => this.deps.materialize(scope),
+      start: async (_input, scope) => {
+        try {
+          return await this.deps.materialize(scope);
+        } finally {
+          this.freshRequested = false;
+        }
+      },
       interrupt: (record) => this.interrupt(record),
       stop: async () => ok(),
       drainTimeoutMs: deps.activationDrainTimeoutMs,
@@ -152,11 +164,26 @@ export class ConversationHandle {
     return !this.disposedValue && this.stateValue !== 'killed';
   }
 
-  ensure(): Promise<Result<SessionRecord, ActivationStartError>> {
+  ensure(
+    mode: AcpSessionStartMode = 'resume'
+  ): Promise<Result<SessionRecord, ActivationStartError>> {
     if (!this.isCurrent()) {
       return Promise.resolve(acpErr.conversationNotFound(this.conversationId));
     }
+    if (mode === 'fresh' && !this.freshRequested) {
+      const state = this.activation.state();
+      if (state.kind !== 'idle' && state.kind !== 'start-failed') {
+        return Promise.resolve(
+          acpErr.invalidState('The conversation already has an active session.')
+        );
+      }
+      this.freshRequested = true;
+    }
     return this.activation.start();
+  }
+
+  get isStartingFresh(): boolean {
+    return this.freshRequested;
   }
 
   acquire(): Promise<Result<Lease<SessionRecord>, ActivationStartError>> {
@@ -358,16 +385,24 @@ export class ConversationHandle {
   materializationInput(): AcpStartInput {
     return {
       ...this.descriptor,
+      ...(this.isStartingFresh ? { sessionId: null } : {}),
       initialQueue: this.initialQueueConsumed ? undefined : this.descriptor.initialQueue,
     };
   }
 
-  markMaterialized(record: SessionRecord, initialQueueConsumed: boolean): void {
-    if (!this.isCurrentRecord(record)) return;
-    this.initialQueueConsumed = initialQueueConsumed;
-    this.everMaterialized = true;
-    this.updateDescriptor({ sessionId: record.cell.acpSessionId });
-    this.syncRecord(record);
+  get canStartFresh(): boolean {
+    return this.unstarted;
+  }
+
+  async commitMaterialization(
+    record: SessionRecord,
+    unstarted: boolean
+  ): Promise<Result<void, ActivationStartError>> {
+    return this.persistSession(record, unstarted, { materialized: true });
+  }
+
+  async commitInitialQueue(record: SessionRecord): Promise<Result<void, ActivationStartError>> {
+    return this.persistSession(record, false, { consumeInitialQueue: true });
   }
 
   updateMode(modeId: string): void {
@@ -413,6 +448,13 @@ export class ConversationHandle {
 
   refreshDescriptor(descriptor: AcpStartInput): void {
     if (!this.isCurrent()) return;
+    if (
+      descriptor.sessionId &&
+      descriptor.sessionId !== this.descriptor.sessionId &&
+      !this.everMaterialized
+    ) {
+      this.unstarted = false;
+    }
     this.descriptor = {
       ...descriptor,
       // The runtime can observe a replacement session id before the host report converges. A
@@ -434,19 +476,80 @@ export class ConversationHandle {
     if (this.isCurrent()) this.deps.saveIntent();
   }
 
+  async preserveSession(record: SessionRecord): Promise<Result<void, ActivationStartError>> {
+    return this.persistSession(record, false);
+  }
+
+  private async persistSession(
+    record: SessionRecord,
+    unstarted: boolean,
+    {
+      materialized = false,
+      consumeInitialQueue = false,
+    }: {
+      materialized?: boolean;
+      consumeInitialQueue?: boolean;
+    } = {}
+  ): Promise<Result<void, ActivationStartError>> {
+    if (!this.isCurrentRecord(record)) return acpErr.conversationNotFound(this.conversationId);
+    const saved = await this.deps.persistIntent(() => {
+      if (!this.isCurrentRecord(record)) return null;
+      const sessionId = record.cell.acpSessionId;
+      const replacePresentation = materialized && record.resumeOutcome === 'replaced-by-new';
+      const retained = replacePresentation
+        ? emptyRetainedPresentation(this.retainedValue.configured)
+        : this.retainedValue;
+      const initialQueueConsumed = this.initialQueueConsumed || consumeInitialQueue;
+      return {
+        ...this.buildIntent(sessionId, retained, unstarted, initialQueueConsumed),
+        onPersisted: () => {
+          if (!this.isEpochCurrent(record.epoch)) return;
+          this.descriptor = { ...this.descriptor, sessionId };
+          this.unstarted = unstarted;
+          this.initialQueueConsumed = initialQueueConsumed;
+          if (replacePresentation) {
+            this.retainedValue = emptyRetainedPresentation(this.retainedValue.configured);
+          }
+          if (materialized) {
+            this.everMaterialized = true;
+          }
+        },
+      };
+    });
+    if (!saved.success) {
+      return acpErr.initializeFailed(
+        toSerializedError(
+          new Error(`Could not preserve session continuity: ${saved.error.message}`)
+        )
+      );
+    }
+    return this.isCurrentRecord(record) ? ok() : acpErr.conversationNotFound(this.conversationId);
+  }
+
   intentPayload(): { payload: Serializable; sessionId?: string | null } | null {
     if (!this.isCurrent()) return null;
+    return this.buildIntent(this.descriptor.sessionId, this.retainedValue, this.unstarted);
+  }
+
+  private buildIntent(
+    sessionId: string | null,
+    retained: RetainedPresentation,
+    unstarted: boolean,
+    initialQueueConsumed = this.initialQueueConsumed
+  ) {
     return {
       payload: {
         version: '1',
         conversationId: this.conversationId,
         providerId: this.descriptor.providerId,
         cwd: this.descriptor.cwd,
-        sessionId: this.descriptor.sessionId,
-        configured: this.retainedValue.configured,
-        presentation: this.retainedValue,
+        sessionId,
+        unstarted,
+        initialQueueConsumed,
+        configured: retained.configured,
+        presentation: retained,
       } as unknown as Serializable,
-      sessionId: this.descriptor.sessionId,
+      sessionId,
     };
   }
 

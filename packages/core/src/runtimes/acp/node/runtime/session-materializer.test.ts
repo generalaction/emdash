@@ -250,7 +250,7 @@ function materializerHarness(
     onRecordCreated: (record, recordScope) => ownRecord(record, recordScope),
     onRecordChanged: () => {},
     onRecordClosed: () => {},
-    discardRecord: (record) => {
+    discardRecord: async (record) => {
       discarded.push(record);
       record.cell.dispose();
     },

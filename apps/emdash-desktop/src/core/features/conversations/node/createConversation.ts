@@ -166,7 +166,7 @@ export async function createConversation(
     throw new Error(`createConversation: inserted row for ${id} is missing its task link`);
   }
 
-  // ACP conversations start lazily on hydrateConversation — no PTY session here.
+  // ACP sessions start when chat calls startSession — no PTY session here.
   if (conversationType !== 'acp') {
     const launched = await withCompensation({
       action: () =>

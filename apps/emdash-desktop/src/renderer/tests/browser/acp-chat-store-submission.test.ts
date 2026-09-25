@@ -20,6 +20,7 @@ import {
 import {
   AcpLiveSession,
   AcpPromptDeliveryUnknownError,
+  AcpStartError,
 } from '@core/features/conversations/browser/acp/acp-live-session';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 
@@ -188,6 +189,7 @@ describe('AcpChatStore prompt submission', () => {
           return usable.get();
         },
         revalidate,
+        startSession: vi.fn(async () => ({ success: true, data: { sessionId: 'session-1' } })),
         dispose: vi.fn(),
       } as never;
       try {
@@ -917,6 +919,81 @@ describe('AcpChatStore prompt submission', () => {
     }
   });
 
+  it('bounds transient history retries and allows explicit recovery', async () => {
+    const live = fakeLiveSession(idleState(), historyPage('retained'), {
+      revalidate: vi.fn(async () => {}),
+    });
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    live.loadHistory.mockRejectedValue(new Error('Connection interrupted'));
+    vi.useFakeTimers();
+    try {
+      connectSessionOptions?.onTurnCommitted?.();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(live.loadHistory).toHaveBeenCalledTimes(6);
+      expect(store.loadError?.kind).toBe('history_unavailable');
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(live.loadHistory).toHaveBeenCalledTimes(6);
+      live.loadHistory.mockResolvedValue({ success: true, data: historyPage('recovered') });
+      store.retry();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(store.loadError).toBeNull();
+      expect(transcriptTestState.committedTurns[0]?.id).toBe('recovered');
+    } finally {
+      store.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('preserves the draft and exposes recovery when a prompt wakes a missing session', async () => {
+    const sendPrompt = vi.fn(async () => ({
+      success: false as const,
+      error: {
+        type: 'session_not_found' as const,
+        message: 'The agent could not find this saved conversation.',
+      },
+    }));
+    const store = createStore(suspendedState(), sendPrompt);
+    try {
+      store.setDraftText('keep my draft');
+      store.submitPrompt('keep my draft');
+      await vi.waitFor(() => expect(store.loadError?.kind).toBe('session_not_found'));
+      expect(store.draftText).toBe('keep my draft');
+      expect(store.affordances.canSubmit).toBe(false);
+      store.submitPrompt('keep my draft');
+      expect(sendPrompt).toHaveBeenCalledOnce();
+      expect(store.draftText).toBe('keep my draft');
+    } finally {
+      store.dispose();
+    }
+  });
+
+  it('does not reload history because a failed restore changes provisional revisions', async () => {
+    const live = fakeLiveSession(suspendedState(), historyPage('retained'));
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    live.loadHistory.mockImplementation(async () => {
+      // Bound a broken implementation so the regression cannot starve the test runner.
+      if (live.loadHistory.mock.calls.length <= 5) {
+        live.sessionState.set({ ...idleState(), lifecycle: 'starting' });
+        live.sessionState.set({ ...idleState(), lifecycle: 'replaying', historyRevision: 0 });
+        live.sessionState.set(suspendedState());
+      }
+      return {
+        success: false,
+        error: { type: 'invalid_state', message: 'Could not restore this conversation.' },
+      };
+    });
+    try {
+      connectSessionOptions?.onTurnCommitted?.();
+      await vi.waitFor(() => expect(store.loadError).not.toBeNull());
+      expect(live.loadHistory).toHaveBeenCalledTimes(1);
+      expect(transcriptTestState.committedTurns[0]?.id).toBe('retained');
+    } finally {
+      store.dispose();
+    }
+  });
+
   it('keeps history after a restoration error and clears the error when a later refresh succeeds', async () => {
     const live = fakeLiveSession(idleState(), historyPage('original'));
     const store = await bootstrapWithSession(live.session);
@@ -1015,6 +1092,64 @@ describe('AcpChatStore prompt submission', () => {
       }
     }
   );
+
+  it('starts fresh in the same conversation and preserves the draft', async () => {
+    const failed = fakeLiveSession(suspendedState(), unavailableHistory());
+    failed.startSession.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'session_not_found', message: 'Session missing' },
+    });
+    const fresh = fakeLiveSession(idleState(), { turns: [], nextCursor: null });
+    const pending = deferred<AcpLiveSession>();
+    const create = vi
+      .spyOn(AcpLiveSession, 'create')
+      .mockResolvedValueOnce(failed.session)
+      .mockReturnValueOnce(pending.promise);
+    const store = new AcpChatStore('conversation-1', 'project-1', 'task-1');
+    try {
+      store.bootstrap();
+      await vi.waitFor(() => expect(store.loadError?.kind).toBe('session_not_found'));
+      store.setDraftText('keep my unsent prompt');
+      store.retry({ mode: 'fresh' });
+      store.retry({ mode: 'fresh' });
+      expect(create.mock.calls).toEqual([['conversation-1'], ['conversation-1']]);
+      expect(failed.loadHistory).not.toHaveBeenCalled();
+      pending.resolve(fresh.session);
+      await vi.waitFor(() => expect(store.historyLoading).toBe(false));
+      expect(fresh.startSession).toHaveBeenCalledWith('fresh');
+      expect(store.session).toBe(fresh.session);
+      expect(store.historyLoading).toBe(false);
+      expect(store.loadError).toBeNull();
+      expect(store.isEmpty).toBe(true);
+      expect(store.draftText).toBe('keep my unsent prompt');
+      expect(fresh.session.sendPrompt).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+      create.mockRestore();
+    }
+  });
+
+  it('retains the transcript and draft if creating a fresh session fails', async () => {
+    const live = fakeLiveSession(idleState(), historyPage('retained'));
+    const store = await bootstrapWithSession(live.session);
+    try {
+      runInAction(() => {
+        store.loadError = { kind: 'session_not_found', message: 'Session missing' };
+      });
+      store.setDraftText('still here');
+      vi.spyOn(AcpLiveSession, 'create').mockRejectedValueOnce(
+        new AcpStartError({ type: 'auth_required' })
+      );
+      store.retry({ mode: 'fresh' });
+      await vi.waitFor(() => expect(store.loadError?.kind).toBe('auth_required'));
+      expect(store.historyLoading).toBe(false);
+      expect(store.draftText).toBe('still here');
+      expect(transcriptTestState.committedTurns).toMatchObject([{ id: 'retained' }]);
+      expect(live.session.dispose).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+    }
+  });
 
   it('keeps the ordinary active-turn completion history refresh', async () => {
     const live = fakeLiveSession(idleState(), historyPage('initial'));
@@ -1156,7 +1291,12 @@ function fakeLiveSession(
     success: true,
     data: initialHistory,
   }));
+  const startSession = vi.fn<AcpLiveSession['startSession']>(async () => ({
+    success: true,
+    data: { sessionId: 'session-1' },
+  }));
   const session = {
+    startSession,
     sessionState,
     config: new FakeRemote({ availableCommands: [] }),
     usage: new FakeRemote(null),
@@ -1171,7 +1311,7 @@ function fakeLiveSession(
     dispose: vi.fn(),
     ...overrides,
   } as unknown as AcpLiveSession;
-  return { session, sessionState, loadHistory };
+  return { session, sessionState, loadHistory, startSession };
 }
 
 async function bootstrapWithSession(session: AcpLiveSession): Promise<AcpChatStore> {

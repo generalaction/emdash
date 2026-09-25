@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
-import { createManualClock } from '@emdash/shared/testing';
+import { createManualClock, deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import {
@@ -893,6 +893,109 @@ describe('createSessionLifecycle', () => {
       await settle();
 
       expect(intents.snapshot()).toEqual([]);
+    });
+
+    it('awaits the requested intent after earlier background writes and reports failure', async () => {
+      const harness = makeHarness();
+      const intents = createMemorySessionIntentStore();
+      const firstWrite = deferred<void>();
+      const save = vi
+        .spyOn(intents, 'saveActive')
+        .mockImplementationOnce(async () => {
+          await firstWrite.promise;
+          return ok();
+        })
+        .mockResolvedValueOnce(err({ type: 'io', message: 'disk full' }));
+      let unstarted = true;
+      const lifecycle = createSessionLifecycle({
+        ...baseOptions(harness),
+        clock: createManualClock(0),
+        conversation: {
+          intents,
+          activePayload: () => ({ payload: { unstarted }, sessionId: 'session' }),
+        },
+      });
+      try {
+        lifecycle.saveIntent('s1');
+        await settle();
+        unstarted = false;
+        const persisted = lifecycle.persistIntent('s1');
+        await settle();
+        expect(save).toHaveBeenCalledTimes(1);
+        firstWrite.resolve();
+        expect(await persisted).toEqual(err({ type: 'io', message: 'disk full' }));
+        expect(save.mock.calls.map(([input]) => input.payload)).toEqual([
+          { unstarted: true },
+          { unstarted: false },
+        ]);
+      } finally {
+        firstWrite.resolve();
+        lifecycle.dispose();
+      }
+    });
+
+    it.each(['success', 'failure', 'throw'] as const)(
+      'publishes a prepared intent only after %s and keeps subsequent writes consistent',
+      async (outcome) => {
+        const harness = makeHarness();
+        const intents = createMemorySessionIntentStore();
+        const entered = deferred<void>();
+        const finish = deferred<void>();
+        const saveActive = intents.saveActive.bind(intents);
+        let sessionId = 'old';
+        const publish = vi.fn(() => {
+          sessionId = 'new';
+        });
+        vi.spyOn(intents, 'saveActive').mockImplementationOnce(async (input) => {
+          entered.resolve();
+          await finish.promise;
+          if (outcome === 'throw') throw new Error('disk full');
+          return outcome === 'failure'
+            ? err({ type: 'io', message: 'disk full' })
+            : saveActive(input);
+        });
+        const lifecycle = createSessionLifecycle({
+          ...baseOptions(harness),
+          clock: createManualClock(0),
+          conversation: { intents, activePayload: () => ({ sessionId, payload: { sessionId } }) },
+        });
+        const persisted = lifecycle.persistIntent('s1', () => ({
+          sessionId: 'new',
+          payload: { sessionId: 'new' },
+          onPersisted: publish,
+        }));
+        try {
+          await entered.promise;
+          expect(publish).not.toHaveBeenCalled();
+          expect(sessionId).toBe('old');
+          lifecycle.saveIntent('s1');
+          finish.resolve();
+          expect((await persisted).success).toBe(outcome === 'success');
+          await lifecycle.persistIntent('s1');
+          expect(publish).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 0);
+          expect(intents.snapshot()[0]?.sessionId).toBe(outcome === 'success' ? 'new' : 'old');
+        } finally {
+          finish.resolve();
+          lifecycle.dispose();
+        }
+      }
+    );
+
+    it('skips an invalidated prepared update instead of writing the default payload', async () => {
+      const harness = makeHarness();
+      const intents = createMemorySessionIntentStore();
+      const save = vi.spyOn(intents, 'saveActive');
+      const lifecycle = createSessionLifecycle({
+        ...baseOptions(harness),
+        clock: createManualClock(0),
+        conversation: { intents, activePayload: () => ({ payload: {}, sessionId: 'old' }) },
+      });
+      try {
+        expect(await lifecycle.persistIntent('s1', () => null)).toEqual(ok());
+        expect(save).not.toHaveBeenCalled();
+      } finally {
+        lifecycle.dispose();
+      }
     });
 
     it('providerSessionId forwards to the reporter', () => {

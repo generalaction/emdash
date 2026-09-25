@@ -1,10 +1,12 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
 import { formatHostRef } from '@emdash/core/primitives/host/api';
-import type {
-  PromptAttachment,
-  PromptInput,
-  QueuedPrompt,
-  SessionMcpServer,
+import {
+  sessionNotFoundErrorSchema,
+  type AcpSessionStartMode,
+  type PromptAttachment,
+  type PromptInput,
+  type QueuedPrompt,
+  type SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
 import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/services/attachments/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
@@ -94,6 +96,7 @@ type PermissionQueueItem = {
 
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
+  | { kind: 'session_not_found'; message: string }
   | { kind: 'unavailable'; message: string }
   | { kind: 'history_unavailable'; message: string }
   | { kind: 'generic'; message: string };
@@ -363,7 +366,10 @@ export class AcpChatStore {
       isBusy: state?.isGenerating ?? false,
       isResuming,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
-      canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
+      canSubmit:
+        liveActionsEnabled &&
+        this.loadError?.kind !== 'session_not_found' &&
+        (state?.canSubmit ?? false),
       canCancel: liveActionsEnabled && (state?.canCancel ?? false),
     };
   }
@@ -382,12 +388,18 @@ export class AcpChatStore {
     void this._runBootstrap();
   }
 
-  retry(): void {
+  retry(options: { mode?: AcpSessionStartMode } = {}): void {
+    if (this._disposed) return;
+    if (
+      options.mode === 'fresh' &&
+      (this.historyLoading || this.loadError?.kind !== 'session_not_found')
+    )
+      return;
     if (this.hostAccess?.liveAction.kind === 'disabled') {
       void this.hostAccess.recover();
       return;
     }
-    if (this.session && !this._bootstrapFailed) {
+    if (options.mode !== 'fresh' && this.session && !this._bootstrapFailed) {
       const state = this.hostAccess?.state;
       this._recoverAttachment(
         this.session,
@@ -396,11 +408,12 @@ export class AcpChatStore {
       return;
     }
     if (this.historyLoading || !this.loadError) return;
+    this._historyRefreshRequested = false;
     void this._attachmentRecovery?.dispose();
     this._attachmentRecovery = null;
     this.historyLoading = true;
     this.loadError = null;
-    void this._runBootstrap();
+    void this._runBootstrap(options.mode);
   }
 
   bindView(view: ChatView | null): void {
@@ -465,7 +478,11 @@ export class AcpChatStore {
     attachments: AcpPromptAttachment[] = [],
     hiddenContext?: string | Promise<string | undefined>
   ): void {
-    if (this.hostAccess?.liveAction.kind === 'disabled') return;
+    if (
+      this.hostAccess?.liveAction.kind === 'disabled' ||
+      this.loadError?.kind === 'session_not_found'
+    )
+      return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     const submissionSequence = ++this._submissionSequence;
     const promptId = crypto.randomUUID();
@@ -655,7 +672,7 @@ export class AcpChatStore {
       .catch((error: unknown) => getMementoClient().reportError(error));
   }
 
-  private async _runBootstrap(): Promise<void> {
+  private async _runBootstrap(mode?: AcpSessionStartMode): Promise<void> {
     const epoch = ++this._historyEpoch;
     if (this._disposed) return;
     if (this.hostAccess?.liveAction.kind === 'disabled') {
@@ -685,6 +702,10 @@ export class AcpChatStore {
         this._subscribeLiveSession(attachedSession);
       });
 
+      const started = await attachedSession.startSession(mode);
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
+      if (!started.success) throw new AcpStartError(started.error);
       const history = await attachedSession.loadHistory(undefined, 100);
       if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
         return;
@@ -696,9 +717,9 @@ export class AcpChatStore {
         });
         return;
       }
-      if (history.data.clearedConfiguration?.length) {
+      if (started.data.clearedConfiguration?.length) {
         await this._rememberPreference(
-          Object.fromEntries(history.data.clearedConfiguration.map((key) => [key, null])) as {
+          Object.fromEntries(started.data.clearedConfiguration.map((key) => [key, null])) as {
             model?: null;
             modeId?: null;
             effort?: null;
@@ -766,17 +787,22 @@ export class AcpChatStore {
             await session.revalidate(scope.signal);
             if (scope.signal.aborted || this.session !== session || !session.usable) return;
             this._attachedHostGeneration = generation;
-            runInAction(() => {
-              // Reattachment alone cannot recover a failed history/bootstrap load.
-              if (this._bootstrapFailed || (this._bootstrapped && this.historyLoading)) {
+            // Reattachment alone cannot recover a failed history/bootstrap load.
+            if (this._bootstrapFailed || (this._bootstrapped && this.historyLoading)) {
+              runInAction(() => {
                 this.historyLoading = true;
                 this.loadError = null;
-                void this._runBootstrap();
-              } else {
+              });
+              await this._runBootstrap();
+            } else {
+              const started = await session.startSession();
+              if (!started.success) throw new AcpStartError(started.error);
+              if (scope.signal.aborted || this.session !== session) return;
+              runInAction(() => {
                 this.loadError = null;
                 this._requestHistoryRefresh();
-              }
-            });
+              });
+            }
             return;
           } catch (error) {
             if (scope.signal.aborted || this.session !== session) return;
@@ -784,7 +810,7 @@ export class AcpChatStore {
             runInAction(() => {
               this.loadError = loadError;
             });
-            if (loadError.kind === 'auth_required') return;
+            if (error instanceof AcpStartError) return;
           }
           await systemClock.sleep(Math.min(1_000 * 2 ** attempt++, 15_000), {
             signal: scope.signal,
@@ -854,6 +880,12 @@ export class AcpChatStore {
         promptId
       );
       if (!result.success) {
+        const missingSession = sessionNotFoundErrorSchema.safeParse(result.error);
+        if (missingSession.success) {
+          runInAction(() => {
+            this.loadError = toLoadError(new AcpStartError(missingSession.data));
+          });
+        }
         this._toastError('Failed to send message', result.error);
         return 'rejected';
       }
@@ -947,7 +979,8 @@ export class AcpChatStore {
       this._bindTerminalOutputs(session),
       session.sessionState.onChange((state) => {
         const replayCompleted = previousLifecycle === 'replaying' && state.lifecycle === 'ready';
-        const historyChanged = previousHistoryRevision !== state.historyRevision;
+        const historyChanged =
+          state.lifecycle === 'ready' && previousHistoryRevision !== state.historyRevision;
         previousLifecycle = state.lifecycle;
         previousHistoryRevision = state.historyRevision;
         runInAction(() => {
@@ -1034,6 +1067,15 @@ export class AcpChatStore {
             // A newer head arrived during the read: catch up immediately. Backoff is
             // for unavailable/failed reads, not normal transcript progress.
             if (this._historyRefreshRequested) continue;
+            if (attempt >= 5) {
+              runInAction(() => {
+                this.loadError = {
+                  kind: 'history_unavailable',
+                  message: 'Could not load conversation history. Retry loading it.',
+                };
+              });
+              return;
+            }
             this._historyRefreshRequested = true;
             await systemClock.sleep(Math.min(1_000 * 2 ** attempt++, 15_000), {
               signal: this._scope.signal,
@@ -1106,6 +1148,7 @@ export class AcpChatStore {
         error,
       });
       if (error instanceof AcpStartError) {
+        this._historyRefreshRequested = false;
         runInAction(() => {
           this.loadError = toLoadError(error);
         });
@@ -1193,6 +1236,9 @@ function toLoadError(error: unknown): AcpLoadError {
   const message = error instanceof Error ? error.message : 'Failed to load chat.';
   if (error instanceof AcpStartError && error.errorType === 'auth_required') {
     return { kind: 'auth_required', message };
+  }
+  if (error instanceof AcpStartError && error.errorType === 'session_not_found') {
+    return { kind: 'session_not_found', message };
   }
   return { kind: 'generic', message };
 }

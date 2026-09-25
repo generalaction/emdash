@@ -17,7 +17,10 @@ async function createHarness() {
   const models = remote(acpApiContract.session, wire.client.session);
   const scope = createScope();
   const conversationId = 'transcript-continuity';
-  const launched = await wire.client.launch(makeStartInput({ conversationId }));
+  const launched = await wire.client.startSession({
+    ...makeStartInput({ conversationId }),
+    mode: 'resume',
+  });
   if (!launched.success) throw new Error('Could not launch test conversation');
   const session = models({ conversationId });
   const observed: Array<TranscriptTurn | null> = [];
@@ -476,7 +479,14 @@ describe('completed history through real runtime and Wire', () => {
   it('isolates histories and active prompts in two conversations on the same provider connection', async () => {
     h = await createHarness();
     h.provider.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-other' });
-    expect((await h.client.launch(makeStartInput({ conversationId: 'other' }))).success).toBe(true);
+    expect(
+      (
+        await h.client.startSession({
+          ...makeStartInput({ conversationId: 'other' }),
+          mode: 'resume',
+        })
+      ).success
+    ).toBe(true);
     const first = h.gate();
     const second = h.gate();
     await h.send('main prompt');

@@ -1,27 +1,27 @@
 import { defineContract, fallible } from '@emdash/wire/rpc';
 import {
-  acpSessionLaunchInputSchema,
-  acpSessionLaunchResultSchema,
+  acpSessionStartInputSchema,
+  acpSessionStartResultSchema,
   sessionStartErrorSchema,
   tuiSessionStartInputSchema,
   tuiSessionStartResultSchema,
 } from './schemas';
 
-export const acpSessionLaunchContract = defineContract({
-  launch: fallible({
-    input: acpSessionLaunchInputSchema,
-    data: acpSessionLaunchResultSchema,
+export const acpSessionStartContract = defineContract({
+  startSession: fallible({
+    input: acpSessionStartInputSchema,
+    data: acpSessionStartResultSchema,
     error: sessionStartErrorSchema,
   }),
 });
 
 export const tuiSessionStartContract = defineContract({
-  start: fallible({
+  startSession: fallible({
     input: tuiSessionStartInputSchema,
     data: tuiSessionStartResultSchema,
     error: sessionStartErrorSchema,
   }),
 });
 
-export type AcpSessionLaunchContract = typeof acpSessionLaunchContract;
+export type AcpSessionStartContract = typeof acpSessionStartContract;
 export type TuiSessionStartContract = typeof tuiSessionStartContract;

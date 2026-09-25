@@ -70,6 +70,7 @@ it.each([
   const contract = defineContract({
     acp: defineContract({
       attach: conversationsContract.acp.attach,
+      startSession: conversationsContract.acp.startSession,
       session: conversationsContract.acp.session,
       sendPrompt: conversationsContract.acp.sendPrompt,
       loadHistory: conversationsContract.acp.loadHistory,
@@ -87,7 +88,7 @@ it.each([
   });
   let history: HistoryPage = { turns: [], nextCursor: null };
   let acceptedPromptId = '';
-  const attach = vi.fn(async () => ok(undefined));
+  const attach = vi.fn(async () => ok({ sessionId: 'session-1' }));
   const loadHistory = vi.fn(async () => ok(history));
   const sendPrompt = vi.fn(async ({ promptId }: { promptId: string }) => {
     acceptedPromptId = promptId;
@@ -97,7 +98,13 @@ it.each([
     createController(
       contract,
       {
-        acp: { attach, session, loadHistory, sendPrompt },
+        acp: {
+          attach,
+          startSession: async () => ok({ sessionId: 'session-1' }),
+          session,
+          loadHistory,
+          sendPrompt,
+        },
       },
       { validate: 'full' }
     )

@@ -27,6 +27,7 @@ import {
 } from './errors';
 import {
   acpStartInputSchema,
+  acpSessionStartModeSchema,
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
   deleteQueuedPromptCommandSchema,
@@ -42,7 +43,7 @@ import {
   terminateCommandSchema,
 } from './schemas';
 
-const launchResultSchema = z.object({
+const startSessionResultSchema = z.object({
   sessionId: z.string(),
   clearedConfiguration: z
     .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
@@ -54,11 +55,12 @@ const terminalOutputKeySchema = z.object({ terminalId: z.string() });
 export const acpApiContract = defineContract({
   attach: fallible({
     input: acpStartInputSchema,
+    data: z.object({ sessionId: z.string().nullable() }),
     error: acpStartErrorSchema,
   }),
-  launch: fallible({
-    input: acpStartInputSchema,
-    data: launchResultSchema,
+  startSession: fallible({
+    input: acpStartInputSchema.extend({ mode: acpSessionStartModeSchema }),
+    data: startSessionResultSchema,
     error: acpLaunchErrorSchema,
   }),
   /**

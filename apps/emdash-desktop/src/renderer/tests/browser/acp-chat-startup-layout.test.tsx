@@ -137,6 +137,48 @@ vi.mock('@core/features/conversations/browser/acp/transcript-file-commands', () 
   createTranscriptFileCommands: () => ({}),
 }));
 
+it('starts a fresh session in place when the saved provider session is missing', async () => {
+  await page.viewport(1100, 800);
+  installChatUiRuntime(chatUi);
+  const context = chatUi.createChatContext();
+  fixture.context = context;
+  vi.mocked(openModal).mockClear();
+  const store = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+  const retry = vi.spyOn(store, 'retry').mockImplementation(() => {});
+  fixture.store = store;
+  runInAction(() => {
+    store.historyLoading = false;
+    store.loadError = {
+      kind: 'session_not_found',
+      message: 'The agent could not find this saved conversation.',
+    };
+  });
+  const parent = document.createElement('div');
+  parent.style.cssText = 'width:1000px;height:700px;position:relative;font-family:system-ui';
+  parent.className = 'emlight';
+  document.body.append(parent);
+  const root = createRoot(parent);
+  try {
+    await act(async () => root.render(<AcpChatPanel />));
+    await expect.element(page.getByRole('button', { name: 'Start fresh session' })).toBeVisible();
+    await expect.element(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await act(async () => page.getByRole('button', { name: 'Retry', exact: true }).click());
+    expect(retry).toHaveBeenCalledOnce();
+    expect(vi.mocked(openModal)).not.toHaveBeenCalled();
+
+    await act(async () => page.getByRole('button', { name: 'Start fresh session' }).click());
+    expect(retry).toHaveBeenLastCalledWith({ mode: 'fresh' });
+    expect(store.conversationId).toBe('startup-diagnostic');
+    expect(openModal).not.toHaveBeenCalled();
+  } finally {
+    await act(async () => root.unmount());
+    store.dispose();
+    context.dispose();
+    parent.remove();
+    vi.mocked(openModal).mockReset();
+  }
+});
+
 it.each([false, true])(
   'restores the sign-in screen with retained history=%s',
   async (populated) => {
@@ -404,6 +446,7 @@ it.each([
   const contract = defineContract({
     acp: defineContract({
       attach: conversationsContract.acp.attach,
+      startSession: conversationsContract.acp.startSession,
       session: conversationsContract.acp.session,
       loadHistory: conversationsContract.acp.loadHistory,
     }),
@@ -433,7 +476,14 @@ it.each([
   const hub = createWireSessionHub(
     createController(
       contract,
-      { acp: { attach: async () => ok(undefined), session, loadHistory } },
+      {
+        acp: {
+          attach: async () => ok({ sessionId: 'session-1' }),
+          startSession: async () => ok({ sessionId: 'session-1' }),
+          session,
+          loadHistory,
+        },
+      },
       { validate: 'full' }
     )
   );
@@ -649,6 +699,7 @@ it.each([
     const contract = defineContract({
       acp: defineContract({
         attach: conversationsContract.acp.attach,
+        startSession: conversationsContract.acp.startSession,
         session: conversationsContract.acp.session,
         loadHistory: conversationsContract.acp.loadHistory,
       }),
@@ -680,7 +731,12 @@ it.each([
       createController(
         contract,
         {
-          acp: { attach: async () => ok(undefined), session, loadHistory },
+          acp: {
+            attach: async () => ok({ sessionId: 'session-1' }),
+            startSession: async () => ok({ sessionId: 'session-1' }),
+            session,
+            loadHistory,
+          },
         },
         { validate: 'full' }
       )

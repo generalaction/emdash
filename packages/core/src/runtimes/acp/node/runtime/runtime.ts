@@ -13,7 +13,7 @@ import type {
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetOptionError,
-  AcpStartError,
+  AcpSessionStartMode,
   AcpTerminateError,
   LoadHistoryResult,
   PromptInput,
@@ -67,12 +67,15 @@ export class AcpRuntime {
     this.manager = manager;
   }
 
-  attachSession(input: AcpStartInput): Promise<Result<void, AcpStartError>> {
+  attachSession(input: AcpStartInput): ReturnType<SessionManager['attach']> {
     return this.manager.attach(input);
   }
 
-  launchSession(input: AcpStartInput): ReturnType<SessionManager['launch']> {
-    return this.manager.launch(input);
+  startSession(
+    input: AcpStartInput,
+    mode: AcpSessionStartMode
+  ): ReturnType<SessionManager['startSession']> {
+    return this.manager.startSession(input, mode);
   }
 
   /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
@@ -143,14 +146,7 @@ export class AcpRuntime {
     before?: number,
     limit?: number
   ): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
-    const activation = await this.manager.ensureActivation(conversationId);
-    if (!activation.success) return activation;
-    return ok({
-      ...this.manager.getHistory(conversationId, before, limit),
-      ...(activation.data.clearedConfiguration && {
-        clearedConfiguration: activation.data.clearedConfiguration,
-      }),
-    });
+    return ok(this.manager.getHistory(conversationId, before, limit));
   }
 
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {

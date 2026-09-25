@@ -12,6 +12,7 @@ import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { resolveAdapterAsset } from '../../helpers/adapter-assets';
 import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
 import { enrichCodexUpdate } from './acp-enrich';
+import { isCodexSessionNotFound } from './acp-errors';
 import { codexAdapter } from './adapter';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
@@ -156,6 +157,7 @@ export const provider = registerPluginBehavior(plugin, {
       return connectStdioAcp(io, toClient);
     },
     enrich: enrichCodexUpdate,
+    isSessionNotFound: isCodexSessionNotFound,
   },
   auth: {
     checkStatus: async (ctx) => {

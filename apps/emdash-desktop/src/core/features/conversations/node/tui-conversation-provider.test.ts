@@ -220,7 +220,7 @@ function createProvider(
   return new TuiConversationProvider(
     {
       host: overrides.host ?? { type: 'local', id: 'local' },
-      tuiAgents: { start, resume } as never,
+      tuiAgents: { startSession: start, resume } as never,
       projectId: 'project-1',
       taskId: 'task-1',
       taskPath: '/workspace',

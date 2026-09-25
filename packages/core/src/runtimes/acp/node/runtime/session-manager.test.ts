@@ -21,7 +21,7 @@ import { AcpRuntime } from './runtime';
 async function launchHarness(conversationId = 'conv-1') {
   const h = makeAcpHarness();
   const rt = new AcpRuntime(h.deps);
-  const result = await rt.launchSession(makeStartInput({ conversationId }));
+  const result = await rt.startSession(makeStartInput({ conversationId }), 'resume');
   expect(isOk(result)).toBe(true);
   return { h, rt, client: h.client(), sessionId: 'session-1', conversationId };
 }
@@ -44,7 +44,7 @@ describe('AcpRuntime session manager', () => {
     );
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-mcp-diagnostic' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await agent.capturedClient!.sessionUpdate({
       sessionId: 'session-1',
       update: {
@@ -82,7 +82,7 @@ describe('AcpRuntime session manager', () => {
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-attach', model: 'sonnet' });
 
-    await expect(rt.attachSession(input)).resolves.toEqual(ok());
+    await expect(rt.attachSession(input)).resolves.toEqual(ok({ sessionId: null }));
 
     expect(h.children).toHaveLength(0);
     expect(peek(rt.sessionLiveModels(input.conversationId)!.states.state)).toMatchObject({
@@ -90,7 +90,7 @@ describe('AcpRuntime session manager', () => {
       canSubmit: true,
     });
 
-    await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({
+    await expect(startAndLoadHistory(rt, input.conversationId)).resolves.toMatchObject({
       success: true,
       data: { turns: [], nextCursor: null },
     });
@@ -105,12 +105,13 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession(
+    const result = await rt.startSession(
       makeStartInput({
         conversationId: 'conv-unsupported-model',
         model: 'removed-model',
         collaborationMode: 'plan',
-      })
+      }),
+      'resume'
     );
 
     expect(result).toMatchObject({
@@ -122,12 +123,13 @@ describe('AcpRuntime session manager', () => {
     const missingCatalogHarness = makeAcpHarness();
     missingCatalogHarness.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-2' });
     const missingCatalogRuntime = new AcpRuntime(missingCatalogHarness.deps);
-    const missingCatalogResult = await missingCatalogRuntime.launchSession(
+    const missingCatalogResult = await missingCatalogRuntime.startSession(
       makeStartInput({
         conversationId: 'conv-missing-catalog',
         model: 'keep-me',
         collaborationMode: 'plan',
-      })
+      }),
+      'resume'
     );
     expect(missingCatalogResult).toMatchObject({ success: true, data: { sessionId: 'session-2' } });
     if (missingCatalogResult.success) {
@@ -161,7 +163,7 @@ describe('AcpRuntime session manager', () => {
       const rt = new AcpRuntime(h.deps);
       const input = makeStartInput({ model, initialQueue: [{ text: 'First prompt' }] });
       try {
-        const result = await rt.launchSession(input);
+        const result = await rt.startSession(input, 'resume');
         expect(result).toMatchObject({ success: true });
         if (result.success) expect(result.data.clearedConfiguration).toBeUndefined();
         await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledOnce());
@@ -179,7 +181,7 @@ describe('AcpRuntime session manager', () => {
 
         await rt.stopSession(input.conversationId);
         h.agent.setSessionConfigOption.mockClear();
-        await rt.loadHistory(input.conversationId);
+        await startAndLoadHistory(rt, input.conversationId);
         expect(h.agent.loadSession).toHaveBeenCalledOnce();
         expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
           sessionId: 'session-1',
@@ -200,7 +202,10 @@ describe('AcpRuntime session manager', () => {
     const rt = new AcpRuntime(h.deps);
     h.agent.newSession.mockRejectedValueOnce({ code: -32000, message: 'Authentication required' });
 
-    const result = await rt.launchSession(makeStartInput({ conversationId: 'conv-auth-required' }));
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-auth-required' }),
+      'resume'
+    );
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.type).toBe('auth_required');
@@ -214,8 +219,8 @@ describe('AcpRuntime session manager', () => {
       .mockResolvedValueOnce({ sessionId: 'session-a' })
       .mockResolvedValueOnce({ sessionId: 'session-b' });
 
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-a' }));
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-b' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-a' }), 'resume');
+    await rt.startSession(makeStartInput({ conversationId: 'conv-b' }), 'resume');
 
     expect(h.children).toHaveLength(1);
     await rt.stopSession('conv-a');
@@ -238,7 +243,7 @@ describe('AcpRuntime session manager', () => {
       },
     });
     const rt = new AcpRuntime(h.deps);
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-idle' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-idle' }), 'resume');
     const live = rt.sessionLiveModels('conv-idle');
     if (!live) throw new Error('expected stable live projection');
 
@@ -259,7 +264,7 @@ describe('AcpRuntime session manager', () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-wake-prompt' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     const live = rt.sessionLiveModels(input.conversationId);
     if (!live) throw new Error('expected stable live projection');
     await rt.stopSession(input.conversationId);
@@ -296,7 +301,7 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-materializing-preferences' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.stopSession(input.conversationId);
 
     const replay = deferred<{ configOptions: ReturnType<typeof effortConfigOption>[] }>();
@@ -304,7 +309,7 @@ describe('AcpRuntime session manager', () => {
     h.agent.setSessionConfigOption.mockClear();
     h.agent.prompt.mockClear();
 
-    const activation = rt.loadHistory(input.conversationId);
+    const activation = startAndLoadHistory(rt, input.conversationId);
     await vi.waitFor(() => expect(h.agent.loadSession).toHaveBeenCalledTimes(1));
     expect(peek(rt.sessionLiveModels(input.conversationId)!.states.state)).toMatchObject({
       canSubmit: true,
@@ -339,7 +344,7 @@ describe('AcpRuntime session manager', () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-no-wake' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.stopSession(input.conversationId);
     h.agent.loadSession.mockClear();
     h.agent.newSession.mockClear();
@@ -377,7 +382,7 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-dormant-settings' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.stopSession(input.conversationId);
     h.agent.loadSession.mockClear();
     h.agent.newSession.mockClear();
@@ -438,7 +443,7 @@ describe('AcpRuntime session manager', () => {
     h.agent.prompt.mockImplementationOnce(async () => promptDeferred.promise);
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-no-wake-stopping' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     const prompt = rt.sendPrompt(input.conversationId, { text: 'long turn' });
     await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1));
 
@@ -461,7 +466,7 @@ describe('AcpRuntime session manager', () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-wake-failure' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     const live = rt.sessionLiveModels(input.conversationId);
     if (!live) throw new Error('expected stable live projection');
     await rt.stopSession(input.conversationId);
@@ -485,7 +490,7 @@ describe('AcpRuntime session manager', () => {
     h.agent.prompt.mockImplementationOnce(async () => pendingPrompt.promise);
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-crash-mid-turn' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     const prompt = rt.sendPrompt(input.conversationId, { text: 'in flight' });
     await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1));
     h.agent.loadSession.mockClear();
@@ -510,7 +515,7 @@ describe('AcpRuntime session manager', () => {
     h.agent.prompt.mockImplementationOnce(async () => never.promise);
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-kill-long-turn' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     void rt.sendPrompt(input.conversationId, { text: 'long turn' });
     await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1));
 
@@ -532,7 +537,7 @@ describe('AcpRuntime session manager', () => {
     h.agent.newSession.mockImplementationOnce(async () => starting.promise);
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-kill-starting' });
-    const launch = rt.launchSession(input);
+    const launch = rt.startSession(input, 'resume');
     await vi.waitFor(() => expect(h.agent.newSession).toHaveBeenCalledTimes(1));
 
     await rt.terminateSession(input.conversationId);
@@ -550,7 +555,7 @@ describe('AcpRuntime session manager', () => {
       ...makeStartInput({ conversationId: 'conv-kill-replaying' }),
       sessionId: 'old',
     };
-    const launch = rt.launchSession(input);
+    const launch = rt.startSession(input, 'resume');
     await vi.waitFor(() => expect(h.agent.loadSession).toHaveBeenCalledTimes(1));
 
     await rt.terminateSession(input.conversationId);
@@ -568,12 +573,12 @@ describe('AcpRuntime session manager', () => {
       initialQueue: [{ text: 'bootstrap' }],
     });
 
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1));
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
     await rt.stopSession(input.conversationId);
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     expect(h.agent.loadSession).toHaveBeenCalledWith({
       cwd: '/tmp/workspace',
@@ -592,7 +597,7 @@ describe('AcpRuntime session manager', () => {
       ...makeStartInput({ conversationId: 'conv-retained-config' }),
       sessionId: 'old',
     };
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.setOption(input.conversationId, 'effort', 'high');
     await vi.waitFor(() =>
       expect(intents.snapshot()[0]?.payload).toMatchObject({
@@ -607,7 +612,7 @@ describe('AcpRuntime session manager', () => {
       configOptions: [effortConfigOption('low')],
     });
 
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     expect(h.agent.loadSession).toHaveBeenCalledWith({
       cwd: '/tmp/workspace',
@@ -632,7 +637,7 @@ describe('AcpRuntime session manager', () => {
       ...makeStartInput({ conversationId: 'conv-retained-config' }),
       sessionId: 'old',
     };
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.setOption(input.conversationId, 'effort', 'high');
     await vi.waitFor(() =>
       expect(intents.snapshot()[0]?.payload).toMatchObject({
@@ -647,7 +652,7 @@ describe('AcpRuntime session manager', () => {
       configOptions: [effortConfigOption('low')],
     });
 
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     expect(h.agent.loadSession).toHaveBeenCalledWith({
       cwd: '/tmp/workspace',
@@ -670,14 +675,14 @@ describe('AcpRuntime session manager', () => {
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-omitted-config-options' });
 
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     const live = rt.sessionLiveModels(input.conversationId);
     if (!live) throw new Error('expected stable live projection');
     expect(peek(live.states.config)?.efforts?.selected).toBe('medium');
 
     await rt.stopSession(input.conversationId);
     h.agent.loadSession.mockResolvedValueOnce({});
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     expect(peek(live.states.config)?.efforts).toBeNull();
   });
@@ -687,12 +692,12 @@ describe('AcpRuntime session manager', () => {
     h.agent.newSession.mockResolvedValueOnce({ sessionId: 'replacement' });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-attach-session-race' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.stopSession(input.conversationId);
     h.agent.loadSession.mockResolvedValueOnce({});
 
     await rt.attachSession({ ...input, sessionId: 'stale-host-session' });
-    await rt.loadHistory(input.conversationId);
+    await startAndLoadHistory(rt, input.conversationId);
 
     expect(h.agent.loadSession).toHaveBeenCalledWith({
       cwd: '/tmp/workspace',
@@ -709,7 +714,7 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-retained-mode', modeId: null });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.setOption(input.conversationId, 'mode', 'agent-full-access');
     await rt.stopSession(input.conversationId);
     h.agent.setSessionConfigOption.mockClear();
@@ -717,7 +722,7 @@ describe('AcpRuntime session manager', () => {
       configOptions: [modeConfigOption('agent')],
     });
 
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
       sessionId: 'session-1',
@@ -735,7 +740,7 @@ describe('AcpRuntime session manager', () => {
     });
     const firstRuntime = new AcpRuntime(firstHarness.deps);
     const input = makeStartInput({ conversationId: 'conv-boot-retained' });
-    await firstRuntime.launchSession(input);
+    await firstRuntime.startSession(input, 'resume');
     await firstRuntime.setOption(input.conversationId, 'effort', 'high');
     await firstRuntime.stopSession(input.conversationId);
     await vi.waitFor(() => expect(intents.snapshot()[0]?.status).toBe('suspended'));
@@ -773,9 +778,9 @@ describe('AcpRuntime session manager', () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-stale-close' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     await rt.stopSession(input.conversationId);
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     rt.manager.onProcessClosed('claude:/tmp/workspace', 1, 42);
 
@@ -830,7 +835,7 @@ describe('AcpRuntime session manager', () => {
     });
     expect(spawn).not.toHaveBeenCalled();
 
-    await rt.loadHistory('conv-reconcile');
+    await startAndLoadHistory(rt, 'conv-reconcile');
 
     expect(spawn).toHaveBeenCalledWith(
       expect.objectContaining({ env: expect.objectContaining({ API_TOKEN: 'fresh-secret' }) })
@@ -860,7 +865,7 @@ describe('AcpRuntime session manager', () => {
     );
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession(makeStartInput({ conversationId: 'conv-mcp' }));
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-mcp' }), 'resume');
 
     expect(isOk(result)).toBe(true);
     expect(h.agent.newSession).toHaveBeenCalledWith({
@@ -893,10 +898,13 @@ describe('AcpRuntime session manager', () => {
     );
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession({
-      ...makeStartInput({ conversationId: 'conv-load-mcp' }),
-      sessionId: 'session-old',
-    });
+    const result = await rt.startSession(
+      {
+        ...makeStartInput({ conversationId: 'conv-load-mcp' }),
+        sessionId: 'session-old',
+      },
+      'resume'
+    );
 
     expect(isOk(result)).toBe(true);
     expect(h.agent.loadSession).toHaveBeenCalledWith({
@@ -917,8 +925,9 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession(
-      makeStartInput({ conversationId: 'conv-mode', modeId: 'agent-full-access' })
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode', modeId: 'agent-full-access' }),
+      'resume'
     );
 
     expect(isOk(result)).toBe(true);
@@ -936,10 +945,13 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession({
-      ...makeStartInput({ conversationId: 'conv-mode-load', modeId: 'agent-full-access' }),
-      sessionId: 'session-old',
-    });
+    const result = await rt.startSession(
+      {
+        ...makeStartInput({ conversationId: 'conv-mode-load', modeId: 'agent-full-access' }),
+        sessionId: 'session-old',
+      },
+      'resume'
+    );
 
     expect(isOk(result)).toBe(true);
     expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
@@ -957,8 +969,9 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession(
-      makeStartInput({ conversationId: 'conv-mode-unknown', modeId: 'bypass-everything' })
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode-unknown', modeId: 'bypass-everything' }),
+      'resume'
     );
 
     expect(isOk(result)).toBe(true);
@@ -974,8 +987,9 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession(
-      makeStartInput({ conversationId: 'conv-mode-selected', modeId: 'agent-full-access' })
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode-selected', modeId: 'agent-full-access' }),
+      'resume'
     );
 
     expect(isOk(result)).toBe(true);
@@ -992,8 +1006,9 @@ describe('AcpRuntime session manager', () => {
     h.agent.setSessionConfigOption.mockRejectedValueOnce(new Error('mode change rejected'));
     const rt = new AcpRuntime(h.deps);
 
-    const result = await rt.launchSession(
-      makeStartInput({ conversationId: 'conv-mode-error', modeId: 'agent-full-access' })
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode-error', modeId: 'agent-full-access' }),
+      'resume'
     );
 
     expect(isOk(result)).toBe(true);
@@ -1004,7 +1019,7 @@ describe('AcpRuntime session manager', () => {
     const h = makeAcpHarness({ intents });
     const rt = new AcpRuntime(h.deps);
 
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-persisted' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-persisted' }), 'resume');
 
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
     expect(intents.snapshot()[0]?.payload).toMatchObject({
@@ -1029,7 +1044,7 @@ describe('AcpRuntime session manager', () => {
       },
     });
     const rt = new AcpRuntime(h.deps);
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-idle-intent' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-idle-intent' }), 'resume');
 
     await clock.advanceBy(1_200);
 
@@ -1046,7 +1061,7 @@ describe('AcpRuntime session manager', () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
     const rt = new AcpRuntime(h.deps);
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-kill' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-kill' }), 'resume');
 
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
     await rt.terminateSession('conv-kill');
@@ -1135,7 +1150,10 @@ describe('AcpRuntime session manager', () => {
     });
     const h = makeAcpHarness({ resolveAttachment });
     const rt = new AcpRuntime(h.deps);
-    const started = await rt.launchSession(makeStartInput({ conversationId: 'conv-attachment' }));
+    const started = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-attachment' }),
+      'resume'
+    );
     expect(isOk(started)).toBe(true);
 
     const sent = await rt.sendPrompt('conv-attachment', {
@@ -1165,7 +1183,7 @@ describe('AcpRuntime session manager', () => {
       ],
     });
 
-    const history = await rt.loadHistory('conv-attachment');
+    const history = await startAndLoadHistory(rt, 'conv-attachment');
     expect(isOk(history)).toBe(true);
     if (!isOk(history)) return;
     expect(history.data.turns[0].items[0]).toMatchObject({
@@ -1178,8 +1196,9 @@ describe('AcpRuntime session manager', () => {
   it('sends hidden prompt context to the agent without adding it to the transcript', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    const started = await rt.launchSession(
-      makeStartInput({ conversationId: 'conv-hidden-context' })
+    const started = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-hidden-context' }),
+      'resume'
     );
     expect(isOk(started)).toBe(true);
 
@@ -1197,7 +1216,7 @@ describe('AcpRuntime session manager', () => {
       ],
     });
 
-    const history = await rt.loadHistory('conv-hidden-context');
+    const history = await startAndLoadHistory(rt, 'conv-hidden-context');
     expect(isOk(history)).toBe(true);
     if (!isOk(history)) return;
     expect(history.data.turns[0].items[0]).toMatchObject({
@@ -1303,7 +1322,7 @@ describe('AcpRuntime session manager', () => {
       sessionId: 'session-old',
     };
     await rt.attachSession(input);
-    const result = await rt.loadHistory(input.conversationId);
+    const result = await startAndLoadHistory(rt, input.conversationId);
 
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
@@ -1351,11 +1370,12 @@ describe('AcpRuntime session manager', () => {
   it('passes the session environment to ACP-created terminals', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    const result = await rt.launchSession(
+    const result = await rt.startSession(
       makeStartInput({
         conversationId: 'conv-terminal-env',
         env: { ENV_TEST: 'this-is-a-test' },
-      })
+      }),
+      'resume'
     );
     expect(isOk(result)).toBe(true);
 
@@ -1382,7 +1402,7 @@ describe('AcpRuntime session manager', () => {
     });
     const rt = new AcpRuntime(h.deps);
     try {
-      await rt.launchSession(makeStartInput());
+      await rt.startSession(makeStartInput(), 'resume');
       await agent.capturedClient!.createTerminal!({
         sessionId: 'session-1',
         command: 'ls && ls src',
@@ -1419,8 +1439,8 @@ describe('AcpRuntime session manager', () => {
       .mockResolvedValueOnce({ sessionId: 'session-a' })
       .mockResolvedValueOnce({ sessionId: 'session-b' });
 
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-a' }));
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-b' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-a' }), 'resume');
+    await rt.startSession(makeStartInput({ conversationId: 'conv-b' }), 'resume');
     expect(h.children).toHaveLength(1);
 
     h.lastChild.emitExit(42);
@@ -1447,7 +1467,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const h = makeAcpHarness({ conversationReports: reports });
     const rt = new AcpRuntime(h.deps);
 
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-fresh' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-fresh' }), 'resume');
 
     expect(reports.started).toEqual([
       { conversationId: 'conv-fresh', providerSessionId: 'session-1', resumeOutcome: null },
@@ -1461,10 +1481,13 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const rt = new AcpRuntime(h.deps);
     h.agent.loadSession = vi.fn(async () => ({}));
 
-    await rt.launchSession({
-      ...makeStartInput({ conversationId: 'conv-resume' }),
-      sessionId: 'session-old',
-    });
+    await rt.startSession(
+      {
+        ...makeStartInput({ conversationId: 'conv-resume' }),
+        sessionId: 'session-old',
+      },
+      'resume'
+    );
 
     expect(reports.started).toEqual([
       { conversationId: 'conv-resume', providerSessionId: 'session-old', resumeOutcome: 'loaded' },
@@ -1483,12 +1506,14 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       if (start === 'attach') await rt.attachSession(input);
       try {
         const failed =
-          start === 'attach' ? rt.loadHistory(input.conversationId) : rt.launchSession(input);
+          start === 'attach'
+            ? startAndLoadHistory(rt, input.conversationId)
+            : rt.startSession(input, 'resume');
         await expect(failed).resolves.toMatchObject({ success: false });
         expect(h.agent.newSession).not.toHaveBeenCalled();
         expect(reports.started).toEqual([]);
         expect(intents.snapshot()[0]?.sessionId).toBe('session-old');
-        await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({
+        await expect(startAndLoadHistory(rt, input.conversationId)).resolves.toMatchObject({
           success: true,
         });
         expect(h.agent.loadSession.mock.calls.map(([request]) => request.sessionId)).toEqual([
@@ -1534,7 +1559,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       stopped = true;
     });
     await vi.waitFor(() => expect(h.agent.closeSession).toHaveBeenCalledOnce());
-    const history = rt.loadHistory(conversationId);
+    const history = startAndLoadHistory(rt, conversationId);
     try {
       await new Promise<void>((resolve) => setImmediate(resolve));
       expect(stopped).toBe(false);
@@ -1558,7 +1583,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const h = makeAcpHarness({ clock, lifecycle: { activationDrainTimeoutMs: 100 } });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-close-timeout' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     const closing = deferred<void>();
     h.agent.closeSession.mockImplementationOnce(() => closing.promise);
     try {
@@ -1566,14 +1591,16 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       await vi.waitFor(() => expect(h.agent.closeSession).toHaveBeenCalledOnce());
       await clock.advanceBy(101);
       await stop;
-      const history = rt.loadHistory(input.conversationId);
+      const history = startAndLoadHistory(rt, input.conversationId);
       await new Promise<void>((resolve) => setImmediate(resolve));
       await clock.advanceBy(101);
       await expect(history).resolves.toMatchObject({ success: false });
       expect(h.agent.loadSession).not.toHaveBeenCalled();
       expect(h.agent.newSession).toHaveBeenCalledOnce();
       closing.resolve();
-      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: true });
+      await expect(startAndLoadHistory(rt, input.conversationId)).resolves.toMatchObject({
+        success: true,
+      });
       expect(h.agent.loadSession).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: 'session-1' })
       );
@@ -1588,7 +1615,9 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     h.agent.closeSession.mockRejectedValueOnce(new Error('temporary close failure'));
     try {
       await rt.stopSession(conversationId);
-      await expect(rt.loadHistory(conversationId)).resolves.toMatchObject({ success: true });
+      await expect(startAndLoadHistory(rt, conversationId)).resolves.toMatchObject({
+        success: true,
+      });
       expect(h.agent.closeSession).toHaveBeenCalledTimes(2);
       expect(h.agent.loadSession).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: 'session-1' })
@@ -1604,7 +1633,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const h = makeAcpHarness({ clock, lifecycle: { activationDrainTimeoutMs: 100 } });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-close-exited' });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
     const closing = deferred<void>();
     h.agent.closeSession.mockImplementationOnce(() => closing.promise);
     try {
@@ -1618,7 +1647,9 @@ describe('AcpRuntime conversation lifecycle reports', () => {
           rt.connections.peek({ providerId: input.providerId, cwd: input.cwd, env: input.env })
         ).toBeUndefined()
       );
-      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: true });
+      await expect(startAndLoadHistory(rt, input.conversationId)).resolves.toMatchObject({
+        success: true,
+      });
       expect(h.children).toHaveLength(2);
       expect(h.agent.loadSession).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: 'session-1' })
@@ -1640,7 +1671,9 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const input = makeStartInput({ conversationId: 'conv-no-history', sessionId: 'original' });
     await rt.attachSession(input);
     try {
-      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: false });
+      await expect(startAndLoadHistory(rt, input.conversationId)).resolves.toMatchObject({
+        success: false,
+      });
       expect(h.agent.newSession).not.toHaveBeenCalled();
     } finally {
       await rt.dispose();
@@ -1664,10 +1697,13 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       return {};
     });
 
-    await rt.launchSession({
-      ...makeStartInput({ conversationId: 'conv-rebind' }),
-      sessionId: 'session-old',
-    });
+    await rt.startSession(
+      {
+        ...makeStartInput({ conversationId: 'conv-rebind' }),
+        sessionId: 'session-old',
+      },
+      'resume'
+    );
 
     expect(reports.providerIds).toEqual([]);
     expect(reports.started).toEqual([
@@ -1683,7 +1719,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const reports = createRecordingConversationLifecycleReporter();
     const h = makeAcpHarness({ conversationReports: reports });
     const rt = new AcpRuntime(h.deps);
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-stop' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-stop' }), 'resume');
 
     await rt.stopSession('conv-stop');
 
@@ -1696,7 +1732,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const reports = createRecordingConversationLifecycleReporter();
     const h = makeAcpHarness({ conversationReports: reports });
     const rt = new AcpRuntime(h.deps);
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-died' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-died' }), 'resume');
 
     h.lastChild.emitExit(42);
 
@@ -1721,7 +1757,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       conversationId: 'conv-env-restart',
       env: { ENV_TEST: 'this-is-a-test' },
     });
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     h.lastChild.emitExit(42);
     await vi.waitFor(() =>
@@ -1730,7 +1766,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       })
     );
 
-    await rt.launchSession(input);
+    await rt.startSession(input, 'resume');
 
     expect(h.children).toHaveLength(2);
   });
@@ -1739,7 +1775,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
     const rt = new AcpRuntime(h.deps);
-    await rt.launchSession(makeStartInput({ conversationId: 'conv-crash' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-crash' }), 'resume');
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
 
     h.lastChild.emitExit(42);
@@ -1758,7 +1794,10 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const rt = new AcpRuntime(h.deps);
     h.agent.newSession.mockRejectedValueOnce(new Error('agent refused'));
 
-    const result = await rt.launchSession(makeStartInput({ conversationId: 'conv-start-fail' }));
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-start-fail' }),
+      'resume'
+    );
 
     expect(result.success).toBe(false);
     expect(reports.ended).toEqual(['conv-start-fail']);
@@ -1772,8 +1811,12 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const input = makeStartInput({ conversationId: 'conv-lease', sessionId: 'session-old' });
     await rt.attachSession(input);
     try {
-      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: false });
-      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: true });
+      await expect(startAndLoadHistory(rt, input.conversationId)).resolves.toMatchObject({
+        success: false,
+      });
+      await expect(startAndLoadHistory(rt, input.conversationId)).resolves.toMatchObject({
+        success: true,
+      });
       expect(h.children).toHaveLength(1);
       expect(h.lastChild.kill).not.toHaveBeenCalled();
       expect(h.agent.newSession).not.toHaveBeenCalled();
@@ -1787,8 +1830,8 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     const rt = new AcpRuntime(h.deps);
     h.agent.loadSession.mockRejectedValueOnce(new Error('session is closing'));
     const input = { ...makeStartInput({ conversationId: 'conv-lease' }), sessionId: 'session-old' };
-    expect((await rt.launchSession(input)).success).toBe(false);
-    expect((await rt.launchSession(input)).success).toBe(true);
+    expect((await rt.startSession(input, 'resume')).success).toBe(false);
+    expect((await rt.startSession(input, 'resume')).success).toBe(true);
     expect(h.agent.newSession).not.toHaveBeenCalled();
     expect(h.children).toHaveLength(1);
     expect(h.lastChild.kill).not.toHaveBeenCalled();
@@ -1874,4 +1917,9 @@ function collaborationModeConfigOption(currentValue: string) {
       { value: 'plan', name: 'Plan' },
     ],
   };
+}
+
+async function startAndLoadHistory(runtime: AcpRuntime, conversationId: string) {
+  const started = await runtime.startSession(makeStartInput({ conversationId }), 'resume');
+  return started.success ? runtime.loadHistory(conversationId) : started;
 }

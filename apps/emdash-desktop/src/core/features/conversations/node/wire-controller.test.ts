@@ -51,94 +51,135 @@ const target = {
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
-  it('adds project environment variables to trusted ACP spawn input', async () => {
-    const attach = vi.fn(async () => ok(undefined));
-    const getProviderEnv = vi.fn(async () => ({
-      CLAUDE_CONFIG_DIR: '/provider/config',
-      PROVIDER_ONLY: 'provider',
-    }));
-    const resolveLaunchContext = vi.fn(async () =>
-      ok({
-        workspace: {
-          workspaceId: 'workspace-1',
-          projectId: target.projectId,
-          host: LOCAL_HOST_REF,
-          path: target.workspacePath,
-        },
-        tmux: false,
-        env: {
-          CLAUDE_CONFIG_DIR: '/project/config',
-          PROJECT_ONLY: 'project',
-        },
-      })
-    );
-    const db = {
-      select: vi.fn(() => ({
-        from: () => ({
-          leftJoin: () => ({
-            where: () => ({
-              limit: async () => [
-                {
-                  projectId: target.projectId,
-                  taskId: target.taskId,
-                  providerId: target.providerId,
-                  sessionId: null,
-                  config: null,
-                  type: 'acp',
-                  workspaceId: 'workspace-1',
-                },
-              ],
+  it.each(['resume', 'fresh'] as const)(
+    'starts in %s mode with the trusted descriptor',
+    async (mode) => {
+      const startSession = vi.fn(async () => ok({ sessionId: 'session-1' }));
+      const controller = setupController({ client: { acp: { startSession } } });
+      expect(
+        await controller.call('acp.startSession', { conversationId: target.conversationId, mode })
+      ).toEqual(ok({ sessionId: 'session-1' }));
+      expect(startSession).toHaveBeenCalledWith({ ...target.acpInput, mode }, { timeoutMs: 0 });
+    }
+  );
+  it.each([
+    {
+      sessionId: null,
+      config: { initialQueue: [{ text: 'first' }] },
+      expectedQueue: [{ text: 'first' }],
+    },
+    {
+      sessionId: 'saved',
+      config: { initialQueue: [{ text: 'first' }] },
+      expectedQueue: [{ text: 'first' }],
+    },
+    {
+      sessionId: 'saved',
+      config: { initialPrompt: 'legacy' },
+      expectedQueue: [{ text: 'legacy' }],
+    },
+    {
+      sessionId: 'saved',
+      config: { initialQueue: [], initialPrompt: 'legacy' },
+      expectedQueue: [{ text: 'legacy' }],
+    },
+    { sessionId: 'saved', config: { initialPrompt: '  ' }, expectedQueue: undefined },
+    { sessionId: 'saved', config: {}, expectedQueue: undefined },
+  ])(
+    'supplies trusted initial prompts and environment for $sessionId with $config',
+    async ({ sessionId, config, expectedQueue }) => {
+      const attach = vi.fn(async (_input: unknown) => ok({ sessionId: null }));
+      const getProviderEnv = vi.fn(async () => ({
+        CLAUDE_CONFIG_DIR: '/provider/config',
+        PROVIDER_ONLY: 'provider',
+      }));
+      const resolveLaunchContext = vi.fn(async () =>
+        ok({
+          workspace: {
+            workspaceId: 'workspace-1',
+            projectId: target.projectId,
+            host: LOCAL_HOST_REF,
+            path: target.workspacePath,
+          },
+          tmux: false,
+          env: {
+            CLAUDE_CONFIG_DIR: '/project/config',
+            PROJECT_ONLY: 'project',
+          },
+        })
+      );
+      const db = {
+        select: vi.fn(() => ({
+          from: () => ({
+            leftJoin: () => ({
+              where: () => ({
+                limit: async () => [
+                  {
+                    projectId: target.projectId,
+                    taskId: target.taskId,
+                    providerId: target.providerId,
+                    sessionId,
+                    config: { version: '1', type: 'acp', ...config },
+                    type: 'acp',
+                    workspaceId: 'workspace-1',
+                  },
+                ],
+              }),
             }),
           }),
-        }),
-      })),
-    };
-    const controller = createConversationsWireController({
-      terminalFileSources: { prepare: vi.fn() },
-      db: db as never,
-      logger: { warn: vi.fn() } as never,
-      runtimes: { client: async () => ok({ acp: { attach } }) } as never,
-      workspaceIdentity: {
-        resolve: vi.fn(async () => ({ host: LOCAL_HOST_REF, path: target.workspacePath })),
-      },
-      getProviderEnv,
-      sessionLaunchContexts: { resolve: resolveLaunchContext },
-      telemetry: { capture: vi.fn() } as never,
-      projects: { requireAttached: vi.fn(() => ok({} as never)) },
-      taskSessions: { getTask: vi.fn() },
-      withCompensation: async ({ action }) => action(),
-      hostIsReachable: () => true,
-    });
-
-    await expect(
-      controller.call('acp.attach', { conversationId: target.conversationId })
-    ).resolves.toEqual(ok(undefined));
-
-    expect(attach).toHaveBeenCalledWith(
-      expect.objectContaining({
-        env: {
-          CLAUDE_CONFIG_DIR: '/project/config',
-          PROVIDER_ONLY: 'provider',
-          PROJECT_ONLY: 'project',
+        })),
+      };
+      const controller = createConversationsWireController({
+        terminalFileSources: { prepare: vi.fn() },
+        db: db as never,
+        logger: { warn: vi.fn() } as never,
+        runtimes: { client: async () => ok({ acp: { attach } }) } as never,
+        workspaceIdentity: {
+          resolve: vi.fn(async () => ({ host: LOCAL_HOST_REF, path: target.workspacePath })),
         },
-      }),
-      {}
-    );
-    expect(resolveLaunchContext).toHaveBeenCalledWith({
-      projectId: target.projectId,
-      taskId: target.taskId,
-      workspaceId: 'workspace-1',
-    });
-  });
+        getProviderEnv,
+        sessionLaunchContexts: { resolve: resolveLaunchContext },
+        telemetry: { capture: vi.fn() } as never,
+        projects: { requireAttached: vi.fn(() => ok({} as never)) },
+        taskSessions: { getTask: vi.fn() },
+        withCompensation: async ({ action }) => action(),
+        hostIsReachable: () => true,
+      });
 
-  it('attaches with the trusted descriptor and activates while loading history', async () => {
-    const attach = vi.fn(async () => ok(undefined));
+      await expect(
+        controller.call('acp.attach', { conversationId: target.conversationId })
+      ).resolves.toEqual(ok({ sessionId: null }));
+
+      expect(attach).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId,
+          env: {
+            CLAUDE_CONFIG_DIR: '/project/config',
+            PROVIDER_ONLY: 'provider',
+            PROJECT_ONLY: 'project',
+          },
+        }),
+        {}
+      );
+      if (expectedQueue)
+        expect(attach.mock.calls[0]?.[0]).toHaveProperty('initialQueue', expectedQueue);
+      else expect(attach.mock.calls[0]?.[0]).not.toHaveProperty('initialQueue');
+      expect(resolveLaunchContext).toHaveBeenCalledWith({
+        projectId: target.projectId,
+        taskId: target.taskId,
+        workspaceId: 'workspace-1',
+      });
+    }
+  );
+
+  it('attaches with the trusted descriptor and reads history without starting a session', async () => {
+    const attach = vi.fn(async () => ok({ sessionId: null }));
     const loadHistory = vi.fn(async () => ok({ turns: [], nextCursor: null }));
     const controller = setupController({ client: { acp: { attach, loadHistory } } });
 
     await expect(
       controller.call('acp.attach', { conversationId: target.conversationId })
-    ).resolves.toEqual(ok(undefined));
+    ).resolves.toEqual(ok({ sessionId: null }));
     await expect(
       controller.call('acp.loadHistory', { conversationId: target.conversationId, limit: 100 })
     ).resolves.toEqual(ok({ turns: [], nextCursor: null }));
@@ -174,22 +215,21 @@ describe('createConversationsWireController', () => {
   });
 
   it('clears unsupported selections reported by activation from host config', async () => {
-    const loadHistory = vi.fn(async () =>
+    const startSession = vi.fn(async () =>
       ok({
-        turns: [],
-        nextCursor: null,
+        sessionId: 'session-1',
         clearedConfiguration: ['model', 'modeId', 'collaborationMode'] as const,
       })
     );
     const persistAcpConfigOption = vi.fn(async () => {});
     const controller = setupController({
-      client: { acp: { loadHistory } },
+      client: { acp: { startSession } },
       hooks: { persistAcpConfigOption },
     });
 
-    await controller.call('acp.loadHistory', {
+    await controller.call('acp.startSession', {
       conversationId: target.conversationId,
-      limit: 50,
+      mode: 'resume',
     });
 
     expect(persistAcpConfigOption.mock.calls).toEqual([

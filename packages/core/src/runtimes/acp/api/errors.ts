@@ -20,6 +20,9 @@ export type ConversationNotFoundError = BaseError<'conversation_not_found'>;
  */
 export type InvalidStateError = BaseError<'invalid_state'>;
 
+/** The provider could not find the saved session in its current context. */
+export type SessionNotFoundError = BaseError<'session_not_found'>;
+
 /** Spawning the agent process failed. */
 export type SpawnFailedError = BaseError<'spawn_failed', SerializedError>;
 
@@ -51,6 +54,7 @@ export type AcpRuntimeError =
   | ProviderUnsupportedError
   | ConversationNotFoundError
   | InvalidStateError
+  | SessionNotFoundError
   | SpawnFailedError
   | InitializeFailedError
   | NewSessionFailedError
@@ -67,13 +71,15 @@ export type AcpStartError =
   | SpawnFailedError
   | InitializeFailedError
   | NewSessionFailedError
-  | InvalidStateError;
+  | InvalidStateError
+  | SessionNotFoundError;
 export const ACP_UNAMBIGUOUS_START_ERROR_TYPES = [
   'provider_unsupported',
   'auth_required',
   'spawn_failed',
   'initialize_failed',
   'new_session_failed',
+  'session_not_found',
 ] as const satisfies readonly AcpStartError['type'][];
 export type AcpLaunchError = AcpStartError;
 export type AcpLoadHistoryError = AcpStartError;
@@ -101,6 +107,11 @@ export const acpErr = {
     fail('conversation_not_found', { message: conversationId }),
 
   invalidState: (message: string) => fail('invalid_state', { message }),
+
+  sessionNotFound: () =>
+    fail('session_not_found', {
+      message: 'The agent could not find this saved conversation.',
+    }),
 
   spawnFailed: (cause: SerializedError) => fail('spawn_failed', { cause }),
 
@@ -144,6 +155,7 @@ const failedErrorSchema = <T extends string>(type: T) =>
 export const providerUnsupportedErrorSchema = plainTagErrorSchema('provider_unsupported');
 export const conversationNotFoundErrorSchema = plainTagErrorSchema('conversation_not_found');
 export const invalidStateErrorSchema = plainTagErrorSchema('invalid_state');
+export const sessionNotFoundErrorSchema = plainTagErrorSchema('session_not_found');
 export const spawnFailedErrorSchema = failedErrorSchema('spawn_failed');
 export const initializeFailedErrorSchema = failedErrorSchema('initialize_failed');
 export const newSessionFailedErrorSchema = failedErrorSchema('new_session_failed');
@@ -161,6 +173,7 @@ export const acpStartErrorSchema = z.discriminatedUnion('type', [
   initializeFailedErrorSchema,
   newSessionFailedErrorSchema,
   invalidStateErrorSchema,
+  sessionNotFoundErrorSchema,
 ]);
 export const acpLaunchErrorSchema = acpStartErrorSchema;
 export const acpLoadHistoryErrorSchema = acpStartErrorSchema;
@@ -168,6 +181,7 @@ export const acpTerminateErrorSchema = intentPersistenceFailedErrorSchema;
 export const acpSendPromptErrorSchema = z.discriminatedUnion('type', [
   conversationNotFoundErrorSchema,
   invalidStateErrorSchema,
+  sessionNotFoundErrorSchema,
   promptFailedErrorSchema,
   providerUnsupportedErrorSchema,
   authRequiredErrorSchema,
@@ -199,6 +213,7 @@ export const acpRuntimeErrorSchema = z.discriminatedUnion('type', [
   providerUnsupportedErrorSchema,
   conversationNotFoundErrorSchema,
   invalidStateErrorSchema,
+  sessionNotFoundErrorSchema,
   spawnFailedErrorSchema,
   initializeFailedErrorSchema,
   newSessionFailedErrorSchema,
