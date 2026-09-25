@@ -8,7 +8,11 @@ import type {
   ReportSessionStartedInput,
 } from '#services/conversation-reports/api';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
-import type { SessionIntent, SessionIntentStore } from '#services/session-intents/api';
+import type {
+  SessionIntent,
+  SessionIntentError,
+  SessionIntentStore,
+} from '#services/session-intents/api';
 
 export const idlePolicyConfigSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -158,5 +162,7 @@ export interface ConversationSessionLifecycle extends SessionLifecycle {
   providerSessionId(key: string, input: ReportProviderSessionIdInput): void;
   /** Re-persist the active intent from activePayload. */
   saveIntent(key: string): void;
+  /** Persist the current intent in FIFO order and report its durable write outcome. */
+  persistIntent(key: string): Promise<Result<void, SessionIntentError>>;
   reconcile(): Promise<void>;
 }
