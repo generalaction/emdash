@@ -162,14 +162,15 @@ describe('ConversationSyncService', () => {
         options: [option],
       });
       await vi.waitFor(async () => expect((await settings.read(key)).catalogs).toEqual([[option]]));
-      expect(
-        (await settings.read({ ...key, host: formatHostRef(LOCAL_HOST_REF) })).catalogs
-      ).toEqual([]);
+      const localKey = { ...key, host: formatHostRef(LOCAL_HOST_REF) };
+      expect((await settings.read(localKey)).catalogs).toEqual([[option]]);
+      expect((await settings.read(localKey)).acp.options).toEqual({});
       expect((await settings.read(key)).acp.options).toEqual({ model: 'user-choice' });
       service.detachHost(remoteHost);
       hostReachable = false;
       await service.attachHost(remoteHost);
       expect((await settings.read(key)).catalogs).toEqual([[option]]);
+      expect((await settings.read(localKey)).catalogs).toEqual([[option]]);
     } finally {
       service.detachHost(remoteHost);
       await sessions.dispose();

@@ -19,10 +19,9 @@ export function useConversationLaunchSettings(
   host: SerializedHostRef,
   providerId: string | null,
   capabilities: AgentCapabilities | undefined,
-  initialSettings?: ConversationLaunchSettings,
-  projectId?: string
+  initialSettings?: ConversationLaunchSettings
 ) {
-  const key = providerId ? { host, providerId, projectId } : null;
+  const key = providerId ? { host, providerId } : null;
   const { settings, ready } = useProviderSettings(key);
   const {
     value: preferredTransport,
@@ -42,13 +41,10 @@ export function useConversationLaunchSettings(
       if (!supported) return;
       if (isolated) setDraft((current) => current && { ...current, autoApprove });
       else if (providerId && supported) {
-        void patchProviderSettings(
-          { host, providerId, projectId },
-          { transport: 'pty', autoApprove }
-        );
+        void patchProviderSettings({ host, providerId }, { transport: 'pty', autoApprove });
       }
     },
-    [isolated, providerId, supported, host, projectId]
+    [isolated, providerId, supported, host]
   );
   const setUseChatUi = useCallback(
     (useChatUi: boolean) => {

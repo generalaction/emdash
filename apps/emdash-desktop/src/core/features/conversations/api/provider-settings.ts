@@ -7,12 +7,9 @@ import {
 import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
-export const providerScopeSchema = z.object({
+export const providerSettingsKeySchema = z.object({
   host: serializedHostRefSchema,
   providerId: z.string(),
-});
-export const providerSettingsKeySchema = providerScopeSchema.extend({
-  projectId: z.string().optional(),
 });
 export type ProviderSettingsKey = z.infer<typeof providerSettingsKeySchema>;
 export const acpPreferenceSchema = defineVersionedSchema()

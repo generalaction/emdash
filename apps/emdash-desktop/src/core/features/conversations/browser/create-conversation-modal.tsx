@@ -42,9 +42,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const launchSettings = useConversationLaunchSettings(
     host,
     providerId,
-    selectedAgent?.capabilities,
-    undefined,
-    projectId
+    selectedAgent?.capabilities
   );
   const showAcpToggle = agentSupportsAcp(selectedAgent?.capabilities);
   const useAcp = showAcpToggle && launchSettings.useChatUi;
@@ -83,7 +81,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     setIsSubmitting(true);
     setError(null);
     try {
-      const settings = await readProviderSettings({ host, providerId, projectId });
+      const settings = await readProviderSettings({ host, providerId });
       const conversationType: ConversationType = useAcp ? 'acp' : 'pty';
       await conversationMgr.createConversation({
         projectId,

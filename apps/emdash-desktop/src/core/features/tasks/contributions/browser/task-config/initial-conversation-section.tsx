@@ -106,8 +106,7 @@ export function useInitialConversationState(
     formatHostRef(hostRefFromConnectionId(connectionId)),
     providerId,
     capabilities,
-    options.launchSettings,
-    projectId
+    options.launchSettings
   );
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
@@ -160,7 +159,7 @@ export function useInitialConversationState(
       if (options.launchSettings) setDraftOptions((previous) => ({ ...previous, [id]: value }));
       else if (providerId)
         void patchProviderSettings(
-          { host: formatHostRef(hostRefFromConnectionId(connectionId)), providerId, projectId },
+          { host: formatHostRef(hostRefFromConnectionId(connectionId)), providerId },
           { transport: 'acp', options: { [id]: value } }
         );
     },
@@ -169,7 +168,6 @@ export function useInitialConversationState(
         await readProviderSettings({
           host: formatHostRef(hostRefFromConnectionId(connectionId)),
           providerId,
-          projectId,
         });
     },
     model,

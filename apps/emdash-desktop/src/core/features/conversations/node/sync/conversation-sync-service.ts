@@ -8,9 +8,7 @@ import {
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady } from '@emdash/wire/state';
-import { eq } from 'drizzle-orm';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversationRegistryTable } from '../../api/node/registry';
 import { getProviderSettingsService } from '../provider-settings-service';
 import {
   applyConversationSnapshot,
@@ -115,16 +113,10 @@ export class ConversationSyncService {
                 previous = fingerprint;
                 chain = chain
                   .then(async () => {
-                    const [row] = await this.options.db
-                      .select()
-                      .from(conversationRegistryTable)
-                      .where(eq(conversationRegistryTable.id, id))
-                      .limit(1);
                     await getProviderSettingsService(this.options.db).observeCatalog(
                       {
                         host: formatHostRef(host),
                         providerId: summary.providerId,
-                        ...(row?.projectId ? { projectId: row.projectId } : {}),
                       },
                       config
                     );

@@ -49,16 +49,15 @@ it('shares pending selections across creation scopes and waits for their durable
     )
   );
   connection.client = wire.client;
-  const key = { host: formatHostRef(LOCAL_HOST_REF), providerId: 'pending-test', projectId: 'a' };
+  const key = { host: formatHostRef(LOCAL_HOST_REF), providerId: 'pending-test' };
   try {
     await readProviderSettings(key);
-    await readProviderSettings({ ...key, projectId: 'b' });
     const save = patchProviderSettings(key, {
       transport: 'acp',
       options: { model: 'astra', effort: 'xhigh' },
     });
     let created = false;
-    const creation = readProviderSettings({ ...key, projectId: 'b' }).then((settings) => {
+    const creation = readProviderSettings({ ...key }).then((settings) => {
       created = true;
       return settings;
     });

@@ -9,10 +9,11 @@ import { remote, snapshot, whenReady } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { conversationsContract } from '../api/contract';
 import { ProviderSettingsService } from './provider-settings-service';
 
-const local = { host: formatHostRef(LOCAL_HOST_REF), providerId: 'codex', projectId: 'project-a' };
+const local = { host: formatHostRef(LOCAL_HOST_REF), providerId: 'codex' };
 const remoteScope = { ...local, host: formatHostRef(hostRef('remote', 'server-a')) };
 const model = (value: string): ProviderConfigOption => ({
   id: 'model',
@@ -67,7 +68,7 @@ describe('provider settings persistence', () => {
       scope,
     });
     const task = model(local).states.value;
-    const conversation = model({ ...local, projectId: 'project-b' }).states.value;
+    const conversation = model({ ...local }).states.value;
     try {
       await Promise.all([whenReady(task, { scope }), whenReady(conversation, { scope })]);
       await wire.client.providerSettings.patch({
@@ -84,14 +85,11 @@ describe('provider settings persistence', () => {
     }
   });
 
-  it('isolates hosts, providers, and transports while sharing preferences across projects', async () => {
+  it('isolates preferences by host, provider, and transport', async () => {
     await service.patch(local, { transport: 'acp', options: { model: 'new-cli-model' } });
     for (const key of [remoteScope, { ...local, providerId: 'claude' }])
       expect((await service.read(key)).acp.options).toEqual({});
     expect((await service.read(local)).pty).toEqual({ version: '1', autoApprove: false });
-    expect((await service.read({ ...local, projectId: 'project-b' })).acp.options).toEqual({
-      model: 'new-cli-model',
-    });
     await service.patch(local, {
       transport: 'pty',
       autoApprove: true,
@@ -145,6 +143,142 @@ describe('provider settings persistence', () => {
     expect((await service.read(local)).catalogs).toEqual([[model('new-cli')]]);
   });
 
+  it('borrows the most recently observed host catalog without borrowing preferences', async () => {
+    const otherHost = { ...local, host: formatHostRef(hostRef('remote', 'server-b')) };
+    const now = vi.spyOn(Date, 'now');
+    try {
+      await service.patch(local, { transport: 'acp', options: { model: 'local-choice' } });
+      await service.patch(local, { transport: 'pty', autoApprove: true });
+      await service.patch(remoteScope, { transport: 'acp', options: { effort: 'high' } });
+      now.mockReturnValue(1_000);
+      await service.observeCatalog(local, {
+        ...initialSessionConfigState,
+        discoveryContext: 'project-a/env',
+        options: [model('a')],
+      });
+      now.mockReturnValue(2_000);
+      await service.observeCatalog(otherHost, {
+        ...initialSessionConfigState,
+        discoveryContext: 'project-b/env',
+        options: [model('b')],
+      });
+      now.mockReturnValue(3_000);
+      await service.observeCatalog(otherHost, {
+        ...initialSessionConfigState,
+        discoveryContext: 'project-c/env',
+        options: [model('c')],
+      });
+      // A different transport must not supply options, even if it has a newer entry.
+      now.mockReturnValue(3_500);
+      await new AppDbKeyValueStore<Record<string, unknown>>(
+        fixture.db,
+        'provider-options'
+      ).setOrThrow(
+        JSON.stringify([remoteScope.host, remoteScope.providerId, 'pty', 'configuration']),
+        { version: '1', options: [model('tui-only')] }
+      );
+      const borrowed = await service.read(remoteScope);
+      expect(borrowed.catalogs).toEqual([[model('c')], [model('b')]]);
+      expect(borrowed.acp.options).toEqual({ effort: 'high' });
+      expect(borrowed.pty.autoApprove).toBe(false);
+      expect((await service.read(local)).catalogs).toEqual([[model('a')]]);
+      expect((await service.read({ ...remoteScope, providerId: 'claude' })).catalogs).toEqual([]);
+
+      await service.patch(remoteScope, { transport: 'acp', options: { model: 'b' } });
+      await service.observeCatalog(remoteScope, initialSessionConfigState);
+      expect((await service.read(remoteScope)).acp.options).toEqual({ model: 'b', effort: 'high' });
+      expect((await service.read(remoteScope)).catalogs).toEqual(borrowed.catalogs);
+      expect((await service.read(local)).acp.options).toEqual({ model: 'local-choice' });
+      expect((await service.read(otherHost)).acp.options).toEqual({});
+
+      now.mockReturnValue(4_000);
+      await service.observeCatalog(remoteScope, {
+        ...initialSessionConfigState,
+        discoveryContext: 'target/env',
+        options: [model('target')],
+        clearedOptions: { model: 'b' },
+      });
+      expect((await service.read(remoteScope)).catalogs).toEqual([[model('target')]]);
+      expect((await service.read(remoteScope)).acp.options).toEqual({ effort: 'high' });
+      expect((await service.read(otherHost)).catalogs).toEqual(borrowed.catalogs);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('treats a successfully discovered empty catalog as authoritative for its host', async () => {
+    await service.observeCatalog(local, {
+      ...initialSessionConfigState,
+      discoveryContext: 'context',
+      options: [model('a')],
+    });
+    expect((await service.read(remoteScope)).catalogs).toEqual([[model('a')]]);
+    await service.observeCatalog(remoteScope, {
+      ...initialSessionConfigState,
+      discoveryContext: 'context',
+      options: [],
+    });
+    expect((await service.read(remoteScope)).catalogs).toEqual([[]]);
+  });
+
+  it('refreshes open forms when borrowed catalogs change, then prefers their own host', async () => {
+    const contract = defineContract({ providerSettings: conversationsContract.providerSettings });
+    const wire = createTestWire(
+      contract,
+      createController(contract, {
+        providerSettings: {
+          model: service.model,
+          patch: ({ patch, ...key }) => service.patch(key, patch),
+        },
+      })
+    );
+    const scope = createScope();
+    const settings = remote(contract.providerSettings.model, wire.client.providerSettings.model, {
+      scope,
+    });
+    const state = settings(remoteScope).states.value;
+    const now = vi.spyOn(Date, 'now');
+    try {
+      await whenReady(state, { scope });
+      expect(snapshot(state).value?.catalogs).toEqual([]);
+      now.mockReturnValue(1_000);
+      await service.observeCatalog(local, {
+        ...initialSessionConfigState,
+        discoveryContext: 'context',
+        options: [model('a')],
+      });
+      await vi.waitFor(() => expect(snapshot(state).value?.catalogs).toEqual([[model('a')]]));
+      now.mockReturnValue(2_000);
+      await service.observeCatalog(local, {
+        ...initialSessionConfigState,
+        discoveryContext: 'context',
+        options: [model('b')],
+      });
+      await vi.waitFor(() =>
+        expect(snapshot(state).value?.catalogs).toEqual([[model('b')], [model('a')]])
+      );
+      now.mockReturnValue(3_000);
+      await service.observeCatalog(remoteScope, {
+        ...initialSessionConfigState,
+        discoveryContext: 'context',
+        options: [model('target')],
+      });
+      await vi.waitFor(() => expect(snapshot(state).value?.catalogs).toEqual([[model('target')]]));
+      now.mockReturnValue(4_000);
+      await service.observeCatalog(local, {
+        ...initialSessionConfigState,
+        discoveryContext: 'context',
+        options: [model('c')],
+      });
+      expect((await service.read(remoteScope)).catalogs).toEqual([[model('target')]]);
+      expect(snapshot(state).value?.acp.options).toEqual({});
+    } finally {
+      now.mockRestore();
+      await scope.dispose();
+      await wire.dispose();
+    }
+  });
+
   it('keeps configuration variants and clears only the still-invalid saved choices', async () => {
     await service.patch(local, {
       transport: 'acp',
@@ -165,26 +299,25 @@ describe('provider settings persistence', () => {
     expect((await service.read(local)).acp.options).toEqual({ effort: 'new-choice' });
   });
 
-  it('refreshes catalog recency when a previous configuration is observed again', async () => {
+  it('shares catalogs across project contexts and refreshes their recency after restart', async () => {
     const now = vi.spyOn(Date, 'now');
-    const observe = (value: string) =>
+    const observe = (value: string, discoveryContext: string) =>
       service.observeCatalog(local, {
         ...initialSessionConfigState,
-        discoveryContext: 'context',
+        discoveryContext,
         options: [model(value)],
       });
     try {
       now.mockReturnValue(1_000);
-      await observe('a');
+      await observe('a', 'project-a/env');
       now.mockReturnValue(2_000);
-      await observe('b');
+      await observe('b', 'project-b/env');
       now.mockReturnValue(3_000);
-      await observe('a');
+      await observe('a', 'project-c/env');
       await service.dispose();
       service = new ProviderSettingsService(fixture.db);
       expect((await service.read(local)).catalogs).toEqual([[model('a')], [model('b')]]);
-      expect((await service.read(remoteScope)).catalogs).toEqual([]);
-      expect((await service.read({ ...local, projectId: 'other' })).catalogs).toEqual([]);
+      expect((await service.read(remoteScope)).catalogs).toEqual([[model('a')], [model('b')]]);
       expect((await service.read(local)).acp.options).toEqual({});
     } finally {
       now.mockRestore();

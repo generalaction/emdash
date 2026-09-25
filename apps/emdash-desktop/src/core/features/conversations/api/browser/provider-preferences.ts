@@ -97,7 +97,7 @@ class SettingsStore {
   }
 }
 function storeKey(key: ProviderSettingsKey) {
-  return JSON.stringify([key.host, key.providerId, key.projectId ?? '']);
+  return JSON.stringify([key.host, key.providerId]);
 }
 function store(key: ProviderSettingsKey) {
   const id = storeKey(key);
@@ -126,20 +126,7 @@ function mutate(mutation: Pending): Promise<void> {
     .then(async () => {
       const client = (await getConversationsClient()).providerSettings;
       const snapshot = await client.patch({ ...mutation.key, patch: mutation.patch });
-      store(mutation.key);
-      for (const source of stores.values()) {
-        if (
-          source.key.host === mutation.key.host &&
-          source.key.providerId === mutation.key.providerId
-        )
-          source.accept({
-            ...snapshot,
-            catalogs:
-              source.key.projectId === mutation.key.projectId
-                ? snapshot.catalogs
-                : source.snapshot().settings.catalogs,
-          });
-      }
+      store(mutation.key).accept(snapshot);
     })
     .finally(() => {
       pending.splice(pending.indexOf(mutation), 1);

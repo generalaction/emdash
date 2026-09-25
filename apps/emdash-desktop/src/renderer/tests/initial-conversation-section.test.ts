@@ -364,6 +364,21 @@ describe('useInitialConversationState', () => {
     expect(latestState?.autoApprove).toBe(true);
   });
 
+  it('retains explicit chat settings when switching projects on the same host', async () => {
+    mocks.preferredConversationType = 'acp';
+    await renderProbe('project-1');
+    await act(async () => {
+      latestState?.setOption('model', 'sonnet');
+      latestState?.setOption('effort', 'high');
+    });
+    await renderProbe('project-2');
+    expect(latestState?.useChatUi).toBe(true);
+    expect(latestState?.options).toEqual({ model: 'sonnet', effort: 'high' });
+    mocks.getProjectSshConnectionId.mockReturnValue('remote-1');
+    await renderProbe('project-3');
+    expect(latestState?.options).toEqual({});
+  });
+
   it('reflects active-chat preference changes immediately in an already-open creation form', async () => {
     await renderProbe('project-1');
     await act(async () => {

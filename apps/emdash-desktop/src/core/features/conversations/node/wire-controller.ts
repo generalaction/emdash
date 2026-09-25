@@ -232,7 +232,6 @@ export function createConversationsWireController(
                     {
                       host: formatHostRef(runtimeTarget.host),
                       providerId: runtimeTarget.providerId,
-                      projectId: runtimeTarget.projectId,
                     },
                     { transport: 'acp', options: { [input.configId]: input.value } }
                   );

@@ -30,8 +30,8 @@ export class ProviderSettingsService {
   private readonly preferences;
   private readonly catalogs;
   private readonly scope = createScope({ label: 'provider-settings' });
-  private readonly changes =
-    pokeChannel<Pick<ProviderSettingsKey, 'host' | 'providerId'>>('provider-settings');
+  private readonly changes = pokeChannel<ProviderSettingsKey>('provider-settings');
+  private readonly catalogChanges = pokeChannel<string>('provider-options');
   private readonly lanes = createKeyedLanes();
   readonly model;
 
@@ -47,6 +47,7 @@ export class ProviderSettingsService {
             this.changes.subscription(
               (change) => change.host === key.host && change.providerId === key.providerId
             ),
+            this.catalogChanges.subscription((providerId) => providerId === key.providerId),
           ],
         }),
       { scope: this.scope, name: 'provider-settings', key: JSON.stringify, lingerMs: 30_000 }
@@ -72,22 +73,21 @@ export class ProviderSettingsService {
       this.readPreference(scope, 'pty'),
       this.catalogs.getAll(),
     ]);
+    const available = Object.entries(catalogs)
+      .reverse()
+      .flatMap(([key, value]) => {
+        const [host, providerId, transport] = JSON.parse(key) as string[];
+        if (providerId !== scope.providerId || transport !== 'acp') return [];
+        const parsed = providerOptionsCacheSchema.schema.safeParse(value);
+        return parsed.success ? [{ host, options: parsed.data.options }] : [];
+      });
+    const sourceHost = available.some(({ host }) => host === scope.host)
+      ? scope.host
+      : available[0]?.host;
     return {
       acp,
       pty,
-      catalogs: Object.entries(catalogs)
-        .flatMap(([key, value]) => {
-          const [host, providerId, projectId] = JSON.parse(key) as string[];
-          if (
-            host !== scope.host ||
-            providerId !== scope.providerId ||
-            projectId !== (scope.projectId ?? '')
-          )
-            return [];
-          const parsed = providerOptionsCacheSchema.schema.safeParse(value);
-          return parsed.success ? [parsed.data.options] : [];
-        })
-        .reverse(),
+      catalogs: available.filter(({ host }) => host === sourceHost).map(({ options }) => options),
     };
   }
 
@@ -130,25 +130,19 @@ export class ProviderSettingsService {
       .map(({ id, currentValue }) => [id, currentValue])
       .sort(([a], [b]) => String(a).localeCompare(String(b)));
     const hash = createHash('sha256').update(JSON.stringify(configuration)).digest('hex');
-    const key = JSON.stringify([
-      scope.host,
-      scope.providerId,
-      scope.projectId ?? '',
-      config.discoveryContext,
-      hash,
-    ]);
+    const key = JSON.stringify([scope.host, scope.providerId, 'acp', hash]);
     const value = { version: '1', options: config.options };
     await this.lanes.run(this.key(scope), new AbortController().signal, async () => {
       // Re-observing an unchanged variant still makes it the most recent discovery.
       await this.catalogs.setOrThrow(key, value);
       const entries = Object.keys(await this.catalogs.getAll()).filter((entry) => {
-        const [host, provider] = JSON.parse(entry) as string[];
-        return host === scope.host && provider === scope.providerId;
+        const [host, provider, transport] = JSON.parse(entry) as string[];
+        return host === scope.host && provider === scope.providerId && transport === 'acp';
       });
       for (const stale of entries.slice(0, Math.max(0, entries.length - 64))) {
         if (stale !== key) await this.catalogs.del(stale);
       }
-      this.changes.poke(scope);
+      this.catalogChanges.poke(scope.providerId);
     });
     if (Object.keys(config.clearedOptions ?? {}).length) {
       await this.lanes.run(this.key(scope), new AbortController().signal, async () => {

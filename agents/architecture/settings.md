@@ -108,7 +108,7 @@ an optimistic projection, not a separate persistence owner.
 | Namespace | Key | Value |
 | --- | --- | --- |
 | `provider-preferences` | host, provider, transport | ACP: `{ version: '1', options: {} }`; PTY: `{ version: '1', autoApprove: false }` |
-| `provider-options` | host, provider, project context, process context, configuration fingerprint | `{ version: '1', options: SessionConfigOption[] }` |
+| `provider-options` | host, provider, transport (`acp`), configuration fingerprint | `{ version: '1', options: ProviderConfigOption[] }` |
 
 Preferences contain only explicit selections, using native provider option IDs and string/boolean
 values. Missing overrides use provider defaults. Pickers contain only discovered choices, including
@@ -134,11 +134,16 @@ retains its plugin model list as a one-off choice; only its approval toggle is r
 
 Main observes successful live ACP configuration snapshots, including sessions without a mounted
 renderer. Discovery does not launch a process or run periodic scans. The cache includes native
-select/boolean options, groups and categories; process context includes cwd and an environment
-fingerprint. Hosts never share cached options. Creation prefers a catalog observed for the selected
-model and otherwise uses the most recently observed complete catalog in the same scope. Re-observing
-an unchanged variant refreshes its recency. Catalog storage is bounded to 64 variants per host/provider;
-missing cache hides unknown controls. Live provider responses remain authoritative. Discovery failures preserve stored data;
+select/boolean options, groups and categories. All projects share their host/provider/transport cache.
+If that host has no catalog, creation borrows the most recently observed host's catalogs for the same
+provider and transport. Within that host's cache, creation prefers a catalog observed for the selected
+model and otherwise uses the latest complete snapshot; it never merges option lists across snapshots.
+Re-observing an unchanged configuration from any project refreshes its recency. Catalog storage is
+bounded to 64 variants per host/provider/transport. Catalog changes refresh open forms across hosts.
+Borrowing choices never copies another host's preferences or cached current values as selections;
+edits belong to the target host. TUI continues to use plugin model lists. Missing cache everywhere
+hides unknown controls. Live provider responses replace cached controls, including successfully
+discovered empty catalogs. Discovery failures preserve stored data;
 confirmed invalid overrides are removed conditionally so a newer user choice survives delayed cleanup.
 Provider-reported defaults and automatic changes never become user preferences.
 
