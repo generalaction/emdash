@@ -119,7 +119,8 @@ Per-field patches are serialized in main; database read failures cannot become e
 preferences. The retired global setting, localStorage defaults, and preference mementos are not
 migrated. Draft text/attachments continue to use their own memento.
 
-Create Conversation exposes provider and transport, plus auto-approve for TUI only. Create Task and active chat
+Creation flows integrate an icon-only Chat UI/TUI toggle into the provider field, with
+auto-approve below for TUI only. Create Conversation exposes no model picker. Create Task and active chat
 share discovered composer controls. Creation waits for pending preference writes and copies settings
 into the new conversation. Later changes do not alter other existing conversations. TUI task creation
 retains its plugin model list as a one-off choice; only its approval toggle is remembered.
@@ -127,9 +128,10 @@ retains its plugin model list as a one-off choice; only its approval toggle is r
 Main observes successful live ACP configuration snapshots, including sessions without a mounted
 renderer. Discovery does not launch a process or run periodic scans. The cache includes native
 select/boolean options, groups and categories; process context includes cwd and an environment
-fingerprint. Hosts never share cached options. Cached dependent controls require an observed model
-variant. Catalog storage is bounded to 64 variants per host/provider; missing cache hides unknown
-controls. Live provider responses remain authoritative. Discovery failures preserve stored data;
+fingerprint. Hosts never share cached options. Creation prefers a catalog observed for the selected
+model and otherwise uses the most recently observed complete catalog in the same scope. Re-observing
+an unchanged variant refreshes its recency. Catalog storage is bounded to 64 variants per host/provider;
+missing cache hides unknown controls. Live provider responses remain authoritative. Discovery failures preserve stored data;
 confirmed invalid overrides are removed conditionally so a newer user choice survives delayed cleanup.
 Provider-reported defaults and automatic changes never become user preferences.
 

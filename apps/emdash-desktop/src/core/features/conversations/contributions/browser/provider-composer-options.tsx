@@ -10,7 +10,7 @@ import type { ComponentProps } from 'react';
 
 type ComposerProps = ComponentProps<typeof ChatComposer>;
 
-/** Cached dependent controls are only offered for a model we have actually observed. */
+/** Prefer the observed model variant; otherwise keep the latest catalog until live discovery. */
 export function selectCachedProviderOptions(
   catalogs: ProviderConfigOption[][],
   values: ProviderOptionValues
@@ -21,7 +21,7 @@ export function selectCachedProviderOptions(
   return (
     catalogs.find((options) =>
       options.some((option) => option.id === model.id && option.currentValue === values[model.id])
-    ) ?? [model]
+    ) ?? latest
   );
 }
 

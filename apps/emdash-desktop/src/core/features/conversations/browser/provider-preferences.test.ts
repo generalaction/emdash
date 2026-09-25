@@ -23,14 +23,36 @@ const effort: ProviderConfigOption = {
   currentValue: 'high',
   options: [{ name: 'High', value: 'high' }],
 };
+const mode: ProviderConfigOption = {
+  id: 'mode',
+  category: 'mode',
+  type: 'select',
+  name: 'Permissions',
+  currentValue: 'bypass',
+  options: [{ name: 'Bypass permissions', value: 'bypass' }],
+};
 describe('discovered composer configuration', () => {
   it('does not invent controls before discovery', () => {
     expect(selectCachedProviderOptions([], { model: 'a' })).toEqual([]);
     expect(providerComposerOptions([], {}, vi.fn()).modelOptions).toBeUndefined();
   });
-  it('offers effort only for an observed model configuration', () => {
-    expect(selectCachedProviderOptions([[model, effort]], { model: 'b' })).toEqual([model]);
-    expect(selectCachedProviderOptions([[model, effort]], { model: 'a' })).toEqual([model, effort]);
+  it('keeps discovered controls when switching to an unobserved model', () => {
+    const options = selectCachedProviderOptions([[model, effort, mode]], { model: 'b' });
+    const props = providerComposerOptions(options, { model: 'b' }, vi.fn());
+    expect(props.selectedModel).toBe('b');
+    expect(props.permissionModeOptions).toEqual({ bypass: { name: 'Bypass permissions' } });
+    expect(props.effortOptions).toEqual({ high: { name: 'High' } });
+  });
+  it('prefers an observed model catalog without adding options it does not expose', () => {
+    const observed = [{ ...model, currentValue: 'b' }, mode];
+    expect(selectCachedProviderOptions([[model, effort, mode], observed], { model: 'b' })).toEqual(
+      observed
+    );
+    expect(selectCachedProviderOptions([[model, effort, mode], observed], {})).toEqual([
+      model,
+      effort,
+      mode,
+    ]);
   });
   it('sends only provider-owned choices, including a native default alias', () => {
     const change = vi.fn();

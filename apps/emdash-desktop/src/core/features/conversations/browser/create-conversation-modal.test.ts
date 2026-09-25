@@ -35,6 +35,9 @@ vi.mock('@core/features/agents/api/browser/use-agents', () => ({
 vi.mock('@core/features/agents/contributions/browser/agent-selector', () => ({
   AgentSelector: () => null,
 }));
+vi.mock('@core/features/conversations/contributions/browser/conversation-transport-toggle', () => ({
+  ConversationTransportToggle: () => null,
+}));
 vi.mock('@core/features/conversations/api/browser/stores/conversation-registry', () => ({
   conversationRegistry: {
     get: () => ({ conversations: new Map(), createConversation: mocks.createConversation }),
@@ -75,6 +78,8 @@ vi.mock('@emdash/ui/react/primitives', () => {
   return {
     Dialog: { Header: container, Title: container, Body: container, Footer: container },
     Field: { Root: container, Label: container, Group: container },
+    InputGroup: { Root: container },
+    Separator: () => null,
     Select: {
       Root: mocks.select,
       Trigger: container,

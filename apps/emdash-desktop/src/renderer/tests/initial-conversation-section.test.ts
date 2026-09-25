@@ -273,6 +273,8 @@ describe('useInitialConversationState', () => {
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
     vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
+    vi.stubGlobal('Element', dom.window.Element);
+    vi.stubGlobal('Node', dom.window.Node);
     vi.stubGlobal('Event', dom.window.Event);
     vi.stubGlobal('localStorage', dom.window.localStorage);
     dom.window.localStorage.clear();
@@ -526,6 +528,8 @@ describe('InitialConversationField', () => {
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
     vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
+    vi.stubGlobal('Element', dom.window.Element);
+    vi.stubGlobal('Node', dom.window.Node);
     vi.stubGlobal('Event', dom.window.Event);
     vi.stubGlobal('localStorage', dom.window.localStorage);
     dom.window.localStorage.clear();

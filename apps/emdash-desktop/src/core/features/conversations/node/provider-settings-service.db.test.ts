@@ -167,4 +167,30 @@ describe('provider settings persistence', () => {
     expect((await service.read(local)).catalogs).toHaveLength(2);
     expect((await service.read(local)).acp.options).toEqual({ effort: 'new-choice' });
   });
+
+  it('refreshes catalog recency when a previous configuration is observed again', async () => {
+    const now = vi.spyOn(Date, 'now');
+    const observe = (value: string) =>
+      service.observeCatalog(local, {
+        ...initialSessionConfigState,
+        discoveryContext: 'context',
+        options: [model(value)],
+      });
+    try {
+      now.mockReturnValue(1_000);
+      await observe('a');
+      now.mockReturnValue(2_000);
+      await observe('b');
+      now.mockReturnValue(3_000);
+      await observe('a');
+      await service.dispose();
+      service = new ProviderSettingsService(fixture.db);
+      expect((await service.read(local)).catalogs).toEqual([[model('a')], [model('b')]]);
+      expect((await service.read(remoteScope)).catalogs).toEqual([]);
+      expect((await service.read({ ...local, projectId: 'other' })).catalogs).toEqual([]);
+      expect((await service.read(local)).acp.options).toEqual({});
+    } finally {
+      now.mockRestore();
+    }
+  });
 });

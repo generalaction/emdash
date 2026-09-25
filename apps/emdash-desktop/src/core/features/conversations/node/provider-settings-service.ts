@@ -151,7 +151,7 @@ export class ProviderSettingsService {
     ]);
     const value = { version: '1', options: config.options };
     await this.lanes.run(this.key(scope), new AbortController().signal, async () => {
-      if (JSON.stringify(await this.catalogs.getOrThrow(key)) === JSON.stringify(value)) return;
+      // Re-observing an unchanged variant still makes it the most recent discovery.
       await this.catalogs.setOrThrow(key, value);
       const entries = Object.keys(await this.catalogs.getAll()).filter((entry) => {
         const [host, provider] = JSON.parse(entry) as string[];

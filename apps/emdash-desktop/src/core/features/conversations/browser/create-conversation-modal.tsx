@@ -1,5 +1,5 @@
 import { formatHostRef } from '@emdash/core/primitives/host/api';
-import { Dialog, Field, Switch } from '@emdash/ui/react/primitives';
+import { Dialog, Field, InputGroup, Separator, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
@@ -10,6 +10,7 @@ import { readProviderSettings } from '@core/features/conversations/api/browser/p
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { useConversationLaunchSettings } from '@core/features/conversations/api/browser/use-conversation-launch-settings';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
+import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
@@ -125,12 +126,27 @@ export const CreateConversationModal = observer(function CreateConversationModal
         <Field.Group>
           <Field.Root>
             <Field.Label>Agent</Field.Label>
-            <AgentSelector
-              autoFocus
-              value={providerId}
-              onChange={handleProviderChange}
-              connectionId={connectionId}
-            />
+            <InputGroup.Root aria-label="Agent and interface">
+              <div className="h-full min-w-0 flex-1">
+                <AgentSelector
+                  className="h-full border-0"
+                  autoFocus
+                  value={providerId}
+                  onChange={handleProviderChange}
+                  connectionId={connectionId}
+                />
+              </div>
+              {showAcpToggle ? (
+                <>
+                  <Separator orientation="vertical" />
+                  <ConversationTransportToggle
+                    value={transport}
+                    disabled={!launchSettings.ready || isSubmitting}
+                    onValueChange={(value) => launchSettings.setUseChatUi(value === 'acp')}
+                  />
+                </>
+              ) : null}
+            </InputGroup.Root>
           </Field.Root>
           {showAutoApproveToggle ? (
             <Field.Root>
@@ -141,18 +157,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
                   onCheckedChange={launchSettings.setAutoApprove}
                 />
                 <Field.Label>Auto-approve permissions</Field.Label>
-              </div>
-            </Field.Root>
-          ) : null}
-          {showAcpToggle ? (
-            <Field.Root>
-              <div className="flex items-center gap-2">
-                <Switch
-                  disabled={!launchSettings.ready || isSubmitting}
-                  checked={useAcp}
-                  onCheckedChange={launchSettings.setUseChatUi}
-                />
-                <Field.Label>Use chat UI</Field.Label>
               </div>
             </Field.Root>
           ) : null}

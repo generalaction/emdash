@@ -2,7 +2,7 @@ import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
-import { Field, Switch } from '@emdash/ui/react/primitives';
+import { Field, InputGroup, Separator, Switch } from '@emdash/ui/react/primitives';
 import {
   useCallback,
   useEffect,
@@ -27,6 +27,7 @@ import {
 } from '@core/features/conversations/api/browser/use-conversation-launch-settings';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
 import type { ProviderSettingsSnapshot } from '@core/features/conversations/api/provider-settings';
+import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
 import {
   providerComposerOptions,
   selectCachedProviderOptions,
@@ -244,7 +245,6 @@ export function InitialConversationField({
   requirePromptDelivery = false,
 }: InitialConversationFieldProps) {
   const autoApproveSwitchId = useId();
-  const chatUiSwitchId = useId();
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
@@ -377,15 +377,28 @@ export function InitialConversationField({
         onBlur={onPromptBlur}
         {...(canDeliverInitialPrompt ? dropHandlers : {})}
       >
-        <div className="flex w-full">
-          <AgentSelector
-            value={state.provider}
-            onChange={(provider) => state.setProvider(provider)}
-            connectionId={state.connectionId}
-            getDisabledReason={getDisabledReason}
-            contentClassName="w-64"
-          />
-        </div>
+        <InputGroup.Root aria-label="Agent and interface">
+          <div className="h-full min-w-0 flex-1">
+            <AgentSelector
+              className="h-full border-0"
+              value={state.provider}
+              onChange={(provider) => state.setProvider(provider)}
+              connectionId={state.connectionId}
+              getDisabledReason={getDisabledReason}
+              contentClassName="w-64"
+            />
+          </div>
+          {canToggleChatUi ? (
+            <>
+              <Separator orientation="vertical" />
+              <ConversationTransportToggle
+                value={state.useChatUi ? 'acp' : 'pty'}
+                disabled={!state.settingsReady}
+                onValueChange={(value) => state.setUseChatUi(value === 'acp')}
+              />
+            </>
+          ) : null}
+        </InputGroup.Root>
 
         {showAutoApproveToggle && canToggleAutoApprove ? (
           <div className="flex items-center gap-2">
@@ -396,17 +409,6 @@ export function InitialConversationField({
               disabled={!state.provider}
             />
             <Field.Label htmlFor={autoApproveSwitchId}>Auto-approve permissions</Field.Label>
-          </div>
-        ) : null}
-
-        {canToggleChatUi ? (
-          <div className="flex items-center gap-2">
-            <Switch
-              id={chatUiSwitchId}
-              checked={state.useChatUi}
-              onCheckedChange={state.setUseChatUi}
-            />
-            <Field.Label htmlFor={chatUiSwitchId}>Use chat UI</Field.Label>
           </div>
         ) : null}
 
