@@ -62,3 +62,9 @@ activation or launching the app again restores the main window.
 - Check `agents/conventions/ipc.md` for the RPC controller pattern and typing rules.
 - Check `agents/risky-areas/pty.md` before touching PTY or provider spawn behavior.
 - Check `agents/risky-areas/database.md` before changing persistence or migrations.
+
+Project attachment initialization has a 60-second total deadline, including at most one retry for
+a local Wire timeout. Remote connection recovery remains owned by the Host supervisor. Cancellation
+stops initialization at stage boundaries and releases partial repo-facts subscriptions and fetch
+services without tearing down task sessions. Failed initialization logs its stage and elapsed time;
+late completion must never publish or leave an unowned background fetch running.
