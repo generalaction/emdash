@@ -47,6 +47,63 @@ it('renders and updates an arbitrary ACP boolean without a known Fast-mode ID', 
   }
 });
 
+it.each<ProviderConfigOption>([
+  { id: 'fast', name: 'Fast mode', type: 'boolean', currentValue: true },
+  {
+    id: 'fast-mode',
+    name: 'Fast mode',
+    type: 'select',
+    currentValue: 'on',
+    options: [
+      { value: 'off', name: 'Off' },
+      { value: 'on', name: 'On' },
+    ],
+  },
+  { id: 'provider-speed', name: 'Speed boost', type: 'boolean', currentValue: true },
+])('uses cached $id values until an explicit choice or live value is available', async (option) => {
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const change = vi.fn();
+  const fast = option.id !== 'provider-speed';
+  const off = option.type === 'boolean' ? false : 'off';
+  const on = option.type === 'boolean' ? true : 'on';
+  const render = async (values: ProviderOptionValues = {}, live = false) => {
+    await act(async () =>
+      root.render(
+        <ChatComposer
+          {...providerComposerOptions([option], values, change, true, live)}
+          onSubmit={() => {}}
+        />
+      )
+    );
+  };
+  try {
+    await render();
+    const toggle = page.getByRole(fast ? 'switch' : 'button', {
+      name: option.name,
+      exact: true,
+    });
+    const attribute = fast ? 'aria-checked' : 'aria-pressed';
+    expect(toggle.element().getAttribute(attribute)).toBe('true');
+    expect(change).not.toHaveBeenCalled();
+    await act(async () => toggle.click());
+    expect(change).toHaveBeenLastCalledWith(option.id, off);
+
+    await render({ [option.id]: off });
+    expect(toggle.element().getAttribute(attribute)).toBe('false');
+    await act(async () => toggle.click());
+    expect(change).toHaveBeenLastCalledWith(option.id, on);
+
+    await render({ [option.id]: off }, true);
+    expect(toggle.element().getAttribute(attribute)).toBe('true');
+    expect(change).toHaveBeenCalledTimes(2);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
 const model: ProviderConfigOption = {
   id: 'model',
   name: 'Model',

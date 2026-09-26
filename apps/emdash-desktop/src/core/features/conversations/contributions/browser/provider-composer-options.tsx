@@ -82,7 +82,8 @@ export function providerComposerOptions(
           choices.length === 2 &&
           choices.every((choice) => choice.value === 'on' || choice.value === 'off'))
       ) {
-        const checked = value === undefined ? undefined : value === true || value === 'on';
+        const toggleValue = value ?? option.currentValue;
+        const checked = toggleValue === true || toggleValue === 'on';
         return (
           <Tooltip.Root key={option.id}>
             <Tooltip.Trigger
@@ -94,8 +95,8 @@ export function providerComposerOptions(
                   disabled={!enabled}
                   aria-label={option.name}
                   role={fast ? 'switch' : undefined}
-                  aria-checked={fast ? checked === true : undefined}
-                  aria-pressed={fast ? undefined : (checked ?? 'mixed')}
+                  aria-checked={fast ? checked : undefined}
+                  aria-pressed={fast ? undefined : checked}
                   onClick={() =>
                     onChange(
                       option.id,
@@ -106,12 +107,11 @@ export function providerComposerOptions(
               }
             >
               {fast && <Zap className="h-3.5 w-3.5" fill={checked ? 'currentColor' : 'none'} />}
-              {!fast &&
-                (checked === undefined ? option.name : `${option.name}: ${checked ? 'On' : 'Off'}`)}
+              {!fast && `${option.name}: ${checked ? 'On' : 'Off'}`}
             </Tooltip.Trigger>
             <Tooltip.Content>
               {option.name}
-              {checked === undefined ? '' : checked ? ': On' : ': Off'}
+              {checked ? ': On' : ': Off'}
               {option.description && <div>{option.description}</div>}
             </Tooltip.Content>
           </Tooltip.Root>
