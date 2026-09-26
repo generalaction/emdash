@@ -20,9 +20,12 @@ export function createProjectWorkspaceOperations(
   return {
     listHostWorkspaceGroups: (hostKey: WorkspaceGroupsHostKey) =>
       listHostWorkspaceGroups(dependencies, hostKey),
-    measureProjectWorkspaces: (input: Parameters<typeof measureProjectWorkspaces>[1]) => {
+    measureProjectWorkspaces: (
+      input: Parameters<typeof measureProjectWorkspaces>[1],
+      signal?: AbortSignal
+    ) => {
       const attached = dependencies.projects.requireAttached(input.projectId);
-      if (attached.success) return measureProjectWorkspaces(dependencies, input);
+      if (attached.success) return measureProjectWorkspaces(dependencies, input, signal);
       const message =
         attached.error.type === 'project-missing'
           ? 'Project was not found.'
