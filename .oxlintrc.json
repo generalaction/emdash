@@ -163,6 +163,8 @@
         "apps/emdash-desktop/scripts/**",
         "apps/emdash-desktop/src/core/features/editor/browser/monaco/monaco-bootstrap.ts",
         "apps/workspace-server/scripts/**",
+        "apps/emdash-web/build-server.mjs",
+        "apps/emdash-web/scripts/**",
         "packages/ui/src/react/components/markdown/highlight.ts"
       ],
       "rules": {
