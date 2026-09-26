@@ -94,16 +94,16 @@ const _OPEN_IN_APPS = {
     supportsRemote: true,
     platforms: {
       darwin: {
-        openCommands: ['command -v cursor >/dev/null 2>&1 && cursor .', 'open -a "Cursor" .'],
+        openCommands: ['command -v cursor >/dev/null 2>&1 && cursor -n .', 'open -n -a "Cursor" .'],
         checkCommands: ['cursor'],
         appNames: ['Cursor'],
       },
       win32: {
-        openCommands: ['cursor {{path}}'],
+        openCommands: ['cursor --new-window {{path}}'],
         checkCommands: ['cursor'],
       },
       linux: {
-        openCommands: ['cursor {{path}}'],
+        openCommands: ['cursor --new-window {{path}}'],
         checkCommands: ['cursor'],
       },
     },
@@ -117,7 +117,7 @@ const _OPEN_IN_APPS = {
     platforms: {
       darwin: {
         openCommands: [
-          'command -v code >/dev/null 2>&1 && code {{path}}',
+          'command -v code >/dev/null 2>&1 && code -n {{path}}',
           'open -n -b com.microsoft.VSCode --args {{path}}',
           'open -n -a "Visual Studio Code" {{path}}',
         ],
@@ -126,11 +126,11 @@ const _OPEN_IN_APPS = {
         appNames: ['Visual Studio Code'],
       },
       win32: {
-        openCommands: ['code {{path}}', 'code-insiders {{path}}'],
+        openCommands: ['code --new-window {{path}}', 'code-insiders --new-window {{path}}'],
         checkCommands: ['code', 'code-insiders'],
       },
       linux: {
-        openCommands: ['code {{path}}', 'code-insiders {{path}}'],
+        openCommands: ['code --new-window {{path}}', 'code-insiders --new-window {{path}}'],
         checkCommands: ['code', 'code-insiders'],
       },
     },
@@ -144,7 +144,7 @@ const _OPEN_IN_APPS = {
     platforms: {
       darwin: {
         openCommands: [
-          'command -v codium >/dev/null 2>&1 && codium {{path}}',
+          'command -v codium >/dev/null 2>&1 && codium -n {{path}}',
           'open -n -b com.vscodium --args {{path}}',
           'open -n -a "VSCodium" {{path}}',
         ],
@@ -153,11 +153,11 @@ const _OPEN_IN_APPS = {
         appNames: ['VSCodium'],
       },
       win32: {
-        openCommands: ['codium {{path}}'],
+        openCommands: ['codium --new-window {{path}}'],
         checkCommands: ['codium'],
       },
       linux: {
-        openCommands: ['codium {{path}}'],
+        openCommands: ['codium --new-window {{path}}'],
         checkCommands: ['codium'],
       },
     },
