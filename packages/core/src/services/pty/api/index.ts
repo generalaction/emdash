@@ -32,8 +32,10 @@ export { PtySession } from './pty-session';
 export type { PtySessionOptions } from './pty-session';
 export {
   buildTmuxShellLine,
+  isTmuxMissingError,
   killTmuxSession,
   listTmuxSessions,
+  TmuxUnavailableError,
   type TmuxSessionInventoryEntry,
 } from './tmux-commands';
 export {

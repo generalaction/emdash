@@ -405,6 +405,7 @@ export function createSessionLifecycle<TResume, TCtx>(
           writeSuspendedIntent(intent.conversationId, gated.suspend);
           continue;
         }
+        if ('defer' in gated) continue;
       }
 
       try {

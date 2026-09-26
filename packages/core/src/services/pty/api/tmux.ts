@@ -1,5 +1,5 @@
 import type { IExecutionContext } from '#primitives/exec/api';
-import { listTmuxSessions, parseTmuxSessionInventory } from './tmux-commands';
+import { listTmuxSessions, parseTmuxSessionInventory, TmuxUnavailableError } from './tmux-commands';
 import { makeLegacyTmuxSessionName, makeTmuxSessionName } from './tmux-identity';
 
 export type ResolvedTmuxSession = {
@@ -12,7 +12,7 @@ export async function resolveTmuxSession(
   ctx: IExecutionContext,
   input: { identity: string; label: string }
 ): Promise<ResolvedTmuxSession> {
-  const sessions = await listTmuxSessions(ctx);
+  const sessions = await listTmuxSessionsOrEmpty(ctx);
   const metadataMatch = sessions.find((session) => session.identity === input.identity);
   if (metadataMatch) {
     return { name: metadataMatch.name, exists: true, writeIdentity: true };
@@ -34,7 +34,7 @@ export async function findTmuxSessionNamesByIdentity(
 ): Promise<Map<string, string>> {
   const requested = new Set(identities);
   const found = new Map<string, string>();
-  for (const session of await listTmuxSessions(ctx)) {
+  for (const session of await listTmuxSessionsOrEmpty(ctx)) {
     if (!session.identity || !requested.has(session.identity)) continue;
     if (!found.has(session.identity)) found.set(session.identity, session.name);
   }
@@ -53,6 +53,21 @@ export function parseTmuxSessionActivity(output: string): Map<string, number> {
 
 export function tmuxIdentityActivityKey(identity: string): string {
   return `identity:${identity}`;
+}
+
+/**
+ * Creation/discovery paths treat an unqueryable tmux as "nothing found": a
+ * missing executable surfaces honestly when the spawned session fails, so
+ * these callers need no liveness distinction. Only `listTmuxSessionActivity`
+ * propagates `TmuxUnavailableError` for sweep/reconcile judgments.
+ */
+async function listTmuxSessionsOrEmpty(ctx: IExecutionContext) {
+  try {
+    return await listTmuxSessions(ctx);
+  } catch (error) {
+    if (error instanceof TmuxUnavailableError) return [];
+    throw error;
+  }
 }
 
 function activityByHandle(
