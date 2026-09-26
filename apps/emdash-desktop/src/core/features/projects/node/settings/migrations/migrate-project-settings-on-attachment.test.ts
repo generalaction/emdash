@@ -1,3 +1,4 @@
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { migrateProjectSettingsOnAttachment } from './migrate-project-settings-on-attachment';
 
@@ -11,6 +12,53 @@ function hostState(migrated: boolean) {
 }
 
 describe('migrateProjectSettingsOnAttachment', () => {
+  it.each(['legacy-read', 'host-read', 'host-import'] as const)(
+    'does not continue migration after cancellation during %s',
+    async (stage) => {
+      const entered = deferred<void>();
+      const resume = deferred<void>();
+      const pause = async (current: string) => {
+        if (stage !== current) return;
+        entered.resolve();
+        await resume.promise;
+      };
+      const settings = {
+        migrateAncientConfig: vi.fn(async () => {}),
+        readLegacyLifecycleSettings: vi.fn(async () => {
+          await pause('legacy-read');
+          return { autoRunSetup: false };
+        }),
+        finalizeLegacyLifecycleSettings: vi.fn(async () => {}),
+      };
+      const registry = {
+        getProjectConfig: vi.fn(async () => {
+          await pause('host-read');
+          return hostState(false);
+        }),
+        importLegacyLifecycleSettings: vi.fn(async () => {
+          await pause('host-import');
+          return hostState(true);
+        }),
+      };
+      const controller = new AbortController();
+      const migration = migrateProjectSettingsOnAttachment(
+        { repositoryWorkspaceId: 'repo-1' },
+        settings,
+        registry as never,
+        { signal: controller.signal }
+      );
+      const rejected = expect(migration).rejects.toThrow('Attachment cancelled');
+      await entered.promise;
+      controller.abort(new Error('Attachment cancelled'));
+      resume.resolve();
+      await rejected;
+      expect(settings.finalizeLegacyLifecycleSettings).not.toHaveBeenCalled();
+      if (stage === 'legacy-read') expect(registry.getProjectConfig).not.toHaveBeenCalled();
+      if (stage !== 'host-import')
+        expect(registry.importLegacyLifecycleSettings).not.toHaveBeenCalled();
+    }
+  );
+
   it('orders every migration, retries failed imports, and becomes idempotent after confirmation', async () => {
     const events: string[] = [];
     let hostMigrated = false;

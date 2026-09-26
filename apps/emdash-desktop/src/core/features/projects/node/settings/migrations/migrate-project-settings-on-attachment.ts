@@ -1,10 +1,12 @@
 import { log } from '@emdash/shared/logger';
+import { throwIfAborted } from '@emdash/shared/scheduling';
 import type { Project } from '@core/primitives/projects/api';
 import type { WorkspaceRegistryRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { ProjectSettingsMigrationReader } from './migration-reader';
 
 export type ProjectSettingsAttachmentMigrationOptions = {
   migrateAppWorktreeRoot?: () => Promise<void>;
+  signal?: AbortSignal;
 };
 
 export async function migrateProjectSettingsOnAttachment(
@@ -16,6 +18,8 @@ export async function migrateProjectSettingsOnAttachment(
   >,
   options: ProjectSettingsAttachmentMigrationOptions = {}
 ): Promise<void> {
+  const { signal } = options;
+  throwIfAborted(signal);
   if (options.migrateAppWorktreeRoot) {
     try {
       await options.migrateAppWorktreeRoot();
@@ -25,14 +29,18 @@ export async function migrateProjectSettingsOnAttachment(
       });
     }
   }
+  throwIfAborted(signal);
   await settings.migrateAncientConfig();
+  throwIfAborted(signal);
 
   try {
     const legacy = await settings.readLegacyLifecycleSettings();
+    throwIfAborted(signal);
     if (!project.repositoryWorkspaceId) return;
     const current = await workspaceRegistry.getProjectConfig({
       workspaceId: project.repositoryWorkspaceId,
     });
+    throwIfAborted(signal);
     if (!current.success) return;
     if (current.data.legacyDesktopSettingsMigrated) {
       await settings.finalizeLegacyLifecycleSettings();
@@ -50,6 +58,7 @@ export async function migrateProjectSettingsOnAttachment(
         ...(legacy.autoRunRun !== undefined ? { autoRunRun: legacy.autoRunRun } : {}),
       },
     });
+    throwIfAborted(signal);
     if (!migrated.success) {
       log.warn(
         'Host rejected the lifecycle settings migration; retrying on next Project attachment',
@@ -65,6 +74,7 @@ export async function migrateProjectSettingsOnAttachment(
     }
     await settings.finalizeLegacyLifecycleSettings();
   } catch (error) {
+    throwIfAborted(signal);
     // Attachment remains available; the absent completion marker retries on the next allocation.
     log.warn('Lifecycle settings migration failed; retrying on next Project attachment', {
       error,
