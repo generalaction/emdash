@@ -46,7 +46,7 @@ export async function inspectWorkspacePath(
     }));
   } catch (error) {
     // Exit 128 = not inside a git work tree: a plain directory, not a failure.
-    if (error instanceof ExecError && error.exitCode !== null) return { kind: 'directory' };
+    if (error instanceof ExecError && error.exitCode === 128) return { kind: 'directory' };
     return {
       kind: 'inspect-failed',
       message: error instanceof Error ? error.message : String(error),
