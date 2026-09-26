@@ -1,11 +1,10 @@
+import type { SessionUpdate } from '@agentclientprotocol/sdk';
 /**
  * Unit tests for AcpTranscriptParser.
  *
  * Uses hand-authored minimal SessionUpdate objects — no captured fixtures.
  * Fixture-driven provider-specific tests are a separate follow-up.
  */
-
-import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import { SESSION_PLAN_ID } from '../models/plan';
 import type { TranscriptItem } from '../models/turns';
@@ -1054,129 +1053,49 @@ function sessionInfoUpdate(title: string): SessionUpdate {
 describe('AcpTranscriptParser – session slices', () => {
   // ── Config derivation ──────────────────────────────────────────────────────
 
-  it('config_option_update populates modelOptions, efforts, modeOptions', () => {
+  it('retains provider-native groups, booleans and unknown categories', () => {
     const p = new AcpTranscriptParser(deps());
-    p.push(
-      configOptionUpdate([
-        {
-          id: 'model',
-          category: 'model',
-          type: 'select',
-          currentValue: 'opus',
-          options: [
-            { value: 'opus', name: 'Opus' },
-            { value: 'haiku', name: 'Haiku' },
-          ],
-        },
-        {
-          id: 'reasoning_effort',
-          category: 'thought_level',
-          type: 'select',
-          currentValue: 'high',
-          options: [
-            { value: 'low', name: 'Low' },
-            { value: 'high', name: 'High' },
-          ],
-        },
-        {
-          id: 'mode',
-          category: 'mode',
-          type: 'select',
-          currentValue: 'default',
-          options: [
-            { value: 'default', name: 'Default' },
-            { value: 'plan', name: 'Plan' },
-          ],
-        },
-      ])
-    );
-
-    const { modelOptions, efforts, modeOptions } = p.config;
-
-    expect(modelOptions?.configId).toBe('model');
-    expect(modelOptions?.selected).toBe('opus');
-    expect(modelOptions?.available).toHaveLength(2);
-    expect(modelOptions?.available[0]).toEqual({ id: 'opus', name: 'Opus' });
-
-    expect(efforts?.configId).toBe('reasoning_effort');
-    expect(efforts?.selected).toBe('high');
-    expect(efforts?.available).toHaveLength(2);
-    expect(efforts?.available[1]).toEqual({ id: 'high', name: 'High' });
-
-    expect(modeOptions?.configId).toBe('mode');
-    expect(modeOptions?.selected).toBe('default');
-    expect(modeOptions?.available).toHaveLength(2);
-    expect(modeOptions?.available[0]).toEqual({ id: 'default', name: 'Default' });
+    const options = [
+      {
+        id: 'native-model',
+        name: 'Model',
+        category: 'model',
+        type: 'select',
+        currentValue: 'a',
+        options: [{ group: 'family', name: 'Family', options: [{ value: 'a', name: 'A' }] }],
+      },
+      { id: 'fast', name: 'Fast mode', type: 'boolean', currentValue: false },
+      {
+        id: 'custom',
+        name: 'Custom',
+        category: 'provider-specific',
+        type: 'select',
+        currentValue: 'on',
+        options: [{ value: 'on', name: 'Enabled' }],
+      },
+    ];
+    p.push(configOptionUpdate(options));
+    expect(p.config.options).toEqual(options);
+    p.push(configOptionUpdate([]));
+    expect(p.config.options).toEqual([]);
   });
 
-  it('config_option_update preserves description on options', () => {
-    const p = new AcpTranscriptParser(deps());
-    p.push(
-      configOptionUpdate([
-        {
-          id: 'model',
-          category: 'model',
-          type: 'select',
-          currentValue: 'opus',
-          options: [{ value: 'opus', name: 'Opus', description: 'Most capable' }],
-        },
-      ])
-    );
-    expect(p.config.modelOptions?.available[0].description).toBe('Most capable');
-  });
-
-  it('unknown category (model_config) is ignored', () => {
-    const p = new AcpTranscriptParser(deps());
-    p.push(
-      configOptionUpdate([
-        {
-          id: 'fast',
-          category: 'model_config',
-          type: 'select',
-          currentValue: 'off',
-          options: [
-            { value: 'on', name: 'On' },
-            { value: 'off', name: 'Off' },
-          ],
-        },
-      ])
-    );
-    // No crash; all groups remain null since no recognized category was present
-    expect(p.config.modelOptions).toBeNull();
-    expect(p.config.efforts).toBeNull();
-    expect(p.config.modeOptions).toBeNull();
-  });
-
-  // ── current_mode_update ────────────────────────────────────────────────────
-
-  it('current_mode_update sets modeOptions.selected when modeOptions is already populated', () => {
+  it('does not let deprecated mode notifications overwrite native configuration', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(
       configOptionUpdate([
         {
           id: 'mode',
-          category: 'mode',
+          name: 'Mode',
           type: 'select',
-          currentValue: 'default',
-          options: [
-            { value: 'default', name: 'Default' },
-            { value: 'acceptEdits', name: 'Accept Edits' },
-          ],
+          currentValue: 'ask',
+          options: [{ value: 'ask', name: 'Ask' }],
         },
       ])
     );
-    expect(p.config.modeOptions?.selected).toBe('default');
-
+    const before = p.config;
     p.push(currentModeUpdate('acceptEdits'));
-    expect(p.config.modeOptions?.selected).toBe('acceptEdits');
-    // available list unchanged
-    expect(p.config.modeOptions?.available).toHaveLength(2);
-  });
-
-  it('current_mode_update is a no-op when modeOptions is null', () => {
-    const p = new AcpTranscriptParser(deps());
-    p.push(currentModeUpdate('acceptEdits'));
-    expect(p.config.modeOptions).toBeNull();
+    expect(p.config).toEqual(before);
   });
 
   // ── available_commands_update ──────────────────────────────────────────────
@@ -1288,7 +1207,7 @@ describe('AcpTranscriptParser – session slices', () => {
     p.reset();
     expect(p.usage).toBeNull();
     expect(p.title).toBeNull();
-    expect(p.config.modelOptions).toBeNull();
+    expect(p.config.options).toBeUndefined();
     expect(p.config.availableCommands).toHaveLength(0);
   });
 
@@ -1299,6 +1218,7 @@ describe('AcpTranscriptParser – session slices', () => {
       configOptionUpdate([
         {
           id: 'model',
+          name: 'model',
           category: 'model',
           type: 'select',
           currentValue: 'haiku',
@@ -1311,7 +1231,9 @@ describe('AcpTranscriptParser – session slices', () => {
 
     const result = AcpTranscriptParser.replay(updates as Iterable<SessionUpdate>, deps());
     expect(result.active).toBeNull();
-    expect(result.config.modelOptions?.selected).toBe('haiku');
+    expect(result.config.options?.find((option) => option.category === 'model')?.currentValue).toBe(
+      'haiku'
+    );
     expect(result.usage?.contextUsed).toBe(500);
     expect(result.title).toBe('Replay title');
   });

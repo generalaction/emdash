@@ -118,8 +118,8 @@ Headless callers use the same `startSession` operation with their trusted descri
 Concurrent starts coalesce through the handle's lifecycle cell. A fresh request cannot replace
 an already-active session. `loadHistory` only reads available history and reports `unavailable`
 while suspended; it does not activate a provider. `sendPrompt` may still wake a suspended session
-as part of that explicit command. `setOption` updates the desired model, mode, or effort without
-waking a suspended session.
+as part of that explicit command. `setOption({ conversationId, configId, value })` updates a provider-native string
+or boolean option without waking a suspended session.
 
 `sendPrompt` (protocol 8) waits for activation and attachment validation, then acknowledges
 once the live session accepts the prompt for dispatch or queuing. Its host-owned operation retains
@@ -182,6 +182,40 @@ Parsed transcript and raw ACP log exports are live-activation reads. They never 
 conversation because the raw log is activation-local and a post-wake export would describe the
 replay rather than the evicted process.
 
+## Permissions
+
+Chat sessions use the provider's native permission/access mode. Every permission request that
+reaches Emdash remains interactive; the permission broker never automatically chooses an option.
+Pending requests are cancelled on teardown. There is no separate ACP auto-approval setting or command.
+
+TUI auto-approve remains a provider CLI launch setting, remembered per host/provider/transport.
+New TUI automations default to false and require their own opt-in.
+
+## Provider Configuration
+
+Interactive chat configuration uses native `configOptions` IDs and a generic string/boolean
+option map. Known categories map to compact model/effort/mode controls; remaining options are also
+available in the shared composer. No synthetic IDs or hardcoded ACP model catalogs are persisted.
+There is one setter and one native options map throughout the renderer, Wire API, persisted
+conversation configuration, and retained session intent. There are no dimension-specific setters,
+legacy intent conversions, or fallbacks to `session/set_mode`. Providers without `configOptions`
+run with their own defaults.
+
+Materialization applies a selected model before validating dependent choices, and applies all
+explicit options before releasing the initial prompt. A setter failure stops startup without clearing
+preferences. Confirmed invalid choices fall back to provider defaults and are reported for conditional
+cleanup. Pickers expose only provider choices; selecting a native default alias persists that alias.
+Missing preferences leave the provider configuration untouched; there is no user reset to inheritance.
+Active updates first succeed at the provider, then persist the conversation and interactive preference.
+Once the requested option is accepted, it is saved even if reapplying another saved choice fails.
+The setter returns those secondary failures alongside success so callers still persist the accepted
+choice and can warn the user. Failed secondary choices remain saved for a later restoration attempt.
+
+Successful live configuration carries an opaque discovery context. Main subscribes to configuration
+only (not all session transcript streams) and updates the host-scoped advisory cache. Dormant or
+failed sessions cannot replace this cache. See [settings ownership](settings.md) for record shapes,
+creation behavior, and automation isolation.
+
 ## Transcript event ownership
 
 The transcript reducer separates foreground content progression from asynchronous tool, agent,
@@ -202,9 +236,14 @@ Tool updates, plan revisions, and nested activity preserve the foreground stream
 materialize new rows. A late tool update amends its original turn and never opens a new agent turn.
 SessionCell uses the same foreground classification for idle activity/quiescence. Background tool
 rows remain running across foreground turn completion and settle from their own status updates.
-The optional session `historyRevision` increments when an already committed turn is amended; the
-desktop refreshes history independently of turn completion (deferring replacement while a new
-foreground turn is active). Plans remain session-scoped, with their transcript anchor in the turn
+The required session `transcript` field contains the coherent active turn and history position;
+it is explicitly `null` before activation, during replay, and while suspended. There is no separate
+active-turn stream or session-level history-revision notification. Available history pages always
+carry their generation, revision, and authoritative coverage; unavailable history is a separate
+result variant. The desktop retains visible content while the transcript is unavailable and replaces
+it atomically when the new generation's history arrives. The snapshot's `historyRevision` increments
+when an already committed turn is amended, refreshing history independently of turn completion.
+Plans remain session-scoped, with their transcript anchor in the turn
 that first presented the plan; an idle plan notification alone does not start a turn.
 
 For partial provider replay, an update-only call can be recovered within an existing active turn,

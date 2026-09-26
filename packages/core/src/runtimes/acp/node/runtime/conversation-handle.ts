@@ -15,12 +15,8 @@ import {
   type SessionLiveModels,
 } from '#runtimes/acp/node/state/live-models';
 import type { SessionIntentUpdate } from '#services/session-lifecycle/api';
-import type {
-  ActivationStartError,
-  ConfigDimension,
-  ConfigOverrides,
-  SessionRecord,
-} from './conversation-types';
+import { acpConnectionCacheKey } from '../connection/source';
+import type { ActivationStartError, SessionRecord } from './conversation-types';
 import type { SessionsListProjector } from './sessions-list-projector';
 import type { AcpStartInput } from './types';
 
@@ -64,6 +60,9 @@ export class ConversationHandle {
   private retainedValue: RetainedPresentation;
   private desiredRevisionValue = 0;
   private freshRequested = false;
+  // An in-flight attachment can carry options read before an explicit selection completed.
+  // Keep that selection authoritative for this handle; fresh handles read persisted options.
+  private readonly explicitOptions = new Map<string, string | boolean | null>();
   // A timed-out close must continue fencing later activations until it settles or its
   // provider connection is gone. Disposing the old cell alone cannot prove that.
   private providerClose: { record: SessionRecord; task: Promise<void>; failed: boolean } | null =
@@ -79,7 +78,6 @@ export class ConversationHandle {
   constructor(
     readonly deps: ConversationHandleDeps,
     public descriptor: AcpStartInput,
-    public configOverrides: ConfigOverrides,
     public initialQueueConsumed: boolean,
     public everMaterialized: boolean,
     retained?: RetainedPresentation,
@@ -405,45 +403,20 @@ export class ConversationHandle {
     return this.persistSession(record, false, { consumeInitialQueue: true });
   }
 
-  updateMode(modeId: string): void {
-    this.updateConfigured({ modeId });
-    this.updateDescriptor({ modeId });
+  updateOption(configId: string, value: string | boolean | null): void {
+    this.explicitOptions.set(configId, value);
+    const options = { ...this.descriptor.options };
+    if (value === null) delete options[configId];
+    else {
+      options[configId] = value;
+      if (this.recordValue?.clearedOptions) delete this.recordValue.clearedOptions[configId];
+    }
+    this.updateConfigured({ options });
+    this.updateDescriptor({ options }, true);
   }
 
   updateProviderSessionId(sessionId: string): void {
     this.updateDescriptor({ sessionId });
-  }
-
-  updateConfig(dimension: ConfigDimension, value: string): void {
-    this.configOverrides = { ...this.configOverrides, [dimension]: value };
-    this.updateConfigured({ [dimension]: value });
-    this.updateDescriptor(
-      dimension === 'model'
-        ? { model: value }
-        : dimension === 'effort'
-          ? { effort: value }
-          : { collaborationMode: value },
-      true
-    );
-  }
-
-  clearMode(): void {
-    this.updateConfigured({ modeId: null });
-    this.updateDescriptor({ modeId: null });
-  }
-
-  clearConfig(dimension: ConfigDimension): void {
-    const { [dimension]: _removed, ...remaining } = this.configOverrides;
-    this.configOverrides = remaining;
-    this.updateConfigured({ [dimension]: null });
-    this.updateDescriptor(
-      dimension === 'model'
-        ? { model: null }
-        : dimension === 'effort'
-          ? { effort: null }
-          : { collaborationMode: null },
-      true
-    );
   }
 
   refreshDescriptor(descriptor: AcpStartInput): void {
@@ -455,8 +428,15 @@ export class ConversationHandle {
     ) {
       this.unstarted = false;
     }
+    const options = this.explicitOptions.size ? { ...descriptor.options } : descriptor.options;
+    if (options)
+      for (const [id, value] of this.explicitOptions) {
+        if (value === null) delete options[id];
+        else options[id] = value;
+      }
     this.descriptor = {
       ...descriptor,
+      options,
       // The runtime can observe a replacement session id before the host report converges. A
       // stale host value must not discard that newer runtime fact on the next activation.
       sessionId:
@@ -464,12 +444,7 @@ export class ConversationHandle {
           ? this.descriptor.sessionId
           : descriptor.sessionId,
     };
-    this.configOverrides = {
-      ...(descriptor.model ? { model: descriptor.model } : {}),
-      ...(descriptor.effort ? { effort: descriptor.effort } : {}),
-      ...(descriptor.collaborationMode ? { collaborationMode: descriptor.collaborationMode } : {}),
-    };
-    this.updateConfigured(configuredFromDescriptor(descriptor));
+    this.updateConfigured(configuredFromDescriptor(this.descriptor));
   }
 
   saveIntent(): void {
@@ -628,11 +603,18 @@ export class ConversationHandle {
     );
     return {
       state: this.stateValue === 'materializing' ? { ...state, canSubmit: true } : state,
-      config: retainedConfig({ ...this.retainedValue, lastKnownCapabilities }),
+      config: {
+        ...retainedConfig({ ...this.retainedValue, lastKnownCapabilities }),
+        ...(this.stateValue === 'active' && record.cell.configCatalog.kind === 'ready'
+          ? {
+              discoveryContext: acpConnectionCacheKey(record.input),
+              clearedOptions: record.clearedOptions,
+            }
+          : {}),
+      },
       usage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
       plan: record.cell.transcript.plan,
       agents: record.cell.transcript.agents,
-      activeTurn: state.lifecycle === 'replaying' ? null : record.cell.transcript.activeTurn,
       terminals: this.deps.terminals.listByConversation(this.conversationId),
       mcpServers: this.withMcpStartupFailures(
         record,
@@ -706,7 +688,6 @@ function startingSnapshot(retained: RetainedPresentation): ActivationSnapshot {
     usage: retained.lastKnownUsage,
     plan: null,
     agents: [],
-    activeTurn: null,
     terminals: [],
     mcpServers: retained.lastKnownMcpServers,
   };
@@ -714,10 +695,7 @@ function startingSnapshot(retained: RetainedPresentation): ActivationSnapshot {
 
 function configuredFromDescriptor(descriptor: AcpStartInput): RetainedPresentation['configured'] {
   return {
-    model: descriptor.model ?? null,
-    modeId: descriptor.modeId ?? null,
-    effort: descriptor.effort ?? null,
-    collaborationMode: descriptor.collaborationMode ?? null,
+    options: descriptor.options,
   };
 }
 
@@ -739,11 +717,7 @@ function mergeCapabilities(
     catalog.kind === 'ready'
       ? catalog.config
       : {
-          modelOptions: current.modelOptions ?? retained.modelOptions,
-          efforts: current.efforts ?? retained.efforts,
-          modeOptions: current.modeOptions ?? retained.modeOptions,
-          collaborationModeOptions:
-            current.collaborationModeOptions ?? retained.collaborationModeOptions ?? null,
+          options: current.options ?? retained.options,
         };
   return {
     ...capabilities,

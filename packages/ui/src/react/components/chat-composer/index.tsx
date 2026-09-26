@@ -213,6 +213,8 @@ export interface ChatComposerProps {
    */
   agentLocked?: boolean;
 
+  /** Additional host-owned provider configuration controls. */
+  configurationControls?: React.ReactNode;
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
@@ -581,13 +583,13 @@ function ComposerModeSelect({
   placeholder,
   icon,
 }: ComposerModeSelectProps) {
-  const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
+  const selected = items.find((item) => item.id === selectedId) ?? null;
 
   return (
     <Select.Root
       value={selectedId}
       onValueChange={(id) => {
-        if (id) onChange?.(id);
+        if (id !== null) onChange?.(id);
       }}
       disabled={disabled}
     >
@@ -666,6 +668,7 @@ export function ChatComposer({
   selectedAgent,
   onAgentChange,
   agentLocked = false,
+  configurationControls,
   modelOptions,
   selectedModel,
   onModelChange,
@@ -847,9 +850,10 @@ export function ChatComposer({
     ? Object.entries(effortOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
 
-  const selectedEffortItem = selectedEffort
-    ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
-    : null;
+  const selectedEffortItem =
+    selectedEffort !== undefined
+      ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
+      : null;
 
   // ── Permission mode items ────────────────────────────────────────────────────
 
@@ -1002,7 +1006,7 @@ export function ChatComposer({
                 onValueChange={(id) => onModelChange?.(id)}
                 itemToKey={(item) => item.id}
                 itemToLabel={(item) => item.name}
-                disabled={disabled}
+                disabled={disabled || !onModelChange}
                 searchPlaceholder="Search models…"
                 contentClassName={composerThemeScope}
                 contentStyle={{ minWidth: '12.5rem' }}
@@ -1063,7 +1067,10 @@ export function ChatComposer({
                   effortItems.length > 0
                     ? () => (
                         <DropdownMenu.Root>
-                          <DropdownMenu.Trigger className={styles.effortRow}>
+                          <DropdownMenu.Trigger
+                            className={styles.effortRow}
+                            disabled={disabled || !onEffortChange}
+                          >
                             <span className={styles.effortRowLabel}>Effort</span>
                             <span className={styles.effortRowValue}>
                               {selectedEffortItem?.name ?? 'Default'}
@@ -1100,7 +1107,7 @@ export function ChatComposer({
                 items={collaborationModeItems}
                 selectedId={selectedCollaborationMode}
                 onChange={onCollaborationModeChange}
-                disabled={disabled}
+                disabled={disabled || !onCollaborationModeChange}
                 isFirst={collaborationModeIsFirst}
                 ariaLabel="Collaboration mode"
                 placeholder="Collaboration…"
@@ -1112,7 +1119,7 @@ export function ChatComposer({
                 items={permissionModeItems}
                 selectedId={selectedPermissionMode}
                 onChange={onPermissionModeChange}
-                disabled={disabled}
+                disabled={disabled || !onPermissionModeChange}
                 isFirst={permissionModeIsFirst}
                 ariaLabel="Permission mode"
                 placeholder="Permissions…"
@@ -1121,6 +1128,7 @@ export function ChatComposer({
                 }
               />
             )}
+            {configurationControls}
             {mcpServers.length > 0 && (
               <Popover.Root>
                 <Popover.Trigger

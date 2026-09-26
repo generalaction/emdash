@@ -1,5 +1,5 @@
 import * as chatUi from '@emdash/chat-ui';
-import type { HistoryPage, SessionState } from '@emdash/core/runtimes/acp/api/client';
+import type { SessionState, TranscriptTurn } from '@emdash/core/runtimes/acp/api/client';
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import {
@@ -11,14 +11,14 @@ import {
   memoryTransportPair,
   replaceableTransport,
 } from '@emdash/wire/rpc';
-import { cell, expose, flushStateTurn } from '@emdash/wire/state';
+import { cell, expose, flushStateTurn, peek } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import { expect, it, vi } from 'vitest';
 import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
-
+import { availableHistory, transcriptSnapshot } from './acp-transcript-fixtures';
 const fixture = vi.hoisted(() => ({ client: undefined as unknown, context: undefined as unknown }));
 vi.mock('@core/features/conversations/api/browser/client', () => ({
   getConversationsClient: async () => fixture.client,
@@ -39,7 +39,6 @@ vi.mock('@core/primitives/mementos/browser', () => ({
     }),
   }),
 }));
-
 it.each([
   'missed-active',
   'observed-active',
@@ -55,6 +54,7 @@ it.each([
   const idle: SessionState = {
     lifecycle: 'ready',
     activeTurnId: null,
+    transcript: transcriptSnapshot(),
     pendingPermissions: [],
     lastStopReason: null,
     lastTurnErrored: false,
@@ -66,7 +66,8 @@ it.each([
     canCancel: false,
   };
   const state = cell(idle);
-  const activeTurn = cell<HistoryPage['turns'][number] | null>(null);
+  const publish = (activeTurn: TranscriptTurn | null) =>
+    state.set({ ...peek(state), transcript: { ...history.position, activeTurn } });
   const contract = defineContract({
     acp: defineContract({
       attach: conversationsContract.acp.attach,
@@ -78,15 +79,14 @@ it.each([
   });
   const session = expose(contract.acp.session, {
     state,
-    activeTurn,
-    config: cell({ modelOptions: null, efforts: null, modeOptions: null, availableCommands: [] }),
+    config: cell({ availableCommands: [], options: [] }),
     usage: cell(null),
     plan: cell(null),
     agents: cell([]),
     terminals: cell([]),
     mcpServers: cell([]),
   });
-  let history: HistoryPage = { turns: [], nextCursor: null };
+  let history = availableHistory();
   let acceptedPromptId = '';
   const attach = vi.fn(async () => ok({ sessionId: 'session-1' }));
   const loadHistory = vi.fn(async () => ok(history));
@@ -141,7 +141,7 @@ it.each([
     store.submitPrompt('continue');
     await vi.waitFor(() => expect(send).toHaveResolvedWith(ok({ queued: false })));
     expect(store.chatState.session.state.pendingPrompt?.text).toBe('continue');
-    const completed: HistoryPage['turns'][number] = {
+    const completed: TranscriptTurn = {
       id: 'completed-offline',
       seq: 0,
       initiator: 'user',
@@ -158,20 +158,31 @@ it.each([
       ],
     };
     if (mode === 'observed-active') {
-      activeTurn.set({ ...completed, items: [completed.items[0]] });
+      publish({ ...completed, items: [completed.items[0]] });
       flushStateTurn();
-      await vi.waitFor(() => expect(live.activeTurn.current()?.id).toBe(completed.id));
+      await vi.waitFor(() =>
+        expect(live.sessionState.current().transcript?.activeTurn?.id).toBe(completed.id)
+      );
     }
     transport.detach();
     runInAction(() =>
       hostState.set({ kind: 'degraded', situation: 'recovering', recovery: 'automatic' })
     );
-    activeTurn.set(completed);
-    state.set({ ...idle, activeTurnId: completed.id, agentTurnActive: true, isGenerating: true });
+    publish(completed);
+    state.set({
+      ...peek(state),
+      activeTurnId: completed.id,
+      agentTurnActive: true,
+      isGenerating: true,
+    });
     flushStateTurn();
-    history = { turns: [completed], nextCursor: null };
-    activeTurn.set(null);
-    state.set({ ...idle, lastStopReason: 'end_turn' });
+    history = availableHistory([completed], 1);
+    publish(null);
+    state.set({
+      ...idle,
+      transcript: { ...history.position, activeTurn: null },
+      lastStopReason: 'end_turn',
+    });
     flushStateTurn();
     if (mode === 'history-retry') {
       loadHistory.mockRejectedValueOnce(new Error('History temporarily unavailable'));
@@ -195,7 +206,7 @@ it.each([
     await vi.waitFor(() => expect(revalidate).toHaveResolved());
     expect(live.usable).toBe(true);
     expect(live.sessionState.current().lastStopReason).toBe('end_turn');
-    expect(live.activeTurn.current()).toBeNull();
+    expect(live.sessionState.current().transcript?.activeTurn).toBeNull();
     expect(sendPrompt).toHaveBeenCalledOnce();
     expect(attach).toHaveBeenCalledTimes(2);
     if (mode === 'stale-reattach' || mode === 'disposed') {
@@ -214,7 +225,8 @@ it.each([
         hostState.set({ kind: 'degraded', situation: 'recovering', recovery: 'automatic' })
       );
       // A replacement host snapshot must supersede the read from the previous attachment.
-      history = { turns: [{ ...completed, id: 'replacement-history' }], nextCursor: null };
+      history = availableHistory([{ ...completed, id: 'replacement-history' }], 2);
+      publish(null);
       const third = memoryTransportPair();
       hub.open('desktop-third', third.right);
       transport.install(third.left);
@@ -235,7 +247,7 @@ it.each([
       expect(pending?.id).toBe(acceptedPromptId);
       store.setDraftText('a newer draft');
       if (mode === 'new-active-turn') {
-        const nextTurn: HistoryPage['turns'][number] = {
+        const nextTurn: TranscriptTurn = {
           id: 'next-turn',
           seq: 1,
           initiator: 'user',
@@ -250,17 +262,19 @@ it.each([
             },
           ],
         };
-        activeTurn.set(nextTurn);
+        publish(nextTurn);
         flushStateTurn();
-        await vi.waitFor(() => expect(live.activeTurn.current()?.id).toBe('next-turn'));
+        await vi.waitFor(() =>
+          expect(live.sessionState.current().transcript?.activeTurn?.id).toBe('next-turn')
+        );
         historyGate.resolve();
         await vi.waitFor(() => expect(loadHistory).toHaveResolvedTimes(2));
         expect(store.chatState.transcript.state.activeTurnSnapshot?.id).toBe('next-turn');
         await vi.waitFor(() =>
           expect(store.chatState.transcript.state.committedTurns).toEqual([completed])
         );
-        history = { turns: [completed, nextTurn], nextCursor: null };
-        activeTurn.set(null);
+        history = availableHistory([completed, nextTurn], 2);
+        publish(null);
         flushStateTurn();
         await vi.waitFor(() =>
           expect(store.chatState.transcript.state.committedTurns).toEqual(history.turns)
@@ -278,7 +292,7 @@ it.each([
     }
     await vi.waitFor(
       () => expect(store.chatState.transcript.state.committedTurns).toHaveLength(1),
-      { timeout: 3_000 }
+      { timeout: 3000 }
     );
     await vi.waitFor(() => expect(parent.textContent).toContain('Completed remotely.'));
     expect.soft(store.chatState.transcript.state.committedTurns).toEqual([completed]);

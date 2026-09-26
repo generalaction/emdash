@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
-import type { ConversationConfig, TriggerConfig } from '@core/primitives/automations/api';
+import type { TriggerConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
 import { formatAutomationError } from './automation-run-format';
 import { useAutomationTargetAvailability, useUpdateAutomation } from './use-automations';
@@ -23,30 +23,17 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
     buildTaskConfig,
     name,
     workspaceConfig,
+    initialConversation: { autoApprove, useChatUi, options },
   } = formState;
   const availability = useAutomationTargetAvailability(effectiveProjectId);
-
-  function buildConversationConfig(): ConversationConfig {
-    if (!provider) throw new Error('Cannot build automation conversation config without provider');
-    const useChatUi = formState.initialConversation.useChatUi;
-    return {
-      prompt: prompt.trim(),
-      provider,
-      autoApprove: false,
-      type: useChatUi ? 'acp' : 'pty',
-      ...(model && { model }),
-      ...(automation.conversationConfig?.title && {
-        title: automation.conversationConfig.title,
-      }),
-    };
-  }
 
   function savePatch(overrideTrigger?: TriggerConfig) {
     if (!editable) return;
     if (!effectiveProjectId || !provider) return;
     const activeTrigger = overrideTrigger ?? triggerConfig;
     const taskConfig = buildTaskConfig(effectiveProjectId);
-    if (!taskConfig) return;
+    const conversationConfig = formState.buildConversationConfig();
+    if (!taskConfig || !conversationConfig) return;
     try {
       assertValidCronTrigger(activeTrigger);
     } catch {
@@ -57,7 +44,7 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
       id: automation.id,
       patch: {
         triggerConfig: activeTrigger,
-        conversationConfig: buildConversationConfig(),
+        conversationConfig,
         taskConfig,
         projectId: effectiveProjectId,
       },
@@ -69,18 +56,24 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
     savePatch({ expr, tz: cronTz });
   }
 
-  // Provider lives inside the initialConversation sub-hook and is not directly
-  // interceptable at the setter level, so watch it with a narrow effect.
-  const isFirstRender = useRef(true);
+  // These controls live inside the initialConversation sub-hook. Persist changes
+  // immediately, including toggles that do not trigger prompt blur.
+  const selectionKey = JSON.stringify([
+    effectiveProjectId,
+    provider,
+    model,
+    autoApprove,
+    useChatUi,
+    options,
+  ]);
+  const previousSelection = useRef(selectionKey);
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    if (editable && canSave) savePatch();
-    // We intentionally only track provider here; other fields use action-at-change-site.
+    if (previousSelection.current === selectionKey || !editable || !canSave) return;
+    previousSelection.current = selectionKey;
+    savePatch();
+    // Other fields use action-at-change-site.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [provider]);
+  }, [selectionKey, editable, canSave]);
 
   // Workspace config changes (preset, branch name, sandbox toggle, etc.) are not
   // interceptable at the setter level because they go through useWorkspaceConfig

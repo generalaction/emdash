@@ -13,11 +13,12 @@ import type {
   AcpSessionStartMode,
   AcpStartInputWire,
   AcpTerminateError,
-  LoadHistoryResult,
+  HistoryPage,
   PromptInput,
   PromptPlacement,
 } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
+import type { AcpSetOptionResult } from '#runtimes/acp/api/schemas';
 import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
 import { isAcpWakeFailure, type AcpWakeFailure } from '#runtimes/acp/node/runtime/session-manager';
 
@@ -74,16 +75,13 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     },
     async setOption(input: {
       conversationId: string;
-      key: 'model' | 'mode' | 'effort' | 'collaborationMode';
-      value: string;
-    }): Promise<Result<void, AcpSetOptionError>> {
-      const result = await runtime.setOption(input.conversationId, input.key, input.value);
-      if (!result.success && isAcpWakeFailure(result.error)) {
-        return input.key === 'mode'
-          ? acpErr.setModeFailed(wakeFailureCause(result.error))
-          : acpErr.setConfigFailed(wakeFailureCause(result.error));
-      }
-      return result as Result<void, AcpSetOptionError>;
+      configId: string;
+      value: string | boolean;
+    }): Promise<Result<AcpSetOptionResult, AcpSetOptionError>> {
+      const result = await runtime.setOption(input.conversationId, input.configId, input.value);
+      if (!result.success && isAcpWakeFailure(result.error))
+        return acpErr.setConfigFailed(wakeFailureCause(result.error));
+      return result as Result<AcpSetOptionResult, AcpSetOptionError>;
     },
     resolvePermission(input: {
       conversationId: string;
@@ -108,7 +106,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       conversationId: string;
       before?: number;
       limit: number;
-    }): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
+    }): Promise<Result<HistoryPage, AcpLoadHistoryError>> {
       return runtime.loadHistory(input.conversationId, input.before, input.limit);
     },
   };

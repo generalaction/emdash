@@ -1,3 +1,4 @@
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
@@ -16,7 +17,21 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import type { AgentDisableReason } from '@core/features/agents/api/browser/components/agent-selector/agent-selector-options';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
+import {
+  patchProviderSettings,
+  readProviderSettings,
+} from '@core/features/conversations/api/browser/provider-preferences';
+import {
+  useConversationLaunchSettings,
+  type ConversationLaunchSettings,
+} from '@core/features/conversations/api/browser/use-conversation-launch-settings';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
+import type { ProviderSettingsSnapshot } from '@core/features/conversations/api/provider-settings';
+import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
+import {
+  providerComposerOptions,
+  selectCachedProviderOptions,
+} from '@core/features/conversations/contributions/browser/provider-composer-options';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -34,7 +49,6 @@ import {
   parseIssueMentionToken,
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
 import { cn } from '@core/primitives/styling/browser/cn';
 
 type RenderMentionIcon = NonNullable<Parameters<typeof ChatComposer>[0]['renderMentionIcon']>;
@@ -52,6 +66,11 @@ export type InitialConversationState = {
   issueContextEditorOpen: boolean;
   setIssueContextEditorOpen: (open: boolean) => void;
   /** Selected model id, or null to use the agent CLI default. */
+  settingsReady: boolean;
+  settings: ProviderSettingsSnapshot;
+  options: Record<string, string | boolean>;
+  setOption: (id: string, value: string | boolean) => void;
+  flushSettings: () => Promise<void>;
   model: string | null;
   setModel: (model: string | null) => void;
   connectionId?: string;
@@ -66,12 +85,13 @@ export type InitialConversationState = {
 
 interface InitialConversationStateOptions {
   resetPromptOnProjectChange?: boolean;
+  launchSettings?: ConversationLaunchSettings;
+  initialOptions?: Record<string, string | boolean>;
 }
 
 export function useInitialConversationState(
   projectId?: string,
   initialProvider?: AgentProviderId,
-  autoApproveByDefault = false,
   options: InitialConversationStateOptions = {}
 ): InitialConversationState {
   const { resetPromptOnProjectChange = true } = options;
@@ -80,17 +100,17 @@ export function useInitialConversationState(
   const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
-  const [autoApprovePreference, setAutoApprovePreference] = useLocalStorage(
-    'initial-conversation:auto-approve-enabled',
-    autoApproveByDefault
+  const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
+  const launchSettings = useConversationLaunchSettings(
+    formatHostRef(hostRefFromConnectionId(connectionId)),
+    providerId,
+    capabilities,
+    options.launchSettings
   );
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
+  const [draftOptions, setDraftOptions] = useState(options.initialOptions);
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
-  const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
-    'initial-conversation:chat-ui-enabled',
-    false
-  );
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
   const [prevProviderId, setPrevProviderId] = useState(providerId);
@@ -106,17 +126,19 @@ export function useInitialConversationState(
     setIssueContext(null);
     setIssueContextEditorOpen(false);
     setModel(null);
+    setDraftOptions(undefined);
     setIssueMentionContexts({});
   } else if (providerChanged) {
     setPrevProviderId(providerId);
     setModel(null);
+    setDraftOptions(undefined);
   }
 
-  const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
-  const autoApproveSupported = agentSupportsAutoApprove(capabilities);
-  const autoApprove = autoApproveSupported && autoApprovePreference;
-  const acpSupported = agentSupportsAcp(capabilities);
-  const useChatUi = acpSupported && useChatUiPreference;
+  const { useChatUi, autoApprove } = launchSettings;
+  const providerOptions = draftOptions ?? launchSettings.settings.acp.options ?? {};
+  if (options.initialOptions !== undefined && draftOptions === undefined && launchSettings.ready) {
+    setDraftOptions({ ...providerOptions });
+  }
   const initialPromptSupported = useChatUi || agentSupportsInitialPromptDelivery(capabilities);
 
   return {
@@ -128,14 +150,33 @@ export function useInitialConversationState(
     issueContext,
     setIssueContext,
     autoApprove,
-    setAutoApprove: setAutoApprovePreference,
+    setAutoApprove: launchSettings.setAutoApprove,
     issueContextEditorOpen,
     setIssueContextEditorOpen,
+    settingsReady: launchSettings.ready,
+    settings: launchSettings.settings,
+    options: providerOptions,
+    setOption: (id, value) => {
+      if (options.initialOptions !== undefined)
+        setDraftOptions((previous) => ({ ...(previous ?? providerOptions), [id]: value }));
+      if (providerId)
+        void patchProviderSettings(
+          { host: formatHostRef(hostRefFromConnectionId(connectionId)), providerId },
+          { transport: 'acp', options: { [id]: value } }
+        );
+    },
+    flushSettings: async () => {
+      if (providerId)
+        await readProviderSettings({
+          host: formatHostRef(hostRefFromConnectionId(connectionId)),
+          providerId,
+        });
+    },
     model,
     setModel,
     connectionId,
     useChatUi,
-    setUseChatUi: setUseChatUiPreference,
+    setUseChatUi: launchSettings.setUseChatUi,
     initialPromptSupported,
     issueMentionContexts,
     setIssueMentionContext: (token, context) =>
@@ -204,7 +245,6 @@ export function InitialConversationField({
   requirePromptDelivery = false,
 }: InitialConversationFieldProps) {
   const autoApproveSwitchId = useId();
-  const chatUiSwitchId = useId();
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
@@ -225,7 +265,10 @@ export function InitialConversationField({
     ? agents?.find((agent) => agent.id === state.provider)
     : null;
   const capabilities = selectedAgent?.capabilities ?? null;
-  const canToggleAutoApprove = agentSupportsAutoApprove(capabilities);
+  const canToggleAutoApprove = agentSupportsAutoApprove(
+    capabilities,
+    state.useChatUi ? 'acp' : 'pty'
+  );
   const canToggleChatUi = agentSupportsAcp(capabilities);
   const canDeliverInitialPrompt = state.initialPromptSupported;
   const getDisabledReason = useCallback<AgentDisableReason>(
@@ -334,15 +377,22 @@ export function InitialConversationField({
         onBlur={onPromptBlur}
         {...(canDeliverInitialPrompt ? dropHandlers : {})}
       >
-        <div className="flex w-full">
-          <AgentSelector
-            value={state.provider}
-            onChange={(provider) => state.setProvider(provider)}
-            connectionId={state.connectionId}
-            getDisabledReason={getDisabledReason}
-            contentClassName="w-64"
-          />
-        </div>
+        <AgentSelector
+          value={state.provider}
+          onChange={(provider) => state.setProvider(provider)}
+          connectionId={state.connectionId}
+          getDisabledReason={getDisabledReason}
+          contentClassName="w-64"
+          trailingControl={
+            canToggleChatUi ? (
+              <ConversationTransportToggle
+                value={state.useChatUi ? 'acp' : 'pty'}
+                disabled={!state.settingsReady}
+                onValueChange={(value) => state.setUseChatUi(value === 'acp')}
+              />
+            ) : null
+          }
+        />
 
         {showAutoApproveToggle && canToggleAutoApprove ? (
           <div className="flex items-center gap-2">
@@ -353,17 +403,6 @@ export function InitialConversationField({
               disabled={!state.provider}
             />
             <Field.Label htmlFor={autoApproveSwitchId}>Auto-approve permissions</Field.Label>
-          </div>
-        ) : null}
-
-        {canToggleChatUi ? (
-          <div className="flex items-center gap-2">
-            <Switch
-              id={chatUiSwitchId}
-              checked={state.useChatUi}
-              onCheckedChange={state.setUseChatUi}
-            />
-            <Field.Label htmlFor={chatUiSwitchId}>Use chat UI</Field.Label>
           </div>
         ) : null}
 
@@ -379,9 +418,17 @@ export function InitialConversationField({
           editorApiRef={editorApiRef}
           renderMentionIcon={renderMentionIcon}
           queryCommands={canDeliverInitialPrompt ? querySlashItems : undefined}
-          modelOptions={modelOptions}
-          selectedModel={state.model ?? undefined}
-          onModelChange={(modelId) => state.setModel(modelId || null)}
+          {...(state.useChatUi
+            ? providerComposerOptions(
+                selectCachedProviderOptions(state.settings.catalogs, state.options),
+                state.options,
+                state.setOption
+              )
+            : {
+                modelOptions,
+                selectedModel: state.model ?? undefined,
+                onModelChange: (modelId: string) => state.setModel(modelId || null),
+              })}
           className={textareaClassName}
         />
         {initialPromptInfo ? <Field.Description>{initialPromptInfo}</Field.Description> : null}

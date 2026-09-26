@@ -163,30 +163,168 @@ describe('conversations contract', () => {
     expect(renamedAgain.data.updatedAt).toBe(30_000);
   });
 
-  it('updateConfig mutates only the config payload', async () => {
+  it('patchConfig mutates only the config payload', async () => {
     await wire.client.create(baseCreate);
 
     await clock.advanceTo(20_000);
-    const updated = await wire.client.updateConfig({
+    const updated = await wire.client.patchConfig({
       conversationId: 'conv-1',
-      config: { model: 'opus', initialQueue: [{ text: 'hello' }] },
+      patch: { model: 'opus', initialQueue: [{ text: 'hello' }] },
     });
     expect(updated.success).toBe(true);
     if (!updated.success) throw new Error('expected success');
-    expect(updated.data.config).toEqual({ model: 'opus', initialQueue: [{ text: 'hello' }] });
-    expect(updated.data.title).toBe('First conversation');
-    expect(updated.data.updatedAt).toBe(20_000);
+    expect(updated.data.record.config).toEqual({
+      model: 'opus',
+      initialQueue: [{ text: 'hello' }],
+    });
+    expect(updated.data.record.title).toBe('First conversation');
+    expect(updated.data.record.updatedAt).toBe(20_000);
+    expect(updated.data.skippedKeys).toEqual([]);
   });
 
-  it('rename and updateConfig of an unknown record are conversation-not-found errors', async () => {
+  it('merges concurrent provider-option patches against authoritative config', async () => {
+    await wire.client.create({
+      ...baseCreate,
+      config: {
+        model: 'sonnet',
+        collaborationMode: 'default',
+        effort: 'high',
+        modeId: 'restricted',
+      },
+    });
+    const otherWire = createTestWire(conversationsContract, createConversationsController(runtime));
+    try {
+      const results = await Promise.all([
+        wire.client.patchConfig({ conversationId: 'conv-1', patch: { collaborationMode: 'plan' } }),
+        otherWire.client.patchConfig({ conversationId: 'conv-1', patch: { model: 'opus' } }),
+      ]);
+      expect(results.every((result) => result.success)).toBe(true);
+
+      // Idempotent create returns the durable record, ignoring this stale client's old config.
+      const persisted = await wire.client.create(baseCreate);
+      expect(persisted).toMatchObject({
+        success: true,
+        data: {
+          config: {
+            model: 'opus',
+            collaborationMode: 'plan',
+            effort: 'high',
+            modeId: 'restricted',
+          },
+        },
+      });
+    } finally {
+      otherWire.dispose();
+    }
+  });
+
+  it('merges option-map patches and conditionally clears stale choices', async () => {
+    await wire.client.create({
+      ...baseCreate,
+      config: { initialQueue: [{ text: 'Review' }], options: { effort: 'high', fast: false } },
+    });
+    await Promise.all([
+      wire.client.patchConfig({
+        conversationId: 'conv-1',
+        patch: {},
+        mapPatch: { field: 'options', entries: { model: 'astra' } },
+      }),
+      wire.client.patchConfig({
+        conversationId: 'conv-1',
+        patch: {},
+        mapPatch: { field: 'options', entries: { effort: 'xhigh' } },
+      }),
+    ]);
+    const result = await wire.client.patchConfig({
+      conversationId: 'conv-1',
+      patch: {},
+      mapPatch: {
+        field: 'options',
+        entries: { model: null, effort: null },
+        expected: { model: 'astra', effort: 'high' },
+      },
+    });
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        record: {
+          config: { initialQueue: [{ text: 'Review' }], options: { effort: 'xhigh', fast: false } },
+        },
+        skippedKeys: ['effort'],
+      },
+    });
+    if (result.success) expect(result.data.record.config.options).not.toHaveProperty('model');
+  });
+
+  it.each(['B', 'C'])(
+    'reports a skipped conditional write after another client selects %s',
+    async (model) => {
+      await wire.client.create({ ...baseCreate, config: { options: { model: 'A' } } });
+      const otherWire = createTestWire(
+        conversationsContract,
+        createConversationsController(runtime)
+      );
+      try {
+        await otherWire.client.patchConfig({
+          conversationId: 'conv-1',
+          patch: {},
+          mapPatch: { field: 'options', entries: { model } },
+        });
+        const result = await wire.client.patchConfig({
+          conversationId: 'conv-1',
+          patch: {},
+          mapPatch: { field: 'options', entries: { model: 'C' }, expected: { model: 'A' } },
+        });
+        expect(result).toMatchObject({
+          success: true,
+          data: { record: { config: { options: { model } } }, skippedKeys: ['model'] },
+        });
+        expect(await wire.client.create(baseCreate)).toMatchObject({
+          success: true,
+          data: { config: { options: { model } } },
+        });
+      } finally {
+        await otherWire.dispose();
+      }
+    }
+  );
+
+  it.each(['A', false, undefined])(
+    'applies a conditional option write when the previous value is %s',
+    async (previous) => {
+      await wire.client.create({
+        ...baseCreate,
+        config: { options: previous === undefined ? {} : { setting: previous } },
+      });
+      expect(
+        await wire.client.patchConfig({
+          conversationId: 'conv-1',
+          patch: {},
+          mapPatch: {
+            field: 'options',
+            entries: { setting: 'new' },
+            expected: { setting: previous },
+          },
+        })
+      ).toMatchObject({
+        success: true,
+        data: { record: { config: { options: { setting: 'new' } } }, skippedKeys: [] },
+      });
+    }
+  );
+
+  it('rename and config mutations of an unknown record are conversation-not-found errors', async () => {
     const renamed = await wire.client.rename({ conversationId: 'conv-missing', title: 'x' });
     expect(renamed).toMatchObject({
       success: false,
       error: { type: 'conversation-not-found', conversationId: 'conv-missing' },
     });
 
-    const updated = await wire.client.updateConfig({ conversationId: 'conv-missing', config: {} });
-    expect(updated).toMatchObject({
+    const patched = await wire.client.patchConfig({
+      conversationId: 'conv-missing',
+      patch: { effort: 'high' },
+    });
+    expect(patched).toMatchObject({
       success: false,
       error: { type: 'conversation-not-found', conversationId: 'conv-missing' },
     });

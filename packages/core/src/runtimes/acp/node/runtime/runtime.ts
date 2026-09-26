@@ -12,10 +12,9 @@ import type {
   AcpLoadHistoryError,
   AcpResolvePermissionError,
   AcpSendPromptError,
-  AcpSetOptionError,
   AcpSessionStartMode,
   AcpTerminateError,
-  LoadHistoryResult,
+  HistoryPage,
   PromptInput,
   PromptPlacement,
   SessionState,
@@ -30,7 +29,7 @@ import {
   type AcpConnectionSource,
 } from '#runtimes/acp/node/connection/source';
 import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
-import { SessionManager, type AcpWakeFailure } from './session-manager';
+import { SessionManager } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
@@ -131,21 +130,15 @@ export class AcpRuntime {
     return this.manager.resolvePermission(conversationId, requestId, optionId);
   }
 
-  setOption(
-    conversationId: string,
-    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
-    value: string
-  ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
-    return key === 'mode'
-      ? this.manager.setMode(conversationId, value)
-      : this.manager.setConfigOption(conversationId, key, value);
+  setOption(conversationId: string, configId: string, value: string | boolean) {
+    return this.manager.setOption(conversationId, configId, value);
   }
 
   async loadHistory(
     conversationId: string,
     before?: number,
     limit?: number
-  ): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
+  ): Promise<Result<HistoryPage, AcpLoadHistoryError>> {
     return ok(this.manager.getHistory(conversationId, before, limit));
   }
 

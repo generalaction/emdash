@@ -1,16 +1,12 @@
 import { z } from 'zod';
 import {
-  acpStartInputSchema,
   sessionConfigStateSchema,
   sessionMcpServerSchema,
   sessionUsageSchema,
 } from '#runtimes/acp/api';
 
 const retainedConfiguredSchema = z.object({
-  model: z.string().nullable(),
-  modeId: z.string().nullable(),
-  effort: z.string().nullable(),
-  collaborationMode: z.string().nullable().optional(),
+  options: z.record(z.string(), z.union([z.string(), z.boolean()])).optional(),
 });
 
 const retainedPresentationSchema = z.object({
@@ -31,14 +27,4 @@ export const persistedIntentV1Schema = z.object({
   initialQueueConsumed: z.boolean().optional(),
   configured: retainedConfiguredSchema,
   presentation: retainedPresentationSchema,
-});
-
-export const legacyRetainedIntentSchema = acpStartInputSchema.extend({
-  configOverrides: z
-    .object({
-      model: z.string().optional(),
-      effort: z.string().optional(),
-      collaborationMode: z.string().optional(),
-    })
-    .optional(),
 });

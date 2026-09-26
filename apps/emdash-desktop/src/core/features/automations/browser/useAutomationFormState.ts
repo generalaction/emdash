@@ -21,7 +21,7 @@ import {
 } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { useInitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import { agentSupportsAcp, agentSupportsInitialPromptDelivery } from '@core/primitives/agents/api';
-import type { Automation } from '@core/primitives/automations/api';
+import type { Automation, ConversationConfig } from '@core/primitives/automations/api';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
 import type { BuiltinAutomationTemplate } from './automation-template';
@@ -113,8 +113,13 @@ export function useAutomationFormState(
 
   const seedModel = seedConversationConfig?.model ?? undefined;
 
-  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider, false, {
+  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider, {
     resetPromptOnProjectChange: false,
+    initialOptions: seedConversationConfig ? (seedConversationConfig.options ?? {}) : undefined,
+    launchSettings: {
+      autoApprove: seedConversationConfig?.autoApprove ?? false,
+      useChatUi: seedConversationConfig?.type === 'acp',
+    },
   });
 
   const [promptSeeded, setPromptSeeded] = useState(false);
@@ -127,13 +132,6 @@ export function useAutomationFormState(
   if (!modelSeeded && seedModel) {
     setModelSeeded(true);
     initialConversation.setModel(seedModel);
-  }
-
-  const seedType = seedConversationConfig?.type;
-  const [chatUiSeeded, setChatUiSeeded] = useState(false);
-  if (!chatUiSeeded && seedType === 'acp') {
-    setChatUiSeeded(true);
-    initialConversation.setUseChatUi(true);
   }
 
   const { defaultBranch, isUnborn, hasRepository, currentBranch, repositoryWorkspaceId } =
@@ -187,6 +185,7 @@ export function useAutomationFormState(
   }, [setUseChatUi, shouldForceChatUi, useChatUi]);
 
   const canSave =
+    initialConversation.settingsReady &&
     name.trim().length > 0 &&
     prompt.trim().length > 0 &&
     !!provider &&
@@ -231,6 +230,22 @@ export function useAutomationFormState(
 
   const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };
 
+  function buildConversationConfig(): ConversationConfig | null {
+    if (!provider || !initialConversation.settingsReady) return null;
+    return {
+      prompt: prompt.trim(),
+      provider,
+      autoApprove: initialConversation.autoApprove,
+      type: initialConversation.useChatUi ? 'acp' : 'pty',
+      ...(initialConversation.useChatUi
+        ? { options: initialConversation.options }
+        : model
+          ? { model }
+          : {}),
+      ...(seedConversationConfig?.title && { title: seedConversationConfig.title }),
+    };
+  }
+
   function applyTemplate(template: BuiltinAutomationTemplate) {
     setName(template.name);
     setCronExpr(template.defaultTrigger.expr);
@@ -258,5 +273,6 @@ export function useAutomationFormState(
     triggerConfig,
     applyTemplate,
     buildTaskConfig,
+    buildConversationConfig,
   };
 }

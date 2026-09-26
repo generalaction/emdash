@@ -121,14 +121,7 @@ const checks: ContractCheck[] = [
     name: 'no localStorage on workbench surfaces',
     pattern: /\blocalStorage\b|useLocalStorage/,
     scope: surfaceDirs,
-    allowlist: [
-      {
-        path: 'core/features/tasks/contributions/browser/task-config/initial-conversation-section.tsx',
-        reason:
-          'New-conversation preferences (auto-approve, chat-ui opt-in) — user preferences, ' +
-          'not layout state. Layout persistence goes through mementos.',
-      },
-    ],
+    allowlist: [],
     rationale:
       'All layout state persists via mementos on the one hydration clock. localStorage layout ' +
       'persistence is retired; it bypasses the hydration gate and the persistence clock.',

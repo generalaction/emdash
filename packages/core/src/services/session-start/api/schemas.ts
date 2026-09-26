@@ -23,8 +23,7 @@ export const acpSessionStartInputSchema = z.object({
   providerId: nonBlankStringSchema,
   cwd: nonBlankStringSchema,
   sessionId: z.null(),
-  model: nonBlankStringSchema.nullable(),
-  modeId: nonBlankStringSchema.nullable().optional(),
+  options: z.record(z.string(), z.union([z.string(), z.boolean()])).optional(),
   initialQueue: z.array(headlessPromptInputSchema).min(1),
 });
 

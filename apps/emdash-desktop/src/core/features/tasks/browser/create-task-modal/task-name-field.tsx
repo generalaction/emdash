@@ -10,8 +10,8 @@ export function TaskNameField({ state }: TaskNameFieldProps) {
 
   return (
     <Field.Root className="flex flex-col gap-1">
-      <Field.Label>Task name</Field.Label>
       <Input
+        aria-label="Task name"
         bare
         autoFocus
         value={taskName}

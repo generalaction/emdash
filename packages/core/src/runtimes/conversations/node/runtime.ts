@@ -17,12 +17,13 @@ import type {
   ConversationRecords,
   CreateConversationInput,
   DeleteConversationInput,
+  PatchConversationConfigInput,
+  PatchConversationConfigResult,
   RenameConversationInput,
   ReportProviderSessionIdInput,
   ReportSessionActivityInput,
   ReportSessionEndedInput,
   ReportSessionStartedInput,
-  UpdateConversationConfigInput,
 } from '../api/schemas';
 import { ConversationRecordStore } from './persistence/record-store';
 import type { ConversationsDb } from './persistence/store';
@@ -125,10 +126,32 @@ export class ConversationsRuntime {
     return this.mutate(input.conversationId, (record) => ({ ...record, title: input.title }));
   }
 
-  updateConfig(
-    input: UpdateConversationConfigInput
-  ): Result<ConversationRecord, ConversationMutationError> {
-    return this.mutate(input.conversationId, (record) => ({ ...record, config: input.config }));
+  patchConfig(
+    input: PatchConversationConfigInput
+  ): Result<PatchConversationConfigResult, ConversationMutationError> {
+    const skippedKeys: string[] = [];
+    const result = this.mutate(input.conversationId, (record) => {
+      const config = { ...record.config, ...input.patch };
+      if (input.mapPatch) {
+        const { field, entries, expected } = input.mapPatch;
+        const existing = config[field];
+        const map: Record<string, unknown> =
+          existing && typeof existing === 'object' && !Array.isArray(existing)
+            ? { ...existing }
+            : {};
+        for (const [key, value] of Object.entries(entries)) {
+          if (expected && map[key] !== expected[key]) {
+            skippedKeys.push(key);
+            continue;
+          }
+          if (value === null) delete map[key];
+          else map[key] = value;
+        }
+        config[field] = map;
+      }
+      return { ...record, config };
+    });
+    return result.success ? ok({ record: result.data, skippedKeys }) : result;
   }
 
   async delete(input: DeleteConversationInput): Promise<Result<void, DeleteConversationError>> {

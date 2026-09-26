@@ -205,12 +205,6 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
       return { kind: 'config', options };
     }
 
-    case 'current_mode_update': {
-      const raw = update as unknown as { currentModeId?: string };
-      if (!raw.currentModeId) return { kind: 'ignored' };
-      return { kind: 'mode_selected', modeId: raw.currentModeId };
-    }
-
     case 'available_commands_update': {
       const raw = update as unknown as { availableCommands?: unknown };
       const commands = Array.isArray(raw.availableCommands) ? raw.availableCommands : [];

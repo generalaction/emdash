@@ -1,32 +1,24 @@
 import { formatHostRef } from '@emdash/core/primitives/host/api';
-import { Dialog, Field, Select, Switch } from '@emdash/ui/react/primitives';
+import { Dialog, Field, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
 import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { readProviderSettings } from '@core/features/conversations/api/browser/provider-preferences';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { useConversationLaunchSettings } from '@core/features/conversations/api/browser/use-conversation-launch-settings';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
-import { providerPreferencesMemento } from '@core/features/conversations/contributions/mementos';
+import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
-// TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
-import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@core/primitives/agents/api';
 import type { ConversationType } from '@core/primitives/conversations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
-import { getMementoClient } from '@core/primitives/mementos/browser';
-import { useMemento } from '@core/primitives/mementos/react';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
-import {
-  patchProviderPreference,
-  providerPreference,
-  providerPreferenceKey,
-} from './provider-preferences';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
   projectId,
@@ -39,49 +31,24 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
   const conversationMgr = conversationRegistry.get(taskId);
-  const taskSettings = useTaskSettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
-  const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
-    'initial-conversation:chat-ui-enabled',
-    false
-  );
-  const [providerPreferences, setProviderPreferences] = useMemento(providerPreferencesMemento);
-  const [modelOverrides, setModelOverrides] = useState<Record<string, string | null>>({});
   const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
   const selectedAgent = agents?.find((a) => a.id === providerId);
-  const modelsCapability = selectedAgent?.capabilities.models;
-  const modelOptions =
-    modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
-
-  const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities);
-  const showAcpToggle = agentSupportsAcp(selectedAgent?.capabilities);
-  const useAcp = showAcpToggle && useChatUiPreference;
-  const transport = useAcp ? 'acp' : 'pty';
   const host = formatHostRef(hostRefFromConnectionId(connectionId));
-  const preferenceKey = providerId ? providerPreferenceKey(host, providerId, transport) : null;
-  const savedPreference = providerId
-    ? providerPreference(providerPreferences, host, providerId, transport)
-    : undefined;
-  const hasModelOverride =
-    preferenceKey !== null && Object.prototype.hasOwnProperty.call(modelOverrides, preferenceKey);
-  const selectedModel =
-    preferenceKey !== null && hasModelOverride
-      ? (modelOverrides[preferenceKey] ?? null)
-      : (savedPreference?.model ?? null);
-  const setSelectedModel = useCallback(
-    (model: string | null) => {
-      if (!preferenceKey) return;
-      setModelOverrides((current) => ({ ...current, [preferenceKey]: model }));
-    },
-    [preferenceKey]
+  const launchSettings = useConversationLaunchSettings(
+    host,
+    providerId,
+    selectedAgent?.capabilities
   );
-  const skipPermissions =
-    showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
+  const showAcpToggle = agentSupportsAcp(selectedAgent?.capabilities);
+  const useAcp = showAcpToggle && launchSettings.useChatUi;
+  const transport = useAcp ? 'acp' : 'pty';
+  const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities, transport);
+  const skipPermissions = showAutoApproveToggle && launchSettings.autoApprove;
   const title = providerId
     ? nextDefaultConversationTitle(
         providerId,
@@ -103,6 +70,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     if (
       liveActionDisabledReason ||
       createDisabled ||
+      !launchSettings.ready ||
       isSubmitting ||
       !conversationMgr ||
       !providerId
@@ -113,30 +81,18 @@ export const CreateConversationModal = observer(function CreateConversationModal
     setIsSubmitting(true);
     setError(null);
     try {
+      const settings = await readProviderSettings({ host, providerId });
       const conversationType: ConversationType = useAcp ? 'acp' : 'pty';
       await conversationMgr.createConversation({
         projectId,
         taskId,
         id,
-        autoApprove: skipPermissions,
+        autoApprove: showAutoApproveToggle && settings.pty.autoApprove,
         provider: providerId,
         title,
-        model: selectedModel ?? undefined,
-        modeId: conversationType === 'acp' ? savedPreference?.modeId : undefined,
-        effort: conversationType === 'acp' ? savedPreference?.effort : undefined,
-        collaborationMode:
-          conversationType === 'acp' ? savedPreference?.collaborationMode : undefined,
+        options: conversationType === 'acp' ? settings.acp.options : undefined,
         type: conversationType,
       });
-      try {
-        setProviderPreferences((current) =>
-          patchProviderPreference(current, host, providerId, conversationType, {
-            model: selectedModel,
-          })
-        );
-      } catch (preferenceError) {
-        getMementoClient().reportError(preferenceError);
-      }
       setIsSubmitting(false);
       complete({ conversationId: id, type: conversationType });
     } catch {
@@ -147,20 +103,16 @@ export const CreateConversationModal = observer(function CreateConversationModal
     conversationMgr,
     liveActionDisabledReason,
     createDisabled,
+    launchSettings.ready,
     isSubmitting,
     providerId,
     title,
     complete,
     projectId,
     taskId,
-    skipPermissions,
-    selectedModel,
+    showAutoApproveToggle,
     useAcp,
     host,
-    savedPreference?.effort,
-    savedPreference?.modeId,
-    savedPreference?.collaborationMode,
-    setProviderPreferences,
   ]);
 
   return (
@@ -171,59 +123,31 @@ export const CreateConversationModal = observer(function CreateConversationModal
       <Dialog.Body>
         <Field.Group>
           <Field.Root>
-            <Field.Label>Agent</Field.Label>
             <AgentSelector
               autoFocus
               value={providerId}
               onChange={handleProviderChange}
               connectionId={connectionId}
+              trailingControl={
+                showAcpToggle ? (
+                  <ConversationTransportToggle
+                    value={transport}
+                    disabled={!launchSettings.ready || isSubmitting}
+                    onValueChange={(value) => launchSettings.setUseChatUi(value === 'acp')}
+                  />
+                ) : null
+              }
             />
           </Field.Root>
-          {modelOptions ? (
-            <Field.Root>
-              <Field.Label>Model</Field.Label>
-              <Select.Root
-                value={selectedModel ?? ''}
-                onValueChange={(value) => setSelectedModel(value || null)}
-              >
-                <Select.Trigger appearance="input" className="w-full">
-                  <Select.Value placeholder="Default model">
-                    {selectedModel
-                      ? (modelOptions[selectedModel]?.name ?? selectedModel)
-                      : 'Default model'}
-                  </Select.Value>
-                </Select.Trigger>
-                <Select.Content align="start" width="trigger">
-                  <Select.Item value="">Default model</Select.Item>
-                  {selectedModel && !modelOptions[selectedModel] ? (
-                    <Select.Item value={selectedModel}>{selectedModel}</Select.Item>
-                  ) : null}
-                  {Object.entries(modelOptions).map(([id, option]) => (
-                    <Select.Item key={id} value={id}>
-                      {option.name}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
-            </Field.Root>
-          ) : null}
           {showAutoApproveToggle ? (
             <Field.Root>
               <div className="flex items-center gap-2">
                 <Switch
                   checked={skipPermissions}
-                  disabled={!providerId || taskSettings.loading || taskSettings.saving}
-                  onCheckedChange={setAutoApproveOverride}
+                  disabled={!providerId || !launchSettings.ready || isSubmitting}
+                  onCheckedChange={launchSettings.setAutoApprove}
                 />
                 <Field.Label>Auto-approve permissions</Field.Label>
-              </div>
-            </Field.Root>
-          ) : null}
-          {showAcpToggle ? (
-            <Field.Root>
-              <div className="flex items-center gap-2">
-                <Switch checked={useAcp} onCheckedChange={setUseChatUiPreference} />
-                <Field.Label>Use chat UI</Field.Label>
               </div>
             </Field.Root>
           ) : null}
@@ -239,7 +163,12 @@ export const CreateConversationModal = observer(function CreateConversationModal
         <ConfirmButton
           variant="primary"
           onClick={() => void handleCreateConversation()}
-          disabled={Boolean(liveActionDisabledReason) || createDisabled || isSubmitting}
+          disabled={
+            Boolean(liveActionDisabledReason) ||
+            createDisabled ||
+            !launchSettings.ready ||
+            isSubmitting
+          }
         >
           {isSubmitting ? 'Creating...' : 'Create'}
         </ConfirmButton>

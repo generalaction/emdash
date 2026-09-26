@@ -146,7 +146,7 @@ describe('ACP initial queue persistence', () => {
           await runtime.setOption(input.conversationId, 'model', 'updated');
           await vi.waitFor(() =>
             expect(intents.snapshot()[0]?.payload).toMatchObject({
-              configured: { model: 'updated' },
+              configured: { options: { model: 'updated' } },
               initialQueueConsumed: false,
             })
           );

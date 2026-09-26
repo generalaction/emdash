@@ -8,24 +8,26 @@ import { SessionCell } from '#runtimes/acp/node/session/cell';
 import { emptyRetainedPresentation } from '#runtimes/acp/node/state/live-models';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
 import { AcpRuntime } from './runtime';
-
 const savedConfiguration = {
   model: 'saved-model',
-  effort: 'high',
-  collaborationMode: 'plan',
-  modeId: 'agent-full-access',
+  reasoning_effort: 'high',
+  collaboration_mode: 'plan',
+  mode: 'agent-full-access',
 };
-
 function restorationConfigOptions(includeSaved: boolean) {
   return [
     { id: 'model', category: 'model', value: savedConfiguration.model },
-    { id: 'reasoning_effort', category: 'thought_level', value: savedConfiguration.effort },
+    {
+      id: 'reasoning_effort',
+      category: 'thought_level',
+      value: savedConfiguration.reasoning_effort,
+    },
     {
       id: 'collaboration_mode',
       category: 'collaboration_mode',
-      value: savedConfiguration.collaborationMode,
+      value: savedConfiguration.collaboration_mode,
     },
-    { id: 'mode', category: 'mode', value: savedConfiguration.modeId },
+    { id: 'mode', category: 'mode', value: savedConfiguration.mode },
   ].map(({ id, category, value }) => ({
     id,
     name: id,
@@ -38,7 +40,6 @@ function restorationConfigOptions(includeSaved: boolean) {
     ],
   }));
 }
-
 describe('ACP restoration continuity', () => {
   it.each(['new queue', 'new readiness', 'replay queue', 'replay finalization'] as const)(
     'retains the initial prompt across a worker restart after %s fails',
@@ -92,20 +93,20 @@ describe('ACP restoration continuity', () => {
       const input = makeStartInput({
         conversationId: 'failed-configuration-restore',
         sessionId: 'original',
-        ...savedConfiguration,
+        options: savedConfiguration,
         initialQueue: [{ text: 'continue after restoration' }],
       });
       await intents.saveActive({
         conversationId: input.conversationId,
         sessionId: input.sessionId,
         payload: {
-          version: 1,
+          version: '1',
           conversationId: input.conversationId,
           providerId: input.providerId,
           cwd: input.cwd,
           sessionId: input.sessionId,
-          configured: savedConfiguration,
-          presentation: emptyRetainedPresentation(savedConfiguration),
+          configured: { options: savedConfiguration },
+          presentation: emptyRetainedPresentation({ options: savedConfiguration }),
         } as unknown as Serializable,
       });
       h.agent.loadSession
@@ -125,9 +126,8 @@ describe('ACP restoration continuity', () => {
         expect(h.agent.prompt).not.toHaveBeenCalled();
         expect(intents.snapshot()[0]).toMatchObject({
           sessionId: 'original',
-          payload: { configured: savedConfiguration },
+          payload: { configured: { options: savedConfiguration } },
         });
-
         // Retry the same handle to verify its in-memory overrides survived too.
         expect((await startAndLoadHistory(runtime, input)).success).toBe(true);
         for (const option of restorationConfigOptions(true)) {
@@ -141,14 +141,15 @@ describe('ACP restoration continuity', () => {
         expect(h.agent.setSessionConfigOption.mock.invocationCallOrder.at(-1)).toBeLessThan(
           h.agent.prompt.mock.invocationCallOrder[0]!
         );
-        expect(intents.snapshot()[0]?.payload).toMatchObject({ configured: savedConfiguration });
+        expect(intents.snapshot()[0]?.payload).toMatchObject({
+          configured: { options: savedConfiguration },
+        });
       } finally {
         fault.mockRestore();
         await runtime.dispose();
       }
     }
   );
-
   it('persists unsupported selection removals after restoration succeeds', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
@@ -156,23 +157,25 @@ describe('ACP restoration continuity', () => {
     const input = makeStartInput({
       conversationId: 'successful-configuration-restore',
       sessionId: 'original',
-      ...savedConfiguration,
+      options: savedConfiguration,
     });
     h.agent.loadSession.mockResolvedValueOnce({ configOptions: restorationConfigOptions(false) });
     try {
       expect(await runtime.startSession(input, 'resume')).toMatchObject({
         success: true,
-        data: { clearedConfiguration: ['model', 'effort', 'collaborationMode', 'modeId'] },
+        data: { sessionId: 'original' },
       });
       expect(intents.snapshot()[0]?.payload).toMatchObject({
-        configured: { model: null, effort: null, collaborationMode: null, modeId: null },
+        configured: { options: {} },
       });
+      expect(
+        peek(runtime.sessionLiveModels(input.conversationId)!.states.config)?.clearedOptions
+      ).toEqual(savedConfiguration);
       expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
     } finally {
       await runtime.dispose();
     }
   });
-
   it('preserves a newer supported selection made while applying restoration settings', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
@@ -180,8 +183,10 @@ describe('ACP restoration continuity', () => {
     const input = makeStartInput({
       conversationId: 'updated-restoration-settings',
       sessionId: 'original',
-      ...savedConfiguration,
-      model: 'removed-model',
+      options: {
+        ...savedConfiguration,
+        model: 'removed-model',
+      },
     });
     h.agent.loadSession.mockResolvedValueOnce({ configOptions: restorationConfigOptions(true) });
     const applying = deferred<Record<string, never>>();
@@ -195,20 +200,20 @@ describe('ACP restoration continuity', () => {
       applying.resolve({});
       const result = await loading;
       expect(result).toMatchObject({ success: true });
-      if (result.success) expect(result.data.clearedConfiguration).toBeUndefined();
       expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
         sessionId: 'original',
         configId: 'model',
         value: savedConfiguration.model,
       });
-      expect(intents.snapshot()[0]?.payload).toMatchObject({ configured: savedConfiguration });
+      expect(intents.snapshot()[0]?.payload).toMatchObject({
+        configured: { options: savedConfiguration },
+      });
     } finally {
       applying.resolve({});
       await loading;
       await runtime.dispose();
     }
   });
-
   it('does not replace a saved conversation when the provider cannot load sessions', async () => {
     const h = makeAcpHarness();
     h.agent.initialize.mockResolvedValueOnce({ protocolVersion: 1, agentCapabilities: {} });
@@ -223,7 +228,6 @@ describe('ACP restoration continuity', () => {
       await runtime.dispose();
     }
   });
-
   it('retries a rejected close before retrying restoration', async () => {
     const h = makeAcpHarness();
     const runtime = new AcpRuntime(h.deps);
@@ -240,7 +244,6 @@ describe('ACP restoration continuity', () => {
       await runtime.dispose();
     }
   });
-
   it('does not persist a rebound session id from a replay that subsequently fails', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
@@ -268,7 +271,6 @@ describe('ACP restoration continuity', () => {
       await runtime.dispose();
     }
   });
-
   it('waits for the provider close acknowledgement before resuming', async () => {
     const h = makeAcpHarness();
     const runtime = new AcpRuntime(h.deps);
@@ -293,7 +295,6 @@ describe('ACP restoration continuity', () => {
       expect.objectContaining({ sessionId: 'session-1' })
     );
   });
-
   it('bounds a stuck close and rejects restoration until that close completes', async () => {
     const h = makeAcpHarness({ lifecycle: { activationDrainTimeoutMs: 20 } });
     const runtime = new AcpRuntime(h.deps);
@@ -318,7 +319,6 @@ describe('ACP restoration continuity', () => {
       await runtime.dispose();
     }
   });
-
   it('allows a new provider generation to restore after the old process dies during close', async () => {
     const h = makeAcpHarness({ lifecycle: { activationDrainTimeoutMs: 20 } });
     const runtime = new AcpRuntime(h.deps);
@@ -344,7 +344,6 @@ describe('ACP restoration continuity', () => {
       await runtime.dispose();
     }
   });
-
   it('keeps the original session identity and allows retry after a load failure', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
@@ -364,7 +363,6 @@ describe('ACP restoration continuity', () => {
       await runtime.dispose();
     }
   });
-
   it('keeps replayed turns out of the live projection until history is complete', async () => {
     const h = makeAcpHarness();
     const runtime = new AcpRuntime(h.deps);
@@ -389,7 +387,8 @@ describe('ACP restoration continuity', () => {
       await replayed.promise;
       const live = runtime.sessionLiveModels(input.conversationId)!;
       expect(peek(live.states.state)?.lifecycle).toBe('replaying');
-      expect(peek(live.states.activeTurn)).toBeNull();
+      expect(peek(live.states.state)?.transcript).toBeNull();
+      expect(runtime.manager.getHistory(input.conversationId)).toEqual({ kind: 'unavailable' });
     } finally {
       finish.resolve();
       const loaded = await loading;

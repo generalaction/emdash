@@ -146,16 +146,11 @@ export async function portLegacySettings(
   if (tasks) {
     const patch: Record<string, unknown> = {};
     const autoGenerateName = readBoolean(tasks.autoGenerateName);
-    const autoApproveByDefault = readBoolean(tasks.autoApproveByDefault);
     const autoTrustWorktrees = readBoolean(tasks.autoTrustWorktrees);
 
     if (autoGenerateName !== null) {
       patch.autoGenerateName = autoGenerateName;
       summary.imported.push('tasks.autoGenerateName');
-    }
-    if (autoApproveByDefault !== null) {
-      patch.autoApproveByDefault = autoApproveByDefault;
-      summary.imported.push('tasks.autoApproveByDefault');
     }
     if (autoTrustWorktrees !== null) {
       patch.autoTrustWorktrees = autoTrustWorktrees;

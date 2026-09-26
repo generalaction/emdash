@@ -173,8 +173,7 @@ function compileConversationIndexRecord(
       ? {
           version: '1',
           type: 'acp',
-          ...(agent.start.model && { model: agent.start.model }),
-          ...(agent.start.modeId && { modeId: agent.start.modeId }),
+          ...(agent.start.options && { options: agent.start.options }),
           initialQueue: agent.start.initialQueue,
         }
       : {
