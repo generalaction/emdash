@@ -95,13 +95,10 @@ export class ProviderSettingsService {
     scope: ProviderSettingsKey,
     transport: T
   ): Promise<ProviderSettingsSnapshot[T]> {
+    const value = await this.preferences.getOrThrow(this.key(scope, transport));
+    if (value === null) return emptyProviderSettings[transport];
     const schema = transport === 'acp' ? acpPreferenceSchema : ptyPreferenceSchema;
-    const parsed = schema.schema.safeParse(
-      await this.preferences.getOrThrow(this.key(scope, transport))
-    );
-    return (
-      parsed.success ? parsed.data : emptyProviderSettings[transport]
-    ) as ProviderSettingsSnapshot[T];
+    return schema.schema.parse(value) as ProviderSettingsSnapshot[T];
   }
 
   async patch(scope: ProviderSettingsKey, patch: ProviderPreferencePatch) {

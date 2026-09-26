@@ -125,6 +125,22 @@ describe('provider settings persistence', () => {
     });
   });
 
+  it('rejects invalid preference records without overwriting stored selections', async () => {
+    const preferences = new AppDbKeyValueStore<Record<string, unknown>>(
+      fixture.db,
+      'provider-preferences'
+    );
+    const key = JSON.stringify([local.host, local.providerId, 'acp']);
+    const invalid = { version: '1', options: { model: 'astra', effort: 123 } };
+    await preferences.setOrThrow(key, invalid);
+
+    await expect(
+      service.patch(local, { transport: 'acp', options: { fast: true } })
+    ).rejects.toThrow();
+    await expect(service.read(local)).rejects.toThrow();
+    expect(await preferences.getOrThrow(key)).toEqual(invalid);
+  });
+
   it('caches actual per-host catalogs without turning observations into preferences', async () => {
     await service.observeCatalog(local, {
       ...initialSessionConfigState,
