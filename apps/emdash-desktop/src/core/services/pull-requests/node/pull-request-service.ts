@@ -16,7 +16,7 @@ import {
 import {
   normalizeRepositoryUrl,
   type CreatePullRequestInput,
-  type GitHubAuthContract,
+  type GitPlatformAuthContract,
   type ListPullRequestsInput,
   type ListPullRequestsResult,
   type PullRequest,
@@ -30,11 +30,8 @@ import {
   type RefreshPullRequestInput,
 } from '../api';
 import { PullRequestEngine } from './engine';
-import type {
-  GitHubPullRequestRepository,
-  Observed,
-  PullRequestMetadata,
-} from './engine/observation';
+import type { Observed, PullRequestMetadata } from './engine/observation';
+import type { GitPlatformPullRequestRepository } from './engine/providers/git-platform-provider';
 import type { PullRequestStore } from './store';
 
 type SyncResult = Result<void, PullRequestError>;
@@ -46,7 +43,7 @@ const DEFAULT_MAX_SYNC_COUNT = 300;
 const DEFAULT_ARCHIVE_AGE_MONTHS = 6;
 
 type RepositoryRead = {
-  repository: GitHubPullRequestRepository;
+  repository: GitPlatformPullRequestRepository;
   sequence: number;
   generation: number;
 };
@@ -75,7 +72,7 @@ type DetailEntry = {
 
 export type PullRequestServiceOptions = {
   store: PullRequestStore;
-  githubAuth: ContractClient<GitHubAuthContract>;
+  githubAuth: ContractClient<GitPlatformAuthContract>;
   scope: Scope;
   logger: Logger;
   incrementalIntervalMs?: number;

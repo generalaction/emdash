@@ -8,7 +8,11 @@ import { defineWireComponent } from '@emdash/wire/worker';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { pullRequestsContract, type GitHubAuthContract, type PullRequestDetails } from '../api';
+import {
+  pullRequestsContract,
+  type GitPlatformAuthContract,
+  type PullRequestDetails,
+} from '../api';
 import { PullRequestEngine } from './engine';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
@@ -149,12 +153,13 @@ async function harness() {
   const auth = {
     resolveAuth: async () =>
       ok({
+        provider: 'github',
         accountId: 'account',
         token: 'test',
         host: 'github.com',
         apiBaseUrl: 'https://api.github.com',
       }),
-  } as unknown as ContractClient<GitHubAuthContract>;
+  } as unknown as ContractClient<GitPlatformAuthContract>;
   // Use the real engine, database, service, controller and Wire subscription.
   const engine = new PullRequestEngine({
     scope,
