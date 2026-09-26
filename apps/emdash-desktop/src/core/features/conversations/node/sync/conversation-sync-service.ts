@@ -63,6 +63,7 @@ export class ConversationSyncService {
         const parsed = conversationRecordsSchema.parse(snapshot.value ?? {});
         chain = chain
           .then(async () => {
+            if (this.attachments.get(key) !== scope) return;
             await applyConversationSnapshot({
               db: this.options.db,
               host: hostIdentity,
@@ -113,6 +114,7 @@ export class ConversationSyncService {
                 previous = fingerprint;
                 chain = chain
                   .then(async () => {
+                    if (this.attachments.get(key) !== scope) return;
                     await getProviderSettingsService(this.options.db).observeCatalog(
                       {
                         host: formatHostRef(host),
@@ -120,6 +122,7 @@ export class ConversationSyncService {
                       },
                       config
                     );
+                    if (this.attachments.get(key) !== scope) return;
                     if (Object.keys(config.clearedOptions ?? {}).length) {
                       const result = await client.data.conversations.patchConfig({
                         conversationId: id,

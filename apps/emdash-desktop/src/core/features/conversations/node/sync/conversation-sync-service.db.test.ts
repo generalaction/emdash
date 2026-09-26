@@ -1,3 +1,4 @@
+import { setImmediate } from 'node:timers/promises';
 import { formatHostRef, hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import {
   acpApiContract,
@@ -11,12 +12,14 @@ import {
   type ConversationRecords,
 } from '@emdash/core/runtimes/conversations/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
+import { deferred } from '@emdash/shared/testing';
 import { createController, defineContract } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
+import { sshConnections } from '@core/services/app-db/node/schema';
 import { getProviderSettingsService } from '../provider-settings-service';
 import { ConversationSyncService } from './conversation-sync-service';
 
@@ -42,6 +45,50 @@ function hostRecord(
   };
 }
 
+function createAcpHost() {
+  const contract = defineContract({
+    sessions: acpApiContract.sessions,
+    session: acpApiContract.session,
+  });
+  const config = cell<SessionConfigState>(initialSessionConfigState);
+  const summary: SessionSummary = {
+    conversationId: 'headless',
+    providerId: 'codex',
+    lifecycle: 'ready',
+    isGenerating: false,
+    lastStopReason: null,
+    lastTurnErrored: false,
+    pendingPermissionCount: 0,
+    backgroundAgentCount: 0,
+    queuedPromptCount: 0,
+    title: null,
+    updatedAt: 1,
+  };
+  const sessions = expose(contract.sessions, { list: () => cell({ headless: summary }) });
+  const unused = () => {
+    throw new Error('Only config is observed');
+  };
+  const session = expose(contract.session, {
+    config: () => config,
+    state: unused,
+    usage: unused,
+    plan: unused,
+    agents: unused,
+    terminals: unused,
+    mcpServers: unused,
+  });
+  const wire = createTestWire(contract, createController(contract, { sessions, session }));
+  return {
+    config,
+    client: wire.client,
+    async dispose() {
+      await sessions.dispose();
+      await session.dispose();
+      await wire.dispose();
+    },
+  };
+}
+
 /**
  * End-to-end convergence: a fake host serves the `records` live model over a test wire
  * (the same `expose`-over-a-cell shape the real runtime uses), and the sync service
@@ -57,6 +104,7 @@ describe('ConversationSyncService', () => {
   let service: ConversationSyncService;
   let hostReachable: boolean;
   let acpClient: unknown;
+  let patchConfig: ReturnType<typeof vi.fn<() => never>>;
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
@@ -65,13 +113,14 @@ describe('ConversationSyncService', () => {
     const unused = () => {
       throw new Error('not exercised by the sync service');
     };
+    patchConfig = vi.fn(unused);
     wire = createTestWire(
       conversationsContract,
       createController(conversationsContract, {
         records: recordsHost,
         create: unused,
         rename: unused,
-        patchConfig: unused,
+        patchConfig,
         delete: unused,
         reports: {
           sessionStarted: unused,
@@ -109,39 +158,9 @@ describe('ConversationSyncService', () => {
   }
 
   it('discovers remote options without a renderer and keeps them when the host disconnects', async () => {
-    const contract = defineContract({
-      sessions: acpApiContract.sessions,
-      session: acpApiContract.session,
-    });
-    const config = cell<SessionConfigState>(initialSessionConfigState);
-    const summary: SessionSummary = {
-      conversationId: 'headless',
-      providerId: 'codex',
-      lifecycle: 'ready',
-      isGenerating: false,
-      lastStopReason: null,
-      lastTurnErrored: false,
-      pendingPermissionCount: 0,
-      backgroundAgentCount: 0,
-      queuedPromptCount: 0,
-      title: null,
-      updatedAt: 1,
-    };
-    const sessions = expose(contract.sessions, { list: () => cell({ headless: summary }) });
-    const unused = () => {
-      throw new Error('Only config is observed');
-    };
-    const session = expose(contract.session, {
-      config: () => config,
-      state: unused,
-      usage: unused,
-      plan: unused,
-      agents: unused,
-      terminals: unused,
-      mcpServers: unused,
-    });
-    const acpWire = createTestWire(contract, createController(contract, { sessions, session }));
-    acpClient = acpWire.client;
+    const acp = createAcpHost();
+    const { config } = acp;
+    acpClient = acp.client;
     const remoteHost = hostRef('remote', 'model-server');
     const key = { host: formatHostRef(remoteHost), providerId: 'codex' };
     const settings = getProviderSettingsService(fixture.db);
@@ -173,9 +192,76 @@ describe('ConversationSyncService', () => {
       expect((await settings.read(localKey)).catalogs).toEqual([[option]]);
     } finally {
       service.detachHost(remoteHost);
-      await sessions.dispose();
-      await session.dispose();
-      await acpWire.dispose();
+      await acp.dispose();
+    }
+  });
+
+  it('discards queued observations and pending cleanup from a replaced host attachment', async () => {
+    fixture.db
+      .insert(sshConnections)
+      .values({ id: 'model-server', name: 'Model server', host: 'test-host', username: 'test' })
+      .run();
+    const acp = createAcpHost();
+    acpClient = acp.client;
+    const remoteHost = hostRef('remote', 'model-server');
+    const key = { host: formatHostRef(remoteHost), providerId: 'codex' };
+    const settings = getProviderSettingsService(fixture.db);
+    const saved = deferred<void>();
+    const release = deferred<void>();
+    const observeCatalog = settings.observeCatalog.bind(settings);
+    const observe = vi.spyOn(settings, 'observeCatalog').mockImplementationOnce(async (...args) => {
+      await observeCatalog(...args);
+      saved.resolve();
+      await release.promise;
+    });
+    const config = (model: string, clearedOptions = {}): SessionConfigState => ({
+      ...initialSessionConfigState,
+      discoveryContext: 'remote-env',
+      options: [
+        {
+          id: 'model',
+          type: 'select',
+          name: 'Model',
+          category: 'model',
+          currentValue: model,
+          options: [{ value: model, name: model }],
+        },
+      ],
+      clearedOptions,
+    });
+    try {
+      await settings.patch(key, { transport: 'acp', options: { model: 'user-choice' } });
+      await service.attachHost(remoteHost);
+      acp.config.set(config('old-active', { model: 'obsolete' }));
+      await saved.promise;
+
+      acp.config.set(config('old-queued', { model: 'user-choice' }));
+      setHostRecords(hostRecord({ conversationId: 'headless', title: 'Old attachment' }));
+      // Flush in-process Wire deliveries into the queue while the previous save is held.
+      await setImmediate();
+      service.detachHost(remoteHost);
+      acp.config.set(config('fresh'));
+      setHostRecords(hostRecord({ conversationId: 'headless', title: 'New attachment' }));
+      await service.attachHost(remoteHost);
+      await vi.waitFor(async () =>
+        expect((await settings.read(key)).catalogs[0]).toEqual(config('fresh').options)
+      );
+      expect(registry().getLive('headless')?.title).toBe('New attachment');
+
+      release.resolve();
+      await setImmediate();
+      const current = await settings.read(key);
+      expect.soft(current.catalogs[0]).toEqual(config('fresh').options);
+      expect.soft(current.acp.options).toEqual({ model: 'user-choice' });
+      expect.soft(observe).toHaveBeenCalledTimes(2);
+      expect.soft(patchConfig).not.toHaveBeenCalled();
+      expect(registry().getLive('headless')?.title).toBe('New attachment');
+    } finally {
+      release.resolve();
+      await setImmediate();
+      observe.mockRestore();
+      service.detachHost(remoteHost);
+      await acp.dispose();
     }
   });
 
