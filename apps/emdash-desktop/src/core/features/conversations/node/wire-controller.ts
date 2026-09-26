@@ -5,7 +5,7 @@ import {
   type HostRef,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
-import { acpErr } from '@emdash/core/runtimes/acp/api/client';
+import { acpErr, providerOptionValuesSchema } from '@emdash/core/runtimes/acp/api/client';
 import { err, ok, type Result } from '@emdash/shared';
 import { createKeyedLanes } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
@@ -215,8 +215,14 @@ export function createConversationsWireController(
               options,
               Promise.resolve(runtimeTarget),
               async (client): ReturnType<ConversationsHostRuntimesClient['acp']['setOption']> => {
-                const result = await client.acp.setOption(input, callOptions(meta));
-                if (!result.success) return result;
+                const records = await client.conversations.records
+                  .state(undefined, 'list')
+                  .snapshot();
+                const record = records.data[input.conversationId];
+                if (!record) return acpErr.conversationNotFound(input.conversationId);
+                const previous = providerOptionValuesSchema.parse(record.config.options ?? {})[
+                  input.configId
+                ];
                 const persisted = await client.conversations.patchConfig({
                   conversationId: input.conversationId,
                   patch: {},
@@ -227,6 +233,32 @@ export function createConversationsWireController(
                     name: 'PersistenceError',
                     message: persisted.error.message,
                   });
+                const restorePreviousOption = async () => {
+                  const restored = await client.conversations.patchConfig({
+                    conversationId: input.conversationId,
+                    patch: {},
+                    mapPatch: {
+                      field: 'options',
+                      entries: { [input.configId]: previous ?? null },
+                      expected: { [input.configId]: input.value },
+                    },
+                  });
+                  if (!restored.success)
+                    throw new Error(
+                      `Could not restore previous conversation setting: ${restored.error.message}`
+                    );
+                };
+                let result: Awaited<ReturnType<typeof client.acp.setOption>>;
+                try {
+                  result = await client.acp.setOption(input, callOptions(meta));
+                } catch (error) {
+                  await restorePreviousOption();
+                  throw error;
+                }
+                if (!result.success) {
+                  await restorePreviousOption();
+                  return result;
+                }
                 if (runtimeTarget.providerId)
                   await settings.patch(
                     {
