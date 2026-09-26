@@ -505,8 +505,11 @@ export class AcpChatStore {
     void this.session
       ?.setOption(configId, value)
       .then((result) => {
-        if (!result.success) this._toastError('Failed to change setting', result.error);
-        else if (result.data.reapplyFailures.length) {
+        if (!result.success) {
+          this._toastError('Failed to change setting', result.error);
+          return;
+        }
+        if (result.data.reapplyFailures.length) {
           toast.warning('Setting saved, but some settings could not be restored', {
             description: result.data.reapplyFailures
               .map(({ configId, error }) => {
@@ -518,6 +521,12 @@ export class AcpChatStore {
               })
               .join('\n'),
           });
+        }
+        if (result.data.preferenceSaveError !== undefined) {
+          toast.warning(
+            'Setting saved for this conversation, but could not be remembered for new conversations',
+            { description: result.data.preferenceSaveError }
+          );
         }
       })
       .catch((error: unknown) => this._toastError('Failed to change setting', error));

@@ -6,7 +6,9 @@ import {
 import {
   acpApiContract,
   acpSessionStartModeSchema,
+  acpSetOptionErrorSchema,
   sessionSummarySchema,
+  setOptionResultSchema,
 } from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
 import { attachmentErrorSchema } from '@emdash/core/services/attachments/api';
@@ -128,10 +130,11 @@ const conversationsAcpContract = defineContract({
     acpApiContract.cancelTurn.input,
     acpApiContract.cancelTurn.output
   ),
-  setOption: runtimeFallibleProcedure(
-    acpApiContract.setOption.input,
-    acpApiContract.setOption.output
-  ),
+  setOption: fallible({
+    input: acpApiContract.setOption.input,
+    data: setOptionResultSchema.extend({ preferenceSaveError: z.string().optional() }),
+    error: projectAttachmentErrorUnion(acpSetOptionErrorSchema),
+  }),
   resolvePermission: runtimeFallibleProcedure(
     acpApiContract.resolvePermission.input,
     acpApiContract.resolvePermission.output

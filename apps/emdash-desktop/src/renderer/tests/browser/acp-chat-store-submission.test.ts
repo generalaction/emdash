@@ -384,6 +384,31 @@ describe('AcpChatStore prompt submission', () => {
     }
   });
 
+  it('warns when a saved conversation setting could not be remembered for new conversations', async () => {
+    const warningToast = vi.spyOn(toast, 'warning').mockImplementation(() => 'warning');
+    const errorToast = vi.spyOn(toast, 'error').mockImplementation(() => 'error');
+    const setOption = vi.fn(async () => ({
+      success: true as const,
+      data: { reapplyFailures: [], preferenceSaveError: 'database unavailable' },
+    }));
+    const store = createStore(idleState(), vi.fn(), { setOption });
+    try {
+      store.setOption('model', 'astra');
+      await vi.waitFor(() =>
+        expect(warningToast).toHaveBeenCalledWith(
+          'Setting saved for this conversation, but could not be remembered for new conversations',
+          { description: 'database unavailable' }
+        )
+      );
+      expect(setOption).toHaveBeenCalledOnce();
+      expect(errorToast).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+      warningToast.mockRestore();
+      errorToast.mockRestore();
+    }
+  });
+
   it('does not report send failure or restore a remotely accepted prompt when the Wire reply is lost', async () => {
     const gate = deferred<void>();
     const received: string[] = [];

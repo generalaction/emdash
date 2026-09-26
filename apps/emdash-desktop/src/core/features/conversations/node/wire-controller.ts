@@ -269,14 +269,22 @@ export function createConversationsWireController(
                   await restorePreviousOption();
                   return result;
                 }
-                if (runtimeTarget.providerId)
-                  await settings.patch(
-                    {
-                      host: formatHostRef(runtimeTarget.host),
-                      providerId: runtimeTarget.providerId,
-                    },
-                    { transport: 'acp', options: { [input.configId]: input.value } }
-                  );
+                if (runtimeTarget.providerId) {
+                  try {
+                    await settings.patch(
+                      {
+                        host: formatHostRef(runtimeTarget.host),
+                        providerId: runtimeTarget.providerId,
+                      },
+                      { transport: 'acp', options: { [input.configId]: input.value } }
+                    );
+                  } catch (error) {
+                    return ok({
+                      ...result.data,
+                      preferenceSaveError: error instanceof Error ? error.message : String(error),
+                    });
+                  }
+                }
                 return result;
               }
             );

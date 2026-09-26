@@ -459,7 +459,7 @@ describe('createConversationsWireController', () => {
     }
   );
 
-  it('keeps an accepted conversation setting when sharing the preference fails', async () => {
+  it('returns success with a warning when sharing an accepted preference fails', async () => {
     const settings = getProviderSettingsService({} as never);
     vi.mocked(settings.patch).mockRejectedValueOnce(new Error('preference save failed'));
     const setOption = vi.fn(async () => ok({ reapplyFailures: [] }));
@@ -467,13 +467,17 @@ describe('createConversationsWireController', () => {
     const controller = setupController({
       client: { acp: { setOption }, conversations: { patchConfig } },
     });
-    await expect(
-      controller.call('acp.setOption', {
-        conversationId: target.conversationId,
-        configId: 'model',
-        value: 'astra',
+    const result = await controller.call('acp.setOption', {
+      conversationId: target.conversationId,
+      configId: 'model',
+      value: 'astra',
+    });
+    expect(conversationsContract.acp.setOption.output.parse(result)).toEqual(
+      ok({
+        reapplyFailures: [],
+        preferenceSaveError: 'preference save failed',
       })
-    ).rejects.toThrow('preference save failed');
+    );
     expect(patchConfig).toHaveBeenCalledOnce();
   });
 
