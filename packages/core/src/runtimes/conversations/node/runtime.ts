@@ -18,6 +18,7 @@ import type {
   CreateConversationInput,
   DeleteConversationInput,
   PatchConversationConfigInput,
+  PatchConversationConfigResult,
   RenameConversationInput,
   ReportProviderSessionIdInput,
   ReportSessionActivityInput,
@@ -127,8 +128,9 @@ export class ConversationsRuntime {
 
   patchConfig(
     input: PatchConversationConfigInput
-  ): Result<ConversationRecord, ConversationMutationError> {
-    return this.mutate(input.conversationId, (record) => {
+  ): Result<PatchConversationConfigResult, ConversationMutationError> {
+    const skippedKeys: string[] = [];
+    const result = this.mutate(input.conversationId, (record) => {
       const config = { ...record.config, ...input.patch };
       if (input.mapPatch) {
         const { field, entries, expected } = input.mapPatch;
@@ -138,7 +140,10 @@ export class ConversationsRuntime {
             ? { ...existing }
             : {};
         for (const [key, value] of Object.entries(entries)) {
-          if (expected && map[key] !== expected[key]) continue;
+          if (expected && map[key] !== expected[key]) {
+            skippedKeys.push(key);
+            continue;
+          }
           if (value === null) delete map[key];
           else map[key] = value;
         }
@@ -146,6 +151,7 @@ export class ConversationsRuntime {
       }
       return { ...record, config };
     });
+    return result.success ? ok({ record: result.data, skippedKeys }) : result;
   }
 
   async delete(input: DeleteConversationInput): Promise<Result<void, DeleteConversationError>> {

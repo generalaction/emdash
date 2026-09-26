@@ -73,7 +73,7 @@ describe('createConversationsWireController', () => {
               cause: { name: 'Error', message: 'rejected' },
             })
       );
-      const patchConfig = vi.fn(async () => ok());
+      const patchConfig = vi.fn(async () => ok({ skippedKeys: [] }));
       const host = hostRef('remote', 'server-options');
       const controller = setupController({
         host,
@@ -90,7 +90,11 @@ describe('createConversationsWireController', () => {
         expect(patchConfig).toHaveBeenCalledWith({
           conversationId: input.conversationId,
           patch: {},
-          mapPatch: { field: 'options', entries: { 'native-fast': false } },
+          mapPatch: {
+            field: 'options',
+            entries: { 'native-fast': false },
+            expected: { 'native-fast': undefined },
+          },
         });
         expect(settings.patch).toHaveBeenCalledWith(
           expect.objectContaining({ host: formatHostRef(host), providerId: target.providerId }),
@@ -127,7 +131,7 @@ describe('createConversationsWireController', () => {
       ],
     });
     const setOption = vi.fn(async () => accepted);
-    const patchConfig = vi.fn(async () => ok());
+    const patchConfig = vi.fn(async () => ok({ skippedKeys: [] }));
     const controller = setupController({
       client: { acp: { setOption }, conversations: { patchConfig } },
     });
@@ -138,7 +142,7 @@ describe('createConversationsWireController', () => {
     expect(patchConfig).toHaveBeenCalledWith({
       conversationId: input.conversationId,
       patch: {},
-      mapPatch: { field: 'options', entries: { model: 'b' } },
+      mapPatch: { field: 'options', entries: { model: 'b' }, expected: { model: undefined } },
     });
     expect(settings.patch).toHaveBeenCalledWith(
       { host: formatHostRef(target.host), providerId: target.providerId },
@@ -294,7 +298,7 @@ describe('createConversationsWireController', () => {
   });
 
   it('waits for host config persistence before contacting the provider', async () => {
-    const saved = deferred<ReturnType<typeof ok<void>>>();
+    const saved = deferred<ReturnType<typeof ok<{ skippedKeys: string[] }>>>();
     const patchConfig = vi.fn(() => saved.promise);
     const setOption = vi.fn(async () => ok({ reapplyFailures: [] }));
     const controller = setupController({
@@ -309,7 +313,7 @@ describe('createConversationsWireController', () => {
       await vi.waitFor(() => expect(patchConfig).toHaveBeenCalledOnce());
       expect(setOption).not.toHaveBeenCalled();
     } finally {
-      saved.resolve(ok());
+      saved.resolve(ok({ skippedKeys: [] }));
       await pending;
     }
     expect(setOption).toHaveBeenCalledOnce();
@@ -317,7 +321,7 @@ describe('createConversationsWireController', () => {
 
   it('does not contact the provider when saving host config fails', async () => {
     const setOption = vi.fn(async () => ok({ reapplyFailures: [] }));
-    const patchConfig = vi.fn(async () => ok());
+    const patchConfig = vi.fn(async () => ok({ skippedKeys: [] }));
     const controller = setupController({
       client: { acp: { setOption }, conversations: { patchConfig } },
     });
@@ -333,7 +337,11 @@ describe('createConversationsWireController', () => {
     expect(patchConfig).toHaveBeenCalledWith({
       conversationId: target.conversationId,
       patch: {},
-      mapPatch: { field: 'options', entries: { 'native-effort': 'high' } },
+      mapPatch: {
+        field: 'options',
+        entries: { 'native-effort': 'high' },
+        expected: { 'native-effort': undefined },
+      },
     });
 
     patchConfig.mockResolvedValueOnce(err({ message: 'host rejected write' }) as never);
@@ -365,7 +373,7 @@ describe('createConversationsWireController', () => {
         if (throws) throw new Error('provider disconnected');
         return failure;
       });
-      const patchConfig = vi.fn(async () => ok());
+      const patchConfig = vi.fn(async () => ok({ skippedKeys: [] }));
       const controller = setupController({
         savedOptions: { model: 'astra', ...(previous === undefined ? {} : { setting: previous }) },
         client: { acp: { setOption }, conversations: { patchConfig } },
@@ -400,7 +408,7 @@ describe('createConversationsWireController', () => {
     );
     const patchConfig = vi
       .fn()
-      .mockResolvedValueOnce(ok())
+      .mockResolvedValueOnce(ok({ skippedKeys: [] }))
       .mockResolvedValueOnce(err({ message: 'host rejected rollback' }));
     const controller = setupController({
       client: { acp: { setOption }, conversations: { patchConfig } },
@@ -415,11 +423,47 @@ describe('createConversationsWireController', () => {
     expect(patchConfig).toHaveBeenCalledTimes(2);
   });
 
+  it.each(['B', 'C'])(
+    'does not apply or roll back a choice when another client already selected %s',
+    async (model) => {
+      const settings = getProviderSettingsService({} as never);
+      vi.mocked(settings.patch).mockClear();
+      const setOption = vi.fn(async () => ok({ reapplyFailures: [] }));
+      const patchConfig = vi.fn(async () =>
+        ok({
+          record: { config: { options: { model } } },
+          skippedKeys: ['model'],
+        })
+      );
+      const controller = setupController({
+        savedOptions: { model: 'A' },
+        client: { acp: { setOption }, conversations: { patchConfig } },
+      });
+      await expect(
+        controller.call('acp.setOption', {
+          conversationId: target.conversationId,
+          configId: 'model',
+          value: 'C',
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'set_config_failed', cause: { name: 'ConfigurationConflict' } },
+      });
+      expect(patchConfig).toHaveBeenCalledExactlyOnceWith({
+        conversationId: target.conversationId,
+        patch: {},
+        mapPatch: { field: 'options', entries: { model: 'C' }, expected: { model: 'A' } },
+      });
+      expect(setOption).not.toHaveBeenCalled();
+      expect(settings.patch).not.toHaveBeenCalled();
+    }
+  );
+
   it('keeps an accepted conversation setting when sharing the preference fails', async () => {
     const settings = getProviderSettingsService({} as never);
     vi.mocked(settings.patch).mockRejectedValueOnce(new Error('preference save failed'));
     const setOption = vi.fn(async () => ok({ reapplyFailures: [] }));
-    const patchConfig = vi.fn(async () => ok());
+    const patchConfig = vi.fn(async () => ok({ skippedKeys: [] }));
     const controller = setupController({
       client: { acp: { setOption }, conversations: { patchConfig } },
     });

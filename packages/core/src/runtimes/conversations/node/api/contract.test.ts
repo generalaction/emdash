@@ -173,9 +173,13 @@ describe('conversations contract', () => {
     });
     expect(updated.success).toBe(true);
     if (!updated.success) throw new Error('expected success');
-    expect(updated.data.config).toEqual({ model: 'opus', initialQueue: [{ text: 'hello' }] });
-    expect(updated.data.title).toBe('First conversation');
-    expect(updated.data.updatedAt).toBe(20_000);
+    expect(updated.data.record.config).toEqual({
+      model: 'opus',
+      initialQueue: [{ text: 'hello' }],
+    });
+    expect(updated.data.record.title).toBe('First conversation');
+    expect(updated.data.record.updatedAt).toBe(20_000);
+    expect(updated.data.skippedKeys).toEqual([]);
   });
 
   it('merges concurrent provider-option patches against authoritative config', async () => {
@@ -243,11 +247,71 @@ describe('conversations contract', () => {
     expect(result).toMatchObject({
       success: true,
       data: {
-        config: { initialQueue: [{ text: 'Review' }], options: { effort: 'xhigh', fast: false } },
+        record: {
+          config: { initialQueue: [{ text: 'Review' }], options: { effort: 'xhigh', fast: false } },
+        },
+        skippedKeys: ['effort'],
       },
     });
-    if (result.success) expect(result.data.config.options).not.toHaveProperty('model');
+    if (result.success) expect(result.data.record.config.options).not.toHaveProperty('model');
   });
+
+  it.each(['B', 'C'])(
+    'reports a skipped conditional write after another client selects %s',
+    async (model) => {
+      await wire.client.create({ ...baseCreate, config: { options: { model: 'A' } } });
+      const otherWire = createTestWire(
+        conversationsContract,
+        createConversationsController(runtime)
+      );
+      try {
+        await otherWire.client.patchConfig({
+          conversationId: 'conv-1',
+          patch: {},
+          mapPatch: { field: 'options', entries: { model } },
+        });
+        const result = await wire.client.patchConfig({
+          conversationId: 'conv-1',
+          patch: {},
+          mapPatch: { field: 'options', entries: { model: 'C' }, expected: { model: 'A' } },
+        });
+        expect(result).toMatchObject({
+          success: true,
+          data: { record: { config: { options: { model } } }, skippedKeys: ['model'] },
+        });
+        expect(await wire.client.create(baseCreate)).toMatchObject({
+          success: true,
+          data: { config: { options: { model } } },
+        });
+      } finally {
+        await otherWire.dispose();
+      }
+    }
+  );
+
+  it.each(['A', false, undefined])(
+    'applies a conditional option write when the previous value is %s',
+    async (previous) => {
+      await wire.client.create({
+        ...baseCreate,
+        config: { options: previous === undefined ? {} : { setting: previous } },
+      });
+      expect(
+        await wire.client.patchConfig({
+          conversationId: 'conv-1',
+          patch: {},
+          mapPatch: {
+            field: 'options',
+            entries: { setting: 'new' },
+            expected: { setting: previous },
+          },
+        })
+      ).toMatchObject({
+        success: true,
+        data: { record: { config: { options: { setting: 'new' } } }, skippedKeys: [] },
+      });
+    }
+  );
 
   it('rename and config mutations of an unknown record are conversation-not-found errors', async () => {
     const renamed = await wire.client.rename({ conversationId: 'conv-missing', title: 'x' });

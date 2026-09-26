@@ -226,12 +226,22 @@ export function createConversationsWireController(
                 const persisted = await client.conversations.patchConfig({
                   conversationId: input.conversationId,
                   patch: {},
-                  mapPatch: { field: 'options', entries: { [input.configId]: input.value } },
+                  mapPatch: {
+                    field: 'options',
+                    entries: { [input.configId]: input.value },
+                    expected: { [input.configId]: previous },
+                  },
                 });
                 if (!persisted.success)
                   return acpErr.setConfigFailed({
                     name: 'PersistenceError',
                     message: persisted.error.message,
+                  });
+                if (persisted.data.skippedKeys.includes(input.configId))
+                  return acpErr.setConfigFailed({
+                    name: 'ConfigurationConflict',
+                    message:
+                      'This setting changed elsewhere. Select it again to apply your choice.',
                   });
                 const restorePreviousOption = async () => {
                   const restored = await client.conversations.patchConfig({

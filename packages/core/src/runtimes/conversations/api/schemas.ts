@@ -90,6 +90,12 @@ export const patchConversationConfigInputSchema = z.object({
 });
 export type PatchConversationConfigInput = z.infer<typeof patchConversationConfigInputSchema>;
 
+export const patchConversationConfigResultSchema = z.object({
+  record: conversationRecordSchema,
+  skippedKeys: z.array(z.string()),
+});
+export type PatchConversationConfigResult = z.infer<typeof patchConversationConfigResultSchema>;
+
 export const deleteConversationInputSchema = z.object({
   conversationId: z.string().min(1),
 });
