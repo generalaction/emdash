@@ -668,6 +668,7 @@ describe('legacy-port table passes', () => {
       path.join(userDataDir, 'pty-session-map.json'),
       JSON.stringify({
         'claude-chat-conv-legacy-chat': { uuid: mappedChatUuid },
+        'claude-chat-conv-legacy-chat-duplicate': { uuid: mappedChatUuid },
         'claude-main-task-legacy-main': { uuid: mappedMainUuid },
         'claude-main-optimistic-1776065416593': { uuid: mappedOptimisticUuid },
         'claude-chat-conv-legacy-invalid': { uuid: 'not-a-uuid' },
@@ -774,6 +775,14 @@ describe('legacy-port table passes', () => {
       .run('conv-legacy-chat', 'task-legacy-chat', 'Legacy Claude Chat', 'claude');
     legacyDb
       .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run(
+        'conv-legacy-chat-duplicate',
+        'task-legacy-chat',
+        'Legacy Claude Chat Duplicate',
+        'claude'
+      );
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
       .run('conv-legacy-main', 'task-legacy-main', 'Legacy Claude Main', 'claude');
     legacyDb
       .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
@@ -806,21 +815,57 @@ describe('legacy-port table passes', () => {
       userDataPath: userDataDir,
     });
 
-    expect(conversationsSummary.inserted).toBe(6);
+    expect(conversationsSummary.inserted).toBe(7);
 
     const inserted = appSqlite
       .prepare(
-        `SELECT id, title, provider FROM conversations WHERE title LIKE 'Legacy %' ORDER BY title ASC`
+        `SELECT id, title, provider, provider_session_id FROM conversations WHERE title LIKE 'Legacy %' ORDER BY title ASC`
       )
-      .all() as Array<{ id: string; title: string; provider: string | null }>;
+      .all();
 
     expect(inserted).toEqual([
-      { id: mappedChatUuid, title: 'Legacy Claude Chat', provider: 'claude' },
-      { id: 'conv-legacy-collision', title: 'Legacy Claude Collision', provider: 'claude' },
-      { id: 'conv-legacy-invalid', title: 'Legacy Claude Invalid', provider: 'claude' },
-      { id: mappedMainUuid, title: 'Legacy Claude Main', provider: 'claude' },
-      { id: mappedOptimisticUuid, title: 'Legacy Claude Optimistic Alias', provider: 'claude' },
-      { id: 'conv-legacy-codex', title: 'Legacy Codex Conversation', provider: 'codex' },
+      {
+        id: mappedChatUuid,
+        title: 'Legacy Claude Chat',
+        provider: 'claude',
+        provider_session_id: mappedChatUuid,
+      },
+      {
+        id: 'conv-legacy-chat-duplicate',
+        title: 'Legacy Claude Chat Duplicate',
+        provider: 'claude',
+        provider_session_id: null,
+      },
+      {
+        id: 'conv-legacy-collision',
+        title: 'Legacy Claude Collision',
+        provider: 'claude',
+        provider_session_id: null,
+      },
+      {
+        id: 'conv-legacy-invalid',
+        title: 'Legacy Claude Invalid',
+        provider: 'claude',
+        provider_session_id: null,
+      },
+      {
+        id: mappedMainUuid,
+        title: 'Legacy Claude Main',
+        provider: 'claude',
+        provider_session_id: mappedMainUuid,
+      },
+      {
+        id: mappedOptimisticUuid,
+        title: 'Legacy Claude Optimistic Alias',
+        provider: 'claude',
+        provider_session_id: mappedOptimisticUuid,
+      },
+      {
+        id: 'conv-legacy-codex',
+        title: 'Legacy Codex Conversation',
+        provider: 'codex',
+        provider_session_id: null,
+      },
     ]);
   });
 

@@ -374,13 +374,13 @@ function legacyClaudeResumeId(params: {
   );
 }
 
-function pickConversationIdForInsert(params: {
+function pickClaudeResumeIdForInsert(params: {
   legacyConversationId: string;
   legacyTaskId: string;
   legacyProvider: string | null;
   conversationIds: Set<string>;
   legacyPtySessionTargets: LegacyPtySessionTargets;
-}): string {
+}): string | null {
   const {
     legacyConversationId,
     legacyTaskId,
@@ -390,7 +390,7 @@ function pickConversationIdForInsert(params: {
   } = params;
 
   if (legacyProvider?.toLowerCase() !== 'claude') {
-    return legacyConversationId;
+    return null;
   }
 
   const candidateResumeUuid = legacyClaudeResumeId({
@@ -401,7 +401,7 @@ function pickConversationIdForInsert(params: {
   });
 
   if (!candidateResumeUuid || !isValidResumeUuid(candidateResumeUuid)) {
-    return legacyConversationId;
+    return null;
   }
 
   if (conversationIds.has(candidateResumeUuid)) {
@@ -410,7 +410,7 @@ function pickConversationIdForInsert(params: {
       legacyTaskId,
       candidateResumeUuid,
     });
-    return legacyConversationId;
+    return null;
   }
 
   return candidateResumeUuid;
@@ -495,13 +495,14 @@ export async function portConversations({
     }
 
     const legacyProvider = toTrimmedString(row.provider) ?? null;
-    const preferredConversationId = pickConversationIdForInsert({
+    const providerSessionId = pickClaudeResumeIdForInsert({
       legacyConversationId,
       legacyTaskId,
       legacyProvider,
       conversationIds,
       legacyPtySessionTargets,
     });
+    const preferredConversationId = providerSessionId ?? legacyConversationId;
     const legacyPtyId = pickLegacyPtyIdForConversation({
       legacyConversationId,
       legacyTaskId,
@@ -522,13 +523,7 @@ export async function portConversations({
       idRegime: 'emdash-chosen' as const,
       cwd: workspace?.path ?? null,
       workspacePath: workspace?.path ?? null,
-      providerSessionId:
-        legacyClaudeResumeId({
-          legacyConversationId,
-          legacyTaskId,
-          legacyProvider,
-          legacyPtySessionTargets,
-        }) ?? null,
+      providerSessionId,
       location: workspace?.location ?? 'local',
       sshConnectionId: workspace?.sshConnectionId ?? null,
       createdAt: toIsoTimestamp(row.created_at, nowIso),
@@ -541,6 +536,7 @@ export async function portConversations({
       uniqueConstraintDetail: 'conversations.id',
       setId: (id) => {
         insertValues.id = id;
+        if (id !== preferredConversationId) insertValues.providerSessionId = null;
       },
       insert: async () => {
         registry.register(insertValues);

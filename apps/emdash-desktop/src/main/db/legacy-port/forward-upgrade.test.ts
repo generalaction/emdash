@@ -16,7 +16,7 @@ import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node
 import { createWorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { conversations, kv, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
-import { runLegacyPort, type LegacyPortStatus } from './service';
+import { runLegacyPort, type LegacyPortStatus, type RunLegacyPortOptions } from './service';
 
 const resumeId = '12345678-1234-4234-8234-123456789abc';
 
@@ -90,10 +90,11 @@ describe.each([
     rmSync(directory, { recursive: true, force: true });
   });
 
-  async function importLegacy() {
+  async function importLegacy(sources?: RunLegacyPortOptions['sources']) {
     const state = new AppDbKeyValueStore<{ status: LegacyPortStatus }>(fixture.db, 'legacyPort');
     await runLegacyPort(directory, {
       appDb: fixture.sqlite,
+      sources,
       stateStore: {
         getStatus: () => state.get('status'),
         setStatus: (status) => state.setOrThrow('status', status),
@@ -134,6 +135,40 @@ describe.each([
       providerSessionId: resumeId,
     });
     await assertUsableImport();
+  });
+
+  it('starts a separate conversation when the imported resume id is already taken', async () => {
+    fixture.db
+      .insert(conversations)
+      .values({
+        id: resumeId,
+        title: 'Existing Claude conversation',
+        provider: 'claude',
+        type: 'pty',
+        providerSessionId: resumeId,
+        location: 'local',
+      })
+      .run();
+    // The missing beta source preserves destination rows while importing v0 data.
+    await importLegacy(['v0', 'v1-beta']);
+    const ensureSession = vi.fn(async () => ({ outcome: 'started' as const }));
+    await launchTuiConversation({
+      projectId: 'old-project',
+      taskId: 'old-task',
+      conversationId: 'old-conversation',
+      database: fixture.db,
+      telemetry: { capture: vi.fn() },
+      taskSessions: { getTask: () => ({ conversations: { ensureSession } }) as never },
+    });
+    expect(ensureSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'start',
+        conversation: expect.objectContaining({ id: 'old-conversation', sessionId: undefined }),
+      })
+    );
+    expect(
+      fixture.db.select().from(conversations).where(eq(conversations.id, resumeId)).get()
+    ).toMatchObject({ providerSessionId: resumeId, title: 'Existing Claude conversation' });
   });
 
   async function assertUsableImport() {
