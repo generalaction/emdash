@@ -606,9 +606,12 @@ class AppService implements Disposable {
   }): Promise<string | undefined> {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       title: args.title,
-      properties: ['openDirectory'],
-      message: args.message,
+      properties:
+        process.platform === 'darwin'
+          ? ['openDirectory']
+          : ['openDirectory', 'createDirectory'],
       defaultPath: args.defaultPath,
+      ...(process.platform === 'darwin' ? { message: args.message } : {}),
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];
@@ -621,7 +624,7 @@ class AppService implements Disposable {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       title: args.title,
       properties: ['openFile'],
-      message: args.message,
+      ...(process.platform === 'darwin' ? { message: args.message } : {}),
       filters: [
         {
           name: 'Audio',
