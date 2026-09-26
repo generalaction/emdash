@@ -290,9 +290,12 @@ export type ThemeVarKey =
  * `assignInlineVars` with a compile-time link to the contract. Colors, radii,
  * and font-family vars are excluded — they stay CSS-class-themed.
  *
- * Font-family values reference the global CSS vars (var(--chat-font-sans) etc.)
- * so the host can override families via --chat-font-sans / --chat-font-mono
- * without re-running buildChatTheme.
+ * Font-family values reference the global CSS vars (var(--chat-font-sans) etc.).
+ * Font families are measurement-coupled, unlike colors: text is pre-measured
+ * with the stacks in ChatConfig.fonts, so a host that rebinds
+ * --chat-font-sans / --chat-font-mono in CSS must pass the same stacks via
+ * ChatConfig.fonts — otherwise lines are packed with the wrong glyph widths
+ * and clip at the right edge of the transcript column.
  */
 export function toThemeVars(config: ChatConfig): Record<ThemeVarKey, string> {
   const r = config.roles;

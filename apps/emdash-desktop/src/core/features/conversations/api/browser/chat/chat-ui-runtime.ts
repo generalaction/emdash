@@ -2,7 +2,12 @@ import type * as ChatUi from '@emdash/chat-ui';
 
 type ChatUiRuntime = Pick<
   typeof ChatUi,
-  'connectSession' | 'createChatContext' | 'createChatState' | 'createChatView' | 'pinTopMode'
+  | 'connectSession'
+  | 'createChatContext'
+  | 'createChatState'
+  | 'createChatView'
+  | 'pinTopMode'
+  | 'DEFAULT_CONFIG'
 >;
 
 let runtime: ChatUiRuntime | undefined;
