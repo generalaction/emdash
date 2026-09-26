@@ -1,5 +1,6 @@
+import { hostRefFromParts, hostRefKey } from '@emdash/core/primitives/host/api';
 import type Database from 'better-sqlite3';
-import { like, or } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
@@ -228,15 +229,28 @@ export async function runLegacyPort(
         tmuxExec: runLocalCommand,
       });
 
-      appTarget.db
-        .delete(schema.kv)
-        .where(
-          or(
-            like(schema.kv.key, 'workspace-registry-backfill:%'),
-            like(schema.kv.key, 'conversation-backfill:%')
+      const importedProjectIds = [...new Set(remap.projectId.values())];
+      if (importedProjectIds.length > 0) {
+        const hosts = appTarget.db
+          .selectDistinct({
+            location: schema.workspaces.location,
+            sshConnectionId: schema.workspaces.sshConnectionId,
+          })
+          .from(schema.projects)
+          .innerJoin(
+            schema.workspaces,
+            eq(schema.projects.repositoryWorkspaceId, schema.workspaces.id)
           )
-        )
-        .run();
+          .where(inArray(schema.projects.id, importedProjectIds))
+          .all();
+        const markerKeys = hosts.flatMap(({ location, sshConnectionId }) => {
+          const hostKey = hostRefKey(hostRefFromParts(location, sshConnectionId));
+          return [`workspace-registry-backfill:${hostKey}`, `conversation-backfill:${hostKey}`];
+        });
+        if (markerKeys.length > 0) {
+          appTarget.db.delete(schema.kv).where(inArray(schema.kv.key, markerKeys)).run();
+        }
+      }
 
       return { sshSummary, projectsSummary, taskResult, conversationsSummary };
     });

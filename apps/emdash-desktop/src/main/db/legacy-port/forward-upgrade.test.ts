@@ -1,13 +1,13 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { hostRef, hostRefKey, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { ok } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
 import Database from 'better-sqlite3';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { launchTuiConversation } from '@core/features/conversations/node/launch-tui-conversation';
 import { ConversationBackfillService } from '@core/features/conversations/node/sync/conversation-backfill';
@@ -15,7 +15,14 @@ import { TaskService } from '@core/features/tasks/api/node/task-service';
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { createWorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
-import { conversations, kv, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import {
+  conversations,
+  kv,
+  projects,
+  sshConnections,
+  tasks,
+  workspaces,
+} from '@core/services/app-db/node/schema';
 import { runLegacyPort, type LegacyPortStatus, type RunLegacyPortOptions } from './service';
 
 const resumeId = '12345678-1234-4234-8234-123456789abc';
@@ -110,10 +117,10 @@ describe.each([
       .insert(kv)
       .values([
         {
-          key: 'workspace-registry-backfill:local',
+          key: `workspace-registry-backfill:${hostRefKey(LOCAL_HOST_REF)}`,
           value: JSON.stringify({ version: 3, completedAt: 1 }),
         },
-        { key: 'conversation-backfill:local', value: '1' },
+        { key: `conversation-backfill:${hostRefKey(LOCAL_HOST_REF)}`, value: '1' },
       ])
       .run();
     await importLegacy();
@@ -170,6 +177,80 @@ describe.each([
       fixture.db.select().from(conversations).where(eq(conversations.id, resumeId)).get()
     ).toMatchObject({ providerSessionId: resumeId, title: 'Existing Claude conversation' });
   });
+
+  it.each(['local', 'remote'] as const)(
+    'invalidates only the imported %s host when destination data is retained',
+    async (location) => {
+      const remoteHost = hostRef('remote', 'destination:ssh / one');
+      const unrelatedHost = hostRef('remote', 'unrelated');
+      const affectedHost = location === 'local' ? LOCAL_HOST_REF : remoteHost;
+      if (location === 'remote') {
+        fixture.db
+          .insert(sshConnections)
+          .values({
+            id: remoteHost.id,
+            name: 'Existing host',
+            host: 'example.test',
+            username: 'user',
+          })
+          .run();
+        const legacy = new Database(join(directory, 'emdash.db'));
+        try {
+          legacy.exec(`
+          ALTER TABLE projects ADD COLUMN remote_path TEXT;
+          ALTER TABLE projects ADD COLUMN ssh_connection_id TEXT;
+          CREATE TABLE ssh_connections (id TEXT PRIMARY KEY, name TEXT, host TEXT, port INTEGER, username TEXT);
+          INSERT INTO ssh_connections VALUES ('legacy-ssh', 'Legacy host', 'example.test', 22, 'user');
+          UPDATE projects SET is_remote = 1, remote_path = '/srv/repo', ssh_connection_id = 'legacy-ssh';
+          UPDATE tasks SET path = '/srv/worktrees/old' WHERE id = 'old-task';
+          UPDATE tasks SET path = '/srv/repo' WHERE id = 'direct-task';
+        `);
+        } finally {
+          legacy.close();
+        }
+      }
+      const markers = [LOCAL_HOST_REF, remoteHost, unrelatedHost].flatMap((host) => [
+        {
+          key: `workspace-registry-backfill:${hostRefKey(host)}`,
+          value: JSON.stringify({ version: 3, completedAt: 1 }),
+        },
+        { key: `conversation-backfill:${hostRefKey(host)}`, value: '1' },
+      ]);
+      fixture.db.insert(kv).values(markers).run();
+
+      await importLegacy(['v0', 'v1-beta']);
+
+      expect(
+        fixture.db.select().from(conversations).where(eq(conversations.id, resumeId)).get()
+      ).toMatchObject({ location, sshConnectionId: location === 'remote' ? remoteHost.id : null });
+      const remaining = fixture.db
+        .select({ key: kv.key, value: kv.value })
+        .from(kv)
+        .where(
+          inArray(
+            kv.key,
+            markers.map(({ key }) => key)
+          )
+        )
+        .all();
+      expect(remaining.sort((a, b) => a.key.localeCompare(b.key))).toEqual(
+        markers
+          .filter(({ key }) => !key.endsWith(`:${hostRefKey(affectedHost)}`))
+          .sort((a, b) => a.key.localeCompare(b.key))
+      );
+      const client = vi.fn();
+      const runtimes = { client } as unknown as RuntimeBroker;
+      expect(
+        await new WorkspaceRegistryBackfillService({ db: fixture.db, runtimes }).backfillHost(
+          unrelatedHost
+        )
+      ).toEqual({ status: 'complete' });
+      await new ConversationBackfillService({ db: fixture.db, runtimes }).backfillHost(
+        unrelatedHost
+      );
+      expect(client).not.toHaveBeenCalled();
+    }
+  );
 
   async function assertUsableImport() {
     const hostRecords = new Map<string, WorkspaceRecord>();
