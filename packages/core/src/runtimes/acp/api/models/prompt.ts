@@ -18,3 +18,15 @@ export const queuedPromptSchema = promptInputSchema.extend({
   updatedAt: z.number(),
 });
 export type QueuedPrompt = z.infer<typeof queuedPromptSchema>;
+
+// Providers replay every prompt block as user text on session/load, so hidden context is sent
+// inside a marker that transcript decoding strips back out.
+const HIDDEN_CONTEXT_PATTERN = /<emdash-hidden-context>[\s\S]*?<\/emdash-hidden-context>/g;
+
+export function wrapHiddenContext(text: string): string {
+  return `<emdash-hidden-context>\n${text}\n</emdash-hidden-context>`;
+}
+
+export function stripHiddenContext(text: string): string {
+  return text.replace(HIDDEN_CONTEXT_PATTERN, '');
+}

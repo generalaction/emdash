@@ -7,6 +7,7 @@ import type { SessionUpdate } from '@agentclientprotocol/sdk';
  */
 import { describe, expect, it } from 'vitest';
 import { SESSION_PLAN_ID } from '../models/plan';
+import { wrapHiddenContext } from '../models/prompt';
 import type { TranscriptItem } from '../models/turns';
 import {
   makeDiffId,
@@ -289,6 +290,22 @@ describe('AcpTranscriptParser', () => {
     ).toEqual([
       ['first', 'one'],
       ['second', 'two'],
+    ]);
+  });
+
+  it('replay drops the hidden context block from the user message', () => {
+    const result = AcpTranscriptParser.replay(
+      [
+        userChunk('u1', 'Please address my review comments.'),
+        userChunk('u1', wrapHiddenContext('<user_comments>secret</user_comments>')),
+        assistantChunk('a1', 'Done.'),
+      ],
+      deps()
+    );
+    const messages = result.committed[0]?.items.filter((item) => item.kind === 'message') ?? [];
+    expect(messages.map((message) => message.text)).toEqual([
+      'Please address my review comments.',
+      'Done.',
     ]);
   });
 

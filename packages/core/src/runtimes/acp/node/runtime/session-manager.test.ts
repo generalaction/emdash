@@ -4,6 +4,7 @@ import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock, deferred } from '@emdash/shared/testing';
 import { observe, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
+import { wrapHiddenContext } from '#runtimes/acp/api/models/prompt';
 import {
   FakeAcpTerminalProcess,
   FakeAcpAgent,
@@ -1203,7 +1204,12 @@ describe('AcpRuntime session manager', () => {
       sessionId: 'session-1',
       prompt: [
         { type: 'text', text: 'Fix @[ENG-123](issue:linear:ENG-123)' },
-        { type: 'text', text: '<issue_context identifier="ENG-123">Context body</issue_context>' },
+        {
+          type: 'text',
+          text: wrapHiddenContext(
+            '<issue_context identifier="ENG-123">Context body</issue_context>'
+          ),
+        },
       ],
     });
 

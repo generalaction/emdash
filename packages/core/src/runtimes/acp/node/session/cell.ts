@@ -33,6 +33,7 @@ import {
   SESSION_PLAN_ID,
 } from '#runtimes/acp/api';
 import { acceptsProviderValue } from '#runtimes/acp/api/models/config';
+import { wrapHiddenContext } from '#runtimes/acp/api/models/prompt';
 import {
   type Command,
   type DomainEvent,
@@ -544,7 +545,9 @@ export class SessionCell {
             mimeType: attachment.mimeType,
           })),
           ...(prompt.text ? [{ type: 'text' as const, text: prompt.text }] : []),
-          ...(prompt.hiddenContext ? [{ type: 'text' as const, text: prompt.hiddenContext }] : []),
+          ...(prompt.hiddenContext
+            ? [{ type: 'text' as const, text: wrapHiddenContext(prompt.hiddenContext) }]
+            : []),
         ],
       };
       this.rawLog.record({
