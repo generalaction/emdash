@@ -224,6 +224,7 @@ host manages their lifetimes independently.
 | `commands` | `ChatCommands` | `{}` | Initial command callbacks. Update via `view.setCommands`. |
 | `onReachStart` | `() => void` | — | Called when scrolled near the top. |
 | `onAtBottomChange` | `(b: boolean) => void` | — | Called when the "at bottom" state changes. |
+| `onUserMessageNavigationChange` | `(navigation: UserMessageNavigation) => void` | — | Reports loaded user messages, the current reading position, and space reserved for the composer. |
 | `onViewMounted` | `(view: ChatView) => void` | — | Called once after mount. `view.composerSlot` is available here. |
 
 ### `ChatView`
@@ -287,6 +288,20 @@ updates; `commit` finalizes it and moves items into committed history.
 ---
 
 ## Scroll helpers
+
+### User message navigation
+
+Hosts can render a prompt navigator using `onUserMessageNavigationChange`. Its
+`items` contain stable message IDs and prompt text in transcript order, including
+the active turn and a pending prompt. `currentId` follows the message at the top
+reading position. `viewportHeight` and `bottomInset` bound controls to the space
+above the composer.
+
+Call `view.scrollToItem(item.id, { align: 'start' })` to jump to a prompt, including
+one outside the rendered virtual window. Navigation keeps that prompt anchored
+while the response streams. Use `view.scrollToBottom()` to resume following the
+latest content. The callback reports loaded history; hosts load earlier pages
+through their existing history service.
 
 ### `ScrollToItemOptions`
 
