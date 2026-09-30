@@ -1,0 +1,163 @@
+diff --git a/lib/agent.js b/lib/agent.js
+index bb495d1b191433c1be51929bb551bba1a8b03c1f..ea23486875ebc802b1bb81ec4d1f2e873727a8a4 100644
+--- a/lib/agent.js
++++ b/lib/agent.js
+@@ -781,7 +781,8 @@ const AgentProtocol = (() => {
+       if (pubKey instanceof Error)
+         throw new Error('Invalid public key argument');
+ 
+-      if (pubKey.type === 'ssh-rsa' && options) {
++      if ((pubKey.type === 'ssh-rsa'
++           || pubKey.type === 'ssh-rsa-cert-v01@openssh.com') && options) {
+         switch (options.hash) {
+           case 'sha256':
+             flags = SSH_AGENT_RSA_SHA2_256;
+diff --git a/lib/client.js b/lib/client.js
+index 7291c2ce0b8489975c964ac82f688b59847985e0..8d1d7eed5b6b729d6d3300369eb5b8f7f6a5ec7f 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -2155,6 +2155,10 @@ function hostKeysProve(client, keys_, cb) {
+ function getKeyAlgos(client, key, serverSigAlgs) {
+   switch (key.type) {
+     case 'ssh-rsa':
++    case 'ssh-rsa-cert-v01@openssh.com': {
++      // RSA certificates use the same SHA-2 negotiation with the
++      // certificate algorithm names (e.g. rsa-sha2-256-cert-v01@openssh.com).
++      const suffix = (key.type === 'ssh-rsa' ? '' : '-cert-v01@openssh.com');
+       if (client._protocol._compatFlags & COMPAT.IMPLY_RSA_SHA2_SIGALGS) {
+         if (!Array.isArray(serverSigAlgs))
+           serverSigAlgs = ['rsa-sha2-256', 'rsa-sha2-512'];
+@@ -2163,13 +2167,14 @@ function getKeyAlgos(client, key, serverSigAlgs) {
+       }
+       if (Array.isArray(serverSigAlgs)) {
+         if (serverSigAlgs.indexOf('rsa-sha2-256') !== -1)
+-          return [['rsa-sha2-256', 'sha256']];
++          return [[`rsa-sha2-256${suffix}`, 'sha256']];
+         if (serverSigAlgs.indexOf('rsa-sha2-512') !== -1)
+-          return [['rsa-sha2-512', 'sha512']];
++          return [[`rsa-sha2-512${suffix}`, 'sha512']];
+         if (serverSigAlgs.indexOf('ssh-rsa') === -1)
+           return [];
+       }
+-      return [['ssh-rsa', 'sha1']];
++      return [[`ssh-rsa${suffix}`, 'sha1']];
++    }
+   }
+ }
+ 
+diff --git a/lib/protocol/Protocol.js b/lib/protocol/Protocol.js
+index 7302488102161b5b627f6f089d502caa6df0f356..c4271f43f4214dafedbd9f98372fb990c9d7e75a 100644
+--- a/lib/protocol/Protocol.js
++++ b/lib/protocol/Protocol.js
+@@ -646,6 +646,17 @@ class Protocol {
+     if (!keyAlgo)
+       keyAlgo = keyType;
+ 
++    // For OpenSSH certificates the request names the certificate algorithm,
++    // but the signature is made with (and named after) the plain algorithm.
++    const certSuffix = '-cert-v01@openssh.com';
++    const sigAlgo = (keyAlgo.endsWith(certSuffix)
++                     ? keyAlgo.slice(0, -certSuffix.length)
++                     : keyAlgo);
++    const sigKeyType = (keyType.endsWith(certSuffix)
++                        ? keyType.slice(0, -certSuffix.length)
++                        : keyType);
++    const sigAlgoLen = Buffer.byteLength(sigAlgo);
++
+     const userLen = Buffer.byteLength(username);
+     const algoLen = Buffer.byteLength(keyAlgo);
+     const pubKeyLen = pubKey.length;
+@@ -697,7 +708,7 @@ class Protocol {
+     }
+ 
+     cbSign(packet, (signature) => {
+-      signature = convertSignature(signature, keyType);
++      signature = convertSignature(signature, sigKeyType);
+       if (signature === false)
+         throw new Error('Error while converting handshake signature');
+ 
+@@ -705,7 +716,7 @@ class Protocol {
+       p = this._packetRW.write.allocStart;
+       packet = this._packetRW.write.alloc(
+         1 + 4 + userLen + 4 + 14 + 4 + 9 + 1 + 4 + algoLen + 4 + pubKeyLen + 4
+-          + 4 + algoLen + 4 + sigLen
++          + 4 + sigAlgoLen + 4 + sigLen
+       );
+ 
+       // TODO: simply copy from original "packet" to new `packet` to avoid
+@@ -729,12 +740,12 @@ class Protocol {
+       writeUInt32BE(packet, pubKeyLen, p += algoLen);
+       packet.set(pubKey, p += 4);
+ 
+-      writeUInt32BE(packet, 4 + algoLen + 4 + sigLen, p += pubKeyLen);
++      writeUInt32BE(packet, 4 + sigAlgoLen + 4 + sigLen, p += pubKeyLen);
+ 
+-      writeUInt32BE(packet, algoLen, p += 4);
+-      packet.utf8Write(keyAlgo, p += 4, algoLen);
++      writeUInt32BE(packet, sigAlgoLen, p += 4);
++      packet.utf8Write(sigAlgo, p += 4, sigAlgoLen);
+ 
+-      writeUInt32BE(packet, sigLen, p += algoLen);
++      writeUInt32BE(packet, sigLen, p += sigAlgoLen);
+       packet.set(signature, p += 4);
+ 
+       // Servers shouldn't send packet type 60 in response to signed publickey
+diff --git a/lib/protocol/keyParser.js b/lib/protocol/keyParser.js
+index a276c1aed3dca46469b0c566ad12f989c65e92e5..3df4a1927e855c8ca2542dbd73688dfac810f210 100644
+--- a/lib/protocol/keyParser.js
++++ b/lib/protocol/keyParser.js
+@@ -1186,6 +1186,28 @@ function OpenSSH_Public(type, comment, pubPEM, pubSSH, algo) {
+   this[SYM_DECRYPTED] = false;
+ }
+ OpenSSH_Public.prototype = BaseKey;
++
++// OpenSSH certificate (PROTOCOL.certkeys). Holds the whole certificate blob,
++// which is what publickey auth and agent sign requests send in place of the
++// plain public key. The matching private key stays with the signer (agent).
++const CERT_SUFFIX = '-cert-v01@openssh.com';
++function Cert_Public(type, comment, certBlob) {
++  this.type = type;
++  this.comment = comment;
++  this[SYM_PRIV_PEM] = null;
++  this[SYM_PUB_PEM] = null;
++  this[SYM_PUB_SSH] = certBlob;
++  this[SYM_HASH_ALGO] = null;
++  this[SYM_DECRYPTED] = false;
++}
++Cert_Public.prototype = BaseKey;
++function parseCert(type, comment, certBlob) {
++  if (!type.endsWith(CERT_SUFFIX)
++      || !isSupportedKeyType(type.slice(0, -CERT_SUFFIX.length))) {
++    return null;
++  }
++  return new Cert_Public(type, comment, certBlob);
++}
+ {
+   let regexp;
+   if (eddsaSupported)
+@@ -1210,6 +1232,14 @@ OpenSSH_Public.prototype = BaseKey;
+     if (type === undefined || type.indexOf(baseType) !== 0)
+       return new Error('Malformed OpenSSH public key');
+ 
++    if (fullType !== baseType) {
++      // readString() left a cursor on the buffer; drop it so equal
++      // certificates compare equal.
++      delete data._pos;
++      return parseCert(fullType, comment, data)
++             || new Error(`Unsupported OpenSSH certificate type: ${fullType}`);
++    }
++
+     return parseDER(data, baseType, comment, fullType);
+   };
+ }
+@@ -1457,7 +1487,9 @@ function parseKey(data, passphrase) {
+   if (origBuffer) {
+     binaryKeyParser.init(origBuffer, 0);
+     const type = binaryKeyParser.readString(true);
+-    if (type !== undefined) {
++    if (type !== undefined && type.endsWith(CERT_SUFFIX)) {
++      ret = parseCert(type, '', origBuffer);
++    } else if (type !== undefined) {
+       data = binaryKeyParser.readRaw();
+       if (data !== undefined) {
+         ret = parseDER(data, type, '', type);
