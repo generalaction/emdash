@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { EnvSource } from '#primitives/exec/api';
+import { isGitDiscoveryMiss } from '#primitives/git/api';
 import { createBoundExec, ExecError } from '#services/exec/api';
 
 /** What the host found at a canonical directory path (kind is host-detected, ADR 0005). */
@@ -37,19 +38,44 @@ export async function inspectWorkspacePath(
 ): Promise<PathInspection> {
   let stdout: string;
   try {
-    ({ stdout } = await createBoundExec({
+    const exec = createBoundExec({
       file: 'git',
       cwd: canonicalPath,
       env: async () => nonInteractiveEnv(await env()),
-    }).exec(['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'], {
-      timeoutMs: 10_000,
-    }));
+    });
+    let insideWorkTree: string;
+    try {
+      ({ stdout: insideWorkTree } = await exec.exec(['rev-parse', '--is-inside-work-tree'], {
+        timeoutMs: 10_000,
+      }));
+    } catch (error) {
+      if (error instanceof ExecError && isGitDiscoveryMiss(error)) return { kind: 'directory' };
+      throw error;
+    }
+    if (insideWorkTree.trim() === 'false') return { kind: 'directory' };
+    if (insideWorkTree.trim() !== 'true') {
+      return {
+        kind: 'inspect-failed',
+        message: `Unexpected git rev-parse output: ${insideWorkTree}`,
+      };
+    }
+
+    ({ stdout } = await exec.exec(
+      ['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'],
+      {
+        timeoutMs: 10_000,
+      }
+    ));
   } catch (error) {
-    // Exit 128 = not inside a git work tree: a plain directory, not a failure.
-    if (error instanceof ExecError && error.exitCode !== null) return { kind: 'directory' };
     return {
       kind: 'inspect-failed',
-      message: error instanceof Error ? error.message : String(error),
+      message:
+        error instanceof ExecError
+          ? error.stderr.trim() ||
+            (error.cause instanceof Error ? error.cause.message : error.message)
+          : error instanceof Error
+            ? error.message
+            : String(error),
     };
   }
 

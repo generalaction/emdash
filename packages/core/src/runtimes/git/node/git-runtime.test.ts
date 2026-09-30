@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { ok } from '@emdash/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { gitContract } from '#runtimes/git/api';
 import { hostPath } from '#runtimes/git/node/testing/paths';
 import { ExecError, type BoundExec } from '#services/exec/api';
@@ -179,6 +179,94 @@ describe('GitRuntime', () => {
         success: true,
         data: { kind: 'not-repository', path: hostPath(directory) },
       });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('does not offer initialization for a broken gitfile', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-broken-gitfile-'));
+    const gitfile = 'gitdir: missing-git-directory\n';
+    await writeFile(path.join(directory, '.git'), gitfile);
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    try {
+      const expected = {
+        success: false,
+        error: {
+          type: 'inspect-failed',
+          message: expect.stringContaining('not a git repository:'),
+        },
+      };
+      await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toMatchObject(
+        expected
+      );
+      await expect(
+        runtime.provisioning.ensureRepository(hostPath(directory), { initIfMissing: true })
+      ).resolves.toMatchObject(expected);
+      expect(await readFile(path.join(directory, '.git'), 'utf8')).toBe(gitfile);
+    } finally {
+      await runtime.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    [127, 'git launcher: command not found'],
+    [128, 'fatal: bad config line 1 in file .git/config'],
+    [128, 'fatal: detected dubious ownership in repository'],
+    [null, 'spawn git ENOENT'],
+    [null, 'Timed out after 10000ms'],
+  ])('keeps inspection failure %s: %s', async (exitCode, stderr) => {
+    const runtime = new GitRuntime({
+      exec: createFailingExec(new ExecError('git', [], exitCode, '', stderr)),
+      watcher: createNoopWatcher(),
+    });
+    try {
+      await expect(runtime.provisioning.inspectPath(hostPath('/repo'))).resolves.toMatchObject({
+        success: false,
+        error: { type: 'inspect-failed', message: stderr },
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('keeps a failure after successful discovery instead of offering initialization', async () => {
+    const failure = new ExecError(
+      'git',
+      [],
+      128,
+      '',
+      'fatal: not a git repository (or any of the parent directories): .git'
+    );
+    const exec = createFailingExec(failure);
+    vi.spyOn(exec, 'exec').mockResolvedValueOnce({ stdout: 'true\n', stderr: '' });
+    const runtime = new GitRuntime({ exec, watcher: createNoopWatcher() });
+    try {
+      await expect(runtime.provisioning.inspectPath(hostPath('/repo'))).resolves.toMatchObject({
+        success: false,
+        error: { type: 'inspect-failed', message: failure.stderr },
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('rejects malformed discovery output without initializing a repository', async () => {
+    const exec = createFailingExec(new Error('Unexpected command'));
+    const run = vi.spyOn(exec, 'exec').mockResolvedValue({ stdout: 'unexpected\n', stderr: '' });
+    const runtime = new GitRuntime({ exec, watcher: createNoopWatcher() });
+    try {
+      await expect(
+        runtime.provisioning.ensureRepository(hostPath('/repo'), { initIfMissing: true })
+      ).resolves.toMatchObject({
+        success: false,
+        error: {
+          type: 'inspect-failed',
+          message: expect.stringContaining('Unexpected git rev-parse output'),
+        },
+      });
+      expect(run).toHaveBeenCalledOnce();
     } finally {
       await runtime.dispose();
     }
