@@ -35,6 +35,11 @@
     ]
   },
   "exports": {
+    "./primitives/git/api": {
+      "development": "./src/primitives/git/api/index.ts",
+      "types": "./dist/primitives-git-api.d.mts",
+      "default": "./dist/primitives-git-api.mjs"
+    },
     "./primitives/path/api": {
       "development": "./src/primitives/path/api/index.ts",
       "types": "./dist/primitives-path-api.d.mts",
