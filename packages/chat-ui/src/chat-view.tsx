@@ -45,6 +45,8 @@ export type UserMessageNavigation = {
   currentId: string | null;
   /** Space occupied by the composer and bottom content padding. */
   bottomInset: number;
+  /** Full scroll viewport height, before subtracting the composer inset. */
+  viewportHeight: number;
 };
 
 export type ChatViewOptions = {

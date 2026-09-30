@@ -294,7 +294,8 @@ updates; `commit` finalizes it and moves items into committed history.
 Hosts can render a prompt navigator using `onUserMessageNavigationChange`. Its
 `items` contain stable message IDs and prompt text in transcript order, including
 the active turn and a pending prompt. `currentId` follows the message at the top
-reading position; `bottomInset` keeps controls above the composer.
+reading position. `viewportHeight` and `bottomInset` bound controls to the space
+above the composer.
 
 Call `view.scrollToItem(item.id, { align: 'start' })` to jump to a prompt, including
 one outside the rendered virtual window. Navigation keeps that prompt anchored

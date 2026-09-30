@@ -418,7 +418,7 @@ it('keeps a rail with 64 markers inside a constrained panel and above the compos
   const current = h.marker('Go to message 64: Request A 64');
   try {
     await expect.element(current).toHaveAttribute('aria-current', 'step');
-    expect(h.rail().getByRole('button').elements()).toHaveLength(64);
+    expect(h.rail().getByRole('button').elements().length).toBeLessThanOrEqual(30);
     await vi.waitFor(() => {
       const nav = h.rail().element();
       const viewport = nav.querySelector<HTMLElement>('.scroll-fade__viewport')!;

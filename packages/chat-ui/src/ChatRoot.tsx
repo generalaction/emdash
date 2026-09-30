@@ -1217,12 +1217,14 @@ export function ChatRoot(props: ChatRootProps) {
         items,
         currentId: items[current]?.id ?? null,
         bottomInset: padBottom(),
+        viewportHeight: shadowViewHeight,
       };
       if (
         !lastUserNavigation ||
         lastUserNavigation.items !== items ||
         lastUserNavigation.currentId !== navigation.currentId ||
-        lastUserNavigation.bottomInset !== navigation.bottomInset
+        lastUserNavigation.bottomInset !== navigation.bottomInset ||
+        lastUserNavigation.viewportHeight !== navigation.viewportHeight
       ) {
         lastUserNavigation = navigation;
         props.onUserMessageNavigationChange(navigation);

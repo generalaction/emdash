@@ -227,13 +227,15 @@ describe('user message navigation', () => {
     }
   });
 
-  it('reports bottom padding changes independently of the loaded prompts', async () => {
+  it('reports viewport and padding changes independently of the loaded prompts', async () => {
     const h = setup([turn('only', 0)]);
     try {
       await vi.waitFor(() => expect(h.navigation()?.bottomInset).toBeGreaterThanOrEqual(24));
       const beforeInset = h.navigation()!.bottomInset;
       h.view.setContentPadding({ bottom: 144 });
       await vi.waitFor(() => expect(h.navigation()?.bottomInset).toBe(beforeInset + 120));
+      h.parent.style.height = '240px';
+      await vi.waitFor(() => expect(h.navigation()?.viewportHeight).toBe(240));
       expect(h.navigation()?.items).toEqual([{ id: 'only', text: 'Prompt only' }]);
     } finally {
       h.dispose();
