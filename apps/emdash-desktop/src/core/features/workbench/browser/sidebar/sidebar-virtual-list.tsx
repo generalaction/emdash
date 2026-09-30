@@ -50,6 +50,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const initialPointerYRef = useRef<number | null>(null);
+  const initialScrollTopRef = useRef(0);
   const dragPointerYRef = useRef<number | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragPointerY, setDragPointerY] = useState<number | null>(null);
@@ -125,6 +126,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   function handleDragStart(event: DragStartEvent) {
     const pointerY = getEventClientY(event.activatorEvent);
     initialPointerYRef.current = pointerY;
+    initialScrollTopRef.current = scrollRef.current?.scrollTop ?? 0;
     setActiveDragId(String(event.active.id));
     setCurrentDragPointerY(pointerY);
   }
@@ -132,7 +134,12 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   function handleDragMove(event: DragMoveEvent) {
     const initialPointerY = initialPointerYRef.current;
     if (initialPointerY === null) return;
-    setCurrentDragPointerY(initialPointerY + event.delta.y);
+    // dnd-kit's `delta` is scroll-adjusted: pointer travel plus however far the list has
+    // scrolled since the drag started. `over.rect` reads in viewport space, so strip the
+    // scroll component to keep the pointer in viewport space for the above/below decision.
+    const scrollTop = scrollRef.current?.scrollTop ?? initialScrollTopRef.current;
+    const scrollDelta = scrollTop - initialScrollTopRef.current;
+    setCurrentDragPointerY(initialPointerY + event.delta.y - scrollDelta);
   }
 
   function clearDragPointerY() {

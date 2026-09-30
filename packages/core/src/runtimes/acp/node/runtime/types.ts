@@ -11,7 +11,6 @@ import type { AgentPluginHost, ResolvedAcpProvider } from '#services/agent-plugi
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import type { SessionIntentStore } from '#services/session-intents/api';
 import type { IdlePolicyConfig } from '#services/session-lifecycle/api';
-import type { AttachmentStore } from './attachment-store';
 
 export type AcpStartInput = AcpStartInputWire;
 
@@ -33,7 +32,6 @@ export interface AcpRuntimeDeps {
   agentHost: AgentPluginHost;
   host: AcpRuntimeProcessHost;
   resolveAttachment: ResolvePromptAttachment;
-  attachmentStore?: AttachmentStore;
   intents: SessionIntentStore;
   /** Lifecycle reports into the conversation index (spec §3.3); defaults to a no-op. */
   conversationReports?: ConversationLifecycleReporter;
@@ -49,6 +47,7 @@ export interface AcpRuntimeDeps {
 
 export interface SendPromptInput {
   conversationId: string;
+  promptId: string;
   prompt: PromptInput;
   /** 'queue' always queues; 'auto' (default) delivers if idle and queues while a turn is active. */
   placement?: PromptPlacement;

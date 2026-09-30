@@ -29,7 +29,6 @@ describe('conversation deletion sweep (integration)', () => {
     terminateAcp: SessionKillMock;
     deleteTui: SessionKillMock;
     deleteRecord: IndexDeleteMock;
-    purgeConversationData: SessionKillMock;
   };
   let reachable: boolean;
 
@@ -42,7 +41,6 @@ describe('conversation deletion sweep (integration)', () => {
       terminateAcp: vi.fn(async () => ok(undefined)),
       deleteTui: vi.fn(async () => ok(undefined)),
       deleteRecord: vi.fn(async () => ok(undefined)),
-      purgeConversationData: vi.fn(async () => ok(undefined)),
     };
   });
 
@@ -58,7 +56,6 @@ describe('conversation deletion sweep (integration)', () => {
           ? ok({
               acp: {
                 terminate: hostVerbs.terminateAcp,
-                purgeConversationData: hostVerbs.purgeConversationData,
               },
               tuiAgents: { delete: hostVerbs.deleteTui },
               conversations: { delete: hostVerbs.deleteRecord },

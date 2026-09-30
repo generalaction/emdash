@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
-import { act, type ReactNode } from 'react';
+import { act, useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
@@ -110,7 +110,49 @@ describe('ProjectAvailabilityBanner', () => {
     expect(recover).toHaveBeenCalledOnce();
   });
 
-  it('uses the SSH Machine name and keeps the banner above Project content', async () => {
+  it('reveals the redacted opening error and keeps Retry available for a local Project', async () => {
+    const recover = vi.fn(async () => ok<void>());
+    await render(
+      localProject,
+      {
+        kind: 'degraded',
+        situation: 'attention',
+        recovery: 'manual',
+        issue: {
+          type: 'unexpected',
+          stage: 'session-open',
+          message: "fatal: unknown revision 'origin/main'\nhttps://user:password@example.com/repo",
+        },
+      },
+      undefined,
+      { retry: recover }
+    );
+
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Project access failed');
+    expect(document.body.textContent).not.toContain("unknown revision 'origin/main'");
+    const details = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Error details'
+    );
+    expect(details).toBeDefined();
+    await act(async () => details?.click());
+
+    const popup = document.querySelector('[data-slot="popover-content"]');
+    expect(popup?.textContent).toContain("unknown revision 'origin/main'");
+    expect(popup?.textContent).toContain('[REDACTED_CREDENTIALS]');
+    expect(document.body.textContent).not.toContain('user:password');
+
+    const retry = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Retry'
+    );
+    await act(async () => retry?.click());
+    expect(recover).toHaveBeenCalledOnce();
+
+    await render(localProject, { kind: 'ready', hostGeneration: 1 });
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
+    expect(host.textContent).toBe('');
+  });
+
+  it('keeps connection status below project content rather than above its tabs', async () => {
     await render(
       sshProject,
       { kind: 'degraded', situation: 'offline', recovery: 'automatic' },
@@ -121,13 +163,13 @@ describe('ProjectAvailabilityBanner', () => {
     const content = host.querySelector('[data-testid="project-content"]');
     expect(status?.textContent).toContain('Orion is offline');
     expect(status?.querySelector('button')?.textContent).toBe('Connect');
-    expect(status?.compareDocumentPosition(content!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(status?.compareDocumentPosition(content!)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
   });
 
   it.each([
-    ['connecting', 'Connecting to Orion', 'Open Machines'],
-    ['provisioning', 'Preparing Orion', 'Open Machines'],
-    ['handshaking', 'Preparing Orion', 'Open Machines'],
+    ['connecting', 'Reconnecting to Orion', 'Retry now'],
+    ['provisioning', 'Reconnecting to Orion', 'Retry now'],
+    ['handshaking', 'Reconnecting to Orion', 'Retry now'],
     ['attaching', 'Opening Project on Orion', null],
   ] as const)('announces %s progress politely', async (state, title, actionLabel) => {
     await render(sshProject, {
@@ -158,8 +200,8 @@ describe('ProjectAvailabilityBanner', () => {
     });
 
     const status = host.querySelector('[role="status"]');
-    expect(status?.textContent).toContain('Could not connect to Orion');
-    expect(status?.textContent).toContain('Automatic recovery will continue');
+    expect(status?.textContent).toContain('Reconnecting to Orion');
+    expect(status?.textContent).toContain('Your work stays open');
     expect(status?.textContent).not.toContain('private-connection-id');
     expect(status?.textContent).not.toContain('raw connection failure');
     const retry = [...(status?.querySelectorAll('button') ?? [])].find(
@@ -272,10 +314,47 @@ describe('ProjectAvailabilityBanner', () => {
     expect(host.querySelector('button')?.getAttribute('aria-disabled')).toBe('false');
   });
 
-  it('renders no banner or reserved space when Host access is ready', async () => {
-    await render(sshProject, { kind: 'ready', hostGeneration: 2 });
+  it.each([localProject, sshProject])(
+    'renders no banner or reserved space when $type Host access is ready',
+    async (project) => {
+      await render(
+        project,
+        { kind: 'ready', hostGeneration: 2 },
+        <main data-testid="project-content">Project content</main>
+      );
 
-    expect(host.querySelector('[role="status"]')).toBeNull();
-    expect(host.textContent).toBe('');
+      expect(host.querySelector('[role="status"]')).toBeNull();
+      expect(host.querySelector('[data-testid="project-connection-status"]')).toBeNull();
+      expect(host.textContent).toBe('Project content');
+    }
+  );
+
+  it('preserves the mounted content and draft across readiness and retry phases', async () => {
+    const mount = vi.fn();
+    const unmount = vi.fn();
+    function Content() {
+      useEffect(() => {
+        mount();
+        return unmount;
+      }, []);
+      return <input aria-label="Draft" defaultValue="unfinished prompt" />;
+    }
+    await render(sshProject, { kind: 'ready', hostGeneration: 1 }, <Content />);
+    const input = host.querySelector('input');
+    expect(host.querySelector('[data-testid="project-connection-status"]')).toBeNull();
+    for (const situation of ['checking', 'handshaking', 'recovering', 'handshaking'] as const) {
+      await render(sshProject, { kind: 'degraded', situation, recovery: 'automatic' }, <Content />);
+      expect(host.querySelector('input')).toBe(input);
+      expect(input?.value).toBe('unfinished prompt');
+      expect(host.querySelector('[role="status"]')?.textContent).toContain('Reconnecting to Orion');
+      expect(
+        host.querySelector<HTMLElement>('[data-testid="project-connection-status"]')?.offsetHeight
+      ).toBe(40);
+    }
+    await render(sshProject, { kind: 'ready', hostGeneration: 2 }, <Content />);
+    expect(host.querySelector('input')).toBe(input);
+    expect(host.querySelector('[data-testid="project-connection-status"]')).toBeNull();
+    expect(mount).toHaveBeenCalledOnce();
+    expect(unmount).not.toHaveBeenCalled();
   });
 });

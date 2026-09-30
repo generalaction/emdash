@@ -10,7 +10,7 @@ import {
 } from '#runtimes/git/api';
 import type { RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
 import { toHostAbsolutePath } from '#runtimes/git/node/allocation/paths';
-import { commandFailed } from '#runtimes/git/node/exec/errors';
+import { commandFailed, gitFailure } from '#runtimes/git/node/exec/errors';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import {
   execGitWithProgress,
@@ -96,7 +96,7 @@ export class GitRepository {
 
   /**
    * The branch the remote's HEAD points at: the local symbolic ref when
-   * present, else a network `remote show` lookup. Honestly absent (`null`)
+   * present and resolving to a commit, else a network `remote show` lookup. Honestly absent (`null`)
    * when neither knows it — inference over well-known candidates belongs to
    * the blessed resolver, not this primitive.
    */
@@ -105,7 +105,16 @@ export class GitRepository {
       const { stdout } = await this.exec.exec(['symbolic-ref', `refs/remotes/${remote}/HEAD`]);
       const ref = stdout.trim();
       const prefix = `refs/remotes/${remote}/`;
-      if (ref.startsWith(prefix)) return ref.slice(prefix.length);
+      if (ref.startsWith(prefix)) {
+        try {
+          await this.exec.exec(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
+          return ref.slice(prefix.length);
+        } catch (error) {
+          // A pruned branch can leave HEAD dangling. Quiet verification exits 1
+          // for an unresolved ref; other failures must still surface.
+          if (gitFailure(error).exitCode !== 1) throw error;
+        }
+      }
     } catch (error) {
       if (!repositoryFailures.isMissingSymbolicRef(error)) throw error;
     }

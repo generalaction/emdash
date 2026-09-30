@@ -80,6 +80,12 @@ export const pullRequestSchema = z.object({
   mergeableStatus: mergeableStateSchema.nullable(),
   mergeStateStatus: mergeStateStatusSchema.nullable(),
   reviewDecision: z.string().nullable(),
+  checkSummary: z
+    .enum(['SUCCESS', 'FAILURE', 'ERROR', 'PENDING', 'EXPECTED'])
+    .nullable()
+    .optional(),
+  metadataFetchedAt: z.number().nullable().optional(),
+  checksFetchedAt: z.number().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   author: pullRequestUserSchema.nullable(),
@@ -160,13 +166,37 @@ export const pullRequestNumberInputSchema = repositoryInputSchema.extend({
   number: z.number().int().positive(),
 });
 
-export const pullRequestUrlInputSchema = repositoryInputSchema.extend({
-  url: z.string(),
+/** Automatic activation may reuse observations younger than 60 seconds; force always re-reads. */
+export const refreshPolicySchema = z.enum(['if-stale', 'force']);
+
+export const refreshRepositoryInputSchema = repositoryInputSchema.extend({
+  policy: refreshPolicySchema,
 });
 
-export const syncChecksInputSchema = repositoryInputSchema.extend({
-  pullRequestUrl: z.string(),
-  headRefOid: z.string(),
+export const refreshPullRequestInputSchema = pullRequestNumberInputSchema.extend({
+  comments: z.boolean().optional(),
+  policy: refreshPolicySchema,
+});
+
+export const pullRequestDetailsKeySchema = pullRequestNumberInputSchema.extend({
+  comments: z.boolean().default(false),
+});
+
+export const pullRequestDetailsSchema = z.object({
+  pr: pullRequestSchema.nullable(),
+  comments: z.array(pullRequestCommentSchema),
+  commentsFetchedAt: z.number().nullable(),
+  refreshing: z.boolean(),
+  stale: z.boolean(),
+  errors: z.object({
+    metadata: pullRequestErrorSchema.optional(),
+    checks: pullRequestErrorSchema.optional(),
+    comments: pullRequestErrorSchema.optional(),
+  }),
+});
+
+export const pullRequestUrlInputSchema = repositoryInputSchema.extend({
+  url: z.string(),
 });
 
 export const createPullRequestInputSchema = z.object({
@@ -185,11 +215,13 @@ export const mergePullRequestInputSchema = pullRequestNumberInputSchema.extend({
 
 export const syncStateSchema = z.object({
   phase: z.enum(['idle', 'running', 'error']),
-  kind: z.enum(['full', 'incremental', 'single']).nullable(),
+  kind: z.enum(['repository', 'history']).nullable(),
+  outcome: z.enum(['success', 'cancelled']).optional(),
   synced: z.number().int().nonnegative().optional(),
   total: z.number().int().nonnegative().optional(),
   error: pullRequestErrorSchema.optional(),
   lastSyncedAt: z.number().int().nonnegative().optional(),
+  revision: z.number().int().nonnegative().optional(),
 });
 
 export const syncStateKeySchema = repositoryInputSchema;
@@ -212,3 +244,7 @@ export type ListPullRequestsResult = z.infer<typeof listPullRequestsResultSchema
 export type PullRequestFilterOptions = z.infer<typeof pullRequestFilterOptionsSchema>;
 export type CreatePullRequestInput = z.infer<typeof createPullRequestInputSchema>;
 export type SyncState = z.infer<typeof syncStateSchema>;
+export type PullRequestDetails = z.infer<typeof pullRequestDetailsSchema>;
+export type RefreshPolicy = z.infer<typeof refreshPolicySchema>;
+export type RefreshRepositoryInput = z.infer<typeof refreshRepositoryInputSchema>;
+export type RefreshPullRequestInput = z.input<typeof refreshPullRequestInputSchema>;

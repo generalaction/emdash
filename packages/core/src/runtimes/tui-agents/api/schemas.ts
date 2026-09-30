@@ -29,7 +29,7 @@ export const tuiAgentStartInputSchema = z.object({
   cols: z.number().int(),
   rows: z.number().int(),
   shellSetup: z.string().optional(),
-  tmuxSessionName: z.string().optional(),
+  tmux: z.object({ identity: z.string().min(1) }).optional(),
 });
 
 export type TuiAgentStartInput = z.infer<typeof tuiAgentStartInputSchema>;
@@ -155,6 +155,7 @@ export type TuiAgentStateList = z.infer<typeof tuiAgentStateListSchema>;
 
 export const persistedTuiAgentStartInputSchema = tuiAgentStartInputSchema.extend({
   lastAgentState: tuiAgentStateSchema.optional(),
+  tmuxSessionName: z.string().optional(),
 });
 
 export type PersistedTuiAgentStartInput = z.infer<typeof persistedTuiAgentStartInputSchema>;

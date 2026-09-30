@@ -5,6 +5,7 @@ export type KeyEventLike = {
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
+  isComposing?: boolean;
 };
 
 // Ctrl+J sends line feed (LF) to the PTY, which CLI agents interpret as a newline
@@ -12,6 +13,36 @@ export const CTRL_J_ASCII = '\x0A';
 
 // Ctrl+U (unix-line-discard) kills from cursor to beginning of line
 export const CTRL_U_ASCII = '\x15';
+
+/** Map macOS Option arrows to readline-style editing, independently of Option-as-Meta. */
+export function getMacOptionArrowSequence(
+  event: KeyEventLike,
+  isMacPlatform: boolean
+): string | undefined {
+  if (
+    !isMacPlatform ||
+    event.type !== 'keydown' ||
+    !event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.isComposing
+  )
+    return undefined;
+
+  switch (event.key) {
+    case 'ArrowLeft':
+      return '\x1bb'; // backward-word
+    case 'ArrowRight':
+      return '\x1bf'; // forward-word
+    case 'ArrowUp':
+      return '\x01'; // beginning-of-line
+    case 'ArrowDown':
+      return '\x05'; // end-of-line
+    default:
+      return undefined;
+  }
+}
 
 export function shouldMapShiftEnterToCtrlJ(event: KeyEventLike): boolean {
   return (

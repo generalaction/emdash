@@ -4,10 +4,16 @@ import {
   terminalShellIdSchema,
 } from '@emdash/core/primitives/terminal-shell/api';
 import { terminalErrorSchema, terminalSizeSchema } from '@emdash/core/runtimes/terminals/api';
+import { attachmentErrorSchema } from '@emdash/core/services/attachments/api';
+import { workspaceAttachmentsContract } from '@emdash/core/services/attachments/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, fallible, liveLog } from '@emdash/wire/rpc';
+import { defineContract, fallible, liveLog, uploadFile } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { projectAttachmentErrorSchema } from '@core/features/projects/api/attachments';
+import {
+  localTerminalFilesSchema,
+  preparedTerminalFileSchema,
+} from '@core/services/attachments/api/terminal-files';
 
 export const terminalRecordSchema = z.object({
   id: z.string(),
@@ -90,6 +96,23 @@ export const terminalSliceErrorSchema = z.union([
 export const terminalsDomain = 'terminals' as const;
 
 export const terminalsContract = defineContract({
+  attachments: defineContract({
+    prepareLocalFiles: fallible({
+      input: z.object({ workspaceId: z.string(), sources: localTerminalFilesSchema }),
+      data: z.array(preparedTerminalFileSchema),
+      error: z.union([attachmentErrorSchema, terminalSliceErrorSchema]),
+    }),
+    upload: uploadFile({
+      input: workspaceAttachmentsContract.attachments.upload.input,
+      maxSize: workspaceAttachmentsContract.attachments.upload.maxSize,
+      result: workspaceAttachmentsContract.attachments.upload.result,
+      error: z.union([attachmentErrorSchema, terminalSliceErrorSchema]),
+    }),
+    delete: fallible({
+      input: workspaceAttachmentsContract.attachments.delete.input,
+      error: z.union([attachmentErrorSchema, terminalSliceErrorSchema]),
+    }),
+  }),
   list: fallible({
     input: terminalTaskInputSchema,
     data: z.array(terminalRecordSchema),

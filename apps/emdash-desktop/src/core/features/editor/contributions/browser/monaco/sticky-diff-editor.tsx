@@ -26,11 +26,13 @@ export type DiffSideModel =
 export interface StickyDiffEditorProps {
   /** The old/original (left) side; null while leases are being acquired. */
   original: DiffSideModel | null;
-  /** The new/modified (right) side; editable when it is a buffer facet. */
+  /** The new/modified (right) side; editable when it is a writable buffer facet. */
   modified: DiffSideModel | null;
   /** Checkout-relative path, used by the save-conflict dialog. */
   filePath: string;
   diffStyle: 'unified' | 'split';
+  /** Jump to the first change when no viewport was saved; disabled for stacked diffs. */
+  revealFirstChange?: boolean;
   /** Called whenever the content height changes, for auto-sizing parent containers. */
   onHeightChange?: (height: number) => void;
   /** Called when the diff editor instance is created/disposed. */
@@ -95,6 +97,7 @@ export function StickyDiffEditor({
   modified,
   filePath,
   diffStyle,
+  revealFirstChange = true,
   onHeightChange,
   onEditorChange,
 }: StickyDiffEditorProps) {
@@ -218,6 +221,7 @@ export function StickyDiffEditor({
       return model;
     };
 
+    let initialReveal: monaco.IDisposable | undefined;
     const disposer = autorun(() => {
       const editor = editorBox.get(); // reactive: waits for editor to exist
       if (!editor) return;
@@ -230,26 +234,47 @@ export function StickyDiffEditor({
       const modModel = modResolved.type === 'model' ? modResolved.model : emptyModel('modified');
       if (!origModel || !modModel) return;
 
+      const editable =
+        modified.kind === 'facet' &&
+        modified.facet.kind === 'buffer' &&
+        !modified.entry.readOnly &&
+        modResolved.type === 'model';
+      editor.updateOptions({ readOnly: !editable });
+
       const attached = editor.getModel();
       if (attached?.original === origModel && attached?.modified === modModel) return;
+      initialReveal?.dispose();
       if (attached) editor.setModel(null);
 
       editor.setModel({ original: origModel, modified: modModel });
       attachedUrisRef.current = { original: sideUri(original), modified: sideUri(modified) };
-      // Edits are only meaningful on a live buffer facet; empty stand-ins and
-      // git snapshots stay read-only.
-      const editable =
-        modified.kind === 'facet' &&
-        modified.facet.kind === 'buffer' &&
-        modResolved.type === 'model';
-      editor.updateOptions({ readOnly: !editable });
       editor.layout();
       // Restore scroll/cursor for the incoming side pair.
-      installMonacoFacetBinder().restoreDiffViewState(sideUri(original), sideUri(modified), editor);
+      const restored = installMonacoFacetBinder().restoreDiffViewState(
+        sideUri(original),
+        sideUri(modified),
+        editor
+      );
+      if (!restored && revealFirstChange) {
+        initialReveal = editor.onDidUpdateDiff(() => {
+          initialReveal?.dispose();
+          initialReveal = undefined;
+          const change = editor.getLineChanges()?.[0];
+          const m = monacoBootstrap.getMonaco();
+          if (!change || !m) return;
+          editor
+            .getModifiedEditor()
+            .revealLineNearTop(
+              Math.max(1, change.modifiedStartLineNumber),
+              m.editor.ScrollType.Immediate
+            );
+        });
+      }
       onHeightChangeRef.current?.(editor.getModifiedEditor().getContentHeight());
     });
 
     return () => {
+      initialReveal?.dispose();
       // On unmount or side change: save the current viewport so it can be restored later.
       const ed = editorBox.get();
       if (ed?.getModel()) {
@@ -259,7 +284,7 @@ export function StickyDiffEditor({
     };
     // editorBox is a stable ref created once; only side-identity changes recreate the autorun.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [originalKey, modifiedKey]);
+  }, [originalKey, modifiedKey, revealFirstChange]);
 
   return <div ref={mountRef} className="h-full" />;
 }

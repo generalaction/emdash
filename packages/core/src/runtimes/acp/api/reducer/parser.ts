@@ -35,7 +35,9 @@ import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { AgentState } from '../models/agents';
 import type { SessionConfigState, SessionUsage } from '../models/config';
 import type { PlanState } from '../models/plan';
+import type { TranscriptSnapshot, TranscriptPosition } from '../models/transcript';
 import type { TranscriptTurn, TranscriptTurnOutcome } from '../models/turns';
+import { routeEvent } from './event-routing';
 import type { EnrichHook, NormalizedEvent } from './normalized-event';
 import { initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 
@@ -57,6 +59,7 @@ export type ReplayResult = {
 export type ReplayEntry = SessionUpdate | { update: SessionUpdate; ts?: number; at?: number };
 
 export class AcpTranscriptParser {
+  private generation = crypto.randomUUID();
   private state: ParserState;
   private readonly deps: ReducerDeps;
 
@@ -78,6 +81,33 @@ export class AcpTranscriptParser {
     this.state = reduce(this.state, { kind: 'event', event, at }, this.deps);
   }
 
+  /** Shared with SessionCell so async state updates cannot create foreground activity. */
+  advancesForeground(event: NormalizedEvent): boolean {
+    return routeEvent(
+      event,
+      this.state.toolOwners,
+      this.activeTurn?.id ?? null,
+      this.state.planTurnId
+    ).foreground;
+  }
+
+  get position(): TranscriptPosition {
+    return {
+      generation: this.generation,
+      historyRevision: this.historyRevision,
+      lastCommittedTurnSeq: this.history.at(-1)?.seq ?? null,
+    };
+  }
+
+  get snapshot(): TranscriptSnapshot {
+    return { ...this.position, activeTurn: this.activeTurn };
+  }
+
+  /** Changes to committed history, including newly settled turns. */
+  get historyRevision(): number {
+    return this.state.historyRevision;
+  }
+
   /**
    * Explicitly close the active transcript turn.
    * Call this when prompt() resolves (stopReason is discarded — it belongs to
@@ -93,6 +123,7 @@ export class AcpTranscriptParser {
   }
 
   beginReplay(at = Date.now()): void {
+    this.generation = crypto.randomUUID();
     this.state = reduce(this.state, { kind: 'replay_start', at }, this.deps);
   }
 
@@ -104,6 +135,7 @@ export class AcpTranscriptParser {
    * Reset all slices to their initial state.
    */
   reset(): void {
+    this.generation = crypto.randomUUID();
     this.state = initialState();
   }
 

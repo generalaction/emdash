@@ -1,5 +1,5 @@
 import { systemPreferences } from 'electron';
-import { githubEvents } from '@core/features/github/node';
+import { integrationsEvents } from '@core/features/integrations/node/event-host';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { log } from '@main/lib/logger';
 import { runInBackground } from '../../core/background';
@@ -37,15 +37,8 @@ export function bootBackground(services: ServicesBundle, runtimes: DesktopRuntim
     // Run-once upgrade step (spec: github-git-settings §10): after the first
     // successful run this reads one flag row and performs no backfill work.
     try {
-      const imported = await services.github.legacyTokenImport.run();
-      if (imported.status === 'imported') {
-        log.info('Imported legacy GitHub token into account', {
-          accountId: imported.account.accountId,
-        });
-      } else if (imported.status === 'retry') {
-        log.warn(
-          'Legacy GitHub token import could not resolve the token identity; retrying next launch'
-        );
+      if ((await services.github.legacyTokenImport.run()) === 'retry') {
+        log.warn('Legacy GitHub account migration is incomplete; retrying next launch');
       }
     } catch (error) {
       log.warn('Legacy GitHub token import failed; retrying next launch', { error });
@@ -57,9 +50,9 @@ export function bootBackground(services: ServicesBundle, runtimes: DesktopRuntim
       log.warn('Failed to import GitHub CLI accounts during startup', { error });
     }
 
-    githubEvents.emit(undefined, {
+    integrationsEvents.emit(undefined, {
       type: 'accounts-changed',
-      reason: 'startup-reconciliation',
+      providerId: 'github',
     });
   });
 }

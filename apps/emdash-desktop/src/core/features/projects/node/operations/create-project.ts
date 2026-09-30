@@ -3,8 +3,10 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
+import { log } from '@emdash/shared/logger';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import type { StoredIntegrationAccounts } from '@core/primitives/project-settings/api/project-settings';
 import type { CreateProjectResult } from '@core/primitives/projects/api';
 import type {
   CreateProjectParams,
@@ -25,6 +27,7 @@ export type CreateProjectOnHostParams = {
   path: string;
   name: string;
   initGitRepository?: boolean;
+  initialIntegrationAccounts?: StoredIntegrationAccounts;
 };
 
 export type CreateProjectDependencies = {
@@ -42,6 +45,7 @@ export async function createProject(
     name: params.name,
     path: params.path,
     initGitRepository: params.initGitRepository,
+    initialIntegrationAccounts: params.initialIntegrationAccounts,
   });
 }
 
@@ -115,15 +119,26 @@ async function createProjectOnHost(
     });
   }
 
-  const stored = registerRepositoryWorkspace(dependencies.db, {
-    project: {
-      id: params.id ?? randomUUID(),
-      name: params.name,
-      baseRef: gitInfo.baseRef,
-    },
-    host,
-    record: registered.data,
-  });
+  let stored: ReturnType<typeof registerRepositoryWorkspace>;
+  try {
+    stored = registerRepositoryWorkspace(dependencies.db, {
+      project: {
+        id: params.id ?? randomUUID(),
+        name: params.name,
+        baseRef: gitInfo.baseRef,
+      },
+      host,
+      record: registered.data,
+      initialIntegrationAccounts: params.initialIntegrationAccounts,
+    });
+  } catch (error) {
+    log.error('Project registration transaction failed', { error });
+    return err({
+      type: 'registration-failed',
+      path: params.path,
+      message: 'Could not save the project and its initial account preferences. Please retry.',
+    });
+  }
   if (!stored.success) {
     return err({
       type: 'invalid-directory',

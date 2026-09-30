@@ -21,7 +21,7 @@ export const tuiAgentsContract = defineContract({
    * If the process is already running or another launch won the race, this call
    * returns `attached` without replacing the active config.
    */
-  start: fallible({
+  startSession: fallible({
     input: tuiAgentStartInputSchema,
     data: z.object({ outcome: tuiStartOutcomeSchema }),
     error: tuiStartErrorSchema,

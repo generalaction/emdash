@@ -169,7 +169,6 @@ const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: T
         />
       }
       disabledReason={disabledReason}
-      remoteConnectionId={taskCtx.getRemoteConnectionId?.()}
       workspaceId={taskCtx.workspaceId}
     />
   );

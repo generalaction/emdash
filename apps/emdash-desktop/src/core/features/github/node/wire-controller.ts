@@ -8,12 +8,8 @@ export function createGithubWireController(
 ): Controller {
   const githubOperations = createGithubOperations(dependencies);
   return createController(githubContract, {
-    getAccountState: () => githubOperations.getAccountState(),
     auth: () => githubOperations.auth(),
-    listAccounts: () => githubOperations.listAccounts(),
     importCliAccounts: () => githubOperations.importCliAccounts(),
-    setDefaultAccount: ({ accountId }) => githubOperations.setDefaultAccount(accountId),
-    removeAccount: ({ accountId }) => githubOperations.removeAccount(accountId),
     authCancel: () => githubOperations.authCancel(),
     getRepositories: ({ accountId }) => githubOperations.getRepositories(accountId),
     getOwners: ({ accountId }) => githubOperations.getOwners(accountId),

@@ -12,6 +12,15 @@ import { useIssues } from '@core/features/integrations/api/browser/use-issues';
 const mocks = vi.hoisted(() => ({
   listIssues: vi.fn(),
   searchIssues: vi.fn(),
+  listAccounts: vi.fn(),
+  getProjectSettingsStore: vi.fn(),
+}));
+
+vi.mock('@core/features/integrations/api/browser/client', () => ({
+  getIntegrationsClient: async () => ({ listAccounts: mocks.listAccounts }),
+}));
+vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
+  getProjectSettingsStore: mocks.getProjectSettingsStore,
 }));
 
 vi.mock('@core/features/issues/api/browser/client', () => ({
@@ -21,10 +30,10 @@ vi.mock('@core/features/issues/api/browser/client', () => ({
   }),
 }));
 
-function Probe() {
+function Probe({ repositoryUrl = 'https://github.com/acme/repo' }: { repositoryUrl?: string }) {
   const result = useIssues('github', {
     projectId: 'project-1',
-    repositoryUrl: 'https://github.com/acme/repo',
+    repositoryUrl,
   });
 
   return React.createElement(
@@ -47,6 +56,18 @@ describe('useIssues', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    mocks.listAccounts.mockResolvedValue({
+      github: [
+        { accountId: 'a', isDefault: true },
+        { accountId: 'b', isDefault: false },
+      ],
+    });
+    mocks.getProjectSettingsStore.mockReturnValue({
+      durableDomains: {
+        integrationAccounts: { stored: { github: { kind: 'account', accountId: 'a' } } },
+      },
+      pageData: { error: null },
+    });
     mocks.listIssues.mockResolvedValue({ success: true, data: [] });
     mocks.searchIssues.mockResolvedValue({
       success: false,
@@ -106,6 +127,102 @@ describe('useIssues', () => {
         'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
       );
     });
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('0');
+  });
+
+  async function renderProbe(props: { repositoryUrl?: string } = {}) {
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(Probe, props)
+        )
+      );
+      await vi.advanceTimersByTimeAsync(1);
+    });
+  }
+
+  it('waits for the project account choice before fetching issues', async () => {
+    mocks.getProjectSettingsStore.mockReturnValue({
+      durableDomains: null,
+      pageData: { error: null },
+    });
+    await renderProbe();
+    expect(mocks.listIssues).not.toHaveBeenCalled();
+    mocks.getProjectSettingsStore.mockReturnValue({
+      durableDomains: { integrationAccounts: { stored: {} } },
+      pageData: { error: null },
+    });
+    await renderProbe();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(mocks.listIssues).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches a new project account immediately without showing the old account cache', async () => {
+    mocks.listIssues.mockResolvedValueOnce({ success: true, data: [{ identifier: 'A-1' }] });
+    await renderProbe();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('1');
+    mocks.listIssues.mockReturnValue(new Promise(() => {}));
+    mocks.getProjectSettingsStore.mockReturnValue({
+      durableDomains: {
+        integrationAccounts: { stored: { github: { kind: 'account', accountId: 'b' } } },
+      },
+      pageData: { error: null },
+    });
+    await renderProbe();
+    expect(mocks.listIssues).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('0');
+  });
+
+  it('does not retain another account search results as placeholder data', async () => {
+    mocks.searchIssues.mockResolvedValueOnce({ success: true, data: [{ identifier: 'A-1' }] });
+    await renderProbe();
+    await act(async () => {
+      container
+        .querySelector('[data-testid="search"]')
+        ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(301);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(301);
+    });
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('1');
+    mocks.searchIssues.mockReturnValue(new Promise(() => {}));
+    mocks.getProjectSettingsStore.mockReturnValue({
+      durableDomains: {
+        integrationAccounts: { stored: { github: { kind: 'account', accountId: 'b' } } },
+      },
+      pageData: { error: null },
+    });
+    await renderProbe();
+    expect(mocks.searchIssues).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('0');
+  });
+
+  it('does not retain another repository search results under the same account', async () => {
+    mocks.searchIssues.mockResolvedValueOnce({ success: true, data: [{ identifier: 'A-1' }] });
+    await renderProbe();
+    await act(async () => {
+      container
+        .querySelector('[data-testid="search"]')
+        ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(301);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('1');
+    mocks.searchIssues.mockReturnValue(new Promise(() => {}));
+    await renderProbe({ repositoryUrl: 'https://github.com/acme/other' });
+    expect(mocks.searchIssues).toHaveBeenCalledTimes(2);
     expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('0');
   });
 });

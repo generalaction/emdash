@@ -46,14 +46,17 @@ export class ConversationManagerStore implements Disposable {
   private offAcpSessionState: (() => void) | null = null;
   private offConversationCreated: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
-  private readonly _disposeReaction: () => void;
+  private offConversationDeleted: (() => void) | null = null;
   private readonly _disposeHostReaction: () => void;
   private _hasObservedTuiSessions = false;
   private _hasObservedAcpSessions = false;
+  private _disposed = false;
+  private _membershipChangesDuringLoad: Set<string> | null = null;
+  private readonly _pendingDeletions = new Map<string, { confirmed: boolean }>();
 
   /** Data layer: plain Conversation records loaded from the main process. */
   readonly list: Resource<Conversation[]>;
-  /** Runtime state stores keyed by conversation id — populated by reaction on list.data. */
+  /** Runtime state stores reconciled from successful loads and conversation events. */
   conversations = observable.map<string, ConversationStore>();
   /** Session layer keyed by conversation id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
@@ -84,54 +87,20 @@ export class ConversationManagerStore implements Disposable {
 
     const hasPreloaded = preloaded !== undefined;
     this.list = new Resource<Conversation[]>(
-      hasPreloaded
-        ? null
-        : async () =>
-            (await getConversationsClient()).getConversationsForTask({
-              projectId,
-              taskId,
-            }),
+      () => this.loadConversations(),
       hasPreloaded ? [] : [{ kind: 'demand' }],
       hasPreloaded ? { init: preloaded } : undefined
     );
 
     // When preloaded data is available, populate the maps synchronously so
-    // they are accessible immediately — even when this constructor is called
-    // from within a MobX action, where reaction callbacks (including
-    // fireImmediately) are deferred until the outermost action completes.
+    // they are accessible immediately, including inside an outer MobX action.
     if (preloaded) {
       runInAction(() => {
         for (const conversation of preloaded) {
-          if (!this.conversations.has(conversation.id)) {
-            this.conversations.set(conversation.id, new ConversationStore(conversation));
-          }
-          if (!this.sessions.has(conversation.id)) {
-            this.sessions.set(conversation.id, this.createSession(conversation));
-          }
+          this.addConversation(conversation);
         }
       });
     }
-
-    // Sync conversations and sessions maps whenever resource data changes.
-    // fireImmediately handles the non-preloaded case; for preloaded data the
-    // maps are already populated above so this is a no-op on first run.
-    this._disposeReaction = reaction(
-      () => this.list.data,
-      (data) => {
-        if (!data) return;
-        runInAction(() => {
-          for (const conversation of data) {
-            if (!this.conversations.has(conversation.id)) {
-              this.conversations.set(conversation.id, new ConversationStore(conversation));
-            }
-            if (!this.sessions.has(conversation.id)) {
-              this.sessions.set(conversation.id, this.createSession(conversation));
-            }
-          }
-        });
-      },
-      { fireImmediately: true }
-    );
     this._disposeHostReaction = reaction(
       () => this.hostAccess?.state,
       (state) => {
@@ -145,15 +114,56 @@ export class ConversationManagerStore implements Disposable {
     this.offAcpSessionState = this.listenToAcpSessionState();
     this.offConversationCreated = this.listenToConversationCreated();
     this.offConversationChanges = this.listenToConversationChanges();
+    this.offConversationDeleted = this.listenToConversationDeleted();
     if (!hasPreloaded) void this.list.load();
   }
 
   private addConversation(conversation: Conversation): void {
+    if (this._disposed || this._pendingDeletions.has(conversation.id)) return;
+    this._membershipChangesDuringLoad?.add(conversation.id);
     if (!this.conversations.has(conversation.id)) {
       this.conversations.set(conversation.id, new ConversationStore(conversation));
     }
     if (!this.sessions.has(conversation.id)) {
       this.sessions.set(conversation.id, this.createSession(conversation));
+    }
+  }
+
+  private removeConversation(conversationId: string, dispose = true): void {
+    this._membershipChangesDuringLoad?.add(conversationId);
+    const conversation = this.conversations.get(conversationId);
+    const session = this.sessions.get(conversationId);
+    this.conversations.delete(conversationId);
+    this.sessions.delete(conversationId);
+    if (dispose) {
+      conversation?.dispose();
+      session?.destroy();
+    }
+  }
+
+  private async loadConversations(): Promise<Conversation[]> {
+    const changed = new Set<string>();
+    this._membershipChangesDuringLoad = changed;
+    try {
+      const data = await (
+        await getConversationsClient()
+      ).getConversationsForTask({
+        projectId: this.projectId,
+        taskId: this.taskId,
+      });
+      if (this._disposed) return data;
+      runInAction(() => {
+        const present = new Set(data.map((conversation) => conversation.id));
+        for (const id of this.conversations.keys()) {
+          if (!present.has(id) && !changed.has(id)) this.removeConversation(id);
+        }
+        for (const conversation of data) {
+          if (!changed.has(conversation.id)) this.addConversation(conversation);
+        }
+      });
+      return data;
+    } finally {
+      this._membershipChangesDuringLoad = null;
     }
   }
 
@@ -163,8 +173,12 @@ export class ConversationManagerStore implements Disposable {
     let unsubscribe: (() => void) | undefined;
     void getConversationsClient().then(async (client) => {
       const nextUnsubscribe = await client.events.subscribe(undefined, {
-        onEvent,
-        onGap: () => void this.list.load(),
+        onEvent: (event) => {
+          if (!disposed) onEvent(event);
+        },
+        onGap: () => {
+          if (!disposed) this.list.invalidate();
+        },
       });
       if (disposed) nextUnsubscribe();
       else unsubscribe = nextUnsubscribe;
@@ -307,6 +321,16 @@ export class ConversationManagerStore implements Disposable {
     });
   }
 
+  private listenToConversationDeleted(): () => void {
+    return this.subscribeConversationEvents((event) => {
+      if (event.type !== 'deleted') return;
+      if (event.taskId !== this.taskId || event.projectId !== this.projectId) return;
+      const pending = this._pendingDeletions.get(event.conversationId);
+      if (pending) pending.confirmed = true;
+      runInAction(() => this.removeConversation(event.conversationId));
+    });
+  }
+
   get taskStatus(): AgentStatus | null {
     let hasWorking = false;
     let hasUnseenError = false;
@@ -427,11 +451,11 @@ export class ConversationManagerStore implements Disposable {
     const store = this.conversations.get(conversationId);
     const session = this.sessions.get(conversationId);
     if (!store) return;
-
-    runInAction(() => {
-      this.conversations.delete(conversationId);
-      this.sessions.delete(conversationId);
-    });
+    const pending = { confirmed: false };
+    this._pendingDeletions.set(conversationId, pending);
+    // Retain the original stores until the command settles so failure can roll back.
+    runInAction(() => this.removeConversation(conversationId, false));
+    let restored = false;
 
     try {
       await (
@@ -441,13 +465,22 @@ export class ConversationManagerStore implements Disposable {
         taskId: this.taskId,
         conversationId,
       });
-      session?.destroy();
     } catch (err) {
-      runInAction(() => {
-        this.conversations.set(conversationId, store);
-        if (session) this.sessions.set(conversationId, session);
-      });
+      if (!pending.confirmed && !this._disposed) {
+        runInAction(() => {
+          this.conversations.set(conversationId, store);
+          if (session) this.sessions.set(conversationId, session);
+        });
+        restored = true;
+      }
       throw err;
+    } finally {
+      this._pendingDeletions.delete(conversationId);
+      this._membershipChangesDuringLoad?.add(conversationId);
+      if (!restored) {
+        store.dispose();
+        session?.destroy();
+      }
     }
   }
 
@@ -499,7 +532,8 @@ export class ConversationManagerStore implements Disposable {
   }
 
   dispose(): void {
-    this._disposeReaction();
+    this._disposed = true;
+    this.list.dispose();
     this._disposeHostReaction();
     this.offAgentStatusChanged?.();
     this.offAgentStatusChanged = null;
@@ -511,6 +545,8 @@ export class ConversationManagerStore implements Disposable {
     this.offConversationCreated = null;
     this.offConversationChanges?.();
     this.offConversationChanges = null;
+    this.offConversationDeleted?.();
+    this.offConversationDeleted = null;
     for (const session of this.sessions.values()) {
       session.destroy();
     }

@@ -21,6 +21,7 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { createWorkspaceRegistryController } from './controller';
 
 const TEST_USER_ENV = Object.fromEntries(
@@ -77,6 +78,7 @@ describe('workspace registry deleteWorktree', () => {
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock,
       killSessions: async (workspacePath) => {
@@ -228,9 +230,107 @@ describe('workspace registry deleteWorktree', () => {
   function rebuildRuntime() {
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });
+    scriptsWire.dispose();
+    scriptsRuntime.dispose();
+    scriptsRuntime = new ScriptsRuntime({
+      spawner: new ChildProcessPtySpawner(),
+      userEnv: async () => TEST_USER_ENV,
+    });
+    scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+      scripts: scriptsWire.client,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   }
+
+  it.each(['delete', 'deactivate-then-delete', 'never-activated'])(
+    '%s runs teardown without an in-memory activation',
+    async (action) => {
+      const repoPath = await makeRepo(root, 'repo');
+      await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+      const worktree = await createWorktree('ws-repo', 'cold');
+      await fs.writeFile(
+        path.join(worktree.path, '.emdash.json'),
+        JSON.stringify({
+          scripts: { teardown: 'test -f .emdash.json && echo teardown >> ../teardown-log' },
+        })
+      );
+      await wire.client.refresh({ workspaceId: 'wt-cold' });
+      if (action !== 'never-activated') {
+        expect((await wire.client.activateWorkspace({ workspaceId: 'wt-cold' })).success).toBe(
+          true
+        );
+      }
+      rebuildRuntime();
+      if (action === 'deactivate-then-delete') {
+        expect((await wire.client.deactivateWorkspace({ workspaceId: 'wt-cold' })).success).toBe(
+          true
+        );
+        await expect(fs.readFile(path.join(root, 'teardown-log'), 'utf8')).resolves.toBe(
+          'teardown\n'
+        );
+        rebuildRuntime();
+      }
+      expect(
+        await wire.client.deleteWorktree({ workspaceId: 'wt-cold', deleteBranch: false })
+      ).toEqual({
+        success: true,
+        data: undefined,
+      });
+      await expect(fs.stat(worktree.path)).rejects.toThrow();
+      await expect(fs.readFile(path.join(root, 'teardown-log'), 'utf8')).resolves.toBe(
+        'teardown\n'
+      );
+    }
+  );
+
+  it('a failed teardown after restart is durable and a removal retry proceeds without rerunning it', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const worktree = await createWorktree('ws-repo', 'cold-failure');
+    await fs.writeFile(
+      path.join(worktree.path, '.emdash.json'),
+      JSON.stringify({
+        scripts: { teardown: 'echo attempted >> ../teardown-log; exit 9' },
+      })
+    );
+    await wire.client.refresh({ workspaceId: worktree.id });
+    await wire.client.activateWorkspace({ workspaceId: worktree.id });
+    rebuildRuntime();
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: worktree.id, deleteBranch: false })
+    ).toMatchObject({
+      success: false,
+      error: { type: 'remove-failed', stage: 'teardown' },
+    });
+    await expect(fs.stat(worktree.path)).resolves.toBeDefined();
+    rebuildRuntime();
+    expect(
+      (await wire.client.deleteWorktree({ workspaceId: worktree.id, deleteBranch: false })).success
+    ).toBe(true);
+    await expect(fs.readFile(path.join(root, 'teardown-log'), 'utf8')).resolves.toBe('attempted\n');
+  });
+
+  it('removes an already vanished worktree without trying to run a script there', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const worktree = await createWorktree('ws-repo', 'vanished');
+    await fs.writeFile(
+      path.join(worktree.path, '.emdash.json'),
+      JSON.stringify({
+        scripts: { teardown: 'exit 9' },
+      })
+    );
+    await wire.client.refresh({ workspaceId: worktree.id });
+    await wire.client.activateWorkspace({ workspaceId: worktree.id });
+    await fs.rm(worktree.path, { recursive: true, force: true });
+    expect(
+      (await wire.client.deleteWorktree({ workspaceId: worktree.id, deleteBranch: false })).success
+    ).toBe(true);
+  });
 
   it('a failed removal records stage, class, and message durably; the trace survives a restart', async () => {
     const repoPath = await makeRepo(root, 'repo');

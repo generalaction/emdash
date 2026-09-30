@@ -1,8 +1,25 @@
+import type { Scope } from '@emdash/shared/concurrency';
 import { createController, type Controller } from '@emdash/wire/rpc';
+import { expose } from '@emdash/wire/state';
 import { pullRequestsContract } from '../api';
 import type { PullRequestService } from './pull-request-service';
 
-export function createPullRequestsWireController(service: PullRequestService): Controller {
+export function createPullRequestsWireController(
+  service: PullRequestService,
+  scope: Scope
+): Controller {
+  const details = expose(
+    pullRequestsContract.details,
+    {
+      state: (key, lease) => service.observePullRequest(key, lease),
+    },
+    { lingerMs: 0 }
+  );
+  const syncState = expose(pullRequestsContract.syncState, {
+    state: (key, lease) => service.observeRepository(key.repositoryUrl, lease),
+  });
+  scope.add(() => details.dispose());
+  scope.add(() => syncState.dispose());
   return createController(pullRequestsContract, {
     listPullRequests: (input) => service.listPullRequests(input),
     getFilterOptions: (input) => service.getFilterOptions(input.repositoryUrls),
@@ -20,20 +37,13 @@ export function createPullRequestsWireController(service: PullRequestService): C
       service.runOperation('unregister-repository', meta.signal, () =>
         service.unregisterRepository(input.repositoryUrl)
       ),
-    // These are not runOperation-wrapped because startSync already scope-tracks and deduplicates them.
-    sync: (input) => service.sync(input.repositoryUrl),
-    forceFullSync: (input) => service.forceFullSync(input.repositoryUrl),
-    syncSingle: (input, meta) =>
-      service.runOperation('sync-single', meta.signal, (signal) =>
-        service.syncSingle(input.repositoryUrl, input.number, signal)
-      ),
-    syncChecks: (input, meta) =>
-      service.runOperation('sync-checks', meta.signal, (signal) =>
-        service.syncChecks(input.repositoryUrl, input.pullRequestUrl, input.headRefOid, signal)
-      ),
-    cancelSync: (input, meta) =>
-      service.runOperation('cancel-sync', meta.signal, () =>
-        service.cancelSync(input.repositoryUrl)
+    refreshRepository: (input) => service.refreshRepository(input),
+    releaseRepository: (input) => service.releaseRepository(input.repositoryUrl),
+    refreshPullRequest: (input) => service.refreshPullRequest(input),
+    details,
+    refreshHistory: (input, meta) =>
+      service.runOperation('refresh-history', meta.signal, (signal) =>
+        service.refreshHistory(input.repositoryUrl, signal)
       ),
     createPullRequest: (input, meta) =>
       service.runOperation('create-pull-request', meta.signal, (signal) =>
@@ -51,10 +61,6 @@ export function createPullRequestsWireController(service: PullRequestService): C
       service.runOperation('get-pull-request-files', meta.signal, (signal) =>
         service.getPullRequestFiles(input.repositoryUrl, input.number, signal)
       ),
-    getPullRequestComments: (input, meta) =>
-      service.runOperation('get-pull-request-comments', meta.signal, (signal) =>
-        service.getPullRequestComments(input.repositoryUrl, input.number, signal)
-      ),
-    syncState: service.syncStateHost(),
+    syncState,
   });
 }

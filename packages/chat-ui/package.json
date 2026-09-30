@@ -28,9 +28,9 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --project \"!perf\"",
-    "test:perf": "vitest run --project perf",
-    "test:bench": "vitest bench --project browser"
+    "test": "pnpm exec nx test @emdash/chat-ui",
+    "test:perf": "pnpm exec nx run @emdash/chat-ui:test-perf",
+    "test:bench": "pnpm exec nx run @emdash/chat-ui:test-bench"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.8",
@@ -80,5 +80,38 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec vitest run --project \"!perf\"",
+          "cwd": "packages/chat-ui"
+        }
+      },
+      "test-perf": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build"
+        ],
+        "cache": false,
+        "options": {
+          "command": "pnpm exec vitest run --project perf",
+          "cwd": "packages/chat-ui"
+        }
+      },
+      "test-bench": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build"
+        ],
+        "cache": false,
+        "options": {
+          "command": "pnpm exec vitest bench --project browser",
+          "cwd": "packages/chat-ui"
+        }
+      }
+    }
+  }
 }

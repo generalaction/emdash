@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ok } from '@emdash/shared';
@@ -192,6 +192,72 @@ describe('files runtime fs mutations', () => {
           }
         )
       ).resolves.toMatchObject({ success: false, error: { type: 'already-exists' } });
+    } finally {
+      await dispose();
+    }
+  });
+
+  it('mutates external directory contents but deletes only the symlink entry', async () => {
+    const workspace = await makeDir();
+    const outside = await makeDir();
+    const outsideFile = path.join(outside, 'existing.txt');
+    await writeFile(outsideFile, 'keep\n');
+    try {
+      await symlink(outside, path.join(workspace, 'linked'), 'dir');
+    } catch {
+      return;
+    }
+    const { connection, dispose } = await makeRuntime();
+    const linkedPath = (name: string) => runtimeRoot(path.join(workspace, 'linked', name));
+
+    try {
+      await expect(
+        connection.api.fs.createFile({
+          path: linkedPath('created.txt'),
+        })
+      ).resolves.toMatchObject({ success: true });
+      await expect(
+        connection.api.fs.writeFile({
+          path: linkedPath('existing.txt'),
+          content: 'changed\n',
+          precondition: { kind: 'overwrite' },
+        })
+      ).resolves.toMatchObject({ success: true });
+      await expect(readFile(outsideFile, 'utf8')).resolves.toBe('changed\n');
+      await expect(
+        connection.api.fs.createDirectory({ path: linkedPath('folder') })
+      ).resolves.toMatchObject({ success: true });
+      await expect(
+        connection.api.fs.rename({ from: linkedPath('created.txt'), to: linkedPath('renamed.txt') })
+      ).resolves.toMatchObject({ success: true });
+      await expect(
+        connection.api.fs.move({
+          from: linkedPath('renamed.txt'),
+          to: linkedPath('folder/moved.txt'),
+        })
+      ).resolves.toMatchObject({ success: true });
+      const copied = path.join(workspace, 'copied.txt');
+      await expect(
+        connection.api.fs.copy({ from: linkedPath('existing.txt'), to: runtimeRoot(copied) })
+      ).resolves.toMatchObject({ success: true });
+      await expect(readFile(copied, 'utf8')).resolves.toBe('changed\n');
+      await expect(
+        connection.api.fs.delete({
+          path: linkedPath('folder/moved.txt'),
+        })
+      ).resolves.toMatchObject({ success: true });
+
+      await expect(stat(path.join(outside, 'folder/moved.txt'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+
+      // Removing the workspace entry itself is safe: it removes the link, not its target.
+      await expect(
+        connection.api.fs.delete({
+          path: runtimeRoot(path.join(workspace, 'linked')),
+        })
+      ).resolves.toEqual({ success: true, data: undefined });
+      await expect(readFile(outsideFile, 'utf8')).resolves.toBe('changed\n');
     } finally {
       await dispose();
     }

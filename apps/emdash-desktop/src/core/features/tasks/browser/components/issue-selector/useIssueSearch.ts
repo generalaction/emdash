@@ -7,10 +7,18 @@ import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
 export function useIssueSearch(repositoryUrl: string, projectPath = '', projectId?: string) {
-  const context = useMemo(() => ({ projectPath, repositoryUrl }), [projectPath, repositoryUrl]);
+  const context = useMemo(
+    () => ({ projectId, projectPath, repositoryUrl }),
+    [projectId, projectPath, repositoryUrl]
+  );
 
-  const { connectedProviders, hasAnyIssueIntegration, isProviderUsable, isCheckingConnections } =
-    useConnectedIssueProviders(context);
+  const {
+    connectedProviders,
+    hasAnyIssueIntegration,
+    isProviderUsable,
+    isCheckingConnections,
+    error: inventoryError,
+  } = useConnectedIssueProviders(context);
 
   const projectView = projectId ? getProjectViewStore(projectId) : undefined;
 
@@ -64,7 +72,7 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
 
   return {
     issues: issuesHook.issues,
-    error: issuesHook.error,
+    error: inventoryError ?? issuesHook.error,
     accountUnavailable: issuesHook.accountUnavailable,
     issueProvider,
     hasAnyIntegration: hasAnyIssueIntegration,

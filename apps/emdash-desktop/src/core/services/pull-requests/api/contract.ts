@@ -8,7 +8,6 @@ import {
   listPullRequestsInputSchema,
   listPullRequestsResultSchema,
   mergePullRequestInputSchema,
-  pullRequestCommentSchema,
   pullRequestFileSchema,
   pullRequestFilterOptionsSchema,
   pullRequestNumberInputSchema,
@@ -16,9 +15,12 @@ import {
   pullRequestUrlInputSchema,
   repositoryInputSchema,
   repositoryListInputSchema,
-  syncChecksInputSchema,
   syncStateKeySchema,
   syncStateSchema,
+  refreshPullRequestInputSchema,
+  refreshRepositoryInputSchema,
+  pullRequestDetailsKeySchema,
+  pullRequestDetailsSchema,
 } from './schemas';
 
 export const pullRequestsDomain = 'pullRequests' as const;
@@ -67,27 +69,26 @@ export const pullRequestsContract = defineContract({
     data: z.void(),
     error: pullRequestErrorSchema,
   }),
-  sync: fallible({
+  refreshRepository: fallible({
+    input: refreshRepositoryInputSchema,
+    data: z.void(),
+    error: pullRequestErrorSchema,
+  }),
+  refreshHistory: fallible({
     input: repositoryInputSchema,
     data: z.void(),
     error: pullRequestErrorSchema,
   }),
-  forceFullSync: fallible({
-    input: repositoryInputSchema,
+  refreshPullRequest: fallible({
+    input: refreshPullRequestInputSchema,
     data: z.void(),
     error: pullRequestErrorSchema,
   }),
-  syncSingle: fallible({
-    input: pullRequestNumberInputSchema,
-    data: z.object({ pr: pullRequestSchema }),
-    error: pullRequestErrorSchema,
+  details: liveModel({
+    key: pullRequestDetailsKeySchema,
+    states: { state: liveState({ data: pullRequestDetailsSchema }) },
   }),
-  syncChecks: fallible({
-    input: syncChecksInputSchema,
-    data: z.object({ hasRunning: z.boolean() }),
-    error: pullRequestErrorSchema,
-  }),
-  cancelSync: fallible({
+  releaseRepository: fallible({
     input: repositoryInputSchema,
     data: z.void(),
     error: pullRequestErrorSchema,
@@ -110,11 +111,6 @@ export const pullRequestsContract = defineContract({
   getPullRequestFiles: fallible({
     input: pullRequestNumberInputSchema,
     data: z.object({ files: z.array(pullRequestFileSchema) }),
-    error: pullRequestErrorSchema,
-  }),
-  getPullRequestComments: fallible({
-    input: pullRequestNumberInputSchema,
-    data: z.object({ comments: z.array(pullRequestCommentSchema) }),
     error: pullRequestErrorSchema,
   }),
   syncState: liveModel({

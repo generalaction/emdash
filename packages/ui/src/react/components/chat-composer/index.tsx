@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ChevronRight,
   CircleAlert,
+  Info,
   ListTodo,
   Paperclip,
   ShieldCheck,
@@ -14,9 +15,11 @@ import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { Popover } from '@/react/primitives/popover';
 import { Select } from '@/react/primitives/select';
+import { Tooltip } from '@/react/primitives/tooltip';
 import { ComboboxPopover } from '../combobox-popover';
 import { McpIcon } from '../mcp-icon/mcp-icon';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
+import type { PromptEditorModel } from '../prompt-editor/prompt-editor-model';
 import type {
   CommandItem,
   ContextMentionProvider,
@@ -165,7 +168,8 @@ export interface ComposerCollaborationModeOption {
 
 export interface ComposerMcpServer {
   name: string;
-  transport: string;
+  transport?: string;
+  startupError?: string;
 }
 
 // ── Agent option types ────────────────────────────────────────────────────────
@@ -195,6 +199,8 @@ export interface ChatComposerProps {
   canSubmit?: boolean;
   /** Hide the submit/stop control for draft-only composer surfaces. */
   showSubmitButton?: boolean;
+  /** Host-owned serialized editor value. Omit to keep the editor internally managed. */
+  value?: string;
   /** Override the idle editor placeholder. Disabled/working placeholders still take precedence. */
   placeholder?: string;
 
@@ -207,6 +213,8 @@ export interface ChatComposerProps {
    */
   agentLocked?: boolean;
 
+  /** Additional host-owned provider configuration controls. */
+  configurationControls?: React.ReactNode;
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
@@ -265,6 +273,8 @@ export interface ChatComposerProps {
    * the host access to `insertMention` (and focus/clear/getText).
    */
   editorApiRef?: React.Ref<PromptEditorRef>;
+  /** Conversation-owned editing model. Mutually exclusive with value. The owner clears on submit. */
+  model?: PromptEditorModel;
 
   /**
    * Called when the user clicks an image attachment thumbnail in the preview
@@ -573,13 +583,13 @@ function ComposerModeSelect({
   placeholder,
   icon,
 }: ComposerModeSelectProps) {
-  const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
+  const selected = items.find((item) => item.id === selectedId) ?? null;
 
   return (
     <Select.Root
       value={selectedId}
       onValueChange={(id) => {
-        if (id) onChange?.(id);
+        if (id !== null) onChange?.(id);
       }}
       disabled={disabled}
     >
@@ -652,11 +662,13 @@ export function ChatComposer({
   isWorking = false,
   canSubmit = true,
   showSubmitButton = true,
+  value,
   placeholder,
   agentOptions,
   selectedAgent,
   onAgentChange,
   agentLocked = false,
+  configurationControls,
   modelOptions,
   selectedModel,
   onModelChange,
@@ -682,6 +694,7 @@ export function ChatComposer({
   onImageFilesDropped,
   onFilesDropped,
   editorApiRef,
+  model,
   mentionProvider,
   renderMentionIcon,
   queryMentions,
@@ -699,8 +712,10 @@ export function ChatComposer({
   onSendQueuedPromptNow,
   className,
 }: ChatComposerProps) {
+  const mcpFailureCount = mcpServers.filter((server) => server.startupError).length;
   const editorRef = useRef<PromptEditorRef | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [editorText, setEditorText] = useState('');
 
   // Retain the last notice so its content stays rendered while the band
   // collapses out, letting the exit transition play before unmount.
@@ -803,6 +818,10 @@ export function ChatComposer({
   };
 
   const imageAttachments = attachments.filter((a) => a.kind === 'image');
+  const canQueuePrompt =
+    isWorking &&
+    !!onSubmitWhileWorking &&
+    (editorText.trim().length > 0 || imageAttachments.length > 0);
 
   // ── Model items ─────────────────────────────────────────────────────────────
 
@@ -831,9 +850,10 @@ export function ChatComposer({
     ? Object.entries(effortOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
 
-  const selectedEffortItem = selectedEffort
-    ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
-    : null;
+  const selectedEffortItem =
+    selectedEffort !== undefined
+      ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
+      : null;
 
   // ── Permission mode items ────────────────────────────────────────────────────
 
@@ -935,32 +955,37 @@ export function ChatComposer({
         )}
 
         {/* Editor area */}
-        <div className={styles.editorArea}>
-          <PromptEditor
-            ref={(handle) => {
-              editorRef.current = handle;
-              if (editorApiRef) {
-                if (typeof editorApiRef === 'function') {
-                  editorApiRef(handle);
-                } else {
-                  (editorApiRef as React.MutableRefObject<PromptEditorRef | null>).current = handle;
-                }
+        <PromptEditor
+          model={model}
+          viewportClassName={styles.editorArea}
+          ref={(handle) => {
+            editorRef.current = handle;
+            if (handle) setEditorText(handle.getText());
+            if (editorApiRef) {
+              if (typeof editorApiRef === 'function') {
+                editorApiRef(handle);
+              } else {
+                (editorApiRef as React.MutableRefObject<PromptEditorRef | null>).current = handle;
               }
-            }}
-            placeholder={resolvedPlaceholder}
-            disabled={disabled}
-            onChange={onInputChange}
-            onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
-            onMentionInsert={onMentionInsert}
-            mentionProvider={mentionProvider}
-            renderMentionIcon={renderMentionIcon}
-            queryMentions={queryMentions}
-            queryCommands={queryCommands}
-            onCommand={onCommand}
-            popupClassName={composerThemeScope}
-          />
-        </div>
-
+            }
+          }}
+          value={value}
+          placeholder={resolvedPlaceholder}
+          disabled={disabled}
+          onChange={(text) => {
+            setEditorText(text);
+            onInputChange?.(text);
+          }}
+          onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
+          clearOnSubmit={model ? false : undefined}
+          onMentionInsert={onMentionInsert}
+          mentionProvider={mentionProvider}
+          renderMentionIcon={renderMentionIcon}
+          queryMentions={queryMentions}
+          queryCommands={queryCommands}
+          onCommand={onCommand}
+          popupClassName={composerThemeScope}
+        />
         {/* Toolbar */}
         <div className={styles.toolbar}>
           {/* Left: agent + model selector */}
@@ -981,7 +1006,7 @@ export function ChatComposer({
                 onValueChange={(id) => onModelChange?.(id)}
                 itemToKey={(item) => item.id}
                 itemToLabel={(item) => item.name}
-                disabled={disabled}
+                disabled={disabled || !onModelChange}
                 searchPlaceholder="Search models…"
                 contentClassName={composerThemeScope}
                 contentStyle={{ minWidth: '12.5rem' }}
@@ -1042,7 +1067,10 @@ export function ChatComposer({
                   effortItems.length > 0
                     ? () => (
                         <DropdownMenu.Root>
-                          <DropdownMenu.Trigger className={styles.effortRow}>
+                          <DropdownMenu.Trigger
+                            className={styles.effortRow}
+                            disabled={disabled || !onEffortChange}
+                          >
                             <span className={styles.effortRowLabel}>Effort</span>
                             <span className={styles.effortRowValue}>
                               {selectedEffortItem?.name ?? 'Default'}
@@ -1079,7 +1107,7 @@ export function ChatComposer({
                 items={collaborationModeItems}
                 selectedId={selectedCollaborationMode}
                 onChange={onCollaborationModeChange}
-                disabled={disabled}
+                disabled={disabled || !onCollaborationModeChange}
                 isFirst={collaborationModeIsFirst}
                 ariaLabel="Collaboration mode"
                 placeholder="Collaboration…"
@@ -1091,7 +1119,7 @@ export function ChatComposer({
                 items={permissionModeItems}
                 selectedId={selectedPermissionMode}
                 onChange={onPermissionModeChange}
-                disabled={disabled}
+                disabled={disabled || !onPermissionModeChange}
                 isFirst={permissionModeIsFirst}
                 ariaLabel="Permission mode"
                 placeholder="Permissions…"
@@ -1100,14 +1128,16 @@ export function ChatComposer({
                 }
               />
             )}
+            {configurationControls}
             {mcpServers.length > 0 && (
               <Popover.Root>
                 <Popover.Trigger
                   className={styles.mcpTrigger}
-                  disabled={disabled}
+                  data-failed={mcpFailureCount > 0 ? '' : undefined}
+                  openOnHover
                   aria-label={`${mcpServers.length} session MCP ${
                     mcpServers.length === 1 ? 'server' : 'servers'
-                  }`}
+                  }${mcpFailureCount ? `, ${mcpFailureCount} startup ${mcpFailureCount === 1 ? 'failure' : 'failures'}` : ''}`}
                 >
                   <McpIcon size={12} />
                   {mcpServers.length}
@@ -1116,12 +1146,39 @@ export function ChatComposer({
                   align="start"
                   className={cx(styles.mcpPopoverContent, composerThemeScope)}
                   aria-label="Session MCP servers"
+                  initialFocus={false}
                 >
                   <div className={styles.mcpList}>
                     {mcpServers.map((server) => (
-                      <div key={`${server.transport}:${server.name}`} className={styles.mcpRow}>
-                        <span className={styles.mcpName}>{server.name}</span>
-                        <span className={styles.mcpBadge}>{server.transport}</span>
+                      <div
+                        key={`${server.transport}:${server.name}`}
+                        className={styles.mcpRow}
+                        data-failed={server.startupError ? '' : undefined}
+                      >
+                        <div className={styles.mcpNameGroup}>
+                          <span className={styles.mcpName}>{server.name}</span>
+                          {server.startupError && (
+                            <Tooltip.Root>
+                              <Tooltip.Trigger
+                                render={<Button variant="ghost" size="xs" icon />}
+                                aria-label={`${server.name} startup error`}
+                              >
+                                <Info className={styles.mcpInfoIcon} aria-hidden="true" />
+                              </Tooltip.Trigger>
+                              <Tooltip.Content role="tooltip" side="right" align="start">
+                                <span className={styles.mcpErrorText}>{server.startupError}</span>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          )}
+                        </div>
+                        {server.transport && (
+                          <span
+                            className={styles.mcpBadge}
+                            data-failed={server.startupError ? '' : undefined}
+                          >
+                            {server.transport}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1149,7 +1206,7 @@ export function ChatComposer({
             )}
 
             {showSubmitButton ? (
-              isWorking ? (
+              isWorking && !canQueuePrompt ? (
                 <Button
                   variant="primary"
                   tone="destructive"
@@ -1168,8 +1225,8 @@ export function ChatComposer({
                   icon
                   className={styles.sendButtonRound}
                   onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-                  disabled={disabled || !canSubmit}
-                  aria-label="Send message"
+                  disabled={disabled || (!isWorking && !canSubmit)}
+                  aria-label={isWorking ? 'Queue message' : 'Send message'}
                 >
                   <ArrowUp />
                 </Button>

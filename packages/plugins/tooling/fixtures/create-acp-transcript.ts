@@ -111,7 +111,12 @@ export async function runAcpTranscript(opts: TranscriptOptions): Promise<void> {
   const host = new RecordingHost();
 
   let sessionId: string | null = null;
-  const { client, dispose: disposeClient } = buildRecordingClient(recorder, host, () => sessionId);
+  const { client, dispose: disposeClient } = buildRecordingClient(
+    recorder,
+    host,
+    () => sessionId,
+    behavior.terminalCommand
+  );
   const scope = createScope({ label: `acp-fixture:${opts.providerId}` });
   const spawnContext = await host.resolveSpawnContext(opts.providerId);
   const spawn = behavior.buildSpawn({

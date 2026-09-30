@@ -23,7 +23,10 @@ export type NotificationType =
 /**
  * Normalised hook event produced by a plugin's parseHookEvent method.
  *
- * - kind: 'status'  — maps to an agent lifecycle event (start/stop/error/notification)
+ * - kind: 'status'  — maps to an agent lifecycle event (start/stop/error/notification).
+ *   May also carry `providerSessionId` when the provider includes its session id in
+ *   every hook payload; the runtime adopts it whenever it differs from the stored id,
+ *   so an in-session switch (Claude's `/resume`) is tracked without a dedicated event.
  * - kind: 'session' — carries a provider session id to persist on the conversation
  * - kind: 'ignore'  — event should be silently dropped
  */
@@ -35,6 +38,7 @@ export type CanonicalHookEvent =
       title?: string;
       message?: string;
       lastAssistantMessage?: string;
+      providerSessionId?: string;
     }
   | { kind: 'session'; providerSessionId: string }
   | { kind: 'ignore' };

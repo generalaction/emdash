@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
-import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { recordSpawn } from '@emdash/shared/perf';
+import type { CommandSpec } from '#primitives/exec/api';
 import {
   createChildProcessTreeTerminator,
   planExecutableLaunch,
+  planShellLaunch,
   toChildProcessLaunch,
   type FileExists,
   type ProcessTreeTerminator,
@@ -61,7 +62,12 @@ class ChildProcessHandle implements AcpProcessHandle {
   }
 }
 
-class ChildTerminalProcess extends EventEmitter implements AcpTerminalProcess {
+class ChildTerminalProcess implements AcpTerminalProcess {
+  readonly ready: Promise<void>;
+  private exitStatus: AcpTerminalExit | undefined;
+  private error: Error | undefined;
+  private readonly exitListeners: ((status: AcpTerminalExit) => void)[] = [];
+  private readonly errorListeners: ((error: Error) => void)[] = [];
   private _exitCode: number | null = null;
   private readonly terminator: ProcessTreeTerminator;
 
@@ -69,16 +75,25 @@ class ChildTerminalProcess extends EventEmitter implements AcpTerminalProcess {
     private readonly child: ReturnType<typeof spawn>,
     platform: NodeJS.Platform
   ) {
-    super();
     this.terminator = createChildProcessTreeTerminator(child, {
       platform,
       processGroup: platform !== 'win32',
     });
-    child.on('exit', (code, signal) => {
-      this._exitCode = code;
-      this.emit('exit', { exitCode: code, signal: signal ?? null } satisfies AcpTerminalExit);
+    // Own errors before yielding, including failures before the caller has a handle.
+    this.ready = new Promise<void>((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.on('error', (error) => {
+        this.error = error;
+        reject(error);
+        for (const listener of this.errorListeners) listener(error);
+      });
     });
-    child.on('error', (err) => this.emit('error', err));
+    // `close` follows stdio drainage; `exit` can precede the last output chunk.
+    child.once('close', (code, signal) => {
+      this._exitCode = code;
+      this.exitStatus = { exitCode: code, signal: signal ?? null };
+      for (const listener of this.exitListeners) listener(this.exitStatus);
+    });
   }
 
   get stdout() {
@@ -95,11 +110,13 @@ class ChildTerminalProcess extends EventEmitter implements AcpTerminalProcess {
   }
 
   onExit(cb: (status: AcpTerminalExit) => void): void {
-    this.on('exit', cb);
+    this.exitListeners.push(cb);
+    if (this.exitStatus) cb(this.exitStatus);
   }
 
   onError(cb: (err: Error) => void): void {
-    this.on('error', cb);
+    this.errorListeners.push(cb);
+    if (this.error) cb(this.error);
   }
 
   kill(signal?: NodeJS.Signals): Promise<void> {
@@ -154,24 +171,26 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
   }
 
   async spawnTerminal(spec: {
-    command: string;
-    args: string[];
+    command: CommandSpec;
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpTerminalProcess> {
     const platform = this.options.platform ?? process.platform;
-    const plan = planExecutableLaunch({
-      platform,
-      command: spec.command,
-      args: spec.args,
-      cwd: spec.cwd,
-      env: spec.env,
-      fileExists: this.options.fileExists,
-    });
-    const launch = toChildProcessLaunch(plan.invocation);
+    const invocation =
+      spec.command.kind === 'shell-line'
+        ? planShellLaunch({ platform, commandLine: spec.command.commandLine, env: spec.env })
+        : planExecutableLaunch({
+            platform,
+            command: spec.command.command,
+            args: spec.command.args,
+            cwd: spec.cwd,
+            env: spec.env,
+            fileExists: this.options.fileExists,
+          }).invocation;
+    const launch = toChildProcessLaunch(invocation);
     recordSpawn('agent', launch.executable);
     const child = spawn(launch.executable, launch.args, {
-      cwd: plan.cwd,
+      cwd: spec.cwd,
       detached: platform !== 'win32',
       env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -180,6 +199,8 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     if (!child.stdout) {
       throw new Error('ChildAcpProcessHost: failed to spawn terminal - no stdout stream');
     }
-    return new ChildTerminalProcess(child, platform);
+    const terminal = new ChildTerminalProcess(child, platform);
+    await terminal.ready;
+    return terminal;
   }
 }

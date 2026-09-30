@@ -197,7 +197,7 @@ describe('createFilesController', () => {
     }
   });
 
-  it('cannot follow an outside-parent symlink but deletes the link itself', async () => {
+  it('reads an outside-parent symlink and deletes only the link itself', async () => {
     const root = await makeRoot();
     const outside = await makeRoot();
     const outsideFile = path.join(outside, 'outside.txt');
@@ -213,7 +213,7 @@ describe('createFilesController', () => {
     try {
       await expect(
         connection.api.fs.readText({ path: runtimeRoot(path.join(root, 'outside-link')) })
-      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
+      ).resolves.toMatchObject({ success: true, data: { content: 'keep' } });
       await expect(
         connection.api.fs.delete({ path: runtimeRoot(path.join(root, 'outside-link')) })
       ).resolves.toMatchObject({ success: true });

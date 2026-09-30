@@ -186,7 +186,19 @@ export class WorkspacePlacementResolver {
     const cached = this.homeDirectories.get(key);
     if (cached) return cached;
 
-    const pending = this.queryHomeDirectory(host);
+    const discard = () => {
+      if (this.homeDirectories.get(key) === pending) this.homeDirectories.delete(key);
+    };
+    const pending = this.queryHomeDirectory(host).then(
+      (result) => {
+        if (!result.success) discard();
+        return result;
+      },
+      (error: unknown) => {
+        discard();
+        throw error;
+      }
+    );
     this.homeDirectories.set(key, pending);
     return pending;
   }

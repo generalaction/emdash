@@ -16,6 +16,7 @@ export type ResolvedEntryPath = {
 
 export type ResolvedFollowedPath = ResolvedEntryPath & {
   realPath: string;
+  outsideRoot: boolean;
 };
 
 export type ResolvedExistingEntryPath = ResolvedEntryPath & {
@@ -39,15 +40,17 @@ export class RootPathPolicy {
     return ok({ path: normalized.data, absolutePath });
   }
 
+  /** The root anchors the path; following an explicit symlink uses OS permissions. */
   async resolveFollowed(entryPath: string): Promise<Result<ResolvedFollowedPath, FsError>> {
     const entry = this.resolveEntry(entryPath);
     if (!entry.success) return entry;
     try {
       const canonical = await realpath(entry.data.absolutePath);
-      if (!containsPath(this.rootPath, canonical)) {
-        return err(invalidPath(entry.data.path, 'Path resolves outside the workspace root'));
-      }
-      return ok({ ...entry.data, realPath: canonical });
+      return ok({
+        ...entry.data,
+        realPath: canonical,
+        outsideRoot: !containsPath(this.rootPath, canonical),
+      });
     } catch (error) {
       return err(toFsError(error, entry.data.path));
     }

@@ -1,5 +1,6 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { NormalizedEvent } from '@emdash/core/runtimes/acp/api';
+import { AcpTranscriptParser } from '@emdash/core/runtimes/acp/api';
 import { describe, expect, it } from 'vitest';
 import { enrichClaudeUpdate, parseTaskNotification } from './acp-transform';
 
@@ -48,6 +49,56 @@ function makeRaw(meta?: Record<string, unknown>): SessionUpdate {
 // ── enrichClaudeUpdate ────────────────────────────────────────────────────────
 
 describe('enrichClaudeUpdate', () => {
+  it('preserves start/update provenance and content continuity through Agent enrichment', () => {
+    const p = new AcpTranscriptParser({
+      conversationId: 'claude-stream',
+      enrich: enrichClaudeUpdate,
+    });
+    const start: SessionUpdate = {
+      sessionUpdate: 'tool_call',
+      toolCallId: 'agent',
+      title: 'Investigate',
+      kind: 'other',
+      status: 'in_progress',
+      _meta: { claudeCode: { toolName: 'Agent' } },
+    };
+    const update: SessionUpdate = {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'agent',
+      status: 'completed',
+      _meta: { claudeCode: { toolName: 'Agent' } },
+    };
+    expect(enrichClaudeUpdate(makeToolCall(), start)).toMatchObject({
+      kind: 'subagent',
+      operation: 'start',
+    });
+    expect(enrichClaudeUpdate(makeToolUpdate(), update)).toMatchObject({
+      kind: 'subagent',
+      operation: 'update',
+    });
+    p.push(start, 0);
+    p.push({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hel' } }, 10);
+    p.push(update, 20);
+    p.push(
+      {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'child',
+        title: 'Read',
+        kind: 'read',
+        _meta: { claudeCode: { parentToolUseId: 'agent' } },
+      },
+      25
+    );
+    p.push({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'lo' } }, 30);
+    expect(
+      p.activeTurn?.items.filter((item) => item.kind === 'message').map((item) => item.text)
+    ).toEqual(['hello']);
+    p.endTurn(40);
+    p.push(update, 50);
+    expect(p.activeTurn).toBeNull();
+    expect(p.agents[0].launchTurnId).toBe(p.history[0].id);
+  });
+
   it('is identity for message kind', () => {
     const update: NormalizedEvent = {
       kind: 'message',

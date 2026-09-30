@@ -168,6 +168,113 @@ describe('state expose bridge', () => {
     await provider.dispose();
   });
 
+  it.each([
+    { status: 'stale', tagged: false },
+    { status: 'stale', tagged: true },
+    { status: 'loading', tagged: false },
+    { status: 'loading', tagged: true },
+  ] as const)(
+    'waits for publication of $status revisions (tagged=$tagged)',
+    async ({ status, tagged }) => {
+      const base = cell({ count: 0 });
+      const provider = expose(
+        contract,
+        { value: base },
+        {
+          mutations: {
+            async increment(context) {
+              const revision = base.set(
+                { count: context.input.by },
+                {
+                  status,
+                  mutationIds: tagged ? [context.mutationId] : undefined,
+                }
+              );
+              await context.observed('value', revision);
+              return ok<void>();
+            },
+          },
+        }
+      );
+      const lease = provider.acquireState({ id: 'one' }, 'value');
+      const source = await lease.ready();
+      const before = await source.snapshot();
+      let completed = false;
+      const resultPromise = provider
+        .runMutation('increment', {
+          key: { id: 'one' },
+          input: { by: 2 },
+          mutationId: 'm1',
+        })
+        .then((result) => {
+          completed = true;
+          return result;
+        });
+
+      try {
+        await settleAsync(20);
+        expect(completed).toBe(false);
+        expect((await source.snapshot()).data).toEqual({ count: 0 });
+
+        base.set({ count: 2 }, { status: 'live', mutationIds: ['m1'] });
+        const result = await resultPromise;
+        if (!result.success) throw new Error('Expected mutation success');
+        const published = await source.snapshot();
+        expect(published.data).toEqual({ count: 2 });
+        expect(result.data.cursors[0]?.cursor).toEqual({
+          generation: published.generation,
+          sequence: published.sequence,
+        });
+        expect(published.sequence).toBeGreaterThan(before.sequence);
+      } finally {
+        base.set({ count: 2 }, { status: 'live', mutationIds: ['m1'] });
+        await resultPromise;
+        await lease.release();
+        await provider.dispose();
+      }
+    }
+  );
+
+  it('settles an already published revision even when the current state is stale', async () => {
+    const base = cell({ count: 0 });
+    const provider = expose(
+      contract,
+      { value: base },
+      {
+        mutations: {
+          async increment(context) {
+            const revision = base.set(
+              { count: context.input.by },
+              { mutationIds: [context.mutationId] }
+            );
+            flushStateTurn();
+            base.set({ count: context.input.by }, { status: 'stale' });
+            await context.observed('value', revision);
+            return ok<void>();
+          },
+        },
+      }
+    );
+    const lease = provider.acquireState({ id: 'one' }, 'value');
+    const source = await lease.ready();
+    const result = await provider.runMutation('increment', {
+      key: { id: 'one' },
+      input: { by: 2 },
+      mutationId: 'm1',
+    });
+
+    if (!result.success) throw new Error('Expected mutation success');
+    const published = await source.snapshot();
+    expect(published.data).toEqual({ count: 2 });
+    expect(result.data.cursors[0]?.cursor).toEqual({
+      generation: published.generation,
+      sequence: published.sequence,
+    });
+    expect(snapshot(base).status).toBe('stale');
+    await lease.release();
+    await provider.dispose();
+  });
+
   it('dedupes duplicate mutation ids while the handler is in flight', async () => {
     const base = cell({ count: 0 });
     const release = deferred<void>();

@@ -18,6 +18,7 @@ export type WorkspaceRegistryWorkerSpecInput = {
     (typeof workspaceRegistryComponent)['requirements']
   >;
   databasePath: string;
+  attachmentsDir: string;
   watchIgnore?: string[];
 };
 
@@ -41,6 +42,7 @@ export function workspaceRegistryWorkerSpec(
       dependencies: input.dependencies,
       config: {
         databasePath: input.databasePath,
+        attachmentsDir: input.attachmentsDir,
         ...(input.watchIgnore ? { watchIgnore: input.watchIgnore } : {}),
       },
       shutdownGraceMs: 3_000,

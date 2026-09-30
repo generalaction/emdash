@@ -42,6 +42,98 @@ describe('buildStandardCommand', () => {
     expect(result.args).toEqual(['threads', 'continue', 'T-thread-1']);
   });
 
+  it('resumes with the captured provider session id when it differs from the emdash id', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'claude',
+        autoApprove: false,
+        sessionId: 'conversation-1',
+        providerSessionId: 'native-1',
+        isResuming: true,
+        model: '',
+      },
+      { resumeFlag: '--resume', sessionIdFlag: '--session-id' }
+    );
+
+    expect(result.args).toEqual(['--resume', 'native-1']);
+  });
+
+  it('resumes with the emdash session id when no provider session id was captured', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'claude',
+        autoApprove: false,
+        sessionId: 'conversation-1',
+        isResuming: true,
+        model: '',
+      },
+      { resumeFlag: '--resume', sessionIdFlag: '--session-id' }
+    );
+
+    expect(result.args).toEqual(['--resume', 'conversation-1']);
+  });
+
+  it('joins =-suffixed resume flags with the captured provider session id', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'agy',
+        autoApprove: false,
+        sessionId: 'conversation-1',
+        providerSessionId: 'native-1',
+        isResuming: true,
+        model: '',
+      },
+      {
+        resumeFlag: '--conversation=',
+        sessionIdFlag: '--conversation=',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '-c',
+      }
+    );
+
+    expect(result.args).toEqual(['--conversation=native-1']);
+  });
+
+  it('omits the session id flag on fresh spawns when sessionIdOnResumeOnly is set', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'agy',
+        autoApprove: false,
+        sessionId: 'conversation-1',
+        isResuming: false,
+        model: '',
+      },
+      {
+        resumeFlag: '--conversation=',
+        sessionIdFlag: '--conversation=',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '-c',
+      }
+    );
+
+    expect(result.args).toEqual([]);
+  });
+
+  it('falls back to resumeWithoutSessionFlag when no provider session id was captured', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'agy',
+        autoApprove: false,
+        sessionId: 'conversation-1',
+        isResuming: true,
+        model: '',
+      },
+      {
+        resumeFlag: '--conversation=',
+        sessionIdFlag: '--conversation=',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '-c',
+      }
+    );
+
+    expect(result.args).toEqual(['-c']);
+  });
+
   it('injects modelFlag when ctx.model is non-empty', () => {
     const result = buildStandardCommand(
       {

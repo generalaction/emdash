@@ -75,6 +75,9 @@ export const workspaceLifecycleSchema = z.object({
   steps: z.array(workspaceLifecycleStepSchema),
   /** Replay input for the copy-artifacts step; not part of the creation identity. */
   preservePatterns: z.array(z.string()),
+  previousScriptRuns: z
+    .partialRecord(z.enum(['prepare', 'setup', 'run', 'teardown']), z.string())
+    .optional(),
 });
 export type WorkspaceLifecycle = z.infer<typeof workspaceLifecycleSchema>;
 

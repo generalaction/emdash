@@ -19,7 +19,6 @@ export interface IssueProvider {
   readonly type: LinkedIssue['provider'];
   readonly capabilities: IssueProviderCapabilities;
 
-  isConfigured?(): Promise<boolean>;
   checkConnection(): Promise<ConnectionStatus>;
   listIssues(opts: IssueQueryOpts): Promise<IssueListResult>;
   searchIssues(opts: IssueSearchOpts): Promise<IssueListResult>;

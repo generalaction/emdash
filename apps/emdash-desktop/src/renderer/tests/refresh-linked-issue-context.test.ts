@@ -46,7 +46,12 @@ describe('refreshLinkedIssueContext', () => {
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(refreshedIssue);
     expect(mocks.getIssueContext).toHaveBeenCalledWith({
       provider: 'github',
-      options: { identifier: '#42', projectId: 'project-1' },
+      options: {
+        identifier: '#42',
+        projectId: 'project-1',
+        accountId: undefined,
+        issueUrl: issue.url,
+      },
     });
   });
 
@@ -58,7 +63,12 @@ describe('refreshLinkedIssueContext', () => {
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(refreshedIssue);
     expect(mocks.getIssueContext).toHaveBeenCalledWith({
       provider: 'linear',
-      options: { identifier: 'ENG-1201', projectId: 'project-1' },
+      options: {
+        identifier: 'ENG-1201',
+        projectId: 'project-1',
+        accountId: undefined,
+        issueUrl: issue.url,
+      },
     });
   });
 

@@ -251,6 +251,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
               modified={sides.modified}
               filePath={file.path}
               diffStyle={diffStyle}
+              revealFirstChange={false}
               onHeightChange={setContentHeight}
             />
           )}

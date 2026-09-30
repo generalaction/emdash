@@ -2,8 +2,11 @@
 
 ## Main Files
 
-- `src/main/core/updates/update-service.ts`
-- `src/main/core/updates/controller.ts`
+- `src/main/host/updates/update-service.ts`
+- `src/core/features/updates/node/wire-controller.ts`
+- `src/core/features/updates/browser/update-store.tsx`
+- `src/core/features/settings/browser/components/UpdateCard.tsx`
+- `packages/ui/src/react/components/update-card/` (repo-relative)
 - `build/`
 - `package.json`
 - `electron-builder.config.ts`
@@ -21,6 +24,27 @@
 - avoid changing updater defaults casually
 - treat signing, notarization, packaging targets, and native rebuild flow as release-critical
 - keep build output directories and packaging config stable unless the task is explicitly about release behavior
+
+## Download Lifecycle
+
+The main-process update service owns the transfer. `downloadUpdate()` accepts a start request
+synchronously and retains the background promise; Wire returns the current state without waiting
+for the archive. Duplicate requests during downloading, downloaded, or installing are successful
+no-ops. Checks must not overwrite those states. Electron's progress, completion, and error events
+drive the renderer; a request timeout alone does not mean the transfer failed.
+
+The shared update card receives explicit downloading/installing states and progress. Component-local
+pending state covers only request acknowledgement. Do not derive transfer progress from the lifetime
+of a button callback: downloads can start from the sidebar, toast, or recovery window, and continue
+while Settings is unmounted. State snapshots must not replace newer events received while awaiting
+the response.
+
+Error summaries wrap below the card description. Full sanitized diagnostics are preserved separately
+for the Details disclosure and Copy details action; summaries and updater log messages remain bounded.
+
+Regression coverage lives in `src/main/host/updates/update-service.test.ts`,
+`src/main/host/updates/utils.test.ts`, `src/renderer/tests/update-flow.test.ts`, and the shared card's
+tests and Storybook states.
 
 ## Update Feed / Publishing Strategy
 

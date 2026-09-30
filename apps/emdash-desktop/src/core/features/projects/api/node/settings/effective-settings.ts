@@ -1,17 +1,16 @@
 import { log } from '@emdash/shared/logger';
 import { eq } from 'drizzle-orm';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
   resolveEffectiveSettings,
   type EffectiveSettings,
   type PlacementContext,
   type RepoFacts,
   type StoredProjectGitSettings,
+  type StoredIntegrationAccounts,
 } from '@core/primitives/project-settings/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
-import { legacyBaseProjectSettingsSchema } from '../../../node/settings/migrations/legacy-stored-project-settings';
-import { migrateStoredBaseProjectSettings } from '../../../node/settings/migrations/stored-settings';
+import { readStoredProjectSettings } from '../../../node/settings/migrations/stored-settings';
 
 /**
  * The per-project repo-facts cache surface (spec: github-git-settings §2):
@@ -31,12 +30,6 @@ export type ProjectEffectiveSettingsSource = {
 export type ResolveProjectEffectiveSettingsOptions = {
   settings: ProjectEffectiveSettingsSource;
   repoFacts: RepoFactsSource;
-  /**
-   * Connected GitHub accounts for the account chain. Callers that only read
-   * remotes/branches may omit this; the resolved `githubAccount` is
-   * meaningless then and must not be consumed.
-   */
-  accounts?: GitHubAccountSummary[];
   /** Included in degrade warnings. */
   projectId?: string;
 };
@@ -45,8 +38,8 @@ export type ResolveProjectEffectiveSettingsOptions = {
  * Node-side entry to the blessed resolver (spec: github-git-settings §2):
  * every execution flow resolves effective values through this seam — stored
  * choices from the one settings provider, live facts from the per-project
- * repo-facts cache, accounts from the provider-account registry. No fallback
- * literals or ad-hoc default-account lookups may exist outside of it.
+ * repo-facts cache. Remote, branch, and placement fallback policy belongs
+ * in the shared resolver.
  *
  * Broken settings degrade inside the resolver (stale remote/branch → inferred
  * fallback) and are logged here once, so every flow warns consistently.
@@ -67,8 +60,7 @@ export async function resolveProjectEffectiveSettings(
       homeDirectory: placementContext.homeDirectory,
       pathProfile: placementContext.pathProfile,
     },
-    facts ?? { remotes: [], localBranches: [] },
-    options.accounts ?? []
+    facts ?? { remotes: [], localBranches: [] }
   );
   warnAboutBrokenSettings(effective, options.projectId);
   return effective;
@@ -96,8 +88,13 @@ export function storedGitSettingsFromRow(
   baseProjectSettingsJson: string,
   repoFacts: RepoFacts | null
 ): StoredProjectGitSettings {
-  const raw = legacyBaseProjectSettingsSchema.parse(JSON.parse(baseProjectSettingsJson));
-  return migrateStoredBaseProjectSettings(raw, repoFacts).next;
+  const {
+    integrationAccounts: _accounts,
+    tmux: _tmux,
+    tmuxDefaultMigrated: _migration,
+    ...git
+  } = readStoredProjectSettings(baseProjectSettingsJson, repoFacts);
+  return git;
 }
 
 /**
@@ -126,4 +123,16 @@ export async function loadStoredGitSettings(
     });
     return {};
   }
+}
+
+export async function loadStoredIntegrationAccounts(
+  db: AppDb,
+  projectId: string
+): Promise<StoredIntegrationAccounts> {
+  const [row] = await db
+    .select({ base: projectSettings.baseProjectSettingsJson })
+    .from(projectSettings)
+    .where(eq(projectSettings.projectId, projectId))
+    .limit(1);
+  return row ? (readStoredProjectSettings(row.base).integrationAccounts ?? {}) : {};
 }

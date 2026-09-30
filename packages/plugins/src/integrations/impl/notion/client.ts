@@ -33,6 +33,7 @@ export async function verifyNotionCredentials(
     const displayName = user.name ?? (user.type === 'bot' ? 'Notion bot' : 'Notion user');
     const displayDetail = user.type === 'person' ? user.person.email : undefined;
     return ok({
+      account: { id: user.id },
       displayName,
       ...(displayDetail ? { displayDetail } : {}),
       credentials: credentials.data,

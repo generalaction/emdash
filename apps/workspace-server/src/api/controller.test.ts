@@ -33,16 +33,16 @@ describe('createWorkspaceWireController', () => {
     const wireClient = createClient(workspaceWireContract, connect(transport));
 
     try {
-      const result = await wireClient.acp.launch({
+      const result = await wireClient.acp.startSession({
+        mode: 'fresh',
         conversationId: 'conversation-1',
         providerId: 'codex',
         cwd: '/tmp/project',
         sessionId: null,
-        model: null,
       });
 
       expect(result).toEqual(ok({ sessionId: 'acp-session-1' }));
-      expect(acp.launch).toHaveBeenCalledWith(
+      expect(acp.startSession).toHaveBeenCalledWith(
         expect.objectContaining({ conversationId: 'conversation-1' }),
         expect.any(Object)
       );
@@ -52,12 +52,13 @@ describe('createWorkspaceWireController', () => {
     }
   });
 
-  it('disables the worker deadline for the turn-long ACP prompt call', async () => {
+  it('disables the worker deadline while activating the ACP session for prompt acceptance', async () => {
     const acp = createFakeAcpClient();
     const controller = createTestWorkspaceWireController({ acp });
     const signal = new AbortController().signal;
     const input = {
       conversationId: 'conversation-1',
+      promptId: '00000000-0000-4000-8000-000000000001',
       prompt: { text: 'hello' },
     };
 
@@ -89,7 +90,7 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
 
   return {
     attach: vi.fn(),
-    launch: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
+    startSession: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
     terminate: vi.fn(),
     sendPrompt: vi.fn(async () => ok({ queued: false })),
     editQueuedPrompt: vi.fn(),
@@ -100,10 +101,6 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
     resolvePermission: vi.fn(),
     exportAcpTranscript: vi.fn(),
     exportRawAcpLog: vi.fn(),
-    uploadAttachment: vi.fn(),
-    downloadAttachment: vi.fn(),
-    deleteAttachment: vi.fn(),
-    purgeConversationData: vi.fn(),
     loadHistory: vi.fn(),
     sessions: liveModel(workspaceWireContract.acp.sessions),
     session: liveModel(workspaceWireContract.acp.session),

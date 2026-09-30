@@ -8,7 +8,7 @@ import { tasks } from '@core/services/app-db/node/schema';
 
 export async function archiveTask(
   db: AppDb,
-  taskSessionManager: Pick<TaskSessionManager, 'forceRemoveTask' | 'teardownTask'>,
+  taskSessionManager: Pick<TaskSessionManager, 'teardownTask'>,
   projectId: string,
   taskId: string,
   telemetry: Pick<TelemetryService, 'capture'>
@@ -33,19 +33,14 @@ export async function archiveTask(
   // 'archive' reaps the tmux session + agent process but keeps the worktree and the
   // persisted session id, so Restore can resume. Plain 'detach' would leak the tmux
   // session indefinitely (#2689).
-  const teardownResult = await taskSessionManager.teardownTask(taskId, 'archive').catch((e) => {
-    log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
-    return null;
-  });
+  const teardownResult = await taskSessionManager
+    .teardownTask(taskId, 'archive', task.workspaceId ?? undefined)
+    .catch((e) => {
+      log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
+      return null;
+    });
 
   if (teardownResult && !teardownResult.success) {
     log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
-  }
-
-  if (!teardownResult || !teardownResult.success) {
-    await taskSessionManager.forceRemoveTask(
-      taskId,
-      'archiveTask continued after teardown failure'
-    );
   }
 }

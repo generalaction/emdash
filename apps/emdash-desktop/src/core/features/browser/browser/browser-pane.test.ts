@@ -105,6 +105,63 @@ describe('BrowserPane', () => {
     expect(loadURL).not.toHaveBeenCalled();
   });
 
+  it('keeps the healthy page mounted when an iframe fails to load', async () => {
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      initialUrl: 'http://localhost:3000/',
+    });
+
+    await act(async () => {
+      root.render(
+        React.createElement(BrowserPane, { browserId: session.browserId, visible: true })
+      );
+    });
+
+    const webview = container.querySelector<HTMLElement>('webview')!;
+    Object.assign(webview, {
+      canGoBack: () => false,
+      canGoForward: () => false,
+      getTitle: () => 'Healthy parent',
+      getURL: () => 'http://localhost:3000/',
+      getWebContentsId: () => 123,
+      setZoomFactor: vi.fn(),
+    });
+
+    await act(async () => {
+      webview.dispatchEvent(new Event('dom-ready'));
+      webview.dispatchEvent(new Event('did-start-loading'));
+      webview.dispatchEvent(
+        Object.assign(new Event('did-navigate'), { url: 'http://localhost:3000/' })
+      );
+    });
+    await act(async () => {
+      webview.dispatchEvent(
+        Object.assign(new Event('did-fail-load'), {
+          errorCode: -102,
+          errorDescription: 'ERR_CONNECTION_REFUSED',
+          validatedURL: 'http://localhost:3001/missing-frame',
+          isMainFrame: false,
+        })
+      );
+    });
+
+    expect(container.querySelector('webview')).toBe(webview);
+
+    await act(async () => webview.dispatchEvent(new Event('did-stop-loading')));
+
+    expect(container.querySelector('webview')).toBe(webview);
+    expect(container.querySelector('h1')).toBeNull();
+    expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+      currentUrl: 'http://localhost:3000/',
+      title: 'Healthy parent',
+      isLoading: false,
+      loadError: undefined,
+    });
+  });
+
   it('renders a minimal load error state', async () => {
     const session = browserSessionStore.createSession({
       browserId: 'browser-1',

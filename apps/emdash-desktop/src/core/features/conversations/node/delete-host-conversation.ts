@@ -4,6 +4,7 @@ import { createConversationRegistry } from '@core/features/conversations/api/nod
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
+import { conversationWireEvents } from './event-host';
 import { removeConversationOrTombstone } from './remove-conversation';
 
 /**
@@ -25,6 +26,14 @@ export async function deleteHostConversation(
   await removeConversationOrTombstone(db, runtimes, row);
 
   conversationEvents._emit('conversation:deleted', conversationId);
+  if (row.projectId !== null && row.taskId !== null) {
+    conversationWireEvents.emit(undefined, {
+      type: 'deleted',
+      conversationId,
+      projectId: row.projectId,
+      taskId: row.taskId,
+    });
+  }
   appDbPokes.conversations.poke({
     projectId: row.projectId ?? undefined,
     taskId: row.taskId ?? undefined,

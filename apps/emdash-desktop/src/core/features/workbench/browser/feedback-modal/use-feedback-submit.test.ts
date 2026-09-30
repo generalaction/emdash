@@ -7,14 +7,14 @@ describe('buildFeedbackContent', () => {
     const content = buildFeedbackContent({
       feedback: 'Great app',
       contactEmail: 'person@example.com',
-      githubUser: { login: 'octocat', name: 'Octo Cat' },
+      githubLogin: 'octocat',
       appVersion: '1.2.3',
       platformDisplayName: 'macOS 15.5 (arm64)',
     });
 
     expect(content).toContain('Great app');
     expect(content).toContain('Contact: person@example.com');
-    expect(content).toContain('GitHub: Octo Cat (@octocat)');
+    expect(content).toContain('GitHub: @octocat');
     expect(content).toContain('Emdash Version: 1.2.3');
     expect(content).toContain('Platform: macOS 15.5 (arm64)');
   });
@@ -23,7 +23,7 @@ describe('buildFeedbackContent', () => {
     const content = buildFeedbackContent({
       feedback: 'Something broke',
       contactEmail: '',
-      githubUser: null,
+      githubLogin: null,
       appVersion: '1.2.3',
       includeDiagnosticLogs: true,
     });
@@ -35,7 +35,7 @@ describe('buildFeedbackContent', () => {
     const content = buildFeedbackContent({
       feedback: 'Something broke',
       contactEmail: '',
-      githubUser: null,
+      githubLogin: null,
       appVersion: '1.2.3',
     });
 
@@ -46,7 +46,7 @@ describe('buildFeedbackContent', () => {
     const content = buildFeedbackContent({
       feedback: 'Needs improvement',
       contactEmail: '   ',
-      githubUser: null,
+      githubLogin: null,
       appVersion: '',
     });
 

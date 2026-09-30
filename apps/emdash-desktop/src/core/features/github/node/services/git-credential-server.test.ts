@@ -1,7 +1,7 @@
-import type { Result } from '@emdash/shared';
 import { err, ok } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { Resolved } from '@core/primitives/project-settings/api';
 import { GitCredentialServer } from './git-credential-server';
@@ -9,6 +9,8 @@ import { GitCredentialServer } from './git-credential-server';
 const SECRET_TOKEN = 'ghp_SECRET_TOKEN_MATERIAL_do_not_leak';
 
 const account: GitHubAccountSummary = {
+  providerId: 'github',
+  displayName: '@octocat',
   accountId: 'account-1',
   host: 'github.com',
   login: 'octocat',
@@ -21,7 +23,7 @@ function makeHarness(
   options: {
     resolution?: Resolved<GitHubAccountSummary | null>;
     accounts?: GitHubAccountSummary[];
-    tokenResult?: Result<string, unknown>;
+    credentialsResult?: Awaited<ReturnType<ReadGitHubCredentials>>;
   } = {}
 ) {
   const logLines: string[] = [];
@@ -34,14 +36,22 @@ function makeHarness(
     error: record,
     debug: record,
   } as unknown as Logger;
+  const readCredentials = vi.fn<ReadGitHubCredentials>(
+    async () =>
+      options.credentialsResult ??
+      ok({ accessToken: SECRET_TOKEN, apiBaseUrl: 'https://api.github.com' })
+  );
   const server = new GitCredentialServer({
-    resolveProjectGitHubAccount: async () =>
-      options.resolution ?? { value: account, provenance: { kind: 'set' } },
+    resolveProjectIntegrationAccount: async () => ({
+      ...(options.resolution ?? { value: account, provenance: { kind: 'set' as const } }),
+      accounts: options.accounts ?? [account],
+      contextKey: '',
+    }),
     listAccounts: async () => options.accounts ?? [account],
-    getToken: async () => options.tokenResult ?? ok(SECRET_TOKEN),
+    readCredentials,
     logger,
   });
-  return { server, logLines };
+  return { server, logLines, readCredentials };
 }
 
 async function requestCredential(
@@ -69,11 +79,12 @@ describe('GitCredentialServer', () => {
   }
 
   it('answers a project-session get with the effective account credentials', async () => {
-    const { server } = track(makeHarness());
+    const { server, readCredentials } = track(makeHarness());
     const channel = await server.mintSession({ kind: 'project', projectId: 'project-1' });
 
     const result = await requestCredential(channel, 'protocol=https\nhost=github.com\n');
     expect(result.status).toBe(200);
+    expect(readCredentials).toHaveBeenCalledWith('account-1', 'github.com');
     expect(result.text).toBe(`username=octocat\npassword=${SECRET_TOKEN}\n`);
     // The channel handle itself carries no token material.
     expect(JSON.stringify(channel)).not.toContain(SECRET_TOKEN);
@@ -114,16 +125,29 @@ describe('GitCredentialServer', () => {
   });
 
   it('fails closed when token resolution errors (stale pin)', async () => {
-    const { server } = track(makeHarness({ tokenResult: err({ type: 'host-mismatch' }) }));
+    const { server } = track(
+      makeHarness({
+        credentialsResult: err({
+          type: 'account_not_found',
+          host: 'github.com',
+          accountId: 'account-1',
+          message: 'Account removed',
+        }),
+      })
+    );
     const channel = await server.mintSession({ kind: 'project', projectId: 'project-1' });
 
     const result = await requestCredential(channel, 'protocol=https\nhost=github.com\n');
     expect(result.status).toBe(404);
   });
 
-  it('answers host sessions with the default account for that host only', async () => {
+  it('answers account sessions only for their selected account and host', async () => {
     const { server } = track(makeHarness());
-    const channel = await server.mintSession({ kind: 'host', host: 'github.com' });
+    const channel = await server.mintSession({
+      kind: 'account',
+      accountId: 'account-1',
+      host: 'github.com',
+    });
 
     const match = await requestCredential(channel, 'protocol=https\nhost=github.com\n');
     expect(match.status).toBe(200);
@@ -139,5 +163,33 @@ describe('GitCredentialServer', () => {
     await requestCredential(channel, 'protocol=https\nhost=github.com\n', 'wrong');
 
     expect(harness.logLines.join('\n')).not.toContain(SECRET_TOKEN);
+  });
+
+  it('keeps an operation bound to its selected account through default changes and removal', async () => {
+    const selected = { ...account, accountId: 'selected-work', isDefault: false };
+    const inventory = [account, selected];
+    const { server, readCredentials } = track(makeHarness({ accounts: inventory }));
+    const channel = await server.mintSession({
+      kind: 'account',
+      host: 'github.com',
+      accountId: selected.accountId,
+    });
+    expect((await requestCredential(channel, 'protocol=https\nhost=github.com\n')).status).toBe(
+      200
+    );
+    expect(readCredentials).toHaveBeenLastCalledWith('selected-work', 'github.com');
+
+    inventory[0] = { ...account, accountId: 'new-default' };
+    expect((await requestCredential(channel, 'protocol=https\nhost=github.com\n')).status).toBe(
+      200
+    );
+    expect(readCredentials).toHaveBeenLastCalledWith('selected-work', 'github.com');
+
+    inventory.pop();
+    readCredentials.mockClear();
+    expect((await requestCredential(channel, 'protocol=https\nhost=github.com\n')).status).toBe(
+      404
+    );
+    expect(readCredentials).not.toHaveBeenCalled();
   });
 });

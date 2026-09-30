@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { createController, type ContractClient } from '@emdash/wire/rpc';
+import { createController, WireError, type ContractClient } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import { defineWireComponent } from '@emdash/wire/worker';
 import { describe, expect, it, vi } from 'vitest';
@@ -78,7 +78,42 @@ describe('createPullRequestListView', () => {
 });
 
 describe('PullRequestsStore', () => {
+  it('joins local history requests and cancels only the selected caller-owned operation', async () => {
+    const h = historyHarness();
+    const first = h.store.refreshHistory(repositoryUrl);
+    const duplicate = h.store.refreshHistory('git@github.com:emdash/emdash.git');
+    expect(duplicate).toBe(first);
+    expect(h.refreshHistory).toHaveBeenCalledTimes(1);
+    expect(h.store.canCancelHistory(repositoryUrl)).toBe(true);
+
+    const otherRepository = 'https://github.com/emdash/other';
+    const other = h.store.refreshHistory(otherRepository);
+    const cancelled = expect(first).rejects.toMatchObject({ code: 'CANCELLED' });
+    h.store.cancelHistory(repositoryUrl);
+    expect(h.store.canCancelHistory(repositoryUrl)).toBe(false);
+    expect(h.pending.get(otherRepository)?.signal.aborted).toBe(false);
+    await cancelled;
+    h.pending.get(otherRepository)?.resolve(ok());
+    await other;
+    expect(h.store.canCancelHistory(otherRepository)).toBe(false);
+    expect(h.refreshRepository).not.toHaveBeenCalled();
+    await h.store.dispose();
+  });
+
+  it('aborts locally owned history requests on disposal', async () => {
+    const h = historyHarness();
+    const pending = h.store.refreshHistory(repositoryUrl);
+    const cancelled = expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    await h.store.dispose();
+    await cancelled;
+    expect(h.pending.get(repositoryUrl)?.signal.aborted).toBe(true);
+    expect(h.store.canCancelHistory(repositoryUrl)).toBe(false);
+    await expect(h.store.refreshHistory(repositoryUrl)).rejects.toThrow('disposed');
+    expect(h.refreshHistory).toHaveBeenCalledTimes(1);
+  });
+
   it('reloads the list exactly once when sync-backed data changes', async () => {
+    const refreshRepository = vi.fn(() => ok(undefined));
     const scope = createScope({ label: 'pull-requests-browser-test' });
     const syncCells = new Map<string, Cell<SyncState>>();
     const testComponent = defineWireComponent({
@@ -91,6 +126,18 @@ describe('PullRequestsStore', () => {
           state: (key) => syncCell(syncCells, key.repositoryUrl),
         });
         componentScope.add(() => syncState.dispose());
+        const details = expose(pullRequestsContract.details, {
+          state: () =>
+            cell({
+              pr: null,
+              comments: [],
+              commentsFetchedAt: null,
+              refreshing: false,
+              stale: true,
+              errors: {},
+            }),
+        });
+        componentScope.add(() => details.dispose());
         syncCell(syncCells, repositoryUrl);
         return instance({
           scope: componentScope,
@@ -106,17 +153,15 @@ describe('PullRequestsStore', () => {
             getPullRequestsForHead: () => ok({ prs: [] }),
             registerRepository: () => ok(),
             unregisterRepository: () => ok(),
-            sync: () => ok(),
-            forceFullSync: () => ok(),
-            syncSingle: () => ok({ pr: pullRequestFixture() }),
-            syncChecks: () => ok({ hasRunning: false }),
-            cancelSync: () => ok(),
+            refreshRepository,
+            refreshHistory: () => ok(),
+            refreshPullRequest: () => ok(),
             createPullRequest: () => ok({ url: `${repositoryUrl}/pull/1`, number: 1 }),
             mergePullRequest: () => ok({ sha: null, merged: true }),
             markReadyForReview: () => ok(),
             getPullRequestFiles: () => ok({ files: [] }),
-            getPullRequestComments: () => ok({ comments: [] }),
             syncState,
+            details,
           }),
         });
       },
@@ -128,18 +173,20 @@ describe('PullRequestsStore', () => {
     });
     const store = new PullRequestsStore(component.client, [repositoryUrl]);
     await store.ready;
+    expect(refreshRepository).not.toHaveBeenCalled();
     const reload = vi.spyOn(store, 'reload').mockResolvedValue();
 
     syncCell(syncCells, repositoryUrl).set({
       phase: 'running',
-      kind: 'incremental',
+      kind: 'repository',
       synced: 0,
     });
     syncCell(syncCells, repositoryUrl).set({
       phase: 'idle',
-      kind: 'incremental',
+      kind: 'repository',
       synced: 1,
       lastSyncedAt: 1,
+      revision: 1,
     });
 
     await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
@@ -152,6 +199,7 @@ describe('PullRequestsStore', () => {
   });
 
   it('ignores stale filter options after repositories change', async () => {
+    const refreshRepository = vi.fn(() => ok(undefined));
     const secondRepositoryUrl = 'https://github.com/emdash/second';
     const scope = createScope({ label: 'pull-requests-filter-race-test' });
     type FilterOptionsResult = Awaited<
@@ -184,6 +232,18 @@ describe('PullRequestsStore', () => {
           state: (key) => syncCell(syncCells, key.repositoryUrl),
         });
         componentScope.add(() => syncState.dispose());
+        const details = expose(pullRequestsContract.details, {
+          state: () =>
+            cell({
+              pr: null,
+              comments: [],
+              commentsFetchedAt: null,
+              refreshing: false,
+              stale: true,
+              errors: {},
+            }),
+        });
+        componentScope.add(() => details.dispose());
         syncCell(syncCells, repositoryUrl);
         syncCell(syncCells, secondRepositoryUrl);
         return instance({
@@ -195,17 +255,15 @@ describe('PullRequestsStore', () => {
             getPullRequestsForHead: () => ok({ prs: [] }),
             registerRepository: () => ok(),
             unregisterRepository: () => ok(),
-            sync: () => ok(),
-            forceFullSync: () => ok(),
-            syncSingle: () => ok({ pr: pullRequestFixture() }),
-            syncChecks: () => ok({ hasRunning: false }),
-            cancelSync: () => ok(),
+            refreshRepository,
+            refreshHistory: () => ok(),
+            refreshPullRequest: () => ok(),
             createPullRequest: () => ok({ url: `${repositoryUrl}/pull/1`, number: 1 }),
             mergePullRequest: () => ok({ sha: null, merged: true }),
             markReadyForReview: () => ok(),
             getPullRequestFiles: () => ok({ files: [] }),
-            getPullRequestComments: () => ok({ comments: [] }),
             syncState,
+            details,
           }),
         });
       },
@@ -220,6 +278,7 @@ describe('PullRequestsStore', () => {
 
     store.setRepositoryUrls([secondRepositoryUrl]);
     await vi.waitFor(() => expect(pending.has(secondRepositoryUrl)).toBe(true));
+    expect(refreshRepository).not.toHaveBeenCalled();
     pending.get(secondRepositoryUrl)!();
     await vi.waitFor(() =>
       expect(store.filterOptions.labels).toEqual([{ name: secondRepositoryUrl, color: null }])
@@ -232,6 +291,33 @@ describe('PullRequestsStore', () => {
     await component.dispose();
   });
 });
+
+function historyHarness() {
+  type HistoryResult = Awaited<ReturnType<ContractClient<PullRequestsContract>['refreshHistory']>>;
+  const pending = new Map<
+    string,
+    { signal: AbortSignal; resolve: (result: HistoryResult) => void }
+  >();
+  const refreshHistory = vi.fn(
+    ({ repositoryUrl }: { repositoryUrl: string }, { signal }: { signal: AbortSignal }) =>
+      new Promise<HistoryResult>((resolve, reject) => {
+        pending.set(repositoryUrl, { signal, resolve });
+        signal.addEventListener(
+          'abort',
+          () => reject(new WireError('CANCELLED', 'History refresh cancelled')),
+          { once: true }
+        );
+      })
+  );
+  const refreshRepository = vi.fn(async () => ok());
+  const client = {
+    refreshHistory,
+    refreshRepository,
+    syncState: {},
+  } as unknown as ContractClient<PullRequestsContract>;
+  const store = new PullRequestsStore(client, []);
+  return { store, refreshHistory, refreshRepository, pending };
+}
 
 function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
   return {

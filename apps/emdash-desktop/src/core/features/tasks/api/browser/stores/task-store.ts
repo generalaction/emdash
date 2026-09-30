@@ -62,8 +62,10 @@ export class TaskStore implements TaskState {
   workspaceLifecycle: WorkspaceLifecycleStepInfo[] | null = null;
   /** Observed PR-association facts (mirror observedGit v2); null when unobserved. */
   workspaceObservedPr: WorkspaceObservedPrFacts | null = null;
+  private readonly scopedStoreContext: TaskScopedStoreContext;
   private persistentStores: ScopedStoreHost<TaskScopedStoreContext>;
-  private stores: ScopedStoreHost<TaskScopedStoreContext>;
+  private stores: ScopedStoreHost<TaskScopedStoreContext> | undefined;
+  private disposed = false;
 
   get displayName(): string {
     return this.data.name;
@@ -88,7 +90,10 @@ export class TaskStore implements TaskState {
     this.state = state;
     this.data = state === 'unregistered' ? data : withoutPullRequests(data as Task);
     this.phase = phase;
-    makeAutoObservable<TaskStore, 'persistentStores' | 'stores'>(this, {
+    makeAutoObservable<
+      TaskStore,
+      'disposed' | 'persistentStores' | 'scopedStoreContext' | 'stores'
+    >(this, {
       workspaceId: observable,
       workspacePath: observable,
       workspaceSshConnectionId: observable,
@@ -97,15 +102,20 @@ export class TaskStore implements TaskState {
       workspaceCreateOutcome: observable,
       workspaceLifecycle: observable,
       workspaceObservedPr: observable,
+      disposed: false,
       persistentStores: false,
+      scopedStoreContext: false,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
     });
-    const context = { projectId, taskId: data.id, task: this, projectStores };
-    this.persistentStores = new ScopedStoreHost(context, taskPersistentStoreContributions);
+    this.scopedStoreContext = { projectId, taskId: data.id, task: this, projectStores };
+    this.persistentStores = new ScopedStoreHost(
+      this.scopedStoreContext,
+      taskPersistentStoreContributions
+    );
     try {
-      this.stores = new ScopedStoreHost(context, taskStoreContributions);
+      this.stores = this.createOperationalStores();
     } catch (error) {
       this.persistentStores.dispose();
       throw error;
@@ -134,11 +144,22 @@ export class TaskStore implements TaskState {
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {
     if (this.persistentStores.has(token)) return this.persistentStores.get(token);
+    if (!this.stores) {
+      throw new Error(`Task scoped store '${token.id}' is unavailable while the task is archived`);
+    }
     return this.stores.get(token);
   }
 
   ready(): Promise<void> {
-    return this.stores.ready();
+    this.restoreOperationalStores();
+    return this.stores!.ready();
+  }
+
+  /** Recreates session-lifetime stores after an archived task becomes active again. */
+  restoreOperationalStores(): void {
+    if (this.disposed) throw new Error('TaskStore is disposed');
+    if (this.stores) return;
+    this.stores = this.createOperationalStores();
   }
 
   transitionToProvisioned(
@@ -185,7 +206,8 @@ export class TaskStore implements TaskState {
     data: Task | RegisteredTaskData,
     phase: UnprovisionedTaskPhase = 'idle'
   ): void {
-    this.stores.dispose();
+    this.stores?.dispose();
+    this.stores = undefined;
     this.workspaceId = null;
     this.workspacePath = null;
     this.workspaceSshConnectionId = undefined;
@@ -206,11 +228,15 @@ export class TaskStore implements TaskState {
   }
 
   activate(): void {
-    this.stores.activate();
+    this.restoreOperationalStores();
+    this.stores!.activate();
   }
 
   dispose(): void {
-    this.stores.dispose();
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stores?.dispose();
+    this.stores = undefined;
     this.persistentStores.dispose();
     this.workspaceId = null;
     this.workspacePath = null;
@@ -273,6 +299,10 @@ export class TaskStore implements TaskState {
       log.error(e);
       throw e;
     }
+  }
+
+  private createOperationalStores(): ScopedStoreHost<TaskScopedStoreContext> {
+    return new ScopedStoreHost(this.scopedStoreContext, taskStoreContributions);
   }
 }
 

@@ -1,8 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { LiveLogSource } from '@emdash/wire/live';
 import type {
-  AcpAttachmentError,
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
   AcpDeleteQueuedPromptError,
@@ -10,21 +10,16 @@ import type {
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpLoadHistoryError,
-  AcpPurgeConversationDataError,
   AcpResolvePermissionError,
   AcpSendPromptError,
-  AcpSetOptionError,
-  AcpStartError,
+  AcpSessionStartMode,
   AcpTerminateError,
-  AttachmentMimeType,
-  AttachmentRef,
-  LoadHistoryResult,
+  HistoryPage,
   PromptInput,
   PromptPlacement,
   SessionState,
   TerminalState,
 } from '#runtimes/acp/api';
-import { acpErr } from '#runtimes/acp/api';
 import { buildAgentClient } from '#runtimes/acp/node/agent-ports/agent-client';
 import { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
@@ -34,8 +29,7 @@ import {
   type AcpConnectionSource,
 } from '#runtimes/acp/node/connection/source';
 import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
-import type { StoredAttachment } from './attachment-store';
-import { SessionManager, type AcpWakeFailure } from './session-manager';
+import { SessionManager } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
@@ -72,12 +66,15 @@ export class AcpRuntime {
     this.manager = manager;
   }
 
-  attachSession(input: AcpStartInput): Promise<Result<void, AcpStartError>> {
+  attachSession(input: AcpStartInput): ReturnType<SessionManager['attach']> {
     return this.manager.attach(input);
   }
 
-  launchSession(input: AcpStartInput): ReturnType<SessionManager['launch']> {
-    return this.manager.launch(input);
+  startSession(
+    input: AcpStartInput,
+    mode: AcpSessionStartMode
+  ): ReturnType<SessionManager['startSession']> {
+    return this.manager.startSession(input, mode);
   }
 
   /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
@@ -96,9 +93,10 @@ export class AcpRuntime {
   sendPrompt(
     conversationId: string,
     prompt: PromptInput,
-    placement?: PromptPlacement
-  ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
-    return this.manager.prompt({ conversationId, prompt, placement });
+    placement?: PromptPlacement,
+    promptId: string = randomUUID()
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+    return this.manager.sendPrompt({ conversationId, prompt, placement, promptId });
   }
 
   editQueuedPrompt(
@@ -132,29 +130,16 @@ export class AcpRuntime {
     return this.manager.resolvePermission(conversationId, requestId, optionId);
   }
 
-  setOption(
-    conversationId: string,
-    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
-    value: string
-  ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
-    return key === 'mode'
-      ? this.manager.setMode(conversationId, value)
-      : this.manager.setConfigOption(conversationId, key, value);
+  setOption(conversationId: string, configId: string, value: string | boolean) {
+    return this.manager.setOption(conversationId, configId, value);
   }
 
   async loadHistory(
     conversationId: string,
     before?: number,
     limit?: number
-  ): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
-    const activation = await this.manager.ensureActivation(conversationId);
-    if (!activation.success) return activation;
-    return ok({
-      ...this.manager.getHistory(conversationId, before, limit),
-      ...(activation.data.clearedConfiguration && {
-        clearedConfiguration: activation.data.clearedConfiguration,
-      }),
-    });
+  ): Promise<Result<HistoryPage, AcpLoadHistoryError>> {
+    return ok(this.manager.getHistory(conversationId, before, limit));
   }
 
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
@@ -175,49 +160,6 @@ export class AcpRuntime {
 
   killAllTerminals(): Promise<void> {
     return this.manager.killAllTerminals();
-  }
-
-  async uploadAttachment(input: {
-    conversationId: string;
-    data: Uint8Array;
-    mimeType: AttachmentMimeType;
-    name?: string;
-  }): Promise<Result<AttachmentRef, AcpAttachmentError>> {
-    if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    return ok(await this.deps.attachmentStore.put(input));
-  }
-
-  async downloadAttachment(
-    conversationId: string,
-    attachmentId: string
-  ): Promise<Result<StoredAttachment, AcpAttachmentError>> {
-    if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    const stored = await this.deps.attachmentStore.get(conversationId, attachmentId);
-    if (!stored) return acpErr.attachmentNotFound(attachmentId);
-    return ok(stored);
-  }
-
-  async deleteAttachment(
-    conversationId: string,
-    attachmentId: string
-  ): Promise<Result<void, AcpAttachmentError>> {
-    if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    await this.deps.attachmentStore.delete(conversationId, attachmentId);
-    return ok();
-  }
-
-  /**
-   * Conversation-deletion cleanup (spec §3.6): removes the conversation's attachment
-   * directory. Idempotent; a runtime without attachment storage has nothing to clean.
-   */
-  async purgeConversationData(
-    conversationId: string
-  ): Promise<Result<void, AcpPurgeConversationDataError>> {
-    const terminated = await this.terminateSession(conversationId);
-    if (!terminated.success) return terminated;
-    if (!this.deps.attachmentStore) return ok();
-    await this.deps.attachmentStore.deleteConversation(conversationId);
-    return ok();
   }
 
   sessionLiveModels(conversationId: string): SessionLiveModels | null {

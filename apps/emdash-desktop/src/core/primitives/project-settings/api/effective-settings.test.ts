@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
   resolveEffectiveGitSettings,
   resolveEffectiveSettings,
@@ -7,6 +6,7 @@ import {
   type RepoFacts,
   type StoredSettings,
 } from './effective-settings';
+import type { StoredBaseProjectSettings } from './project-settings';
 
 function facts(overrides: Partial<RepoFacts> = {}): RepoFacts {
   return { remotes: [], localBranches: [], ...overrides };
@@ -20,28 +20,14 @@ function remote(
 }
 
 function stored(
-  project: StoredSettings['project'] = {},
+  storedProject: StoredBaseProjectSettings = {},
   overrides: Partial<Omit<StoredSettings, 'project'>> = {}
 ): StoredSettings {
+  const { integrationAccounts: _accounts, ...project } = storedProject;
   return {
     project,
     hostWorktreeRoot: null,
     builtInWorktreeRoot: '/home/me/emdash/worktrees',
-    ...overrides,
-  };
-}
-
-function account(
-  accountId: string,
-  overrides: Partial<GitHubAccountSummary> = {}
-): GitHubAccountSummary {
-  return {
-    accountId,
-    host: 'github.com',
-    login: accountId,
-    avatarUrl: '',
-    credentialSource: 'emdash_oauth',
-    isDefault: false,
     ...overrides,
   };
 }
@@ -51,8 +37,7 @@ describe('resolveEffectiveSettings', () => {
     it('returns a stored remote that exists as set', () => {
       const result = resolveEffectiveSettings(
         stored({ baseRemote: 'upstream' }),
-        facts({ remotes: [remote('origin'), remote('upstream')] }),
-        []
+        facts({ remotes: [remote('origin'), remote('upstream')] })
       );
       expect(result.baseRemote).toEqual({ value: 'upstream', provenance: { kind: 'set' } });
     });
@@ -60,8 +45,7 @@ describe('resolveEffectiveSettings', () => {
     it('degrades a stored remote that no longer exists to broken-setting with the inferred fallback', () => {
       const result = resolveEffectiveSettings(
         stored({ baseRemote: 'upstream' }),
-        facts({ remotes: [remote('origin')] }),
-        []
+        facts({ remotes: [remote('origin')] })
       );
       expect(result.baseRemote).toEqual({
         value: 'origin',
@@ -70,7 +54,7 @@ describe('resolveEffectiveSettings', () => {
     });
 
     it('degrades a stored remote to a null fallback when no remotes exist', () => {
-      const result = resolveEffectiveSettings(stored({ baseRemote: 'upstream' }), facts(), []);
+      const result = resolveEffectiveSettings(stored({ baseRemote: 'upstream' }), facts());
       expect(result.baseRemote).toEqual({
         value: null,
         provenance: { kind: 'broken-setting', staleValue: 'upstream' },
@@ -80,8 +64,7 @@ describe('resolveEffectiveSettings', () => {
     it('infers origin when it exists', () => {
       const result = resolveEffectiveSettings(
         stored(),
-        facts({ remotes: [remote('upstream'), remote('origin')] }),
-        []
+        facts({ remotes: [remote('upstream'), remote('origin')] })
       );
       expect(result.baseRemote).toEqual({
         value: 'origin',
@@ -90,11 +73,7 @@ describe('resolveEffectiveSettings', () => {
     });
 
     it('infers the sole remote when origin does not exist', () => {
-      const result = resolveEffectiveSettings(
-        stored(),
-        facts({ remotes: [remote('upstream')] }),
-        []
-      );
+      const result = resolveEffectiveSettings(stored(), facts({ remotes: [remote('upstream')] }));
       expect(result.baseRemote).toEqual({
         value: 'upstream',
         provenance: { kind: 'inferred', from: 'sole remote' },
@@ -104,8 +83,7 @@ describe('resolveEffectiveSettings', () => {
     it('infers the first remote alphabetically when several exist without origin', () => {
       const result = resolveEffectiveSettings(
         stored(),
-        facts({ remotes: [remote('upstream'), remote('fork')] }),
-        []
+        facts({ remotes: [remote('upstream'), remote('fork')] })
       );
       expect(result.baseRemote).toEqual({
         value: 'fork',
@@ -114,7 +92,7 @@ describe('resolveEffectiveSettings', () => {
     });
 
     it('is unresolvable with zero remotes', () => {
-      const result = resolveEffectiveSettings(stored(), facts(), []);
+      const result = resolveEffectiveSettings(stored(), facts());
       expect(result.baseRemote).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
     });
   });
@@ -123,8 +101,7 @@ describe('resolveEffectiveSettings', () => {
     it('returns a stored remote that exists as set', () => {
       const result = resolveEffectiveSettings(
         stored({ pushRemote: 'fork' }),
-        facts({ remotes: [remote('origin'), remote('fork')] }),
-        []
+        facts({ remotes: [remote('origin'), remote('fork')] })
       );
       expect(result.pushRemote).toEqual({ value: 'fork', provenance: { kind: 'set' } });
     });
@@ -132,8 +109,7 @@ describe('resolveEffectiveSettings', () => {
     it('degrades a stored remote that no longer exists to the effective base remote', () => {
       const result = resolveEffectiveSettings(
         stored({ pushRemote: 'fork' }),
-        facts({ remotes: [remote('origin')] }),
-        []
+        facts({ remotes: [remote('origin')] })
       );
       expect(result.pushRemote).toEqual({
         value: 'origin',
@@ -144,8 +120,7 @@ describe('resolveEffectiveSettings', () => {
     it('infers the effective base remote when unset', () => {
       const result = resolveEffectiveSettings(
         stored({ baseRemote: 'upstream' }),
-        facts({ remotes: [remote('upstream')] }),
-        []
+        facts({ remotes: [remote('upstream')] })
       );
       expect(result.pushRemote).toEqual({
         value: 'upstream',
@@ -154,7 +129,7 @@ describe('resolveEffectiveSettings', () => {
     });
 
     it('is unresolvable when the base remote is unresolvable', () => {
-      const result = resolveEffectiveSettings(stored(), facts(), []);
+      const result = resolveEffectiveSettings(stored(), facts());
       expect(result.pushRemote).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
     });
   });
@@ -163,8 +138,7 @@ describe('resolveEffectiveSettings', () => {
     it('returns a stored remote branch that exists as set', () => {
       const result = resolveEffectiveSettings(
         stored({ defaultBranch: { remote: 'origin', branch: 'develop' } }),
-        facts({ remotes: [remote('origin', { branches: ['main', 'develop'] })] }),
-        []
+        facts({ remotes: [remote('origin', { branches: ['main', 'develop'] })] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: 'origin', branch: 'develop' },
@@ -175,8 +149,7 @@ describe('resolveEffectiveSettings', () => {
     it('returns a stored local branch that exists as set', () => {
       const result = resolveEffectiveSettings(
         stored({ defaultBranch: { remote: null, branch: 'work' } }),
-        facts({ localBranches: ['work'] }),
-        []
+        facts({ localBranches: ['work'] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: null, branch: 'work' },
@@ -187,8 +160,7 @@ describe('resolveEffectiveSettings', () => {
     it('degrades a stored branch whose remote is gone to broken-setting with the inferred fallback', () => {
       const result = resolveEffectiveSettings(
         stored({ defaultBranch: { remote: 'upstream', branch: 'main' } }),
-        facts({ remotes: [remote('origin', { headBranch: 'main' })] }),
-        []
+        facts({ remotes: [remote('origin', { headBranch: 'main' })] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: 'origin', branch: 'main' },
@@ -199,8 +171,7 @@ describe('resolveEffectiveSettings', () => {
     it('degrades a stored remote branch that no longer exists on the remote', () => {
       const result = resolveEffectiveSettings(
         stored({ defaultBranch: { remote: 'origin', branch: 'gone' } }),
-        facts({ remotes: [remote('origin', { headBranch: 'main', branches: ['main'] })] }),
-        []
+        facts({ remotes: [remote('origin', { headBranch: 'main', branches: ['main'] })] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: 'origin', branch: 'main' },
@@ -211,8 +182,7 @@ describe('resolveEffectiveSettings', () => {
     it('degrades a stored local branch that no longer exists', () => {
       const result = resolveEffectiveSettings(
         stored({ defaultBranch: { remote: null, branch: 'gone' } }),
-        facts({ localBranches: ['main'] }),
-        []
+        facts({ localBranches: ['main'] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: null, branch: 'main' },
@@ -223,8 +193,7 @@ describe('resolveEffectiveSettings', () => {
     it('infers the remote HEAD of the effective base remote', () => {
       const result = resolveEffectiveSettings(
         stored(),
-        facts({ remotes: [remote('origin', { headBranch: 'trunk' })] }),
-        []
+        facts({ remotes: [remote('origin', { headBranch: 'trunk' })] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: 'origin', branch: 'trunk' },
@@ -235,8 +204,7 @@ describe('resolveEffectiveSettings', () => {
     it('infers the first well-known branch on the base remote when HEAD is unknown', () => {
       const result = resolveEffectiveSettings(
         stored(),
-        facts({ remotes: [remote('origin', { branches: ['develop', 'master'] })] }),
-        []
+        facts({ remotes: [remote('origin', { branches: ['develop', 'master'] })] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: 'origin', branch: 'master' },
@@ -247,8 +215,7 @@ describe('resolveEffectiveSettings', () => {
     it('falls back to well-known local branches when the remote has no candidates', () => {
       const result = resolveEffectiveSettings(
         stored(),
-        facts({ remotes: [remote('origin')], localBranches: ['trunk'] }),
-        []
+        facts({ remotes: [remote('origin')], localBranches: ['trunk'] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: null, branch: 'trunk' },
@@ -259,8 +226,7 @@ describe('resolveEffectiveSettings', () => {
     it('infers locally with zero remotes', () => {
       const result = resolveEffectiveSettings(
         stored(),
-        facts({ localBranches: ['main', 'feature/x'] }),
-        []
+        facts({ localBranches: ['main', 'feature/x'] })
       );
       expect(result.defaultBranch).toEqual({
         value: { remote: null, branch: 'main' },
@@ -271,128 +237,9 @@ describe('resolveEffectiveSettings', () => {
     it('is unresolvable when no candidates exist anywhere', () => {
       const result = resolveEffectiveSettings(
         stored(),
-        facts({ remotes: [remote('origin')], localBranches: ['feature/x'] }),
-        []
+        facts({ remotes: [remote('origin')], localBranches: ['feature/x'] })
       );
       expect(result.defaultBranch).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
-    });
-  });
-
-  describe('github account', () => {
-    it('returns explicit none as a set null', () => {
-      const result = resolveEffectiveSettings(
-        stored({ githubAccount: { kind: 'none' } }),
-        facts({ remotes: [remote('origin')] }),
-        [account('a1', { isDefault: true })]
-      );
-      expect(result.githubAccount).toEqual({ value: null, provenance: { kind: 'set' } });
-    });
-
-    it('returns a pinned account whose host matches the base remote as set', () => {
-      const pinned = account('a1');
-      const result = resolveEffectiveSettings(
-        stored({ githubAccount: { kind: 'account', accountId: 'a1' } }),
-        facts({ remotes: [remote('origin', { host: 'github.com' })] }),
-        [pinned, account('a2', { isDefault: true })]
-      );
-      expect(result.githubAccount).toEqual({ value: pinned, provenance: { kind: 'set' } });
-    });
-
-    it('fails closed on a dangling pin instead of resolving another account', () => {
-      const result = resolveEffectiveSettings(
-        stored({ githubAccount: { kind: 'account', accountId: 'gone' } }),
-        facts({ remotes: [remote('origin')] }),
-        [account('a1', { isDefault: true })]
-      );
-      expect(result.githubAccount).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
-    });
-
-    it('fails closed on a host-mismatched pin', () => {
-      const result = resolveEffectiveSettings(
-        stored({ githubAccount: { kind: 'account', accountId: 'a1' } }),
-        facts({ remotes: [remote('origin', { host: 'ghe.example.com' })] }),
-        [account('a1', { host: 'github.com' })]
-      );
-      expect(result.githubAccount).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
-    });
-
-    it('keeps a pinned account when the repository host is unknown', () => {
-      const pinned = account('a1');
-      const result = resolveEffectiveSettings(
-        stored({ githubAccount: { kind: 'account', accountId: 'a1' } }),
-        facts({ remotes: [remote('origin', { host: null })] }),
-        [pinned]
-      );
-      expect(result.githubAccount).toEqual({ value: pinned, provenance: { kind: 'set' } });
-    });
-
-    it('infers the provider default account when its host matches the base remote', () => {
-      const preferred = account('a2', { isDefault: true });
-      const result = resolveEffectiveSettings(
-        stored(),
-        facts({ remotes: [remote('origin', { host: 'github.com' })] }),
-        [account('a1'), preferred]
-      );
-      expect(result.githubAccount).toEqual({
-        value: preferred,
-        provenance: { kind: 'inferred', from: 'default account' },
-      });
-    });
-
-    it('infers the only host-matching account when the default does not match', () => {
-      const matching = account('a1', { host: 'ghe.example.com' });
-      const result = resolveEffectiveSettings(
-        stored(),
-        facts({ remotes: [remote('origin', { host: 'ghe.example.com' })] }),
-        [matching, account('a2', { isDefault: true })]
-      );
-      expect(result.githubAccount).toEqual({
-        value: matching,
-        provenance: { kind: 'inferred', from: 'only host-matching account' },
-      });
-    });
-
-    it('infers none when several non-default accounts match the host', () => {
-      const result = resolveEffectiveSettings(
-        stored(),
-        facts({ remotes: [remote('origin', { host: 'github.com' })] }),
-        [account('a1'), account('a2')]
-      );
-      expect(result.githubAccount).toEqual({
-        value: null,
-        provenance: { kind: 'inferred', from: 'no host-matching account' },
-      });
-    });
-
-    it('infers none with zero accounts', () => {
-      const result = resolveEffectiveSettings(stored(), facts({ remotes: [remote('origin')] }), []);
-      expect(result.githubAccount).toEqual({
-        value: null,
-        provenance: { kind: 'inferred', from: 'no host-matching account' },
-      });
-    });
-
-    it('infers none when there is no base remote host to match against', () => {
-      const result = resolveEffectiveSettings(stored(), facts(), [
-        account('a1', { isDefault: true }),
-      ]);
-      expect(result.githubAccount).toEqual({
-        value: null,
-        provenance: { kind: 'inferred', from: 'no host-matching account' },
-      });
-    });
-
-    it('normalizes hosts when matching accounts against the base remote', () => {
-      const preferred = account('a1', { host: 'www.github.com', isDefault: true });
-      const result = resolveEffectiveSettings(
-        stored(),
-        facts({ remotes: [remote('origin', { host: 'github.com' })] }),
-        [preferred]
-      );
-      expect(result.githubAccount).toEqual({
-        value: preferred,
-        provenance: { kind: 'inferred', from: 'default account' },
-      });
     });
   });
 
@@ -400,8 +247,7 @@ describe('resolveEffectiveSettings', () => {
     it('returns the per-project override as set', () => {
       const result = resolveEffectiveSettings(
         stored({ worktreeRoot: '/custom/worktrees' }, { hostWorktreeRoot: '/host/worktrees' }),
-        facts(),
-        []
+        facts()
       );
       expect(result.worktreeRoot).toEqual({
         value: '/custom/worktrees',
@@ -412,8 +258,7 @@ describe('resolveEffectiveSettings', () => {
     it('inherits the per-host default when the project has no override', () => {
       const result = resolveEffectiveSettings(
         stored({}, { hostWorktreeRoot: '/host/worktrees' }),
-        facts(),
-        []
+        facts()
       );
       expect(result.worktreeRoot).toEqual({
         value: '/host/worktrees',
@@ -422,7 +267,7 @@ describe('resolveEffectiveSettings', () => {
     });
 
     it('inherits the built-in default when nothing is configured', () => {
-      const result = resolveEffectiveSettings(stored(), facts(), []);
+      const result = resolveEffectiveSettings(stored(), facts());
       expect(result.worktreeRoot).toEqual({
         value: '/home/me/emdash/worktrees',
         provenance: { kind: 'inferred', from: 'built-in default' },
@@ -435,8 +280,7 @@ describe('resolveEffectiveSettings', () => {
       it('expands ~ in the per-project override against the host home', () => {
         const result = resolveEffectiveSettings(
           stored({ worktreeRoot: '~/fast-worktrees' }, home),
-          facts(),
-          []
+          facts()
         );
         expect(result.worktreeRoot).toEqual({
           value: '/home/me/fast-worktrees',
@@ -447,8 +291,7 @@ describe('resolveEffectiveSettings', () => {
       it('normalizes redundant path segments in a configured root', () => {
         const result = resolveEffectiveSettings(
           stored({ worktreeRoot: '/tmp//pool/../worktrees/' }, home),
-          facts(),
-          []
+          facts()
         );
         expect(result.worktreeRoot).toEqual({
           value: '/tmp/worktrees',
@@ -462,8 +305,7 @@ describe('resolveEffectiveSettings', () => {
             { worktreeRoot: 'relative/worktrees' },
             { ...home, hostWorktreeRoot: '/host/worktrees' }
           ),
-          facts(),
-          []
+          facts()
         );
         expect(result.worktreeRoot).toEqual({
           value: '/host/worktrees',
@@ -474,8 +316,7 @@ describe('resolveEffectiveSettings', () => {
       it('degrades an invalid host default to the built-in root with broken-setting', () => {
         const result = resolveEffectiveSettings(
           stored({}, { ...home, hostWorktreeRoot: 'not-absolute' }),
-          facts(),
-          []
+          facts()
         );
         expect(result.worktreeRoot).toEqual({
           value: '/home/me/emdash/worktrees',
@@ -486,8 +327,7 @@ describe('resolveEffectiveSettings', () => {
       it('carries the first broken layer when several layers are invalid', () => {
         const result = resolveEffectiveSettings(
           stored({ worktreeRoot: 'bad-project' }, { ...home, hostWorktreeRoot: 'bad-host' }),
-          facts(),
-          []
+          facts()
         );
         expect(result.worktreeRoot).toEqual({
           value: '/home/me/emdash/worktrees',
@@ -536,7 +376,7 @@ describe('resolveEffectiveGitSettings', () => {
       localBranches: ['main'],
     });
 
-    const full = resolveEffectiveSettings(stored(project), repoFacts, []);
+    const full = resolveEffectiveSettings(stored(project), repoFacts);
     const subset = resolveEffectiveGitSettings(project, repoFacts);
 
     expect(subset).toEqual({

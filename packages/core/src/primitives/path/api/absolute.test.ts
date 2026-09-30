@@ -27,6 +27,24 @@ describe('absolute paths', () => {
     expect(formatAbsolute(parsed.data)).toBe('/repo/src\\literal/index.ts');
   });
 
+  it('keeps POSIX segments separated by "/" when a backslash separator is requested', () => {
+    const parsed = parseAbsolute('/repo/src\\literal/index.ts', {
+      profile: { style: 'posix' },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+
+    // The backslash belongs to the filename here, so joining on it would make
+    // `src\\literal` indistinguishable from two separate segments.
+    const formatted = formatAbsolute(parsed.data, { separator: '\\' });
+    expect(formatted).toBe('/repo/src\\literal/index.ts');
+
+    expect(parseAbsolute(formatted, { profile: { style: 'posix' } })).toMatchObject({
+      success: true,
+      data: { segments: ['repo', 'src\\literal', 'index.ts'] },
+    });
+  });
+
   it('parses and formats Windows drive paths with explicit semantics', () => {
     const parsed = parseAbsolute('c:\\Users\\David\\repo\\file.ts', {
       profile: { style: 'win32' },

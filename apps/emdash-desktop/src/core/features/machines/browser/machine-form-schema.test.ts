@@ -13,8 +13,6 @@ const baseValues: MachineFormValues = {
   sshConfigAlias: '',
   forwardAgent: false,
   proxyJump: '',
-  proxyCommand: '',
-  isEditing: false,
 };
 
 describe('machineFormSchema', () => {
@@ -98,7 +96,6 @@ describe('machineFormSchema', () => {
       username: '',
       authType: 'password',
       password: '',
-      isEditing: false,
     });
 
     expect(result.success).toBe(false);

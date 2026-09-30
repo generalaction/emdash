@@ -3,6 +3,7 @@ import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resoluti
 import { RuntimeBroker, type HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
+import { log } from '@emdash/shared/logger';
 import { deferred } from '@emdash/shared/testing';
 import type { Connection } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
@@ -16,6 +17,50 @@ import {
 } from './project-attachment-manager';
 
 describe('ProjectAttachmentManager', () => {
+  it('logs a local Project opening failure and allows explicit recovery', async () => {
+    const logged = vi.spyOn(log, 'error').mockImplementation(() => {});
+    const scope = createScope({ label: 'project-opening-failure-test' });
+    const project = localProject();
+    const provider = projectProvider();
+    const message = "fatal: ambiguous argument 'origin/main': unknown revision";
+    const open = vi
+      .fn<ProjectAttachmentAdapter['open']>()
+      .mockResolvedValueOnce(err({ type: 'error', message }))
+      .mockResolvedValueOnce(ok(provider));
+    const availability = createWorkerHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    try {
+      const state = manager.track(project.id, scope);
+      const failure = { type: 'unexpected', stage: 'session-open', message };
+      await vi.waitFor(() => expect(peek(state)).toMatchObject({ lastFailure: failure }));
+      expect(manager.requireAttached(project.id)).toEqual(err(failure));
+      expect(logged).toHaveBeenCalledWith(
+        'ProjectAttachmentManager: failed to attach Project',
+        expect.objectContaining({ projectId: project.id, error: failure })
+      );
+
+      await manager.recover(project.id);
+      await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+      expect(manager.requireAttached(project.id)).toEqual(ok(provider));
+      expect(open).toHaveBeenCalledTimes(2);
+      expect(logged).toHaveBeenCalledOnce();
+    } finally {
+      await scope.dispose();
+      logged.mockRestore();
+    }
+  });
+
   it('does not expose legacy open, close, or Provider lookup adapters', async () => {
     const scope = createScope({ label: 'project-attachment-manager-contract-test' });
     const manager = createProjectAttachmentManager({

@@ -1,16 +1,45 @@
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import type { Octokit } from '@octokit/rest';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import type * as OctokitProvider from './octokit-provider';
 import { getOctokit } from './octokit-provider';
 import { createGitHubRepositoryService } from './repo-service';
 
-vi.mock('./octokit-provider', () => ({
+vi.mock('./octokit-provider', async (importOriginal) => ({
+  ...(await importOriginal<typeof OctokitProvider>()),
   getOctokit: vi.fn(),
 }));
 
 const mockGetOctokit = vi.mocked(getOctokit);
-const authService = {} as never;
-const repoService = createGitHubRepositoryService(authService);
+const readCredentials = vi.fn();
+const listAccounts = vi.fn<() => Promise<GitHubAccountSummary[]>>();
+const repoService = createGitHubRepositoryService({ readCredentials, listAccounts });
+
+function account(
+  accountId = 'github.com:42',
+  host = 'github.com',
+  isDefault = true
+): GitHubAccountSummary {
+  return {
+    providerId: 'github',
+    accountId,
+    host,
+    isDefault,
+    displayName: 'Test',
+    login: 'testuser',
+    avatarUrl: '',
+    credentialSource: 'emdash_oauth',
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  listAccounts.mockResolvedValue([
+    account(),
+    account('ghe.example.com:168', 'ghe.example.com', false),
+  ]);
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -89,6 +118,76 @@ const expectedRepo = {
 // ---------------------------------------------------------------------------
 
 describe('GitHubRepositoryServiceImpl', () => {
+  describe('account selection', () => {
+    it('infers the GitHub.com account when the default belongs to Enterprise', async () => {
+      listAccounts.mockResolvedValue([
+        account('enterprise', 'ghe.example.com'),
+        account('personal', 'github.com', false),
+      ]);
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit()));
+      await repoService.listRepositories();
+      expect(mockGetOctokit).toHaveBeenCalledWith(readCredentials, 'personal', 'github.com');
+    });
+
+    it('does not infer an arbitrary account when GitHub.com accounts are ambiguous', async () => {
+      listAccounts.mockResolvedValue([
+        account('enterprise', 'ghe.example.com'),
+        account('first', 'github.com', false),
+        account('second', 'github.com', false),
+      ]);
+      await expect(repoService.listRepositories()).rejects.toMatchObject({
+        authError: { type: 'auth_required' },
+      });
+      expect(mockGetOctokit).not.toHaveBeenCalled();
+    });
+
+    it('requires a matching account for unselected GitHub.com operations', async () => {
+      listAccounts.mockResolvedValue([account('enterprise', 'ghe.example.com')]);
+      await expect(repoService.listRepositories()).rejects.toMatchObject({
+        authError: { type: 'auth_required', host: 'github.com' },
+      });
+      expect(mockGetOctokit).not.toHaveBeenCalled();
+    });
+
+    it('gets an explicitly selected account host from metadata, including its port', async () => {
+      listAccounts.mockResolvedValue([account('opaque-id', 'ghe.example.com:8443')]);
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit()));
+      await repoService.listRepositories({ accountId: 'opaque-id' });
+      expect(mockGetOctokit).toHaveBeenCalledWith(
+        readCredentials,
+        'opaque-id',
+        'ghe.example.com:8443'
+      );
+    });
+
+    it('does not fall back to the default for a missing explicit account', async () => {
+      await expect(repoService.listRepositories({ accountId: 'removed' })).rejects.toMatchObject({
+        authError: { type: 'account_not_found', accountId: 'removed' },
+      });
+      expect(mockGetOctokit).not.toHaveBeenCalled();
+    });
+
+    it('does not select another account if credential access fails after selection', async () => {
+      mockGetOctokit.mockResolvedValue(
+        err({
+          type: 'account_not_found',
+          accountId: 'github.com:42',
+          host: 'github.com',
+          message: 'Removed',
+        })
+      );
+      await expect(repoService.listRepositories()).rejects.toMatchObject({
+        authError: { type: 'account_not_found', accountId: 'github.com:42' },
+      });
+      expect(listAccounts).toHaveBeenCalledOnce();
+      expect(mockGetOctokit).toHaveBeenCalledExactlyOnceWith(
+        readCredentials,
+        'github.com:42',
+        'github.com'
+      );
+    });
+  });
+
   describe('listRepositories', () => {
     it('maps REST response to camelCase', async () => {
       const octokit = makeOctokit({
@@ -142,9 +241,7 @@ describe('GitHubRepositoryServiceImpl', () => {
 
       await repoService.getOwners({ accountId: 'github.com:42' });
 
-      expect(mockGetOctokit).toHaveBeenCalledWith(authService, 'github.com', {
-        accountId: 'github.com:42',
-      });
+      expect(mockGetOctokit).toHaveBeenCalledWith(readCredentials, 'github.com:42', 'github.com');
     });
 
     it('uses the selected GitHub Enterprise account host for owner lookup', async () => {
@@ -153,9 +250,11 @@ describe('GitHubRepositoryServiceImpl', () => {
 
       await repoService.getOwners({ accountId: 'ghe.example.com:168' });
 
-      expect(mockGetOctokit).toHaveBeenCalledWith(authService, 'ghe.example.com', {
-        accountId: 'ghe.example.com:168',
-      });
+      expect(mockGetOctokit).toHaveBeenCalledWith(
+        readCredentials,
+        'ghe.example.com:168',
+        'ghe.example.com'
+      );
     });
   });
 
@@ -230,9 +329,7 @@ describe('GitHubRepositoryServiceImpl', () => {
         authContext: { accountId: 'github.com:42' },
       });
 
-      expect(mockGetOctokit).toHaveBeenCalledWith(authService, 'github.com', {
-        accountId: 'github.com:42',
-      });
+      expect(mockGetOctokit).toHaveBeenCalledWith(readCredentials, 'github.com:42', 'github.com');
     });
 
     it('uses the selected GitHub Enterprise account host for repository creation', async () => {
@@ -255,9 +352,11 @@ describe('GitHubRepositoryServiceImpl', () => {
         authContext: { accountId: 'ghe.example.com:168' },
       });
 
-      expect(mockGetOctokit).toHaveBeenCalledWith(authService, 'ghe.example.com', {
-        accountId: 'ghe.example.com:168',
-      });
+      expect(mockGetOctokit).toHaveBeenCalledWith(
+        readCredentials,
+        'ghe.example.com:168',
+        'ghe.example.com'
+      );
       expect(result.cloneUrl).toBe('https://ghe.example.com/testuser/new.git');
     });
   });
@@ -281,9 +380,7 @@ describe('GitHubRepositoryServiceImpl', () => {
 
       await repoService.deleteRepository('testuser', 'old-repo', { accountId: 'github.com:42' });
 
-      expect(mockGetOctokit).toHaveBeenCalledWith(authService, 'github.com', {
-        accountId: 'github.com:42',
-      });
+      expect(mockGetOctokit).toHaveBeenCalledWith(readCredentials, 'github.com:42', 'github.com');
       expect(octokit.rest.repos.delete).toHaveBeenCalledWith({
         owner: 'testuser',
         repo: 'old-repo',
@@ -298,9 +395,11 @@ describe('GitHubRepositoryServiceImpl', () => {
         accountId: 'ghe.example.com:168',
       });
 
-      expect(mockGetOctokit).toHaveBeenCalledWith(authService, 'ghe.example.com', {
-        accountId: 'ghe.example.com:168',
-      });
+      expect(mockGetOctokit).toHaveBeenCalledWith(
+        readCredentials,
+        'ghe.example.com:168',
+        'ghe.example.com'
+      );
     });
   });
 });

@@ -39,7 +39,7 @@ export type WorkspaceActivationManagerOptions = {
    * script steps are removed and one pending step is seeded per configured script —
    * the durable record shows the current activation's runs, never stale history.
    */
-  resetScriptSteps: (id: string, scripts: ScriptStepScript[]) => void;
+  resetScriptSteps: (id: string, scripts: ScriptStepScript[]) => void | Promise<void>;
   /**
    * Durable step write for the one case observation cannot see: a script that never
    * started (run after a failed setup) settles as skipped. Every actual run's step
@@ -135,7 +135,7 @@ export class WorkspaceActivationManager {
       ...(policy.autoRunRun ? {} : { run: undefined }),
     };
     // Overwrite, not append: the durable timeline shows this activation's runs only.
-    this.options.resetScriptSteps(
+    await this.options.resetScriptSteps(
       id,
       (['prepare', 'setup', 'run'] as const).filter((script) => scripts[script])
     );
@@ -184,30 +184,39 @@ export class WorkspaceActivationManager {
   }
 
   /**
-   * Aborts in-flight scripts and runs teardown, time-boxed and never throwing. No-op
-   * when the workspace is not active — teardown runs at most once per activation.
+   * Aborts in-flight scripts and runs teardown, time-boxed and never throwing. A
+   * persisted workspace path also permits teardown without an activation. The registry
+   * decides whether teardown already settled from its durable lifecycle step.
    * Session killing is the caller's step; this owns only the script plane. A teardown
    * failure is reported to the caller: notice-only for plain deactivation, a removal
    * stage for the delete verbs (ADR 0006).
    */
-  async deactivate(id: string): Promise<WorkspaceDeactivationResult> {
+  async deactivate(
+    id: string,
+    options?: { workspacePath: string; runTeardown: boolean }
+  ): Promise<WorkspaceDeactivationResult> {
     const state = this.active.get(id);
-    if (!state) return { teardownFailure: null };
+    const workspacePath = options?.workspacePath ?? state?.workspacePath;
+    if (!workspacePath) return { teardownFailure: null };
     this.active.delete(id);
 
-    state.controller.abort();
-    await state.background;
+    if (state) {
+      state.controller.abort();
+      await state.background;
+    }
+    this.options.publishActivation(id, null);
+    if (options?.runTeardown === false) return { teardownFailure: null };
 
     let teardownFailure: { message: string } | null = null;
-    const policy = await this.resolveLifecycleConfig(id, state.workspacePath);
-    const scripts = policy.scripts;
-    if (scripts.teardown) {
+    try {
+      const policy = await this.resolveLifecycleConfig(id, workspacePath);
+      if (!policy.scripts.teardown) return { teardownFailure: null };
       const outcome = await this.runner.run({
         id: 'teardown',
-        command: scripts.teardown,
+        command: policy.scripts.teardown,
         shellSetup: policy.shellSetup,
         env: policy.env,
-        cwd: state.workspacePath,
+        cwd: workspacePath,
         timeoutMs: this.teardownTimeoutMs,
       });
       if (outcome.status === 'succeeded') {
@@ -216,8 +225,11 @@ export class WorkspaceActivationManager {
         this.options.setNotice(id, 'teardown', outcome.message);
         teardownFailure = { message: outcome.message };
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.options.setNotice(id, 'teardown', message);
+      teardownFailure = { message };
     }
-    this.options.publishActivation(id, null);
     return { teardownFailure };
   }
 

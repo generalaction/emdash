@@ -6,6 +6,7 @@ export const pullRequestErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cross_host_pr'), baseHost: z.string(), headHost: z.string() }),
   z.object({ type: z.literal('host_unreachable'), host: z.string(), reason: z.string() }),
   z.object({ type: z.literal('github_auth_required'), host: z.string(), hint: z.string() }),
+  z.object({ type: z.literal('github_disabled'), message: z.string() }),
   z.object({ type: z.literal('ghes_auth_required'), host: z.string(), hint: z.string() }),
   z.object({
     type: z.literal('github_account_not_found'),

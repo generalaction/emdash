@@ -14,7 +14,6 @@ import { TerminalSearchOverlay } from '@core/features/terminals/contributions/br
 import {
   useConversations,
   useTaskComposition,
-  useWorkspace,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
@@ -24,17 +23,16 @@ import {
   activeConversationResource,
   activeConversationId as getActiveConversationId,
 } from './pane-selectors';
+import { createConversationTerminalAttachments } from './terminal-attachments';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useTaskComposition();
   const conversations = useConversations();
-  const workspace = useWorkspace();
   const workspaceId = useWorkspaceId();
   const { value: interfaceSettings } = useAppSettingsKey('interface');
   const { pane } = usePaneContext();
   const isActive = useIsActiveTask(taskId);
-  const remoteConnectionId = workspace.sshConnectionId;
   const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
@@ -54,6 +52,11 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
   const activeSessionId = activeSession?.sessionId ?? null;
+  const conversationId = activeConversation?.data.id;
+  const attachments = useMemo(
+    () => (conversationId ? createConversationTerminalAttachments(conversationId) : undefined),
+    [conversationId]
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
@@ -147,7 +150,10 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             <div className="flex min-h-0 flex-1 flex-col">
               {disabledReason && activeSession?.status !== 'ready' ? (
                 <EmptyState label="Conversation unavailable" description={disabledReason} />
-              ) : activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
+              ) : activeSessionId &&
+                attachments &&
+                activeSession?.status === 'ready' &&
+                activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
                   <div className="flex h-full min-h-0 flex-1">
                     <TerminalSearchOverlay
@@ -169,9 +175,10 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                       onFind={openSearch}
                       className="h-full w-full"
                       onInterruptPress={onInterruptPress}
+                      inputContext="agent"
                       mapShiftEnterToCtrlJ
                       readOnly={Boolean(disabledReason)}
-                      remoteConnectionId={remoteConnectionId}
+                      attachments={attachments}
                       workspaceId={workspaceId}
                     />
                   </div>

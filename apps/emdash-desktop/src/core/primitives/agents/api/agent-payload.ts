@@ -110,8 +110,11 @@ export function resolveActiveInstallation(
   return undefined;
 }
 
-/** Persisted user preference for which installation to use on a specific host. */
-export type HostDependencySelection = InstallOverride | null;
+/** Canonical persisted executable selection for one host. */
+export type HostDependencySelection =
+  | { kind: 'path'; path: string }
+  | { kind: 'cli'; command: string }
+  | null;
 
 // ---------------------------------------------------------------------------
 // Host dependency operation errors
@@ -219,8 +222,10 @@ export function agentSupportsInitialPromptDelivery(
 }
 
 export function agentSupportsAutoApprove(
-  capabilities: AgentCapabilities | undefined | null
+  capabilities: AgentCapabilities | undefined | null,
+  transport: 'acp' | 'pty' = 'pty'
 ): boolean {
+  if (transport === 'acp') return false;
   return capabilities?.autoApprove.kind === 'supported';
 }
 

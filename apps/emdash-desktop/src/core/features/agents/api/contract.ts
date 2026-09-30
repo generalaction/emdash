@@ -1,3 +1,8 @@
+import {
+  hostDependencyErrorSchema,
+  hostDependencySelectionSchema,
+  resolvedHostDependencySchema,
+} from '@emdash/core/primitives/host-dependencies/api';
 import { hostRefSchema } from '@emdash/core/primitives/host/api';
 import {
   agentConfigAuthErrorSchema,
@@ -97,16 +102,14 @@ export const agentsContract = defineContract({
     error: runtimeResolveErrorSchema,
   }),
   setUsedInstallation: fallible({
-    input: agentInputSchema.extend({ selection: z.unknown().optional() }),
+    input: agentInputSchema.extend({ selection: hostDependencySelectionSchema }),
     data: z.void(),
-    error: runtimeResolveErrorSchema,
+    error: z.union([hostDependencyErrorSchema, runtimeResolveErrorSchema]),
   }),
-  probeOverride: fallible({
-    input: agentInputSchema.extend({
-      selection: z.object({ path: z.string().optional(), cli: z.string().optional() }),
-    }),
-    data: z.null(),
-    error: runtimeResolveErrorSchema,
+  resolveInstallation: fallible({
+    input: agentInputSchema.extend({ selection: hostDependencySelectionSchema.optional() }),
+    data: resolvedHostDependencySchema,
+    error: z.union([hostDependencyErrorSchema, runtimeResolveErrorSchema]),
   }),
   refreshLatestVersion: fallible({
     input: agentInputSchema,

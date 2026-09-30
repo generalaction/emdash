@@ -46,7 +46,7 @@
     "build": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts && tsdown",
     "build:theme": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts",
     "watch:theme": "tsx --watch src/core/codegen/run.ts",
-    "test": "vitest run",
+    "test": "pnpm exec nx test @emdash/theme",
     "lint": "oxlint src",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
@@ -64,5 +64,16 @@
     "typescript": "^6.0.2",
     "vitest": "^4.1.0"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/theme"
+        }
+      }
+    }
+  }
 }

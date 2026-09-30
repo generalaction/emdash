@@ -3,11 +3,7 @@ import {
   storedBaseProjectSettingsSchema,
   type RepoFacts,
 } from '@core/primitives/project-settings/api';
-import {
-  legacyBaseSettingsToStored,
-  migrateStoredBaseProjectSettings,
-  toLegacyBaseSettingsView,
-} from './migrations/stored-settings';
+import { migrateStoredBaseProjectSettings } from './migrations/stored-settings';
 
 const facts = (overrides: Partial<RepoFacts> = {}): RepoFacts => ({
   remotes: [
@@ -94,7 +90,11 @@ describe('migrateStoredBaseProjectSettings', () => {
         { githubAccountId: 'github.com:42' },
         null
       );
-      expect(next.githubAccount).toEqual({ kind: 'account', accountId: 'github.com:42' });
+      expect(next.integrationAccounts?.github).toEqual({
+        kind: 'account',
+        accountId: 'github.com:42',
+      });
+      expect(next).not.toHaveProperty('githubAccount');
       expect(changed).toBe(true);
       expect(next).not.toHaveProperty('githubAccountId');
     });
@@ -103,6 +103,7 @@ describe('migrateStoredBaseProjectSettings', () => {
       const { next, changed } = migrateStoredBaseProjectSettings({ githubAccountId: null }, null);
       expect(next).not.toHaveProperty('githubAccount');
       expect(next).not.toHaveProperty('githubAccountId');
+      expect(next).not.toHaveProperty('integrationAccounts');
       expect(changed).toBe(true);
     });
 
@@ -111,7 +112,7 @@ describe('migrateStoredBaseProjectSettings', () => {
         { githubAccount: { kind: 'none' }, githubAccountId: 'github.com:42' },
         null
       );
-      expect(next.githubAccount).toEqual({ kind: 'none' });
+      expect(next.integrationAccounts?.github).toEqual({ kind: 'none' });
     });
   });
 
@@ -194,13 +195,36 @@ describe('migrateStoredBaseProjectSettings', () => {
     });
   });
 
+  it('folds a legacy top-level githubAccount into the provider-account map', () => {
+    const { next, changed } = migrateStoredBaseProjectSettings(
+      { githubAccount: { kind: 'account', accountId: 'github.com:42' } },
+      null
+    );
+    expect(next).toEqual({
+      integrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
+    });
+    expect(changed).toBe(true);
+  });
+
+  it('keeps an existing map entry over the legacy top-level githubAccount', () => {
+    const { next } = migrateStoredBaseProjectSettings(
+      {
+        githubAccount: { kind: 'account', accountId: 'github.com:42' },
+        integrationAccounts: { github: { kind: 'none' } },
+      },
+      null
+    );
+    expect(next.integrationAccounts).toEqual({ github: { kind: 'none' } });
+    expect(next).not.toHaveProperty('githubAccount');
+  });
+
   it('reports changed: false for an already-migrated row', () => {
     const { changed } = migrateStoredBaseProjectSettings(
       {
         worktreeRoot: '/tmp/worktrees',
         defaultBranch: { remote: 'upstream', branch: 'dev' },
         baseRemote: 'upstream',
-        githubAccount: { kind: 'account', accountId: 'github.com:42' },
+        integrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
         tmux: true,
       },
       facts({
@@ -225,67 +249,10 @@ describe('migrateStoredBaseProjectSettings', () => {
       facts()
     );
     expect(next).toEqual({
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+      integrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
       worktreeRoot: '/tmp/worktrees',
       tmux: true,
     });
     expect(changed).toBe(true);
-  });
-});
-
-describe('toLegacyBaseSettingsView', () => {
-  it('formats a remote-qualified stored defaultBranch as a string', () => {
-    expect(
-      toLegacyBaseSettingsView({ defaultBranch: { remote: 'origin', branch: 'main' } })
-    ).toEqual({ defaultBranch: 'origin/main' });
-  });
-
-  it('formats a local stored defaultBranch as a bare string', () => {
-    expect(toLegacyBaseSettingsView({ defaultBranch: { remote: null, branch: 'dev' } })).toEqual({
-      defaultBranch: 'dev',
-    });
-  });
-
-  it('maps worktreeRoot back to worktreeDirectory', () => {
-    expect(toLegacyBaseSettingsView({ worktreeRoot: '/tmp/w' })).toEqual({
-      worktreeDirectory: '/tmp/w',
-    });
-  });
-
-  it('maps githubAccount refs to githubAccountId and explicit none to null', () => {
-    expect(
-      toLegacyBaseSettingsView({ githubAccount: { kind: 'account', accountId: 'a-1' } })
-    ).toEqual({ githubAccountId: 'a-1' });
-    expect(toLegacyBaseSettingsView({ githubAccount: { kind: 'none' } })).toEqual({
-      githubAccountId: null,
-    });
-  });
-
-  it('leaves an absent githubAccount absent (infer)', () => {
-    expect(toLegacyBaseSettingsView({})).not.toHaveProperty('githubAccountId');
-  });
-});
-
-describe('legacyBaseSettingsToStored', () => {
-  it('round-trips through the legacy view', () => {
-    const stored = {
-      worktreeRoot: '/tmp/w',
-      defaultBranch: { remote: 'origin', branch: 'main' },
-      baseRemote: 'upstream',
-      pushRemote: 'fork',
-      githubAccount: { kind: 'account' as const, accountId: 'a-1' },
-      tmux: true,
-    };
-    expect(legacyBaseSettingsToStored(toLegacyBaseSettingsView(stored))).toEqual(stored);
-  });
-
-  it('maps explicit null githubAccountId to explicit none', () => {
-    expect(legacyBaseSettingsToStored({ githubAccountId: null })).toEqual({
-      githubAccount: { kind: 'none' },
-    });
-  });
-
-  it('keeps an absent githubAccountId absent', () => {
-    expect(legacyBaseSettingsToStored({})).toEqual({});
   });
 });

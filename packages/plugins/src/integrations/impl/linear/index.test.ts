@@ -48,15 +48,18 @@ afterEach(() => {
 describe('linear integration verify', () => {
   it('validates the API key against the Linear API and returns normalized credentials', async () => {
     linearSdk.viewer.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'jona@example.com',
       displayName: 'Jona',
       name: 'jona',
-      organization: Promise.resolve({ name: 'Acme Inc' }),
+      organization: Promise.resolve({ id: 'org-1', name: 'Acme Inc' }),
     });
 
     const result = await auth.verify(host, { apiKey: 'lin_api_test' });
 
     expect(result).toEqual({
       connected: true,
+      account: { id: 'org-1:user-1', login: 'jona@example.com' },
       displayName: 'Jona',
       displayDetail: 'Acme Inc',
       credentials: { apiKey: 'lin_api_test' },

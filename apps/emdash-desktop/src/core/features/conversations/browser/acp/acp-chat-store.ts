@@ -1,21 +1,20 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
-import { formatHostRef } from '@emdash/core/primitives/host/api';
-import type {
-  AttachmentMimeType,
-  AttachmentRef,
-  PromptAttachment,
-  PromptInput,
-  QueuedPrompt,
-  SessionMcpServer,
+import {
+  sessionNotFoundErrorSchema,
+  type AcpSessionStartMode,
+  type PromptAttachment,
+  type PromptInput,
+  type ProviderConfigOption,
+  type QueuedPrompt,
+  type SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
+import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/services/attachments/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import type {
-  CommandItem,
-  ComposerCollaborationModeOption,
-  ComposerEffortOption,
-  ComposerModelOption,
-  ComposerPermissionModeOption,
-  ComposerQueuedPrompt,
+import { systemClock } from '@emdash/shared/scheduling';
+import {
+  PromptEditorModel,
+  type CommandItem,
+  type ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
 import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
@@ -32,7 +31,6 @@ import {
   type ConversationsClient,
 } from '@core/features/conversations/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { updateProviderPreference } from '@core/features/conversations/browser/provider-preferences';
 import {
   ACP_DRAFT_MAX_LENGTH,
   acpDraftMemento,
@@ -48,7 +46,12 @@ import {
   type MementoHandle,
   type SubjectSpace,
 } from '@core/primitives/mementos/browser';
-import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
+import {
+  AcpLiveSession,
+  AcpPromptDeliveryUnknownError,
+  AcpStartError,
+  asValueSource,
+} from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
 export interface AgentAffordances {
@@ -88,32 +91,49 @@ type PermissionQueueItem = {
 
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
+  | { kind: 'session_not_found'; message: string }
   | { kind: 'unavailable'; message: string }
+  | { kind: 'history_unavailable'; message: string }
   | { kind: 'generic'; message: string };
 
 export class AcpChatStore {
   readonly chatContext: ChatContext;
   readonly chatState: ChatState;
+  readonly composerModel = new PromptEditorModel();
 
   session: AcpLiveSession | null = null;
   historyLoading = true;
+  historyKnown: boolean;
   loadError: AcpLoadError | null = null;
   messageCount = 0;
-  draftText = '';
+  private readonly _draftText = observable.box('');
+  get draftText(): string {
+    return this._draftText.get();
+  }
   draftAttachments: AcpPromptAttachment[] = [];
+  unconfirmedPromptIds: string[] = [];
 
   private _view: ChatView | null = null;
   private _bootstrapped = false;
   private _unsubs: Array<() => void> = [];
   private readonly _scope: Scope;
+  private readonly _lastProviderOptions = observable.box<ProviderConfigOption[] | undefined>(
+    undefined,
+    { deep: false }
+  );
   private readonly _draftSpace: SubjectSpace<'conversation'>;
   private readonly _draftHandle: MementoHandle<AcpDraftState>;
+  private readonly _disposeComposerSubscription: () => void;
   private readonly _disposeHostReaction: () => void;
-  private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
+  private _attachmentsClientPromise: Promise<ConversationsClient['attachments']> | null = null;
   private _submissionSequence = 0;
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
+  private _historyEpoch = 0;
   private _disposed = false;
+  private _attachmentRecovery: Scope | null = null;
+  private _attachedHostGeneration: number | undefined;
+  private _bootstrapFailed = false;
 
   constructor(
     readonly conversationId: string,
@@ -121,6 +141,8 @@ export class AcpChatStore {
     readonly taskId: string,
     readonly hostAccess?: ProjectHostAccess
   ) {
+    const conversation = conversationRegistry.get(taskId)?.conversations.get(conversationId)?.data;
+    this.historyKnown = conversation !== undefined && !conversation.sessionId;
     this.chatContext = getSharedChatContext();
     this._scope = createScope({ label: `acp-chat:${conversationId}` });
     this.chatState = getChatUiRuntime().createChatState(this.chatContext, {
@@ -135,18 +157,12 @@ export class AcpChatStore {
     makeObservable(this, {
       session: observable.ref,
       historyLoading: observable,
+      historyKnown: observable,
       loadError: observable,
       messageCount: observable,
-      draftText: observable,
+      draftText: computed,
       draftAttachments: observable.shallow,
-      model: computed,
-      modelOptions: computed,
-      permissionMode: computed,
-      permissionModeOptions: computed,
-      collaborationMode: computed,
-      collaborationModeOptions: computed,
-      effort: computed,
-      effortOptions: computed,
+      unconfirmedPromptIds: observable.shallow,
       commands: computed,
       mcpServers: computed,
       permissionQueue: computed,
@@ -156,10 +172,9 @@ export class AcpChatStore {
       isEmpty: computed,
       submitPrompt: action,
       stop: action,
-      setModel: action,
-      setMode: action,
-      setCollaborationMode: action,
-      setEffort: action,
+      providerOptions: computed,
+      configuredOptions: computed,
+      setOption: action,
       resolvePermission: action,
       editQueuedPrompt: action,
       deleteQueuedPrompt: action,
@@ -171,35 +186,37 @@ export class AcpChatStore {
       exportTranscript: action,
       retry: action,
     });
+    this._scope.add(
+      reaction(
+        () => this.session?.config.current().options,
+        (options) => {
+          if (options !== undefined) this._lastProviderOptions.set(options);
+        }
+      )
+    );
+    this._disposeComposerSubscription = this.composerModel.subscribe(() => {
+      runInAction(() => this._draftText.set(this.composerModel.getText()));
+    });
     const initialHost = this.hostAccess?.state;
-    let lastHostGeneration = initialHost?.kind === 'ready' ? initialHost.hostGeneration : undefined;
+    this._attachedHostGeneration =
+      initialHost?.kind === 'ready' ? initialHost.hostGeneration : undefined;
     this._disposeHostReaction = reaction(
       () => this.hostAccess?.state,
       (state) => {
         const kind = state?.kind;
         if (state?.kind === 'ready') {
-          const changed = state.hostGeneration !== lastHostGeneration;
-          lastHostGeneration = state.hostGeneration;
+          const changed = state.hostGeneration !== this._attachedHostGeneration;
           const session = this.session;
-          if (changed && session) {
-            void session
-              .revalidate()
-              .then(() => {
-                if (this._disposed || this.session !== session || !session.usable) return;
-                runInAction(() => {
-                  this.loadError = null;
-                });
-              })
-              .catch((error) => {
-                if (this._disposed || this.session !== session) return;
-                runInAction(() => {
-                  this.loadError = toLoadError(error);
-                });
-              });
+          if (session && (changed || !session.usable)) {
+            this._recoverAttachment(session, state.hostGeneration);
           }
+        } else {
+          void this._attachmentRecovery?.dispose();
+          this._attachmentRecovery = null;
         }
         if (
           kind === 'ready' &&
+          !this.session &&
           this._bootstrapped &&
           !this.historyLoading &&
           this.loadError?.kind === 'unavailable'
@@ -227,7 +244,7 @@ export class AcpChatStore {
         runInAction(() => {
           if (this._disposed || this.draftText !== '' || this.draftAttachments.length > 0) return;
           const stored = this._draftHandle.value;
-          this.draftText = stored.text;
+          this.composerModel.setText(stored.text);
           this.draftAttachments = stored.attachments.map((attachment) => ({
             ref: { type: 'attachment', ...attachment },
           }));
@@ -235,66 +252,6 @@ export class AcpChatStore {
         void this._rehydrateDraftAttachmentPreviews();
       },
       (error: unknown) => getMementoClient().reportError(error)
-    );
-  }
-
-  get model(): string | null {
-    return this.session?.config.current().modelOptions?.selected ?? null;
-  }
-
-  get modelOptions(): Record<string, ComposerModelOption> | null {
-    const options = this.session?.config.current().modelOptions;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
-    );
-  }
-
-  get permissionMode(): string | null {
-    return this.session?.config.current().modeOptions?.selected ?? null;
-  }
-
-  get permissionModeOptions(): Record<string, ComposerPermissionModeOption> | null {
-    const options = this.session?.config.current().modeOptions;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
-    );
-  }
-
-  get collaborationMode(): string | null {
-    return this.session?.config.current().collaborationModeOptions?.selected ?? null;
-  }
-
-  get collaborationModeOptions(): Record<string, ComposerCollaborationModeOption> | null {
-    const options = this.session?.config.current().collaborationModeOptions;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
-    );
-  }
-
-  get effort(): string | null {
-    return this.session?.config.current().efforts?.selected ?? null;
-  }
-
-  get effortOptions(): Record<string, ComposerEffortOption> | null {
-    const options = this.session?.config.current().efforts;
-    if (!options) return null;
-    return Object.fromEntries(
-      options.available.map((option) => [
-        option.id,
-        { name: option.name, description: option.description },
-      ])
     );
   }
 
@@ -340,21 +297,27 @@ export class AcpChatStore {
 
   get affordances(): AgentAffordances {
     const state = this.session?.sessionState.current();
-    const liveActionsEnabled =
-      this.hostAccess?.liveAction.kind !== 'disabled' && (this.session?.usable ?? false);
+    const liveActionsEnabled = this.liveActionsEnabled;
     const isResuming = state?.lifecycle === 'starting' || state?.lifecycle === 'replaying';
     return {
       isWorking: state?.isGenerating ?? false,
       isBusy: state?.isGenerating ?? false,
       isResuming,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
-      canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
+      canSubmit:
+        liveActionsEnabled &&
+        this.loadError?.kind !== 'session_not_found' &&
+        (state?.canSubmit ?? false),
       canCancel: liveActionsEnabled && (state?.canCancel ?? false),
     };
   }
 
+  get liveActionsEnabled(): boolean {
+    return this.hostAccess?.liveAction.kind !== 'disabled' && (this.session?.usable ?? false);
+  }
+
   get isEmpty(): boolean {
-    return !this.historyLoading && this.messageCount === 0;
+    return this.historyKnown && this.messageCount === 0;
   }
 
   bootstrap(): void {
@@ -363,11 +326,32 @@ export class AcpChatStore {
     void this._runBootstrap();
   }
 
-  retry(): void {
+  retry(options: { mode?: AcpSessionStartMode } = {}): void {
+    if (this._disposed) return;
+    if (
+      options.mode === 'fresh' &&
+      (this.historyLoading || this.loadError?.kind !== 'session_not_found')
+    )
+      return;
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      void this.hostAccess.recover();
+      return;
+    }
+    if (options.mode !== 'fresh' && this.session && !this._bootstrapFailed) {
+      const state = this.hostAccess?.state;
+      this._recoverAttachment(
+        this.session,
+        state?.kind === 'ready' ? state.hostGeneration : undefined
+      );
+      return;
+    }
     if (this.historyLoading || !this.loadError) return;
+    this._historyRefreshRequested = false;
+    void this._attachmentRecovery?.dispose();
+    this._attachmentRecovery = null;
     this.historyLoading = true;
     this.loadError = null;
-    void this._runBootstrap();
+    void this._runBootstrap(options.mode);
   }
 
   bindView(view: ChatView | null): void {
@@ -377,8 +361,8 @@ export class AcpChatStore {
   async uploadAttachment(input: AcpAttachmentUploadInput): Promise<AttachmentRef | null> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return null;
     try {
-      const client = await this._getAcpClient();
-      const result = await client.uploadAttachment(
+      const client = await this._getAttachmentsClient();
+      const result = await client.upload(
         { conversationId: this.conversationId },
         {
           name: input.name ?? 'attachment',
@@ -399,8 +383,8 @@ export class AcpChatStore {
   }
 
   async downloadAttachment(id: string) {
-    const client = await this._getAcpClient();
-    const result = await client.downloadAttachment({
+    const client = await this._getAttachmentsClient();
+    const result = await client.download({
       conversationId: this.conversationId,
       attachmentId: id,
     });
@@ -416,8 +400,8 @@ export class AcpChatStore {
 
   async deleteAttachment(id: string): Promise<void> {
     try {
-      const client = await this._getAcpClient();
-      const result = await client.deleteAttachment({
+      const client = await this._getAttachmentsClient();
+      const result = await client.delete({
         conversationId: this.conversationId,
         attachmentId: id,
       });
@@ -432,14 +416,19 @@ export class AcpChatStore {
     attachments: AcpPromptAttachment[] = [],
     hiddenContext?: string | Promise<string | undefined>
   ): void {
-    if (this.hostAccess?.liveAction.kind === 'disabled') return;
+    if (
+      this.hostAccess?.liveAction.kind === 'disabled' ||
+      this.loadError?.kind === 'session_not_found'
+    )
+      return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     const submissionSequence = ++this._submissionSequence;
+    const promptId = crypto.randomUUID();
     let optimisticId: string | undefined;
-    this.draftText = '';
+    this.composerModel.clear();
     this.draftAttachments = [];
     if (!this.affordances.isWorking) {
-      optimisticId = `optimistic:user:${Date.now()}`;
+      optimisticId = promptId;
       this.chatState.session.setPendingPrompt({
         id: optimisticId,
         text,
@@ -451,8 +440,8 @@ export class AcpChatStore {
       this.chatState.scroll.set(pinMode);
     }
 
-    void this._submitPrompt(text, promptAttachments, hiddenContext).then((accepted) => {
-      if (accepted) return;
+    void this._submitPrompt(promptId, text, promptAttachments, hiddenContext).then((outcome) => {
+      if (outcome !== 'rejected') return;
       runInAction(() => {
         if (this._disposed || submissionSequence !== this._submissionSequence) return;
         if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {
@@ -460,15 +449,14 @@ export class AcpChatStore {
           this._syncMessageCount();
         }
         if (this.draftText !== '' || this.draftAttachments.length > 0) return;
-        this.draftText = text;
+        this.composerModel.setText(text);
         this.draftAttachments = attachments;
       });
     });
   }
 
   setDraftText(text: string): void {
-    if (text === this.draftText) return;
-    this.draftText = text;
+    this.composerModel.setText(text);
   }
 
   addDraftAttachments(attachments: AcpPromptAttachment[]): void {
@@ -489,6 +477,7 @@ export class AcpChatStore {
   }
 
   stop(): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.cancelTurn()
       .then((result) => {
@@ -497,65 +486,61 @@ export class AcpChatStore {
       .catch((error: unknown) => this._toastError('Failed to stop', error));
   }
 
-  setModel(model: string): void {
-    void this.session
-      ?.setOption('model', model)
-      .then((result) => {
-        if (!result.success) {
-          this._toastError('Failed to change model', result.error);
-          return;
-        }
-        void this._rememberPreference({ model });
-      })
-      .catch((error: unknown) => this._toastError('Failed to change model', error));
+  get providerOptions() {
+    return this.session?.config.current().options ?? this._lastProviderOptions.get();
+  }
+  get configuredOptions() {
+    const conversation = conversationRegistry
+      .get(this.taskId)
+      ?.conversations.get(this.conversationId)?.data;
+    return this.session?.config.current().configuredOptions ?? conversation?.options ?? {};
   }
 
-  setMode(modeId: string): void {
-    void this.session
-      ?.setOption('mode', modeId)
-      .then((result) => {
-        if (!result.success) {
-          this._toastError('Failed to change session mode', result.error);
-          return;
-        }
-        void this._rememberPreference({ modeId });
-      })
-      .catch((error: unknown) => this._toastError('Failed to change session mode', error));
+  get canSetOptions() {
+    return this.liveActionsEnabled && this.session?.config.current().options !== undefined;
   }
 
-  setCollaborationMode(modeId: string): void {
+  setOption(configId: string, value: string | boolean): void {
+    if (!this.canSetOptions || !configId) return;
     void this.session
-      ?.setOption('collaborationMode', modeId)
+      ?.setOption(configId, value)
       .then((result) => {
         if (!result.success) {
-          this._toastError('Failed to change collaboration mode', result.error);
+          this._toastError('Failed to change setting', result.error);
           return;
         }
-        void this._rememberPreference({ collaborationMode: modeId });
-      })
-      .catch((error: unknown) => this._toastError('Failed to change collaboration mode', error));
-  }
-
-  setEffort(effort: string): void {
-    void this.session
-      ?.setOption('effort', effort)
-      .then((result) => {
-        if (!result.success) {
-          this._toastError('Failed to change effort', result.error);
-          return;
+        if (result.data.reapplyFailures.length) {
+          toast.warning('Setting saved, but some settings could not be restored', {
+            description: result.data.reapplyFailures
+              .map(({ configId, error }) => {
+                const name =
+                  this.providerOptions?.find((option) => option.id === configId)?.name ?? configId;
+                const message =
+                  error.type === 'set_config_failed' ? error.cause?.message : error.message;
+                return message ? `${name}: ${message}` : name;
+              })
+              .join('\n'),
+          });
         }
-        void this._rememberPreference({ effort });
+        if (result.data.preferenceSaveError !== undefined) {
+          toast.warning(
+            'Setting saved for this conversation, but could not be remembered for new conversations',
+            { description: result.data.preferenceSaveError }
+          );
+        }
       })
-      .catch((error: unknown) => this._toastError('Failed to change effort', error));
+      .catch((error: unknown) => this._toastError('Failed to change setting', error));
   }
 
   resolvePermission(optionId: string): void {
+    if (!this.liveActionsEnabled) return;
     const request = this.permissionQueue[0];
     if (!request) return;
     void this.session?.resolvePermission(request.requestId, optionId);
   }
 
   editQueuedPrompt(id: string, text: string): void {
+    if (!this.liveActionsEnabled) return;
     const existing = this._queuedPromptModels().find((prompt) => prompt.id === id);
     if (!existing) return;
     const input: PromptInput = {
@@ -572,6 +557,7 @@ export class AcpChatStore {
   }
 
   deleteQueuedPrompt(id: string): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.deleteQueuedPrompt(id)
       .then((result) => {
@@ -581,6 +567,7 @@ export class AcpChatStore {
   }
 
   reorderQueuedPrompts(ids: string[]): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.changeQueuePromptOrder(ids)
       .then((result) => {
@@ -590,6 +577,7 @@ export class AcpChatStore {
   }
 
   sendQueuedPromptNow(id: string): void {
+    if (!this.liveActionsEnabled) return;
     void this._sendQueuedPromptNow(id);
   }
 
@@ -604,13 +592,17 @@ export class AcpChatStore {
     this._unsubs.splice(0).forEach((unsub) => unsub());
     this.session?.dispose();
     this.chatState.dispose();
+    this._disposeComposerSubscription();
+    this.composerModel.dispose();
     void this._scope
       .dispose()
       .then(() => this._draftSpace.release())
       .catch((error: unknown) => getMementoClient().reportError(error));
   }
 
-  private async _runBootstrap(): Promise<void> {
+  private async _runBootstrap(mode?: AcpSessionStartMode): Promise<void> {
+    const epoch = ++this._historyEpoch;
+    if (this._disposed) return;
     if (this.hostAccess?.liveAction.kind === 'disabled') {
       runInAction(() => {
         this.historyLoading = false;
@@ -627,6 +619,10 @@ export class AcpChatStore {
     try {
       const attachedSession = await AcpLiveSession.create(this.conversationId);
       clientSession = attachedSession;
+      if (this._disposed || this._historyEpoch !== epoch) {
+        attachedSession.dispose();
+        return;
+      }
 
       runInAction(() => {
         this.session?.dispose();
@@ -634,50 +630,115 @@ export class AcpChatStore {
         this._subscribeLiveSession(attachedSession);
       });
 
+      const started = await attachedSession.startSession(mode);
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
+      if (!started.success) throw new AcpStartError(started.error);
       const history = await attachedSession.loadHistory(undefined, 100);
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
       if (!history.success) throw new AcpStartError(history.error);
-      if (history.data.clearedConfiguration?.length) {
-        await this._rememberPreference(
-          Object.fromEntries(history.data.clearedConfiguration.map((key) => [key, null])) as {
-            model?: null;
-            modeId?: null;
-            effort?: null;
-            collaborationMode?: null;
-          }
-        );
+      if (history.data.kind === 'unavailable' && !this.historyKnown && this.messageCount === 0) {
+        this._failBootstrap({
+          kind: 'history_unavailable',
+          message: 'Conversation history is unavailable. Retry loading this conversation.',
+        });
+        return;
       }
 
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
       runInAction(() => {
-        if (!history.data.unavailable) {
-          this.chatState.transcript.history.seed(history.data.turns);
-        }
+        const applied = this.chatState.transcript.applyPage(history.data);
+        if (applied) this.historyKnown = true;
         this.historyLoading = false;
         this.loadError = null;
+        this._bootstrapFailed = false;
         this._syncMessageCount();
       });
+      if (this._historyRefreshRequested || this.chatState.transcript.needsHistory)
+        this._requestHistoryRefresh();
       void this._rehydrateDraftAttachmentPreviews();
     } catch (error) {
+      if (this._disposed || this._historyEpoch !== epoch) {
+        if (clientSession && this.session !== clientSession) clientSession.dispose();
+        return;
+      }
       log.error('ACP chat bootstrap failed', {
         conversationId: this.conversationId,
         projectId: this.projectId,
         taskId: this.taskId,
         error,
       });
-      runInAction(() => {
-        if (clientSession && this.session !== clientSession) clientSession.dispose();
-        this.historyLoading = false;
-        this.loadError =
-          this.hostAccess?.liveAction.kind === 'disabled'
-            ? {
-                kind: 'unavailable',
-                message: 'Live chat is unavailable until Project access returns.',
-              }
-            : toLoadError(error);
-      });
+      if (clientSession && this.session !== clientSession) clientSession.dispose();
+      this._failBootstrap(toLoadError(error));
       if (this.loadError?.kind === 'auth_required' && providerId) {
         void this._refreshAuthStatus(providerId);
       }
     }
+  }
+
+  private _failBootstrap(error: AcpLoadError): void {
+    runInAction(() => {
+      this._bootstrapFailed = true;
+      this.historyLoading = false;
+      this.loadError =
+        this.hostAccess?.liveAction.kind === 'disabled'
+          ? {
+              kind: 'unavailable',
+              message: 'Live chat is unavailable until Project access returns.',
+            }
+          : error;
+    });
+  }
+
+  private _recoverAttachment(session: AcpLiveSession, generation: number | undefined): void {
+    this._historyEpoch++;
+    void this._attachmentRecovery?.dispose();
+    const scope = this._scope.child('attachment-recovery');
+    this._attachmentRecovery = scope;
+    void scope
+      .run('reattach', async () => {
+        let attempt = 0;
+        while (!scope.signal.aborted && this.session === session) {
+          try {
+            await session.revalidate(scope.signal);
+            if (scope.signal.aborted || this.session !== session || !session.usable) return;
+            this._attachedHostGeneration = generation;
+            // Reattachment alone cannot recover a failed history/bootstrap load.
+            if (this._bootstrapFailed || (this._bootstrapped && this.historyLoading)) {
+              runInAction(() => {
+                this.historyLoading = true;
+                this.loadError = null;
+              });
+              await this._runBootstrap();
+            } else {
+              const started = await session.startSession();
+              if (!started.success) throw new AcpStartError(started.error);
+              if (scope.signal.aborted || this.session !== session) return;
+              runInAction(() => {
+                this.loadError = null;
+                this._requestHistoryRefresh();
+              });
+            }
+            return;
+          } catch (error) {
+            if (scope.signal.aborted || this.session !== session) return;
+            const loadError = toLoadError(error);
+            runInAction(() => {
+              this.loadError = loadError;
+            });
+            if (error instanceof AcpStartError) return;
+          }
+          await systemClock.sleep(Math.min(1_000 * 2 ** attempt++, 15_000), {
+            signal: scope.signal,
+          });
+        }
+      })
+      .exit.finally(() => {
+        if (this._attachmentRecovery === scope) this._attachmentRecovery = null;
+        void scope.dispose();
+      });
   }
 
   private async _refreshAuthStatus(providerId: string): Promise<void> {
@@ -704,15 +765,16 @@ export class AcpChatStore {
   }
 
   private async _submitPrompt(
+    promptId: string,
     text: string,
     attachments: StoredPromptAttachment[],
     hiddenContext?: string | Promise<string | undefined>
-  ): Promise<boolean> {
-    if (this.hostAccess?.liveAction.kind === 'disabled') return false;
+  ): Promise<'accepted' | 'rejected' | 'unknown'> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return 'rejected';
     const session = this.session;
     if (!session || !session.usable) {
       this._toastError('Failed to send message', new Error('ACP session is not connected'));
-      return false;
+      return 'rejected';
     }
 
     let resolvedHiddenContext: string | undefined;
@@ -726,19 +788,37 @@ export class AcpChatStore {
     }
 
     try {
-      const result = await session.sendPrompt({
-        text,
-        ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
-        ...(attachments.length > 0 ? { attachments } : {}),
-      });
+      const result = await session.sendPrompt(
+        {
+          text,
+          ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
+          ...(attachments.length > 0 ? { attachments } : {}),
+        },
+        undefined,
+        promptId
+      );
       if (!result.success) {
+        const missingSession = sessionNotFoundErrorSchema.safeParse(result.error);
+        if (missingSession.success) {
+          runInAction(() => {
+            this.loadError = toLoadError(new AcpStartError(missingSession.data));
+          });
+        }
         this._toastError('Failed to send message', result.error);
-        return false;
+        return 'rejected';
       }
-      return true;
+      return 'accepted';
     } catch (error) {
+      if (error instanceof AcpPromptDeliveryUnknownError) {
+        if (this._disposed) return 'unknown';
+        runInAction(() => {
+          this.unconfirmedPromptIds = [...this.unconfirmedPromptIds, error.promptId];
+          this._syncMessageCount();
+        });
+        return 'unknown';
+      }
       this._toastError('Failed to send message', error);
-      return false;
+      return 'rejected';
     }
   }
 
@@ -798,11 +878,9 @@ export class AcpChatStore {
 
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
-    let previousLifecycle = session.sessionState.current().lifecycle;
     const disconnectChatSession = getChatUiRuntime().connectSession(
       this.chatState,
       {
-        activeTurn: asValueSource(session.activeTurn),
         plan: asValueSource(session.plan),
         sessionState: asValueSource(session.sessionState),
       },
@@ -810,18 +888,11 @@ export class AcpChatStore {
         onTurnCommitted: () => this._requestHistoryRefresh(),
       }
     );
+    this._syncMessageCount();
     this._unsubs.push(
       disconnectChatSession,
       this._bindTerminalOutputs(session),
-      session.sessionState.onChange((state) => {
-        const replayCompleted = previousLifecycle === 'replaying' && state.lifecycle === 'ready';
-        previousLifecycle = state.lifecycle;
-        runInAction(() => {
-          this._syncMessageCount();
-        });
-        if (replayCompleted) this._requestHistoryRefresh();
-      }),
-      session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount()))
+      session.sessionState.onChange(() => runInAction(() => this._syncMessageCount()))
     );
   }
 
@@ -854,26 +925,11 @@ export class AcpChatStore {
     );
   }
 
-  private _getAcpClient(): Promise<ConversationsClient['acp']> {
-    this._acpClientPromise ??= getConversationsClient().then((client) => client.acp);
-    return this._acpClientPromise;
-  }
-
-  private async _rememberPreference(patch: {
-    model?: string | null;
-    modeId?: string | null;
-    effort?: string | null;
-    collaborationMode?: string | null;
-  }): Promise<void> {
-    const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
-      ?.data.providerId;
-    if (!providerId) return;
-    const host = formatHostRef(hostRefFromConnectionId(getProjectSshConnectionId(this.projectId)));
-    try {
-      await updateProviderPreference(host, providerId, 'acp', patch);
-    } catch (error) {
-      getMementoClient().reportError(error);
-    }
+  private _getAttachmentsClient(): Promise<ConversationsClient['attachments']> {
+    this._attachmentsClientPromise ??= getConversationsClient().then(
+      (client) => client.attachments
+    );
+    return this._attachmentsClientPromise;
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {
@@ -884,14 +940,37 @@ export class AcpChatStore {
 
   private _requestHistoryRefresh(): void {
     this._historyRefreshRequested = true;
-    if (this._historyRefreshTask) return;
+    if (this._historyRefreshTask || this.historyLoading) return;
 
     const task = Promise.resolve()
       .then(async () => {
-        while (this._historyRefreshRequested && !this._disposed) {
+        let attempt = 0;
+        while (this._historyRefreshRequested && !this._disposed && !this.historyLoading) {
           this._historyRefreshRequested = false;
-          await this._refreshHistory();
+          if (await this._refreshHistory()) {
+            attempt = 0;
+          } else {
+            // A newer head arrived during the read: catch up immediately. Backoff is
+            // for unavailable/failed reads, not normal transcript progress.
+            if (this._historyRefreshRequested) continue;
+            if (attempt >= 5) {
+              runInAction(() => {
+                this.loadError = {
+                  kind: 'history_unavailable',
+                  message: 'Could not load conversation history. Retry loading it.',
+                };
+              });
+              return;
+            }
+            this._historyRefreshRequested = true;
+            await systemClock.sleep(Math.min(1_000 * 2 ** attempt++, 15_000), {
+              signal: this._scope.signal,
+            });
+          }
         }
+      })
+      .catch((error: unknown) => {
+        if (!this._disposed) getMementoClient().reportError(error);
       })
       .finally(() => {
         if (this._historyRefreshTask === task) this._historyRefreshTask = null;
@@ -900,39 +979,80 @@ export class AcpChatStore {
     this._historyRefreshTask = task;
   }
 
-  private async _refreshHistory(): Promise<void> {
+  private async _refreshHistory(): Promise<boolean> {
     const session = this.session;
-    if (!session) return;
+    const epoch = this._historyEpoch;
+    if (!session || !session.usable || this.hostAccess?.liveAction.kind === 'disabled') return true;
 
     try {
-      const history = await session.loadHistory(undefined, 100);
-      if (!history.success || history.data.unavailable || this.session !== session) return;
-      // A waking prompt may begin between replay completion and this response. Do not let a
-      // replay-history seed reset the newly active turn; its normal completion refresh will seed
-      // the authoritative history instead.
-      if (this.chatState.transcript.state.activeTurnSnapshot !== null) return;
-      runInAction(() => {
-        const pendingPrompt = this.chatState.session.state.pendingPrompt;
-        this.chatState.transcript.history.seed(history.data.turns);
-        if (pendingPrompt && this.chatState.session.state.pendingPrompt === null) {
-          this.chatState.session.setPendingPrompt(pendingPrompt);
-        }
-        this._syncMessageCount();
-      });
+      const transcript = this.chatState.transcript;
+      const oldestVisibleSeq = transcript.state.displayTurns[0]?.seq;
+      let before: number | undefined;
+      let revision: number | undefined;
+      let generation: string | undefined;
+      do {
+        const history = await session.loadHistory(before, 100);
+        if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
+        if (!history.success) throw new AcpStartError(history.error);
+        if (history.data.kind === 'unavailable') return !transcript.needsHistory;
+        const position = history.data.position;
+        // A change between pages requires another pass over the loaded range, including
+        // its latest page. A newer old-page response alone cannot prove we caught up.
+        if (
+          before !== undefined &&
+          (position.historyRevision !== revision || position.generation !== generation)
+        )
+          return false;
+        revision = position.historyRevision;
+        generation = position.generation;
+        let applied = false;
+        runInAction(() => {
+          applied = transcript.applyPage(history.data);
+          if (!applied) return;
+          this.historyKnown = true;
+          this.loadError = null;
+          this._bootstrapFailed = false;
+          this._syncMessageCount();
+        });
+        if (!applied) return false;
+        const cursor = history.data.nextCursor;
+        if (cursor === null || oldestVisibleSeq === undefined || cursor <= oldestVisibleSeq) break;
+        if (before !== undefined && cursor >= before) return false;
+        before = cursor;
+      } while (!this._disposed);
+      return !transcript.needsHistory;
     } catch (error) {
+      if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
       log.warn('Failed to refresh ACP history', {
         conversationId: this.conversationId,
         error,
       });
+      if (error instanceof AcpStartError) {
+        this._historyRefreshRequested = false;
+        runInAction(() => {
+          this.loadError = toLoadError(error);
+        });
+        return true;
+      }
+      return false;
     }
   }
 
   private _syncMessageCount(): void {
     const state = this.chatState.transcript.state;
-    const committedCount = state.committedTurns.reduce(
-      (count, turn) => count + turn.items.length,
-      0
-    );
+    if (this.unconfirmedPromptIds.length > 0 && this.session) {
+      const accepted = new Set(
+        this.session.sessionState.current().queuedPrompts.map((prompt) => prompt.id)
+      );
+      const active = state.activeTurnSnapshot;
+      for (const turn of [...state.displayTurns, ...(active ? [active] : [])]) {
+        for (const item of turn.items) {
+          if (item.kind === 'message' && item.promptId) accepted.add(item.promptId);
+        }
+      }
+      this.unconfirmedPromptIds = this.unconfirmedPromptIds.filter((id) => !accepted.has(id));
+    }
+    const committedCount = state.displayTurns.reduce((count, turn) => count + turn.items.length, 0);
     const activeCount = state.activeTurnSnapshot?.items.length ?? 0;
     const pendingPromptCount = this.chatState.session.state.pendingPrompt ? 1 : 0;
     this.messageCount = committedCount + activeCount + pendingPromptCount;
@@ -967,7 +1087,7 @@ async function resolveDraftAttachmentDataUrl(
   try {
     const result = await store.downloadAttachment(attachmentId);
     if (!result.success) {
-      return result.error.type === 'attachment_not_found'
+      return result.error.type === 'attachment-not-found'
         ? { kind: 'not_found' }
         : { kind: 'unavailable' };
     }
@@ -996,6 +1116,9 @@ function toLoadError(error: unknown): AcpLoadError {
   const message = error instanceof Error ? error.message : 'Failed to load chat.';
   if (error instanceof AcpStartError && error.errorType === 'auth_required') {
     return { kind: 'auth_required', message };
+  }
+  if (error instanceof AcpStartError && error.errorType === 'session_not_found') {
+    return { kind: 'session_not_found', message };
   }
   return { kind: 'generic', message };
 }

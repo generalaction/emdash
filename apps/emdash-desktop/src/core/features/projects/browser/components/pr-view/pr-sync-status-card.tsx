@@ -7,9 +7,8 @@ import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/a
 import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
 
 const KIND_LABELS: Record<string, string> = {
-  full: 'Full sync',
-  incremental: 'Incremental sync',
-  single: 'Single PR',
+  repository: 'Pull requests',
+  history: 'PR history',
 };
 
 interface SyncStatusCardProps {
@@ -67,22 +66,24 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
 }: Props) {
   const store = usePullRequestsStore();
   const state = store.syncState(repositoryUrl);
+  const canCancelHistory = store.canCancelHistory(repositoryUrl);
   const [showSuccess, setShowSuccess] = useState(false);
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (state?.phase === 'idle' && state.lastSyncedAt !== undefined) {
+    if (state?.phase === 'idle' && state.outcome === 'success') {
       setShowSuccess(true);
       const timer = setTimeout(() => setShowSuccess(false), 1000);
       return () => clearTimeout(timer);
     }
-  }, [state?.lastSyncedAt, state?.phase]);
+    setShowSuccess(false);
+  }, [state?.lastSyncedAt, state?.phase, state?.outcome]);
 
-  if (manualError && (!state || state.phase === 'idle')) {
+  if (manualError && !canCancelHistory && (!state || state.phase === 'idle')) {
     return <SyncErrorStatusCard error={manualError} />;
   }
 
-  if (showSuccess) {
+  if (showSuccess && !canCancelHistory && state?.phase === 'idle' && state.outcome === 'success') {
     return (
       <SyncStatusCard
         icon={<CheckCircle2 className="size-3.5 shrink-0 text-green-500" />}
@@ -91,34 +92,43 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
     );
   }
 
-  if (!state || state.phase === 'idle') return null;
+  if ((!state || state.phase === 'idle') && !canCancelHistory) return null;
 
-  const kindLabel = state.kind ? (KIND_LABELS[state.kind] ?? state.kind) : undefined;
+  const kindLabel = canCancelHistory
+    ? KIND_LABELS.history
+    : state?.kind
+      ? KIND_LABELS[state.kind]
+      : undefined;
 
-  if (state.phase === 'running' && state.kind !== 'single') {
-    const hasProgress = state.total != null && state.total > 0;
+  if (state?.phase === 'running' || canCancelHistory) {
+    const hasProgress =
+      (!canCancelHistory || state?.kind === 'history') && state?.total != null && state.total > 0;
     return (
       <SyncStatusCard
         icon={<Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
         label={kindLabel}
         content={
-          hasProgress ? `Syncing PRs: ${state.synced ?? 0} / ${state.total}` : 'Syncing PRs…'
+          hasProgress
+            ? `Refreshing PRs: ${state?.synced ?? 0} / ${state?.total}`
+            : 'Refreshing PRs…'
         }
         actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 shrink-0 px-2 text-xs"
-            onClick={() => store.cancelSync(repositoryUrl)}
-          >
-            Cancel
-          </Button>
+          canCancelHistory ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 shrink-0 px-2 text-xs"
+              onClick={() => store.cancelHistory(repositoryUrl)}
+            >
+              Cancel
+            </Button>
+          ) : undefined
         }
       />
     );
   }
 
-  const error = state.error ? pullRequestErrorMessage(state.error) : 'Unknown error';
+  const error = state?.error ? pullRequestErrorMessage(state.error) : 'Unknown error';
   if (dismissedError === error) return null;
   return (
     <SyncErrorStatusCard
@@ -129,7 +139,13 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-xs"
-            onClick={() => store.sync(repositoryUrl)}
+            onClick={() =>
+              void (
+                state?.kind === 'history'
+                  ? store.refreshHistory(repositoryUrl)
+                  : store.refreshRepository(repositoryUrl)
+              ).catch(() => {})
+            }
           >
             Retry
           </Button>

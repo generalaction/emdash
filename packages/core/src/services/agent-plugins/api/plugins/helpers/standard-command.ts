@@ -45,11 +45,6 @@ export type StandardCommandSpec = {
   resumeWithoutSessionFlag?: string;
   /** A flag appended when starting a fresh conversation (e.g. letta's --new). */
   newConversationFlag?: string;
-  /**
-   * When true, sessionIdFlag is injected on both fresh AND resume sessions.
-   * Use for providers like Antigravity that identify conversations by ID on every invocation.
-   */
-  sessionIdAlways?: boolean;
   /** When true, skip auto-approve flag on resume (kimi special case). */
   omitAutoApproveOnResume?: boolean;
   /** List of singleton flags to deduplicate (keep first occurrence only). */
@@ -82,8 +77,16 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
   // Session / resume logic.
   // For sessionIdOnResumeOnly providers, use only the provider-native session id.
   // If providerSessionId is absent, validSessionId will be undefined → fallback flags apply.
-  // For all other providers, the emdash session UUID (sessionId) is used.
-  const rawSessionId = spec.sessionIdOnResumeOnly ? ctx.providerSessionId : ctx.sessionId;
+  // For all other providers, the emdash session UUID (sessionId) is used, unless a
+  // resume carries a provider-reported session id that differs from it (the process
+  // switched sessions, e.g. Claude's in-session `/resume`); then that id is resumed.
+  const capturedSessionId =
+    ctx.isResuming && ctx.providerSessionId && ctx.providerSessionId !== ctx.sessionId
+      ? ctx.providerSessionId
+      : undefined;
+  const rawSessionId = spec.sessionIdOnResumeOnly
+    ? ctx.providerSessionId
+    : (capturedSessionId ?? ctx.sessionId);
   const hasSessionId = !!rawSessionId;
   const validSessionId =
     hasSessionId && spec.validateSessionId
@@ -93,16 +96,13 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
       : rawSessionId;
 
   if (ctx.isResuming) {
-    if (spec.sessionIdAlways && spec.sessionIdFlag && ctx.sessionId) {
-      // Always inject session ID on resume too (e.g. Antigravity --conversation=)
-      appendFlagValue(args, spec.sessionIdFlag, ctx.sessionId);
-    } else if (spec.resumeFlag) {
+    if (spec.resumeFlag) {
       if (spec.sessionIdFlag && validSessionId) {
-        // resumeFlag takes the session ID (e.g. '--resume <id>' or '-r <id>')
-        args.push(...splitFlag(spec.resumeFlag), validSessionId);
+        // resumeFlag takes the session ID (e.g. '--resume <id>' or '--conversation=<id>')
+        appendFlagValue(args, spec.resumeFlag, validSessionId);
       } else if (spec.sessionIdFlag && !spec.sessionIdOnResumeOnly) {
         // Use emdash UUID
-        args.push(...splitFlag(spec.resumeFlag), ctx.sessionId!);
+        appendFlagValue(args, spec.resumeFlag, ctx.sessionId!);
       } else if (spec.resumeWithoutSessionFlag) {
         args.push(...splitFlag(spec.resumeWithoutSessionFlag));
       } else {

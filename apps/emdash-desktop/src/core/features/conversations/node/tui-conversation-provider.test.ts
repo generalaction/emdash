@@ -39,7 +39,7 @@ describe('TuiConversationProvider', () => {
     expect(resume).not.toHaveBeenCalled();
   });
 
-  it.each(['codex', 'prime-agent'])(
+  it.each(['antigravity', 'codex', 'prime-agent'])(
     'routes native-id provider %s to the runtime resume path when a native id exists',
     async (providerId) => {
       const provider = createProvider();
@@ -61,13 +61,20 @@ describe('TuiConversationProvider', () => {
     }
   );
 
-  it.each(['codex', 'prime-agent'])(
-    'downgrades missing-native-id provider %s to fresh without replaying the prompt',
-    async (providerId) => {
+  it.each([
+    { providerId: 'antigravity', sessionId: undefined },
+    { providerId: 'antigravity', sessionId: 'conversation-1' },
+    { providerId: 'codex', sessionId: undefined },
+    { providerId: 'codex', sessionId: 'conversation-1' },
+    { providerId: 'prime-agent', sessionId: undefined },
+    { providerId: 'prime-agent', sessionId: 'conversation-1' },
+  ])(
+    'starts $providerId fresh without replaying the prompt when sessionId is $sessionId',
+    async ({ providerId, sessionId }) => {
       const provider = createProvider();
 
       await provider.ensureSession({
-        conversation: conversation({ providerId, sessionId: 'conversation-1' }),
+        conversation: conversation({ providerId, sessionId }),
         mode: 'resume',
         initialPrompt: 'do not replay',
       });
@@ -82,6 +89,33 @@ describe('TuiConversationProvider', () => {
       expect(resume).not.toHaveBeenCalled();
     }
   );
+
+  it('resumes claude with a hook-captured session id that differs from the conversation id', async () => {
+    const provider = createProvider();
+
+    await provider.ensureSession({
+      conversation: conversation({ providerId: 'claude', sessionId: 'native-session' }),
+      mode: 'resume',
+    });
+
+    expect(resume).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'claude', sessionId: 'native-session' })
+    );
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('resumes claude with the conversation id when no other session id was captured', async () => {
+    const provider = createProvider();
+
+    await provider.ensureSession({
+      conversation: conversation({ providerId: 'claude', sessionId: 'conversation-1' }),
+      mode: 'resume',
+    });
+
+    expect(resume).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'claude', sessionId: 'conversation-1' })
+    );
+  });
 
   it.each([
     { label: 'local', host: { type: 'local', id: 'local' } as const },
@@ -159,7 +193,6 @@ describe('TuiConversationProvider', () => {
           EMDASH_TASK_NAME: 'old-name',
         }),
         shellSetup: 'source old-profile',
-        tmuxSessionName: undefined,
       })
     );
     expect(start).toHaveBeenNthCalledWith(
@@ -170,7 +203,7 @@ describe('TuiConversationProvider', () => {
           EMDASH_TASK_NAME: 'new-name',
         }),
         shellSetup: 'source new-profile',
-        tmuxSessionName: expect.stringMatching(/^emdash-/),
+        tmux: { identity: expect.stringMatching(/:/) },
       })
     );
   });
@@ -187,7 +220,7 @@ function createProvider(
   return new TuiConversationProvider(
     {
       host: overrides.host ?? { type: 'local', id: 'local' },
-      tuiAgents: { start, resume } as never,
+      tuiAgents: { startSession: start, resume } as never,
       projectId: 'project-1',
       taskId: 'task-1',
       taskPath: '/workspace',

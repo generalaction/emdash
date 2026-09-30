@@ -4,7 +4,7 @@ import { updateEvents } from './event-host';
 
 export type UpdateOperations = {
   checkForUpdates(): Promise<unknown | null>;
-  downloadUpdate(): Promise<void>;
+  downloadUpdate(): void;
   quitAndInstall(): void;
   openLatestRelease(): Promise<void>;
   getState(): DesktopUpdateState;
@@ -24,8 +24,8 @@ export function createUpdatesWireController(updateOperations: UpdateOperations):
     },
     download: async () => {
       try {
-        await updateOperations.downloadUpdate();
-        return { success: true as const };
+        updateOperations.downloadUpdate();
+        return { success: true as const, data: updateOperations.getState() };
       } catch (error) {
         return { success: false as const, error: updateOperations.formatError(error) };
       }

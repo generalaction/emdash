@@ -37,6 +37,7 @@ export type IssueAccountUnavailableError = {
 };
 
 export type IssueAccountError =
+  | { type: 'account_context_changed'; message: string }
   | IssueAccountUnavailableError
   | { type: 'account_not_found'; host?: string; accountId?: string; message: string }
   | {
@@ -63,6 +64,7 @@ export type IssueListResult = Result<LinkedIssue[], IssueListError>;
 export type IssueContextResult = Result<LinkedIssue, IssueListError>;
 
 export type IssueQueryOpts = {
+  accountContext?: string;
   limit?: number;
   projectId?: string;
   projectPath?: string;
@@ -76,4 +78,6 @@ export type IssueSearchOpts = IssueQueryOpts & {
 
 export type IssueContextOpts = IssueQueryOpts & {
   identifier: string;
+  accountId?: string;
+  issueUrl?: string;
 };

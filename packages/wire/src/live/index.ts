@@ -50,3 +50,5 @@ export {
   type ReplicaLogOptions,
 } from './replica/log';
 export { type StateStore } from './replica/store';
+// Individual subscriptions do not wait for unrelated model states to become ready.
+export { ReplicaState, type ReplicaStateOptions } from './replica/state';

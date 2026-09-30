@@ -28,7 +28,7 @@ describe('RootPathPolicy', () => {
     expect(normalizeRelativePath('src\\file').success).toBe(path.sep !== '\\');
   });
 
-  it('rejects followed paths that escape through a symlink', async () => {
+  it('follows external symlinks while reporting target containment', async () => {
     const root = await makeRoot();
     const outside = await makeRoot();
     await mkdir(path.join(outside, 'target'));
@@ -40,8 +40,8 @@ describe('RootPathPolicy', () => {
 
     const policy = new RootPathPolicy(root);
     await expect(policy.resolveFollowed('linked')).resolves.toMatchObject({
-      success: false,
-      error: { type: 'invalid-path' },
+      success: true,
+      data: { realPath: path.join(outside, 'target'), outsideRoot: true },
     });
     expect(policy.resolveEntry('linked')).toMatchObject({ success: true });
   });

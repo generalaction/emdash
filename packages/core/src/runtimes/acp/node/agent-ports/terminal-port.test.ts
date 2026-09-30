@@ -53,8 +53,7 @@ describe('TerminalPort', () => {
     expect(create).toHaveBeenCalledWith(
       'conversation-1',
       expect.objectContaining({
-        command: 'node',
-        args: [],
+        command: { kind: 'argv', command: 'node', args: [] },
         env: expect.objectContaining({
           PATH: 'C:\\override',
           ENV_TEST: 'inherited',

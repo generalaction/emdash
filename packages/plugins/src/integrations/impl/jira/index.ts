@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyJiraCredentials } from './client';
 import { icon } from './icon';
+import { jiraCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -47,6 +48,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: jiraCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyJiraCredentials(credentials);
       if (!result.success)

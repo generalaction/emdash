@@ -72,8 +72,8 @@ function normalizeSelection(selection: unknown): HostDependencySelection | null 
   if (value.kind === 'pinned' && typeof value.realpath === 'string') {
     return { kind: 'path', path: value.realpath };
   }
-  if (value.kind === 'cli' && typeof value.command === 'string' && value.command.startsWith('/')) {
-    return { kind: 'path', path: value.command };
+  if (value.kind === 'cli' && typeof value.command === 'string') {
+    return { kind: 'cli', command: value.command };
   }
   if (typeof value.path === 'string') return { kind: 'path', path: value.path };
   return null;

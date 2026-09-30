@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CheckRun } from './types';
-import { sortCheckRunsByLatest } from './utils';
+import { computeCheckBucket, sortCheckRunsByLatest } from './utils';
 
 function makeCheck(overrides: Partial<CheckRun> = {}): CheckRun {
   return {
@@ -19,6 +19,20 @@ function makeCheck(overrides: Partial<CheckRun> = {}): CheckRun {
     ...overrides,
   };
 }
+
+describe('computeCheckBucket', () => {
+  it('classifies requested checks as pending', () => {
+    expect(computeCheckBucket(makeCheck({ status: 'REQUESTED', conclusion: null }))).toBe(
+      'pending'
+    );
+  });
+
+  it('classifies startup failures as failed', () => {
+    expect(
+      computeCheckBucket(makeCheck({ status: 'COMPLETED', conclusion: 'STARTUP_FAILURE' }))
+    ).toBe('fail');
+  });
+});
 
 describe('sortCheckRunsByLatest', () => {
   it('orders runs newest first regardless of their result', () => {

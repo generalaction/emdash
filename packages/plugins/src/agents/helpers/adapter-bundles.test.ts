@@ -1,10 +1,9 @@
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { adapterAssets } from '../adapter-manifest';
 import { adapterAssetFileName } from './adapter-assets';
 import { validateAdapterBundleAssets } from './adapter-validation';
@@ -13,24 +12,6 @@ const packageDirectory = dirname(fileURLToPath(new URL('../../../package.json', 
 const adapterDirectory = join(packageDirectory, 'dist/adapters');
 
 describe('built adapter bundles', () => {
-  beforeAll(() => {
-    if (
-      adapterAssets.every((asset) =>
-        existsSync(join(adapterDirectory, adapterAssetFileName(asset)))
-      )
-    ) {
-      return;
-    }
-
-    const result = spawnSync('pnpm', ['exec', 'tsdown', '--config-loader', 'tsx'], {
-      cwd: packageDirectory,
-      stdio: 'inherit',
-    });
-    if (result.status !== 0) {
-      throw new Error(`Failed to build adapter bundles for tests (exit ${result.status})`);
-    }
-  }, 120_000);
-
   it('passes size and dependency validation', async () => {
     await expect(
       validateAdapterBundleAssets({ adapterDirectory, assets: adapterAssets })

@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   getTasks: vi.fn(),
   invalidateSubject: vi.fn(),
   navigate: vi.fn(),
+  restoreMutation: vi.fn(),
   teardownTask: vi.fn(),
 }));
 
@@ -164,6 +165,19 @@ function createTaskWire() {
                 task.id === context.input.taskId
                   ? { ...task, archivedAt: '2026-01-02T00:00:00.000Z' }
                   : task
+              ),
+            }),
+            { mutationIds: [context.mutationId] }
+          );
+          await context.observed('list', revision);
+          return ok<void>();
+        },
+        async restore(context) {
+          mocks.restoreMutation(context.input);
+          const revision = taskListState.update(
+            (previous) => ({
+              tasks: previous.tasks.map((task) =>
+                task.id === context.input.taskId ? { ...task, archivedAt: undefined } : task
               ),
             }),
             { mutationIds: [context.mutationId] }
@@ -428,9 +442,10 @@ describe('TaskManagerStore lifecycle', () => {
     manager.dispose();
   });
 
-  it('does not archive an active Task when its teardown cannot reach the Project', async () => {
+  it('archives an active Task even when script and session cleanup cannot reach the host', async () => {
     const manager = makeTaskManager();
     const task = makeTask();
+    taskListState.set({ tasks: [task] });
     const store = createUnprovisionedTask(task);
     store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1');
     manager.tasks.set(task.id, store);
@@ -442,8 +457,25 @@ describe('TaskManagerStore lifecycle', () => {
 
     await manager.archiveTask(task.id);
 
-    expect(store.state).toBe('provisioned');
-    expect(mocks.archiveMutation).not.toHaveBeenCalled();
+    expect(store.state).toBe('unprovisioned');
+    expect(mocks.archiveMutation).toHaveBeenCalledWith({ taskId: task.id });
+    manager.dispose();
+  });
+
+  it('restores operational stores before a restored Task can be opened', async () => {
+    const manager = makeTaskManager();
+    const task = makeTask();
+    taskListState.set({ tasks: [task] });
+    await manager.loadTasks();
+    const store = manager.tasks.get(task.id)!;
+    const restoreOperationalStores = vi.spyOn(store, 'restoreOperationalStores');
+
+    await manager.archiveTask(task.id);
+    await manager.restoreTask(task.id);
+
+    expect(mocks.restoreMutation).toHaveBeenCalledWith({ taskId: task.id });
+    expect(restoreOperationalStores).toHaveBeenCalledOnce();
+    await expect(store.ready()).resolves.toBeUndefined();
     manager.dispose();
   });
 });

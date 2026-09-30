@@ -81,12 +81,14 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
           <BaseProjectSettingsSection
             projectId={projectId}
             gitIdentityForm={formModel.form.gitIdentity}
+            integrationAccountsForm={formModel.form.integrationAccounts}
             placementForm={formModel.form.placement}
             placement={domains.placement}
             projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
             updateGitIdentity={formModel.updateGitIdentity}
+            updateIntegrationAccounts={formModel.updateIntegrationAccounts}
             updatePlacement={formModel.updatePlacement}
             hostActionReason={hostActionReason}
             hostObservationKind={hostObservationKind}

@@ -2,7 +2,6 @@ import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-s
 
 export interface TaskSettingsModel {
   autoGenerateName: boolean;
-  autoApproveByDefault: boolean;
   autoTrustWorktrees: boolean;
   createBranchAndWorktree: boolean;
   deleteBranchByDefault: boolean;
@@ -13,7 +12,6 @@ export interface TaskSettingsModel {
   isFieldOverridden: (
     field:
       | 'autoGenerateName'
-      | 'autoApproveByDefault'
       | 'autoTrustWorktrees'
       | 'createBranchAndWorktree'
       | 'deleteBranchByDefault'
@@ -21,14 +19,12 @@ export interface TaskSettingsModel {
       | 'includeIssueContextByDefault'
   ) => boolean;
   updateAutoGenerateName: (next: boolean) => void;
-  updateAutoApproveByDefault: (next: boolean) => void;
   updateAutoTrustWorktrees: (next: boolean) => void;
   updateCreateBranchAndWorktree: (next: boolean) => void;
   updateDeleteBranchByDefault: (next: boolean) => void;
   updatePreserveNameCapitalization: (next: boolean) => void;
   updateIncludeIssueContextByDefault: (next: boolean) => void;
   resetAutoGenerateName: () => void;
-  resetAutoApproveByDefault: () => void;
   resetAutoTrustWorktrees: () => void;
   resetCreateBranchAndWorktree: () => void;
   resetDeleteBranchByDefault: () => void;
@@ -48,7 +44,6 @@ export function useTaskSettings(): TaskSettingsModel {
 
   return {
     autoGenerateName: tasks?.autoGenerateName ?? false,
-    autoApproveByDefault: tasks?.autoApproveByDefault ?? false,
     autoTrustWorktrees: tasks?.autoTrustWorktrees ?? false,
     createBranchAndWorktree: tasks?.createBranchAndWorktree ?? true,
     deleteBranchByDefault: tasks?.deleteBranchByDefault ?? false,
@@ -58,14 +53,12 @@ export function useTaskSettings(): TaskSettingsModel {
     saving,
     isFieldOverridden,
     updateAutoGenerateName: (next) => update({ autoGenerateName: next }),
-    updateAutoApproveByDefault: (next) => update({ autoApproveByDefault: next }),
     updateAutoTrustWorktrees: (next) => update({ autoTrustWorktrees: next }),
     updateCreateBranchAndWorktree: (next) => update({ createBranchAndWorktree: next }),
     updateDeleteBranchByDefault: (next) => update({ deleteBranchByDefault: next }),
     updatePreserveNameCapitalization: (next) => update({ preserveNameCapitalization: next }),
     updateIncludeIssueContextByDefault: (next) => update({ includeIssueContextByDefault: next }),
     resetAutoGenerateName: () => resetField('autoGenerateName'),
-    resetAutoApproveByDefault: () => resetField('autoApproveByDefault'),
     resetAutoTrustWorktrees: () => resetField('autoTrustWorktrees'),
     resetCreateBranchAndWorktree: () => resetField('createBranchAndWorktree'),
     resetDeleteBranchByDefault: () => resetField('deleteBranchByDefault'),

@@ -23,6 +23,7 @@ export class TaskPrSyncCoordinator {
   private syncRemotePromise: Promise<RemoteModel<typeof pullRequestsContract.syncState>> | null =
     null;
   private generation = 0;
+  private readonly reloadGenerations = new WeakMap<TaskStore, number>();
   /** The PR cache's last-sync stamp for the watched repository ("as of last sync"). */
   private lastSyncedAt: number | null = null;
   private readonly disposeGitHeadReaction: () => void;
@@ -99,6 +100,8 @@ export class TaskPrSyncCoordinator {
    */
   private async reloadTask(store: TaskStore): Promise<void> {
     if (!isRegistered(store)) return;
+    const reloadGeneration = (this.reloadGenerations.get(store) ?? 0) + 1;
+    this.reloadGenerations.set(store, reloadGeneration);
     const repositoryUrl = this.repository.pullRequestRepositoryUrl;
     const fallbackHeadRepositoryUrl = this.repository.canonicalPushRepositoryUrl;
     // Missing repository context prevents a refresh; it does not prove that the
@@ -123,6 +126,7 @@ export class TaskPrSyncCoordinator {
       return;
     }
     // Drop stale results: another reload owns the write when the inputs moved.
+    if (this.reloadGenerations.get(store) !== reloadGeneration) return;
     if (this.repository.pullRequestRepositoryUrl !== repositoryUrl) return;
     if (this.repository.canonicalPushRepositoryUrl !== fallbackHeadRepositoryUrl) return;
     if (!isDeepEqual(associationInputs(store), inputs)) return;
@@ -148,21 +152,17 @@ export class TaskPrSyncCoordinator {
     if (generation !== this.generation) return;
     const syncScope = this.scope.child(`sync:${repositoryUrl}`);
     this.syncScope = syncScope;
-    let previousLastSyncedAt: number | undefined;
+    let previousRevision: number | undefined;
     const member = syncRemote({ repositoryUrl });
     observe(
       member.states.state,
       (state) => {
         const value = state.value;
         if (value?.lastSyncedAt !== undefined) this.lastSyncedAt = value.lastSyncedAt;
-        if (
-          value?.phase !== 'idle' ||
-          value.lastSyncedAt === undefined ||
-          value.lastSyncedAt === previousLastSyncedAt
-        ) {
+        if (value?.revision === undefined || value.revision === previousRevision) {
           return;
         }
-        previousLastSyncedAt = value.lastSyncedAt;
+        previousRevision = value.revision;
         this.reloadAll();
       },
       { scope: syncScope }

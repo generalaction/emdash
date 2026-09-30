@@ -61,7 +61,7 @@ const toCommandFailedError = (error: unknown): HostDependencyError => ({
 export function createHostDependenciesController(runtime: HostDependenciesRuntime) {
   return createController(hostDependenciesContract, {
     resolver: {
-      resolve: ({ id }) => runtime.resolve(id),
+      resolve: ({ id, selection }) => runtime.resolve(id, selection),
     },
     snapshot: runtime.liveHost(),
     runSelfUpdateCommand: {

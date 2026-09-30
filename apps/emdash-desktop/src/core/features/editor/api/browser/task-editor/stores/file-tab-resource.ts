@@ -159,6 +159,10 @@ export class FileTabResource implements TabResource {
     return this.entry?.dirty ?? false;
   }
 
+  get readOnly(): boolean {
+    return this.entry?.readOnly ?? false;
+  }
+
   /** Current buffer text; touch {@link bufferVersion} first in observers. */
   bufferText(): string {
     return this.entry?.handleFor(BUFFER)?.getText() ?? '';

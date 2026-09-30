@@ -1,11 +1,16 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
+import { secret } from '@emdash/shared';
 import { Server, type Client, type ConnectConfig } from 'ssh2';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectionState, SshConfig } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { SshConnectionRow } from '@core/services/app-db/node/schema';
-import type { SshConnectResult } from './connect/resolve-ssh-connect-config';
+import {
+  resolveSshConnectConfig,
+  type SshConnectInput,
+  type SshConnectResult,
+} from './connect/resolve-ssh-connect-config';
 import { SshConnectionManager } from './lifecycle/ssh-connection-manager';
 import { SshService, type SshServiceDeps } from './ssh-service';
 
@@ -27,13 +32,14 @@ const baseConfig: SshConfig & { password?: string } = {
 
 function createService(options: {
   manager: SshConnectionManager;
-  resolve: () => Promise<SshConnectResult>;
+  resolve: (input: SshConnectInput) => Promise<SshConnectResult>;
+  db?: AppDb;
   createId?: () => string;
   now?: () => number;
   capture?: SshServiceDeps['telemetry']['capture'];
 }): SshService {
   return new SshService({
-    db: {} as AppDb,
+    db: options.db ?? ({} as AppDb),
     manager: options.manager,
     runtime: { remove: vi.fn() },
     resolveConnectConfig: options.resolve,
@@ -199,6 +205,7 @@ function createIntentFixture(options: {
 
   return {
     service,
+    db,
     manager,
     row,
     updateSets,
@@ -212,6 +219,63 @@ describe('SshService.testConnection', () => {
   afterEach(() => {
     for (const server of servers.splice(0)) {
       server.close();
+    }
+  });
+
+  it('loads the saved identity for an edit but tests the draft on a separate connection', async () => {
+    const fixture = createIntentFixture({ shouldConnect: 1 });
+    const draft = { ...baseConfig, id: 'ssh-1', host: 'edited.example.com' };
+    await expect(fixture.service.testConnection(draft)).resolves.toMatchObject({ success: true });
+    expect(fixture.resolveConnectConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'transient',
+        config: draft,
+        previous: expect.objectContaining({ id: 'ssh-1', host: 'corp.example.com' }),
+      })
+    );
+    expect(fixture.updateSets).toEqual([]);
+    expect(fixture.manager.dropConnection).not.toHaveBeenCalledWith('ssh-1');
+  });
+
+  it('authenticates with a retained password without disturbing a live saved connection', async () => {
+    const { server, port } = await startServer();
+    servers.push(server);
+    const fixture = createIntentFixture({ shouldConnect: 1 });
+    Object.assign(fixture.row, {
+      host: '127.0.0.1',
+      port,
+      username: 'alice',
+      authType: 'password',
+    });
+    const manager = new SshConnectionManager();
+    const getPassword = vi.fn(async () => secret('secret'));
+    const service = createService({
+      db: fixture.db,
+      manager,
+      resolve: (input) => resolveSshConnectConfig(input, { getPassword }),
+    });
+    try {
+      await manager.createConnection('ssh-1', async () => ({
+        config: { host: '127.0.0.1', port, username: 'alice', password: 'secret' },
+        cleanup: () => {},
+        debugLogs: [],
+      }));
+      await expect(
+        service.testConnection({
+          id: 'ssh-1',
+          name: 'Renamed draft',
+          host: '127.0.0.1',
+          port,
+          username: 'alice',
+          authType: 'password',
+          password: '',
+        })
+      ).resolves.toMatchObject({ success: true });
+      expect(getPassword).toHaveBeenCalledWith('ssh-1', expect.any(String));
+      expect(manager.getAllConnectionStates()).toEqual({ 'ssh-1': 'connected' });
+      expect(fixture.updateSets).toEqual([]);
+    } finally {
+      await manager.disconnectAll();
     }
   });
 

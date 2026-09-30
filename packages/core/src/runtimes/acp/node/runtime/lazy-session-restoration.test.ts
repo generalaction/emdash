@@ -2,6 +2,7 @@ import { err, type Serializable } from '@emdash/shared';
 import { peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
+import { emptyRetainedPresentation } from '#runtimes/acp/node/state/live-models';
 import {
   createMemorySessionIntentStore,
   type SessionIntentStore,
@@ -158,12 +159,20 @@ async function seedSuspendedIntent(
   intents: SessionIntentStore,
   input: AcpStartInput
 ): Promise<void> {
-  const { initialQueue: _initialQueue, ...payload } = input;
+  const configured = { options: input.options };
   const sessionId = `${input.conversationId}-session`;
   const saved = await intents.saveActive({
     conversationId: input.conversationId,
     sessionId,
-    payload: { ...payload, sessionId } as unknown as Serializable,
+    payload: {
+      version: '1',
+      conversationId: input.conversationId,
+      providerId: input.providerId,
+      cwd: input.cwd,
+      sessionId,
+      configured,
+      presentation: emptyRetainedPresentation(configured),
+    } as unknown as Serializable,
   });
   if (!saved.success) throw new Error(saved.error.message);
   const suspended = await intents.markSuspended(input.conversationId, 'test');

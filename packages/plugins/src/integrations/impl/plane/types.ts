@@ -1,5 +1,6 @@
 import type { PlaneClient as PlaneSdkClient, WorkItem } from '@makeplane/plane-node-sdk';
 import z from 'zod';
+import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 import { normalizeHostedInstanceUrl } from '../../helpers/hosted-instance';
 
@@ -20,6 +21,7 @@ export type PlaneClient = PlaneSdkClient;
 export type PlaneWorkItemDetail = WorkItem<'assignees' | 'project' | 'state'>;
 
 export type PlaneVerifiedConnection = {
+  account?: VerifiedAccountIdentity;
   displayName?: string;
   displayDetail?: string;
   credentials: PlaneCredentials;

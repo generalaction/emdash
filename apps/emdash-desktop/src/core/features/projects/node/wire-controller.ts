@@ -74,8 +74,8 @@ export function createProjectsWireController(
         projectOperations.shareProjectSettingsToConfig(projectId, request),
       migrateProjectConfig: ({ projectId, request }) =>
         projectOperations.migrateProjectConfig(projectId, request),
-      countProjectsUsingGithubAccount: ({ accountId }) =>
-        projectOperations.countProjectsUsingGithubAccount(accountId),
+      countProjectsUsingProviderAccount: ({ providerId, accountId }) =>
+        projectOperations.countProjectsUsingProviderAccount(providerId, accountId),
       updateProjectConnection: ({ projectId, connectionId }) =>
         projectOperations.updateProjectConnection(projectId, connectionId),
       renameProject: ({ projectId, name }) => projectOperations.renameProject(projectId, name),

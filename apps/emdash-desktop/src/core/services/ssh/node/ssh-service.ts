@@ -8,7 +8,7 @@ import type {
   SshConfig,
   SshService as SshServiceContract,
 } from '@core/primitives/ssh/api';
-import { SshConnectionNotFoundError } from '@core/primitives/ssh/api';
+import { SshConnectionNotFoundError, sshConfigFromRow } from '@core/primitives/ssh/api';
 import {
   SshConnectionFailure,
   type SshConnectionControl,
@@ -125,7 +125,14 @@ export class SshService implements SshServiceContract {
       await this.deps.manager.createConnection(
         connectionId,
         async () => {
-          const resolved = await this.deps.resolveConnectConfig({ kind: 'transient', config });
+          const previous = config.id
+            ? sshConfigFromRow(await this.loadConnectionRow(config.id))
+            : undefined;
+          const resolved = await this.deps.resolveConnectConfig({
+            kind: 'transient',
+            config,
+            previous,
+          });
           debugLogs = resolved.debugLogs;
           const existingDebug = resolved.config.debug;
           return {

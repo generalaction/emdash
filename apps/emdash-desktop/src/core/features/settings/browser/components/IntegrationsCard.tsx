@@ -1,10 +1,9 @@
 import type { PluginIconAsset } from '@emdash/shared/plugins';
 import { Sheet, Tooltip } from '@emdash/ui/react/primitives';
-import React, { useMemo, useState } from 'react';
-import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
+import React, { useState } from 'react';
 import { isIssueIntegration } from '@core/features/integrations/api/browser/integration-display';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
-import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
+import { supportsIntegrationReconnect } from '@core/manifests/browser/integration-auth-contributions';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { ConnectionStatus, IssueProviderType } from '@core/primitives/issue-providers/api';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
@@ -22,48 +21,21 @@ export type IntegrationItem = {
   connectionError?: string;
   displayName?: string;
   displayDetail?: string;
+  canReconnect: boolean;
   onConnect: () => void;
-  onDisconnect?: () => void | Promise<void>;
 };
 
 const IntegrationsCard: React.FC = () => {
   const {
     connectionStatus,
-    configuredConnections,
-    isCheckingConfiguredConnections,
-    disconnectIntegration,
+    integrationAccounts,
+    isLoadingAccounts,
+    accountsError,
     integrations: integrationMetadata,
     isIntegrationMutating,
   } = useIntegrationsContext();
-  const { data: githubAccounts = [] } = useGitHubAccounts();
-  const sortedGithubAccounts = useMemo(
-    () => sortGitHubAccountsByDefault(githubAccounts),
-    [githubAccounts]
-  );
   const [selectedProvider, setSelectedProvider] = useState<IssueProviderType | null>(null);
   const openIntegrationSetup = useOpenModal('integrationSetupModal');
-  const openConnectGitHub = useOpenModal('githubConnectModal');
-  const openConfirm = useOpenModal('confirmActionModal');
-
-  const confirmDisconnect = ({
-    name,
-    credential,
-    onDisconnect,
-  }: {
-    name: string;
-    credential?: string;
-    onDisconnect: () => void | Promise<void>;
-  }) => {
-    void openConfirm({
-      title: `Disconnect ${name}`,
-      description: credential
-        ? `This will delete the saved ${name} ${credential} and disconnect ${name}.`
-        : `This will disconnect ${name}.`,
-      confirmLabel: 'Disconnect',
-    }).then((outcome) => {
-      if (outcome.success) void onDisconnect();
-    });
-  };
 
   const integrations: IntegrationItem[] = integrationMetadata
     .filter(isIssueIntegration)
@@ -71,28 +43,10 @@ const IntegrationsCard: React.FC = () => {
       const provider = integration.id;
       const status: ConnectionStatus = connectionStatus[provider] ?? {
         connected: false,
-        capabilities: integration.capabilities,
+        capabilities: integration.issueCapabilities,
       };
-      const isConfigured = configuredConnections[provider] ?? false;
-      const isConfigurationKnown =
-        provider in configuredConnections || !isCheckingConfiguredConnections;
-
-      if (provider === 'github') {
-        return {
-          id: provider,
-          name: integration.name,
-          description: integration.description,
-          icon: integration.icon,
-          features: integration.features,
-          isConfigured,
-          isConfigurationKnown,
-          isMutating: false,
-          connectionError: isConfigured ? status.error : undefined,
-          displayName: sortedGithubAccounts[0]?.login ?? status.displayName,
-          displayDetail: status.displayDetail,
-          onConnect: () => void openConnectGitHub({}),
-        };
-      }
+      const isConfigured = (integrationAccounts[provider]?.length ?? 0) > 0;
+      const isConfigurationKnown = !isLoadingAccounts && !accountsError;
 
       return {
         id: provider,
@@ -104,17 +58,12 @@ const IntegrationsCard: React.FC = () => {
         isConfigurationKnown,
         isMutating: isIntegrationMutating(provider),
         connectionError: isConfigured ? status.error : undefined,
-        displayName: status.displayName,
+        displayName:
+          integrationAccounts[provider]?.find((account) => account.isDefault)?.displayName ??
+          status.displayName,
         displayDetail: status.displayDetail,
+        canReconnect: supportsIntegrationReconnect(integration),
         onConnect: () => void openIntegrationSetup({ integration: provider }),
-        onDisconnect: () =>
-          confirmDisconnect({
-            name: integration.name,
-            credential: integration.disconnectCredentialLabel,
-            onDisconnect: () => {
-              void disconnectIntegration(provider);
-            },
-          }),
       };
     });
 
@@ -133,6 +82,11 @@ const IntegrationsCard: React.FC = () => {
   return (
     <Tooltip.Provider delay={150}>
       <div className="space-y-8">
+        {accountsError ? (
+          <p role="alert" className="text-sm text-foreground-error">
+            Unable to load accounts. {accountsError.message}
+          </p>
+        ) : null}
         {connectedIntegrations.length > 0 && (
           <IntegrationSection title="Connected">
             {connectedIntegrations.map((integration) => (
@@ -164,11 +118,7 @@ const IntegrationsCard: React.FC = () => {
       >
         <Sheet.Content className="[-webkit-app-region:no-drag]">
           {selectedIntegration && (
-            <IntegrationDetailSidebar
-              integration={selectedIntegration}
-              githubAccounts={sortedGithubAccounts}
-              onClose={closeSheet}
-            />
+            <IntegrationDetailSidebar integration={selectedIntegration} onClose={closeSheet} />
           )}
         </Sheet.Content>
       </Sheet.Root>

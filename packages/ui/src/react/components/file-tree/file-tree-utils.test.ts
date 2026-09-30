@@ -133,6 +133,9 @@ describe('file-tree utils', () => {
     expect(isOpenableFileTreeNode(directoryLink)).toBe(false);
     expect(isExpandableFileTreeNode(fileLink)).toBe(false);
     expect(isOpenableFileTreeNode(fileLink)).toBe(true);
+    for (const symlinkTargetKind of ['missing', 'other', 'outside-root'] as const) {
+      expect(isOpenableFileTreeNode({ ...fileLink, symlinkTargetKind })).toBe(false);
+    }
   });
 
   it('resolves drop targets for directories, files, and root space', () => {

@@ -1,12 +1,17 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { ContractClient } from '@emdash/wire/rpc';
-import { observe, remote, type RemoteModel } from '@emdash/wire/state';
+import { observe, remote, snapshot, type RemoteModel } from '@emdash/wire/state';
 import { nativePathIdentityKey } from '#primitives/path/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import { scriptsContract } from '#runtimes/scripts/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
-import type { ScriptKind, ScriptRunState, ScriptWorkspaceFacts } from '#runtimes/scripts/api';
+import type {
+  ScriptKind,
+  ScriptRuns,
+  ScriptRunState,
+  ScriptWorkspaceFacts,
+} from '#runtimes/scripts/api';
 
 export type ScriptsClient = ContractClient<typeof scriptsContract>;
 
@@ -75,6 +80,7 @@ export function failureMessageWithTail(message: string, outputTail: string): str
 export function createScriptsPlaneRunner(options: {
   client: ScriptsClient;
   factsFor: (workspacePath: string) => Promise<ScriptWorkspaceFacts>;
+  onSettled?: (workspacePath: string, run: ScriptRunState) => Promise<void>;
   logger?: Logger;
 }): WorkspaceScriptRunner {
   const logger = options.logger ?? noopLogger;
@@ -112,6 +118,7 @@ export function createScriptsPlaneRunner(options: {
         if (!settled.success) {
           return { status: 'failed', message: settled.error.message, outputTail: '' };
         }
+        await options.onSettled?.(input.cwd, settled.data);
         return toRunnerOutcome(script, settled.data);
       } finally {
         input.signal?.removeEventListener('abort', stop);
@@ -152,7 +159,9 @@ export type ObservedScriptRun = {
  */
 export class ScriptRunsObserver {
   private readonly client: ScriptsClient;
-  private readonly onRun: (run: ObservedScriptRun) => void;
+  private readonly onRun: (run: ObservedScriptRun) => void | Promise<void>;
+  private readonly logger: Logger;
+  private readonly writes = new Map<string, Promise<void>>();
   private readonly scope: Scope;
   private readonly runs: RemoteModel<typeof scriptsContract.runs>;
   private readonly watched = new Map<string, Scope>();
@@ -162,9 +171,14 @@ export class ScriptRunsObserver {
     { runId: string; provenance: ScriptRunState['provenance']; status: ScriptRunState['status'] }
   >();
 
-  constructor(options: { client: ScriptsClient; onRun: (run: ObservedScriptRun) => void }) {
+  constructor(options: {
+    client: ScriptsClient;
+    onRun: (run: ObservedScriptRun) => void | Promise<void>;
+    logger?: Logger;
+  }) {
     this.client = options.client;
     this.onRun = options.onRun;
+    this.logger = options.logger ?? noopLogger;
     this.scope = createScope({ label: 'workspace-registry:script-runs-observer' });
     this.runs = remote(scriptsContract.runs, this.client.runs, { scope: this.scope });
   }
@@ -177,8 +191,11 @@ export class ScriptRunsObserver {
     for (const [identity, scope] of this.watched) {
       if (!desired.has(identity)) {
         this.watched.delete(identity);
-        for (const key of this.seen.keys()) {
-          if (key.startsWith(`${identity}\u0000`)) this.seen.delete(key);
+        for (const key of this.writes.keys()) {
+          if (key.startsWith(`${identity}\u0000`)) {
+            this.seen.delete(key);
+            this.writes.delete(key);
+          }
         }
         void scope.dispose();
       }
@@ -199,10 +216,31 @@ export class ScriptRunsObserver {
     }
   }
 
+  /** Observe retained runs before the next activation establishes its script baseline. */
+  async refresh(workspacePath: string): Promise<ScriptRuns> {
+    const identity = nativePathIdentityKey(workspacePath);
+    const model = this.runs({ workspacePath });
+    await model.states.current.refresh();
+    const runs = snapshot(model.states.current).value ?? {};
+    this.apply(workspacePath, identity, runs);
+    await Promise.all(
+      [...this.writes]
+        .filter(([key]) => key.startsWith(`${identity}\u0000`))
+        .map(([, write]) => write)
+    );
+    return runs;
+  }
+
+  /** A wait response is also an observation; await its write before returning to the caller. */
+  settle(workspacePath: string, run: ScriptRunState): Promise<void> {
+    return this.recordRun(workspacePath, nativePathIdentityKey(workspacePath), run);
+  }
+
   dispose(): void {
     for (const scope of this.watched.values()) void scope.dispose();
     this.watched.clear();
     this.seen.clear();
+    this.writes.clear();
     void this.scope.dispose();
   }
 
@@ -213,19 +251,9 @@ export class ScriptRunsObserver {
   ): void {
     const present = new Set<string>();
     for (const run of Object.values(runs)) {
-      const key = `${workspaceIdentity}\u0000${run.script}`;
       present.add(run.script);
-      const previous = this.seen.get(key);
-      if (previous?.runId === run.runId && previous.status === run.status) continue;
-      this.seen.set(key, { runId: run.runId, provenance: run.provenance, status: run.status });
-      this.onRun({
-        workspacePath,
-        script: run.script,
-        runId: run.runId,
-        status: run.status,
-        provenance: run.provenance,
-        ...(run.message !== undefined ? { message: run.message } : {}),
-        outputTail: run.outputTail,
+      void this.recordRun(workspacePath, workspaceIdentity, run).catch((error) => {
+        this.logger.warn?.(`recording observed ${run.script} run failed`, { workspacePath, error });
       });
     }
     // A previously seen run gone from the model without settling: the scripts worker
@@ -236,16 +264,55 @@ export class ScriptRunsObserver {
       if (present.has(script)) continue;
       this.seen.delete(key);
       if (previous.status === 'running') {
-        this.onRun({
-          workspacePath,
-          script,
-          runId: previous.runId,
-          status: 'cancelled',
-          provenance: previous.provenance,
-          message: 'Interrupted by a scripts runtime restart',
-          outputTail: '',
+        const write = Promise.resolve(
+          this.onRun({
+            workspacePath,
+            script,
+            runId: previous.runId,
+            status: 'cancelled',
+            provenance: previous.provenance,
+            message: 'Interrupted by a scripts runtime restart',
+            outputTail: '',
+          })
+        );
+        this.writes.set(key, write);
+        void write.catch((error) => {
+          this.logger.warn?.(`recording interrupted ${script} run failed`, {
+            workspacePath,
+            error,
+          });
         });
       }
     }
+  }
+
+  private recordRun(
+    workspacePath: string,
+    workspaceIdentity: string,
+    run: ScriptRunState
+  ): Promise<void> {
+    const key = `${workspaceIdentity}\u0000${run.script}`;
+    const previous = this.seen.get(key);
+    if (
+      previous?.runId === run.runId &&
+      (previous.status === run.status ||
+        (previous.status !== 'running' && run.status === 'running'))
+    ) {
+      return this.writes.get(key) ?? Promise.resolve();
+    }
+    this.seen.set(key, { runId: run.runId, provenance: run.provenance, status: run.status });
+    const write = Promise.resolve(
+      this.onRun({
+        workspacePath,
+        script: run.script,
+        runId: run.runId,
+        status: run.status,
+        provenance: run.provenance,
+        ...(run.message !== undefined ? { message: run.message } : {}),
+        outputTail: run.outputTail,
+      })
+    );
+    this.writes.set(key, write);
+    return write;
   }
 }

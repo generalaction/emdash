@@ -41,10 +41,15 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import { lifecycleScriptNodeIdFromTerminalId, type Terminal } from '@core/primitives/terminals/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
+import {
+  prepareTerminalFiles,
+  type TerminalFileSources,
+} from '@core/services/attachments/node/prepare-terminal-files';
 import type { AppSettingsService } from '@core/services/settings/node';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
   db: AppDb;
+  terminalFileSources: TerminalFileSources;
   projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   runtimes: TerminalsRuntimeBroker;
   sessionLaunchContexts: Pick<TaskSessionLaunchContextResolver, 'resolve'>;
@@ -84,6 +89,33 @@ export function createTerminalsWireController(
   options: CreateTerminalsWireControllerOptions
 ): Controller {
   return createController(terminalsContract, {
+    attachments: {
+      prepareLocalFiles: ({ workspaceId, sources }, meta) =>
+        withWorkspaceRuntime(options, workspaceId, (client, identity) =>
+          prepareTerminalFiles({
+            host: identity.host,
+            sources,
+            localFiles: options.terminalFileSources,
+            upload: (file) =>
+              client.workspaceRegistry.attachments.upload({ workspaceId }, file, callOptions(meta)),
+            remove: (attachmentId) =>
+              client.workspaceRegistry.attachments.delete({ workspaceId, attachmentId }),
+            signal: meta.signal,
+            logger: options.logger,
+          })
+        ),
+      upload: ({ workspaceId }, file, meta) =>
+        withWorkspaceRuntime(options, workspaceId, (client) =>
+          client.workspaceRegistry.attachments.upload({ workspaceId }, file, callOptions(meta))
+        ),
+      delete: ({ workspaceId, attachmentId }, meta) =>
+        withWorkspaceRuntime(options, workspaceId, (client) =>
+          client.workspaceRegistry.attachments.delete(
+            { workspaceId, attachmentId },
+            callOptions(meta)
+          )
+        ),
+    },
     list: (input) => listTerminals(options, input),
     create: (input) => createTerminal(options, input),
     delete: (input) => deleteTerminal(options, input),

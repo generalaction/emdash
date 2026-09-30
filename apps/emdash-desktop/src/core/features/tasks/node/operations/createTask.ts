@@ -262,6 +262,7 @@ export async function prepareCreateTask(
         ? {
             version: '1',
             type: 'acp',
+            ...(ic.options && { options: ic.options }),
             ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
             ...(initialQueue?.length && { initialQueue }),
             ...(ic.model && { model: ic.model }),

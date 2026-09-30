@@ -22,6 +22,8 @@ import type { PathProfile } from '#primitives/path/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
+import type { AttachmentStore } from '#services/attachments/node/attachment-store';
+import { OwnedAttachments } from '#services/attachments/node/owned-attachments';
 import { ConfigModel } from '#services/config-model/node';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
@@ -110,6 +112,7 @@ import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './upd
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
+  attachments: AttachmentStore;
   /** Owning-host filesystem identity semantics. Defaults from this worker's platform. */
   pathProfile?: PathProfile;
   env?: EnvSource;
@@ -158,6 +161,7 @@ export type WorkspaceRegistryRuntimeOptions = {
  * overlay — the overlay dies with the daemon, by design.
  */
 export class WorkspaceRegistryRuntime {
+  readonly attachments: OwnedAttachments;
   private readonly store: WorkspaceRecordStore;
   private readonly clock: Clock;
   private readonly logger: Logger;
@@ -229,6 +233,12 @@ export class WorkspaceRegistryRuntime {
     this.gitContext = options.gitContext ?? createRegistryGitContext({ env });
     this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle, options.pathProfile);
+    this.attachments = new OwnedAttachments({
+      kind: 'workspace',
+      store: options.attachments,
+      exists: (id) => Boolean(this.store.get(id)),
+      logger: options.logger ?? noopLogger,
+    });
     for (const collision of this.store.pathCollisions()) {
       this.logger.warn?.('Workspace registry contains ambiguous path spellings', {
         key: collision.key,
@@ -243,6 +253,7 @@ export class WorkspaceRegistryRuntime {
       ? new ScriptRunsObserver({
           client: options.scripts,
           onRun: (run) => this.onScriptRun(run),
+          logger: this.logger,
         })
       : null;
     this.activationManager = new WorkspaceActivationManager({
@@ -267,12 +278,27 @@ export class WorkspaceRegistryRuntime {
           ...overlay,
           notices: overlay.notices.filter((notice) => notice.id !== `script-failed:${script}`),
         })),
-      resetScriptSteps: (id, scripts) =>
-        void this.enqueue(async () => {
+      resetScriptSteps: async (id, scripts) => {
+        const current = this.store.get(id);
+        if (!current) return;
+        const runs = await this.scriptRuns?.refresh(current.path);
+        const previousScriptRuns =
+          runs &&
+          Object.fromEntries(
+            Object.values(runs)
+              .filter((run) => run.script === 'teardown' || run.status !== 'running')
+              .map((run) => [run.script, run.runId])
+          );
+        await this.enqueue(async () => {
           const record = this.store.get(id);
           if (!record) return;
           // No scripts and no section: nothing to reset — avoid minting an empty one.
-          if (!record.lifecycle && scripts.length === 0) return;
+          if (
+            !record.lifecycle &&
+            scripts.length === 0 &&
+            !Object.keys(previousScriptRuns ?? {}).length
+          )
+            return;
           const now = this.clock.now();
           const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
           // Overwrite, not append: drop past activations' script steps, seed this one's.
@@ -290,14 +316,13 @@ export class WorkspaceRegistryRuntime {
           ]);
           const updated: DurableWorkspaceRecord = {
             ...record,
-            lifecycle: { ...lifecycle, steps },
+            lifecycle: { ...lifecycle, steps, previousScriptRuns },
             updatedAt: now,
           };
           this.store.update(updated);
           this.publish(updated);
-        }).catch((error) => {
-          this.logger.warn?.(`resetting script steps for '${id}' failed`, { error });
-        }),
+        });
+      },
       recordScriptStep: (id, script, state) =>
         void this.updateLifecycleStep(id, script, state).catch((error) => {
           this.logger.warn?.(`recording ${script} step for '${id}' failed`, { error });
@@ -319,6 +344,9 @@ export class WorkspaceRegistryRuntime {
           ? createScriptsPlaneRunner({
               client: options.scripts,
               factsFor: (workspacePath) => this.scriptFactsFor(workspacePath),
+              onSettled: async (workspacePath, run) => {
+                await this.scriptRuns?.settle(workspacePath, run);
+              },
               logger: this.logger,
             })
           : unavailableScriptRunner()),
@@ -469,7 +497,7 @@ export class WorkspaceRegistryRuntime {
   }
 
   /**
-   * Deactivate-if-active + unregister. Never touches disk; idempotent on absent ids.
+   * Deactivate-if-active + unregister. Preserves workspace files; cleans owned attachments. Idempotent on absent ids.
    * A failing teardown is a removal-stage failure: recorded durably on the record
    * before the error returns, so the delete stays visible and retryable (ADR 0006).
    */
@@ -480,7 +508,7 @@ export class WorkspaceRegistryRuntime {
         const teardownFailure = await this.deactivateForRemoval(record);
         if (teardownFailure) return err(teardownFailure);
       }
-      return await this.enqueue(() => Promise.resolve(this.deleteWorkspaceLocked(input)));
+      return await this.removeWorkspace(input);
     });
   }
 
@@ -519,9 +547,7 @@ export class WorkspaceRegistryRuntime {
           );
         }
         // Artifact already gone and no repository left to prune: just unregister.
-        return await this.enqueue(() =>
-          Promise.resolve(this.deleteWorkspaceLocked({ workspaceId: input.workspaceId }))
-        );
+        return await this.removeWorkspace({ workspaceId: input.workspaceId });
       });
     }
 
@@ -546,9 +572,7 @@ export class WorkspaceRegistryRuntime {
           })
         );
       }
-      return await this.enqueue(() =>
-        Promise.resolve(this.deleteWorkspaceLocked({ workspaceId: input.workspaceId }))
-      );
+      return await this.removeWorkspace({ workspaceId: input.workspaceId });
     });
   }
 
@@ -880,8 +904,8 @@ export class WorkspaceRegistryRuntime {
 
   /**
    * Sole owner of session-plane shutdown: cancels lifecycle runs first, runs teardown
-   * when an activation exists, then kills every remaining session under the workspace
-   * path (including never-activated workspaces). Idempotent: teardown runs at most once.
+   * unless its lifecycle step already settled, then kills every remaining session
+   * under the workspace path. A restart does not erase a settled teardown attempt.
    */
   deactivateWorkspace(
     input: DeactivateWorkspaceInput
@@ -902,7 +926,12 @@ export class WorkspaceRegistryRuntime {
   ): Promise<WorkspaceDeactivationResult> {
     // Stop and await script-plane runs first. Killing their terminal sessions first
     // can make an intentional Stop look like a failed process exit.
-    const deactivation = await this.activationManager.deactivate(record.id);
+    const teardown = getLifecycleStep(this.store.get(record.id)?.lifecycle ?? null, 'teardown');
+    const settled = teardown?.status === 'succeeded' || teardown?.status === 'failed';
+    const deactivation = await this.activationManager.deactivate(record.id, {
+      workspacePath: record.path,
+      runTeardown: !settled && (await isDirectory(record.path)),
+    });
     try {
       await this.killSessions(record.path);
     } catch (error) {
@@ -1312,7 +1341,8 @@ export class WorkspaceRegistryRuntime {
       status: WorkspaceLifecycleStep['status'];
       message?: string;
       params?: WorkspaceLifecycleStep['params'];
-    }
+    },
+    observedRun?: Pick<ObservedScriptRun, 'script' | 'runId'>
   ): Promise<void> {
     return this.enqueue(async () => {
       const record = this.store.get(id);
@@ -1320,6 +1350,8 @@ export class WorkspaceRegistryRuntime {
       // Script runs can land on records with no creation history (adopted worktrees,
       // manual runs before any activation): mint the section rather than drop the run.
       const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
+      if (observedRun && lifecycle.previousScriptRuns?.[observedRun.script] === observedRun.runId)
+        return;
       const now = this.clock.now();
       const previous = getLifecycleStep(lifecycle, stepId);
       const terminal = state.status !== 'pending' && state.status !== 'running';
@@ -1348,7 +1380,7 @@ export class WorkspaceRegistryRuntime {
    * settle the step as failed with the timeout message; failure messages fold in the
    * run's output tail.
    */
-  private onScriptRun(run: ObservedScriptRun): void {
+  private async onScriptRun(run: ObservedScriptRun): Promise<void> {
     const record = this.store.getByPath(run.workspacePath);
     if (!record) return;
     const params = { provenance: run.provenance };
@@ -1367,11 +1399,7 @@ export class WorkspaceRegistryRuntime {
                 ),
                 params,
               };
-    void this.updateLifecycleStep(record.id, run.script, state).catch((error) => {
-      this.logger.warn?.(`recording observed ${run.script} run for '${record.id}' failed`, {
-        error,
-      });
-    });
+    await this.updateLifecycleStep(record.id, run.script, state, run);
   }
 
   /** Record facts for the script env builder — same derivations for every initiator. */
@@ -1456,7 +1484,16 @@ export class WorkspaceRegistryRuntime {
     if (record) this.publish(record);
   }
 
-  private deleteWorkspaceLocked(input: DeleteWorkspaceInput): Result<void, DeleteWorkspaceError> {
+  private async removeWorkspace(
+    input: DeleteWorkspaceInput
+  ): Promise<Result<void, DeleteWorkspaceError>> {
+    await this.attachments.deleteOwner(input.workspaceId, () =>
+      this.enqueue(() => this.deleteWorkspaceLocked(input))
+    );
+    return ok(undefined);
+  }
+
+  private deleteWorkspaceLocked(input: DeleteWorkspaceInput): void {
     const existing = this.store.get(input.workspaceId);
     const projectRoot = existing ? this.projectRootFor(existing) : null;
     const deleted = this.store.delete(input.workspaceId);
@@ -1477,7 +1514,6 @@ export class WorkspaceRegistryRuntime {
     } else {
       this.logger.debug?.(`delete of absent workspace '${input.workspaceId}' — idempotent no-op`);
     }
-    return ok(undefined);
   }
 
   // -------------------------------------------------------------------------
@@ -1527,11 +1563,13 @@ export class WorkspaceRegistryRuntime {
 
   /** The vanished landing, re-validated like {@link applyObservation}. */
   private applyVanished(id: string, now: number): Promise<void> {
-    return this.enqueue(() => {
-      const current = this.store.get(id);
-      if (!current) return;
-      this.recordVanished(current, now);
-    });
+    return this.attachments.deleteOwner(id, () =>
+      this.enqueue(() => {
+        const current = this.store.get(id);
+        if (!current) return false;
+        return this.recordVanished(current, now);
+      })
+    );
   }
 
   /** Adoption landing; false when the id or path got claimed while the scan observed. */
@@ -1550,14 +1588,15 @@ export class WorkspaceRegistryRuntime {
   }
 
   /** Adopted records follow the disk; registered records survive as 'missing'. Mutation-lane only. */
-  private recordVanished(record: DurableWorkspaceRecord, now: number): void {
+  private recordVanished(record: DurableWorkspaceRecord, now: number): boolean {
     this.scanner.evict(record.id);
     this.configs.delete(record.id);
     if (record.origin === 'adopted') {
       this.deleteWorkspaceLocked({ workspaceId: record.id });
-      return;
+      return true;
     }
     this.saveRecord({ ...record, observedStatus: 'missing', git: null }, now);
+    return false;
   }
 
   /**

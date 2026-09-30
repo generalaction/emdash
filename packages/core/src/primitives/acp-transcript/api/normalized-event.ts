@@ -36,8 +36,10 @@ export type NormalizedToolLocation = {
 export type NormalizedToolStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export type NormalizedEvent =
+  | { kind: 'mcp_startup_failure'; server: string; error: string }
   | {
       kind: 'message';
+      promptId?: string;
       role: 'user' | 'assistant';
       messageId: string | null;
       text: string;
@@ -63,6 +65,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'subagent';
+      operation?: 'start' | 'update';
       toolCallId: string;
       title: string;
       status: NormalizedToolStatus | null;
@@ -82,6 +85,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'search';
+      operation?: 'start' | 'update';
       toolCallId: string;
       query: string;
       status: NormalizedToolStatus | null;
@@ -90,6 +94,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'mcp_tool';
+      operation?: 'start' | 'update';
       toolCallId: string;
       server?: string;
       tool: string;
@@ -99,6 +104,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'web_fetch';
+      operation?: 'start' | 'update';
       toolCallId: string;
       url: string;
       title?: string;
@@ -127,10 +133,6 @@ export type NormalizedEvent =
   | {
       kind: 'config';
       options: ReadonlyArray<SessionConfigOption>;
-    }
-  | {
-      kind: 'mode_selected';
-      modeId: string;
     }
   | {
       kind: 'commands';

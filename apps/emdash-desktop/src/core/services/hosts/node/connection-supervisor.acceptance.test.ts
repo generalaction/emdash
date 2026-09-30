@@ -1,5 +1,7 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
 import { remote, snapshot } from '@emdash/wire/state';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { hostReadyResult } from '../api/availability';
 import {
   createSupervisorDriver,
   createFaultPeer,
@@ -103,6 +105,74 @@ describe('Host connection supervisor acceptance (ADR 0008)', () => {
       await vi.advanceTimersByTimeAsync(20_001);
 
       expect(host.state.kind).not.toBe('ready');
+    });
+
+    it.each(['focus', 'online', 'timer'] as const)(
+      'keeps availability and live commands usable during a healthy %s check',
+      async (cause) => {
+        const ready = host.state;
+        const attachment = await host.getAttachment();
+        const release = peer.stallHealth();
+        try {
+          host.supervisor.revalidate(cause);
+          await vi.advanceTimersByTimeAsync(250);
+
+          // The same readiness result gates Project/terminal commands. Preserve its
+          // identity too, so a successful probe does not refresh downstream stores.
+          expect(host.state).toBe(ready);
+          expect(hostReadyResult(hostRef('remote', 'acceptance-host'), host.state).success).toBe(
+            true
+          );
+          await expect(host.awaitUsable()).resolves.toMatchObject({ success: true });
+          await expect(resourceClient(attachment).increment(undefined)).resolves.toBe(1);
+        } finally {
+          release();
+        }
+        await vi.advanceTimersByTimeAsync(0);
+        expect(host.state).toBe(ready);
+        expect(peer.opens).toBe(1);
+      }
+    );
+
+    it('demotes a quiet focus check when its health deadline expires', async () => {
+      peer.current.dropReplies = true;
+      peer.setOffline(true);
+      host.revalidate('focus');
+
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(host.state.kind).toBe('ready');
+      await vi.advanceTimersByTimeAsync(2);
+      expect(host.state.kind).not.toBe('ready');
+    });
+
+    it('demotes immediately when a request times out during a quiet check', async () => {
+      const release = peer.stallHealth();
+      try {
+        host.revalidate('focus');
+        await vi.advanceTimersByTimeAsync(250);
+        expect(host.state.kind).toBe('ready');
+
+        host.supervisor.revalidate('rpc-timeout');
+        expect(host.state).toMatchObject({ kind: 'preparing', phase: 'checking' });
+      } finally {
+        release();
+      }
+      await vi.advanceTimersByTimeAsync(0);
+      expect(host.state.kind).toBe('ready');
+    });
+
+    it('does not hide a focus check after a scheduling gap expires health evidence', async () => {
+      // Move wall time without running timers, as when the event loop was suspended.
+      vi.setSystemTime(Date.now() + 20_001);
+      const release = peer.stallHealth();
+      try {
+        host.revalidate('focus');
+        expect(host.state).toMatchObject({ kind: 'preparing', phase: 'checking' });
+      } finally {
+        release();
+      }
+      await vi.advanceTimersByTimeAsync(0);
+      expect(host.state.kind).toBe('ready');
     });
 
     for (const cause of ['online', 'focus'] as const) {

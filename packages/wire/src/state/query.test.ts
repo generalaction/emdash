@@ -255,7 +255,7 @@ describe('state query', () => {
     expect(current.mutationIds).toContain('s1');
   });
 
-  it('delivers mutation ids from a refresh superseded by an invalidation', async () => {
+  it('publishes refreshed data with its mutation ids despite an in-flight invalidation', async () => {
     const clock = createManualClock();
     const pending = deferred<number>();
     let fetchIndex = 0;
@@ -267,13 +267,51 @@ describe('state query', () => {
     });
 
     await model.refresh();
-    const superseded = model.refresh({ mutationIds: ['m1'] });
+    const refreshing = model.refresh({ mutationIds: ['m1'] });
     model.invalidate();
     pending.resolve(2);
-    await superseded;
+    await refreshing;
     await settleAsync();
 
-    expect(snapshot(model).mutationIds).toContain('m1');
+    expect(snapshot(model)).toMatchObject({ value: 2, status: 'live', mutationIds: ['m1'] });
+  });
+
+  it('publishes an interrupted refresh and still performs the requested follow-up read', async () => {
+    const clock = createManualClock();
+    const pending = deferred<number>();
+    let fetchCount = 0;
+    const model = query({
+      initial: 1,
+      fetch: () => (++fetchCount === 1 ? pending.promise : Promise.resolve(3)),
+      debounceMs: 10,
+      clock,
+      scope,
+    });
+    const recorded = recordSnapshots(model);
+
+    const refreshing = model.refresh({ mutationIds: ['m1'] });
+    model.invalidate();
+    pending.resolve(2);
+    await refreshing;
+    await settleAsync();
+    expect(snapshot(model)).toMatchObject({ value: 2, status: 'live', mutationIds: ['m1'] });
+
+    await clock.advanceBy(10);
+    await settleAsync();
+    expect(fetchCount).toBe(2);
+    expect(snapshot(model)).toMatchObject({ value: 3, status: 'live' });
+    await recorded.dispose();
+  });
+
+  it('lets an equal-value settle supersede an older in-flight read', async () => {
+    const pending = deferred<number>();
+    const model = query({ initial: 1, fetch: () => pending.promise, scope });
+    const refreshing = model.refresh();
+    model.settle(1);
+    pending.resolve(2);
+    await refreshing;
+
+    expect(snapshot(model).value).toBe(1);
   });
 
   it('delivers every callers mutation ids across coalesced refreshes', async () => {

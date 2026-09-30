@@ -1,7 +1,17 @@
 import * as z from 'zod';
+import { sshCredentialReuse } from '@core/primitives/ssh/api/credential-reuse';
+import type { SshConfig } from '@core/primitives/ssh/api/ssh';
 
 const manualHostPattern = /^[a-zA-Z0-9._\-[\]:]+$/;
 const sshAliasPattern = /^[A-Za-z0-9._@%+:/[\]-]+$/;
+
+export const sshConfigTargetSchema = z
+  .string()
+  .min(1, 'Enter a host')
+  .refine(
+    (value) => !value.startsWith('-') && sshAliasPattern.test(value),
+    'Enter a valid SSH config alias or hostname'
+  );
 
 function hasLeadingOrTrailingWhitespace(value: string): boolean {
   return value !== value.trim();
@@ -19,85 +29,91 @@ function addWhitespaceIssue(
   });
 }
 
-export const machineFormSchema = z
-  .object({
-    name: z.string().min(1, 'Name is required'),
-    host: z.string().min(1, 'Host is required'),
-    port: z
-      .number()
-      .int()
-      .min(1, 'Port must be at least 1')
-      .max(65535, 'Port must be at most 65535'),
-    username: z.string(),
-    authType: z.enum(['password', 'key', 'agent']),
-    password: z.string(),
-    privateKeyPath: z.string(),
-    passphrase: z.string(),
-    sshConfigAlias: z.string(),
-    forwardAgent: z.boolean(),
-    proxyJump: z.string(),
-    proxyCommand: z.string(),
-    isEditing: z.boolean(),
-  })
-  .superRefine((val, ctx) => {
-    if (hasLeadingOrTrailingWhitespace(val.name)) {
-      addWhitespaceIssue(ctx, 'name', 'Connection name');
-    }
-    if (hasLeadingOrTrailingWhitespace(val.host)) {
-      addWhitespaceIssue(ctx, 'host', 'Host');
-    }
-    if (hasLeadingOrTrailingWhitespace(val.username)) {
-      addWhitespaceIssue(ctx, 'username', 'Username');
-    }
-    if (hasLeadingOrTrailingWhitespace(val.privateKeyPath)) {
-      addWhitespaceIssue(ctx, 'privateKeyPath', 'Private key path');
-    }
-    if (hasLeadingOrTrailingWhitespace(val.sshConfigAlias)) {
-      addWhitespaceIssue(ctx, 'sshConfigAlias', 'SSH config alias');
-    }
-    if (hasLeadingOrTrailingWhitespace(val.proxyJump)) {
-      addWhitespaceIssue(ctx, 'proxyJump', 'ProxyJump');
-    }
+export function createMachineFormSchema(previous?: SshConfig) {
+  return z
+    .object({
+      name: z.string(),
+      host: z.string().min(1, 'Host is required'),
+      port: z
+        .number()
+        .int()
+        .min(1, 'Port must be at least 1')
+        .max(65535, 'Port must be at most 65535'),
+      username: z.string(),
+      authType: z.enum(['password', 'key', 'agent']),
+      password: z.string(),
+      privateKeyPath: z.string(),
+      passphrase: z.string(),
+      sshConfigAlias: z.string(),
+      forwardAgent: z.boolean(),
+      proxyJump: z.string(),
+    })
+    .superRefine((val, ctx) => {
+      if (hasLeadingOrTrailingWhitespace(val.name)) {
+        addWhitespaceIssue(ctx, 'name', 'Connection name');
+      }
+      if (hasLeadingOrTrailingWhitespace(val.host)) {
+        addWhitespaceIssue(ctx, 'host', 'Host');
+      }
+      if (hasLeadingOrTrailingWhitespace(val.username)) {
+        addWhitespaceIssue(ctx, 'username', 'Username');
+      }
+      if (val.authType === 'key' && hasLeadingOrTrailingWhitespace(val.privateKeyPath)) {
+        addWhitespaceIssue(ctx, 'privateKeyPath', 'Private key path');
+      }
+      if (hasLeadingOrTrailingWhitespace(val.sshConfigAlias)) {
+        addWhitespaceIssue(ctx, 'sshConfigAlias', 'SSH config alias');
+      }
+      if (hasLeadingOrTrailingWhitespace(val.proxyJump)) {
+        addWhitespaceIssue(ctx, 'proxyJump', 'ProxyJump');
+      }
 
-    if (val.sshConfigAlias) {
+      if (val.sshConfigAlias) {
+        if (
+          !hasLeadingOrTrailingWhitespace(val.sshConfigAlias) &&
+          (val.sshConfigAlias.startsWith('-') || !sshAliasPattern.test(val.sshConfigAlias))
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Invalid SSH config alias',
+            path: ['sshConfigAlias'],
+          });
+        }
+      } else if (!hasLeadingOrTrailingWhitespace(val.host) && !manualHostPattern.test(val.host)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Invalid hostname or IP address',
+          path: ['host'],
+        });
+      }
+      if (!val.sshConfigAlias && !val.username) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Username is required',
+          path: ['username'],
+        });
+      }
       if (
-        !hasLeadingOrTrailingWhitespace(val.sshConfigAlias) &&
-        (val.sshConfigAlias.startsWith('-') || !sshAliasPattern.test(val.sshConfigAlias))
+        val.authType === 'password' &&
+        !val.password &&
+        !sshCredentialReuse(val, previous).password
       ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Invalid SSH config alias',
-          path: ['sshConfigAlias'],
+          message: 'Password is required',
+          path: ['password'],
         });
       }
-    } else if (!hasLeadingOrTrailingWhitespace(val.host) && !manualHostPattern.test(val.host)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Invalid hostname or IP address',
-        path: ['host'],
-      });
-    }
-    if (!val.sshConfigAlias && !val.username) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Username is required',
-        path: ['username'],
-      });
-    }
-    if (val.authType === 'password' && !val.password && !val.isEditing) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Password is required',
-        path: ['password'],
-      });
-    }
-    if (val.authType === 'key' && !val.sshConfigAlias && !val.privateKeyPath) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Private key path is required',
-        path: ['privateKeyPath'],
-      });
-    }
-  });
+      if (val.authType === 'key' && !val.sshConfigAlias && !val.privateKeyPath) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Private key path is required',
+          path: ['privateKeyPath'],
+        });
+      }
+    });
+}
+
+export const machineFormSchema = createMachineFormSchema();
 
 export type MachineFormValues = z.infer<typeof machineFormSchema>;

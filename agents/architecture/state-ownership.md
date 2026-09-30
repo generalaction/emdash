@@ -60,6 +60,28 @@ activate/deactivate/delete) live on the host.
 - Contribute behavior through manifests and definitions. Keep shared vocabulary, such
   as statuses and outcome classes, centrally owned and mechanically reviewable.
 
+## Archive Script Cleanup
+
+Task archive requests host workspace deactivation using the task's persisted workspace
+identity, including when the task is not mounted. It preserves the worktree. Script
+failures and timeouts are notices; an unreachable host is skipped without queued cleanup.
+The host runs `scripts.teardown` unless its existing lifecycle step is `succeeded` or
+`failed` (including timeout). The settled script observation is persisted before
+deactivation returns, so a later delete does not repeat it, even after restart.
+Reactivation resets script steps and stores the superseded run IDs in the lifecycle
+record, so retained script results cannot revive a previous cycle after a registry-worker
+restart. Absent or cancelled teardown steps remain eligible
+for the next explicit deactivation or deletion. `archivedAt` and `lastActivatedAt` are
+not cleanup receipts. A teardown failure during deletion still stops that worktree
+removal attempt; a subsequent removal proceeds past the settled script attempt.
+
+Desktop activation and cleanup are serialized per Workspace, including participant
+acquisition and task registration. Archive's timeout bounds the caller's wait, not the
+cleanup lifetime: already-running cleanup retains ownership until it actually settles,
+and a later activation waits behind it. Waiting operations can be cancelled; cleanup
+whose deadline expires before it starts is skipped. This coordination is in memory,
+not a durable retry queue.
+
 See ADR 0005 (`docs/adr/0005-host-workspace-registry-plain-rpc-verbs.md`) and ADR 0006
 (`docs/adr/0006-tombstone-and-reconcile-deletion.md`) for the full model, and the
 glossary in `CONTEXT.md` for the vocabulary.

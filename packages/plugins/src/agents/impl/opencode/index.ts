@@ -50,6 +50,7 @@ export const plugin = definePlugin(
             { name: 'ANTHROPIC_API_KEY', label: 'Anthropic API key' },
             { name: 'OPENAI_API_KEY', label: 'OpenAI API key' },
             { name: 'GEMINI_API_KEY', label: 'Gemini API key' },
+            { name: 'ORCAROUTER_API_KEY', label: 'OrcaRouter API key' },
           ],
         },
       ],
@@ -57,7 +58,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'global',
-      supportedEvents: ['notification', 'stop', 'session'],
+      supportedEvents: ['notification', 'start', 'stop', 'session'],
     },
     hostDependency: npmDependency({ id: 'opencode', package: 'opencode-ai' }),
     mcp: {

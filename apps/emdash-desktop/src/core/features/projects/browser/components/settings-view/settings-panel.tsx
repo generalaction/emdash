@@ -83,6 +83,7 @@ function unavailableSettingsDomains(
 ): ProjectSettingsDomains {
   return {
     gitIdentity: durable.gitIdentity,
+    integrationAccounts: durable.integrationAccounts,
     placement: {
       ...durable.placement,
       layers: {

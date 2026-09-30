@@ -6,15 +6,11 @@ import {
   taskAgentStatus,
   taskConversationStats,
 } from '@core/features/conversations/api/browser/conversation-selectors';
-import { projectAvailabilityUiContribution as projectAvailabilityUi } from '@core/features/projects/contributions/browser/project-availability-ui';
 import {
   getTaskGitCheckoutStore,
   getTaskPrAssociationStore,
 } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
-import {
-  getTaskManagerStore,
-  taskHostActionAvailability,
-} from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -67,12 +63,6 @@ export const TaskRow = observer(function TaskRow({
   const isArchived = Boolean(task.data.archivedAt);
   const isSelected = selection.isSelected(id);
   const canPin = task.state !== 'unregistered';
-  const hostAction = taskHostActionAvailability(task.data.projectId);
-  const archiveDisabledReason =
-    task.state === 'provisioned' && hostAction.kind === 'disabled'
-      ? (projectAvailabilityUi.getLiveActionDisabledReason(task.data.projectId) ??
-        projectAvailabilityUi.defaultLiveActionDisabledReason)
-      : undefined;
   const agentAttention = taskAgentStatus(task);
   const currentPr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
   const branchName =
@@ -83,7 +73,6 @@ export const TaskRow = observer(function TaskRow({
       isPinned={task.data.isPinned}
       canPin={canPin}
       isArchived={isArchived}
-      archiveDisabledReason={archiveDisabledReason}
       branchName={branchName}
       onPin={() => void task.setPinned(true)}
       onUnpin={() => void task.setPinned(false)}

@@ -1,4 +1,5 @@
 import type { Readable, Writable } from 'node:stream';
+import type { CommandSpec } from '#primitives/exec/api';
 import type { TerminalExit } from '#runtimes/acp/api/models/terminals';
 
 /** Exit status of a terminal command — mirrors the ACP WaitForTerminalExitResponse shape. */
@@ -16,7 +17,7 @@ export interface AcpTerminalProcess {
   readonly stderr?: Readable;
   /** Exit code if the process has already exited, null otherwise. */
   readonly exitCode: number | null;
-  /** Register a callback to be called when the process exits. */
+  /** Register completion after output drains; replay completion to late subscribers. */
   onExit(cb: (status: AcpTerminalExit) => void): void;
   /** Register a callback to be called if the process emits an error. */
   onError(cb: (err: Error) => void): void;
@@ -77,12 +78,12 @@ export interface AcpProcessHost {
 
   /**
    * Spawn a terminal command on behalf of an ACP agent.
+   * Resolve only after successful OS startup; reject startup failures without publishing a handle.
    * Optional — omit on hosts that cannot host agent terminals.
    * When present the runtime will advertise `terminal: true` in `clientCapabilities`.
    */
   spawnTerminal?(spec: {
-    command: string;
-    args: string[];
+    command: CommandSpec;
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpTerminalProcess>;

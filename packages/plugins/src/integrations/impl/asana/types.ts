@@ -1,5 +1,6 @@
 import type { TasksApi, UsersApi } from 'asana';
 import z from 'zod';
+import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 
 export const asanaCredentialsSchema = z.object({
@@ -66,10 +67,7 @@ export type AsanaSearchTasksOpts = NonNullable<
 };
 
 export type AsanaVerifiedConnection = {
-  account?: {
-    id: string;
-    login: string;
-  };
+  account?: VerifiedAccountIdentity;
   displayName?: string;
   displayDetail?: string;
   credentials: AsanaCredentials;

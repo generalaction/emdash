@@ -24,7 +24,6 @@ export type NotificationSettings = {
 
 export type TaskSettings = {
   autoGenerateName: boolean;
-  autoApproveByDefault: boolean;
   autoTrustWorktrees: boolean;
   createBranchAndWorktree: boolean;
   deleteBranchByDefault: boolean;
@@ -49,6 +48,7 @@ export type TerminalSettings = {
 export type Theme = 'emlight' | 'emdark' | null;
 
 export type InterfaceSettings = {
+  showTrayIcon: boolean;
   taskHoverAction: 'delete' | 'archive';
   autoRightSidebarBehavior: boolean;
   showLeftSidebarLineChanges: boolean;

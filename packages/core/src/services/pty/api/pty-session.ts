@@ -1,8 +1,10 @@
 import type { LiveLogSourceOptions } from '@emdash/wire/live';
 import { LiveLogSource } from '@emdash/wire/live';
+import { TerminalCapabilityResponder } from './terminal-capability-responder';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec } from './types';
 
 export interface PtySessionOptions {
+  tmux?: boolean;
   log?: LiveLogSourceOptions;
   output?: LiveLogSource;
   onProcess?: (process: PtyProcess) => void;
@@ -24,13 +26,24 @@ export class PtySession {
     private readonly options: PtySessionOptions = {}
   ) {
     this.output = options.output ?? new LiveLogSource(options.log);
+    const capabilities = options.tmux
+      ? new TerminalCapabilityResponder((reply) => this.write(reply))
+      : null;
     this.process.onData((chunk) => {
       if (this.disposed) return;
-      this.output.append(chunk);
-      this.options.onData?.(chunk);
+      const output = capabilities ? capabilities.push(chunk) : chunk;
+      if (output) {
+        this.output.append(output);
+        this.options.onData?.(output);
+      }
       this.options.onStateChange?.();
     });
     this.process.onExit((info) => {
+      const pending = capabilities?.finish();
+      if (pending && !this.disposed) {
+        this.output.append(pending);
+        this.options.onData?.(pending);
+      }
       this.exitInfo = normalizeExitInfo(info);
       this.options.onExit?.(this.exitInfo);
       this.options.onStateChange?.();

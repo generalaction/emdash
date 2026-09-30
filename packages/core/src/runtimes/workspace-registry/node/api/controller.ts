@@ -1,9 +1,24 @@
+import { ok } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { workspaceRegistryContract } from '../../api/contract';
 import type { WorkspaceRegistryRuntime } from '../runtime';
 
 export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRuntime): Controller {
   return createController(workspaceRegistryContract, {
+    attachments: {
+      upload: ({ workspaceId }, file, meta) =>
+        runtime.attachments.upload(workspaceId, file, meta.signal),
+      download: async ({ workspaceId, attachmentId }) => {
+        const result = await runtime.attachments.download(workspaceId, attachmentId);
+        if (!result.success) return result;
+        return ok({
+          meta: result.data.ref,
+          source: result.data.source,
+        });
+      },
+      delete: ({ workspaceId, attachmentId }) =>
+        runtime.attachments.delete(workspaceId, attachmentId),
+    },
     records: runtime.recordsHost,
     projectConfig: runtime.projectConfigHost,
     getProjectConfig: (input) => runtime.getProjectConfig(input),

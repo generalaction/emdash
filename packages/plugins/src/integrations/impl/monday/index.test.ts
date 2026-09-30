@@ -44,7 +44,7 @@ if (!auth) throw new Error('Monday auth behavior is not registered.');
 const host: IntegrationHostContext = { log: logger };
 
 const ME_RESPONSE = {
-  me: { id: '123', name: 'Snir', account: { name: 'My Team' } },
+  me: { id: '123', name: 'Snir', account: { id: 'acct-9', name: 'My Team' } },
 };
 
 afterEach(() => {
@@ -62,12 +62,13 @@ describe('monday integration verify', () => {
 
     expect(result).toEqual({
       connected: true,
+      account: { id: 'acct-9:123' },
       displayName: 'My Team',
       displayDetail: 'Snir',
       credentials: { apiToken: 'valid-token' },
     });
     expect(mondaySdk.constructor).toHaveBeenCalledWith({ token: 'valid-token' });
-    expect(mondaySdk.request).toHaveBeenCalledWith('query { me { id name account { name } } }');
+    expect(mondaySdk.request).toHaveBeenCalledWith('query { me { id name account { id name } } }');
   });
 
   it('ignores stale board scope fields from older credentials', async () => {

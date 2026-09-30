@@ -8,9 +8,9 @@ import {
   Tooltip,
 } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
-import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
+import { ExternalLink, ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
+import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
@@ -18,6 +18,7 @@ import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-butt
 import { defineModal } from '@core/primitives/modals/react';
 import { useAttachments } from '@core/primitives/react-hooks/browser/use-attachments';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { EMDASH_ISSUES_NEW_URL } from '@core/primitives/urls/api/urls';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {
@@ -54,7 +55,8 @@ function AttachmentThumbnail({
 export function FeedbackModal({ blurb }: FeedbackModalArgs) {
   const controller = useModalController('feedbackModal');
   const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
-  const { user: githubUser } = useGithubContext();
+  const { data: githubAccounts } = useAccounts('github');
+  const githubLogin = githubAccounts?.find((account) => account.isDefault)?.login;
   const appVersion = getUpdateStore().currentVersion;
   const { data: platformDisplayName } = useQuery({
     queryKey: ['app', 'platformDisplayName'],
@@ -89,7 +91,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
     handleSubmit,
     canSubmit,
   } = useFeedbackSubmit({
-    githubUser,
+    githubLogin,
     appVersion,
     platformDisplayName,
     onSuccess: () => {
@@ -216,6 +218,16 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
                 </Tooltip.Root>
               </Tooltip.Provider>
             </div>
+
+            <a
+              href={EMDASH_ISSUES_NEW_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground inline-flex items-center gap-1 text-xs hover:text-foreground"
+            >
+              <span>Open Github Issue instead</span>
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
 
             <input
               ref={fileInputRef}

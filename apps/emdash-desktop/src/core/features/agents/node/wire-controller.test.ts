@@ -15,6 +15,48 @@ const legacyOperations = vi.hoisted(() => ({
 const remoteHost = hostRef('remote', 'ssh-1');
 
 describe('createAgentsWireController', () => {
+  it('carries override validation results and errors across Wire on the selected host', async () => {
+    const resolved = {
+      id: 'claude',
+      command: 'wrapper',
+      path: '/remote/wrapper',
+      realpath: '/remote/wrapper',
+      source: { kind: 'cli' as const, command: 'wrapper' },
+    };
+    const resolveInstallation = vi.fn(async () => ok(resolved));
+    const failure = { type: 'invalid-selection' as const, id: 'claude', message: 'Not executable' };
+    const setUsedInstallation = vi.fn(async () => err(failure));
+    const hostDependencies = {};
+    const controller = createAgentsWireController({
+      operations: { resolveInstallation, setUsedInstallation } as never,
+      runtimes: { client: async () => ok({ hostDependencies }) } as never,
+    });
+    const wire = createTestWire(agentsContract, controller);
+    try {
+      expect(
+        await wire.client.resolveInstallation({
+          host: remoteHost,
+          id: 'claude',
+          selection: { kind: 'cli', command: 'wrapper' },
+        })
+      ).toEqual(ok(resolved));
+      expect(resolveInstallation).toHaveBeenCalledWith(
+        'claude',
+        { kind: 'cli', command: 'wrapper' },
+        'ssh-1',
+        hostDependencies
+      );
+      expect(
+        await wire.client.setUsedInstallation({
+          host: remoteHost,
+          id: 'claude',
+          selection: { kind: 'cli', command: 'wrapper' },
+        })
+      ).toEqual(err(failure));
+    } finally {
+      await wire.dispose();
+    }
+  });
   it('maps a remote HostRef to the existing SSH connection identity', async () => {
     const hostDependencies = {};
     const client = vi.fn(async () => ok({ hostDependencies }));

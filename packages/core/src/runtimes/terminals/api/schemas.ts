@@ -64,7 +64,7 @@ export type TerminalKey = z.infer<typeof terminalKeySchema>;
 export const terminalDevServerSchema = z.object({
   key: terminalKeySchema,
   protocol: z.enum(['http:', 'https:']),
-  host: z.enum(['localhost', '127.0.0.1']),
+  host: z.enum(['localhost', '127.0.0.1', '::1']),
   port: z.number().int().min(1).max(65535),
   urlPath: z.string(),
   detectedAt: z.number().int(),
@@ -137,7 +137,8 @@ export const terminalControlInputSchema = z.object({
 });
 
 export const killTmuxSessionsInputSchema = z.object({
-  sessionNames: z.array(z.string().min(1)),
+  sessionIdentities: z.array(z.string().min(1)),
+  workspaceLabel: z.string().min(1).optional(),
 });
 
 export type KillTmuxSessionsInput = z.infer<typeof killTmuxSessionsInputSchema>;

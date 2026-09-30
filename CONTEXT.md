@@ -184,6 +184,10 @@ _Avoid_: Unqualified "plugins" where the home matters
 
 ### Desktop concepts
 
+**Prompt editor model**:
+The desktop-owned live draft for a Conversation, including its rich document, selection, undo history, and retained composer viewport.
+_Avoid_: Session (a Host process), treating serialized draft text as a second editable authority
+
 **Project**:
 The desktop-side grouping that organizes tasks around a repository. An app concept only.
 _Avoid_: Using "project" to mean the git repository on disk
@@ -587,6 +591,18 @@ _Avoid_: Using Sensitive to bypass Secret disclosure controls, treating all reda
 **Secret Wire envelope**:
 The strict versioned structural carrier declared by `wireSecret` or `wireSensitive` to preserve a protected wrapper across a process boundary. It marks sensitivity for schema validation and redaction but does not encrypt; Host grant confidentiality uses a separate HPKE envelope.
 _Avoid_: Host grant envelope, logging placeholder, generic recursive Secret discovery
+
+**Integration account**:
+A desktop-managed connection identified by `(providerId, accountId)`, with one default per provider. All providers, including GitHub, share account inventory, connection lifecycle, schema-validated JSON credentials, and issue orchestration. Provider plugins own credential schemas and verification; provider authentication adapters handle OAuth, device, or CLI protocols. Other provider-specific features consume a resolved account's credentials.
+_Avoid_: Global integration configuration, account ID as credential identity, GitHub-only account lifecycle
+
+**Project integration accounts**:
+The Project-owned settings domain that resolves each provider's explicit account, explicit disable, or inherited default, independently of Git identity and with provider-granular patches.
+_Avoid_: Git identity settings bag, replacing all provider choices when editing one, silent fallback from a broken pin
+
+**Linked issue source**:
+The account and resource URL captured with a linked issue or issue mention; refreshing follows that source rather than the Project's current account, and ambiguous legacy snapshots remain unchanged.
+_Avoid_: Provider plus shorthand as durable issue identity, retargeting linked context after an account switch
 
 **Emdash Git credential helper**:
 The packaged, stateless Host-local adapter implementing Git's credential-helper protocol. It asks the Host Secret Runtime through a scoped Git credential channel and writes a granted credential only to Git's response stream; it never chooses an account or stores a credential.

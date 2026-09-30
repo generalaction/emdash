@@ -5,7 +5,6 @@ import type {
   ProjectSettingsProvider,
   StoredPlacementSettings,
 } from '@core/features/projects/api/node/settings/provider';
-import type { ProjectSettingsDomainPatch } from '@core/features/projects/api/project-settings-page';
 import {
   resolveTmux as resolveEffectiveTmux,
   type PlacementContext,
@@ -21,15 +20,17 @@ import {
 } from '../migrations/ancient-project-config';
 import { serializeShareableProjectSettings } from '../migrations/legacy-shareable-marker';
 import {
-  hasLegacyLifecycleSettings,
   legacyBaseProjectSettingsSchema,
   legacyLifecycleSettingsFromStored,
-  withLegacyLifecycleSettings,
   type LegacyBaseProjectSettings,
   type LegacyLifecycleSettings,
 } from '../migrations/legacy-stored-project-settings';
 import type { ProjectSettingsMigrationReader } from '../migrations/migration-reader';
-import { migrateStoredBaseProjectSettings } from '../migrations/stored-settings';
+import {
+  migrateStoredBaseProjectSettings,
+  readStoredProjectSettings,
+  serializeStoredProjectSettings,
+} from '../migrations/stored-settings';
 import { compactUndefined, readJson } from '../project-settings-json';
 import type { ProjectSettingsStorage, StoredProjectSettings } from '../project-settings-storage';
 import { CONFIG_FILE } from '../sharing/workspace-config-file';
@@ -115,23 +116,24 @@ export abstract class DbProjectSettingsProvider
       legacyBaseProjectSettingsSchema,
       'base project settings'
     );
-    const rawShareable = readJson(
-      row.shareableProjectSettingsJson,
-      emdashConfigSchema,
-      'legacy shareable project settings'
-    );
-    const legacyLifecycle = legacyLifecycleSettingsFromStored(rawBase, rawShareable);
-    const stored = await this.migrateStoredModelIfNeeded(
-      row,
-      rawBase,
-      rawShareable,
-      legacyLifecycle,
-      placementContext
-    );
-
+    // Host/repository I/O happens before entering the storage transaction.
+    const context = await this.loadMigrationContext(rawBase, placementContext);
+    let current = row;
+    try {
+      current = await this.options.storage.mutate(this.projectId, (latest) =>
+        this.migrateRow(latest, context)
+      );
+    } catch (error) {
+      log.warn('Failed to write back migrated project settings; retrying next read', {
+        projectId: this.projectId,
+        error,
+      });
+      current = (await this.options.storage.get(this.projectId)) ?? row;
+      current = { ...current, ...this.migrateRow(current, context) };
+    }
     return {
-      stored,
-      legacyLifecycle,
+      stored: readStoredProjectSettings(current.baseProjectSettingsJson),
+      legacyLifecycle: this.legacyLifecycleFromRow(current),
     };
   }
 
@@ -150,95 +152,50 @@ export abstract class DbProjectSettingsProvider
     );
   }
 
-  private baseJsonForWrite(
-    base: StoredBaseProjectSettings,
-    row: StoredProjectSettings | undefined
-  ): string {
-    const legacyLifecycle = row ? this.legacyLifecycleFromRow(row) : {};
-    return JSON.stringify(compactUndefined(withLegacyLifecycleSettings(base, legacyLifecycle)));
-  }
-
-  /**
-   * Lazy read-path migrations (spec: github-git-settings §10): converts a raw
-   * row to the stored model and writes the migrated row back when it changed.
-   * A failed write-back degrades to the in-memory migrated view and retries
-   * on the next read.
-   */
-  private async migrateStoredModel(
+  private async loadMigrationContext(
     raw: LegacyBaseProjectSettings,
     placementContext?: PlacementContext
-  ): Promise<{ next: StoredBaseProjectSettings; changed: boolean }> {
+  ) {
     const needsFacts =
       raw.defaultBranch !== undefined || raw.baseRemote !== undefined || raw.remote !== undefined;
-    const needsTmuxDefault = raw.tmuxDefaultMigrated !== true;
     const [repoFacts, placement] = await Promise.all([
-      needsFacts ? this.loadRepoFacts() : Promise.resolve(null),
-      needsTmuxDefault
-        ? placementContext
-          ? Promise.resolve(placementContext)
-          : this.placementContext()
-        : Promise.resolve(null),
+      needsFacts ? this.loadRepoFacts() : null,
+      raw.tmuxDefaultMigrated !== true ? (placementContext ?? this.placementContext()) : null,
     ]);
-    return migrateStoredBaseProjectSettings(raw, repoFacts, {
-      ...(placement
-        ? {
-            tmuxDefault: resolveEffectiveTmux({
-              hostTmux: placement.hostTmux,
-              appDefaultTmux: placement.appDefaultTmux,
-            }).value,
-          }
-        : {}),
-    });
+    return {
+      repoFacts,
+      tmuxDefault: placement
+        ? resolveEffectiveTmux({
+            hostTmux: placement.hostTmux,
+            appDefaultTmux: placement.appDefaultTmux,
+          }).value
+        : undefined,
+    };
   }
 
-  private async migrateStoredModelIfNeeded(
+  private migrateRow(
     row: StoredProjectSettings,
-    rawBase: LegacyBaseProjectSettings,
-    rawShareable: ReturnType<typeof emdashConfigSchema.parse>,
-    legacyLifecycle: LegacyLifecycleSettings,
-    placementContext?: PlacementContext
-  ): Promise<StoredBaseProjectSettings> {
-    const { next, changed: baseChanged } = await this.migrateStoredModel(rawBase, placementContext);
-    if (hasLegacyLifecycleSettings(legacyLifecycle)) {
-      if (baseChanged) {
-        try {
-          await this.options.storage.update(this.projectId, {
-            baseProjectSettingsJson: this.baseJsonForWrite(next, row),
-          });
-        } catch (error) {
-          log.warn('Failed to write back migrated project settings; retrying next read', {
-            projectId: this.projectId,
-            error,
-          });
-        }
-      }
-      return next;
-    }
-
-    const shareableChanged = Object.keys(rawShareable).length > 0;
-    if (baseChanged || shareableChanged) {
-      try {
-        await this.options.storage.update(this.projectId, {
-          ...(baseChanged
-            ? { baseProjectSettingsJson: JSON.stringify(compactUndefined(next)) }
-            : {}),
-          ...(shareableChanged
-            ? {
-                shareableProjectSettingsJson: serializeShareableProjectSettings(
-                  {},
-                  { previousRaw: row.shareableProjectSettingsJson }
-                ),
-              }
-            : {}),
-        });
-      } catch (error) {
-        log.warn('Failed to write back migrated project settings; retrying next read', {
-          projectId: this.projectId,
-          error,
-        });
-      }
-    }
-    return next;
+    context: { repoFacts: RepoFacts | null; tmuxDefault?: boolean },
+    finalize = false
+  ): Partial<StoredProjectSettings> {
+    const raw = readJson(
+      row.baseProjectSettingsJson,
+      legacyBaseProjectSettingsSchema,
+      'base project settings'
+    );
+    const { next } = migrateStoredBaseProjectSettings(raw, context.repoFacts, context);
+    const base = finalize
+      ? JSON.stringify(compactUndefined(next))
+      : serializeStoredProjectSettings(next, row.baseProjectSettingsJson);
+    const shareable = finalize
+      ? serializeShareableProjectSettings({}, { previousRaw: row.shareableProjectSettingsJson })
+      : row.shareableProjectSettingsJson;
+    return {
+      ...(base !== row.baseProjectSettingsJson ? { baseProjectSettingsJson: base } : {}),
+      ...(shareable !== row.shareableProjectSettingsJson
+        ? { shareableProjectSettingsJson: shareable }
+        : {}),
+    };
   }
 
   private async loadRepoFacts(): Promise<RepoFacts | null> {
@@ -301,29 +258,10 @@ export abstract class DbProjectSettingsProvider
       legacyBaseProjectSettingsSchema,
       'base project settings'
     );
-    const rawShareable = readJson(
-      row.shareableProjectSettingsJson,
-      emdashConfigSchema,
-      'legacy shareable project settings'
+    const context = await this.loadMigrationContext(rawBase);
+    await this.options.storage.mutate(this.projectId, (current) =>
+      this.migrateRow(current, context, true)
     );
-    const { next: base, changed: baseChanged } = await this.migrateStoredModel(rawBase);
-    const legacyLifecycle = legacyLifecycleSettingsFromStored(rawBase, rawShareable);
-    const shareableChanged = Object.keys(rawShareable).length > 0;
-    if (!baseChanged && !hasLegacyLifecycleSettings(legacyLifecycle) && !shareableChanged) return;
-
-    await this.options.storage.update(this.projectId, {
-      ...(baseChanged || hasLegacyLifecycleSettings(legacyLifecycle)
-        ? { baseProjectSettingsJson: JSON.stringify(compactUndefined(base)) }
-        : {}),
-      ...(shareableChanged
-        ? {
-            shareableProjectSettingsJson: serializeShareableProjectSettings(
-              {},
-              { previousRaw: row.shareableProjectSettingsJson }
-            ),
-          }
-        : {}),
-    });
   }
 
   /**
@@ -337,7 +275,6 @@ export abstract class DbProjectSettingsProvider
       ...(stored.defaultBranch !== undefined ? { defaultBranch: stored.defaultBranch } : {}),
       ...(stored.baseRemote !== undefined ? { baseRemote: stored.baseRemote } : {}),
       ...(stored.pushRemote !== undefined ? { pushRemote: stored.pushRemote } : {}),
-      ...(stored.githubAccount !== undefined ? { githubAccount: stored.githubAccount } : {}),
       ...(stored.agentGitCredentials !== undefined
         ? { agentGitCredentials: stored.agentGitCredentials }
         : {}),
@@ -345,57 +282,36 @@ export abstract class DbProjectSettingsProvider
     };
   }
 
+  async getStoredIntegrationAccounts() {
+    return (await this.readSettingsRow()).stored.integrationAccounts ?? {};
+  }
+
   async getStoredPlacementSettings(): Promise<StoredPlacementSettings> {
     const { stored } = await this.readSettingsRow();
     return stored.tmux === undefined ? {} : { tmux: stored.tmux };
   }
 
-  async patch(
-    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'placement'>
+  async setWorktreeRoot(
+    worktreeRoot: string | null
   ): Promise<Result<void, UpdateProjectSettingsError>> {
     try {
-      const { stored } = await this.readSettingsRow();
-      const next: StoredBaseProjectSettings = { ...stored };
-      const git = patch.gitIdentity?.stored;
-      if (git) {
-        for (const field of [
-          'defaultBranch',
-          'baseRemote',
-          'pushRemote',
-          'githubAccount',
-          'agentGitCredentials',
-        ] as const) {
-          if (!Object.hasOwn(git, field)) continue;
-          const value = git[field];
-          if (value === null || value === undefined) {
-            delete next[field];
-          } else {
-            next[field] = value as never;
-          }
-        }
-      }
-
-      const placement = patch.placement?.stored;
-      if (placement && Object.hasOwn(placement, 'worktreeRoot')) {
-        const worktreeRoot = placement.worktreeRoot ?? undefined;
-        const validated = await this.validateWorktreeDirectory(worktreeRoot);
-        if (!validated.success) return validated;
+      const validated = await this.validateWorktreeDirectory(worktreeRoot ?? undefined);
+      if (!validated.success) return validated;
+      await this.readSettingsRow();
+      await this.options.storage.mutate(this.projectId, (row) => {
+        const next = readStoredProjectSettings(row.baseProjectSettingsJson);
         if (validated.data === undefined) delete next.worktreeRoot;
         else next.worktreeRoot = validated.data;
-      }
-      if (placement && Object.hasOwn(placement, 'tmux')) {
-        if (placement.tmux === null || placement.tmux === undefined) delete next.tmux;
-        else next.tmux = placement.tmux;
-      }
-
-      await this.ensure();
-      const row = await this.options.storage.get(this.projectId);
-      await this.options.storage.update(this.projectId, {
-        baseProjectSettingsJson: this.baseJsonForWrite(next, row),
+        return {
+          baseProjectSettingsJson: serializeStoredProjectSettings(
+            next,
+            row.baseProjectSettingsJson
+          ),
+        };
       });
       return ok();
     } catch (error) {
-      log.warn('Failed to patch project settings domains', { error });
+      log.warn('Failed to set Project worktree root', { error });
       return err({ type: 'error' });
     }
   }

@@ -88,7 +88,10 @@ export function wrapAsBracketedPaste(text: string): string {
   return `\x1b[200~${text}\x1b[201~`;
 }
 
+// The trailing separator travels inside the paste: Claude Code discards the
+// pasted text when any byte follows the paste-end marker in the same write,
+// leaving only that byte (a lone space) in the prompt.
 export function buildTerminalImageInjection(paths: string[], platform: NodePlatform): string {
   const formatted = formatTerminalImagePaths(paths, platform);
-  return wrapAsBracketedPaste(formatted);
+  return wrapAsBracketedPaste(`${formatted} `);
 }

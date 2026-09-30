@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { RepoFacts } from '@core/primitives/project-settings/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
+import { DesktopProjectSettingsAuthority } from './durable-project-settings';
 import type { ProjectSettingsStorage, StoredProjectSettings } from './project-settings-storage';
 import { HostProjectSettingsProvider } from './providers/host-project-settings-provider';
 
@@ -62,9 +63,11 @@ function makeRowStorage(initialBaseJson?: string) {
     insertIfMissing: async (projectId, settings) => {
       if (!rows.has(projectId) && !seededRow) rows.set(projectId, settings);
     },
-    update: async (projectId, settings) => {
+    mutate: async (projectId, settings) => {
       const current = rows.get(projectId) ?? seededRowFor(projectId);
-      rows.set(projectId, { ...current!, ...settings });
+      const next = { ...current!, ...settings(current!) };
+      rows.set(projectId, next);
+      return next;
     },
   };
   function seededRowFor(projectId: string): StoredProjectSettings | undefined {
@@ -123,7 +126,12 @@ function makeProvider(options: {
       },
     }
   );
-  return { provider, projectId, rowStorage };
+  return {
+    provider,
+    projectId,
+    rowStorage,
+    authority: new DesktopProjectSettingsAuthority(options.storage ?? rowStorage!.storage),
+  };
 }
 
 describe('lazy settings migrations in the provider', () => {
@@ -138,13 +146,19 @@ describe('lazy settings migrations in the provider', () => {
       }),
       legacyConfigMigratedAt: new Date().toISOString(),
     };
-    const update = vi.fn(async (_projectId: string, patch: Partial<StoredProjectSettings>) => {
-      Object.assign(row, patch);
-    });
+    const update = vi.fn(
+      async (
+        _projectId: string,
+        patch: (row: StoredProjectSettings) => Partial<StoredProjectSettings>
+      ) => {
+        Object.assign(row, patch(row));
+        return row;
+      }
+    );
     const storage: ProjectSettingsStorage = {
       get: async () => row,
       insertIfMissing: vi.fn(),
-      update,
+      mutate: update,
     };
     const { provider } = makeProvider({ storage });
 
@@ -180,7 +194,7 @@ describe('lazy settings migrations in the provider', () => {
     // The row is physically rewritten: seeded values cleared (they match the
     // inference), legacy keys renamed and restructured.
     expect(rowStorage!.baseJson(projectId)).toEqual({
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+      integrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
       worktreeRoot: '/tmp/legacy-worktrees',
       tmux: true,
       tmuxDefaultMigrated: true,
@@ -188,8 +202,10 @@ describe('lazy settings migrations in the provider', () => {
 
     // The stored-model surface exposes only explicit choices.
     await expect(provider.getStoredGitSettings()).resolves.toEqual({
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
       worktreeRoot: '/tmp/legacy-worktrees',
+    });
+    await expect(provider.getStoredIntegrationAccounts()).resolves.toEqual({
+      github: { kind: 'account', accountId: 'github.com:42' },
     });
   });
 
@@ -257,8 +273,8 @@ describe('lazy settings migrations in the provider', () => {
       baseJson: JSON.stringify({ githubAccount: { kind: 'none' } }),
     });
 
-    await expect(provider.getStoredGitSettings()).resolves.toEqual({
-      githubAccount: { kind: 'none' },
+    await expect(provider.getStoredIntegrationAccounts()).resolves.toEqual({
+      github: { kind: 'none' },
     });
   });
 
@@ -276,7 +292,7 @@ describe('lazy settings migrations in the provider', () => {
 
   it('follows host tmux changes until set and resumes inheritance after reset', async () => {
     let hostTmux = false;
-    const { provider } = makeProvider({ hostTmux: () => hostTmux });
+    const { provider, projectId, authority } = makeProvider({ hostTmux: () => hostTmux });
 
     await expect(provider.resolveTmux()).resolves.toEqual({
       value: false,
@@ -289,15 +305,17 @@ describe('lazy settings migrations in the provider', () => {
       provenance: { kind: 'inferred', from: 'host default' },
     });
 
-    await expect(provider.patch({ placement: { stored: { tmux: false } } })).resolves.toMatchObject(
-      { success: true }
-    );
+    await expect(
+      authority.patch(projectId, { placement: { stored: { tmux: false } } })
+    ).resolves.toMatchObject({ success: true });
     await expect(provider.resolveTmux()).resolves.toEqual({
       value: false,
       provenance: { kind: 'set' },
     });
 
-    await expect(provider.patch({ placement: { stored: { tmux: null } } })).resolves.toMatchObject({
+    await expect(
+      authority.patch(projectId, { placement: { stored: { tmux: null } } })
+    ).resolves.toMatchObject({
       success: true,
     });
     await expect(provider.resolveTmux()).resolves.toEqual({
@@ -307,7 +325,7 @@ describe('lazy settings migrations in the provider', () => {
   });
 
   it('demotes a materialized tmux default once and preserves later explicit choices', async () => {
-    const { provider, projectId, rowStorage } = makeProvider({
+    const { provider, projectId, rowStorage, authority } = makeProvider({
       baseJson: JSON.stringify({ tmux: true }),
       hostTmux: true,
     });
@@ -315,7 +333,9 @@ describe('lazy settings migrations in the provider', () => {
     await expect(provider.getStoredPlacementSettings()).resolves.toEqual({});
     expect(rowStorage!.baseJson(projectId)).toEqual({ tmuxDefaultMigrated: true });
 
-    await expect(provider.patch({ placement: { stored: { tmux: true } } })).resolves.toMatchObject({
+    await expect(
+      authority.patch(projectId, { placement: { stored: { tmux: true } } })
+    ).resolves.toMatchObject({
       success: true,
     });
     await expect(provider.getStoredPlacementSettings()).resolves.toEqual({ tmux: true });
@@ -340,7 +360,7 @@ describe('lazy settings migrations in the provider', () => {
 
   it('follows host-default changes until a project override is set, then inherits again on reset', async () => {
     const options = { hostTmux: false as boolean | null };
-    const { provider } = makeProvider(options);
+    const { provider, projectId, authority } = makeProvider(options);
 
     await expect(provider.resolveTmux()).resolves.toEqual({
       value: false,
@@ -352,13 +372,13 @@ describe('lazy settings migrations in the provider', () => {
       provenance: { kind: 'inferred', from: 'host default' },
     });
 
-    await provider.patch({ placement: { stored: { tmux: false } } });
+    await authority.patch(projectId, { placement: { stored: { tmux: false } } });
     await expect(provider.resolveTmux()).resolves.toEqual({
       value: false,
       provenance: { kind: 'set' },
     });
 
-    await provider.patch({ placement: { stored: { tmux: null } } });
+    await authority.patch(projectId, { placement: { stored: { tmux: null } } });
     await expect(provider.resolveTmux()).resolves.toEqual({
       value: true,
       provenance: { kind: 'inferred', from: 'host default' },
@@ -366,34 +386,36 @@ describe('lazy settings migrations in the provider', () => {
   });
 
   it('persists updates in the stored model', async () => {
-    const { provider, projectId, rowStorage } = makeProvider({
+    const { provider, projectId, rowStorage, authority } = makeProvider({
       getRepoFacts: async () => REPO_FACTS,
     });
 
-    const result = await provider.patch({
+    await provider.setWorktreeRoot('/tmp/updated-worktrees');
+    const result = await authority.patch(projectId, {
       gitIdentity: {
         stored: {
           defaultBranch: { remote: 'origin', branch: 'develop' },
           baseRemote: 'upstream',
-          githubAccount: { kind: 'account', accountId: 'github.com:42' },
         },
       },
-      placement: { stored: { worktreeRoot: '/tmp/updated-worktrees' } },
+      integrationAccounts: { stored: { github: { kind: 'account', accountId: 'github.com:42' } } },
     });
     expect(result.success).toBe(true);
 
     expect(rowStorage!.baseJson(projectId)).toEqual({
       defaultBranch: { remote: 'origin', branch: 'develop' },
       baseRemote: 'upstream',
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+      integrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
       worktreeRoot: '/tmp/updated-worktrees',
       tmuxDefaultMigrated: true,
     });
     await expect(provider.getStoredGitSettings()).resolves.toEqual({
       defaultBranch: { remote: 'origin', branch: 'develop' },
       baseRemote: 'upstream',
-      githubAccount: { kind: 'account', accountId: 'github.com:42' },
       worktreeRoot: '/tmp/updated-worktrees',
+    });
+    await expect(provider.getStoredIntegrationAccounts()).resolves.toEqual({
+      github: { kind: 'account', accountId: 'github.com:42' },
     });
   });
 });

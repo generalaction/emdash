@@ -5,13 +5,18 @@ export async function refreshLinkedIssueContext(
   issue: LinkedIssue,
   projectId: string | undefined
 ): Promise<LinkedIssue> {
-  if (!projectId) return issue;
+  if (!projectId || (!issue.accountId && !issue.url)) return issue;
 
   const result = await getIssuesClient()
     .then((client) =>
       client.getIssueContext({
         provider: issue.provider,
-        options: { identifier: issue.identifier, projectId },
+        options: {
+          identifier: issue.identifier,
+          projectId,
+          accountId: issue.accountId,
+          issueUrl: issue.url || undefined,
+        },
       })
     )
     .catch(() => undefined);

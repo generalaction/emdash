@@ -61,6 +61,7 @@ export type WireResultMessage =
       code: WireErrorCode;
       message: string;
       cause?: SerializedError;
+      delivery?: 'not-sent';
     };
 
 export type WireUpdateMessage = {
@@ -156,13 +157,17 @@ export type WireTransport = {
 };
 
 export class WireError extends Error {
+  /** Present only when the failing request was never handed to its peer. */
+  readonly delivery?: 'not-sent';
+
   constructor(
     readonly code: WireErrorCode,
     message: string,
-    options: { cause?: unknown } = {}
+    options: { cause?: unknown; delivery?: 'not-sent' } = {}
   ) {
     super(message, options);
     this.name = 'WireError';
+    this.delivery = options.delivery;
   }
 }
 
@@ -170,6 +175,7 @@ export type SerializedWireError = {
   code: WireErrorCode;
   message: string;
   cause?: SerializedError;
+  delivery?: 'not-sent';
 };
 
 export function serializeWireError(error: unknown): SerializedWireError {
@@ -178,6 +184,7 @@ export function serializeWireError(error: unknown): SerializedWireError {
       code: error.code,
       message: error.message,
       cause: serializeCause(error.cause),
+      ...(error.delivery ? { delivery: error.delivery } : {}),
     };
   }
   if (error instanceof Error) {

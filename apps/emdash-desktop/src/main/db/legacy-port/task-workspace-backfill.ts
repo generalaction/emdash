@@ -107,7 +107,10 @@ function findExistingWorktreeWorkspace(
  * tasks where `workspaceId` is null, so copied v1-beta tasks and reruns are left
  * alone.
  */
-export function ensureImportedTaskWorkspaces(appDb: AppDb): void {
+export function ensureImportedTaskWorkspaces(
+  appDb: AppDb,
+  workspacePaths: ReadonlyMap<string, string> = new Map()
+): void {
   appDb.transaction((tx) => {
     const rows = tx
       .select({
@@ -160,6 +163,7 @@ export function ensureImportedTaskWorkspaces(appDb: AppDb): void {
               location: host.location,
               sshConnectionId: host.sshConnectionId,
               parentId: repositoryWorkspaceId,
+              path: workspacePaths.get(row.taskId) ?? null,
               config: buildImportedWorktreeConfig(row.taskBranch),
             })
             .run();

@@ -85,4 +85,59 @@ describe('TuiAgentStates', () => {
     expect(peek(sessions.states.list)['conv-1']?.sessionId).toBe('T-123');
     expect(onSessionIdChanged).toHaveBeenCalledWith('conv-1', 'T-123');
   });
+
+  it('adopts a provider session id carried on a status event', () => {
+    const { tracker, sessions, agentStates, onSessionIdChanged } = createTracker();
+    produceCell(sessions.states.list, (draft) => {
+      draft['conv-1'] = {
+        conversationId: 'conv-1',
+        providerId: 'claude',
+        sessionId: 'conv-1',
+        status: 'running',
+        cols: 120,
+        rows: 30,
+        resume: null,
+        startedAt: 1,
+      };
+    });
+
+    tracker.applyCanonicalEvent('conv-1', 'claude', {
+      kind: 'status',
+      type: 'start',
+      providerSessionId: 'resumed-session',
+    });
+
+    expect(peek(sessions.states.list)['conv-1']?.sessionId).toBe('resumed-session');
+    expect(onSessionIdChanged).toHaveBeenCalledWith('conv-1', 'resumed-session');
+    expect(peek(agentStates.states.list)['conv-1']?.status).toBe('working');
+  });
+
+  it('does not re-publish an unchanged session id carried on status events', () => {
+    const { tracker, sessions, onSessionIdChanged } = createTracker();
+    produceCell(sessions.states.list, (draft) => {
+      draft['conv-1'] = {
+        conversationId: 'conv-1',
+        providerId: 'claude',
+        sessionId: 'conv-1',
+        status: 'running',
+        cols: 120,
+        rows: 30,
+        resume: null,
+        startedAt: 1,
+      };
+    });
+
+    tracker.applyCanonicalEvent('conv-1', 'claude', {
+      kind: 'status',
+      type: 'start',
+      providerSessionId: 'conv-1',
+    });
+    tracker.applyCanonicalEvent('conv-1', 'claude', {
+      kind: 'status',
+      type: 'stop',
+      providerSessionId: 'conv-1',
+    });
+
+    expect(onSessionIdChanged).not.toHaveBeenCalled();
+  });
 });

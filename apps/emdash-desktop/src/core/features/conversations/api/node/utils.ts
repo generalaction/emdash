@@ -11,9 +11,7 @@ function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undef
   if (row.providerSessionId !== null) return undefined;
   const config = row.config;
   if (config?.type !== 'acp') return undefined;
-  if (config.initialQueue?.length) return config.initialQueue;
-  const legacyPrompt = config.initialPrompt?.trim();
-  return legacyPrompt ? [{ text: legacyPrompt }] : undefined;
+  return config.initialQueue?.length ? config.initialQueue : undefined;
 }
 
 /**
@@ -30,12 +28,10 @@ export function mapConversationRowToConversation(row: ConversationRow): Conversa
     taskId: row.taskId,
     projectId: row.projectId,
     providerId: row.provider as AgentProviderId,
-    autoApprove: config?.autoApprove,
+    autoApprove: config?.type === 'pty' ? config.autoApprove : undefined,
     sessionId: row.providerSessionId ?? undefined,
-    model: config?.model,
-    modeId: config?.type === 'acp' ? config.modeId : undefined,
-    effort: config?.type === 'acp' ? config.effort : undefined,
-    collaborationMode: config?.type === 'acp' ? config.collaborationMode : undefined,
+    model: config?.type === 'pty' ? config.model : undefined,
+    options: config?.type === 'acp' ? config.options : undefined,
     initialQueue: initialQueueFromRow(row),
     lastInteractedAt: row.lastSessionActivityAt ?? null,
     isInitialConversation: row.isInitialConversation,

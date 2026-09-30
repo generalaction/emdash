@@ -17,6 +17,7 @@ import {
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { WorkspaceScanScheduler } from '#runtimes/workspace-registry/node/scan/scheduler';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { nativeWatchBackend } from '#services/fs-watch/impl/native-backend';
 import { createWatchService } from '#services/fs-watch/impl/watch-service';
 import { createWorkspaceRegistryController } from './controller';
@@ -94,7 +95,11 @@ describe('workspace registry contract', () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-registry-')));
     handle = await workspaceRegistryStore.openTemp();
     clock = new ManualClock(10_000);
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
 
@@ -325,7 +330,11 @@ describe('workspace registry contract', () => {
 
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const repositoryConfig = await wire.client.getProjectConfig({
@@ -475,6 +484,7 @@ describe('workspace registry contract', () => {
     runtime.dispose();
     let shellSetup = 'first host setup';
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock,
       getHostSettings: async () => ({ shellSetup }),
@@ -595,7 +605,11 @@ describe('workspace registry contract', () => {
     });
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const restarted = await wire.client.getProjectConfig({ workspaceId: 'ws-legacy-config' });
@@ -1000,7 +1014,11 @@ describe('workspace registry contract', () => {
     });
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const records = await listRecords();
@@ -1170,7 +1188,11 @@ describe('workspace registry contract', () => {
     });
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const replayed = await wire.client.createWorktree({
@@ -1268,7 +1290,11 @@ describe('workspace registry contract', () => {
     // Simulated daemon restart: new runtime over the same durable store.
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const records = await listRecords();

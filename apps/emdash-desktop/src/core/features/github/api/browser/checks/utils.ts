@@ -12,13 +12,19 @@ export function computeCheckBucket(check: CheckRun): CheckRunBucket {
     status === 'IN_PROGRESS' ||
     status === 'QUEUED' ||
     status === 'WAITING' ||
-    status === 'PENDING'
+    status === 'PENDING' ||
+    status === 'REQUESTED'
   ) {
     return 'pending';
   }
   if (!conclusion || conclusion === 'NEUTRAL') return 'skipping';
   if (conclusion === 'SUCCESS') return 'pass';
-  if (conclusion === 'FAILURE' || conclusion === 'TIMED_OUT' || conclusion === 'ACTION_REQUIRED')
+  if (
+    conclusion === 'FAILURE' ||
+    conclusion === 'TIMED_OUT' ||
+    conclusion === 'ACTION_REQUIRED' ||
+    conclusion === 'STARTUP_FAILURE'
+  )
     return 'fail';
   if (conclusion === 'CANCELLED' || conclusion === 'STALE') return 'cancel';
   if (conclusion === 'SKIPPED') return 'skipping';

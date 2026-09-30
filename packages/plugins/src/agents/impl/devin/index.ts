@@ -66,9 +66,13 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
-  acp: createNativeAcpBehavior(() => ({
-    args: ['acp'],
-  })),
+  acp: {
+    ...createNativeAcpBehavior(() => ({ args: ['acp'] })),
+    // Devin sends complete shell scripts in `command` when there are no argv entries.
+    // Explicit argv requests retain literal argument semantics.
+    terminalCommand: ({ command, args }) =>
+      args?.length ? { kind: 'argv', command, args } : { kind: 'shell-line', commandLine: command },
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

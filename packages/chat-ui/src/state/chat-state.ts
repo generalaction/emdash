@@ -32,7 +32,8 @@
  * conversationId in AcpChatPanel) — this assumption is intentional.
  */
 
-import { createMemo, createRoot, createSignal } from 'solid-js';
+import type { TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
+import { createEffect, createMemo, createRoot, createSignal } from 'solid-js';
 import type { ChatContext } from '../chat-context';
 import { createParseCaches } from '../core/caches';
 import type { ParseCaches } from '../core/caches';
@@ -103,9 +104,11 @@ type LiveReadable<T> = {
 };
 
 export type ConnectSessionSource = {
-  activeTurn: LiveReadable<TranscriptTurn | null>;
   plan: LiveReadable<PlanState | null>;
-  sessionState: LiveReadable<{ pendingPermissions: readonly AcpPermissionRequest[] }>;
+  sessionState: LiveReadable<{
+    pendingPermissions: readonly AcpPermissionRequest[];
+    transcript: TranscriptSnapshot | null;
+  }>;
 };
 
 export type ConnectSessionOptions = {
@@ -206,6 +209,19 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
     viewState = createViewState();
     [getExpandedUserId, setExpandedUserId] = createSignal<string | null>(null);
     session = createSessionState();
+    createEffect(() => {
+      const pending = session.state.pendingPrompt;
+      if (!pending) return;
+      const containsPrompt = (turn: TranscriptTurn) =>
+        turn.items.some((item) => item.kind === 'message' && item.promptId === pending.id);
+      const active = transcript.state.activeTurnSnapshot;
+      if (
+        (active && containsPrompt(active)) ||
+        transcript.state.displayTurns.some(containsPrompt)
+      ) {
+        session.setPendingPrompt(null);
+      }
+    });
   });
 
   // Scroll mode — plain mutable value; not reactive (ChatRoot reads it once on
@@ -314,33 +330,20 @@ export function connectSession(
   source: ConnectSessionSource,
   options: ConnectSessionOptions = {}
 ): () => void {
-  let hadActiveTurn = source.activeTurn.getSnapshot() !== null;
-
   const syncSessionState = (): void => {
     const snapshot = source.sessionState.getSnapshot();
     state.session.setPermissions(snapshot?.pendingPermissions ?? []);
+    if (snapshot && state.transcript.observe(snapshot.transcript)) options.onTurnCommitted?.();
   };
 
   const syncPlan = (): void => {
     state.session.setPlan(source.plan.getSnapshot() ?? null);
   };
 
-  const syncActiveTurn = (): void => {
-    const turn = source.activeTurn.getSnapshot() ?? null;
-    if (turn) state.session.setPendingPrompt(null);
-    state.transcript.activeTurn.set(turn);
-    if (!turn && hadActiveTurn) options.onTurnCommitted?.();
-    hadActiveTurn = turn !== null;
-  };
   syncSessionState();
   syncPlan();
-  syncActiveTurn();
 
-  const unsubs = [
-    source.sessionState.subscribe(syncSessionState),
-    source.plan.subscribe(syncPlan),
-    source.activeTurn.subscribe(syncActiveTurn),
-  ];
+  const unsubs = [source.sessionState.subscribe(syncSessionState), source.plan.subscribe(syncPlan)];
   return () => {
     for (const unsub of unsubs) unsub();
   };

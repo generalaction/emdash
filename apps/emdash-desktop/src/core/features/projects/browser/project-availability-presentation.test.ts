@@ -123,20 +123,20 @@ describe('classifyProjectAvailability', () => {
     [
       'connecting',
       { kind: 'degraded', situation: 'connecting', recovery: 'automatic' },
-      'Connecting to Orion',
-      ['Open Machines'],
+      'Reconnecting to Orion',
+      ['Retry now', 'Open Machines'],
     ],
     [
       'provisioning',
       { kind: 'degraded', situation: 'provisioning', recovery: 'automatic' },
-      'Preparing Orion',
-      ['Open Machines'],
+      'Reconnecting to Orion',
+      ['Retry now', 'Open Machines'],
     ],
     [
       'handshaking',
       { kind: 'degraded', situation: 'handshaking', recovery: 'automatic' },
-      'Preparing Orion',
-      ['Open Machines'],
+      'Reconnecting to Orion',
+      ['Retry now', 'Open Machines'],
     ],
     [
       'attaching',
@@ -167,19 +167,19 @@ describe('classifyProjectAvailability', () => {
   >([
     [
       'offline',
-      'Orion is offline',
+      'Reconnecting to Orion',
       ['Retry now', 'Open Machines'],
       ['Retry now', 'Open Diagnostics'],
     ],
     [
       'connection-failed',
-      'Could not connect to Orion',
+      'Reconnecting to Orion',
       ['Retry now', 'Open Machines'],
       ['Retry now', 'Open Diagnostics'],
     ],
     [
       'daemon-start-failed',
-      "Could not start Orion's workspace server",
+      'Reconnecting to Orion',
       ['Retry now', 'Open Machines'],
       ['Retry now', 'Open Diagnostics'],
     ],
@@ -210,7 +210,7 @@ describe('classifyProjectAvailability', () => {
     ],
     [
       'runtime-unavailable',
-      "Orion's workspace server is unavailable",
+      'Reconnecting to Orion',
       ['Retry now', 'Open Machines'],
       ['Retry now', 'Open Diagnostics'],
     ],

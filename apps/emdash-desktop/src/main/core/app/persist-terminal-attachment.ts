@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { rmSync } from 'node:fs';
+import { createReadStream, rmSync } from 'node:fs';
 import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, clipboard, nativeImage } from 'electron';
+import type { TerminalFileSources } from '@core/services/attachments/node/prepare-terminal-files';
 
 export const MAX_DROPPED_BLOB_BYTES = 50 * 1024 * 1024;
 export const DROPPED_BLOB_FILENAME_PREFIX = 'emdash-drop-';
@@ -13,6 +14,58 @@ export const DROPPED_BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const execFileAsync = promisify(execFile);
 const persistedDroppedBlobPaths = new Set<string>();
 let cleanupRegistered = false;
+
+/** Only paths produced by this process are ours to delete. User files are never moved. */
+export const terminalFileSources: TerminalFileSources = {
+  async prepare(input, signal) {
+    const temporary = persistedDroppedBlobPaths.has(input.path);
+    const dispose = async () => {
+      if (!temporary) return;
+      await rm(input.path, { force: true });
+      persistedDroppedBlobPaths.delete(input.path);
+    };
+    const name = input.name || basename(input.path);
+    const mimeType =
+      input.mimeType ||
+      (name.toLowerCase().endsWith('.png') ? 'image/png' : 'application/octet-stream');
+    if (!isHeicLike({ name, mimeType })) {
+      return {
+        kind: 'path',
+        path: input.path,
+        name,
+        mimeType,
+        snapshot: temporary || input.snapshot,
+        dispose,
+      };
+    }
+    try {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of createReadStream(input.path, { signal })) {
+        size += chunk.length;
+        if (size > MAX_DROPPED_BLOB_BYTES)
+          throw new Error('Attachment exceeds the 50 MB upload limit.');
+        chunks.push(chunk);
+      }
+      signal?.throwIfAborted();
+      const normalized = await normalizeDroppedImageBytes(Buffer.concat(chunks, size), {
+        name,
+        mimeType,
+      });
+      signal?.throwIfAborted();
+      return {
+        kind: 'bytes',
+        bytes: normalized.bytes,
+        name: `${name.replace(/\.[^.]+$/, '')}.png`,
+        mimeType: 'image/png',
+        dispose,
+      };
+    } catch (error) {
+      await dispose();
+      throw error;
+    }
+  },
+};
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/png': '.png',
@@ -111,7 +164,7 @@ export async function persistDroppedBlobBytes(args: {
   const safe = sanitizeDroppedBlobName(args.name?.replace(/\.[^.]+$/, ''));
   const filename = `${DROPPED_BLOB_FILENAME_PREFIX}${randomUUID()}${safe ? `-${safe}` : ''}${normalized.ext}`;
   const fullPath = join(app.getPath('temp'), filename);
-  await writeFile(fullPath, normalized.bytes);
+  await writeFile(fullPath, normalized.bytes, { mode: 0o600, flag: 'wx' });
   trackPersistedDroppedBlob(fullPath);
   return fullPath;
 }

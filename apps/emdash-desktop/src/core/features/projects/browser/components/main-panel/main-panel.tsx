@@ -15,6 +15,7 @@ import { useConfirmDeleteProject } from '@core/features/projects/contributions/b
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { BorderlessTitlebar } from '@core/features/workbench/contributions/browser/BorderlessTitlebar';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
+import { ProjectErrorDetails } from '../project-error-details';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
 import { ProjectHeader } from './project-header';
@@ -143,6 +144,7 @@ export function ProjectContextErrorPanel({
             Remove Project
           </Button>
         </div>
+        <ProjectErrorDetails message={error.message} />
       </div>
     </div>
   );

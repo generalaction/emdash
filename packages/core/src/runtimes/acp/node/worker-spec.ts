@@ -25,7 +25,6 @@ export type AcpWorkerSpecInput = {
   env: NodeJS.ProcessEnv;
   logger?: Logger;
   dependencies: ProvidedWireComponentRequirements<AcpComponent['requirements']>;
-  attachmentsDir: string;
   intentsFilePath: string;
 };
 
@@ -49,7 +48,6 @@ export function acpWorkerSpec(
       env: input.env,
       dependencies: input.dependencies,
       config: {
-        attachmentsDir: input.attachmentsDir,
         intentsFilePath: input.intentsFilePath,
         lifecycle: {
           session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },

@@ -18,10 +18,13 @@ describe('TreeDirectoryReader', () => {
     const root = await makeRoot();
     const outside = await makeRoot();
     await mkdir(path.join(root, 'z-directory'));
+    await mkdir(path.join(outside, 'nested'));
     await writeFile(path.join(root, 'a.txt'), 'a');
     await writeFile(path.join(outside, 'outside.txt'), 'outside');
+    await writeFile(path.join(outside, 'nested', 'child.txt'), 'child');
     try {
       await symlink('z-directory', path.join(root, 'linked-directory'), 'dir');
+      await symlink(path.join(outside, 'nested'), path.join(root, 'outside-directory'), 'dir');
       await symlink(path.join(outside, 'outside.txt'), path.join(root, 'outside-file'), 'file');
       await symlink('missing', path.join(root, 'missing-link'), 'file');
     } catch {
@@ -35,6 +38,7 @@ describe('TreeDirectoryReader', () => {
     if (!result.success) return;
     expect(result.data.map((entry) => entry.name)).toEqual([
       'linked-directory',
+      'outside-directory',
       'z-directory',
       'a.txt',
       'missing-link',
@@ -45,7 +49,8 @@ describe('TreeDirectoryReader', () => {
       symlinkTargetKind: 'directory',
     });
     expect(result.data.find((entry) => entry.name === 'outside-file')).toMatchObject({
-      symlinkTargetKind: 'outside-root',
+      symlinkTargetKind: 'file',
+      symlinkTargetOutsideRoot: true,
     });
     expect(result.data.find((entry) => entry.name === 'missing-link')).toMatchObject({
       symlinkTargetKind: 'missing',
@@ -53,6 +58,22 @@ describe('TreeDirectoryReader', () => {
     const linked = result.data.find((entry) => entry.name === 'linked-directory');
     expect(linked && isExpandableFileEntry(linked)).toBe(true);
     expect(linked && 'expandable' in linked).toBe(false);
+
+    const outsideDirectory = result.data.find((entry) => entry.name === 'outside-directory');
+    expect(outsideDirectory).toMatchObject({
+      kind: 'symlink',
+      symlinkTargetKind: 'directory',
+      symlinkTargetOutsideRoot: true,
+    });
+    expect(outsideDirectory && isExpandableFileEntry(outsideDirectory)).toBe(true);
+
+    const outsideChildren = await new TreeDirectoryReader(new RootPathPolicy(root)).readChildren(
+      relativePath('outside-directory')
+    );
+    expect(outsideChildren).toMatchObject({
+      success: true,
+      data: [{ path: 'outside-directory/child.txt', kind: 'file' }],
+    });
   });
 });
 

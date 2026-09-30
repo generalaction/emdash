@@ -11,7 +11,7 @@ import type {
 
 /**
  * Host-supplied context an issues plugin needs before it can operate.
- * Repository-scoped services (GitHub, GitLab, Forgejo) need `repositoryUrl`;
+ * Repository-scoped services (GitHub, GitLab, Forgejo) need `repositoryUrl`, including its host;
  * account-scoped services (Linear, Jira, ...) need nothing.
  */
 export const issueRequiredInputSchema = z.enum(['repositoryUrl']);

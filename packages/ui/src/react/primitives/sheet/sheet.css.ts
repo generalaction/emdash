@@ -15,7 +15,10 @@ import {
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
+const noDragRegion = { WebkitAppRegion: 'no-drag' } as Record<string, string>;
+
 export const backdrop = style({
+  ...noDragRegion,
   position: 'fixed',
   inset: 0,
   zIndex: 50,
@@ -28,6 +31,7 @@ export const backdrop = style({
 
 export const sheetContent = recipe({
   base: {
+    ...noDragRegion,
     position: 'fixed',
     zIndex: 50,
     display: 'flex',

@@ -1,3 +1,7 @@
+import type {
+  HostDependencyError,
+  ResolvedHostDependency,
+} from '@emdash/core/primitives/host-dependencies/api';
 import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
 import {
   isRuntimeResolveError,
@@ -9,7 +13,7 @@ import { toast } from '@emdash/ui/react/primitives';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getAgentsClient, unwrapAgentsResult } from '@core/features/agents/api/browser/client';
-import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AGENTS_METADATA_QUERY_KEY, useAgents } from '@core/features/agents/api/browser/use-agents';
 import type {
   AgentInstallationStatus,
   AgentInstallError,
@@ -158,12 +162,19 @@ export function useAgentInstallationStatuses(host: HostRef) {
 
   const setUsedMutation = useMutation<
     void,
-    RuntimeResolveError,
+    RuntimeResolveError | HostDependencyError,
     { id: string; selection: HostDependencySelection }
   >({
     mutationFn: async ({ id, selection }) =>
       unwrapAgentsResult((await getAgentsClient()).setUsedInstallation({ host, id, selection })),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: key }),
+        queryClient.invalidateQueries({
+          queryKey: [...AGENTS_METADATA_QUERY_KEY, hostRefKey(host)],
+        }),
+      ]);
+    },
   });
 
   const refreshLatestMutation = useMutation<void, RuntimeResolveError, string>({
@@ -186,7 +197,7 @@ export function useAgentInstallationStatuses(host: HostRef) {
     updateFailures: updateFailureMap.failures,
     dismissInstallFailure: installFailureMap.clearFailure,
     dismissUpdateFailure: updateFailureMap.clearFailure,
-    setUsedInstallation: setUsedMutation.mutate,
+    setUsedInstallation: setUsedMutation.mutateAsync,
     refreshLatestVersion: refreshLatestMutation.mutate,
     probeAll: probeAllMutation.mutate,
     isInstalling: installMutation.isPending,
@@ -222,7 +233,7 @@ export type HostDependencyInstallation = {
   setUsed(selection: HostDependencySelection): Promise<void>;
   refresh(): Promise<void>;
   fetchLatestVersion(): Promise<void>;
-  probeOverride(selection: { path?: string; cli?: string }): Promise<Installation | null>;
+  resolve(selection?: HostDependencySelection): Promise<ResolvedHostDependency>;
 };
 
 export function useAgentInstallationStatus(
@@ -310,10 +321,7 @@ export function useAgentInstallationStatus(
   );
 
   const setUsed = useCallback(
-    (selection: HostDependencySelection) =>
-      new Promise<void>((resolve) => {
-        setUsedInstallation({ id, selection }, { onSettled: () => resolve() });
-      }),
+    (selection: HostDependencySelection) => setUsedInstallation({ id, selection }),
     [setUsedInstallation, id]
   );
 
@@ -333,10 +341,10 @@ export function useAgentInstallationStatus(
     [refreshLatestVersion, id]
   );
 
-  const probeOverride = useCallback(
-    async (selection: { path?: string; cli?: string }) =>
+  const resolve = useCallback(
+    async (selection?: HostDependencySelection) =>
       unwrapAgentsResult(
-        (await getAgentsClient()).probeOverride({
+        (await getAgentsClient()).resolveInstallation({
           host,
           id: id as AgentProviderId,
           selection,
@@ -367,7 +375,7 @@ export function useAgentInstallationStatus(
     setUsed,
     refresh,
     fetchLatestVersion,
-    probeOverride,
+    resolve,
   };
 }
 

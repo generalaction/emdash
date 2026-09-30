@@ -1,5 +1,7 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { createPathProfile, type PathProfile } from '@emdash/core/primitives/path/api';
+import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
+import type { RuntimeSessionResolution } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
@@ -68,7 +70,10 @@ function makeResolver(options: {
     ),
   };
   const broker = {
-    client: vi.fn(async () => ok({ files: { getHomeDir, fs: { exists } }, hostSettings })),
+    client: vi.fn(
+      async (): Promise<RuntimeSessionResolution> =>
+        ok({ files: { getHomeDir, fs: { exists } }, hostSettings } as never)
+    ),
   };
   const resolver = new WorkspacePlacementResolver({
     broker: broker as never,
@@ -95,6 +100,41 @@ describe('WorkspacePlacementResolver', () => {
       success: true,
       data: '/home/remote/emdash/repositories',
     });
+  });
+
+  it('resolves a task worktree after a pre-connection home lookup failed', async () => {
+    const host = hostRef('remote', 'ssh-1');
+    const { resolver, broker, getHomeDir } = makeResolver({ home: '/home/remote' });
+    const failure = runtimeHostUnavailable(
+      host,
+      'runtime-unavailable',
+      'Host runtime is not currently usable'
+    );
+    broker.client.mockResolvedValueOnce(err(failure));
+    await expect(resolver.resolveRepositoriesRoot(host)).resolves.toEqual(err(failure));
+
+    // The connection is healthy now; task creation reuses the same placement resolver.
+    await expect(
+      resolver.resolveWorktreeRoot({ ...project, type: 'ssh', connectionId: host.id })
+    ).resolves.toEqual(ok('/home/remote/emdash/worktrees'));
+    expect(getHomeDir).toHaveBeenCalledOnce();
+  });
+
+  it('retries a failed home request and shares successful metadata across callers', async () => {
+    const host = hostRef('remote', 'ssh-1');
+    const { resolver, getHomeDir } = makeResolver({ home: '/home/remote' });
+    getHomeDir.mockRejectedValueOnce(new Error('Connection closed'));
+    await expect(resolver.resolveRepositoriesRoot(host)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'host-home-unavailable' },
+    });
+
+    const expected = ok('/home/remote/emdash/repositories');
+    await expect(
+      Promise.all([resolver.resolveRepositoriesRoot(host), resolver.resolveRepositoriesRoot(host)])
+    ).resolves.toEqual([expected, expected]);
+    await expect(resolver.resolveRepositoriesRoot(host)).resolves.toEqual(expected);
+    expect(getHomeDir).toHaveBeenCalledTimes(2);
   });
 
   it('expands the configured repositories root against the target host home', async () => {

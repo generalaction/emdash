@@ -1,29 +1,32 @@
+import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 import { Box } from '../../primitives/box';
 import { Button } from '../../primitives/button';
 import { useAsyncAction } from '../../primitives/hooks/use-async-action';
-import { Pill } from '../pill/pill';
 import { StatusIcon } from '../status-icon/status-icon';
 import * as styles from './update-card.css';
 
 export type UpdateStatus =
   | { type: 'up-to-date' }
+  | { type: 'checking' }
   | { type: 'update-available'; version: string; onUpdate: () => Promise<void> }
   | {
       type: 'update-download-available';
       version: string;
       size: number;
-      onDownload: (onProgress: (progress: number) => void, cancel?: () => void) => Promise<void>;
+      onDownload: () => Promise<void>;
     }
-  | { type: 'update-install-available'; onInstall: () => Promise<void> };
+  | { type: 'update-downloading'; version: string; progress?: number }
+  | { type: 'update-install-available'; onInstall: () => Promise<void> }
+  | { type: 'update-installing' };
 
 export interface UpdateCardProps {
   currentVersion: string;
   status: UpdateStatus;
   appName: string;
   onCheckForUpdates: () => Promise<void>;
-  /** Error from the most recent action (check / download / install). */
-  error?: { message: string };
+  /** A readable summary and, when needed, full sanitized diagnostic details. */
+  error?: { message: string; details?: string };
 }
 
 export function UpdateCard({
@@ -33,46 +36,36 @@ export function UpdateCard({
   onCheckForUpdates,
   error,
 }: UpdateCardProps) {
-  const [downloadProgress, setDownloadProgress] = React.useState<number>(0);
-
-  const onProgress = (progress: number) => {
-    setDownloadProgress(progress);
-  };
-
   const [checkForUpdates, , isCheckingForUpdates] = useAsyncAction(async () => {
     await onCheckForUpdates();
   });
-  const [downloadUpdate, , isDownloading] = useAsyncAction(async () => {
-    if (status.type !== 'update-download-available') return;
-    await status.onDownload(onProgress);
+  const [downloadUpdate, , isDownloadRequested] = useAsyncAction(async () => {
+    if (status.type === 'update-download-available') await status.onDownload();
   });
   const [updateNow, , isUpdating] = useAsyncAction(async () => {
-    if (status.type !== 'update-available') return;
-    await status.onUpdate();
+    if (status.type === 'update-available') await status.onUpdate();
   });
-  const [installUpdate, , isInstalling] = useAsyncAction(async () => {
-    if (status.type !== 'update-install-available') return;
-    await status.onInstall();
+  const [installUpdate, , isInstallRequested] = useAsyncAction(async () => {
+    if (status.type === 'update-install-available') await status.onInstall();
   });
-
-  React.useEffect(() => {
-    setDownloadProgress(0);
-  }, [status.type]);
 
   const renderActionButton = () => {
     switch (status.type) {
-      case 'up-to-date':
+      case 'checking':
+      case 'up-to-date': {
+        const checking = status.type === 'checking' || isCheckingForUpdates;
         return (
           <Button
             variant="secondary"
             size="xs"
             onClick={checkForUpdates}
-            disabled={isCheckingForUpdates}
-            aria-busy={isCheckingForUpdates}
+            disabled={checking}
+            aria-busy={checking}
           >
-            {isCheckingForUpdates ? 'Checking...' : 'Check for updates'}
+            {checking ? 'Checking…' : 'Check for updates'}
           </Button>
         );
+      }
       case 'update-available':
         return (
           <Button
@@ -82,36 +75,47 @@ export function UpdateCard({
             disabled={isUpdating}
             aria-busy={isUpdating}
           >
-            {isUpdating ? 'Updating...' : 'Update'}
+            {isUpdating ? 'Updating…' : 'Update'}
           </Button>
         );
       case 'update-download-available':
-        return (
-          <DownloadButton
-            onClick={downloadUpdate}
-            isDownloading={isDownloading}
-            progress={downloadProgress}
-          />
+        return isDownloadRequested ? (
+          <DownloadingButton />
+        ) : (
+          <Button variant="secondary" size="xs" onClick={downloadUpdate}>
+            {error ? 'Retry download' : 'Download'}
+          </Button>
         );
-      case 'update-install-available':
+      case 'update-downloading':
+        return <DownloadingButton progress={status.progress} />;
+      case 'update-installing':
+      case 'update-install-available': {
+        const installing = status.type === 'update-installing' || isInstallRequested;
         return (
           <Button
             variant="secondary"
             size="xs"
             onClick={installUpdate}
-            disabled={isInstalling}
-            aria-busy={isInstalling}
+            disabled={installing}
+            aria-busy={installing}
           >
-            {isInstalling ? 'Restarting...' : 'Restart'}
+            {installing ? 'Restarting…' : 'Restart'}
           </Button>
         );
+      }
     }
   };
 
   const renderStatusLabel = () => {
     switch (status.type) {
+      case 'checking':
+        return 'Checking for updates';
       case 'up-to-date':
-        return "You're up to date";
+        return error ? 'Could not check for updates' : "You're up to date";
+      case 'update-downloading':
+        return 'Downloading update';
+      case 'update-installing':
+        return 'Restarting to install update';
       case 'update-install-available':
         return 'Update ready to install';
       default:
@@ -121,75 +125,89 @@ export function UpdateCard({
 
   const renderStatusDescription = () => {
     switch (status.type) {
+      case 'checking':
+        return `Current ${appName} version v${currentVersion}`;
       case 'up-to-date':
-        return `Current ${appName} version v${currentVersion} is up to date`;
+        return error
+          ? `Current ${appName} version v${currentVersion}`
+          : `Current ${appName} version v${currentVersion} is up to date`;
       case 'update-available':
         return `Version v${status.version} is available. Update and restart ${appName} to use the new version`;
       case 'update-download-available':
         return `Version v${status.version} is available. Download and restart ${appName} to use the new version`;
+      case 'update-downloading':
+        return `Downloading version v${status.version}. You can keep using ${appName} while it downloads.`;
+      case 'update-installing':
+        return `${appName} will reopen with the new version`;
       case 'update-install-available':
         return `Restart ${appName} to use the new version`;
     }
   };
 
-  const getStatusSeverity = () => {
-    switch (status.type) {
-      case 'up-to-date':
-        return 'success';
-      case 'update-available':
-        return 'warning';
-      case 'update-download-available':
-        return 'warning';
-      case 'update-install-available':
-        return 'warning';
-    }
-  };
-
   return (
-    <Box surface="sunken" borderRadius="md" padding="2" px="3" className="min-w-0">
+    <Box surface="sunken" borderRadius="md" padding="2" px="3" className={styles.card}>
       <div className={styles.row}>
-        <StatusIcon size="lg" severity={getStatusSeverity()} />
+        <StatusIcon
+          size="lg"
+          severity={error ? 'error' : status.type === 'up-to-date' ? 'success' : 'warning'}
+        />
         <div className={styles.rowBody}>
-          <div className={styles.rowTitle}>
-            {renderStatusLabel()}
-            {error && (
-              <Pill variant="error" className={styles.errorPill} title={error.message}>
-                {error.message}
-              </Pill>
-            )}
-          </div>
+          <div className={styles.rowTitle}>{renderStatusLabel()}</div>
           <div className={styles.rowDescription}>{renderStatusDescription()}</div>
         </div>
         <div className={styles.rowControls}>{renderActionButton()}</div>
       </div>
+      {error && <UpdateError key={error.details ?? error.message} error={error} />}
     </Box>
   );
 }
 
-function DownloadButton({
-  onClick,
-  isDownloading,
-  progress,
-}: {
-  onClick: () => void;
-  isDownloading: boolean;
-  progress: number;
-}) {
-  const renderButtonContent = () => {
-    if (isDownloading) {
-      return (
-        <div className={styles.progressTrack}>
-          <div className={styles.progressFill} style={{ width: `${progress}%` }} />
-        </div>
-      );
-    }
+function DownloadingButton({ progress }: { progress?: number }) {
+  const percent =
+    progress != null && Number.isFinite(progress)
+      ? Math.round(Math.min(100, Math.max(0, progress)))
+      : undefined;
+  return (
+    <Button variant="secondary" size="xs" disabled aria-busy="true">
+      {percent === undefined ? 'Downloading…' : `Downloading… ${percent}%`}
+    </Button>
+  );
+}
 
-    return 'Download';
-  };
+function UpdateError({ error }: { error: NonNullable<UpdateCardProps['error']> }) {
+  const details = error.details ?? error.message;
+  const [copyFailed, setCopyFailed] = React.useState(false);
+  const [copyDetails, copied, copying] = useAsyncAction(
+    async () => {
+      setCopyFailed(false);
+      await navigator.clipboard.writeText(details);
+      return true;
+    },
+    { onError: () => setCopyFailed(true) }
+  );
 
   return (
-    <Button variant="secondary" size="xs" disabled={isDownloading} onClick={onClick}>
-      {renderButtonContent()}
-    </Button>
+    <div className={styles.errorPanel}>
+      <div className={styles.errorMessage} role="alert">
+        {error.message}
+      </div>
+      <div className={styles.errorActions}>
+        {details !== error.message && (
+          <details className={styles.errorDetails}>
+            <summary className={styles.errorSummary}>Details</summary>
+            <div className={styles.errorDetailsText}>{details}</div>
+          </details>
+        )}
+        <Button variant="ghost" size="xs" onClick={copyDetails} disabled={copying}>
+          {copied ? <Check /> : <Copy />}
+          {copied ? 'Copied' : 'Copy details'}
+        </Button>
+      </div>
+      {copyFailed && (
+        <div className={styles.errorMessage} role="status">
+          Could not copy. Select the text to copy it manually.
+        </div>
+      )}
+    </div>
   );
 }

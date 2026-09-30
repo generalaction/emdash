@@ -130,9 +130,14 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
         : undefined;
     if (project && !project.success) return project;
 
-    if (patch.gitIdentity || patch.placement?.stored.tmux !== undefined) {
+    if (
+      patch.gitIdentity ||
+      patch.integrationAccounts ||
+      patch.placement?.stored.tmux !== undefined
+    ) {
       const durable = await this.durableSettings.patch(projectId, {
         ...(patch.gitIdentity ? { gitIdentity: patch.gitIdentity } : {}),
+        ...(patch.integrationAccounts ? { integrationAccounts: patch.integrationAccounts } : {}),
         ...(patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')
           ? { placement: { stored: { tmux: patch.placement.stored.tmux } } }
           : {}),
@@ -158,11 +163,9 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
 
     if (patch.placement && Object.hasOwn(patch.placement.stored, 'worktreeRoot')) {
       if (!project?.success) return err({ type: 'error' });
-      const result = await project.data.settings.patch({
-        placement: {
-          stored: { worktreeRoot: patch.placement.stored.worktreeRoot },
-        },
-      });
+      const result = await project.data.settings.setWorktreeRoot(
+        patch.placement.stored.worktreeRoot ?? null
+      );
       if (!result.success) return result;
     }
 

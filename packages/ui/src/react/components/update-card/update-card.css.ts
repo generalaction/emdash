@@ -1,10 +1,10 @@
-import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import '@styles/layers.css';
-import { label as pillLabel } from '../pill/pill.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
 export const card = style({
+  minWidth: 0,
   display: 'grid',
   gap: '0.75rem',
 });
@@ -50,78 +50,49 @@ export const rowControls = style({
   gap: '0.5rem',
 });
 
-export const versionBadge = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  height: '1.25rem',
-  paddingLeft: '0.5rem',
-  paddingRight: '0.5rem',
-  borderRadius: '999px',
-  border: `1px solid ${vars.border}`,
-  fontFamily: tokenVars.fontMono,
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
-  whiteSpace: 'nowrap',
-});
-
-export const statusSuccess = style({
-  color: vars.foregroundSuccess,
-});
-
-export const statusWarning = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.25rem',
-  borderRadius: tokenVars.radiusSm,
-  border: `1px solid ${vars.borderWarning}`,
-  backgroundColor: vars.backgroundWarning,
-  paddingLeft: '0.5rem',
-  paddingRight: '0.5rem',
-  paddingTop: '0.125rem',
-  paddingBottom: '0.125rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundWarning,
-});
-
-const spinKeyframes = keyframes({
-  from: { transform: 'rotate(0deg)' },
-  to: { transform: 'rotate(360deg)' },
-});
-
-export const iconSpin = style({
-  animationName: spinKeyframes,
-  animationDuration: '1s',
-  animationTimingFunction: 'linear',
-  animationIterationCount: 'infinite',
-});
-
-export const progressTrack = style({
-  height: '0.375rem',
-  width: '4.5rem',
-  overflow: 'hidden',
-  borderRadius: '999px',
-  backgroundColor: vars.background2,
-});
-
-export const progressFill = style({
-  height: '100%',
-  borderRadius: '999px',
-  backgroundColor: vars.foreground,
-  transition: 'width 300ms ease-out',
-});
-
-export const errorPill = style({
-  '@layer': {
-    recipes: {
-      maxWidth: '12rem',
-      overflow: 'hidden',
-    },
-  },
-});
-
-globalStyle(`${errorPill} .${pillLabel}`, {
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
+export const errorPanel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.5rem',
   minWidth: 0,
+  padding: '0.75rem',
+  borderRadius: tokenVars.radiusMd,
+  backgroundColor: vars.backgroundError,
+  color: vars.foregroundError,
+});
+
+export const errorMessage = style({
+  fontSize: tokenVars.textSm,
+  lineHeight: 1.5,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  userSelect: 'text',
+});
+
+export const errorActions = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  flexWrap: 'wrap',
+  gap: '0.5rem',
+});
+
+export const errorDetails = style({
+  flex: '1 1 12rem',
+  minWidth: 0,
+  fontSize: tokenVars.textSm,
+});
+
+export const errorSummary = style({
+  cursor: 'pointer',
+  paddingBlock: '0.25rem',
+});
+
+export const errorDetailsText = style({
+  marginTop: '0.5rem',
+  maxHeight: '12rem',
+  overflowY: 'auto',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  lineHeight: 1.5,
+  userSelect: 'text',
 });

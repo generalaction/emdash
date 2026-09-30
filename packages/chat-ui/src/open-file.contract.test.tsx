@@ -96,6 +96,35 @@ describe('open-file command contract', () => {
     expect(onOpenFile).toHaveBeenCalledTimes(1);
   });
 
+  it('passes a classified prose link line to the file opener', async () => {
+    const onOpenFile = vi.fn();
+    const host = mount(
+      [
+        {
+          kind: 'message',
+          id: 'message-1',
+          role: 'assistant',
+          text: '[source](src/app.ts:42)',
+        },
+      ],
+      {
+        classifyLink: () => ({ kind: 'workspace-file', path: 'src/app.ts', line: 42 }),
+        onOpenFile,
+      }
+    );
+    await nextPaint();
+
+    const link = host.querySelector('a[href="src/app.ts:42"]') as HTMLElement | null;
+    expect(link).not.toBeNull();
+    expect(dispatchLinkClick(link!)).toBe(true);
+    expect(onOpenFile).toHaveBeenCalledWith({
+      path: 'src/app.ts',
+      line: 42,
+      itemId: 'message-1#0',
+      source: 'prose-link',
+    });
+  });
+
   it('routes diff, file-operation, and resource file rows through onOpenFile', async () => {
     const onOpenFile = vi.fn();
     const host = mount(

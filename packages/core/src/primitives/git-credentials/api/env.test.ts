@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { devNull, tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import {
   applyGitCredentialsToEnv,
@@ -15,18 +17,37 @@ const helperSpec: GitCredentialsSessionSpec = {
 };
 
 function gitConfigPairs(env: Record<string, string>): [string, string][] {
-  const count = Number(env.GIT_CONFIG_COUNT ?? '0');
-  const pairs: [string, string][] = [];
-  for (let i = 0; i < count; i += 1) {
-    pairs.push([env[`GIT_CONFIG_KEY_${i}`]!, env[`GIT_CONFIG_VALUE_${i}`]!]);
-  }
-  return pairs;
+  const output = execFileSync('git', ['config', '--null', '--list'], {
+    cwd: tmpdir(),
+    env: {
+      ...env,
+      PATH: process.env.PATH,
+      SystemRoot: process.env.SystemRoot,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: devNull,
+    },
+    encoding: 'utf8',
+  });
+  return output
+    .split('\0')
+    .filter(Boolean)
+    .map((entry) => {
+      const separator = entry.indexOf('\n');
+      return [entry.slice(0, separator), entry.slice(separator + 1)];
+    });
 }
 
 describe('applyGitCredentialsToEnv', () => {
   it('returns the env untouched for system mode and for no spec', () => {
-    const env = { PATH: '/bin', GIT_ASKPASS: '/usr/bin/whatever' };
-    expect(applyGitCredentialsToEnv(env, { mode: 'system' })).toEqual(env);
+    const env = {
+      PATH: '/bin',
+      GIT_ASKPASS: '/usr/bin/whatever',
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'credential.helper',
+      GIT_CONFIG_VALUE_0: '',
+      GIT_CONFIG_PARAMETERS: "'user.name'='Inherited'",
+    };
+    expect(applyGitCredentialsToEnv(env, { mode: 'system' })).toBe(env);
     expect(applyGitCredentialsToEnv(env, undefined)).toEqual(env);
   });
 
@@ -106,12 +127,20 @@ describe('applyGitCredentialsToEnv', () => {
       const scrubbed = applyGitCredentialsToEnv(helperEnv, { mode: 'none' });
       expect(scrubbed.EMDASH_GIT_CREDENTIAL_PORT).toBeUndefined();
       expect(scrubbed.EMDASH_GIT_CREDENTIAL_NONCE).toBeUndefined();
-      expect(gitConfigPairs(scrubbed)).toEqual([['credential.helper', '']]);
+      expect(gitConfigPairs(scrubbed).at(-1)).toEqual(['credential.helper', '']);
     });
   });
 });
 
 describe('gitCredentialOperationEnv', () => {
+  it('preserves unrelated inherited parameters when used as an operation overlay', () => {
+    const env = {
+      GIT_CONFIG_PARAMETERS: "'user.name'='Inherited'",
+      ...gitCredentialOperationEnv(channel, 'github.com'),
+    };
+    expect(gitConfigPairs(env)).toContainEqual(['user.name', 'Inherited']);
+  });
+
   it('produces a standalone overlay for one host', () => {
     const env = gitCredentialOperationEnv(channel, 'github.example.com');
     expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('45678');

@@ -15,6 +15,16 @@
 - resize behavior
 - shell quoting and Windows command wrapping
 - tmux lifecycle
+- tmux capability negotiation: `PtySession` answers xterm.js DA1/DA2 queries on
+  the host and consumes them before logging output. Keep replies aligned with
+  the renderer's actual capabilities; never filter user input or invent support
+  for protocols such as XTVERSION. Direct PTYs retain renderer negotiation.
+- historical replay: answered tmux DA queries are removed before retention.
+  Do not mute all snapshot replies: initial snapshots can contain outstanding
+  queries from a process started before subscription. Other queries keep their
+  existing renderer behavior. Let xterm own write buffering and scheduling.
+- output parsing: consuming a DA query must preserve its introducer's effect on
+  an interrupted escape sequence or string; test display and replies against xterm
 - provider-specific resume/session behavior
 - env passthrough safety
 

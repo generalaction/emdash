@@ -84,8 +84,8 @@ export function AgentMcpSection({
             className="h-6 gap-1 px-2 text-xs"
             onClick={onManage}
           >
-            <ExternalLink className="size-3" aria-hidden="true" />
             Manage in Settings
+            <ExternalLink className="size-3" aria-hidden="true" />
           </Button>
         )}
       </div>

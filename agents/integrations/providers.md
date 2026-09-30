@@ -7,9 +7,9 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (36)
+## Current Providers (37)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
 
 ## Current ACP-Capable Providers (23)
 
@@ -45,17 +45,30 @@ The global roots used by the built-in integrations are:
 
 | Providers | Root behavior |
 | --- | --- |
-| Auggie, Command Code, Qoder, Grok, Amp, Kilo, Droid, Goose | Fixed home roots (`~/.augment`, `~/.commandcode`, `~/.qoder`, `~/.grok`, `~/.amp`, `~/.kilo`, `~/.factory`, `~/.agents`) |
+| Auggie, CodeBuddy, Command Code, Qoder, Grok, Amp, Kilo, Droid, Goose | Fixed home roots (`~/.augment`, `~/.codebuddy`, `~/.commandcode`, `~/.qoder`, `~/.grok`, `~/.amp`, `~/.kilo`, `~/.factory`, `~/.agents`) |
 | Claude, Codex, Copilot, Qwen, Kimi, Kiro, Mistral Vibe | Provider home env override with a home fallback |
 | OpenCode, MiMoCode, Devin | Provider override where supported, then XDG config on POSIX or APPDATA on Windows |
 | Pi | `$PI_CODING_AGENT_DIR` with `~/.pi/agent` fallback |
 | Oh My Pi | `$PI_CODING_AGENT_DIR`, then `$PI_CONFIG_DIR`, with `~/.omp/agent` fallback |
 | Prime Agent | `$PRIME_AGENT_CODING_AGENT_DIR` with `~/.prime/agent` fallback |
+| Antigravity CLI | `~/.gemini/config` |
+| Muse Code | `$XDG_CONFIG_HOME/muse`, falling back to `~/.config/muse` on macOS and Linux |
 
 Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro maintains both the classic
 `agents/emdash.json` format and the standalone `hooks/emdash.json` v1 schema so classic and `--v3`
 sessions are covered. The agent details UI obtains read-only installed/pending status through the
 host's `agent-config` runtime for both local and remote hosts.
+
+## Provider API Keys
+
+Emdash passes provider API keys through to the agent CLIs it spawns. The allowlisted agent
+environment in `packages/core/src/primitives/agent-env/api/index.ts` is the single source of truth
+for which variables reach a spawned agent.
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible gateway that routes to models from
+OpenAI, Anthropic, Google, DeepSeek, Qwen, and more through one API key (`sk-orca-…`). OpenCode
+resolves `orcarouter/*` models through its models.dev catalog, so setting `ORCAROUTER_API_KEY` lets
+you select an OrcaRouter model from the OpenCode model picker.
 
 ## Provider Runtime Notes
 
@@ -63,6 +76,9 @@ host's `agent-config` runtime for both local and remote hosts.
   Provider plugins declare PATH-only definitions (`binaryNames`, install guidance, and optional
   update argv). Runtimes receive only the narrow resolver contract and must not infer package
   managers, fetch latest versions, or keep a second executable cache.
+- Agent list/status reads observe the demand-driven dependency snapshot; they must not force a
+  full refresh. Explicit overlapping desktop refreshes share one request, and independent provider
+  PATH probes run concurrently so Windows lookup latency does not accumulate across every provider.
 - Install command metadata stays sudo-free and declares an elevation policy. Commands that always
   require elevation are wrapped by the host-dependency runtime, while npm-style `on-failure`
   commands first run with user privileges and may be explicitly retried with passwordless sudo
@@ -72,7 +88,19 @@ host's `agent-config` runtime for both local and remote hosts.
   interpolated shell command and no uninstall/install lifecycle in provider metadata. Future managed
   sources such as Nix should add new source and selection variants without changing runtime spawn
   injection.
+- Executable selection belongs to the host-dependency runtime. Auto follows the plugin's binary
+  names on the host PATH; a saved path or CLI-name override resolves independently of discovery.
+  The resolver accepts an optional proposed selection, so validation and startup share one
+  operation and implementation. Invalid overrides block launch and
+  never fall back to Auto. Settings save only after validation, and failed saves retain the previous
+  selection. Existing path-selection JSON remains valid; CLI selections add a `kind: 'cli'` variant
+  with a `command` field. Overrides accept executable files or PATH names; use a wrapper script for
+  commands with arguments, such as `srt claude`.
 - Claude uses deterministic `--session-id` values for conversation isolation.
+- Static plugin model catalogs supply suggestions before a conversation starts. Keep their IDs
+  compatible with the provider's ACP catalog and terminal model flag. Preserve saved IDs that are
+  absent from the static suggestions; only the live ACP catalog can determine whether a chat
+  selection is unsupported on that host.
 - Codex ACP exposes collaboration mode separately from permission mode. The ACP runtime maps the
   provider-owned `collaboration_mode` config category to the chat composer's Default/Plan selector
   and persists that selection with the conversation; filesystem and approval controls remain in
@@ -82,6 +110,12 @@ host's `agent-config` runtime for both local and remote hosts.
   unless they also support ACP.
 - `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into the conversation SQLite/cache state, while `src/services/notifications/` turns deliverable agent events into the persisted notification feed, batched sound delivery, and Electron OS notifications over the desktop Wire contract.
 - Qwen Code hooks use the documented Qwen settings schema in `$QWEN_HOME/settings.json` (falling back to `~/.qwen/settings.json`). Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
+- Antigravity CLI installs lifecycle hooks in `~/.gemini/config/plugins/emdash/` to report
+  working and completion status while preserving existing user hooks.
+- Muse Code installs managed hooks through `managed_hooks_path` in `settings.json`.
+  `SessionStart`, `UserPromptSubmit`, and `Stop` report session, working, and completion events.
+  `managed_hooks_env_vars` forwards the Emdash hook routing variables.
+  Existing hooks are preserved; paths outside the config root are rejected.
 - Prime Agent uses its native ACP stdio mode (`prime-agent --mode acp`). Its TUI extension reports
   session file paths, turn starts, and turn completion for resume and notification support. Emdash
   synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP

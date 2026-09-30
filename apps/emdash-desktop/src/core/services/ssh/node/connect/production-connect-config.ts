@@ -23,8 +23,8 @@ async function findSshConfigByHostName(hostname: string) {
 export function createProductionSshConnectConfigResolver(credentials: ConnectCredentials) {
   return createSshConnectConfigResolver({
     readFile,
-    getPassword: (connectionId) => credentials.getPassword(connectionId),
-    getPassphrase: (connectionId) => credentials.getPassphrase(connectionId),
+    getPassword: (connectionId, identity) => credentials.getPassword(connectionId, identity),
+    getPassphrase: (connectionId, identity) => credentials.getPassphrase(connectionId, identity),
     resolveSshConfig,
     findSshConfigByHostName,
     spawnProxyCommand,

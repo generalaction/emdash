@@ -100,11 +100,10 @@ vi.mock('@core/primitives/navigation/browser/navigation-hooks', () => ({
   useNavigate: () => ({ navigate: vi.fn() }),
 }));
 
-vi.mock('@core/features/github/contributions/browser/account-state', async () => {
+vi.mock('@core/features/integrations/contributions/browser/account-state', async () => {
   const React = await import('react');
   return {
-    useBlockingGitHubAccountState: () => null,
-    GitHubAccountStateEmpty: ({ state }: { state: { kind: string; message?: string } }) =>
+    ProviderAccountStateEmpty: ({ state }: { state: { kind: string; message?: string } }) =>
       React.createElement(
         'div',
         { 'data-testid': `account-state-${state.kind}` },
@@ -170,6 +169,31 @@ describe('IssueSelector', () => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
     dom.window.close();
+  });
+
+  it('shows inventory failure instead of asking an already configured user to connect', async () => {
+    mocks.useIssueSearch.mockReturnValue(
+      issueSearchResult({
+        hasAnyIntegration: false,
+        issueProvider: null,
+        error: 'Failed to load integration accounts',
+      })
+    );
+    await renderSelector();
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      'Failed to load integration accounts'
+    );
+    expect(container.textContent).not.toContain('Connect an integration');
+  });
+
+  it('shows loading before deciding there are no configured integrations', async () => {
+    mocks.useIssueSearch.mockReturnValue(
+      issueSearchResult({ hasAnyIntegration: false, issueProvider: null, isProviderLoading: true })
+    );
+    await renderSelector();
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Loading integration accounts'
+    );
   });
 
   it('shows issue search errors instead of the empty issues message', async () => {
@@ -249,4 +273,27 @@ describe('IssueSelector', () => {
     expect(container.querySelector('[data-testid="account-state-unresolvable"]')).not.toBeNull();
     expect(container.textContent).toContain('The selected GitHub account is no longer connected.');
   });
+
+  it.each([
+    ['linear', { kind: 'set' }, 'Linear is disabled for this project.'],
+    ['jira', { kind: 'unresolvable' }, 'The selected Jira account is no longer connected.'],
+  ])(
+    'reports unavailable %s accounts using that integration name',
+    async (provider, provenance, message) => {
+      mocks.useIssueSearch.mockReturnValue(
+        issueSearchResult({
+          issueProvider: provider,
+          accountUnavailable: {
+            type: 'account_unavailable',
+            provenance,
+            accountsConnected: true,
+            message,
+          },
+        })
+      );
+      await renderSelector();
+      expect(container.textContent).toContain(message);
+      expect(container.textContent).not.toContain('GitHub');
+    }
+  );
 });

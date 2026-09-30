@@ -7,7 +7,6 @@ import type {
   ElevationPolicy,
   HostDependencyDefinition,
   HostDependencyError,
-  HostDependencySelection,
   HostDependencyView,
   HostElevation,
   InstallCommandOption,
@@ -16,7 +15,6 @@ import type {
   PermissionDeniedError,
   Platform,
 } from '#primitives/host-dependencies/api';
-import { nativePathIdentityKey } from '#primitives/path/api';
 import {
   probeHostElevation,
   resolveCommandPath,
@@ -250,27 +248,10 @@ export function currentPlatform(platform: NodeJS.Platform = process.platform): P
   return 'linux';
 }
 
-export function resolveSelection(
+export function resolveAutoSelection(
   id: string,
-  selection: HostDependencySelection,
   candidates: PathCandidate[]
 ): Result<NonNullable<HostDependencyView['resolved']>, HostDependencyError> {
-  if (selection?.kind === 'path') {
-    const selectionKey = executablePathIdentityKey(selection.path);
-    const candidate = candidates.find(
-      (candidate) =>
-        executablePathIdentityKey(candidate.path) === selectionKey ||
-        executablePathIdentityKey(candidate.realpath) === selectionKey
-    );
-    if (!candidate) return err({ type: 'stale-selection', id, path: selection.path });
-    return ok({
-      id,
-      command: candidate.command,
-      path: candidate.path,
-      realpath: candidate.realpath,
-      source: { kind: 'path', path: selection.path },
-    });
-  }
   const first = candidates[0];
   if (!first) return err({ type: 'missing', id });
   return ok({
@@ -280,12 +261,4 @@ export function resolveSelection(
     realpath: first.realpath,
     source: { kind: 'auto' },
   });
-}
-
-function executablePathIdentityKey(path: string): string {
-  try {
-    return nativePathIdentityKey(path);
-  } catch {
-    return `raw:${path}`;
-  }
 }

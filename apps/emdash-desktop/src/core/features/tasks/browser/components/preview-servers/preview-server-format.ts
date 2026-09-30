@@ -1,4 +1,7 @@
-import type { PreviewServer } from '@core/primitives/preview-servers/api';
+import {
+  formatDirectPreviewServerHost,
+  type PreviewServer,
+} from '@core/primitives/preview-servers/api';
 
 export function formatPreviewUrl(url: string): string {
   try {
@@ -15,7 +18,8 @@ export function formatPreviewServerLabel(server: PreviewServer): string {
       ? `remote ${server.remotePort}`
       : `${server.remotePort} -> ${server.localPort}`;
   }
-  return formatPreviewUrl(`${server.protocol}//${server.host}:${server.port}${server.urlPath}`);
+  const host = formatDirectPreviewServerHost(server.host);
+  return formatPreviewUrl(`${server.protocol}//${host}:${server.port}${server.urlPath}`);
 }
 
 export function previewServerStatusLabel(server: PreviewServer): string {

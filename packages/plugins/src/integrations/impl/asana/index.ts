@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyAsanaCredentials } from './client';
 import { icon } from './icon';
+import { asanaCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -35,6 +36,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: asanaCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyAsanaCredentials(credentials);
       if (!result.success)

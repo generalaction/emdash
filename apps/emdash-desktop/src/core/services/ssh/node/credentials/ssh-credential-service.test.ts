@@ -26,6 +26,53 @@ function makeService() {
 }
 
 describe('SshCredentialService', () => {
+  it('does not reuse a passphrase for a different effective key identity', async () => {
+    const { service } = makeService();
+    await service.storePassphrase('conn-1', secret('old passphrase'), 'old-key-identity');
+    expect((await service.getPassphrase('conn-1', 'old-key-identity'))?.expose()).toBe(
+      'old passphrase'
+    );
+    await expect(service.getPassphrase('conn-1', 'new-key-identity')).resolves.toBeNull();
+  });
+
+  it('does not reuse a bound password for another destination or fall back to a legacy secret', async () => {
+    const { service, store } = makeService();
+    await service.storePassword('conn-1', secret('new password'), 'destination-a');
+    await store.setSecret('ssh:conn-1:password', secret('stale legacy password'));
+    await expect(service.getPassword('conn-1', 'destination-b')).resolves.toBeNull();
+    expect((await service.getPassword('conn-1', 'destination-a'))?.expose()).toBe('new password');
+  });
+
+  it('does not infer a binding for legacy passphrases', async () => {
+    const { service } = makeService();
+    await service.storePassphrase('conn-1', secret('legacy passphrase'));
+    await expect(service.getPassphrase('conn-1', 'effective-key')).rejects.toThrow(
+      'Re-enter your SSH key passphrase'
+    );
+    expect((await service.getPassphrase('conn-1'))?.expose()).toBe('legacy passphrase');
+  });
+
+  it('keeps bound credentials redacted and deletes them with the connection', async () => {
+    const { service, store } = makeService();
+    await service.storePassword('conn-1', secret('password'), 'destination');
+    await service.storePassphrase('conn-1', secret('passphrase'), 'key');
+    expect(inspect([...store.secrets.values()])).not.toContain('passphrase');
+    expect(JSON.stringify(await service.getPassword('conn-1', 'destination'))).toContain(REDACTED);
+    await expect(service.hasPassword('conn-1')).resolves.toBe(true);
+    await expect(service.hasPassphrase('conn-1')).resolves.toBe(true);
+    await service.deleteAllCredentials('conn-1');
+    expect(store.secrets.size).toBe(0);
+  });
+
+  it('reports malformed bound records without exposing their contents', async () => {
+    const { service, store } = makeService();
+    await store.setSecret('ssh:conn-1:password:v1', secret('{secret-value'));
+    await expect(service.getPassword('conn-1', 'destination')).rejects.toThrow(
+      'Invalid stored SSH credential'
+    );
+    await expect(service.getPassword('conn-1', 'destination')).rejects.not.toThrow('secret-value');
+  });
+
   it('round-trips a password intact', async () => {
     const { service } = makeService();
     await service.storePassword('conn-1', secret('hunter2', 'ssh-password'));

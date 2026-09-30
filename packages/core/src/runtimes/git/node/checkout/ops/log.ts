@@ -8,9 +8,7 @@ import {
 } from '#runtimes/git/api';
 import { checkoutFailures } from '#runtimes/git/node/checkout/errors';
 import type { BoundExec } from '#services/exec/api';
-import { mapGitChangeStatus } from './status';
-
-export type Numstat = Map<string, { additions: number; deletions: number }>;
+import { parseNameStatus, parseNumstat } from './diff-parser';
 
 const FIELD_SEP = '\x1f';
 const RECORD_SEP = '\x1e';
@@ -65,16 +63,11 @@ export async function getCommitFiles(
   toPortablePath: (filePath: string) => PortableRelativePath
 ): Promise<CommitFile[]> {
   const [numstatRes, nameStatusRes] = await Promise.all([
-    exec.exec(['diff-tree', '--root', '--no-commit-id', '--numstat', '-r', hash]),
-    exec.exec(['diff-tree', '--root', '--no-commit-id', '--name-status', '-r', hash]),
+    exec.exec(['diff-tree', '--root', '--no-commit-id', '--numstat', '-z', '-r', hash]),
+    exec.exec(['diff-tree', '--root', '--no-commit-id', '--name-status', '-z', '-r', hash]),
   ]);
   const numstat = parseNumstat(numstatRes.stdout);
-  const statusByPath = new Map<string, ReturnType<typeof mapGitChangeStatus>>();
-  for (const line of nameStatusRes.stdout.trim().split('\n').filter(Boolean)) {
-    const [code = '', ...parts] = line.split('\t');
-    const filePath = parts[parts.length - 1];
-    if (filePath) statusByPath.set(filePath, mapGitChangeStatus(code));
-  }
+  const statusByPath = new Map(parseNameStatus(nameStatusRes.stdout));
   return [...numstat.entries()].map(([filePath, stat]) => ({
     path: toPortablePath(filePath),
     status: statusByPath.get(filePath) ?? 'modified',
@@ -118,20 +111,6 @@ export function parseDecoratedTags(decorations: string): string[] {
     .filter((decoration) => decoration.startsWith('tag: '))
     .map((decoration) => decoration.slice('tag: '.length).replace(/^refs\/tags\//, ''))
     .filter(Boolean);
-}
-
-export function parseNumstat(stdout: string): Numstat {
-  const map: Numstat = new Map();
-  for (const line of stdout.trim().split('\n').filter(Boolean)) {
-    const [addStr, delStr, ...pathParts] = line.split('\t');
-    const filePath = pathParts.join('\t');
-    if (!filePath) continue;
-    const current = map.get(filePath) ?? { additions: 0, deletions: 0 };
-    current.additions += addStr === '-' ? 0 : Number.parseInt(addStr ?? '0', 10) || 0;
-    current.deletions += delStr === '-' ? 0 : Number.parseInt(delStr ?? '0', 10) || 0;
-    map.set(filePath, current);
-  }
-  return map;
 }
 
 async function getRemoteReachableCommits(exec: BoundExec): Promise<Set<string>> {

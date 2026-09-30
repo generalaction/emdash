@@ -133,15 +133,26 @@ An ordinary RPC timeout requests validation; it is not conclusive evidence that 
 
 Initial tuning is a 15-second health interval and a five-second response deadline while a
 runtime attachment is maintained. These are configurable policy inputs to the supervisor,
-not timing constants scattered through transports. Idle polling need not cause visible
-`checking` while previous evidence remains fresh. Expiry or an explicit failure demotes
+not timing constants scattered through transports. Routine focus/online hints and idle polling
+keep a ready attachment usable while previous evidence remains fresh (within the health interval
+plus its response deadline). These probes preserve the ready snapshot on success, avoiding UI
+flicker, unnecessary store refreshes, and rejected terminal input. A failed probe demotes availability
+within its response deadline. Expiry or an explicit failure demotes
 availability; a small amount of incidental traffic must not indefinitely hide a wedged
 request/response path. Serving readiness or SSH-access requests does not move an already scheduled
 health deadline.
 
 Resume immediately makes pre-sleep evidence uncertain and supersedes unfinished pre-sleep
 attempts. Probe an established attachment before replacing it. Focus/online hints are
-coalesced and throttled; neither bypasses stopped/blocked policy. Detect long scheduling gaps
+coalesced and throttled; neither bypasses stopped/blocked policy. Validate retained SSH and Wire
+evidence concurrently so dead SSH does not consume
+another channel-open deadline before replacement. An online hint expedites a scheduled backoff
+without cancelling useful in-flight work. ACP attachment retries belong to the retained chat
+session and continue after transient failure even within the same Host generation; only successful
+attachment plus snapshot refresh records that generation as recovered. Cancellation fences late
+attachment responses. The Project content tree remains mounted across availability transitions,
+with a compact connection footer below the workspace instead of a banner above its tabs.
+Detect long scheduling gaps
 as additional uncertainty; do not rely on paused timers replaying missed health intervals.
 Use elapsed time for deadlines, and explicit resume/gap handling for evidence freshness.
 
@@ -180,8 +191,10 @@ readiness waiters. A Connect cannot bypass an in-flight daemon operation.
 ## UI and operation semantics
 
 Machine and task usability indicators derive from Host availability. Preserve Project contexts,
-transcripts, terminal display, and logical session identities through outages. Show checking,
-reconnecting, or a specific blocked issue; gate Host-dependent actions. Do not silently queue
+transcripts, terminal display, and logical session identities through outages. Routine checks of
+a recently healthy attachment remain invisible and accept live input. Show checking after sleep,
+expired evidence, or an explicit request failure; show reconnecting or a specific blocked issue
+when recovery is needed, and gate Host-dependent actions. Do not silently queue
 terminal keystrokes for later execution.
 
 Transport recovery does not replay already-sent mutations. A lost reply leaves the operation's

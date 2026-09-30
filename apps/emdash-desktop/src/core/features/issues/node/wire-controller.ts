@@ -2,7 +2,6 @@ import { createController, type Controller } from '@emdash/wire/rpc';
 import { issuesContract } from '../api';
 import {
   checkAllConnections,
-  checkConfiguredConnections,
   checkConnection,
   getIssueContext,
   listIssues,
@@ -14,7 +13,6 @@ export function createIssuesWireController(dependencies: IssueOperationsDependen
   return createController(issuesContract, {
     checkConnection: ({ provider }) => checkConnection(dependencies, provider),
     checkAllConnections: () => checkAllConnections(dependencies),
-    checkConfiguredConnections: () => checkConfiguredConnections(dependencies),
     listIssues: ({ provider, options }) => listIssues(dependencies, provider, options),
     searchIssues: ({ provider, options }) => searchIssues(dependencies, provider, options),
     getIssueContext: ({ provider, options }) => getIssueContext(dependencies, provider, options),

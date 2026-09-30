@@ -43,6 +43,7 @@ function domains(setup: string): ProjectSettingsDomains {
       resolved: { env: { value: {}, from: 'built-in' } },
     },
     gitIdentity: { stored: {} },
+    integrationAccounts: { stored: {} },
     placement: {
       stored: {},
       layers: {
@@ -90,6 +91,7 @@ describe('useProjectSettingsForm', () => {
       ok({
         durable: {
           gitIdentity: saved.gitIdentity,
+          integrationAccounts: saved.integrationAccounts,
           placement: { stored: saved.placement.stored },
         },
         host: {

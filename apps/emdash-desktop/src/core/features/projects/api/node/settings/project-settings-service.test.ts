@@ -96,7 +96,7 @@ function fixture() {
       updatedAt: '2026-08-13T00:00:00.000Z',
     },
     settings: {
-      patch: hostPatch,
+      setWorktreeRoot: hostPatch,
       getStoredGitSettings: vi.fn(async () => ({
         baseRemote: 'origin',
         pushRemote: 'stale-fork',
@@ -122,6 +122,7 @@ function fixture() {
   };
   const readDurable = vi.fn(async () =>
     ok({
+      integrationAccounts: { stored: {} },
       gitIdentity: {
         stored: {
           baseRemote: 'origin',
@@ -332,9 +333,7 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
       },
       placement: { stored: { tmux: true } },
     });
-    expect(hostPatch).toHaveBeenCalledWith({
-      placement: { stored: { worktreeRoot: '/tmp/worktrees' } },
-    });
+    expect(hostPatch).toHaveBeenCalledWith('/tmp/worktrees');
   });
 
   it('reset removes only the requested personal fields', async () => {
@@ -441,9 +440,9 @@ describe('ProjectSettingsService offline authority boundaries', () => {
         gitIdentity: {
           stored: {
             baseRemote: 'origin',
-            githubAccount: { kind: 'none' as const },
           },
         },
+        integrationAccounts: { stored: { github: { kind: 'none' as const } } },
         placement: { stored: { tmux: true } },
       })
     );
@@ -465,9 +464,9 @@ describe('ProjectSettingsService offline authority boundaries', () => {
           gitIdentity: {
             stored: {
               baseRemote: 'origin',
-              githubAccount: { kind: 'none' },
             },
           },
+          integrationAccounts: { stored: { github: { kind: 'none' } } },
           placement: { stored: { tmux: true } },
         },
         host: { kind: 'never-observed' },

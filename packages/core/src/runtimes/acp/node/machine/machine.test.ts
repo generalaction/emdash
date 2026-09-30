@@ -245,9 +245,15 @@ describe('permissions and config validation', () => {
     expect(isOk(result)).toBe(true);
   });
 
-  it('validates modes and config options from caller-supplied context', () => {
+  it('validates native config options from caller-supplied context', () => {
     expect(
-      isOk(decide(makeReady(), { type: 'SetMode', modeId: 'default' }, { modeIds: ['default'] }))
+      isOk(
+        decide(
+          makeReady(),
+          { type: 'SetConfigOption', configId: 'mode', value: 'default' },
+          { configOptionIds: ['mode'] }
+        )
+      )
     ).toBe(true);
     expect(
       isOk(
@@ -258,7 +264,9 @@ describe('permissions and config validation', () => {
         )
       )
     ).toBe(true);
-    expect(isErr(decide(makeReady(), { type: 'SetMode', modeId: 'missing' }))).toBe(true);
+    expect(
+      isErr(decide(makeReady(), { type: 'SetConfigOption', configId: 'missing', value: 'default' }))
+    ).toBe(true);
   });
 
   it('edits and reorders queued prompts', () => {

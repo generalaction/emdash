@@ -125,10 +125,10 @@ describe('findInstallation', () => {
 // ---------------------------------------------------------------------------
 
 describe('toSelection', () => {
-  it('builds pinned selection', () => {
+  it('normalizes a pinned source to a path selection', () => {
     expect(toSelection({ kind: 'pinned', realpath: '/opt/homebrew/bin/tool' })).toEqual({
-      kind: 'pinned',
-      realpath: '/opt/homebrew/bin/tool',
+      kind: 'path',
+      path: '/opt/homebrew/bin/tool',
     });
   });
 
@@ -146,11 +146,8 @@ describe('toSelection', () => {
     });
   });
 
-  it('builds method selection', () => {
-    expect(toSelection({ kind: 'method', method: 'npm' })).toEqual({
-      kind: 'method',
-      method: 'npm',
-    });
+  it('does not persist an install method as an executable selection', () => {
+    expect(toSelection({ kind: 'method', method: 'npm' })).toBeNull();
   });
 
   it('returns null for auto (clear override)', () => {
@@ -163,6 +160,16 @@ describe('toSelection', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildSourceRows', () => {
+  it('shows the discovered default in Auto even while an override is active', () => {
+    const discovered = makeInstall({ realpath: '/bin/claude', isActive: false });
+    const override = makeInstall({ id: 'path', realpath: '/custom/wrapper', isActive: true });
+    expect(buildSourceRows(installOptions, [discovered, override])[0]).toMatchObject({
+      ref: { kind: 'auto' },
+      displayPath: '/bin/claude',
+      status: 'available',
+    });
+    expect(buildSourceRows(installOptions, [override])[0]?.status).toBe('missing');
+  });
   it('includes auto as the first row', () => {
     const rows = buildSourceRows(installOptions, []);
     expect(rows[0]?.ref.kind).toBe('auto');

@@ -32,7 +32,9 @@ import {
   getNavigation,
   getNavigationHistory,
 } from '@core/primitives/navigation/browser/navigation-selectors';
+import type { StoredIntegrationAccounts } from '@core/primitives/project-settings/api/project-settings';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
+import type { ProviderAccountRef } from '@core/primitives/provider-accounts/api/provider-account-summary';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
 import type { ScopedStoreContribution } from '@core/primitives/scoped-stores/browser';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
@@ -189,6 +191,7 @@ export class ProjectManagerStore {
           return;
         }
         if (!result.success) {
+          log.error('Failed to hydrate Project context', { projectId, error: result.error });
           runInAction(() => {
             if (this._isCurrentProjectContextHydration(projectId, identity, store)) {
               store.context = {
@@ -442,6 +445,10 @@ export class ProjectManagerStore {
     try {
       switch (data.mode) {
         case 'pick': {
+          const initialIntegrationAccounts: StoredIntegrationAccounts | undefined =
+            data.initGitRepository && data.githubAccountId
+              ? { github: { kind: 'account', accountId: data.githubAccountId } }
+              : undefined;
           const projectResult =
             projectType.type === 'ssh'
               ? await projectsClient.createProject({
@@ -451,6 +458,7 @@ export class ProjectManagerStore {
                   name: data.name,
                   connectionId: projectType.connectionId,
                   initGitRepository: data.initGitRepository,
+                  initialIntegrationAccounts,
                 })
               : await projectsClient.createProject({
                   type: 'local',
@@ -458,6 +466,7 @@ export class ProjectManagerStore {
                   path: targetPath,
                   name: data.name,
                   initGitRepository: data.initGitRepository,
+                  initialIntegrationAccounts,
                 });
           if (!projectResult.success) {
             result = err(projectResult.error);
@@ -465,9 +474,6 @@ export class ProjectManagerStore {
           }
 
           const project = projectResult.data;
-          if (data.initGitRepository) {
-            await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
-          }
           this._applyRegisteredProjectSnapshot(project);
           result = ok();
           break;
@@ -534,7 +540,6 @@ export class ProjectManagerStore {
           }
 
           const project = projectResult.data;
-          await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
           this._applyRegisteredProjectSnapshot(project);
           result = ok();
           break;
@@ -685,30 +690,6 @@ export class ProjectManagerStore {
     void this._projectCreationJobs.get(projectId)?.cancel();
   }
 
-  private async _saveInitialGitHubAccountSetting(
-    projectId: string,
-    githubAccountId?: string
-  ): Promise<void> {
-    if (githubAccountId === undefined) return;
-
-    const result = await (
-      await getProjectsWireClient()
-    ).updateProjectSettings({
-      projectId,
-      patch: {
-        gitIdentity: {
-          stored: { githubAccount: { kind: 'account', accountId: githubAccountId } },
-        },
-      },
-    });
-    if (!result.success) {
-      log.error('Failed to save initial GitHub account for project', {
-        projectId,
-        error: result.error,
-      });
-    }
-  }
-
   private async _rollbackCreatedGitHubRepository(
     nameWithOwner: string,
     githubAccountId?: string
@@ -740,6 +721,8 @@ export class ProjectManagerStore {
     projectId: string;
     host: { type: 'local' } | { type: 'ssh'; connectionId: string };
     mode: 'clone' | 'create';
+    account?: ProviderAccountRef;
+    initialIntegrationAccounts?: StoredIntegrationAccounts;
     repositoryUrl: string;
     targetPath: string;
     name: string;
@@ -750,6 +733,8 @@ export class ProjectManagerStore {
       projectId: opts.projectId,
       host: opts.host,
       mode: opts.mode,
+      account: opts.account,
+      initialIntegrationAccounts: opts.initialIntegrationAccounts,
       repositoryUrl: opts.repositoryUrl,
       targetPath: opts.targetPath,
       name: opts.name,
@@ -796,6 +781,12 @@ export class ProjectManagerStore {
             ? { type: 'ssh', connectionId: opts.projectType.connectionId }
             : { type: 'local' },
         mode: 'create',
+        account: opts.githubAccountId
+          ? { providerId: 'github', accountId: opts.githubAccountId }
+          : undefined,
+        initialIntegrationAccounts: opts.githubAccountId
+          ? { github: { kind: 'account', accountId: opts.githubAccountId } }
+          : undefined,
         repositoryUrl: opts.cloneUrl,
         targetPath: opts.targetPath,
         name: opts.name,

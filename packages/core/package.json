@@ -340,12 +340,22 @@
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./services/attachments/api": {
+      "development": "./src/services/attachments/api/index.ts",
+      "types": "./dist/services-attachments-api.d.mts",
+      "default": "./dist/services-attachments-api.mjs"
+    },
+    "./services/attachments/node": {
+      "development": "./src/services/attachments/node/local-attachment-store.ts",
+      "types": "./dist/services-attachments-node.d.mts",
+      "default": "./dist/services-attachments-node.mjs"
+    }
   },
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
-    "test": "vitest run",
+    "test": "pnpm exec nx test @emdash/core",
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
@@ -385,6 +395,17 @@
   "peerDependenciesMeta": {
     "node-pty": {
       "optional": true
+    }
+  },
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/core"
+        }
+      }
     }
   }
 }

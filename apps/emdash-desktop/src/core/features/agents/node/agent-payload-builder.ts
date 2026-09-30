@@ -150,11 +150,11 @@ export function toAgentInstallationStatus(
 }
 
 function installationsFromView(view: HostDependencyView): Installation[] {
-  return view.candidates.map((candidate) => ({
+  const installations: Installation[] = view.candidates.map((candidate) => ({
     id: candidate.realpath,
     realpath: candidate.realpath,
     pathEntry: candidate.path,
-    isActive: candidate.isPathDefault,
+    isActive: !view.selection && candidate.isPathDefault,
     manageable: false,
     provenance: { kind: 'unknown', confidence: 'inferred' },
     status: 'available',
@@ -162,6 +162,22 @@ function installationsFromView(view: HostDependencyView): Installation[] {
     latestVersion: null,
     updateAvailable: false,
   }));
+  if (view.selection) {
+    const value = view.selection.kind === 'path' ? view.selection.path : view.selection.command;
+    installations.push({
+      id: view.selection.kind,
+      realpath: view.resolved?.realpath ?? value,
+      pathEntry: value,
+      isActive: true,
+      manageable: false,
+      provenance: { kind: 'manual', confidence: 'confirmed' },
+      status: view.status,
+      version: null,
+      latestVersion: null,
+      updateAvailable: false,
+    });
+  }
+  return installations;
 }
 
 function sourceKey(source: SelectedSource): string {

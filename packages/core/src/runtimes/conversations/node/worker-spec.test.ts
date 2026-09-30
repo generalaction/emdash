@@ -8,6 +8,7 @@ describe('conversationsWorkerSpec', () => {
       executable: '/w/conversations.mjs',
       env,
       databasePath: '/data/conversations.db',
+      attachmentsDir: '/data/attachments',
     });
     expect(component.id).toBe('conversations');
     expect(options.name).toBe('conversations');
@@ -17,6 +18,7 @@ describe('conversationsWorkerSpec', () => {
     expect(options.shutdownGraceMs).toBe(3_000);
     expect(component.configSchema.parse(options.config)).toEqual({
       databasePath: '/data/conversations.db',
+      attachmentsDir: '/data/attachments',
     });
   });
 });

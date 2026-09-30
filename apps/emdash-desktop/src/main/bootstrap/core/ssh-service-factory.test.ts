@@ -30,6 +30,7 @@ describe('createSshService', () => {
       scope,
       db: {} as AppDb,
       credentials,
+      prepareCredentials: () => () => {},
       logger,
       telemetry: { capture: vi.fn() },
     });

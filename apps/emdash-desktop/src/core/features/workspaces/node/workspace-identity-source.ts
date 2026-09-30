@@ -30,15 +30,21 @@ export function createWorkspaceIdentityService(options: { db: AppDb }): Workspac
       return identities[0] ?? null;
     },
     async findByPath(path) {
-      const key = workspacePathIdentityKey(path);
-      const rows = await loadWorkspaceRows(options.db, isNotNull(workspaces.path));
-      return rows.filter((row) => workspacePathIdentityKey(row.path) === key);
+      return loadWorkspaceRows(
+        options.db,
+        isNotNull(workspaces.path),
+        workspacePathIdentityKey(path)
+      );
     },
   };
   return new WorkspaceIdentityService(source);
 }
 
-async function loadWorkspaceRows(db: AppDb, predicate: SQL): Promise<WorkspaceIdentityRow[]> {
+async function loadWorkspaceRows(
+  db: AppDb,
+  predicate: SQL,
+  pathIdentityKey?: string
+): Promise<WorkspaceIdentityRow[]> {
   const rows = await db
     .select({
       workspaceId: workspaces.id,
@@ -50,8 +56,14 @@ async function loadWorkspaceRows(db: AppDb, predicate: SQL): Promise<WorkspaceId
     .from(workspaces)
     .where(and(predicate, liveWorkspaces()));
 
+  const matchingRows =
+    pathIdentityKey === undefined
+      ? rows
+      : rows.filter(
+          (row) => row.path !== null && workspacePathIdentityKey(row.path) === pathIdentityKey
+        );
   const resolved = await Promise.all(
-    rows.map(async (row): Promise<WorkspaceIdentityRow | null> => {
+    matchingRows.map(async (row): Promise<WorkspaceIdentityRow | null> => {
       if (!row.path) return null;
       const projectId = await resolveWorkspaceProjectId(db, row.workspaceId);
       if (!projectId) return null;

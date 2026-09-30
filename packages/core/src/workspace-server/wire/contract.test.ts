@@ -9,7 +9,7 @@ describe('workspaceWireContract', () => {
   });
 
   it('mounts the ACP contract under the acp domain without changing protocol shape elsewhere', () => {
-    expect(workspaceWireContract.acp.launch.kind).toBe('procedure');
+    expect(workspaceWireContract.acp.startSession.kind).toBe('procedure');
     expect(workspaceWireContract.acp.sessions.kind).toBe('liveModel');
     expect(workspaceWireContract.acp.sessions.id).toBe('acp.sessions');
     expect(workspaceWireContract.acp.terminalOutput.kind).toBe('liveLog');
@@ -17,7 +17,7 @@ describe('workspaceWireContract', () => {
   });
 
   it('mounts TUI agents under the tuiAgents domain', () => {
-    expect(workspaceWireContract.tuiAgents.start.kind).toBe('procedure');
+    expect(workspaceWireContract.tuiAgents.startSession.kind).toBe('procedure');
     expect(workspaceWireContract.tuiAgents.resume.kind).toBe('procedure');
     expect(workspaceWireContract.tuiAgents.output.kind).toBe('liveLog');
     expect(workspaceWireContract.tuiAgents.output.id).toBe('tuiAgents.output');

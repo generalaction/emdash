@@ -1,4 +1,5 @@
 export { ChatComposer, stopReasonNotice } from './chat-composer';
+export { PromptEditorModel } from './prompt-editor/prompt-editor-model';
 export type {
   ChatComposerProps,
   ComposerAttachment,

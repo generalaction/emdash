@@ -44,7 +44,11 @@ export function formatAbsolute(
   path: HostAbsolutePath,
   options: FormatAbsoluteOptions = {}
 ): string {
-  const separator = options.separator ?? '/';
+  // A POSIX path treats a backslash as an ordinary filename character, so '/'
+  // is its only separator. Honoring a '\' request here would merge a segment
+  // such as `src\literal` into its neighbours and the result would not parse
+  // back to the same path.
+  const separator = path.root.kind === 'posix' ? '/' : (options.separator ?? '/');
   const trailingSlash = options.trailingSlash ?? 'strip';
   const joinSegments = (segments: readonly string[]) => segments.join(separator);
   const suffix = path.segments.length > 0 ? joinSegments(path.segments) : '';

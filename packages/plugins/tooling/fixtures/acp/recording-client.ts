@@ -36,6 +36,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { AcpProcessHost } from '@emdash/core/runtimes/acp/api/transport';
 import { AgentTerminalManager } from '@emdash/core/runtimes/acp/node';
+import type { IAcpBehavior } from '@emdash/core/services/agent-plugins/api/plugins';
 import type { Recorder } from './recorder';
 
 /**
@@ -50,7 +51,8 @@ import type { Recorder } from './recorder';
 export function buildRecordingClient(
   recorder: Recorder,
   host: AcpProcessHost,
-  getSessionId: () => string | null
+  getSessionId: () => string | null,
+  terminalCommand?: IAcpBehavior['terminalCommand']
 ): { client: Client; dispose: () => void } {
   const CONV_ID = 'recording-session';
 
@@ -145,8 +147,11 @@ export function buildRecordingClient(
         : {};
       const cwd = params.cwd ?? process.cwd();
       const terminalId = await terminals.create(CONV_ID, {
-        command: params.command,
-        args: params.args ?? [],
+        command: terminalCommand?.(params) ?? {
+          kind: 'argv',
+          command: params.command,
+          args: params.args ?? [],
+        },
         env: envRecord,
         cwd,
         outputByteLimit: params.outputByteLimit,

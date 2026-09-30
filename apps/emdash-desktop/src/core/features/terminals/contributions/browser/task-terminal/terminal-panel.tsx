@@ -262,7 +262,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
             />
           }
           disabledReason={mode === 'terminals' ? liveActionDisabledReason : null}
-          remoteConnectionId={remoteConnectionId}
           workspaceId={workspaceId}
           terminalPaddingBottom={0}
         />

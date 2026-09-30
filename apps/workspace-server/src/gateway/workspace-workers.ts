@@ -115,6 +115,7 @@ export async function createWorkspaceServerRuntimeHost(
       executable: workspaceWorkerPath('conversations'),
       env,
       databasePath: paths.conversationsDatabase,
+      attachmentsDir: paths.attachmentsDirectory,
     })
   );
   const watcherPromise = workerHost.spawn(
@@ -159,9 +160,9 @@ export async function createWorkspaceServerRuntimeHost(
         dependencies: {
           hostDependencies: hostDependencies.client.resolver,
           conversations,
+          attachments: conversations,
           userEnv: userShellEnv,
         },
-        attachmentsDir: paths.attachmentsDirectory,
         intentsFilePath: paths.acpIntentsFile,
       })
     )
@@ -268,6 +269,7 @@ export async function createWorkspaceServerRuntimeHost(
         userEnv: userShellEnv,
       },
       databasePath: paths.workspaceRegistryDatabase,
+      attachmentsDir: paths.attachmentsDirectory,
       watchIgnore,
     })
   );
@@ -290,7 +292,7 @@ export async function createWorkspaceServerRuntimeHost(
         creationAdmission: createController(workspaceCreationAdmissionContract, {
           checkWorktreeCreation: async () => ok(undefined),
         }),
-        acpLauncher: acp,
+        acpSessions: acp,
         tuiSessions: tuiAgents,
         conversationIndex: conversations,
       },

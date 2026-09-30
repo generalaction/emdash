@@ -7,3 +7,5 @@ export * from './prompt';
 export * from './session';
 export * from './terminals';
 export * from './turns';
+export * from './stop-reason';
+export * from './transcript';

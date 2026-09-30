@@ -140,15 +140,6 @@ const TasksSelectionBar = observer(function TasksSelectionBar({
   projectId: string;
 }) {
   if (taskView.count === 0) return null;
-  const hostAction = taskHostActionAvailability(projectId);
-  const selectedArchiveNeedsHost = [...taskView.selectedIds].some(
-    (taskId) => taskManager.tasks.get(taskId)?.state === 'provisioned'
-  );
-  const archiveDisabledReason =
-    selectedArchiveNeedsHost && hostAction.kind === 'disabled'
-      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
-        projectAvailabilityUi.defaultLiveActionDisabledReason)
-      : undefined;
 
   const bulkApply = (apply: (id: string) => void) => {
     [...taskView.selectedIds].forEach(apply);
@@ -163,9 +154,7 @@ const TasksSelectionBar = observer(function TasksSelectionBar({
           <Button
             variant="secondary"
             size="sm"
-            disabled={!!archiveDisabledReason}
-            title={archiveDisabledReason}
-            aria-label={archiveDisabledReason ? `Archive. ${archiveDisabledReason}` : 'Archive'}
+            aria-label="Archive"
             onClick={() => bulkApply((id) => void taskManager.archiveTask(id))}
           >
             <Archive className="size-3.5" />

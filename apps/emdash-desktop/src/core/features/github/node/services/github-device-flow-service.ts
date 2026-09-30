@@ -1,10 +1,8 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
+import type { IntegrationConnections } from '@core/features/integrations/api/node/integration-accounts';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { GitHubEvent, GitHubUser } from '@core/primitives/github/api';
-import {
-  upsertGitHubAccount,
-  type GitHubAccount,
-  type GitHubAccountStore,
-} from '../accounts/github-accounts';
+import { connectGitHubAccount } from '../accounts/github-auth-connection';
 import type { GitHubIdentityClient } from './github-identity-client';
 
 export type GitHubDeviceFlowConfig = {
@@ -26,7 +24,7 @@ type DeviceAuthFactory = (options: {
 }) => DeviceAuth;
 
 export type GitHubDeviceFlowResult =
-  | { success: true; user: GitHubUser; account: GitHubAccount }
+  | { success: true; user: GitHubUser; account: GitHubAccountSummary }
   | { success: false; error: string };
 
 export class GitHubDeviceFlowService {
@@ -34,7 +32,7 @@ export class GitHubDeviceFlowService {
 
   constructor(
     private readonly deps: {
-      accountStore: Pick<GitHubAccountStore, 'upsertAccount'>;
+      connections: IntegrationConnections;
       identityClient: Pick<GitHubIdentityClient, 'getAuthenticatedUser'>;
       publishEvent(event: GitHubEvent): void;
       createDeviceAuth: DeviceAuthFactory;
@@ -78,7 +76,7 @@ export class GitHubDeviceFlowService {
         return { success: false, error: message };
       }
 
-      const { account } = await upsertGitHubAccount(this.deps.accountStore, {
+      const { account } = await connectGitHubAccount(this.deps.connections, {
         accessToken: token,
         credentialSource: 'device_flow',
         providerAccount: {

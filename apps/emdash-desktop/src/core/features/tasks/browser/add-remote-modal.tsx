@@ -8,14 +8,15 @@ import {
   RadioGroup,
   ToggleGroup,
 } from '@emdash/ui/react/primitives';
+import { Github } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getGithubClient } from '@core/features/github/api/browser/client';
-import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
 import { useGitHubRepositoryOwnerSelect } from '@core/features/github/api/browser/useGithubRepositoryOwners';
-import { GitHubIdentityStrip } from '@core/features/github/contributions/browser/identity-strip';
-import { persistProjectGitHubAccount } from '@core/features/github/contributions/browser/identity-strip-persist';
-import { useEffectiveSettings } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
+import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
+import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
+import { ProviderIdentityStrip } from '@core/features/integrations/contributions/browser/provider-identity-strip';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { BrokenSettingNotice } from '@core/features/projects/contributions/browser/settings-provenance';
 import {
   getGitCheckoutStore,
@@ -23,6 +24,7 @@ import {
 } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { DEFAULT_REMOTE_NAME } from '@core/primitives/git/api';
+import { isGitHubAccountSummary } from '@core/primitives/github/api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
@@ -47,7 +49,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   workspaceId,
 }: AddRemoteModalArgs) {
   const { complete } = useModalController('addRemoteModal');
-  const openGithubConnectModal = useOpenModal('githubConnectModal');
+  const openIntegrationSetup = useOpenModal('integrationSetupModal');
   const [tab, setTab] = useState<Tab>('create');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,23 +58,48 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [url, setUrl] = useState('');
   const [accountOverride, setAccountOverride] = useState<GitHubAccountSummary | null>(null);
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
+  const accountSaveInFlight = useRef(false);
 
   // The account acting for this modal (spec §9): the identity strip's
   // per-action override, else the blessed resolver's effective account. The
   // old hard refusal ("select a GitHub account in project settings first") is
   // gone — the strip carries both the identity and the fix-it path inline.
-  const effective = useEffectiveSettings(projectId);
-  const { data: accounts } = useGitHubAccounts();
-  const resolvedAccount = effective?.githubAccount ?? null;
+  const resolvedAccount = useProjectAccount(projectId, 'github', {
+    repository: { kind: 'project' },
+    accepts: isGitHubAccountSummary,
+  });
+  const { data: accounts } = useAccounts('github', isGitHubAccountSummary);
   const actingAccount = accountOverride ?? resolvedAccount?.value ?? null;
   const githubAccountId = actingAccount?.accountId ?? null;
 
-  const handleSelectAccount = (
+  const handleSelectAccount = async (
     account: GitHubAccountSummary,
     { remember }: { remember: boolean }
   ) => {
+    if (accountSaveInFlight.current || isSubmitting) return;
     setAccountOverride(account);
-    if (remember) void persistProjectGitHubAccount(projectId, account.accountId);
+    if (!remember) return;
+    accountSaveInFlight.current = true;
+    setIsSavingAccount(true);
+    setError(null);
+    try {
+      const settings = getProjectSettingsStore(projectId);
+      if (!settings) throw new Error('Project settings are unavailable.');
+      const result = await settings.save({
+        integrationAccounts: {
+          stored: { github: { kind: 'account', accountId: account.accountId } },
+        },
+      });
+      if (!result.success) throw new Error('Could not remember the selected account.');
+    } catch {
+      setError(
+        'Could not remember this account for the project. It is still selected for this action.'
+      );
+    } finally {
+      accountSaveInFlight.current = false;
+      setIsSavingAccount(false);
+    }
   };
 
   const {
@@ -101,6 +128,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   const isValid = tab === 'create' ? canSubmitCreateRepository : url.trim().length > 0;
 
   const handleSubmit = async () => {
+    if (!isValid || isSubmitting || accountSaveInFlight.current) return;
     setIsSubmitting(true);
     setError(null);
 
@@ -192,7 +220,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
           <ConfirmButton
             variant="primary"
             onClick={() => void handleSubmit()}
-            disabled={!isValid || isSubmitting}
+            disabled={!isValid || isSubmitting || isSavingAccount}
           >
             {isSubmitting ? 'Adding...' : tab === 'create' ? 'Create & Publish' : 'Link & Publish'}
           </ConfirmButton>
@@ -286,14 +314,29 @@ export const AddRemoteModal = observer(function AddRemoteModal({
         ) : null}
 
         {resolvedAccount && accounts ? (
-          <GitHubIdentityStrip
+          <ProviderIdentityStrip
+            providerName="GitHub"
+            providerIcon={<Github className="size-4 text-foreground-muted" />}
+            actionLabel={tab === 'create' ? 'Creating as' : 'Using'}
+            emptyState={{
+              connect:
+                tab === 'create'
+                  ? 'Connect a GitHub account to continue.'
+                  : 'Git operations will use your system credentials.',
+              unavailable:
+                tab === 'create'
+                  ? 'Choose a GitHub account to continue.'
+                  : 'Pick an account, or continue with system git credentials.',
+              noMatch: 'No connected account matches this repository.',
+            }}
             resolved={resolvedAccount}
             accounts={accounts}
             override={accountOverride}
             persistence="per-action"
             accountRequired={tab === 'create'}
-            onSelect={handleSelectAccount}
-            onConnect={() => void openGithubConnectModal({})}
+            disabled={isSavingAccount || isSubmitting}
+            onSelect={(account, options) => void handleSelectAccount(account, options)}
+            onConnect={() => void openIntegrationSetup({ integration: 'github' })}
           />
         ) : null}
 

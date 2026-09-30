@@ -1,4 +1,8 @@
 import type {
+  HostDependencyError,
+  HostDependencySelection,
+} from '@emdash/core/primitives/host-dependencies/api';
+import type {
   DependencyId,
   HostDependencyOperationProgress,
   HostDependencySnapshot,
@@ -7,7 +11,7 @@ import { hostDependenciesContract } from '@emdash/core/services/host-dependencie
 import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/node';
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
-import type { Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
 import type { InstallMethod } from '@core/primitives/agents/api';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
@@ -41,13 +45,13 @@ export function createAgentOperations(dependencies: {
 
     list: async (connectionId?: string, manager?: HostDependenciesClient) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return buildAgentPayloads(providerOverrideSettings, snapshot, connectionId);
     },
 
     get: async (id: string, connectionId?: string, manager?: HostDependenciesClient) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return buildAgentPayload(providerOverrideSettings, id, snapshot, connectionId);
     },
 
@@ -58,7 +62,7 @@ export function createAgentOperations(dependencies: {
       manager?: HostDependenciesClient
     ) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return Object.values(snapshot.dependencies)
         .filter((view) => view.definition.category === 'agent')
         .map((view) => toAgentInstallationStatus(view.definition.id, connectionId, view));
@@ -70,7 +74,7 @@ export function createAgentOperations(dependencies: {
       manager?: HostDependenciesClient
     ) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return toAgentInstallationStatus(id, connectionId, snapshot.dependencies[id]);
     },
 
@@ -157,17 +161,16 @@ export function createAgentOperations(dependencies: {
 
     setUsedInstallation: async (
       id: DependencyId,
-      connectionId?: string,
-      selection?: unknown,
+      connectionId: string | undefined,
+      selection: HostDependencySelection,
       manager?: HostDependenciesClient
-    ): Promise<void> => {
-      // undefined = no-op; null = explicit auto (clear override)
-      if (selection === undefined) return;
+    ): Promise<Result<void, HostDependencyError>> => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      await mgr.snapshot.mutate('setSelection', {
+      const result = await mgr.snapshot.mutate('setSelection', {
         key: undefined,
-        input: { id, selection: normalizeSelection(selection) },
+        input: { id, selection },
       });
+      return result.success ? ok() : err(result.error);
     },
 
     probe: async (id: DependencyId, connectionId?: string, manager?: HostDependenciesClient) => {
@@ -179,11 +182,15 @@ export function createAgentOperations(dependencies: {
       return result.success ? result.data.data.dependencies[id] : result;
     },
 
-    probeOverride: async (
-      _id: DependencyId,
-      _selection: { path?: string; cli?: string },
-      _connectionId?: string
-    ) => null,
+    resolveInstallation: async (
+      id: DependencyId,
+      selection: HostDependencySelection | undefined,
+      connectionId?: string,
+      manager?: HostDependenciesClient
+    ) => {
+      const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
+      return mgr.resolver.resolve(selection === undefined ? { id } : { id, selection });
+    },
 
     refreshLatestVersion: async (_id: DependencyId, _connectionId?: string): Promise<void> => {},
 
@@ -213,36 +220,7 @@ async function resolveDependencyManager(
   return result.data;
 }
 
-async function snapshotFor(
-  manager: HostDependenciesClient,
-  ensureProbed: (manager: HostDependenciesClient) => Promise<void>
-): Promise<HostDependencySnapshot> {
-  await ensureProbed(manager);
+async function snapshotFor(manager: HostDependenciesClient): Promise<HostDependencySnapshot> {
   const snapshot = await manager.snapshot.state(undefined, 'current').snapshot();
   return snapshot.data;
-}
-
-function normalizeSelection(selection: unknown): { kind: 'path'; path: string } | null {
-  if (selection === null) return null;
-  if (typeof selection !== 'object' || selection === null) return null;
-  const candidate = selection as {
-    kind?: unknown;
-    path?: unknown;
-    realpath?: unknown;
-    command?: unknown;
-  };
-  if (candidate.kind === 'path' && typeof candidate.path === 'string') {
-    return { kind: 'path', path: candidate.path };
-  }
-  if (candidate.kind === 'pinned' && typeof candidate.realpath === 'string') {
-    return { kind: 'path', path: candidate.realpath };
-  }
-  if (
-    candidate.kind === 'cli' &&
-    typeof candidate.command === 'string' &&
-    candidate.command.startsWith('/')
-  ) {
-    return { kind: 'path', path: candidate.command };
-  }
-  return null;
 }

@@ -4,6 +4,7 @@ import {
 } from '@emdash/plugins/integrations';
 import { issuesPluginRegistry } from '@emdash/plugins/issues';
 import type { IssueProviderCapabilities } from '@core/primitives/issue-providers/api';
+import type { IntegrationProviderDescriptor } from '../api/contract';
 
 function issueCapabilities(integrationId: string): IssueProviderCapabilities {
   const plugin = issuesPluginRegistry.get(integrationId);
@@ -43,7 +44,7 @@ function disconnectCredentialLabel(auth: IntegrationAuthDescriptor): string | un
   return 'credentials';
 }
 
-export function buildIntegrationListPayload() {
+export function buildIntegrationProviderDescriptors(): IntegrationProviderDescriptor[] {
   return integrationPluginRegistry.getAll().map((plugin) => ({
     id: plugin.metadata.id,
     name: plugin.metadata.name,
@@ -51,7 +52,7 @@ export function buildIntegrationListPayload() {
     websiteUrl: plugin.metadata.websiteUrl,
     features: features(plugin.metadata.id),
     disconnectCredentialLabel: disconnectCredentialLabel(plugin.capabilities.auth),
-    capabilities: issueCapabilities(plugin.metadata.id),
+    issueCapabilities: issueCapabilities(plugin.metadata.id),
     auth: plugin.capabilities.auth,
     icon: plugin.assets.icon,
   }));

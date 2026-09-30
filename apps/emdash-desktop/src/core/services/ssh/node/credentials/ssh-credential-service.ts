@@ -1,5 +1,6 @@
 import type { Secret } from '@emdash/shared';
 import type { SecretStore } from '@core/primitives/secrets/api/secret-store';
+import { bindCredential, readBoundCredential, sshCredentialKeys } from './credential-record';
 
 /**
  * Stores and retrieves SSH passwords and passphrases as `Secret`-typed values.
@@ -11,24 +12,38 @@ export class SshCredentialService {
   constructor(private readonly secrets: SecretStore) {}
 
   private passwordSecretKey(connectionId: string): string {
-    return `ssh:${connectionId}:password`;
+    return sshCredentialKeys(connectionId).password;
   }
 
   private passphraseSecretKey(connectionId: string): string {
-    return `ssh:${connectionId}:passphrase`;
+    return sshCredentialKeys(connectionId).passphrase;
   }
 
-  async storePassword(connectionId: string, password: Secret<string>): Promise<void> {
+  async storePassword(
+    connectionId: string,
+    password: Secret<string>,
+    identity?: string
+  ): Promise<void> {
     try {
-      await this.secrets.setSecret(this.passwordSecretKey(connectionId), password);
+      const keys = sshCredentialKeys(connectionId);
+      await this.secrets.setSecret(
+        identity ? keys.boundPassword : keys.password,
+        identity ? bindCredential(password, identity) : password
+      );
+      await this.secrets.deleteSecret(identity ? keys.password : keys.boundPassword);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to store password for connection ${connectionId}: ${message}`);
     }
   }
 
-  async getPassword(connectionId: string): Promise<Secret<string> | null> {
+  async getPassword(connectionId: string, identity?: string): Promise<Secret<string> | null> {
     try {
+      if (identity) {
+        const bound = await this.secrets.getSecret(sshCredentialKeys(connectionId).boundPassword);
+        if (bound) return readBoundCredential(bound, identity);
+        // Legacy passwords are eligible only after the caller verifies the saved destination.
+      }
       return await this.secrets.getSecret(this.passwordSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -39,6 +54,7 @@ export class SshCredentialService {
   async deletePassword(connectionId: string): Promise<void> {
     try {
       await this.secrets.deleteSecret(this.passwordSecretKey(connectionId));
+      await this.secrets.deleteSecret(sshCredentialKeys(connectionId).boundPassword);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to delete password for connection ${connectionId}: ${message}`);
@@ -47,24 +63,45 @@ export class SshCredentialService {
 
   async hasPassword(connectionId: string): Promise<boolean> {
     try {
-      const credential = await this.secrets.getSecret(this.passwordSecretKey(connectionId));
+      const credential =
+        (await this.secrets.getSecret(sshCredentialKeys(connectionId).boundPassword)) ??
+        (await this.secrets.getSecret(this.passwordSecretKey(connectionId)));
       return credential !== null;
     } catch {
       return false;
     }
   }
 
-  async storePassphrase(connectionId: string, passphrase: Secret<string>): Promise<void> {
+  async storePassphrase(
+    connectionId: string,
+    passphrase: Secret<string>,
+    identity?: string
+  ): Promise<void> {
     try {
-      await this.secrets.setSecret(this.passphraseSecretKey(connectionId), passphrase);
+      const keys = sshCredentialKeys(connectionId);
+      await this.secrets.setSecret(
+        identity ? keys.boundPassphrase : keys.passphrase,
+        identity ? bindCredential(passphrase, identity) : passphrase
+      );
+      await this.secrets.deleteSecret(identity ? keys.passphrase : keys.boundPassphrase);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to store passphrase for connection ${connectionId}: ${message}`);
     }
   }
 
-  async getPassphrase(connectionId: string): Promise<Secret<string> | null> {
+  async getPassphrase(connectionId: string, identity?: string): Promise<Secret<string> | null> {
     try {
+      if (identity) {
+        const bound = await this.secrets.getSecret(sshCredentialKeys(connectionId).boundPassphrase);
+        if (bound) return readBoundCredential(bound, identity);
+        if (await this.secrets.getSecret(this.passphraseSecretKey(connectionId))) {
+          throw new Error(
+            'Re-enter your SSH key passphrase once to verify it for this key. Your saved passphrase has not been changed.'
+          );
+        }
+        return null;
+      }
       return await this.secrets.getSecret(this.passphraseSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -75,6 +112,7 @@ export class SshCredentialService {
   async deletePassphrase(connectionId: string): Promise<void> {
     try {
       await this.secrets.deleteSecret(this.passphraseSecretKey(connectionId));
+      await this.secrets.deleteSecret(sshCredentialKeys(connectionId).boundPassphrase);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to delete passphrase for connection ${connectionId}: ${message}`);
@@ -83,7 +121,9 @@ export class SshCredentialService {
 
   async hasPassphrase(connectionId: string): Promise<boolean> {
     try {
-      const credential = await this.secrets.getSecret(this.passphraseSecretKey(connectionId));
+      const credential =
+        (await this.secrets.getSecret(sshCredentialKeys(connectionId).boundPassphrase)) ??
+        (await this.secrets.getSecret(this.passphraseSecretKey(connectionId)));
       return credential !== null;
     } catch {
       return false;

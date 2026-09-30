@@ -62,9 +62,7 @@ export function isExpandableFileTreeNode(node: FileTreeNode): boolean {
 }
 
 export function isOpenableFileTreeNode(node: FileTreeNode): boolean {
-  return (
-    node.type === 'file' || (node.type === 'symlink' && node.symlinkTargetKind !== 'directory')
-  );
+  return node.type === 'file' || (node.type === 'symlink' && node.symlinkTargetKind === 'file');
 }
 
 export function normalizeFileTreePath(path: string): string {

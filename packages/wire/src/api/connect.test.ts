@@ -26,6 +26,7 @@ describe('connect', () => {
     expect(transport.closed).toBe(false);
     await expect(connection.call('health', undefined)).rejects.toMatchObject({
       code: 'DISCONNECTED',
+      delivery: 'not-sent',
     });
   });
 

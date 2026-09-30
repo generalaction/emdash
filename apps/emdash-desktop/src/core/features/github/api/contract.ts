@@ -1,15 +1,11 @@
 import { defineContract, eventStream, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
-  GitHubAccountState,
-  GitHubAccountSummary,
   GitHubAuthResponse,
   GitHubEvent,
   GitHubImportCliAccountsResponse,
   GitHubOwner,
-  GitHubRemoveAccountResponse,
   GitHubRepo,
-  GitHubSetDefaultAccountResponse,
 } from '@core/primitives/github/api';
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -29,23 +25,10 @@ const voidInput = z.void();
 export const githubDomain = 'github' as const;
 
 export const githubContract = defineContract({
-  getAccountState: procedure({ input: voidInput, output: z.custom<GitHubAccountState>() }),
   auth: procedure({ input: voidInput, output: z.custom<GitHubAuthResponse>() }),
-  listAccounts: procedure({
-    input: voidInput,
-    output: z.array(z.custom<GitHubAccountSummary>()),
-  }),
   importCliAccounts: procedure({
     input: voidInput,
     output: z.custom<GitHubImportCliAccountsResponse>(),
-  }),
-  setDefaultAccount: procedure({
-    input: z.object({ accountId: z.string() }),
-    output: z.custom<GitHubSetDefaultAccountResponse>(),
-  }),
-  removeAccount: procedure({
-    input: z.object({ accountId: z.string() }),
-    output: z.custom<GitHubRemoveAccountResponse>(),
   }),
   authCancel: procedure({ input: voidInput, output: z.custom<ActionResult>() }),
   getRepositories: procedure({

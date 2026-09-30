@@ -1,7 +1,12 @@
 import { getWindowsEnvValue } from '#primitives/agent-env/api';
-import { formatCommandLine, quoteArg, type NativeInvocation } from '#primitives/exec/api';
-import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
-import { buildTmuxShellLine } from './tmux';
+import {
+  formatCommandLine,
+  quoteArg,
+  type CommandSpec,
+  type NativeInvocation,
+} from '#primitives/exec/api';
+import { planExecutableLaunch, planShellLaunch, type FileExists } from '#primitives/exec/node';
+import { buildTmuxShellLine } from './tmux-commands';
 
 export type ResolvedPtyShellProfile = {
   id: string;
@@ -17,25 +22,21 @@ export type ResolvedPtyShellProfile = {
   remotePathLookup?: boolean;
 };
 
-export type PtyCommandSpec =
-  | { kind: 'argv'; command: string; args: string[] }
-  | { kind: 'shell-line'; commandLine: string };
-
 export type PtySpawnIntent =
   | {
       kind: 'interactive-shell';
       cwd: string;
       shellProfile?: ResolvedPtyShellProfile;
       shellSetup?: string;
-      tmuxSessionName?: string;
+      tmux?: { name: string; identity?: string };
     }
   | {
       kind: 'run-command';
       cwd: string;
-      command: PtyCommandSpec;
+      command: CommandSpec;
       shellProfile?: ResolvedPtyShellProfile;
       shellSetup?: string;
-      tmuxSessionName?: string;
+      tmux?: { name: string; identity?: string };
     };
 
 export type LocalPtySpawnWarning = 'tmux_unsupported_on_windows';
@@ -106,7 +107,7 @@ function wrapCmdExeCommandLine(commandLine: string): string {
 
 function windowsWarnings(intent: PtySpawnIntent): LocalPtySpawnWarning[] {
   const warnings: LocalPtySpawnWarning[] = [];
-  if (intent.tmuxSessionName) warnings.push('tmux_unsupported_on_windows');
+  if (intent.tmux) warnings.push('tmux_unsupported_on_windows');
   return warnings;
 }
 
@@ -133,13 +134,8 @@ function windowsShellLineSpawn({
   shellProfile: PtySpawnIntent['shellProfile'];
   warnings: LocalPtySpawnWarning[];
 }): ResolvedLocalPtySpawn {
-  const shell = shellProfile?.executable ?? getWindowsShell(env);
-  const commandArgs = shellProfile?.commandArgs ?? ['/d', '/s', '/c'];
   return {
-    invocation:
-      shellProfile?.family === 'powershell' || shellProfile?.family === 'wsl'
-        ? argvInvocation(shell, [...commandArgs, commandLine])
-        : windowsCommandLineInvocation(shell, commandArgs, commandLine),
+    invocation: planShellLaunch({ platform: 'win32', commandLine, env, shellProfile }),
     cwd,
     warnings,
   };
@@ -249,14 +245,14 @@ function resolvePosixSpawn(
   const setupWrapperArgs = getSetupWrapperArgs(intent);
 
   if (intent.kind === 'interactive-shell') {
-    if (intent.tmuxSessionName) {
+    if (intent.tmux) {
       const commandLine = intent.shellSetup
         ? `${intent.shellSetup} && exec ${quoteArg(shell, 'posix')} ${interactiveArgs.join(' ')}`
         : `exec ${quoteArg(shell, 'posix')} ${interactiveArgs.join(' ')}`;
       return {
         invocation: argvInvocation(shell, [
           ...(intent.shellSetup ? setupWrapperArgs : commandArgs),
-          buildTmuxShellLine(intent.tmuxSessionName, commandLine),
+          buildTmuxShellLine(intent.tmux.name, commandLine, intent.tmux.identity),
         ]),
         cwd: intent.cwd,
         warnings: [],
@@ -291,7 +287,7 @@ function resolvePosixSpawn(
     );
   }
 
-  if (intent.command.kind === 'argv' && !intent.shellSetup && !intent.tmuxSessionName) {
+  if (intent.command.kind === 'argv' && !intent.shellSetup && !intent.tmux) {
     const plan = planExecutableLaunch({
       platform,
       command: intent.command.command,
@@ -310,11 +306,11 @@ function resolvePosixSpawn(
     ? `${intent.shellSetup} && ${commandLine}`
     : commandLine;
 
-  if (intent.tmuxSessionName) {
+  if (intent.tmux) {
     return {
       invocation: argvInvocation(shell, [
         ...commandArgs,
-        buildTmuxShellLine(intent.tmuxSessionName, fullCommandLine),
+        buildTmuxShellLine(intent.tmux.name, fullCommandLine, intent.tmux.identity),
       ]),
       cwd: intent.cwd,
       warnings: [],
@@ -322,7 +318,16 @@ function resolvePosixSpawn(
   }
 
   return {
-    invocation: argvInvocation(shell, [...commandArgs, fullCommandLine]),
+    invocation: planShellLaunch({
+      platform,
+      commandLine: fullCommandLine,
+      env,
+      shellProfile: {
+        executable: shell,
+        family: intent.shellProfile?.family ?? 'posix',
+        commandArgs,
+      },
+    }),
     cwd: intent.cwd,
     warnings: [],
   };

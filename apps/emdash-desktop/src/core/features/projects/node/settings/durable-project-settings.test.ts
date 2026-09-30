@@ -3,6 +3,40 @@ import { DesktopProjectSettingsAuthority } from './durable-project-settings';
 import type { ProjectSettingsStorage, StoredProjectSettings } from './project-settings-storage';
 
 describe('DesktopProjectSettingsAuthority', () => {
+  it('normalizes an ancient account pin before applying a different provider patch', async () => {
+    const row: StoredProjectSettings = {
+      baseProjectSettingsJson: JSON.stringify({ githubAccountId: 'github.com:42' }),
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: null,
+    };
+    const authority = new DesktopProjectSettingsAuthority({
+      get: vi.fn(async () => row),
+      insertIfMissing: vi.fn(),
+      mutate: vi.fn(async (_id, patch) => {
+        Object.assign(row, patch(row));
+        return row;
+      }),
+    });
+    await expect(authority.read('project-1')).resolves.toMatchObject({
+      success: true,
+      data: {
+        gitIdentity: { stored: {} },
+        integrationAccounts: {
+          stored: { github: { kind: 'account', accountId: 'github.com:42' } },
+        },
+      },
+    });
+    await authority.patch('project-1', {
+      integrationAccounts: { stored: { jira: { kind: 'none' } } },
+    });
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
+      integrationAccounts: {
+        github: { kind: 'account', accountId: 'github.com:42' },
+        jira: { kind: 'none' },
+      },
+    });
+  });
+
   it('reads and patches desktop-owned settings without a Project Provider', async () => {
     const row: StoredProjectSettings = {
       baseProjectSettingsJson: JSON.stringify({
@@ -16,8 +50,9 @@ describe('DesktopProjectSettingsAuthority', () => {
     const storage: ProjectSettingsStorage = {
       get: vi.fn(async () => row),
       insertIfMissing: vi.fn(),
-      update: vi.fn(async (_projectId, patch) => {
-        Object.assign(row, patch);
+      mutate: vi.fn(async (_projectId, patch) => {
+        Object.assign(row, patch(row));
+        return row;
       }),
     };
     const authority = new DesktopProjectSettingsAuthority(storage);
@@ -45,7 +80,7 @@ describe('DesktopProjectSettingsAuthority', () => {
     expect(JSON.parse(row.baseProjectSettingsJson)).not.toHaveProperty('baseRemote');
   });
 
-  it('does not preserve migration-only lifecycle settings during a durable patch', async () => {
+  it('preserves lifecycle migration sources during a durable patch', async () => {
     const shareable = JSON.stringify({
       preservePatterns: ['.env.local'],
       scripts: { setup: 'pnpm install' },
@@ -62,8 +97,9 @@ describe('DesktopProjectSettingsAuthority', () => {
     const storage: ProjectSettingsStorage = {
       get: vi.fn(async () => row),
       insertIfMissing: vi.fn(),
-      update: vi.fn(async (_projectId, patch) => {
-        Object.assign(row, patch);
+      mutate: vi.fn(async (_projectId, patch) => {
+        Object.assign(row, patch(row));
+        return row;
       }),
     };
     const authority = new DesktopProjectSettingsAuthority(storage);
@@ -75,6 +111,8 @@ describe('DesktopProjectSettingsAuthority', () => {
     expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
       baseRemote: 'origin',
       pushRemote: 'fork',
+      autoRunSetupScriptOnTaskCreation: false,
+      autoRunRunScriptOnTaskCreation: true,
     });
     expect(row.shareableProjectSettingsJson).toBe(shareable);
   });

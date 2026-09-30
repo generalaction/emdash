@@ -395,6 +395,46 @@ describe('MementoClient', () => {
     expect(orphanTransient.value).toBe(transientMemento.default);
   });
 
+  it('keeps reset state deleted through late flushes and hydrates a fresh client with defaults', async () => {
+    vi.useFakeTimers();
+    const setup = await createSetup(cleanups, { debounceMs: 50 });
+    const subject = taskSubject({ taskId: 'task-1' });
+    setup.persistence.upsert(
+      { mementoId: drawerMemento.id, kind: subject.kind, key: subject.key },
+      {
+        version: '2',
+        data: JSON.stringify({ version: '2', open: true, height: -1 }),
+        updatedAt: 1,
+      }
+    );
+    const space = setup.client.subject(subject);
+    const drawer = space.handle(drawerMemento);
+    const editor = space.handle(editorMemento);
+    await readyWithFakeTimers(space.ready);
+    expect(drawer.value.height).toBe(-1);
+    drawer.update({ version: '2', open: true, height: -2 });
+    editor.update({ version: '2', open: true, height: -3 });
+
+    await setup.client.deleteAll();
+    // The renderer flushes on beforeunload; releasing handles also flushes them.
+    await setup.client.flush();
+    await space.release();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(setup.persistence.snapshot()).toEqual([]);
+
+    const nextClient = new MementoClient(setup.wire.client, { registerBeforeUnload: false });
+    try {
+      const nextSpace = nextClient.subject(subject);
+      const nextDrawer = nextSpace.handle(drawerMemento);
+      const nextEditor = nextSpace.handle(editorMemento);
+      await readyWithFakeTimers(nextSpace.ready);
+      expect(nextDrawer.value).toEqual(drawerMemento.default);
+      expect(nextEditor.value).toEqual(editorMemento.default);
+    } finally {
+      await nextClient.dispose();
+    }
+  });
+
   it('attempts every handle when a flush fails', async () => {
     const setup = await createSetup(cleanups);
     const firstError = new Error('first');

@@ -9,6 +9,8 @@ import type { Task } from '@core/primitives/tasks/api';
 
 const contributionMocks = vi.hoisted(() => ({
   create: vi.fn((_context: unknown, _stores: unknown) => ({})),
+  ready: vi.fn(async () => {}),
+  activate: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -17,9 +19,15 @@ vi.mock('@core/manifests/browser/task-scoped-stores', () => ({
     {
       token: { id: 'test.lifecycle' },
       create: contributionMocks.create,
+      ready: contributionMocks.ready,
+      activate: contributionMocks.activate,
       dispose: contributionMocks.dispose,
     },
   ],
+}));
+
+vi.mock('@emdash/ui/react/primitives', () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -108,6 +116,69 @@ describe('TaskStore provision state', () => {
     expect(getTaskPrAssociationStore(store)).toBe(association);
     expect(association.pullRequests).toHaveLength(1);
     expect(contributionMocks.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('reopens a task across repeated archive and restore cycles while retaining PR state', async () => {
+    const task = makeTask();
+    const store = createUnprovisionedTask(task);
+    const association = getTaskPrAssociationStore(store);
+    const token = { id: 'test.lifecycle' };
+    association.setAssociation(
+      [{ url: 'https://github.com/emdash/emdash/pull/42' } as Task['prs'][number]],
+      { kind: 'unknown' }
+    );
+
+    for (let cycle = 1; cycle <= 2; cycle += 1) {
+      const previous = store.get(token);
+      store.transitionToDryUnprovisioned({ ...task, archivedAt: '2026-01-02T00:00:00.000Z' });
+      expect(() => store.get(token)).toThrow('unavailable while the task is archived');
+      store.restoreOperationalStores();
+      store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1');
+      const restored = store.get(token);
+
+      await store.ready();
+      store.activate();
+      // Repeated access must reuse the new session rather than create or activate it again.
+      await store.ready();
+      store.activate();
+      expect(restored).not.toBe(previous);
+      expect(store.get(token)).toBe(restored);
+      expect(contributionMocks.create).toHaveBeenCalledTimes(cycle + 1);
+      expect(contributionMocks.ready).toHaveBeenCalledTimes(cycle);
+      expect(contributionMocks.activate).toHaveBeenCalledTimes(cycle);
+      expect(contributionMocks.dispose).toHaveBeenCalledTimes(cycle);
+      expect(getTaskPrAssociationStore(store)).toBe(association);
+      expect(association.pullRequests).toHaveLength(1);
+    }
+
+    store.dispose();
+    expect(contributionMocks.dispose).toHaveBeenCalledTimes(3);
+  });
+
+  it.each(['ready', 'activate'] as const)(
+    '%s recreates missing operational stores',
+    async (method) => {
+      const task = makeTask();
+      const store = createUnprovisionedTask(task);
+      store.transitionToDryUnprovisioned({ ...task, archivedAt: '2026-01-02T00:00:00.000Z' });
+      store.transitionToUnprovisioned(task);
+
+      await store[method]();
+
+      expect(contributionMocks.create).toHaveBeenCalledTimes(2);
+      expect(contributionMocks[method]).toHaveBeenCalledOnce();
+      expect(() => store.get({ id: 'test.lifecycle' })).not.toThrow();
+      store.dispose();
+    }
+  );
+
+  it('cannot revive a fully disposed task', () => {
+    const store = createUnprovisionedTask(makeTask());
+    store.dispose();
+
+    expect(() => store.restoreOperationalStores()).toThrow('TaskStore is disposed');
+    expect(() => store.activate()).toThrow('TaskStore is disposed');
+    expect(contributionMocks.create).toHaveBeenCalledOnce();
   });
 
   it('keeps task contributions stable when the authoritative workspace identity changes', () => {

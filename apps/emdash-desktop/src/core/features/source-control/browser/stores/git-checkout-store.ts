@@ -31,6 +31,8 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
+import { getPrNumber } from '@core/services/pull-requests/api/repository';
 import { sourceControlContract } from '../../api';
 import {
   type CheckoutChangesState,
@@ -51,6 +53,11 @@ const MAX_UNTRACKED_STAT_BYTES = 2 * 1024 * 1024;
 type CheckoutModel = typeof sourceControlContract.checkout.model;
 type CheckoutRemote = RemoteModel<CheckoutModel>;
 type CheckoutRemoteMember = ReturnType<CheckoutRemote>;
+type PushedPullRequestHead = {
+  repositoryUrl: string;
+  headRepositoryUrl: string | null;
+  headRefName: string | null;
+};
 
 export class GitCheckoutStore {
   private remote: CheckoutRemote | null = null;
@@ -331,20 +338,30 @@ export class GitCheckoutStore {
     const client = await getSourceControlClient();
     // Null push remote (no remotes) degrades to a push without an explicit
     // remote — the same behavior as when the repository store is missing.
-    const remote = getGitRepositoryStore(this.projectId)?.pushRemote?.name;
-    return runDesktopLiveJob(sourceControlContract.checkout.push, client.checkout.push, {
-      ...checkoutSelector(this.workspaceId),
-      options: remote ? { remote } : undefined,
-    });
+    const repository = getGitRepositoryStore(this.projectId);
+    const remote = repository?.pushRemote?.name;
+    const pushedHead = this.pullRequestHead(repository);
+    const result = await runDesktopLiveJob(
+      sourceControlContract.checkout.push,
+      client.checkout.push,
+      {
+        ...checkoutSelector(this.workspaceId),
+        options: remote ? { remote } : undefined,
+      }
+    );
+    if (result.success) this.refreshPullRequestsAfterPush(pushedHead);
+    return result;
   }
 
   async publishCurrentBranch() {
-    const pushRemote = getGitRepositoryStore(this.projectId)?.pushRemote;
+    const repository = getGitRepositoryStore(this.projectId);
+    const pushRemote = repository?.pushRemote;
     if (pushRemote === null || pushRemote === undefined) {
       return err({ type: 'no_remote' as const, message: 'This repository has no git remotes.' });
     }
     const model = await this.requireModel();
     const client = await getSourceControlClient();
+    const pushedHead = this.pullRequestHead(repository);
     const result = await runDesktopLiveJob(
       sourceControlContract.checkout.publish,
       client.checkout.publish,
@@ -353,8 +370,57 @@ export class GitCheckoutStore {
         remote: pushRemote.name,
       }
     );
-    if (result.success) await model.states.head.refresh();
+    if (result.success) {
+      await model.states.head.refresh();
+      this.refreshPullRequestsAfterPush(pushedHead);
+    }
     return result;
+  }
+
+  private pullRequestHead(
+    repository: ReturnType<typeof getGitRepositoryStore>
+  ): PushedPullRequestHead | null {
+    if (!repository?.pullRequestRepositoryUrl) return null;
+    return {
+      repositoryUrl: repository.pullRequestRepositoryUrl,
+      headRepositoryUrl: repository.canonicalPushRepositoryUrl,
+      headRefName: this.branchName,
+    };
+  }
+
+  private refreshPullRequestsAfterPush(head: PushedPullRequestHead | null): void {
+    if (!head) return;
+    void getPullRequestsRuntimeClient()
+      .then(async (client) => {
+        if (head.headRepositoryUrl && head.headRefName) {
+          // Exact head identity avoids confusing same-named branches in different forks.
+          // This is a local cache lookup, not another provider request.
+          const result = await client.getPullRequestsForHead({
+            repositoryUrl: head.repositoryUrl,
+            headRepositoryUrl: head.headRepositoryUrl,
+            headRefName: head.headRefName,
+          });
+          const openPrs = result.success
+            ? result.data.prs.filter((pr) => pr.status === 'open')
+            : [];
+          const numbers = openPrs.map(getPrNumber);
+          if (numbers.length > 0 && numbers.every((number) => number !== null)) {
+            await Promise.all(
+              [...new Set(numbers)].map((number) =>
+                client.refreshPullRequest({
+                  repositoryUrl: head.repositoryUrl,
+                  number,
+                  policy: 'force',
+                })
+              )
+            );
+            return;
+          }
+        }
+        // Unknown heads (including closed-only matches) need open-PR discovery.
+        await client.refreshRepository({ repositoryUrl: head.repositoryUrl, policy: 'force' });
+      })
+      .catch(() => {});
   }
 
   async pull() {

@@ -1,5 +1,5 @@
-import type { IntegrationMetadata } from '@core/features/integrations/contributions/browser/integrations-provider';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
+import type { IntegrationProviderDescriptor } from '../contract';
 
 export const ISSUE_FEATURE_LABELS: Record<string, string> = {
   issues: 'Issues',
@@ -8,8 +8,8 @@ export const ISSUE_FEATURE_LABELS: Record<string, string> = {
 };
 
 export function isIssueIntegration(
-  integration: IntegrationMetadata
-): integration is IntegrationMetadata & { id: IssueProviderType } {
+  integration: IntegrationProviderDescriptor
+): integration is IntegrationProviderDescriptor & { id: IssueProviderType } {
   return integration.features.includes('issues');
 }
 
@@ -22,7 +22,7 @@ export function formatIntegrationId(id: string): string {
 }
 
 export function getIntegrationName(
-  integrationById: Partial<Record<string, IntegrationMetadata>>,
+  integrationById: Partial<Record<string, IntegrationProviderDescriptor>>,
   provider: string
 ): string {
   return integrationById[provider]?.name ?? formatIntegrationId(provider);

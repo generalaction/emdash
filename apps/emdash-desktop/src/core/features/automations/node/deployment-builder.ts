@@ -160,7 +160,7 @@ async function buildAutomationDeploymentOnce(
           type: 'acp',
           start: {
             providerId: conversation.provider,
-            model,
+            ...(conversation.options && { options: conversation.options }),
             initialQueue: [{ text: prompt }],
           },
           title,
@@ -233,8 +233,7 @@ async function loadDeploymentProjectSettings(
     // The worktree pool comes from resolveWorktreePool, so the resolver's
     // worktreeRoot output is unused here.
     { project: stored, builtInWorktreeRoot: '' },
-    facts ?? { remotes: [], localBranches: [] },
-    []
+    facts ?? { remotes: [], localBranches: [] }
   );
   return {
     baseRemote: effective.baseRemote.value,

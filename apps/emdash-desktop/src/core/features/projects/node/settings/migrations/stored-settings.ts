@@ -1,19 +1,33 @@
 import { isDeepEqual } from '@emdash/shared';
 import {
-  formatDefaultBranch,
   resolveEffectiveSettings,
-  type BaseProjectSettings,
   type RepoFacts,
   type StoredBaseProjectSettings,
   type StoredDefaultBranch,
 } from '@core/primitives/project-settings/api';
 import { compactUndefined } from '../project-settings-json';
-import type { LegacyBaseProjectSettings } from './legacy-stored-project-settings';
+import {
+  legacyBaseProjectSettingsSchema,
+  legacyLifecycleSettingsFromStored,
+  withLegacyLifecycleSettings,
+  type LegacyBaseProjectSettings,
+} from './legacy-stored-project-settings';
 
 export type StoredSettingsMigrationResult = {
   next: StoredBaseProjectSettings;
   changed: boolean;
 };
+
+/** Canonical tolerant-version reader shared by execution, settings pages and account usage. */
+export function readStoredProjectSettings(
+  json: string,
+  repoFacts: RepoFacts | null = null
+): StoredBaseProjectSettings {
+  return migrateStoredBaseProjectSettings(
+    legacyBaseProjectSettingsSchema.parse(JSON.parse(json)),
+    repoFacts
+  ).next;
+}
 
 /**
  * Normalizes a historical DB JSON row into the current stored model. Pure: callers
@@ -43,10 +57,16 @@ export function migrateStoredBaseProjectSettings(
 
   if (next.baseRemote === undefined && legacyRemote !== undefined) next.baseRemote = legacyRemote;
 
-  if (githubAccount !== undefined) {
-    next.githubAccount = githubAccount;
-  } else if (typeof legacyGithubAccountId === 'string') {
-    next.githubAccount = { kind: 'account', accountId: legacyGithubAccountId };
+  // Fold the GitHub pin into the provider-account map (spec: github-git-settings
+  // §10 generalized): legacy top-level keys migrate under `integrationAccounts.github`;
+  // an existing map entry wins over the legacy keys.
+  const legacyGithubAccount =
+    githubAccount ??
+    (typeof legacyGithubAccountId === 'string'
+      ? ({ kind: 'account', accountId: legacyGithubAccountId } as const)
+      : undefined);
+  if (legacyGithubAccount !== undefined && next.integrationAccounts?.github === undefined) {
+    next.integrationAccounts = { ...(next.integrationAccounts ?? {}), github: legacyGithubAccount };
   }
 
   const migratedDefaultBranch = migrateDefaultBranch(rawDefaultBranch, next.baseRemote, repoFacts);
@@ -92,8 +112,7 @@ function demoteIfMatchesInference(next: StoredBaseProjectSettings, repoFacts: Re
   if (next.baseRemote !== undefined) {
     const inferred = resolveEffectiveSettings(
       { project: {}, builtInWorktreeRoot: '' },
-      repoFacts,
-      []
+      repoFacts
     ).baseRemote;
     if (inferred.provenance.kind === 'inferred' && inferred.value === next.baseRemote) {
       delete next.baseRemote;
@@ -103,8 +122,7 @@ function demoteIfMatchesInference(next: StoredBaseProjectSettings, repoFacts: Re
   if (next.defaultBranch !== undefined) {
     const inferred = resolveEffectiveSettings(
       { project: { baseRemote: next.baseRemote }, builtInWorktreeRoot: '' },
-      repoFacts,
-      []
+      repoFacts
     ).defaultBranch;
     if (
       inferred.provenance.kind === 'inferred' &&
@@ -115,58 +133,15 @@ function demoteIfMatchesInference(next: StoredBaseProjectSettings, repoFacts: Re
   }
 }
 
-export function toLegacyBaseSettingsView(
-  stored: LegacyBaseProjectSettings | StoredBaseProjectSettings
-): BaseProjectSettings {
-  const {
-    worktreeRoot,
-    githubAccount,
-    defaultBranch,
-    remote: legacyRemote,
-    tmuxDefaultMigrated: _tmuxDefaultMigrated,
-    ...rest
-  } = stored as LegacyBaseProjectSettings;
-  const view: BaseProjectSettings = { ...rest };
-
-  if (worktreeRoot !== undefined) view.worktreeDirectory = worktreeRoot;
-  if (view.baseRemote === undefined && legacyRemote !== undefined) {
-    view.baseRemote = legacyRemote;
-  }
-
-  if (defaultBranch !== undefined) {
-    view.defaultBranch =
-      typeof defaultBranch === 'object' && 'branch' in defaultBranch
-        ? formatDefaultBranch(defaultBranch)
-        : defaultBranch;
-  }
-
-  if (githubAccount !== undefined) {
-    view.githubAccountId = githubAccount.kind === 'account' ? githubAccount.accountId : null;
-  }
-
-  return view;
-}
-
-export function legacyBaseSettingsToStored(base: BaseProjectSettings): StoredBaseProjectSettings {
-  const {
-    worktreeDirectory,
-    defaultBranch,
-    githubAccountId,
-    autoRunSetupScriptOnTaskCreation: _legacyAutoRunSetup,
-    autoRunRunScriptOnTaskCreation: _legacyAutoRunRun,
-    ...rest
-  } = base;
-  const stored: StoredBaseProjectSettings = { ...rest };
-
-  if (worktreeDirectory !== undefined) stored.worktreeRoot = worktreeDirectory;
-
-  const migratedDefaultBranch = migrateDefaultBranch(defaultBranch, base.baseRemote, null);
-  if (migratedDefaultBranch !== undefined) stored.defaultBranch = migratedDefaultBranch;
-
-  if (githubAccountId !== undefined) {
-    stored.githubAccount =
-      githubAccountId === null ? { kind: 'none' } : { kind: 'account', accountId: githubAccountId };
-  }
-
-  return stored;
+/** Keep pending lifecycle migration sources until their explicit finalizer succeeds. */
+export function serializeStoredProjectSettings(
+  stored: StoredBaseProjectSettings,
+  previousJson: string
+): string {
+  const legacy = legacyBaseProjectSettingsSchema.parse(JSON.parse(previousJson));
+  return JSON.stringify(
+    compactUndefined(
+      withLegacyLifecycleSettings(stored, legacyLifecycleSettingsFromStored(legacy, {}))
+    )
+  );
 }

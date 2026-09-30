@@ -2,12 +2,12 @@
  * Deterministic, stable id synthesis for transcript items.
  *
  * Ids are synthesized once in the parser and never re-derived downstream.
- * The scheme preserves the existing renderer convention from acp-update-mapper.ts
- * so that a future migration can maintain render identity continuity.
+ * Content ids distinguish roles and provider/generated origins. Provider ids
+ * are JSON-encoded opaque strings; generated ordinals never share their namespace.
  *
  * All functions are pure and total — no nullable returns. When a provider
  * messageId is absent the reducer's segmenter synthesizes a stable messageId
- * before item folding, ensuring every item always has a non-null id.
+ * before item folding, ensuring every item always has a non-null internal id.
  */
 
 /**
@@ -21,24 +21,27 @@ export function makeTurnId(conversationId: string, turnIndex: number): string {
 
 /**
  * Stable message item id.
- * Format: `${turnId}:message:${messageId}`
- *
- * Uses the provider messageId when available; otherwise uses the reducer's
- * synthesized segment id.
+ * Exact provider identity when supplied; otherwise a per-role segment ordinal.
  */
-export function makeMessageId(turnId: string, messageId: string, _role: string): string {
-  return `${turnId}:message:${messageId}`;
+export function makeMessageId(
+  turnId: string,
+  messageId: string | null,
+  role: string,
+  ordinal = 0
+): string {
+  const identity =
+    messageId === null ? `generated:${ordinal}` : `provider:${JSON.stringify(messageId)}`;
+  return `${turnId}:message:${role}:${identity}`;
 }
 
 /**
  * Stable thinking item id.
- * Format: `${turnId}:thinking:${messageId}`
- *
- * A kind-tag prefix ('thinking:') disambiguates from message items when
- * Claude reuses the same messageId across both update kinds.
+ * A separate kind and explicit ordinal distinguish resumed reasoning segments
+ * without interpreting provider ids as prefixes of previously generated ids.
  */
-export function makeThinkingId(turnId: string, messageId: string): string {
-  return `${turnId}:thinking:${messageId}`;
+export function makeThinkingId(turnId: string, messageId: string | null, ordinal = 0): string {
+  const identity = messageId === null ? 'generated' : `provider:${JSON.stringify(messageId)}`;
+  return `${turnId}:thinking:${identity}:${ordinal}`;
 }
 
 /**

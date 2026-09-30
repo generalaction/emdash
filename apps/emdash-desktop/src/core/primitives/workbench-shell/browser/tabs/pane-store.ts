@@ -412,7 +412,7 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
 
   closeOthers(tabId: string): void {
     const toClose = this.tabOrder.filter((id) => id !== tabId);
-    for (const id of toClose) this.closeTab(id);
+    for (const id of toClose) this._removeTab(id, { userInitiated: true });
   }
 
   requestRename(tabId: string): void {
@@ -461,20 +461,24 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     const entry = this.entries.get(tabId);
     if (!entry) return;
     const resource = this._resources.get(tabId);
+    const close = () => {
+      if (this.entries.get(tabId) !== entry || this._resources.get(tabId) !== resource) return;
+      this._removeTab(tabId, { userInitiated: true });
+    };
 
     if (resource && this.registry.has(entry.kind)) {
       const def = this.registry.get(entry.kind);
       if (def.onBeforeClose) {
         void Promise.resolve(def.onBeforeClose(entry as never, resource as never, this._ctx)).then(
           (proceed) => {
-            if (proceed) runInAction(() => this._removeTab(tabId));
+            if (proceed) runInAction(close);
           }
         );
         return;
       }
     }
 
-    this._removeTab(tabId);
+    close();
   }
 
   /** Fire resource.onActivateIntent() for a tab (called on hover/focus intent). */
@@ -612,9 +616,10 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     if (opts?.activate) this.activeTabId = entry.tabId;
   }
 
-  private _removeTab(id: string): void {
+  private _removeTab(id: string, options?: { userInitiated?: boolean }): void {
     const entry = this.entries.get(id);
     if (!entry) return;
+    const resource = this._resources.get(id);
 
     // Record for reopen history before removing.
     const index = this.tabOrder.indexOf(id);
@@ -627,6 +632,7 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     this.entries.delete(id);
     this._resources.delete(id);
     removeTabId(this, id);
+    if (options?.userInitiated) resource?.onClose?.();
   }
 
   /** Call provider.dispose() for an entry if its resource exists. Does NOT remove from maps. */

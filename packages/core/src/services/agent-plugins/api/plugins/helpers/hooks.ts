@@ -1,7 +1,9 @@
 import { Buffer } from 'node:buffer';
+import { quoteArg } from '#primitives/exec/api';
 
 export type HookCommandOptions = {
   platform?: NodeJS.Platform;
+  stdoutJson?: Record<string, unknown>;
 };
 
 export const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
@@ -38,7 +40,11 @@ function makePosixHookPostCommand(eventType: string, payload: HookPostPayload): 
   );
 }
 
-function makeWindowsHookPostCommand(eventType: string, payload: HookPostPayload): string {
+function makeWindowsHookPostCommand(
+  eventType: string,
+  payload: HookPostPayload,
+  stdoutJson?: Record<string, unknown>
+): string {
   const bodyLine =
     payload === 'stdin'
       ? '$payload = [Console]::In.ReadToEnd()'
@@ -56,7 +62,11 @@ function makeWindowsHookPostCommand(eventType: string, payload: HookPostPayload)
       `'X-Emdash-Event-Type' = '${eventType}' ` +
       '} -Body $payload | Out-Null } catch { exit 0 }',
   ].join('; ');
-  return makeWindowsPowerShellHookCommand(script);
+  return makeWindowsPowerShellHookCommand(
+    stdoutJson === undefined
+      ? script
+      : `try { ${script} } finally { [Console]::Out.WriteLine(${quotePowerShellString(JSON.stringify(stdoutJson))}) }`
+  );
 }
 
 export function makeWindowsPowerShellHookCommand(script: string): string {
@@ -78,9 +88,13 @@ export function makeHookPostCommand(
   payload: HookPostPayload,
   opts: HookCommandOptions
 ): string {
-  return (opts.platform ?? process.platform) === 'win32'
-    ? makeWindowsHookPostCommand(eventType, payload)
-    : makePosixHookPostCommand(eventType, payload);
+  if ((opts.platform ?? process.platform) === 'win32') {
+    return makeWindowsHookPostCommand(eventType, payload, opts.stdoutJson);
+  }
+  const command = makePosixHookPostCommand(eventType, payload);
+  return opts.stdoutJson === undefined
+    ? command
+    : `( ${command} ) >/dev/null; printf '%s\\n' ${quoteArg(JSON.stringify(opts.stdoutJson), 'posix')}`;
 }
 
 // ── Public command builders ─────────────────────────────────────────────────

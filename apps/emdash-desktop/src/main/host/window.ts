@@ -84,14 +84,13 @@ export function createMainWindow(): BrowserWindow {
     mainWindow.setMenuBarVisibility(false);
   }
 
-  if (import.meta.env.DEV) {
-    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
-  } else {
-    void mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
-  }
+  const rendererUrl = import.meta.env.DEV
+    ? process.env.ELECTRON_RENDERER_URL!
+    : `${APP_ORIGIN}/index.html`;
+  void mainWindow.loadURL(rendererUrl);
 
-  // Route external links to the user’s default browser
-  registerExternalLinkHandlers(mainWindow, import.meta.env.DEV);
+  // Route anything outside the renderer origin through the external-link flow
+  registerExternalLinkHandlers(mainWindow, rendererUrl);
   registerBrowserWebviewHandlers(mainWindow);
 
   // Window-first: show immediately with the theme-matching background instead

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { secret, type Secret } from '@emdash/shared';
+import { readFile } from 'node:fs/promises';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import {
   createConversationRegistry,
@@ -17,19 +17,30 @@ import {
   type SshConnectionMetadata,
   type SshConnectionUsage,
 } from '@core/primitives/ssh/api';
-import type { AppDb } from '@core/services/app-db/node/db';
+import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import {
   projects,
   sshConnections as sshConnectionsTable,
   type SshConnectionInsert,
 } from '@core/services/app-db/node/schema';
+import { resolveSshConfig } from '@core/services/ssh/node/config/resolve-ssh-config';
+import {
+  assertPasswordDestination,
+  effectiveSshConfig,
+  readSshPrivateKey,
+} from '@core/services/ssh/node/credentials/credential-identity';
+import {
+  resolveCredentialDraft,
+  type ResolvedCredentialDraft,
+} from '@core/services/ssh/node/credentials/resolve-credential-draft';
+import type { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import type { SaveMachineInput } from '..';
+import { captureMachineSave, persistMachine } from '../../node/machine-persistence';
 
-type MachinesCredentials = {
-  storePassword(connectionId: string, password: Secret<string>): Promise<void>;
-  storePassphrase(connectionId: string, passphrase: Secret<string>): Promise<void>;
-  deleteAllCredentials(connectionId: string): Promise<void>;
-};
+type MachinesCredentials = Pick<
+  SshCredentialService,
+  'getPassword' | 'getPassphrase' | 'deleteAllCredentials'
+>;
 
 type MachinesSshRuntime = {
   dropConnection(connectionId: string): Promise<void>;
@@ -43,6 +54,9 @@ type MachinesLog = {
 export interface MachinesServiceDeps {
   db: AppDb;
   credentials: MachinesCredentials;
+  prepareCredentials: (id: string, credentials: ResolvedCredentialDraft) => (tx: DrizzleTx) => void;
+  resolveSshConfig?: typeof resolveSshConfig;
+  readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
   ssh: MachinesSshRuntime;
   log: MachinesLog;
   createId?: () => string;
@@ -131,32 +145,10 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       );
     }
 
-    // Wrap wire-fresh credential strings into Secret at first touch; they
-    // stay wrapped through the credential service and secrets store.
-    if (config.password) {
-      await this.deps.credentials.storePassword(
-        connectionId,
-        secret(config.password, 'ssh-password')
-      );
-    }
-    if (config.passphrase) {
-      await this.deps.credentials.storePassphrase(
-        connectionId,
-        secret(config.passphrase, 'ssh-passphrase')
-      );
-    }
-
     const { password: _password, passphrase: _passphrase, ...dbConfig } = config;
 
-    const existingRows =
-      config.id === undefined
-        ? []
-        : await this.deps.db
-            .select({ metadata: sshConnectionsTable.metadata })
-            .from(sshConnectionsTable)
-            .where(eq(sshConnectionsTable.id, connectionId))
-            .limit(1);
-    const existingMetadata: SshConnectionMetadata = existingRows[0]?.metadata ?? {};
+    const before = captureMachineSave(this.deps.db, connectionId);
+    const existingMetadata: SshConnectionMetadata = before.connection?.metadata ?? {};
 
     const metadataUpdate: SshConnectionMetadata = {};
     if (Object.prototype.hasOwnProperty.call(config, 'sshConfigAlias')) {
@@ -170,37 +162,50 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
     }
     const metadata = mergeSshConnectionMetadata(existingMetadata, metadataUpdate);
 
+    const previous = before.connection ? sshConfigFromRow(before.connection) : undefined;
+    const draft = {
+      ...config,
+      sshConfigAlias: metadata.sshConfigAlias,
+      proxyJump: metadata.proxyJump,
+    };
+    const resolved = draft.sshConfigAlias
+      ? await (this.deps.resolveSshConfig ?? resolveSshConfig)(draft.sshConfigAlias)
+      : undefined;
+    const effective = effectiveSshConfig(draft, resolved);
+    assertPasswordDestination(draft, effective);
+    const key =
+      draft.authType === 'key'
+        ? await readSshPrivateKey(draft, resolved, this.deps.readFile ?? readFile)
+        : undefined;
+    const credentials = await resolveCredentialDraft(
+      effective,
+      previous,
+      this.deps.credentials,
+      key?.fingerprint
+    );
+    const applyCredentials = this.deps.prepareCredentials(connectionId, credentials);
+
     const insertData: SshConnectionInsert = {
       id: connectionId,
       name: dbConfig.name,
-      host: dbConfig.host,
-      port: dbConfig.port,
+      host: effective.host,
+      port: effective.port,
       metadata,
-      username: dbConfig.username,
+      username: effective.username,
       authType: dbConfig.authType,
       privateKeyPath: dbConfig.privateKeyPath ?? null,
       useAgent: dbConfig.useAgent ? 1 : 0,
     };
 
-    await this.deps.db
-      .insert(sshConnectionsTable)
-      .values(insertData)
-      .onConflictDoUpdate({
-        target: sshConnectionsTable.id,
-        set: {
-          name: insertData.name,
-          host: insertData.host,
-          port: insertData.port,
-          metadata: insertData.metadata,
-          username: insertData.username,
-          authType: insertData.authType,
-          privateKeyPath: insertData.privateKeyPath,
-          useAgent: insertData.useAgent,
-          updatedAt: new Date(this.now()).toISOString(),
-        },
-      });
+    persistMachine(
+      this.deps.db,
+      before,
+      insertData,
+      applyCredentials,
+      new Date(this.now()).toISOString()
+    );
 
-    if (existingRows.length > 0) {
+    if (previous) {
       await this.deps.ssh.dropConnection(connectionId).catch((error: unknown) => {
         this.deps.log.warn('MachinesService.saveMachine: error disconnecting previous config', {
           connectionId,
@@ -212,6 +217,9 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
 
     return {
       ...dbConfig,
+      host: effective.host,
+      port: effective.port,
+      username: effective.username,
       id: connectionId,
       sshConfigAlias: metadata.sshConfigAlias,
       forwardAgent: metadata.forwardAgent,

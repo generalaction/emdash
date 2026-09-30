@@ -1,18 +1,9 @@
 import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
 import { deriveWorktreePoolPath } from '@emdash/core/runtimes/workspace-registry/api';
-import {
-  Alert,
-  Button,
-  Field,
-  Input,
-  Select,
-  Separator,
-  Switch,
-} from '@emdash/ui/react/primitives';
-import { Folder, Github } from 'lucide-react';
+import { Button, Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
+import { Folder } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState, type ReactNode } from 'react';
-import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
   resolveRendererEffectiveSettings,
   useEffectiveSettingsInputs,
@@ -22,13 +13,6 @@ import {
   projectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import {
-  GITHUB_CONNECT_ACCOUNT_OPTION,
-  GITHUB_INFERRED_NONE_OPTION,
-  GitHubAccountSelectItem,
-  GitHubAccountSelectLabel,
-  GitHubZeroAccountSelectItems,
-} from '@core/features/projects/contributions/browser/github-account-select';
-import {
   BrokenSettingNotice,
   ProvenanceBadge,
   ProvenanceSourceLine,
@@ -37,7 +21,6 @@ import {
 import type { ProvenanceFlavor } from '@core/features/projects/contributions/browser/settings-provenance-labels';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
-import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import type {
@@ -54,11 +37,10 @@ import {
   storedDefaultBranchToBranchRef,
   type FormUpdate,
   type GitIdentityFormState,
+  type IntegrationAccountsFormState,
   type PlacementFormState,
 } from '../project-settings-form-model';
-
-/** File-local Select option encodings; never stored or exported. */
-const EXPLICIT_NO_ACCOUNT_OPTION = '__explicit_no_github_account__';
+import { IntegrationAccountsSection } from './integration-accounts-section';
 
 const AGENT_GIT_CREDENTIALS_OPTIONS: { value: AgentGitCredentialsSetting; label: string }[] = [
   { value: 'effective-account', label: 'Effective account' },
@@ -69,12 +51,14 @@ const AGENT_GIT_CREDENTIALS_OPTIONS: { value: AgentGitCredentialsSetting; label:
 type BaseProjectSettingsSectionProps = {
   projectId: string;
   gitIdentityForm: GitIdentityFormState;
+  integrationAccountsForm: IntegrationAccountsFormState;
   placementForm: PlacementFormState;
   placement: ProjectPlacementDomainSnapshot;
   projectType: Project['type'];
   remotes: GitRemote[];
   worktreeDirectoryError: string | null;
   updateGitIdentity: FormUpdate<GitIdentityFormState>;
+  updateIntegrationAccounts: FormUpdate<IntegrationAccountsFormState>;
   updatePlacement: FormUpdate<PlacementFormState>;
   hostActionReason: string | null;
   hostObservationKind: 'fresh' | 'stale' | 'unavailable';
@@ -141,12 +125,14 @@ function brokenFallbackDisplay(resolved: Resolved<unknown> | null): string | nul
 export const BaseProjectSettingsSection = observer(function BaseProjectSettingsSection({
   projectId,
   gitIdentityForm,
+  integrationAccountsForm,
   placementForm,
   placement,
   projectType,
   remotes,
   worktreeDirectoryError,
   updateGitIdentity,
+  updateIntegrationAccounts,
   updatePlacement,
   hostActionReason,
   hostObservationKind,
@@ -158,8 +144,6 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         formToStoredGitSettings({ gitIdentity: gitIdentityForm, placement: placementForm })
       )
     : null;
-  const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
-  const openGithubConnectModal = useOpenModal('githubConnectModal');
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
   const inheritedWorktreeRoot =
@@ -198,18 +182,6 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
     }
   };
 
-  const accountProvenance = effective?.githubAccount.provenance ?? null;
-  const accountUnresolvable = accountProvenance?.kind === 'unresolvable';
-  // Zero-account picker state (spec §5): only "Inferred (none)" + Connect.
-  const zeroAccounts = inputs !== null && accounts.length === 0;
-  const accountSelectValue =
-    gitIdentityForm.githubAccount === undefined
-      ? zeroAccounts
-        ? GITHUB_INFERRED_NONE_OPTION
-        : ''
-      : gitIdentityForm.githubAccount.kind === 'none'
-        ? EXPLICIT_NO_ACCOUNT_OPTION
-        : gitIdentityForm.githubAccount.accountId;
   const effectiveDefaultBranchRef = storedDefaultBranchToBranchRef(
     effective?.defaultBranch.value ?? undefined,
     remotes
@@ -217,87 +189,16 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
 
   return (
     <>
-      <ProvenanceField
-        label="GitHub account"
-        description="Used for pull requests and issues in this project."
-        resolved={effective?.githubAccount ?? null}
-        isExplicit={gitIdentityForm.githubAccount !== undefined}
-        onReset={() => updateGitIdentity('githubAccount', undefined)}
-      >
-        {accountUnresolvable ? (
-          <Alert.Root status="destructive">
-            <Alert.Title>Account no longer available</Alert.Title>
-            <Alert.Description>
-              The GitHub account set for this project is no longer connected or does not match this
-              repository's host. GitHub features stay paused until you pick an account or reset to
-              inferred.
-            </Alert.Description>
-          </Alert.Root>
-        ) : null}
-        <Select.Root
-          value={accountSelectValue}
-          onValueChange={(value) => {
-            if (!value) return;
-            if (value === GITHUB_CONNECT_ACCOUNT_OPTION) {
-              void openGithubConnectModal({});
-              return;
-            }
-            if (value === GITHUB_INFERRED_NONE_OPTION) {
-              updateGitIdentity('githubAccount', undefined);
-              return;
-            }
-            updateGitIdentity(
-              'githubAccount',
-              value === EXPLICIT_NO_ACCOUNT_OPTION
-                ? { kind: 'none' }
-                : { kind: 'account', accountId: value }
-            );
-          }}
-        >
-          <Select.Trigger className="w-full min-w-0">
-            {effective?.githubAccount.value ? (
-              <GitHubAccountSelectLabel account={effective.githubAccount.value} />
-            ) : (
-              <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                {accountUnresolvable ? (
-                  <span className="flex min-w-0 items-center gap-2 truncate">
-                    <span className="min-w-0 truncate">Unavailable GitHub account</span>
-                    <span className="shrink-0 text-sm text-foreground-muted">
-                      No longer connected
-                    </span>
-                  </span>
-                ) : (
-                  <span className="min-w-0 truncate">
-                    {gitIdentityForm.githubAccount === undefined
-                      ? 'Infer GitHub account'
-                      : 'No GitHub account'}
-                  </span>
-                )}
-              </div>
-            )}
-          </Select.Trigger>
-          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
-            {zeroAccounts ? (
-              <GitHubZeroAccountSelectItems />
-            ) : (
-              <>
-                <Select.Item value={EXPLICIT_NO_ACCOUNT_OPTION} className="py-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                    <span className="relative -top-px shrink-0">No GitHub account</span>
-                  </div>
-                </Select.Item>
-                {accounts.map((account) => (
-                  <GitHubAccountSelectItem key={account.accountId} account={account} />
-                ))}
-              </>
-            )}
-          </Select.Content>
-        </Select.Root>
-      </ProvenanceField>
-
-      <Separator />
+      <IntegrationAccountsSection
+        integrationAccountsForm={integrationAccountsForm}
+        updateIntegrationAccounts={updateIntegrationAccounts}
+        repositoryHost={
+          inputs && effective
+            ? (inputs.repoFacts.remotes.find((remote) => remote.name === effective.baseRemote.value)
+                ?.host ?? null)
+            : undefined
+        }
+      />
 
       {hostObservationKind === 'unavailable' ? (
         <Field.Root>

@@ -86,7 +86,7 @@ describe('ProjectContextErrorPanel', () => {
     host.remove();
   });
 
-  it('offers desktop context Retry and Remove Project actions only', async () => {
+  it('offers context recovery and error details without Host connection actions', async () => {
     const onRetry = vi.fn();
     const onRemove = vi.fn();
     await act(async () => {
@@ -104,7 +104,11 @@ describe('ProjectContextErrorPanel', () => {
     });
 
     const buttons = Array.from(host.querySelectorAll('button'));
-    expect(buttons.map((button) => button.textContent)).toEqual(['Retry', 'Remove Project']);
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      'Retry',
+      'Remove Project',
+      'Error details',
+    ]);
     expect(host.textContent).not.toContain('Connect');
     expect(host.textContent).not.toContain('raw internal failure');
 
@@ -112,6 +116,32 @@ describe('ProjectContextErrorPanel', () => {
     await act(async () => buttons[1]?.click());
     expect(onRetry).toHaveBeenCalledOnce();
     expect(onRemove).toHaveBeenCalledOnce();
+  });
+
+  it('makes the context initialization error inspectable', async () => {
+    await act(async () => {
+      root.render(
+        <ProjectContextErrorPanel
+          error={{
+            type: 'context-initialization-failed',
+            stage: 'memento',
+            message: 'Saved state could not be read: permission denied',
+          }}
+          onRetry={vi.fn()}
+          onRemove={vi.fn()}
+        />
+      );
+    });
+
+    expect(document.body.textContent).not.toContain('permission denied');
+    const details = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Error details'
+    );
+    expect(details).toBeDefined();
+    await act(async () => details?.click());
+    expect(document.querySelector('[data-slot="popover-content"]')?.textContent).toContain(
+      'Saved state could not be read: permission denied'
+    );
   });
 });
 

@@ -53,6 +53,7 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
     const asyncLaunch = parseAsyncLaunch(raw);
     return {
       kind: 'subagent',
+      operation: normalizedUpdate.kind === 'tool_call' ? 'start' : 'update',
       toolCallId: normalizedUpdate.toolCallId,
       title: asyncLaunch?.description ?? normalizedUpdate.title ?? 'Agent',
       status: asyncLaunch ? 'in_progress' : (normalizedUpdate.status ?? null),

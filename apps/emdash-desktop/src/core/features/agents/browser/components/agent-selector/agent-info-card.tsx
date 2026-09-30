@@ -83,6 +83,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
           connectionId={connectionId}
           agentPayload={payload}
           installOptions={payload.installOptions}
+          installDocs={payload.installDocs}
           hideOverrideOptions={!isInstalled || !!connectionId}
           compact
         />

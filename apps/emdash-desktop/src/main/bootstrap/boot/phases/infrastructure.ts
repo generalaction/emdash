@@ -6,6 +6,7 @@ import type { SshService } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { sshConnections } from '@core/services/app-db/node/schema';
 import { createHosts, type Hosts } from '@core/services/hosts/node/hosts';
+import { sshCredentialChanges } from '@core/services/ssh/node/credentials/credential-record';
 import { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { createSshService } from '@main/bootstrap/core/ssh-service-factory';
 import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
@@ -25,6 +26,8 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     scope: appScope,
     db: database.db,
     credentials: new SshCredentialService(encryptedAppSecretsStore),
+    prepareCredentials: (id, credentials) =>
+      encryptedAppSecretsStore.prepareChanges(sshCredentialChanges(id, credentials)),
     logger: log,
     telemetry: telemetryService,
   });
