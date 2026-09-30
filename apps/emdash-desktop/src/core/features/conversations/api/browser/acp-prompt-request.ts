@@ -1,5 +1,5 @@
 import { when } from 'mobx';
-import { acpChatRegistry } from '@core/features/conversations/browser/acp/acp-chat-registry';
+import { getAcpChatResourceManager } from '@core/features/conversations/browser/acp/acp-chat-resource-manager';
 import type { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
 
 const TURN_START_TIMEOUT_MS = 60_000;
@@ -10,8 +10,8 @@ const HISTORY_TAIL_TURNS = 5;
  * First ACP conversation in the task that can take a prompt right now. Conversations with an
  * unsent draft are skipped because submitting clears the composer.
  */
-export function findIdleAcpChat(taskId: string): AcpChatStore | undefined {
-  for (const store of acpChatRegistry.getAll(taskId)?.values() ?? []) {
+export function findIdleAcpChat(taskId: string, projectId: string): AcpChatStore | undefined {
+  for (const store of getAcpChatResourceManager(taskId, projectId).stores) {
     const { canSubmit, isWorking } = store.affordances;
     if (canSubmit && !isWorking && store.draftText === '' && store.draftAttachments.length === 0) {
       return store;

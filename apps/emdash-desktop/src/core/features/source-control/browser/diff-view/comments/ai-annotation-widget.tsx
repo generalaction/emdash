@@ -37,7 +37,14 @@ export const AiAnnotationWidget: React.FC<AiAnnotationWidgetProps> = ({
     </Comment.Header>
     <Comment.Body>
       {/* Agent text is untrusted; a read-only textarea renders it as plain text. */}
-      <Comment.Textarea readOnly value={annotation.body} tabIndex={-1} />
+      <Comment.Textarea
+        readOnly
+        value={annotation.body}
+        tabIndex={-1}
+        // Scroll inside the fixed-height view zone instead of growing past it. Inline because the
+        // primitive's field-sizing: content outranks a utility class.
+        style={{ fieldSizing: 'fixed' }}
+      />
     </Comment.Body>
   </Comment.Root>
 );

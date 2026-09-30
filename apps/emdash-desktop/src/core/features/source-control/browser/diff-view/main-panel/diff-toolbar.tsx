@@ -97,10 +97,11 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
 
 async function explainTarget(
   taskId: string,
+  projectId: string,
   target: DraftCommentTarget,
   annotations: AiAnnotationsStore
 ): Promise<void> {
-  const chat = findIdleAcpChat(taskId);
+  const chat = findIdleAcpChat(taskId, projectId);
   if (!chat) return;
   const targetKey = getDraftCommentTargetKey(target);
   annotations.setPending(targetKey, true);
@@ -127,7 +128,7 @@ const ExplainChangesButton = observer(function ExplainChangesButton({ tab }: Dif
 
   const target = diffTabToCommentTarget(tab);
   const pending = annotations.isPending(getDraftCommentTargetKey(target));
-  const chatAvailable = findIdleAcpChat(taskId) !== undefined;
+  const chatAvailable = findIdleAcpChat(taskId, projectId) !== undefined;
   const tooltip = pending
     ? 'Waiting for the agent'
     : chatAvailable
@@ -145,7 +146,7 @@ const ExplainChangesButton = observer(function ExplainChangesButton({ tab }: Dif
             // aria-disabled keeps the tooltip reachable when no chat can take the prompt.
             aria-disabled={!chatAvailable}
             onClick={() => {
-              if (chatAvailable) void explainTarget(taskId, target, annotations);
+              if (chatAvailable) void explainTarget(taskId, projectId, target, annotations);
             }}
           >
             {pending ? <Spinner size="sm" /> : <Sparkles className="h-3.5 w-3.5" />}
