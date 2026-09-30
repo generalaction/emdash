@@ -4,14 +4,17 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { TaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-pr-association-store';
-// oxlint-disable-next-line emdash/core-module-boundaries -- exercise the real PR selection rule and canonical data used by the titlebar contribution
-import { selectCurrentPr, type PullRequest } from '@core/services/pull-requests/api';
-import { TaskPrLink } from './task-pr-link';
+import { type PullRequest } from '@core/services/pull-requests/api';
+import { PullRequestLinks } from './pull-request-links';
 
-const mocks = vi.hoisted(() => ({ openExternal: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  openExternal: vi.fn(),
+  copyTextToClipboard: vi.fn(),
+}));
 
 vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   openExternal: mocks.openExternal,
+  copyTextToClipboard: mocks.copyTextToClipboard,
 }));
 
 beforeAll(() => {
@@ -52,12 +55,13 @@ function pullRequest(overrides: Partial<PullRequest> = {}): PullRequest {
   };
 }
 
-describe('TaskPrLink', () => {
+describe('PullRequestLinks', () => {
   let host: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
     mocks.openExternal.mockReset();
+    mocks.copyTextToClipboard.mockReset();
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -68,12 +72,12 @@ describe('TaskPrLink', () => {
     host.remove();
   });
 
-  async function render(pr: PullRequest | undefined) {
-    await act(async () => root.render(<TaskPrLink pr={pr} />));
+  async function render(...pullRequests: PullRequest[]) {
+    await act(async () => root.render(<PullRequestLinks pullRequests={pullRequests} />));
   }
 
   it('renders no link without an associated PR', async () => {
-    await render(undefined);
+    await render();
     expect(host.querySelector('a')).toBeNull();
   });
 
@@ -125,7 +129,7 @@ describe('TaskPrLink', () => {
   it('appears when a PR is associated and follows subsequent status changes', async () => {
     const association = new TaskPrAssociationStore();
     const AssociatedLink = observer(() => (
-      <TaskPrLink pr={selectCurrentPr(association.pullRequests)} />
+      <PullRequestLinks pullRequests={association.pullRequests} />
     ));
     await act(async () => root.render(<AssociatedLink />));
     expect(host.querySelector('a')).toBeNull();
@@ -141,5 +145,32 @@ describe('TaskPrLink', () => {
 
     await act(async () => association.setAssociation([], { kind: 'unknown' }));
     expect(host.querySelector('a')).toBeNull();
+  });
+
+  it('lists every associated PR with its own browser destination', async () => {
+    const openPr = pullRequest();
+    const closedPr = pullRequest({
+      url: 'https://github.com/generalaction/emdash/pull/43',
+      identifier: '#43',
+      title: 'Previous implementation',
+      status: 'closed',
+    });
+    await render(openPr, closedPr);
+    const links = page.getByRole('navigation', { name: 'Associated pull requests' });
+    expect(host.querySelectorAll('a')).toHaveLength(2);
+    const previous = links.getByRole('link', {
+      name: 'Open PR #43 in browser: Previous implementation (Closed)',
+    });
+    await expect.element(previous).toHaveAttribute('href', closedPr.url);
+    await act(async () => previous.click());
+    expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(closedPr.url);
+  });
+
+  it('copies the URL of the corresponding PR row', async () => {
+    const pr = pullRequest();
+    await render(pr);
+    mocks.copyTextToClipboard.mockResolvedValue({ success: true });
+    await act(async () => page.getByRole('button', { name: 'Copy PR URL' }).click());
+    expect(mocks.copyTextToClipboard).toHaveBeenCalledExactlyOnceWith(pr.url);
   });
 });

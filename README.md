@@ -34,7 +34,7 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 - Send issues and tickets from Linear, GitHub, Jira, GitLab, Asana, Featurebase,
   Monday.com, Forgejo, or Plain into an agent.
 - Review diffs, create pull requests, inspect CI checks, and merge from one place.
-- Open a task's pull request from its titlebar while chatting or reviewing diffs.
+- Open a task's associated pull requests from the Changes sidebar alongside commit controls.
 - Work locally or on your own remote machines over SSH/SFTP.
 
 ## Installation
