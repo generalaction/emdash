@@ -1,5 +1,7 @@
+import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { ROOT_RELATIVE_PATH, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
-import { err, ok } from '@emdash/shared';
+import type { GitPathInspection, InspectPathError } from '@emdash/core/runtimes/git/api';
+import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { waitFor } from '@emdash/shared/testing';
 import type { LiveSource } from '@emdash/wire/rpc';
@@ -9,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { projectsWireContract, type ProjectAttachmentState } from '@core/features/projects/api';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectOperationDependencies } from './controller';
+import { getProjectPathStatus } from './operations/project-path-status';
 import { createProjectsWireController } from './wire-controller';
 
 describe('Projects Wire attachments', () => {
@@ -88,6 +91,82 @@ describe('Projects Wire attachments', () => {
 });
 
 describe('Projects Wire directory tree', () => {
+  it('browses and inspects the selected host even when the same path exists locally', async () => {
+    const root: HostAbsolutePath = { root: { kind: 'posix' }, segments: ['workspace'] };
+    const remoteHost = hostRef('remote', 'ssh-nixos');
+    function hostRuntime(directoryName: string) {
+      const source = liveSource({
+        root,
+        entries: {
+          '': {
+            path: '',
+            name: directoryName,
+            parentPath: null,
+            kind: 'directory',
+            childrenLoaded: true,
+            children: [],
+          },
+        },
+      });
+      return {
+        files: {
+          tree: { model: { state: vi.fn(() => ({ asLiveSource: () => source })) } },
+          fs: { stat: vi.fn(async () => ok({ type: 'directory' as const })) },
+        },
+        git: {
+          inspectPath: vi.fn(
+            async (): Promise<Result<GitPathInspection, InspectPathError>> =>
+              ok({ kind: 'repository' as const, rootPath: root, baseRef: 'main' })
+          ),
+        },
+      };
+    }
+    const local = hostRuntime('local-folder');
+    const remote = hostRuntime('remote-folder');
+    const client = vi.fn(async (host: HostRef) => {
+      if (host.type === 'local') return ok(local);
+      expect(host).toEqual(remoteHost);
+      return ok(remote);
+    });
+    const dependencies = { runtimes: { client } } as unknown as ProjectOperationDependencies;
+    const controller = createProjectsWireController(dependencies);
+    try {
+      const directoryTree = controller.impl.directoryTree;
+      if (directoryTree?.kind !== 'liveModelProvider')
+        throw new Error('Expected directory tree provider');
+      const source = await directoryTree.resolveState(
+        { type: 'ssh', connectionId: remoteHost.id, root, sessionId: 'remote-picker' },
+        'tree'
+      );
+      if (!source) throw new Error('Expected the remote directory tree');
+      expect((await source.snapshot()).data).toMatchObject({
+        entries: { '': { name: 'remote-folder' } },
+      });
+      await expect(getProjectPathStatus(dependencies, remoteHost, '/workspace')).resolves.toEqual({
+        isDirectory: true,
+        isGitRepo: true,
+      });
+      expect(remote.files.fs.stat).toHaveBeenCalledOnce();
+      expect(remote.git.inspectPath).toHaveBeenCalledWith({ path: root });
+      expect(local.files.tree.model.state).not.toHaveBeenCalled();
+      expect(local.files.fs.stat).not.toHaveBeenCalled();
+      expect(local.git.inspectPath).not.toHaveBeenCalled();
+      expect(client).not.toHaveBeenCalledWith(LOCAL_HOST_REF);
+
+      remote.git.inspectPath.mockResolvedValueOnce(
+        err({ type: 'inspect-failed', path: root, message: 'spawn git ENOENT' })
+      );
+      await expect(getProjectPathStatus(dependencies, remoteHost, '/workspace')).resolves.toEqual({
+        isDirectory: true,
+        isGitRepo: false,
+        error: { type: 'inspect-failed', path: '/workspace', message: 'spawn git ENOENT' },
+      });
+      expect(local.git.inspectPath).not.toHaveBeenCalled();
+    } finally {
+      await controller.dispose();
+    }
+  });
+
   it('uses children-scoped watching for both picker state and mutations', async () => {
     const root: HostAbsolutePath = {
       root: { kind: 'posix' },
