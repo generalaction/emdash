@@ -15,7 +15,7 @@ import type {
 } from '#services/agent-plugins/api/plugins';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
-import type { IExecutionContext } from '#services/exec/api';
+import { ExecError, type IExecutionContext } from '#services/exec/api';
 import { makeLegacyTmuxSessionName, makeTmuxSessionName } from '#services/pty/api';
 import { FakePtySpawner } from '#services/pty/testing';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
@@ -685,6 +685,158 @@ describe('TuiAgentsRuntime', () => {
     );
   });
 
+  it.each(['linux', 'win32'] as const)(
+    'recovers non-tmux sessions on %s without querying tmux',
+    async (platform) => {
+      const intents = createMemorySessionIntentStore();
+      await intents.saveActive({
+        conversationId: 'conversation-1',
+        sessionId: 'provider-session',
+        payload: startInput({ sessionId: 'provider-session', initialPrompt: undefined }),
+      });
+      const exec = vi.fn(() => Promise.reject(new Error('tmux must not be queried')));
+      const { runtime, spawner, agentHost } = createRuntime({ intents, exec: { exec }, platform });
+      try {
+        await runtime.reconcile();
+
+        expect(spawner.specs).toHaveLength(1);
+        expect(agentHost.buildPromptCommand).toHaveBeenCalledWith(
+          'test',
+          expect.objectContaining({ isResuming: true, providerSessionId: 'provider-session' })
+        );
+        expect(exec).not.toHaveBeenCalled();
+        expect(intents.snapshot()[0]).toMatchObject({ status: 'active' });
+      } finally {
+        await runtime.dispose();
+      }
+    }
+  );
+
+  it.each([
+    Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' }),
+    new ExecError('tmux', [], null, '', '', {
+      cause: Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' }),
+    }),
+    new ExecError('tmux', [], 127, '', 'tmux: command not found'),
+    new ExecError('tmux', [], 1, '', 'permission denied'),
+  ])('isolates an unavailable tmux inventory during recovery: %s', async (failure) => {
+    const intents = createMemorySessionIntentStore();
+    // A tmux intent before the plain session must not veto the remainder of the run.
+    for (const conversationId of ['tmux-first', 'plain', 'tmux-last']) {
+      await intents.saveActive({
+        conversationId,
+        sessionId: 'provider-session',
+        payload: startInput({
+          conversationId,
+          sessionId: 'provider-session',
+          initialPrompt: undefined,
+          tmux: conversationId === 'plain' ? undefined : { identity: conversationId },
+        }),
+      });
+    }
+    const before = intents.snapshot();
+    const exec = vi.fn(() => Promise.reject(failure));
+    const { runtime, spawner } = createRuntime({ intents, exec: { exec }, platform: 'linux' });
+    try {
+      await runtime.reconcile();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(Object.keys(peek(runtime.sessionsLiveModel.get(undefined)!.states.list))).toEqual([
+        'plain',
+      ]);
+      expect(spawner.specs).toHaveLength(1);
+      expect(exec).toHaveBeenCalledTimes(1);
+      expect(intents.snapshot().filter((intent) => intent.conversationId !== 'plain')).toEqual(
+        before.filter((intent) => intent.conversationId !== 'plain')
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('retries deferred tmux recovery with a fresh inventory on the next reconcile', async () => {
+    const identity = 'project:task:conversation-1';
+    const name = makeLegacyTmuxSessionName(identity);
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conversation-1',
+      sessionId: 'provider-session',
+      payload: {
+        ...startInput({ sessionId: 'provider-session', initialPrompt: undefined }),
+        tmuxSessionName: name,
+        lastAgentState: {
+          conversationId: 'conversation-1',
+          status: 'awaiting-input',
+          updatedAt: 1,
+        },
+      },
+    });
+    const original = intents.snapshot();
+    const exec = vi.fn(async () => ({ stdout: `${name}\t42\t\n`, stderr: '' }));
+    exec.mockRejectedValueOnce(Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' }));
+    const { runtime, spawner } = createRuntime({ intents, exec: { exec }, platform: 'linux' });
+    try {
+      await runtime.reconcile();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(spawner.specs).toHaveLength(0);
+      expect(intents.snapshot()).toEqual(original);
+      expect(peek(runtime.agentStatesLiveModel.get(undefined)!.states.list)).toEqual({});
+
+      await runtime.reconcile();
+      expect(spawner.specs).toHaveLength(1);
+      expect(
+        peek(runtime.agentStatesLiveModel.get(undefined)!.states.list)['conversation-1']
+      ).toMatchObject({
+        status: 'awaiting-input',
+      });
+      expect(
+        peek(runtime.sessionsLiveModel.get(undefined)!.states.list)['conversation-1']
+      ).toMatchObject({
+        status: 'running',
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it.each(['missing', 'failed'] as const)(
+    'preserves tmux output through an unknown idle-sweep inventory (%s) until it can be checked',
+    async (failure) => {
+      const clock = createManualClock(0);
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const { runtime, spawner } = createRuntime({
+        clock,
+        exec: { exec },
+        platform: 'linux',
+        lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 31_000 },
+      });
+      try {
+        await runtime.startSession(startInput({ tmux: { identity: 'session' } }));
+        spawner.processes[0]!.emitData('retained output');
+        const output = runtime.outputLog({ conversationId: 'conversation-1' });
+        exec.mockRejectedValue(
+          failure === 'missing'
+            ? Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' })
+            : new Error('tmux query timed out')
+        );
+
+        await clock.advanceBy(31_001);
+        // Clock callbacks launch the sweep without awaiting it.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(spawner.processes[0]!.killCount).toBe(0);
+        expect(await output.snapshot()).toMatchObject({ data: { text: 'retained output' } });
+
+        exec.mockResolvedValue({ stdout: '', stderr: '' });
+        await clock.advanceBy(31_001);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
+        expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toEqual({});
+      } finally {
+        await runtime.dispose();
+      }
+    }
+  );
+
   it('reconciles active intents only when their tmux session exists', async () => {
     const identity = 'project:task:conversation-1';
     const legacyName = makeLegacyTmuxSessionName(identity);
@@ -706,6 +858,7 @@ describe('TuiAgentsRuntime', () => {
     const { runtime, spawner } = createRuntime({
       intents,
       exec: { exec },
+      platform: 'linux',
     });
 
     await runtime.reconcile();
@@ -722,7 +875,7 @@ describe('TuiAgentsRuntime', () => {
       conversationId: 'conversation-1',
       payload: { ...startInput(), tmuxSessionName: makeLegacyTmuxSessionName('missing') },
     });
-    const { runtime } = createRuntime({ intents });
+    const { runtime } = createRuntime({ intents, platform: 'linux' });
 
     await runtime.reconcile();
 
@@ -771,7 +924,7 @@ describe('TuiAgentsRuntime', () => {
     expectNoSessionResidue('conversation-1', leakContainers(runtime));
   });
 
-  it('aborts reconcile without suspending intents when the tmux listing fails', async () => {
+  it('defers tmux recovery without suspending intents when the listing fails', async () => {
     const intents = createMemorySessionIntentStore();
     await intents.saveActive({
       conversationId: 'conversation-1',

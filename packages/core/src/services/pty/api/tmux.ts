@@ -12,7 +12,7 @@ export async function resolveTmuxSession(
   ctx: IExecutionContext,
   input: { identity: string; label: string }
 ): Promise<ResolvedTmuxSession> {
-  const sessions = await listTmuxSessions(ctx);
+  const sessions = (await listTmuxSessions(ctx)) ?? [];
   const metadataMatch = sessions.find((session) => session.identity === input.identity);
   if (metadataMatch) {
     return { name: metadataMatch.name, exists: true, writeIdentity: true };
@@ -34,17 +34,19 @@ export async function findTmuxSessionNamesByIdentity(
 ): Promise<Map<string, string>> {
   const requested = new Set(identities);
   const found = new Map<string, string>();
-  for (const session of await listTmuxSessions(ctx)) {
+  for (const session of (await listTmuxSessions(ctx)) ?? []) {
     if (!session.identity || !requested.has(session.identity)) continue;
     if (!found.has(session.identity)) found.set(session.identity, session.name);
   }
   return found;
 }
 
+/** Null means liveness is unknown because the tmux executable is unavailable. */
 export async function listTmuxSessionActivity(
   ctx: IExecutionContext
-): Promise<Map<string, number>> {
-  return activityByHandle(await listTmuxSessions(ctx));
+): Promise<Map<string, number> | null> {
+  const sessions = await listTmuxSessions(ctx);
+  return sessions === null ? null : activityByHandle(sessions);
 }
 
 export function parseTmuxSessionActivity(output: string): Map<string, number> {

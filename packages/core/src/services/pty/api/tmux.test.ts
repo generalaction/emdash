@@ -9,6 +9,7 @@ import { createBoundExec } from '#services/exec/api/bound-exec';
 // oxlint-disable-next-line emdash/core-module-boundaries -- tests distinguish wrapped execution errors from raw execFile errors at the same primitive boundary
 import { ExecError } from '#services/exec/api/types';
 import {
+  findTmuxSessionNamesByIdentity,
   listTmuxSessionActivity,
   parseTmuxSessionActivity,
   resolveTmuxSession,
@@ -81,6 +82,22 @@ describe('resolveTmuxSession', () => {
     await expect(
       resolveTmuxSession(stubExecContext(exec), { identity, label: 'workspace' })
     ).resolves.toEqual({ name: legacyName, exists: true, writeIdentity: false });
+  });
+
+  it('preserves discovery fallbacks when tmux is unavailable', async () => {
+    const exec = vi.fn(async () => {
+      throw Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' });
+    });
+    const ctx = stubExecContext(exec);
+
+    await expect(
+      resolveTmuxSession(ctx, { identity: 'session', label: 'workspace' })
+    ).resolves.toEqual({
+      name: makeTmuxSessionName('session', 'workspace'),
+      exists: false,
+      writeIdentity: true,
+    });
+    await expect(findTmuxSessionNamesByIdentity(ctx, ['session'])).resolves.toEqual(new Map());
   });
 });
 
@@ -229,32 +246,32 @@ describe('listTmuxSessionActivity', () => {
     await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
   });
 
-  it('returns an empty map when tmux is not installed (spawn failure)', async () => {
+  it('returns unknown activity when tmux is not installed (spawn failure)', async () => {
     const exec = vi.fn(async () => {
       throw Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' });
     });
 
-    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toBeNull();
   });
 
-  it('returns an empty map when BoundExec wraps a missing tmux executable', async () => {
+  it('returns unknown activity when BoundExec wraps a missing tmux executable', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'emdash-tmux-missing-'));
     try {
       const bound = createBoundExec({ file: join(cwd, 'missing-tmux'), cwd });
       const ctx = stubExecContext((_file, args) => bound.exec(args ?? []));
 
-      await expect(listTmuxSessionActivity(ctx)).resolves.toEqual(new Map());
+      await expect(listTmuxSessionActivity(ctx)).resolves.toBeNull();
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
   });
 
-  it('returns an empty map for a shell command-not-found exit', async () => {
+  it('returns unknown activity for a shell command-not-found exit', async () => {
     const exec = vi.fn(async () => {
       throw new ExecError('tmux', [], 127, '', 'tmux: command not found');
     });
 
-    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toBeNull();
   });
 
   it.each([

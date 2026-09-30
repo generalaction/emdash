@@ -83,6 +83,10 @@ type RetainedOutput = {
   subscribers: number;
 };
 
+type TuiReconcileContext = {
+  tmuxActivity?: Promise<Map<string, number> | null>;
+};
+
 export class TuiAgentsRuntime {
   private readonly registry: PtyRegistry;
   private readonly launchMutex = new KeyedMutex();
@@ -101,7 +105,7 @@ export class TuiAgentsRuntime {
   private readonly workspaceTrust: TuiWorkspaceTrust;
   private readonly clock: Clock;
   private readonly lifecycle: ConversationSessionLifecycle;
-  private tmuxActivity = new Map<string, number>();
+  private tmuxActivity: Map<string, number> | null = null;
   private readonly unexpectedRespawns = new Map<string, number>();
   private readonly promptSpills = new Map<string, PromptSpillResult>();
   /**
@@ -156,7 +160,7 @@ export class TuiAgentsRuntime {
     const sessionPolicy = deps.lifecycle?.session ?? { kind: 'always' as const };
     this.tmuxKeepAliveMs =
       sessionPolicy.kind === 'idle-after' ? sessionPolicy.outputMs : SESSION_IDLE_MS;
-    this.lifecycle = createSessionLifecycle<PersistedTuiAgentStartInput, void>({
+    this.lifecycle = createSessionLifecycle<PersistedTuiAgentStartInput, TuiReconcileContext>({
       name: 'TuiAgentsRuntime',
       logger: deps.logger,
       clock: this.clock,
@@ -174,6 +178,7 @@ export class TuiAgentsRuntime {
           this.tmuxActivity = new Map();
           return;
         }
+        this.tmuxActivity = null;
         this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
       },
       entries: () => this.configs.keys(),
@@ -255,35 +260,39 @@ export class TuiAgentsRuntime {
           };
         },
         reconcile: {
-          precheck: async () => {
-            if ((this.deps.platform ?? process.platform) === 'win32') {
-              this.tmuxActivity = new Map();
-              return { ctx: undefined };
-            }
-            try {
-              // The prefetch doubles as the gate's liveness table; a listing
-              // failure vetoes the whole run (intents stay untouched).
-              this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
-              return { ctx: undefined };
-            } catch (error) {
-              return { veto: true as const, error };
-            }
-          },
+          precheck: async () => ({ ctx: {} }),
           parse: (intent) => {
             const parsed = persistedTuiAgentStartInputSchema.safeParse(intent.payload);
             if (!parsed.success) return { suspend: 'reconcile-failed' };
-            if (parsed.data.lastAgentState) {
-              this.agentStates.restore(parsed.data.lastAgentState);
-            }
-            return { input: this.normalizePersistedInput(parsed.data) };
+            return {
+              input: {
+                ...this.normalizePersistedInput(parsed.data),
+                lastAgentState: parsed.data.lastAgentState,
+              },
+            };
           },
-          gate: (input) => {
-            if (tmuxActivityForInput(this.tmuxActivity, input) === undefined) {
+          gate: async (input, ctx) => {
+            if (!input.tmux) return { ok: true as const };
+            ctx.tmuxActivity ??= listTmuxSessionActivity(this.deps.exec).catch((error) => {
+              this.deps.logger.warn(
+                'TuiAgentsRuntime: deferring tmux recovery after query failure',
+                {
+                  error: String(error),
+                }
+              );
+              return null;
+            });
+            const activity = await ctx.tmuxActivity;
+            if (activity === null) return { defer: true as const };
+            if (tmuxActivityForInput(activity, input) === undefined) {
               return { suspend: 'process-lost' };
             }
             return { ok: true as const };
           },
-          resume: (input) => this.resumeSession(input),
+          resume: (input) => {
+            if (input.lastAgentState) this.agentStates.restore(input.lastAgentState);
+            return this.resumeSession(input);
+          },
         },
       },
     });
@@ -872,14 +881,18 @@ export class TuiAgentsRuntime {
     if (!config || config.intent === 'stopped') return null;
     const state = peek(this.sessionsList.states.list)[conversationId];
     const now = this.clock.now();
-    const tmuxLastOutputAt = tmuxActivityForInput(this.tmuxActivity, config.input);
+    const tmuxLastOutputAt =
+      this.tmuxActivity === null
+        ? undefined
+        : tmuxActivityForInput(this.tmuxActivity, config.input);
     const lastOutputAt = maxNullable(activity.lastOutputAt, tmuxLastOutputAt);
     // Interactive busy window, plus tmux-side liveness: recent output inside the
     // tmux session must keep the key alive exactly as long as the idle policy's
     // output window would (it previously enriched the policy's lastOutputAt).
     const busy =
       (lastOutputAt !== null && now - lastOutputAt < BUSY_OUTPUT_WINDOW_MS) ||
-      (tmuxLastOutputAt !== undefined && now - tmuxLastOutputAt < this.tmuxKeepAliveMs);
+      (tmuxLastOutputAt !== undefined && now - tmuxLastOutputAt < this.tmuxKeepAliveMs) ||
+      (config.input.tmux !== undefined && this.tmuxActivity === null);
     return { running: state?.status === 'running', busy };
   }
 

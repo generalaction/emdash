@@ -35,14 +35,24 @@ export function buildTmuxShellLine(
   return `/bin/sh -c ${quoteArg(`${ensureSession} && ${configure} && ${attach}`, 'posix')}`;
 }
 
+/** Null means tmux is unavailable; an empty inventory means no server or sessions. */
 export async function listTmuxSessions(
   ctx: IExecutionContext
-): Promise<TmuxSessionInventoryEntry[]> {
+): Promise<TmuxSessionInventoryEntry[] | null> {
   try {
     const result = await ctx.exec('tmux', ['list-sessions', '-F', TMUX_LIST_FORMAT]);
     return parseTmuxSessionInventory(result.stdout);
   } catch (error) {
-    if (isExpectedTmuxListFailure(error)) return [];
+    const failure = readExecFailure(error);
+    if (failure?.executableMissing || failure?.exitCode === 127) return null;
+    if (
+      failure?.exitCode === 1 &&
+      /no server running|failed to connect to server|error connecting to .*\(no such file or directory\)/i.test(
+        failure.stderr
+      )
+    ) {
+      return [];
+    }
     throw error;
   }
 }
@@ -74,21 +84,6 @@ export function parseTmuxSessionInventory(output: string): TmuxSessionInventoryE
     });
   }
   return sessions;
-}
-
-function isExpectedTmuxListFailure(error: unknown): boolean {
-  const failure = readExecFailure(error);
-  if (!failure) return false;
-  if (failure.executableMissing) return true;
-  if (
-    failure.exitCode === 1 &&
-    /no server running|failed to connect to server|error connecting to .*\(no such file or directory\)/i.test(
-      failure.stderr
-    )
-  ) {
-    return true;
-  }
-  return failure.exitCode === 127;
 }
 
 /** Normalize the two execution-error shapes currently exposed by IExecutionContext. */
