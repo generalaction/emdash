@@ -308,6 +308,23 @@ describe('bounded older history', () => {
     expect(harness.store.olderHistoryError).toBeNull();
   });
 
+  it('refreshes the recent tail when an older page arrives before its live revision notification', async () => {
+    harness = createContinuityHarness(fixture, turns);
+    await harness.bootstrap();
+    const session = harness.store.session;
+    if (!session) throw new Error('Expected a live session');
+    const page = olderPage();
+    page.position.historyRevision += 1;
+    page.position.lastCommittedTurnSeq = 250;
+    vi.spyOn(session, 'loadHistory').mockResolvedValueOnce(ok(page));
+
+    await harness.store.loadOlderHistory();
+    expect(harness.store.olderHistoryError).toBeNull();
+    harness.setHistory([...turns, makeTurn(250)]);
+    harness.flush();
+    await vi.waitFor(() => expect(harness.committed.at(-1)?.seq).toBe(250), { timeout: 3_000 });
+  });
+
   it('rejects an older page behind the live revision while its refresh is still pending', async () => {
     harness = createContinuityHarness(fixture, turns);
     await harness.bootstrap();

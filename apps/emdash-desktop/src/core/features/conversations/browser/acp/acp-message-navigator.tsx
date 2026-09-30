@@ -73,6 +73,10 @@ export function AcpMessageNavigator({
   }, [currentIndex, items, showMarkers, markerHeight, measuredMarkerHeight, virtualizer]);
 
   useLayoutEffect(() => {
+    if (!showMarkers) {
+      focusTarget.current = null;
+      return;
+    }
     const marker = focusTarget.current ? markerRefs.current.get(focusTarget.current) : null;
     if (!marker) return;
     focusTarget.current = null;
@@ -112,6 +116,14 @@ export function AcpMessageNavigator({
     <nav
       aria-label="User messages"
       aria-hidden={!showOlder && !showMarkers ? true : undefined}
+      onBlur={(event) => {
+        if (
+          event.relatedTarget instanceof Node &&
+          !event.currentTarget.contains(event.relatedTarget)
+        ) {
+          focusTarget.current = null;
+        }
+      }}
       style={{
         position: 'absolute',
         left: 4,

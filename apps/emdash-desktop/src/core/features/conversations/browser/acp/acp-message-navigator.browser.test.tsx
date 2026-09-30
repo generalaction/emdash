@@ -265,6 +265,42 @@ describe('AcpMessageNavigator', () => {
     }
   });
 
+  it('keeps outside focus when the rail collapses while Home is queued and later reopens', async () => {
+    const renderNavigator = () => (
+      <div
+        onKeyDown={(event) => {
+          if (event.key === 'Home') {
+            navigation = { ...navigation, bottomInset: 490 };
+            root.render(renderNavigator());
+          }
+        }}
+      >
+        <AcpMessageNavigator
+          navigation={navigation}
+          hasOlderHistory={false}
+          loading={false}
+          error={null}
+          onLoadOlder={onLoadOlder}
+          onNavigate={onNavigate}
+        />
+        <input aria-label="Outside draft" />
+      </div>
+    );
+    await act(async () => root.render(renderNavigator()));
+    await vi.waitFor(() => expectInsideViewport(marker(2000).element()));
+    await act(async () => (marker(2000).element() as HTMLButtonElement).focus());
+    await act(async () => userEvent.keyboard('{Home}'));
+    expect(markers()).toHaveLength(0);
+
+    const draft = page.getByRole('textbox', { name: 'Outside draft' });
+    await act(async () => (draft.element() as HTMLInputElement).focus());
+    await expect.element(draft).toHaveFocus();
+    navigation = { ...navigation, bottomInset: 100 };
+    await act(async () => root.render(renderNavigator()));
+    await expect.element(marker(1)).toBeInTheDocument();
+    await expect.element(draft).toHaveFocus();
+  });
+
   it('keeps a middle current marker visible after the pane shrinks', async () => {
     navigation = { ...navigation, currentId: 'message-1000' };
     await render();

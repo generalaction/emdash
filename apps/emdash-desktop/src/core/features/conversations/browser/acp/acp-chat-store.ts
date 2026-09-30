@@ -428,6 +428,11 @@ export class AcpChatStore {
         this._updateOlderHistoryCursor(page);
         this._syncMessageCount();
       });
+      // An older page can observe a newer revision before the live head does.
+      // Refresh the tail explicitly so applying that revision cannot hide new turns.
+      if (head && page.position.historyRevision > head.historyRevision) {
+        this._requestHistoryRefresh();
+      }
     } catch (error) {
       if (!isCurrent()) return;
       runInAction(() => {
