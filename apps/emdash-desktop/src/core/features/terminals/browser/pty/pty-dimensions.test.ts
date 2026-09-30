@@ -38,10 +38,10 @@ describe('measureDimensions', () => {
 });
 
 describe('computeGridDimensions', () => {
-  it('returns null when available width is not positive', () => {
+  it.each([4, 16])('returns null when width %i leaves no positive available width', (widthPx) => {
     expect(
       computeGridDimensions({
-        widthPx: 4,
+        widthPx,
         heightPx: 400,
         cellWidth: 8,
         cellHeight: 16,
