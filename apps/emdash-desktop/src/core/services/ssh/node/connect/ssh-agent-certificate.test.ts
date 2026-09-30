@@ -121,13 +121,22 @@ describe.skipIf(!hasTools)('OpenSSH certificates held by the SSH agent', () => {
     children.push(sshd);
     let listening = false;
     let exited = false;
+    let stderr = '';
     sshd.stderr?.on('data', (chunk: Buffer) => {
-      if (chunk.toString().includes('Server listening')) listening = true;
+      stderr += chunk.toString();
+      if (stderr.includes('Server listening')) listening = true;
     });
     sshd.once('exit', () => (exited = true));
-    // Some environments cannot run an unprivileged sshd; the end-to-end tests skip there.
     await waitFor(() => listening || exited, 'sshd to start').catch(() => undefined);
-    if (listening && !exited) sshdPort = port;
+    if (listening && !exited) {
+      sshdPort = port;
+      return;
+    }
+    // Some local environments cannot run an unprivileged sshd, so the end-to-end tests skip
+    // there. CI has sshd, so a startup failure must fail the run instead of skipping.
+    const reason = `sshd did not start: ${stderr.trim() || 'no output'}`;
+    if (process.env.CI) throw new Error(reason);
+    console.warn(`Skipping CA-only authentication tests: ${reason}`);
   }, 60_000);
 
   afterAll(() => {
