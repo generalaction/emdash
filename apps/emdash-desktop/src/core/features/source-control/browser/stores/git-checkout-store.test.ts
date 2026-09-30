@@ -138,6 +138,19 @@ describe('GitCheckoutStore', () => {
     store.dispose();
   });
 
+  it('does not reuse image cache revisions after recreating the same checkout store', async () => {
+    const first = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    first.start();
+    await waitFor(() => first.hasData);
+    const previous = first.statusRevision;
+    first.dispose();
+    const next = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    next.start();
+    await waitFor(() => next.hasData);
+    expect(next.statusRevision).toBeGreaterThan(previous);
+    next.dispose();
+  });
+
   it('does not treat a local upstream as a published branch', async () => {
     headState.set(
       head('main', {

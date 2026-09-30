@@ -17,6 +17,7 @@ import type { DiffPayload } from './stores/diff-tab-resource';
 import { DiffTabResource } from './stores/diff-tab-resource';
 
 export interface DiffOpenArgs {
+  workspaceId?: string;
   activeFile: ActiveFile;
   status?: GitChangeStatus;
 }
@@ -33,7 +34,7 @@ function refKey(ref: GitObjectRef): string {
 }
 
 function diffResourceKey(s: DiffPayload): string {
-  const base = `${s.path}|${s.diffGroup}`;
+  const base = `${s.workspaceId ?? ''}|${s.path}|${s.diffGroup}`;
   if (s.diffGroup === 'disk' || s.diffGroup === 'staged') return base;
   const origKey = refKey(s.originalRef);
   const modKey = s.modifiedRef ? refKey(s.modifiedRef) : '';
@@ -70,8 +71,12 @@ export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, 
     mount: 'single',
     resourceKey: diffResourceKey,
 
-    onBeforeOpen(args: DiffOpenArgs, _ctx: TabViewContext): DiffPayload | null {
-      return activeFileToDiffPayload(args.activeFile, args.status);
+    onBeforeOpen(args: DiffOpenArgs, ctx: TabViewContext): DiffPayload | null {
+      return {
+        ...activeFileToDiffPayload(args.activeFile, args.status),
+        workspaceId:
+          args.workspaceId ?? args.activeFile.workspaceId ?? (ctx as TaskTabContext).workspaceId,
+      };
     },
 
     initialize(
@@ -80,11 +85,16 @@ export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, 
       ctx: TabViewContext
     ): DiffTabResource {
       const taskCtx = ctx as TaskTabContext;
-      const manager = getDiffTabManagerStore(taskCtx.workspaceId);
+      const manager = getDiffTabManagerStore(taskCtx.projectId, taskCtx.taskId);
       if (!manager) {
-        throw new Error(`Diff tab manager unavailable for workspace ${taskCtx.workspaceId}`);
+        throw new Error(`Diff tab manager unavailable for task ${taskCtx.taskId}`);
       }
-      return new DiffTabResource(entry.tabId, entry.state, manager, handle);
+      return new DiffTabResource(
+        entry.tabId,
+        { ...entry.state, workspaceId: entry.state.workspaceId ?? taskCtx.workspaceId },
+        manager,
+        handle
+      );
     },
 
     dispose(_entry: TabEntry<DiffPayload>, resource: DiffTabResource): void {

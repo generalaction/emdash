@@ -10,7 +10,7 @@ import {
 } from '@core/features/source-control/api/browser/client';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
-import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
@@ -20,6 +20,7 @@ import { gitRefToString } from '@core/primitives/git/api';
 interface ImageDiffViewProps {
   projectId: string;
   workspaceId: string;
+  workspace: WorkspaceStore;
   activeFile: ActiveFile;
 }
 
@@ -247,10 +248,10 @@ function PreviewImage({
 export const ImageDiffView = observer(function ImageDiffView({
   projectId,
   workspaceId,
+  workspace,
   activeFile,
 }: ImageDiffViewProps) {
-  const workspace = useWorkspace();
-  const git = workspace.get(gitCheckoutStoreToken);
+  const git = workspace?.get(gitCheckoutStoreToken);
 
   const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''}`;
 
@@ -258,7 +259,7 @@ export const ImageDiffView = observer(function ImageDiffView({
   // (in-place overwrite, re-stage). Pinning to statusRevision reruns the
   // load whenever GitCheckoutStore observes an fs-watch or index event.
   const reactiveRevision =
-    activeFile.group === 'disk' || activeFile.group === 'staged' ? git.statusRevision : 0;
+    activeFile.group === 'disk' || activeFile.group === 'staged' ? (git?.statusRevision ?? 0) : 0;
 
   const placeholder: SideState = { status: 'loading' };
 
@@ -266,6 +267,7 @@ export const ImageDiffView = observer(function ImageDiffView({
     queryKey: ['image-diff', 'original', projectId, workspaceId, fileKey, reactiveRevision],
     queryFn: () => loadOriginal(workspaceId, activeFile),
     placeholderData: placeholder,
+    enabled: !!workspace,
     staleTime: Infinity,
   });
 
@@ -274,11 +276,12 @@ export const ImageDiffView = observer(function ImageDiffView({
     queryFn: () =>
       loadModifiedWithTransientRetry(
         workspaceId,
-        workspace.path,
-        workspace.sshConnectionId,
+        workspace?.path ?? '',
+        workspace?.sshConnectionId,
         activeFile
       ),
     placeholderData: placeholder,
+    enabled: !!workspace,
     staleTime: Infinity,
   });
 

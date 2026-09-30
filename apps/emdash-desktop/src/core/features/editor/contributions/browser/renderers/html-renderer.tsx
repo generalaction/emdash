@@ -17,6 +17,9 @@ interface HtmlRendererProps {
 interface HtmlContentRendererProps {
   filePath: string;
   rawContent: string;
+  workspacePath: string;
+  sshConnectionId?: string;
+  readOnly?: boolean;
 }
 
 const LINK_INTERCEPT_MESSAGE_TYPE = 'emdash-html-link';
@@ -42,20 +45,29 @@ const LINK_INTERCEPT_SCRIPT = `
  * The source/preview toggle lives in the FileContent container above this component.
  */
 export const HtmlRenderer = observer(function HtmlRenderer({ tab }: HtmlRendererProps) {
+  const workspace = useWorkspace();
   // Touch bufferVersion so this observer re-renders when the buffer is first
   // populated — otherwise the preview can stick on stale content.
   void tab.bufferVersion;
   const rawContent = tab.bufferText();
 
-  return <HtmlContentRenderer filePath={tab.path} rawContent={rawContent} />;
+  return (
+    <HtmlContentRenderer
+      filePath={tab.path}
+      rawContent={rawContent}
+      workspacePath={workspace.path}
+      sshConnectionId={workspace.sshConnectionId}
+    />
+  );
 });
 
 export const HtmlContentRenderer = observer(function HtmlContentRenderer({
   filePath,
   rawContent,
+  workspacePath,
+  sshConnectionId,
+  readOnly = false,
 }: HtmlContentRendererProps) {
-  const workspace = useWorkspace();
-  const workspacePath = workspace.path;
   const { pane } = usePaneContext();
   const fileName = filePath.split('/').pop() ?? filePath;
 
@@ -73,7 +85,7 @@ export const HtmlContentRenderer = observer(function HtmlContentRenderer({
     }
     let cancelled = false;
     setIsProcessing(true);
-    void processHtmlForPreview(rawContent, filePath, workspacePath, workspace.sshConnectionId)
+    void processHtmlForPreview(rawContent, filePath, workspacePath, sshConnectionId)
       .then((html) => {
         if (!cancelled) setProcessedHtml(html);
       })
@@ -86,12 +98,13 @@ export const HtmlContentRenderer = observer(function HtmlContentRenderer({
     return () => {
       cancelled = true;
     };
-  }, [rawContent, filePath, workspace.sshConnectionId, workspacePath]);
+  }, [rawContent, filePath, sshConnectionId, workspacePath]);
 
   // Route link clicks postMessaged from the sandbox into the tab manager so
   // sibling HTML files open as new tabs.
   useEffect(() => {
     function onMessage(e: MessageEvent) {
+      if (readOnly) return;
       if (e.source !== iframeRef.current?.contentWindow) return;
       const data = e.data as { type?: string; href?: string } | null;
       if (!data || data.type !== LINK_INTERCEPT_MESSAGE_TYPE || typeof data.href !== 'string')
@@ -109,7 +122,7 @@ export const HtmlContentRenderer = observer(function HtmlContentRenderer({
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [filePath, workspacePath, pane]);
+  }, [filePath, workspacePath, pane, readOnly]);
 
   return (
     <div className="h-full w-full overflow-hidden bg-(--em-surface)">

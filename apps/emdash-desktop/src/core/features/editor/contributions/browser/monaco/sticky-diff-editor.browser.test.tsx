@@ -5,9 +5,13 @@ import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
 import { MonacoFacetBinder } from '@core/features/editor/api/browser/facet-binder/monaco-facet-binder';
-import type { OpenFileEntry } from '@core/features/editor/api/browser/open-file-store/open-file-store';
+import {
+  openFileStore,
+  type OpenFileEntry,
+} from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { StickyDiffEditor, type DiffSideModel } from './sticky-diff-editor';
 
@@ -87,7 +91,7 @@ async function createDiffSides(binder: MonacoFacetBinder, name: string, modified
 
 const longFile = Array.from({ length: 1000 }, (_, i) => `line ${i + 1}`).join('\n');
 
-function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true) {
+function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true, readOnly = false) {
   const host = document.createElement('div');
   host.style.cssText = 'width: 800px; height: 400px';
   document.body.append(host);
@@ -97,7 +101,9 @@ function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true) {
     await act(async () => root.unmount());
   });
   let editor: monaco.editor.IStandaloneDiffEditor | null = null;
+  let updated = false;
   return async (sides: { original: DiffSideModel; modified: DiffSideModel }) => {
+    updated = false;
     await act(async () => {
       root.render(
         <StickyDiffEditor
@@ -105,8 +111,15 @@ function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true) {
           filePath="scroll.txt"
           diffStyle={diffStyle}
           revealFirstChange={revealFirstChange}
+          readOnly={readOnly}
           onEditorChange={(value) => {
             editor = value;
+            if (value) {
+              const subscription = value.onDidUpdateDiff(() => {
+                if (value.getLineChanges() !== null) updated = true;
+              });
+              cleanups.push(() => subscription.dispose());
+            }
           }}
         />
       );
@@ -115,10 +128,37 @@ function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true) {
     if (!diff) throw new Error('diff editor missing');
     diff.getContainerDomNode().style.height = '400px';
     diff.layout({ width: 800, height: 400 });
-    await expect.poll(() => diff.getLineChanges(), { timeout: 3000 }).not.toBeNull();
+    await expect.poll(() => updated, { timeout: 3000 }).toBe(true);
     return diff;
   };
 }
+
+it('keeps an inspected worktree read-only even when its shared buffer is writable', async () => {
+  const binder = new MonacoFacetBinder(async () => monaco);
+  runtime.binder = binder;
+  const sides = await createDiffSides(binder, 'inspection', 'subagent changes\n');
+  const diff = await mountDiff('split', true, true)(sides);
+  const modified = diff.getModifiedEditor();
+  expect(modified.getOption(monaco.editor.EditorOption.readOnly)).toBe(true);
+  expect(sides.modified.entry.readOnly).toBe(false);
+  modified.trigger('keyboard', 'type', { text: 'unexpected edit' });
+  expect(sides.modified.entry.handleFor({ kind: 'buffer' })?.getText()).toBe('subagent changes\n');
+  Object.defineProperty(sides.modified.entry, 'dirty', { value: true });
+  vi.mocked(openFileStore.save).mockClear();
+  modified.focus();
+  const modifier = navigator.platform.includes('Mac') ? 'Meta' : 'Control';
+  await userEvent.keyboard(`{${modifier}>}s{/${modifier}}`);
+  expect(openFileStore.save).not.toHaveBeenCalled();
+  // Focus schedules word highlighting independently of the diff worker. Finish it before teardown.
+  await expect
+    .poll(() =>
+      modified
+        .getModel()
+        ?.getAllDecorations()
+        .some((decoration) => decoration.options.className === 'wordHighlightText')
+    )
+    .toBe(true);
+});
 
 it.each(['split', 'unified'] as const)(
   'opens %s diffs at a late change and preserves the viewport across updates and file switches',

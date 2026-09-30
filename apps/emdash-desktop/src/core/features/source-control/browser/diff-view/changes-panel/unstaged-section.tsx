@@ -24,7 +24,8 @@ import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 /** Always-visible header row; rendered as a direct child of the sections group. */
 export const UnstagedSectionHeader = observer(function UnstagedSectionHeader() {
   const taskView = useTaskComposition();
-  const workspace = useWorkspace();
+  const taskWorkspace = useWorkspace();
+  const workspace = taskView.diffView?.workspace ?? taskWorkspace;
   const git = workspace.get(gitCheckoutStoreToken);
   const changesView = taskView.diffView?.changesView;
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('unstaged');
@@ -38,7 +39,7 @@ export const UnstagedSectionHeader = observer(function UnstagedSectionHeader() {
       onToggleCollapsed={() => changesView.toggleExpanded('unstaged')}
       count={git.unstagedFileChanges.length}
       selectionState={changesView.unstagedSelectionState}
-      onToggleAll={() => changesView.toggleAllUnstaged()}
+      onToggleAll={taskView.diffView?.readOnly ? undefined : () => changesView.toggleAllUnstaged()}
       actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Changed" />}
     />
   );
@@ -47,7 +48,8 @@ export const UnstagedSectionHeader = observer(function UnstagedSectionHeader() {
 /** Section body; mounted inside a Resizable.Panel only while the section is expanded. */
 export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
   const taskView = useTaskComposition();
-  const workspace = useWorkspace();
+  const taskWorkspace = useWorkspace();
+  const workspace = taskView.diffView?.workspace ?? taskWorkspace;
   const git = workspace.get(gitCheckoutStoreToken);
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView;
@@ -57,7 +59,10 @@ export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
   const hasStagedChanges = git.stagedFileChanges.length > 0;
 
   const _activeDiff = activeDiffEntry(taskView.activePane);
-  const activePath = _activeDiff?.diffGroup === 'disk' ? _activeDiff.path : undefined;
+  const activePath =
+    _activeDiff?.workspaceId === workspace.workspaceId && _activeDiff.diffGroup === 'disk'
+      ? _activeDiff.path
+      : undefined;
 
   const prefetch = usePrefetchDiffModels('disk', HEAD_REF);
 
@@ -72,6 +77,7 @@ export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
       'diff',
       {
         activeFile: {
+          workspaceId: workspace.workspaceId,
           path: change.path,
           type: 'disk',
           group: 'disk',
@@ -88,6 +94,7 @@ export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
       'diff',
       {
         activeFile: {
+          workspaceId: workspace.workspaceId,
           path: change.path,
           type: 'disk',
           group: 'disk',
@@ -159,7 +166,7 @@ export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
       {!hasChanges && (
         <EmptyState label="Working tree clean" description="No uncommitted file changes." />
       )}
-      {hasChanges && (
+      {hasChanges && !diffView.readOnly && (
         <ActionCard
           selectedCount={changesView.unstagedSelection.size}
           selectionActions={
@@ -218,14 +225,16 @@ export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
           changes={changes}
           rootPath={workspace.path}
           isSelected={(path) => changesView.unstagedSelection.has(path)}
-          onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}
+          onToggleSelect={
+            diffView.readOnly ? undefined : (path) => changesView.toggleUnstagedItem(path)
+          }
           activePath={activePath}
           onSelectChange={handleSelectChange}
           onDoubleClickChange={handleDoubleClickChange}
           onPrefetch={(change) => prefetch(change.path)}
         />
       </div>
-      {hasChanges && !hasStagedChanges && <CommitCard autoStage />}
+      {hasChanges && !hasStagedChanges && !diffView.readOnly && <CommitCard autoStage />}
     </div>
   );
 });

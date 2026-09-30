@@ -11,14 +11,16 @@ import { getTaskGitCheckoutStore } from '@core/features/source-control/api/brows
 import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
+  const diffView = useTaskComposition().diffView;
   const workspaceId = getTaskStore(projectId, taskId)?.workspaceId;
-  const git = getTaskGitCheckoutStore(projectId, taskId);
+  const git = diffView?.gitCheckout ?? getTaskGitCheckoutStore(projectId, taskId);
   const headDisplay = git?.headDisplay ?? null;
   const headKind = git?.headKind ?? 'branch';
   const isDetached = headKind === 'detached';
@@ -74,7 +76,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
             </Tooltip.Content>
           </Tooltip.Root>
           <div className="flex items-center gap-1">
-            {isPublished && !isDetached ? (
+            {diffView?.readOnly ? null : isPublished && !isDetached ? (
               <>
                 <Tooltip.Root>
                   <Tooltip.Trigger

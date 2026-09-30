@@ -1,5 +1,6 @@
 import { DraftCommentsStore } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import { TaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-pr-association-store';
+import { DiffTabManager } from '@core/features/source-control/browser/diff-view/stores/diff-tab-manager';
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
 import {
   contributeScopedStore,
@@ -13,9 +14,17 @@ export const draftCommentsStoreToken = scopedStoreToken<DraftCommentsStore>(
 export const taskPrAssociationStoreToken = scopedStoreToken<TaskPrAssociationStore>(
   'source-control.task-pr-association'
 );
+export const diffTabManagerStoreToken = scopedStoreToken<DiffTabManager>(
+  'source-control.diff-tabs'
+);
 
 export const sourceControlPersistentTaskStoreContributions: readonly ScopedStoreContribution<TaskScopedStoreContext>[] =
   [
+    contributeScopedStore({
+      token: diffTabManagerStoreToken,
+      create: () => new DiffTabManager(),
+      dispose: (store) => store.dispose(),
+    }),
     contributeScopedStore({
       token: taskPrAssociationStoreToken,
       create: () => new TaskPrAssociationStore(),

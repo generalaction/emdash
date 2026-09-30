@@ -27,7 +27,7 @@ describe('task pane layout memento', () => {
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
       expect(result.data).toEqual({
-        version: '2',
+        version: '3',
         groups: [{ groupId: 'a', tabManager: { tabs: [] } }],
         activeGroupId: 'a',
       });
@@ -63,6 +63,25 @@ describe('task pane layout memento', () => {
 });
 
 describe('task diff selection memento', () => {
+  it('upgrades old selections and preserves checkout identity in new selections', () => {
+    const old = taskDiffSelectionSchema.safeParse({ version: '1' });
+    expect(old).toMatchObject({ status: 'ok', data: { version: '2' } });
+    const result = taskDiffSelectionSchema.safeParse({
+      version: '2',
+      selectedWorkspaceId: 'subagent',
+      activeFile: {
+        workspaceId: 'subagent',
+        path: 'src/index.ts',
+        type: 'disk',
+        group: 'disk',
+        originalRef: { kind: 'commit', sha: 'HEAD' },
+      },
+    });
+    expect(result).toMatchObject({
+      status: 'ok',
+      data: { selectedWorkspaceId: 'subagent', activeFile: { workspaceId: 'subagent' } },
+    });
+  });
   it('rejects absolute active diff paths', () => {
     const result = taskDiffSelectionSchema.safeParse({
       version: '1',
