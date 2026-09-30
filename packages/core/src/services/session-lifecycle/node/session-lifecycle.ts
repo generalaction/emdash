@@ -400,7 +400,8 @@ export function createSessionLifecycle<TResume, TCtx>(
       }
 
       if (reconcileOptions.gate) {
-        const gated = reconcileOptions.gate(parsed.input);
+        const gated = await reconcileOptions.gate(parsed.input, ctx);
+        if ('defer' in gated) continue;
         if ('suspend' in gated) {
           writeSuspendedIntent(intent.conversationId, gated.suspend);
           continue;

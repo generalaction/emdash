@@ -1057,6 +1057,57 @@ describe('createSessionLifecycle', () => {
       return { harness, lifecycle, resumed };
     }
 
+    it('awaits a gate with per-run context and preserves deferred intents while continuing', async () => {
+      const harness = makeHarness();
+      const intents = createMemorySessionIntentStore();
+      for (const conversationId of ['deferred', 'resumed', 'missing']) {
+        await intents.saveActive({ conversationId, payload: {} });
+      }
+      const original = intents.snapshot()[0];
+      const ctx = { ready: deferred<void>() };
+      const entered = deferred<void>();
+      const resume = vi.fn(async () => ok());
+      const lifecycle = createSessionLifecycle<string, typeof ctx>({
+        ...baseOptions(harness),
+        clock: createManualClock(0),
+        conversation: {
+          intents,
+          activePayload: () => null,
+          reconcile: {
+            precheck: async () => ({ ctx }),
+            parse: (intent) => ({ input: intent.conversationId }),
+            gate: async (input, context) => {
+              expect(context).toBe(ctx);
+              entered.resolve();
+              await context.ready.promise;
+              if (input === 'deferred') return { defer: true as const };
+              if (input === 'missing') return { suspend: 'process-lost' };
+              return { ok: true as const };
+            },
+            resume,
+          },
+        },
+      });
+      try {
+        const reconciling = lifecycle.reconcile();
+        await entered.promise;
+        expect(resume).not.toHaveBeenCalled();
+        ctx.ready.resolve();
+        await reconciling;
+        await settle();
+
+        expect(resume).toHaveBeenCalledExactlyOnceWith('resumed');
+        expect(intents.snapshot()[0]).toEqual(original);
+        expect(intents.snapshot()[2]).toMatchObject({
+          status: 'suspended',
+          suspendedCause: 'process-lost',
+        });
+      } finally {
+        ctx.ready.resolve();
+        lifecycle.dispose();
+      }
+    });
+
     it('aborts the whole run when precheck vetoes, without suspending intents', async () => {
       const intents = createMemorySessionIntentStore();
       await intents.saveActive({ conversationId: 's1', payload: {} });
