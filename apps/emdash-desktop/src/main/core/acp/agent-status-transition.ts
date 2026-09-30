@@ -75,7 +75,11 @@ export function deriveAcpAgentStatusActions(
   const permissionAppeared =
     previousPendingPermissionCount === 0 && next.pendingPermissionCount > 0;
 
-  if (!wasBusy && nowBusy && !permissionAppeared) {
+  if (
+    nowBusy &&
+    next.pendingPermissionCount === 0 &&
+    (!wasBusy || previousPendingPermissionCount > 0)
+  ) {
     actions.push(eventAction(next, 'start'));
   }
 
