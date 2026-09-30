@@ -20,6 +20,23 @@ describe('linked issue source persistence', () => {
     const current = linkedIssue.schema.parse({ ...legacy, accountId: 'workspace-a' });
     expect(linkedIssue.parseJson(linkedIssue.serialize(current))).toEqual(current);
   });
+  it('round-trips a YouTrack ticket and its installation identity', () => {
+    const issue = {
+      provider: 'youtrack',
+      identifier: '2-31',
+      displayIdentifier: 'ENG-123',
+      title: 'Fix authentication',
+      url: 'https://example.com/youtrack/issue/ENG-123',
+      accountId: 'youtrack-account',
+      context: 'YouTrack comments\n\n- Ada: Keep the existing account.',
+    };
+    expect(linkedIssue.parseJson(linkedIssue.serialize(linkedIssue.schema.parse(issue)))).toEqual(
+      issue
+    );
+    expect(
+      linkedIssueResourcesMatch('youtrack', issue.url, 'https://example.com/other/issue/ENG-123')
+    ).toBe(false);
+  });
   it.each([
     ['trello', 'https://trello.com/c/abc123/1-old-name', 'https://trello.com/c/abc123/1-new-name'],
     [
