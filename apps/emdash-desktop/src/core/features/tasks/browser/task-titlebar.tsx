@@ -31,6 +31,7 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
+import { TaskPrLink } from '@core/features/source-control/contributions/browser/task-pr-link';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import {
   getRegisteredTaskData,
@@ -292,6 +293,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             </Popover.Content>
           </Popover.Root>
           {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
+          <TaskPrLink pr={taskView.prStore?.currentPr} />
           {taskPayload.type === 'task' && (
             <button
               className={cn(
