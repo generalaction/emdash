@@ -29,6 +29,10 @@ installed by the `tui-agents` runtime in `packages/core/src/runtimes/tui-agents/
 does not infer agent status from terminal output. If a provider has no hook/plugin integration
 for an event, the renderer should not show or notify an inferred status for that event.
 
+ACP conversations project agent status from runtime session summaries. Pending permission
+requests set `awaiting-input`; resolving the final request restores `working` if generation
+continues. The task and conversation indicators consume this projected status.
+
 Shipped hook integrations install into user-global provider configuration, never into a task
 worktree. The provider behavior resolves its root from the same allowlisted environment passed to
 the CLI, including provider-specific home overrides and XDG/APPDATA conventions. Paths returned by
