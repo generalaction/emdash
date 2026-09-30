@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AiAnnotationsStore } from './ai-annotations-store';
 
-const annotation = { path: 'src/a.ts', lineNumber: 1, body: 'Explains line 1.' };
+const annotation = { path: 'src/a.ts', lineNumber: 1, lineContent: 'const x = 1;', body: 'Explains line 1.' };
 
 describe('AiAnnotationsStore', () => {
   it('keeps annotations per target key', () => {
