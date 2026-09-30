@@ -41,6 +41,7 @@ import {
   useContext,
 } from 'solid-js';
 import type { ChatContext } from './chat-context';
+import type { UserMessageNavigation } from './chat-view';
 import type { ChatCommands, ScrollToItemOptions } from './commands';
 import { CachesContext } from './components/contexts/CachesContext';
 import { CommandsContext } from './components/contexts/CommandsContext';
@@ -248,6 +249,7 @@ export type ChatRootProps = {
    * meaningful scroll position rather than the generic at-bottom threshold.
    */
   onActiveUserMessageVisibilityChange?: (visible: boolean) => void;
+  onUserMessageNavigationChange?: (navigation: UserMessageNavigation) => void;
   /**
    * Mutable holder that ChatRoot.onMount populates with imperative scroll
    * methods and the composer slot reference.
@@ -700,6 +702,42 @@ export function ChatRoot(props: ChatRootProps) {
     );
   });
 
+  const committedUserMessages = createMemo(() =>
+    userTurns().map((index) => {
+      const unit = committedUnitsArr[index];
+      const item = unit.data as ChatMessage;
+      return { id: unit.itemId, text: item.text };
+    })
+  );
+  const activeUserMessages = createMemo(
+    () =>
+      state()
+        .transcript.state.activeTurnSnapshot?.items.filter(
+          (item) => item.kind === 'message' && item.role === 'user'
+        )
+        .map((item) => ({ id: item.id, text: (item as ChatMessage).text })) ?? [],
+    undefined,
+    {
+      equals: (a, b) =>
+        a.length === b.length &&
+        a.every((item, i) => item.id === b[i].id && item.text === b[i].text),
+    }
+  );
+  const navigationItems = createMemo(() => {
+    const pending = state().session.state.pendingPrompt;
+    const items = [
+      ...committedUserMessages(),
+      ...activeUserMessages(),
+      ...(pending ? [{ id: pending.id, text: pending.text }] : []),
+    ];
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  });
+
   // ── Last user message unit index ──────────────────────────────────────────
   // Finds the first unit index (in the full units() view) for the last user-
   // role message. Scans activeTurn first so the reserve picks up the freshly-
@@ -991,6 +1029,7 @@ export function ChatRoot(props: ChatRootProps) {
   // and after every model swap.
   let lastActiveUserVisible: boolean | undefined;
   let lastAtBottom: boolean | undefined;
+  let lastUserNavigation: UserMessageNavigation | undefined;
 
   // Smooth-scroll suppression: when a smooth-scroll animation is in flight,
   // intermediate scrollTop updates are browser-driven and must not be treated
@@ -1159,6 +1198,37 @@ export function ChatRoot(props: ChatRootProps) {
 
     emitAtBottom(maxScrollTop() - shadowScrollTop <= STICK_THRESHOLD_PX);
 
+    if (props.onUserMessageNavigationChange) {
+      const items = navigationItems();
+      let lo = 0;
+      let hi = items.length - 1;
+      let current = items.length ? 0 : -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const index = firstUnitIndexOf(items[mid].id);
+        if (index >= 0 && virt.top(index) + pt <= shadowScrollTop + userTopGap) {
+          current = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      const navigation: UserMessageNavigation = {
+        items,
+        currentId: items[current]?.id ?? null,
+        bottomInset: padBottom(),
+      };
+      if (
+        !lastUserNavigation ||
+        lastUserNavigation.items !== items ||
+        lastUserNavigation.currentId !== navigation.currentId ||
+        lastUserNavigation.bottomInset !== navigation.bottomInset
+      ) {
+        lastUserNavigation = navigation;
+        props.onUserMessageNavigationChange(navigation);
+      }
+    }
+
     // Emit active-user-message visibility change when the state flips.
     if (props.onActiveUserMessageVisibilityChange) {
       const visible = computeActiveUserVisible(shadowScrollTop, shadowViewHeight, pt);
@@ -1196,6 +1266,7 @@ export function ChatRoot(props: ChatRootProps) {
     // units() already tracks committedUnitsVersion() transitively — no need to
     // list it here separately.
     units();
+    navigationItems();
     totalHeight();
     padTop();
     padBottom();
@@ -1607,6 +1678,7 @@ export function ChatRoot(props: ChatRootProps) {
           // conversation, even if the boolean value happens to be the same.
           lastActiveUserVisible = undefined;
           lastAtBottom = undefined;
+          lastUserNavigation = undefined;
           // Load the incoming model's scroll intent and project it onto the DOM.
           attach(next);
           needsProject = true;
