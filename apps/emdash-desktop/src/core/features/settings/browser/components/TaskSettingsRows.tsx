@@ -54,6 +54,33 @@ export const AutoGenerateTaskNamesRow: React.FC = () => {
   );
 };
 
+export const AutoNameWithAgentRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Name tasks with conversation AI"
+      description="Replace generated placeholders with a short name from the first conversation. Names you enter or link to issues stay unchanged."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('autoNameWithAgent')}
+            defaultLabel="on"
+            onReset={taskSettings.resetAutoNameWithAgent}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            aria-label="Name tasks with conversation AI"
+            checked={taskSettings.autoNameWithAgent}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateAutoNameWithAgent}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const AutoTrustWorktreesRow: React.FC = () => {
   const taskSettings = useTaskSettings();
 

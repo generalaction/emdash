@@ -15,6 +15,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     projectId: values.projectId ?? 'project-1',
     name: values.name ?? 'old-title',
     status: values.status ?? 'in_progress',
+    autoNameConversationId: values.autoNameConversationId ?? null,
     sourceBranch: values.sourceBranch ?? null,
     taskBranch: values.taskBranch ?? null,
     linkedIssue: values.linkedIssue ?? null,

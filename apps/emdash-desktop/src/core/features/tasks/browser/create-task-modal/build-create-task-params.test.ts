@@ -77,6 +77,71 @@ describe('buildInitialConversation', () => {
     ]);
   });
 
+  it('adds a hidden naming instruction while preserving the ACP prompt and issue contexts', () => {
+    const prompt = '  Check (issue:github:123)  ';
+    const conversation = buildInitialConversation(
+      makeInitialConversationState(agent('claude'), false, {
+        useChatUi: true,
+        prompt,
+        issueContext: 'Pinned issue context',
+        issueMentionContexts: {
+          'issue:github:123': 'Mention issue context',
+        },
+      }),
+      true
+    );
+
+    expect(conversation?.initialQueue).toEqual([
+      {
+        text: prompt,
+        hiddenContext:
+          'Pinned issue context\n\nMention issue context\n\nUse a concise conversation title describing this work in no more than five words.',
+      },
+    ]);
+  });
+
+  it.each([undefined, false])('omits the naming instruction when opt-in is %s', (optIn) => {
+    const conversation = buildInitialConversation(
+      makeInitialConversationState(agent('claude'), false, { useChatUi: true }),
+      optIn
+    );
+
+    expect(conversation?.initialQueue).toEqual([{ text: 'Check this' }]);
+  });
+
+  it('does not send an ACP prompt just to request a name', () => {
+    const conversation = buildInitialConversation(
+      makeInitialConversationState(agent('claude'), false, {
+        useChatUi: true,
+        prompt: '   ',
+      }),
+      true
+    );
+
+    expect(conversation?.initialQueue).toBeUndefined();
+  });
+
+  it('leaves the PTY prompt unchanged when naming is enabled', () => {
+    const conversation = buildInitialConversation(
+      makeInitialConversationState(agent('claude'), false, {
+        issueContext: 'Pinned issue context',
+      }),
+      true
+    );
+
+    expect(conversation?.initialPrompt).toBe('Pinned issue context\n\nCheck this');
+    expect(conversation?.initialQueue).toBeUndefined();
+  });
+
+  it('does not create a conversation for naming when no provider is selected', () => {
+    expect(
+      buildInitialConversation(
+        makeInitialConversationState(agent('claude'), false, { provider: null }),
+        true
+      )
+    ).toBeUndefined();
+  });
+
   it('omits PTY initial prompt when the selected agent cannot receive one', () => {
     const conversation = buildInitialConversation(
       makeInitialConversationState(agent('jules'), false, {

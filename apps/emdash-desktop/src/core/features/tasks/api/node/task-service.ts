@@ -56,6 +56,7 @@ import { compileWorktreeGitPlan } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { TaskNameRequests } from '../../node/name-generation/task-name-requests';
 import { archiveTask } from '../../node/operations/archiveTask';
 import { createTask, resolveProjectPreservePatterns } from '../../node/operations/createTask';
 import {
@@ -66,6 +67,7 @@ import {
 } from '../../node/operations/deleteTask';
 import { getDeletePreflight } from '../../node/operations/getDeletePreflight';
 import { getTasks } from '../../node/operations/getTasks';
+import { nameTaskFromConversation } from '../../node/operations/nameTaskFromConversation';
 import { renameTask } from '../../node/operations/renameTask';
 import { restoreTask } from '../../node/operations/restoreTask';
 import { setTaskPinned } from '../../node/operations/setTaskPinned';
@@ -90,6 +92,7 @@ export type TaskLifecycleHooks = {
 };
 
 export class TaskService implements Hookable<TaskLifecycleHooks> {
+  private readonly nameRequests: TaskNameRequests;
   private readonly _hooks = new HookCore<TaskLifecycleHooks>((name, e) =>
     log.error(`TaskService: ${String(name)} hook error`, { error: e })
   );
@@ -101,6 +104,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       sessions: TaskSessionManager;
       workspacePlacement: WorkspacePlacementResolver;
       runtimes: RuntimeBroker;
+      getTaskSettings(): Promise<{ preserveNameCapitalization: boolean }>;
       lifecycleParticipants: readonly WorkspaceLifecycleParticipant[];
       sessionLaunchContexts: TaskSessionLaunchContextResolver;
       createConversationProvider(options: TaskProviderOpts): ConversationProvider;
@@ -108,7 +112,14 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       creations: WorkspaceCreations;
       deletion: TaskDeletionDependencies;
     }
-  ) {}
+  ) {
+    this.nameRequests = new TaskNameRequests(
+      dependencies.db,
+      dependencies.runtimes,
+      async () => (await dependencies.getTaskSettings()).preserveNameCapitalization,
+      (task) => this._hooks.callHookBackground('task:updated', task)
+    );
+  }
 
   on<K extends keyof TaskLifecycleHooks>(name: K, handler: TaskLifecycleHooks[K]) {
     return this._hooks.on(name, handler);
@@ -599,9 +610,30 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     taskId: string,
     newName: string
   ): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
+    this.nameRequests.cancelTask(taskId, projectId);
     const result = await renameTask(this.dependencies.db, projectId, taskId, newName);
-    if (result.success) this._hooks.callHookBackground('task:updated', result.data.task);
+    if (result.success) {
+      this._hooks.callHookBackground('task:updated', result.data.task);
+    }
     return result;
+  }
+
+  async nameTaskFromConversation(
+    conversationId: string,
+    title: string,
+    preserveCapitalization: boolean
+  ): Promise<void> {
+    const task = await nameTaskFromConversation(
+      this.dependencies.db,
+      conversationId,
+      title,
+      preserveCapitalization
+    );
+    if (task) this._hooks.callHookBackground('task:updated', task);
+  }
+
+  requestTaskName(input: { projectId: string; taskId: string; conversationId: string }) {
+    return this.nameRequests.request(input);
   }
 
   async updateLinkedIssue(

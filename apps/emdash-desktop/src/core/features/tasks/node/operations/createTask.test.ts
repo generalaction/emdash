@@ -82,6 +82,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     projectId: values.projectId ?? 'project-1',
     name: values.name ?? 'Test Task',
     status: values.status ?? 'in_progress',
+    autoNameConversationId: values.autoNameConversationId ?? null,
     sourceBranch: values.sourceBranch ?? null,
     taskBranch: values.taskBranch ?? null,
     linkedIssue: values.linkedIssue ?? null,
@@ -996,6 +997,36 @@ describe('createTask', () => {
       expect(hostConversations.create.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.transaction.mock.invocationCallOrder[0]
       );
+    });
+
+    it.each([
+      { enabled: true, marker: 'conv-1' },
+      { enabled: false, marker: null },
+    ])(
+      'persists initial-conversation naming eligibility: $enabled',
+      async ({ enabled, marker }) => {
+        const { captured } = setupTransactionMock();
+        const result = await createTask(db, projects, hostIsReachable, {
+          ...worktreeParams,
+          taskConfig: { ...worktreeParams.taskConfig, autoNameWithAgent: enabled },
+        });
+        expect(result.success).toBe(true);
+        expect(captured[0]).toMatchObject({ autoNameConversationId: marker });
+      }
+    );
+
+    it('preserves eligibility for a generated task whose agent will be chosen later', async () => {
+      const { captured } = setupTransactionMock();
+      const result = await createTask(db, projects, hostIsReachable, {
+        ...worktreeParams,
+        taskConfig: {
+          ...worktreeParams.taskConfig,
+          initialConversation: undefined,
+          autoNameWithAgent: true,
+        },
+      });
+      expect(result.success).toBe(true);
+      expect(captured[0]).toMatchObject({ autoNameConversationId: '' });
     });
 
     it('fails creation without a desktop commit when host registration fails', async () => {

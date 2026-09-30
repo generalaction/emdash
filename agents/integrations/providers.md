@@ -72,6 +72,28 @@ you select an OrcaRouter model from the OpenCode model picker.
 
 ## Provider Runtime Notes
 
+- Automatic task naming uses the initial conversation's active agent. ACP session titles flow
+  through the desktop bridge; TUI agents can submit `{ "name": "Fix login timeout" }` using the
+  authenticated `/hook` route with event type `task-name`. Notification titles remain status
+  metadata. TUI startup adds the naming instruction only for an eligible fresh session with
+  a hook environment. Without an initial prompt, the instruction waits for the first real work
+  request. Unsupported agents retain their placeholder.
+- The desktop owns task-name eligibility in `tasks.auto_name_conversation_id`. Applying a name
+  consumes that marker in the same transaction as the name update. Manual renaming, linking an
+  issue, and archiving cancel eligibility. Names use the existing format, capitalization
+  preference, 64-character limit, and at most five words; branches and worktree paths retain
+  their original identities.
+  An empty marker awaits the first conversation created later; null means ineligible or consumed.
+- Chat UI contributes `/rename-task` and adds `/rename` only when the provider has not
+  advertised that name. Exact bare commands request a fresh name; arguments, paths, and
+  multiline messages continue through ordinary prompt handling. The task view's
+  `task.nameWithAgent` command invokes the same action.
+- Manual naming uses the existing ACP prompt queue and an exact `promptId` correlation.
+  A desktop-owned session subscription watches committed transcript revisions so switching
+  views does not drop the request. Only the matching successful turn's final assistant label,
+  with at most five words and 64 characters, may be applied. The automatic setting does not
+  gate this explicit action. Application shutdown or the ten-minute request deadline can
+  interrupt an unfinished request; users can submit it again.
 - Host dependencies are resolved by the host-scoped `HostDependencies` Wire component.
   Provider plugins declare PATH-only definitions (`binaryNames`, install guidance, and optional
   update argv). Runtimes receive only the narrow resolver contract and must not infer package

@@ -24,6 +24,7 @@ export async function archiveTask(
     .update(tasks)
     .set({
       archivedAt: sql`CURRENT_TIMESTAMP`,
+      autoNameConversationId: null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)));

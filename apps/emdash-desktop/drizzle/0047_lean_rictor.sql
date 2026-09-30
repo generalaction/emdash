@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `auto_name_conversation_id` text;

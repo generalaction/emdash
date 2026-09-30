@@ -21,7 +21,7 @@ export async function renameTask(
 
   const [updatedRow] = await db
     .update(tasks)
-    .set({ name: newName, updatedAt: sql`CURRENT_TIMESTAMP` })
+    .set({ name: newName, autoNameConversationId: null, updatedAt: sql`CURRENT_TIMESTAMP` })
     .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId), isNull(tasks.deletedAt)))
     .returning();
 

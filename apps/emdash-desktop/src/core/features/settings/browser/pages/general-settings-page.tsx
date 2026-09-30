@@ -3,6 +3,7 @@ import { AccountTab } from '../components/AccountTab';
 import NotificationSettingsCard from '../components/NotificationSettingsCard';
 import {
   AutoGenerateTaskNamesRow,
+  AutoNameWithAgentRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
   DeleteBranchByDefaultRow,
@@ -34,6 +35,7 @@ export function GeneralSettingsPage() {
       </SettingsSection>
       <SettingsSection title="Preferences">
         <AutoGenerateTaskNamesRow />
+        <AutoNameWithAgentRow />
         <AutoTrustWorktreesRow />
         <CreateBranchAndWorktreeRow />
         <DeleteBranchByDefaultRow />

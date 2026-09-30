@@ -30,6 +30,7 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 ## What You Can Do
 
 - Run multiple coding agents at once without juggling terminals.
+- Let the first conversation AI replace a generated task name with a description of up to five words.
 - Keep every agent isolated in its own Git worktree and branch.
 - Send issues and tickets from Linear, GitHub, Jira, GitLab, Asana, Featurebase,
   Monday.com, Forgejo, or Plain into an agent.
@@ -60,6 +61,40 @@ silently do nothing when the agent runs outside an Emdash session.
 
 See [Providers](https://emdash.sh/docs/providers) for the full list, setup commands,
 and provider-specific behavior.
+
+### Automatic Task Names
+
+**Settings → General → Name tasks with conversation AI** is enabled by default. New tasks
+created with a generated placeholder can be renamed once from their first conversation's work.
+For example, `shaggy-canyons-appear` can become `fix-login-timeout`. Names use up to five
+hyphenated words and the existing 64-character limit.
+
+Names you type and names derived from linked issues or pull requests are preserved. You can
+rename a task yourself at any time; a pending AI response will then leave that name alone.
+Renaming changes the displayed task name while retaining its Git branch and worktree path.
+
+Chat UI conversations use the provider's session title when available. Terminal conversations
+ask the active agent to submit a name when lifecycle-hook support is available. With an empty
+initial prompt, the agent is instructed to wait for your first work request before naming.
+Tasks created without an agent remain eligible for their first conversation. The original name
+stays when a provider does not return a usable name,
+its sandbox blocks the callback, or the proposed name already exists in the project.
+Naming uses your selected agent and does not start a separate AI session.
+
+![Conversation AI naming preference](docs/screenshots/task-naming-settings.png)
+
+In Chat UI, type `/rename-task` to ask the active conversation AI for a fresh name as the
+work changes. `/rename` is also available when the provider has not reserved that command.
+These deliberate requests work after startup naming has finished and when automatic naming
+is disabled. They can replace a custom name; a newer manual edit made while the AI responds
+is preserved. You can also use **Name Task with Conversation AI** in the command palette
+while a connected Chat UI conversation is active.
+
+The request runs in the same conversation and can finish after you switch tasks. Invalid,
+canceled, or duplicate suggestions leave the current name intact. Terminal slash commands
+continue to belong to the selected CLI provider.
+
+![Task naming slash commands in Chat UI](docs/screenshots/task-naming-commands.png)
 
 ## Remote Projects
 

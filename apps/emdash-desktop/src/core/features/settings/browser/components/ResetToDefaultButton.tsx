@@ -23,19 +23,21 @@ export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
   return (
     <Tooltip.Provider delay={150}>
       <Tooltip.Root>
-        <Tooltip.Trigger>
-          <Button
-            type="button"
-            variant="ghost"
-            icon
-            className="text-muted-foreground h-7 w-7 shrink-0 hover:text-foreground"
-            onClick={onReset}
-            disabled={disabled}
-            aria-label="Reset to default"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-        </Tooltip.Trigger>
+        <Tooltip.Trigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              icon
+              className="text-muted-foreground h-7 w-7 shrink-0 hover:text-foreground"
+              onClick={onReset}
+              disabled={disabled}
+              aria-label="Reset to default"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </Button>
+          }
+        />
         <Tooltip.Content side="top">
           {defaultLabel !== undefined ? `Reset to default: ${defaultLabel}` : 'Reset to default'}
         </Tooltip.Content>

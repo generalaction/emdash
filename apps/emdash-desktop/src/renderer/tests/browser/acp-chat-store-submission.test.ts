@@ -13,9 +13,11 @@ import {
   defineContract,
   memoryTransportPair,
 } from '@emdash/wire/rpc';
+import { createTestWire } from '@emdash/wire/testing';
 import { observable, runInAction } from 'mobx';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { conversationsContract } from '@core/features/conversations/api';
+import { advertisedCommandProvider } from '@core/features/conversations/api/browser/chat/advertised-command-provider';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import {
   AcpChatStore,
@@ -27,6 +29,9 @@ import {
   AcpStartError,
 } from '@core/features/conversations/browser/acp/acp-live-session';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
+import type { TasksWireClient } from '@core/features/tasks/api/browser/client';
+import { tasksWireContract } from '@core/features/tasks/api/wire-contract';
+import { resetWireConnection, seedWireConnection } from '@core/primitives/wire/browser/connection';
 import { availableHistory, transcriptSnapshot } from './acp-transcript-fixtures';
 
 type DraftState = {
@@ -130,6 +135,196 @@ const connectSession = vi.fn(
 );
 
 describe('AcpChatStore prompt submission', () => {
+  describe('task naming slash commands', () => {
+    const requestTaskName = vi.fn<TasksWireClient['requestTaskName']>();
+    let wire: Pick<ReturnType<typeof createTestWire>, 'connection' | 'dispose'>;
+
+    beforeEach(() => {
+      requestTaskName.mockReset();
+      requestTaskName.mockResolvedValue({ success: true, data: undefined });
+      resetWireConnection();
+      wire = createTestWire(
+        defineContract({
+          tasks: defineContract({ requestTaskName: tasksWireContract.requestTaskName }),
+        }),
+        { tasks: { requestTaskName: (input) => requestTaskName(input) } },
+        { validate: 'full' }
+      );
+      seedWireConnection(async () => wire.connection);
+    });
+
+    afterEach(async () => {
+      resetWireConnection();
+      await wire.dispose();
+    });
+
+    it.each(['/rename-task', '  /rename  '])(
+      'requests a task name through Wire and clears %j only after acceptance',
+      async (command) => {
+        const accepted = deferred<Awaited<ReturnType<TasksWireClient['requestTaskName']>>>();
+        requestTaskName.mockReturnValueOnce(accepted.promise);
+        const sendPrompt = vi.fn();
+        const setOption = vi.fn();
+        const store = createStore(idleState(), sendPrompt, {
+          setOption,
+          config: {
+            current: () => ({ availableCommands: [], configuredOptions: { model: 'keep-me' } }),
+          },
+        });
+        try {
+          store.setDraftText(command);
+          store.submitPrompt(store.draftText);
+          await vi.waitFor(() =>
+            expect(requestTaskName).toHaveBeenCalledWith({
+              projectId: 'project-1',
+              taskId: 'task-1',
+              conversationId: 'conversation-1',
+            })
+          );
+          expect(store.draftText).toBe(command);
+          expect(setPendingPrompt).not.toHaveBeenCalled();
+          accepted.resolve({ success: true, data: undefined });
+          await vi.waitFor(() => expect(store.draftText).toBe(''));
+          expect(sendPrompt).not.toHaveBeenCalled();
+          expect(setOption).not.toHaveBeenCalled();
+          expect(store.configuredOptions).toEqual({ model: 'keep-me' });
+          expect(advertisedCommandProvider.resolve('rename-task', 'conversation-1')).toEqual({
+            name: 'rename-task',
+          });
+          expect(advertisedCommandProvider.resolve('rename', 'conversation-1')).toEqual({
+            name: 'rename',
+          });
+        } finally {
+          accepted.resolve({ success: true, data: undefined });
+          store.dispose();
+        }
+      }
+    );
+
+    it('retains a rejected command and displays the returned human message', async () => {
+      requestTaskName.mockResolvedValueOnce({
+        success: false,
+        error: { type: 'request-failed', message: 'The current agent could not name this task.' },
+      });
+      const sendPrompt = vi.fn();
+      const store = createStore(idleState(), sendPrompt);
+      const errorToast = vi.spyOn(toast, 'error').mockImplementation(() => 'error');
+      try {
+        store.setDraftText('/rename-task');
+        store.submitPrompt(store.draftText);
+        await vi.waitFor(() =>
+          expect(errorToast).toHaveBeenCalledWith('Failed to name task', {
+            description: 'The current agent could not name this task.',
+          })
+        );
+        expect(store.draftText).toBe('/rename-task');
+        expect(sendPrompt).not.toHaveBeenCalled();
+      } finally {
+        store.dispose();
+        errorToast.mockRestore();
+      }
+    });
+
+    it('requests a task name from the task command without clearing an unrelated draft', async () => {
+      const sendPrompt = vi.fn();
+      const store = createStore(idleState(), sendPrompt);
+      try {
+        store.setDraftText('Keep this unsent work');
+        store.submitPrompt('/rename-task');
+        await vi.waitFor(() =>
+          expect(requestTaskName).toHaveBeenCalledWith({
+            projectId: 'project-1',
+            taskId: 'task-1',
+            conversationId: 'conversation-1',
+          })
+        );
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        expect(store.draftText).toBe('Keep this unsent work');
+        expect(sendPrompt).not.toHaveBeenCalled();
+        expect(setPendingPrompt).not.toHaveBeenCalled();
+      } finally {
+        store.dispose();
+      }
+    });
+
+    it.each(['composer', 'task-command'])(
+      'retains the command and attachments when invoked from %s',
+      (source) => {
+        const sendPrompt = vi.fn();
+        const store = createStore(idleState(), sendPrompt);
+        const attachment = promptAttachment('rename-attachment', 'data:image/png;base64,AQ==');
+        const errorToast = vi.spyOn(toast, 'error').mockImplementation(() => 'error');
+        try {
+          store.setDraftText('/rename-task');
+          store.addDraftAttachments([attachment]);
+          store.submitPrompt(store.draftText, source === 'composer' ? store.draftAttachments : []);
+          expect(errorToast).toHaveBeenCalledWith('Failed to name task', {
+            description: 'Remove attachments before requesting a task name.',
+          });
+          expect(store.draftText).toBe('/rename-task');
+          expect(store.draftAttachments).toEqual([attachment]);
+          expect(requestTaskName).not.toHaveBeenCalled();
+          expect(sendPrompt).not.toHaveBeenCalled();
+          expect(conversationClientTestState.deleteAttachment).not.toHaveBeenCalled();
+        } finally {
+          store.dispose();
+          errorToast.mockRestore();
+        }
+      }
+    );
+
+    it.each([
+      '/rename',
+      '/rename a new name',
+      '/rename-task a new name',
+      '/rename/path',
+      '/rename\nmore',
+    ])('passes native commands and ordinary prompts to the provider: %j', async (text) => {
+      const sendPrompt = vi.fn(async () => ({ success: true, data: { queued: false } }));
+      const store = createStore(idleState(), sendPrompt, {
+        config: {
+          current: () => ({
+            availableCommands: [{ name: '/RENAME', description: 'Native session rename' }],
+          }),
+        },
+      });
+      try {
+        store.setDraftText(text);
+        store.submitPrompt(store.draftText);
+        await vi.waitFor(() =>
+          expect(sendPrompt).toHaveBeenCalledWith({ text }, undefined, expect.any(String))
+        );
+        expect(requestTaskName).not.toHaveBeenCalled();
+        expect(store.commands).toContainEqual(
+          expect.objectContaining({ name: '/RENAME', description: 'Native session rename' })
+        );
+        expect(store.commands.some(({ name }) => name === 'rename')).toBe(false);
+      } finally {
+        store.dispose();
+      }
+    });
+
+    it.each(['host', 'session'])(
+      'retains the command when the %s is unavailable',
+      (unavailable) => {
+        const store =
+          unavailable === 'host'
+            ? new AcpChatStore('conversation-1', 'project-1', 'task-1', {
+                liveAction: { kind: 'disabled' },
+              } as never)
+            : createStore(idleState(), vi.fn(), { usable: false });
+        try {
+          store.setDraftText('/rename-task');
+          store.submitPrompt(store.draftText);
+          expect(store.draftText).toBe('/rename-task');
+          expect(requestTaskName).not.toHaveBeenCalled();
+        } finally {
+          store.dispose();
+        }
+      }
+    );
+  });
+
   it.each(['disconnected', 'disposed', 'buffer-full'] as const)(
     'restores the draft and clears the optimistic prompt after a %s pre-delivery failure',
     async (reason) => {
