@@ -567,6 +567,27 @@ describe('AcpChatStore prompt submission', () => {
     expect(store.draftText).toBe('');
   });
 
+  it('calls onAccepted once the prompt is accepted', async () => {
+    const sendPrompt = vi.fn(async () => ({ success: true, data: { queued: false } }));
+    const store = createStore(idleState(), sendPrompt);
+    const onAccepted = vi.fn();
+
+    store.submitPrompt('hello', [], undefined, onAccepted);
+
+    await vi.waitFor(() => expect(onAccepted).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not call onAccepted when the prompt is rejected', async () => {
+    const store = createStore(idleState(), vi.fn());
+    store.session = null;
+    const onAccepted = vi.fn();
+
+    store.submitPrompt('hello', [], undefined, onAccepted);
+
+    await vi.waitFor(() => expect(store.draftText).toBe('hello'));
+    expect(onAccepted).not.toHaveBeenCalled();
+  });
+
   it('restores the persisted draft when the live session is unavailable', async () => {
     const store = createStore(idleState(), vi.fn());
     const attachment = promptAttachment('attachment-no-session', 'data:image/png;base64,AQ==');

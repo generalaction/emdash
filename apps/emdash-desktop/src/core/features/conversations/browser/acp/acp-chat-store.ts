@@ -414,7 +414,8 @@ export class AcpChatStore {
   submitPrompt(
     text: string,
     attachments: AcpPromptAttachment[] = [],
-    hiddenContext?: string | Promise<string | undefined>
+    hiddenContext?: string | Promise<string | undefined>,
+    onAccepted?: () => void
   ): void {
     if (
       this.hostAccess?.liveAction.kind === 'disabled' ||
@@ -441,7 +442,10 @@ export class AcpChatStore {
     }
 
     void this._submitPrompt(promptId, text, promptAttachments, hiddenContext).then((outcome) => {
-      if (outcome !== 'rejected') return;
+      if (outcome !== 'rejected') {
+        onAccepted?.();
+        return;
+      }
       runInAction(() => {
         if (this._disposed || submissionSequence !== this._submissionSequence) return;
         if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {

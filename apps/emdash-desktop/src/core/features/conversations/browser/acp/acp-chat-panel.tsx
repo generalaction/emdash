@@ -42,6 +42,7 @@ import {
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getSearchClient } from '@core/features/search/api/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
 // TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
 import {
   asProvisioned,
@@ -64,6 +65,7 @@ import {
   toAcpImageAttachmentMimeType,
   uploadDroppedFile,
 } from './acp-dropped-file';
+import { appendDraftCommentsContext } from './draft-comments-context';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
 import { createTranscriptFileCommands } from './transcript-file-commands';
 
@@ -215,6 +217,8 @@ const ComposerForStore = observer(function ComposerForStore({
   const attachments = store.draftAttachments.map(toComposerAttachment);
   const { value: promptLibrary } = usePromptLibrary();
   const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(store.projectId);
+  const draftComments = getTaskStore(store.projectId, store.taskId)?.get(draftCommentsStoreToken);
+  const draftCommentCount = draftComments?.count ?? 0;
 
   // Autofocus when the slot becomes available.
   useEffect(() => {
@@ -256,10 +260,14 @@ const ComposerForStore = observer(function ComposerForStore({
     (value: string) => {
       const promptAttachments = store.draftAttachments;
       if (!value.trim() && promptAttachments.length === 0) return;
-      const hiddenContext = buildHiddenIssueContext(value);
-      store.submitPrompt(value, promptAttachments, hiddenContext);
+      const comments = draftComments?.comments ?? [];
+      const hiddenContext = appendDraftCommentsContext(buildHiddenIssueContext(value), comments);
+      // Only consume the comments that were sent; ones added mid-flight stay drafted.
+      store.submitPrompt(value, promptAttachments, hiddenContext, () => {
+        for (const comment of comments) draftComments?.deleteComment(comment.id);
+      });
     },
-    [store, buildHiddenIssueContext]
+    [store, buildHiddenIssueContext, draftComments]
   );
 
   const handleStop = useCallback(() => {
@@ -584,6 +592,18 @@ const ComposerForStore = observer(function ComposerForStore({
               Start fresh session
             </Button>
           )}
+        </div>
+      )}
+      {draftCommentCount > 0 && (
+        <div className="mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1 text-xs">
+          <span className="truncate text-foreground-muted">
+            {draftCommentCount === 1
+              ? '1 diff comment will be attached'
+              : `${draftCommentCount} diff comments will be attached`}
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => draftComments?.clear()}>
+            Clear
+          </Button>
         </div>
       )}
       <div>
