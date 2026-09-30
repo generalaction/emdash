@@ -11,14 +11,15 @@ const BLOCK_PATTERN = /<emdash-annotations>([\s\S]*?)<\/emdash-annotations>/g;
 const annotationSchema = z.object({
   path: z.string().min(1).max(4096),
   line: z.number().int().positive(),
-  lineContent: z.string().max(10_000).optional(),
+  // Required: without it an explanation cannot be re-anchored or hidden when its line changes.
+  lineContent: z.string().max(10_000),
   body: z.string().trim().min(1),
 });
 
 export type ParsedAiAnnotation = {
   path: string;
   lineNumber: number;
-  lineContent?: string;
+  lineContent: string;
   body: string;
 };
 
@@ -44,6 +45,7 @@ export function buildExplainPrompt(target: DraftCommentTarget): {
   return {
     text: `Explain the changes in \`${target.path}\``,
     hiddenContext: `Explain ${describeDiff(target)} in \`${target.path}\` so a reviewer can understand them. Do not modify any files.
+If that command prints nothing (for example, the file is untracked), read the file and treat all of it as new.
 Anchor each explanation to a line on the new (modified) side of the diff. End your reply with exactly one block in this format:
 <emdash-annotations>
 [{"path": "${target.path}", "line": <modified-side line number>, "lineContent": "<exact text of that line>", "body": "<plain-text explanation>"}]
@@ -86,7 +88,7 @@ export function parseAiAnnotations(
     annotations.push({
       path,
       lineNumber: parsed.data.line,
-      ...(parsed.data.lineContent !== undefined ? { lineContent: parsed.data.lineContent } : {}),
+      lineContent: parsed.data.lineContent,
       body: truncate(parsed.data.body, MAX_AI_ANNOTATION_BODY_LENGTH),
     });
   }
@@ -103,8 +105,6 @@ export function resolveAnnotationLine(
   getLineContent: (lineNumber: number) => string
 ): number | null {
   const { lineNumber, lineContent } = annotation;
-  if (lineContent === undefined) return lineNumber <= lineCount ? lineNumber : null;
-
   const expected = lineContent.trim();
   for (let distance = 0; distance <= LINE_SEARCH_RADIUS; distance++) {
     const candidates =

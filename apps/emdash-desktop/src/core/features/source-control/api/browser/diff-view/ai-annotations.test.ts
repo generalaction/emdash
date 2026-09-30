@@ -26,7 +26,7 @@ describe('parseAiAnnotations', () => {
 
   it('accepts JSON wrapped in a code fence', () => {
     const text =
-      '<emdash-annotations>\n```json\n[{"path":"src/a.ts","line":1,"body":"b"}]\n```\n</emdash-annotations>';
+      '<emdash-annotations>\n```json\n[{"path":"src/a.ts","line":1,"lineContent":"","body":"b"}]\n```\n</emdash-annotations>';
     expect(parseAiAnnotations(text, allowed)).toHaveLength(1);
   });
 
@@ -43,8 +43,8 @@ describe('parseAiAnnotations', () => {
   it('drops entries for paths outside the diff', () => {
     const result = parseAiAnnotations(
       reply([
-        { path: '/etc/passwd', line: 1, body: 'nope' },
-        { path: './src/a.ts', line: 2, body: 'yes' },
+        { path: '/etc/passwd', line: 1, lineContent: '', body: 'nope' },
+        { path: './src/a.ts', line: 2, lineContent: '', body: 'yes' },
       ]),
       allowed
     );
@@ -54,8 +54,8 @@ describe('parseAiAnnotations', () => {
   it('drops invalid entries without rejecting valid ones', () => {
     const result = parseAiAnnotations(
       reply([
-        { path: 'src/a.ts', line: -1, body: 'bad' },
-        { path: 'src/a.ts', line: 4, body: 'ok' },
+        { path: 'src/a.ts', line: -1, lineContent: '', body: 'bad' },
+        { path: 'src/a.ts', line: 4, lineContent: '', body: 'ok' },
       ]),
       allowed
     );
@@ -66,6 +66,7 @@ describe('parseAiAnnotations', () => {
     const many = Array.from({ length: MAX_AI_ANNOTATIONS + 5 }, (_, index) => ({
       path: 'src/a.ts',
       line: index + 1,
+      lineContent: '',
       body: 'x'.repeat(MAX_AI_ANNOTATION_BODY_LENGTH + 10),
     }));
     const result = parseAiAnnotations(reply(many), allowed);
@@ -73,8 +74,14 @@ describe('parseAiAnnotations', () => {
     expect(result[0]?.body).toHaveLength(MAX_AI_ANNOTATION_BODY_LENGTH);
   });
 
+  it('drops entries without lineContent', () => {
+    expect(parseAiAnnotations(reply([{ path: 'src/a.ts', line: 1, body: 'b' }]), allowed)).toEqual(
+      []
+    );
+  });
+
   it('uses the last block when the reply contains several', () => {
-    const text = `${reply([{ path: 'src/a.ts', line: 1, body: 'old' }])}\n${reply([{ path: 'src/a.ts', line: 9, body: 'new' }])}`;
+    const text = `${reply([{ path: 'src/a.ts', line: 1, lineContent: '', body: 'old' }])}\n${reply([{ path: 'src/a.ts', line: 9, lineContent: '', body: 'new' }])}`;
     expect(parseAiAnnotations(text, allowed).map((annotation) => annotation.body)).toEqual(['new']);
   });
 });
@@ -100,11 +107,6 @@ describe('resolveAnnotationLine', () => {
       null
     );
   });
-
-  it('falls back to the line number when no content was given', () => {
-    expect(resolveAnnotationLine({ lineNumber: 4 }, 4, getLine)).toBe(4);
-    expect(resolveAnnotationLine({ lineNumber: 5 }, 4, getLine)).toBe(null);
-  });
 });
 
 describe('buildExplainPrompt', () => {
@@ -117,5 +119,13 @@ describe('buildExplainPrompt', () => {
     expect(text).toContain('src/a.ts');
     expect(hiddenContext).toContain('git diff --cached -- src/a.ts');
     expect(hiddenContext).toContain('<emdash-annotations>');
+  });
+  it('tells the agent what to do when the diff is empty for untracked files', () => {
+    const { hiddenContext } = buildExplainPrompt({
+      kind: 'working-tree',
+      group: 'disk',
+      path: 'new.ts',
+    });
+    expect(hiddenContext).toContain('untracked');
   });
 });

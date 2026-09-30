@@ -40,7 +40,12 @@ export async function requestAcpReply(
     return null;
   }
 
-  const history = await session.loadHistory(undefined, HISTORY_TAIL_TURNS);
+  let history: Awaited<ReturnType<typeof session.loadHistory>>;
+  try {
+    history = await session.loadHistory(undefined, HISTORY_TAIL_TURNS);
+  } catch {
+    return null;
+  }
   if (!history.success || history.data.kind !== 'available') return null;
 
   const turn = [...history.data.turns]
