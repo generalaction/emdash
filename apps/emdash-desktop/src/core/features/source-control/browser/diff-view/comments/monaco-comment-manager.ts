@@ -1,8 +1,11 @@
 import type * as monaco from 'monaco-editor';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { resolveAnnotationLine } from '@core/features/source-control/api/browser/diff-view/ai-annotations';
+import type { AiAnnotation } from '@core/features/source-control/api/browser/diff-view/stores/ai-annotations-store';
 import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import { AddCommentButton } from './add-comment-button';
+import { AiAnnotationWidget } from './ai-annotation-widget';
 import { CommentInput } from './comment-input';
 import { CommentWidget } from './comment-widget';
 
@@ -12,6 +15,20 @@ interface MonacoCommentManagerOptions {
   onAddComment: (lineNumber: number, content: string, lineContent?: string) => void | Promise<void>;
   onEditComment: (id: string, content: string) => void | Promise<void>;
   onDeleteComment: (id: string) => void | Promise<void>;
+  onDismissAnnotation?: (id: string) => void;
+}
+
+interface ZoneRoot {
+  zoneId: string;
+  root: Root;
+  domNode: HTMLElement;
+  lineNumber: number;
+}
+
+interface ZoneItem {
+  id: string;
+  lineNumber: number;
+  element: React.ReactElement;
 }
 
 interface GlyphWidgetHandle {
@@ -23,10 +40,9 @@ export class MonacoCommentManager {
   private readonly editor: monaco.editor.IStandaloneDiffEditor;
   private readonly options: MonacoCommentManagerOptions;
 
-  private viewZoneRoots: Map<
-    string,
-    { zoneId: string; root: Root; domNode: HTMLElement; lineNumber: number }
-  > = new Map();
+  private viewZoneRoots = new Map<string, ZoneRoot>();
+  private annotationZoneRoots = new Map<string, ZoneRoot>();
+  private annotations: readonly AiAnnotation[] = [];
 
   private decorationIds: string[] = [];
   private hoveredLine: number | null = null;
@@ -42,11 +58,19 @@ export class MonacoCommentManager {
   private disposed = false;
   private hoverMoveDisposable: monaco.IDisposable | null = null;
   private hoverLeaveDisposable: monaco.IDisposable | null = null;
+  private modelDisposables: monaco.IDisposable[] = [];
 
   constructor(editor: monaco.editor.IStandaloneDiffEditor, options: MonacoCommentManagerOptions) {
     this.editor = editor;
     this.options = options;
     this.setupHoverHandler();
+
+    // Re-anchor annotations when the modified side loads or changes on disk.
+    const modifiedEditor = editor.getModifiedEditor();
+    this.modelDisposables = [
+      modifiedEditor.onDidChangeModel(() => this.renderAnnotations()),
+      modifiedEditor.onDidChangeModelContent(() => this.renderAnnotations()),
+    ];
   }
 
   private createGlyphWidget(
@@ -145,90 +169,114 @@ export class MonacoCommentManager {
     if (this.disposed) return;
 
     const modifiedEditor = this.editor.getModifiedEditor();
-    const nextById = new Map<string, DraftComment>(
-      comments.map((comment) => [comment.id, comment])
-    );
-
     this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
 
-    modifiedEditor.changeViewZones((accessor) => {
-      for (const [commentId, zoneInfo] of Array.from(this.viewZoneRoots.entries())) {
-        if (!nextById.has(commentId)) {
-          accessor.removeZone(zoneInfo.zoneId);
-          zoneInfo.root.unmount();
-          this.viewZoneRoots.delete(commentId);
+    const zones = comments.map((comment) => ({
+      id: comment.id,
+      lineNumber: comment.lineNumber,
+      element: React.createElement(CommentWidget, {
+        comment,
+        onEdit: (content) => this.options.onEditComment(comment.id, content),
+        onDelete: () => this.options.onDeleteComment(comment.id),
+      }),
+    }));
+    modifiedEditor.changeViewZones((accessor) =>
+      this.syncZones(accessor, this.viewZoneRoots, zones)
+    );
+  }
+
+  setAnnotations(annotations: readonly AiAnnotation[]) {
+    this.annotations = annotations;
+    this.renderAnnotations();
+  }
+
+  private renderAnnotations() {
+    if (this.disposed) return;
+    if (this.annotations.length === 0 && this.annotationZoneRoots.size === 0) return;
+
+    const modifiedEditor = this.editor.getModifiedEditor();
+    const model = modifiedEditor.getModel();
+    const zones: ZoneItem[] = [];
+    for (const annotation of this.annotations) {
+      const lineNumber = model
+        ? resolveAnnotationLine(annotation, model.getLineCount(), (line) =>
+            model.getLineContent(line)
+          )
+        : null;
+      if (lineNumber === null) continue;
+      zones.push({
+        id: annotation.id,
+        lineNumber,
+        element: React.createElement(AiAnnotationWidget, {
+          annotation,
+          lineNumber,
+          onDismiss: () => this.options.onDismissAnnotation?.(annotation.id),
+        }),
+      });
+    }
+    modifiedEditor.changeViewZones((accessor) =>
+      this.syncZones(accessor, this.annotationZoneRoots, zones)
+    );
+  }
+
+  /** Reconciles one family of view zones against the desired items, keyed by id. */
+  private syncZones(
+    accessor: monaco.editor.IViewZoneChangeAccessor,
+    zoneRoots: Map<string, ZoneRoot>,
+    items: readonly ZoneItem[]
+  ) {
+    const nextIds = new Set(items.map((item) => item.id));
+    for (const [id, zoneInfo] of Array.from(zoneRoots.entries())) {
+      if (!nextIds.has(id)) {
+        accessor.removeZone(zoneInfo.zoneId);
+        zoneInfo.root.unmount();
+        zoneRoots.delete(id);
+      }
+    }
+
+    for (const item of items) {
+      const existing = zoneRoots.get(item.id);
+      if (existing) {
+        existing.domNode.dataset.lineNumber = String(item.lineNumber);
+        existing.root.render(item.element);
+
+        if (existing.lineNumber !== item.lineNumber) {
+          accessor.removeZone(existing.zoneId);
+          const zoneId = accessor.addZone({
+            afterLineNumber: item.lineNumber,
+            heightInPx: COMMENT_ZONE_HEIGHT_PX,
+            domNode: existing.domNode,
+            suppressMouseDown: false,
+            showInHiddenAreas: true,
+          });
+          zoneRoots.set(item.id, { ...existing, zoneId, lineNumber: item.lineNumber });
         }
+        continue;
       }
 
-      for (const comment of comments) {
-        const existing = this.viewZoneRoots.get(comment.id);
-        if (existing) {
-          existing.domNode.dataset.lineNumber = String(comment.lineNumber);
-          existing.domNode.style.padding = '12px';
-          existing.domNode.style.boxSizing = 'border-box';
-          existing.domNode.className = 'comment-view-zone bg-muted/40 border border-border';
+      const domNode = document.createElement('div');
+      domNode.style.padding = '12px';
+      domNode.style.boxSizing = 'border-box';
+      domNode.className = 'comment-view-zone bg-muted/40 border border-border';
+      domNode.style.pointerEvents = 'auto';
+      domNode.style.position = 'relative';
+      domNode.style.zIndex = '10';
+      domNode.style.width = '100%';
+      domNode.dataset.lineNumber = String(item.lineNumber);
 
-          existing.root.render(
-            React.createElement(CommentWidget, {
-              comment,
-              onEdit: (content) => this.options.onEditComment(comment.id, content),
-              onDelete: () => this.options.onDeleteComment(comment.id),
-            })
-          );
+      const root = createRoot(domNode);
+      root.render(item.element);
 
-          if (existing.lineNumber !== comment.lineNumber) {
-            accessor.removeZone(existing.zoneId);
-            const zoneId = accessor.addZone({
-              afterLineNumber: comment.lineNumber,
-              heightInPx: COMMENT_ZONE_HEIGHT_PX,
-              domNode: existing.domNode,
-              suppressMouseDown: false,
-              showInHiddenAreas: true,
-            });
-            this.viewZoneRoots.set(comment.id, {
-              ...existing,
-              zoneId,
-              lineNumber: comment.lineNumber,
-            });
-          }
-          continue;
-        }
+      const zoneId = accessor.addZone({
+        afterLineNumber: item.lineNumber,
+        heightInPx: COMMENT_ZONE_HEIGHT_PX,
+        domNode,
+        suppressMouseDown: false,
+        showInHiddenAreas: true,
+      });
 
-        const domNode = document.createElement('div');
-        domNode.style.padding = '12px';
-        domNode.style.boxSizing = 'border-box';
-        domNode.className = 'comment-view-zone bg-muted/40 border border-border';
-        domNode.style.pointerEvents = 'auto';
-        domNode.style.position = 'relative';
-        domNode.style.zIndex = '10';
-        domNode.style.width = '100%';
-        domNode.dataset.lineNumber = String(comment.lineNumber);
-
-        const root = createRoot(domNode);
-        root.render(
-          React.createElement(CommentWidget, {
-            comment,
-            onEdit: (content) => this.options.onEditComment(comment.id, content),
-            onDelete: () => this.options.onDeleteComment(comment.id),
-          })
-        );
-
-        const zoneId = accessor.addZone({
-          afterLineNumber: comment.lineNumber,
-          heightInPx: COMMENT_ZONE_HEIGHT_PX,
-          domNode,
-          suppressMouseDown: false,
-          showInHiddenAreas: true,
-        });
-
-        this.viewZoneRoots.set(comment.id, {
-          zoneId,
-          root,
-          domNode,
-          lineNumber: comment.lineNumber,
-        });
-      }
-    });
+      zoneRoots.set(item.id, { zoneId, root, domNode, lineNumber: item.lineNumber });
+    }
   }
 
   showInputAt(lineNumber: number, lineContent: string) {
@@ -326,6 +374,7 @@ export class MonacoCommentManager {
 
     this.hoverMoveDisposable?.dispose();
     this.hoverLeaveDisposable?.dispose();
+    for (const disposable of this.modelDisposables) disposable.dispose();
 
     if (this.hoverWidgetHandle) {
       this.removeGlyphWidgetHandle(this.hoverWidgetHandle);
@@ -338,11 +387,12 @@ export class MonacoCommentManager {
     this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
 
     modifiedEditor.changeViewZones((accessor) => {
-      for (const zone of this.viewZoneRoots.values()) {
+      for (const zone of [...this.viewZoneRoots.values(), ...this.annotationZoneRoots.values()]) {
         accessor.removeZone(zone.zoneId);
         zone.root.unmount();
       }
     });
     this.viewZoneRoots.clear();
+    this.annotationZoneRoots.clear();
   }
 }

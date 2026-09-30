@@ -1,4 +1,3 @@
-import type { GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { Markdown } from '@emdash/ui/react/components';
 import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
@@ -12,7 +11,10 @@ import {
 } from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
 import { HtmlContentRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
 import { readImageFile } from '@core/features/files/api/browser/file-content';
-import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
+import {
+  aiAnnotationsStoreToken,
+  draftCommentsStoreToken,
+} from '@core/features/source-control/contributions/browser/task-stores';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
@@ -24,15 +26,11 @@ import {
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
-import { HEAD_REF } from '@core/primitives/git/api';
-import { gitRefToString } from '@core/primitives/git/api';
-import {
-  getDraftCommentTargetKey,
-  type DraftCommentTarget,
-} from '@core/primitives/line-comments/api';
+import { getDraftCommentTargetKey } from '@core/primitives/line-comments/api';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
+import { diffTabToCommentTarget } from './diff-comment-target';
 import { ImageDiffView } from './image-diff-view';
 import { useDiffFacets } from './use-diff-facets';
 
@@ -76,13 +74,16 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
   const { projectId, taskId } = useTaskViewContext();
   const workspace = useWorkspace();
   const diffView = useTaskComposition().diffView;
-  const draftComments = getTaskStore(projectId, taskId)?.get(draftCommentsStoreToken);
+  const taskStore = getTaskStore(projectId, taskId);
+  const draftComments = taskStore?.get(draftCommentsStoreToken);
+  const aiAnnotations = taskStore?.get(aiAnnotationsStoreToken);
 
   const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
 
   const commentTarget = diffTabToCommentTarget(tab);
   const commentTargetKey = getDraftCommentTargetKey(commentTarget);
   const comments = draftComments?.getCommentsForTarget(commentTargetKey) ?? [];
+  const annotations = aiAnnotations?.getForTarget(commentTargetKey);
 
   const handleAddComment = useCallback(
     (lineNumber: number, content: string, lineContent?: string) => {
@@ -111,12 +112,21 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
     [draftComments]
   );
 
+  const handleDismissAnnotation = useCallback(
+    (id: string) => {
+      aiAnnotations?.dismiss(commentTargetKey, id);
+    },
+    [aiAnnotations, commentTargetKey]
+  );
+
   useDiffEditorComments({
     editor,
     comments,
     onAddComment: handleAddComment,
     onEditComment: handleEditComment,
     onDeleteComment: handleDeleteComment,
+    annotations,
+    onDismissAnnotation: handleDismissAnnotation,
   });
 
   const sides = useDiffFacets({
@@ -264,35 +274,6 @@ function DiffPreviewStatusOverlay({ status }: { status: ContentStatus }) {
       </div>
     </div>
   );
-}
-
-function refShaOrString(ref: GitObjectRef | undefined): string {
-  if (!ref) return gitRefToString(HEAD_REF);
-  return ref.kind === 'commit' ? ref.sha : gitRefToString(ref);
-}
-
-function diffTabToCommentTarget(tab: DiffTabResource): DraftCommentTarget {
-  if (tab.diffGroup === 'disk' || tab.diffGroup === 'staged') {
-    return { kind: 'working-tree', group: tab.diffGroup, path: tab.path };
-  }
-
-  if (tab.diffGroup === 'pr') {
-    return {
-      kind: 'pr',
-      prNumber: tab.prNumber ?? 0,
-      baseOid: tab.prBaseOid ?? refShaOrString(tab.originalRef),
-      headOid: tab.prHeadOid ?? refShaOrString(tab.modifiedRef),
-      path: tab.path,
-    };
-  }
-
-  return {
-    kind: 'commit',
-    originalSha:
-      tab.commitOriginalSha !== undefined ? tab.commitOriginalSha : refShaOrString(tab.originalRef),
-    modifiedSha: tab.commitModifiedSha ?? refShaOrString(tab.modifiedRef),
-    path: tab.path,
-  };
 }
 
 function tabToActiveFile(tab: DiffTabResource): ActiveFile {
