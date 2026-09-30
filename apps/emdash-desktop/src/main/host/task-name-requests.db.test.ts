@@ -4,7 +4,7 @@ import {
   type TranscriptTurn,
 } from '@emdash/core/runtimes/acp/api';
 import { closedSessionState, createAcpSessionLiveHost } from '@emdash/core/runtimes/acp/node';
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { defineContract } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
 import { openFixture } from '@tooling/utils/db';
@@ -14,7 +14,9 @@ import {
   createConversationRegistry,
   conversationRegistryTable,
 } from '@core/features/conversations/api/node/registry';
+import { TaskService } from '@core/features/tasks/api/node/task-service';
 import { TaskNameRequests } from '@core/features/tasks/node/name-generation/task-name-requests';
+import { nameTaskFromConversation } from '@core/features/tasks/node/operations/nameTaskFromConversation';
 import { renameTask } from '@core/features/tasks/node/operations/renameTask';
 import { tasks } from '@core/services/app-db/node/schema';
 
@@ -32,11 +34,13 @@ describe('manual conversation AI task names', () => {
   const named = vi.fn();
   const sendPrompt = vi.fn();
   const loadHistory = vi.fn();
+  const runtimeClient = vi.fn();
 
   beforeEach(async () => {
     named.mockClear();
     sendPrompt.mockReset();
     loadHistory.mockReset();
+    runtimeClient.mockReset();
     turns = [];
     revision = 0;
     fixture = await openFixture('empty');
@@ -78,12 +82,12 @@ describe('manual conversation AI task names', () => {
         coverage: { fromSeq: null, beforeSeq: null },
       })
     );
+    runtimeClient.mockResolvedValue(
+      ok({ acp: { session: testWire.client.session, sendPrompt, loadHistory } })
+    );
     requests = new TaskNameRequests(
       fixture.db,
-      {
-        client: async () =>
-          ok({ acp: { session: testWire.client.session, sendPrompt, loadHistory } }),
-      } as never,
+      { client: runtimeClient } as never,
       async () => false,
       named
     );
@@ -160,6 +164,69 @@ describe('manual conversation AI task names', () => {
     await vi.waitFor(() => expect(task().name).toBe('fix-login-timeout'));
     expect(named).toHaveBeenCalledTimes(1);
     expect(task()).toMatchObject({ workspaceId: 'workspace-1', taskBranch: 'original-branch' });
+  });
+
+  it.each(['unavailable-runtime', 'rejected-prompt', 'failed-lookup'])(
+    'preserves automatic naming when a manual request fails: %s',
+    async (failure) => {
+      await fixture.db
+        .update(tasks)
+        .set({
+          name: 'generated-placeholder',
+          autoNameConversationId: 'conversation-1',
+        })
+        .where(eq(tasks.id, 'task-1'));
+      if (failure === 'unavailable-runtime') {
+        runtimeClient.mockResolvedValueOnce(err({ message: 'Fixture runtime unavailable' }));
+      } else if (failure === 'failed-lookup') {
+        runtimeClient.mockRejectedValueOnce(new Error('Fixture lookup failure'));
+      } else {
+        sendPrompt.mockResolvedValueOnce(err({ message: 'Fixture prompt rejected' }));
+      }
+
+      expect(await requests.request(input)).toMatchObject({ success: false });
+      expect(task().autoNameConversationId).toBe('conversation-1');
+      await nameTaskFromConversation(fixture.db, 'conversation-1', 'Fix login timeout');
+      expect(task().name).toBe('fix-login-timeout');
+    }
+  );
+
+  it('consumes automatic naming eligibility once the manual prompt is accepted', async () => {
+    await fixture.db
+      .update(tasks)
+      .set({
+        autoNameConversationId: 'conversation-1',
+      })
+      .where(eq(tasks.id, 'task-1'));
+
+    expect(await requests.request(input)).toMatchObject({ success: true });
+    expect(task().autoNameConversationId).toBeNull();
+  });
+
+  it('does not send a prompt after a manual rename cancels a pending runtime lookup', async () => {
+    const availableRuntime = await runtimeClient();
+    let finishLookup: () => void = () => {};
+    runtimeClient.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishLookup = () => resolve(availableRuntime);
+      })
+    );
+    const service = new TaskService({
+      db: fixture.db,
+      runtimes: { client: runtimeClient },
+      getTaskSettings: async () => ({ preserveNameCapitalization: false }),
+    } as never);
+
+    const requested = service.requestTaskName(input);
+    await service.renameTask('project-1', 'task-1', 'my-new-name');
+    finishLookup();
+    expect(await requested).toMatchObject({
+      success: false,
+      error: { type: 'request-failed', message: 'The task naming request was canceled.' },
+    });
+
+    expect(sendPrompt).not.toHaveBeenCalled();
+    expect(task().name).toBe('my-new-name');
   });
 
   it('ignores another turn and applies only the requested reply', async () => {

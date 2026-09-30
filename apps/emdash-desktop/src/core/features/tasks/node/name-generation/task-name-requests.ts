@@ -103,9 +103,11 @@ export class TaskNameRequests {
     };
     request.timer.unref();
     this.pending.set(input.conversationId, request);
-    this.db.update(tasks).set({ autoNameConversationId: null }).where(eq(tasks.id, task.id)).run();
     try {
       const client = await this.runtimes.client(request.host);
+      if (this.pending.get(input.conversationId) !== request || request.scope.signal.aborted) {
+        return err({ type: 'request-failed', message: 'The task naming request was canceled.' });
+      }
       if (!client.success) throw new Error(client.error.message);
       const session = remote(acpApiContract.session, client.data.acp.session, {
         scope: request.scope,
@@ -150,6 +152,13 @@ export class TaskNameRequests {
         },
       });
       if (!sent.success) throw new Error('The conversation could not accept the naming request.');
+      if (this.pending.get(input.conversationId) === request) {
+        this.db
+          .update(tasks)
+          .set({ autoNameConversationId: null })
+          .where(and(eq(tasks.id, task.id), eq(tasks.projectId, input.projectId)))
+          .run();
+      }
       return ok(undefined);
     } catch (error) {
       this.clear(request);
