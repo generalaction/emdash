@@ -42,6 +42,7 @@ describe('DesktopProjectSettingsAuthority', () => {
       baseProjectSettingsJson: JSON.stringify({
         worktreeRoot: '/tmp/worktrees',
         baseRemote: 'origin',
+        fetchLatestBase: true,
         tmux: true,
       }),
       shareableProjectSettingsJson: '{}',
@@ -67,7 +68,7 @@ describe('DesktopProjectSettingsAuthority', () => {
 
     await expect(
       authority.patch('project-1', {
-        gitIdentity: { stored: { pushRemote: 'fork', baseRemote: null } },
+        gitIdentity: { stored: { pushRemote: 'fork', baseRemote: null, fetchLatestBase: false } },
         placement: { stored: { tmux: false } },
       })
     ).resolves.toEqual({ success: true, data: undefined });
@@ -75,6 +76,7 @@ describe('DesktopProjectSettingsAuthority', () => {
     expect(JSON.parse(row.baseProjectSettingsJson)).toMatchObject({
       worktreeRoot: '/tmp/worktrees',
       pushRemote: 'fork',
+      fetchLatestBase: false,
       tmux: false,
     });
     expect(JSON.parse(row.baseProjectSettingsJson)).not.toHaveProperty('baseRemote');

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import net from 'node:net';
+import { forwardWorkspaceRegistry } from '@emdash/core/runtimes/workspace-registry/node';
 import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/api';
 import {
   negotiateProtocol,
@@ -79,9 +80,9 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     ),
     terminals: forwardContractImpl(workspaceWireContract.terminals, deps.runtimes.terminals),
     tuiAgents: forwardContractImpl(workspaceWireContract.tuiAgents, deps.runtimes.tuiAgents),
-    workspaceRegistry: forwardContractImpl(
-      workspaceWireContract.workspaceRegistry,
-      deps.runtimes.workspaceRegistry
+    workspaceRegistry: forwardWorkspaceRegistry(
+      deps.runtimes.workspaceRegistry,
+      workspaceWireContract.workspaceRegistry
     ),
     hostDependencies: forwardContractImpl(
       workspaceWireContract.hostDependencies,

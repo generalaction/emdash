@@ -29,6 +29,7 @@ export type StoredDefaultBranch = { remote: string | null; branch: string };
 /** Stored per-project settings the resolver consumes. Absent field = infer. */
 export type StoredProjectGitSettings = {
   defaultBranch?: StoredDefaultBranch;
+  fetchLatestBase?: boolean;
   baseRemote?: string;
   pushRemote?: string;
   agentGitCredentials?: AgentGitCredentialsSetting;

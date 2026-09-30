@@ -30,6 +30,9 @@ export function buildWorkspaceConfigFromPreset(
             kind: 'create-branch',
             branchName: overrides.branchName ?? '',
             fromBranch,
+            ...(overrides.fetchLatestBase !== undefined
+              ? { fetchLatestBase: fromBranch.type === 'remote' && overrides.fetchLatestBase }
+              : {}),
             pushBranch: overrides.pushBranch ?? true,
           },
           workspace: { kind: 'new-worktree' },

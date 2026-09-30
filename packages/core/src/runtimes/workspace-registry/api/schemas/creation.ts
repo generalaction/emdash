@@ -51,6 +51,8 @@ export const workspaceCreationSchema = z.object({
   branch: z.string(),
   /** Null when gitSetup.fetchBranch materialized the branch instead of a base ref. */
   baseRef: z.string().nullable(),
+  /** Fetch the remote base before creating a branch; omitted on older records. */
+  fetchLatestBase: z.boolean().optional(),
   requestedPath: z.string(),
   /** The verb's gitSetup block, verbatim; the host's ref-follow loop reads it later. */
   gitSetup: workspaceGitSetupSchema.optional(),
@@ -72,6 +74,7 @@ export const createWorktreeInputSchema = z
     branch: z.string().min(1),
     /** Optional when gitSetup.fetchBranch materializes the branch instead. */
     baseRef: z.string().min(1).optional(),
+    fetchLatestBase: z.boolean().optional(),
     path: z.string().min(1),
     preservePatterns: z.array(z.string()).default([]),
     publish: workspacePublishTargetSchema.optional(),
@@ -83,6 +86,13 @@ export const createWorktreeInputSchema = z
         code: 'custom',
         path: ['baseRef'],
         message: 'baseRef is required unless gitSetup.fetchBranch materializes the branch',
+      });
+    }
+    if (input.fetchLatestBase && (input.baseRef === undefined || input.gitSetup?.fetchBranch)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fetchLatestBase'],
+        message: 'Fetching the latest base requires a remote base branch',
       });
     }
   });

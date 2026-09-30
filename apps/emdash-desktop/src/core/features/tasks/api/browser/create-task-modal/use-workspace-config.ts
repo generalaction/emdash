@@ -40,6 +40,9 @@ export type WorkspaceConfigState = {
   // ── New-worktree detail ─────────────────────────────────────────────────
   branchSelection: BranchSelectionState;
   branchNameState: BranchNameState;
+  fetchLatestBase: boolean;
+  setFetchLatestBase: (value: boolean) => void;
+  canFetchLatestBase: boolean;
 
   // ── Existing-workspace detail ───────────────────────────────────────────
   selectedWorkspaceId: string | null;
@@ -137,6 +140,7 @@ export type WorkspaceConfigInitial = {
   presetId?: WorkspacePresetId;
   selectedWorkspaceId?: string | null;
   branchSelection?: BranchSelectionInitial;
+  fetchLatestBase?: boolean;
 };
 
 export function useWorkspaceConfig(opts: {
@@ -183,6 +187,12 @@ export function useWorkspaceConfig(opts: {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     initial?.selectedWorkspaceId ?? null
   );
+  const [fetchLatestBaseOverride, setFetchLatestBase] = useState(initial?.fetchLatestBase);
+  const [previousProjectId, setPreviousProjectId] = useState(projectId);
+  if (projectId !== previousProjectId) {
+    setPreviousProjectId(projectId);
+    setFetchLatestBase(undefined);
+  }
 
   // Reset when the project changes.
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
@@ -192,6 +202,7 @@ export function useWorkspaceConfig(opts: {
     setModeRaw(nextMode);
     setPresetIdRaw(defaultPreset({ mode: nextMode, hasPR, worktreesDisabled }));
     setSelectedWorkspaceId(null);
+    setFetchLatestBase(undefined);
   }
 
   const [prevWorktreesDisabled, setPrevWorktreesDisabled] = useState(worktreesDisabled);
@@ -252,6 +263,16 @@ export function useWorkspaceConfig(opts: {
     projectId,
     resetKey,
   });
+  const projectSettings = projectId
+    ? (getProjectSettingsStore(projectId)?.durableDomains ?? null)
+    : null;
+  const canFetchLatestBase =
+    presetId === 'new-worktree' &&
+    branchSelection.createBranchAndWorktree &&
+    branchSelection.selectedBranch?.type === 'remote';
+  const fetchLatestBase =
+    canFetchLatestBase &&
+    (fetchLatestBaseOverride ?? projectSettings?.gitIdentity.stored.fetchLatestBase ?? false);
 
   // ── Resolved config ──────────────────────────────────────────────────────
 
@@ -270,6 +291,7 @@ export function useWorkspaceConfig(opts: {
           branchName: branchNameState.branchName,
           fromBranch: branchSelection.selectedBranch,
           pushBranch: branchSelection.pushBranch,
+          fetchLatestBase,
           createBranch: branchSelection.createBranchAndWorktree,
           taskBranch: branchNameState.branchName,
         }
@@ -295,6 +317,7 @@ export function useWorkspaceConfig(opts: {
     branchNameState.branchName,
     branchSelection.selectedBranch,
     branchSelection.pushBranch,
+    fetchLatestBase,
   ]);
 
   // ── Setup steps ───────────────────────────────────────────────────────────
@@ -380,6 +403,7 @@ export function useWorkspaceConfig(opts: {
 
     // new-worktree — create new branch
     return (
+      (fetchLatestBaseOverride !== undefined || projectSettings !== null) &&
       branchNameState.branchName.trim().length > 0 &&
       !branchNameState.branchAlreadyExists &&
       branchSelection.selectedBranch !== undefined
@@ -396,6 +420,8 @@ export function useWorkspaceConfig(opts: {
     branchSelection.selectedBranch,
     branchSelection.createBranchAndWorktree,
     branchConflict,
+    fetchLatestBaseOverride,
+    projectSettings,
   ]);
 
   return {
@@ -405,6 +431,9 @@ export function useWorkspaceConfig(opts: {
     setPresetId,
     branchSelection,
     branchNameState,
+    fetchLatestBase,
+    setFetchLatestBase,
+    canFetchLatestBase,
     selectedWorkspaceId,
     setSelectedWorkspaceId,
     workspaceOptions,

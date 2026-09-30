@@ -25,8 +25,14 @@ import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsWorkerSpec } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { tuiAgentsWorkerSpec } from '@emdash/core/runtimes/tui-agents/node';
-import type { WorkspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
-import { workspaceRegistryWorkerSpec } from '@emdash/core/runtimes/workspace-registry/node';
+import {
+  workspaceRegistryContract,
+  type WorkspaceRegistryContract,
+} from '@emdash/core/runtimes/workspace-registry/api';
+import {
+  forwardWorkspaceRegistry,
+  workspaceRegistryWorkerSpec,
+} from '@emdash/core/runtimes/workspace-registry/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchWorkerSpec } from '@emdash/core/services/fs-watch/node';
@@ -285,7 +291,10 @@ export async function createWorkspaceServerRuntimeHost(
       executable: workspaceWorkerPath('automations'),
       env,
       dependencies: {
-        workspaceRegistry,
+        workspaceRegistry: createController(
+          workspaceRegistryContract,
+          forwardWorkspaceRegistry(workspaceRegistry)
+        ),
         // Deletion tombstones are client-plane data (ADR 0006): the workspace server
         // has no desktop mirror to consult, so host-resident runs admit
         // unconditionally; identity-keyed sweeps keep recreation safe regardless.

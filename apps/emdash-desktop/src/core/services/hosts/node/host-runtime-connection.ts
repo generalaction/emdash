@@ -5,6 +5,7 @@ import {
   client,
   connect,
   replaceableTransport,
+  WireError,
   type Connection,
   type ContractClient,
   type WireTransport,
@@ -35,7 +36,7 @@ export class HostRuntimeConnection {
 
   constructor(private readonly options: HostRuntimeConnectionOptions) {
     this.scope = options.scope.child('host-runtime-connection');
-    this.connection = connect(this.transport, {
+    const connection = connect(this.transport, {
       clock: options.clock,
       maxHeldCalls: 0,
       instrumentation: {
@@ -47,6 +48,41 @@ export class HostRuntimeConnection {
         },
       },
     });
+    this.connection = {
+      ...connection,
+      call: (path, input, options) => {
+        const worktree =
+          path === 'workspaceRegistry.createWorktree'
+            ? workspaceWireContract.workspaceRegistry.createWorktree.input.safeParse(input)
+            : undefined;
+        const automation =
+          path === 'automations.deploy'
+            ? workspaceWireContract.automations.deploy.input.safeParse(input)
+            : undefined;
+        const fetchLatestBase =
+          (worktree?.success && worktree.data.fetchLatestBase === true) ||
+          (automation?.success &&
+            automation.data.workspace.kind === 'worktree' &&
+            automation.data.workspace.git.kind === 'create-branch' &&
+            automation.data.workspace.git.fetchLatestBase === true);
+        if (fetchLatestBase && this.currentHandshake && this.currentHandshake.agreedMinor < 1) {
+          return Promise.reject(
+            new WireError(
+              'CONTRACT_MISMATCH',
+              'Fetching the latest base requires workspace-server protocol 11.1. Please upgrade the workspace server.',
+              { delivery: 'not-sent' }
+            )
+          );
+        }
+        return connection.call(
+          path,
+          input,
+          worktree?.success && worktree.data.fetchLatestBase
+            ? { ...options, timeoutMs: 120_000 }
+            : options
+        );
+      },
+    };
     this.client = client(workspaceWireContract, this.connection);
     this.scope.add(
       this.transport.onDisconnect(() => {

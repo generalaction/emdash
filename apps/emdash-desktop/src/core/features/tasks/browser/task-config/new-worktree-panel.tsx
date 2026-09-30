@@ -1,4 +1,4 @@
-import { Button, Combobox } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, Combobox, Field } from '@emdash/ui/react/primitives';
 import { ChevronDown, GitBranch, Layers } from 'lucide-react';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
@@ -81,11 +81,28 @@ export function NewWorktreePanel({
       )}
 
       {createBranchAndWorktree && !isUnborn && (
-        <BranchNameField
-          state={branchNameState}
-          pushBranch={branchSelection.pushBranch}
-          onPushBranchChange={branchSelection.setPushBranch}
-        />
+        <>
+          <BranchNameField
+            state={branchNameState}
+            pushBranch={branchSelection.pushBranch}
+            onPushBranchChange={branchSelection.setPushBranch}
+          />
+          <Field.Root>
+            <Field.Label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={workspaceConfig.fetchLatestBase}
+                onCheckedChange={(checked) => workspaceConfig.setFetchLatestBase(checked === true)}
+                disabled={!workspaceConfig.canFetchLatestBase}
+              />
+              Fetch latest base before creation
+            </Field.Label>
+            <Field.Description className="text-xs text-foreground-muted">
+              {workspaceConfig.canFetchLatestBase
+                ? 'Creation stops if the fetch fails.'
+                : 'Select a remote base branch to fetch its latest commit.'}
+            </Field.Description>
+          </Field.Root>
+        </>
       )}
     </div>
   );

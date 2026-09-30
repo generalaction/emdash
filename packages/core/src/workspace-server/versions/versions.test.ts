@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, negotiateProtocol, protocolUpgradeMessage } from '.';
 
 describe('negotiateProtocol', () => {
+  it('keeps protocol 11.0 compatible while negotiating freshness support only at minor 1', () => {
+    expect(negotiateProtocol('11.1.0', '11.0.0')).toMatchObject({
+      compatible: true,
+      agreedMinor: 0,
+    });
+    expect(negotiateProtocol('11.1.0', '11.1.0')).toMatchObject({
+      compatible: true,
+      agreedMinor: 1,
+    });
+  });
+
   describe('compatible cases', () => {
     it('returns compatible for equal versions', () => {
       const result = negotiateProtocol('1.0.0', '1.0.0');
@@ -81,7 +92,7 @@ describe('negotiateProtocol', () => {
     });
 
     it('rejects the previous protocol major with upgrade-client', () => {
-      expect(PROTOCOL_VERSION).toBe('11.0.0');
+      expect(PROTOCOL_VERSION).toBe('11.1.0');
       expect(negotiateProtocol('10.0.0')).toEqual({
         compatible: false,
         action: 'upgrade-client',
