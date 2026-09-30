@@ -34,7 +34,27 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 - Send issues and tickets from Linear, GitHub, Jira, GitLab, Asana, Featurebase,
   Monday.com, Forgejo, or Plain into an agent.
 - Review diffs, create pull requests, inspect CI checks, and merge from one place.
+- Inspect subagent changes across local worktrees from the diff view.
 - Work locally or on your own remote machines over SSH/SFTP.
+
+## Inspect a Subagent's Worktree
+
+In a task's **Changes** panel, open the worktree picker above **Changed** and
+**Staged**. Select a branch and path to inspect another local worktree in the same
+repository, including one created by a subagent outside Emdash. The list refreshes
+when opened and updates as worktrees are discovered.
+
+Other worktrees are shown in read-only mode. Open diff tabs stay attached to their
+original worktree; activating a tab selects its worktree in the panel. Select the
+entry marked **Task worktree** to return to the task's normal Git controls.
+
+The picker shows staged and unstaged changes. A clean worktree with committed
+changes has no uncommitted diff to display. Worktree inspection currently supports
+local repositories.
+
+![Selecting a local worktree in the Changes panel](docs/screenshots/worktree-picker.png)
+
+![Read-only diff from a subagent's worktree](docs/screenshots/worktree-diff.png)
 
 ## Installation
 

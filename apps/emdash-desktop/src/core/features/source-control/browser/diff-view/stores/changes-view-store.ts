@@ -31,7 +31,7 @@ export class ChangesViewStore {
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();
 
   constructor(
-    private readonly gitCheckout: GitCheckoutStore,
+    private readonly checkout: GitCheckoutStore | (() => GitCheckoutStore),
     private readonly pr: PrStore,
     private readonly sections: ExpandedSectionsPersistence
   ) {
@@ -86,6 +86,17 @@ export class ChangesViewStore {
         }
       )
     );
+  }
+
+  private get gitCheckout(): GitCheckoutStore {
+    return typeof this.checkout === 'function' ? this.checkout() : this.checkout;
+  }
+
+  clearSelections(): void {
+    runInAction(() => {
+      this.unstagedSelection.clear();
+      this.stagedSelection.clear();
+    });
   }
 
   get expandedSections(): ExpandedSections {

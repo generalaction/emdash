@@ -1,7 +1,9 @@
 import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
+import { commitRef } from '@core/primitives/git/api';
 import { DiffTabManager } from './diff-tab-manager';
+import { DiffTabResource } from './diff-tab-resource';
 
 // ---------------------------------------------------------------------------
 // Minimal fakes — no full store stack required.
@@ -13,6 +15,7 @@ function makeFakeResource(
     diffGroup: 'disk' | 'staged' | 'git' | 'pr';
     prNumber: number;
     tabId: string;
+    workspaceId: string;
   }> = {}
 ) {
   const resource = {
@@ -20,6 +23,7 @@ function makeFakeResource(
     diffGroup: opts.diffGroup ?? 'disk',
     prNumber: opts.prNumber,
     tabId: opts.tabId ?? 'tab-1',
+    workspaceId: opts.workspaceId ?? 'task',
     closeSelf: vi.fn(),
     transition: vi.fn(),
     onActivate: vi.fn(),
@@ -28,6 +32,7 @@ function makeFakeResource(
       type: 'disk' as const,
       group: resource.diffGroup,
       originalRef: { kind: 'commit', sha: 'HEAD' } as const,
+      workspaceId: resource.workspaceId,
     })),
   };
   return resource;
@@ -38,13 +43,21 @@ function makeFakeSession(
   stagedPaths: string[] = [],
   diffViewSetActiveFile = vi.fn()
 ) {
+  const gitCheckout = {
+    isLoading: false,
+    error: undefined,
+    unstagedFileChanges: observable.array(unstagedPaths.map((p) => ({ path: p, status: 'M' }))),
+    stagedFileChanges: observable.array(stagedPaths.map((p) => ({ path: p, status: 'M' }))),
+  };
   const session = {
-    gitCheckout: {
-      unstagedFileChanges: observable.array(unstagedPaths.map((p) => ({ path: p, status: 'M' }))),
-      stagedFileChanges: observable.array(stagedPaths.map((p) => ({ path: p, status: 'M' }))),
-    },
+    gitCheckout,
     pr: { pullRequests: [], getFiles: vi.fn(() => ({ data: [] })) },
-    diffView: { setActiveFile: diffViewSetActiveFile },
+    diffView: {
+      setActiveFile: diffViewSetActiveFile,
+      retainWorkspace: () => {},
+      releaseWorkspace: () => {},
+      workspaceFor: (_id: string) => ({ get: () => gitCheckout }),
+    },
   };
   return session;
 }
@@ -87,6 +100,30 @@ describe('DiffTabManager: currentDiffView', () => {
     manager.unbindSession();
     expect(manager.currentDiffView()).toBeNull();
     manager.dispose();
+  });
+
+  it('reconnects a preserved diff tab after its workspace session is recreated', () => {
+    const original = new DiffTabManager();
+    const resource = new DiffTabResource(
+      'tab',
+      {
+        workspaceId: 'task',
+        path: portablePath('src/file.ts'),
+        diffGroup: 'disk',
+        originalRef: commitRef('HEAD'),
+      },
+      original
+    );
+    original.bindSession(makeFakeSession(['src/file.ts']) as never);
+    original.dispose();
+    const replacement = new DiffTabManager();
+    replacement.bindResources([resource]);
+    const session = makeFakeSession(['src/file.ts']);
+    replacement.bindSession(session as never);
+    expect(resource.diffView).toBe(session.diffView);
+    expect(resource.workspace).toBeDefined();
+    resource.dispose();
+    replacement.dispose();
   });
 });
 
@@ -183,6 +220,25 @@ describe('DiffTabManager: staleness reconcile', () => {
     });
 
     expect(resource.closeSelf).not.toHaveBeenCalled();
+    manager.dispose();
+  });
+
+  it('does not reconcile a foreign tab against the task checkout', () => {
+    const resource = makeFakeResource({ path: 'src/shared.ts', workspaceId: 'subagent' });
+    manager.acquire(resource as never);
+    const session = makeFakeSession(['src/shared.ts']);
+    const foreign = {
+      ...session.gitCheckout,
+      unstagedFileChanges: observable.array([{ path: 'src/shared.ts', status: 'M' }]),
+    };
+    session.diffView.workspaceFor = (id) => ({
+      get: () => (id === 'subagent' ? foreign : session.gitCheckout),
+    });
+    manager.bindSession(session as never);
+    runInAction(() => session.gitCheckout.unstagedFileChanges.clear());
+    expect(resource.closeSelf).not.toHaveBeenCalled();
+    runInAction(() => foreign.unstagedFileChanges.clear());
+    expect(resource.closeSelf).toHaveBeenCalledOnce();
     manager.dispose();
   });
 });

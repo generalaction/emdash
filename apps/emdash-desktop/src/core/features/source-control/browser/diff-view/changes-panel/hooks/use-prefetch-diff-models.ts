@@ -4,7 +4,10 @@ import {
   type OpenFileLease,
 } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { isBinaryForDiff } from '@core/features/editor/api/browser/renderers/fileKind';
-import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import {
+  useTaskComposition,
+  useWorkspace,
+} from '@core/features/workbench/api/browser/task-composition-context';
 import type { GitRef } from '@core/primitives/git/api';
 import { diffSideSpecs, specToFacet, workspaceDiffFileRef } from '../../stores/diff-facets';
 
@@ -23,7 +26,8 @@ export function usePrefetchDiffModels(
   originalRef: GitRef,
   modifiedRef?: GitRef
 ) {
-  const workspace = useWorkspace();
+  const taskWorkspace = useWorkspace();
+  const workspace = useTaskComposition().diffView?.workspace ?? taskWorkspace;
   const leasesRef = useRef(new Map<string, OpenFileLease[]>());
 
   useEffect(() => {

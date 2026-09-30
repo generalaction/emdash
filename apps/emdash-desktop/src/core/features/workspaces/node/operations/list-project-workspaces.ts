@@ -43,6 +43,7 @@ export type ListProjectWorkspacesDependencies = {
 
 type WorkspaceRow = {
   id: string;
+  parentId: string | null;
   type: 'local' | 'project-ssh';
   kind: 'worktree' | 'repository' | 'directory' | null;
   location: 'local' | 'remote' | null;
@@ -202,6 +203,7 @@ function buildCandidateRow(
     kind: candidate.kind,
     projectId: project.id,
     workspaceId: candidate.workspace?.id ?? null,
+    parentId: candidate.workspace?.parentId ?? null,
     path: candidate.path,
     branch: candidate.branch,
     tasks: candidate.tasks,
@@ -303,6 +305,7 @@ async function getWorkspaceRows(
   return (await db
     .select({
       id: workspaces.id,
+      parentId: workspaces.parentId,
       type: workspaces.type,
       kind: workspaces.kind,
       location: workspaces.location,

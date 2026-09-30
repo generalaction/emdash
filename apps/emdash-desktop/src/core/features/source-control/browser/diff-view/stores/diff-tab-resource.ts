@@ -1,7 +1,9 @@
 import type { GitChangeStatus, GitFilePath, GitObjectRef } from '@emdash/core/runtimes/git/api';
-import { action, makeObservable, observable } from 'mobx';
+import { action, computed, makeObservable, observable } from 'mobx';
 import { getFileKind } from '@core/features/editor/api/browser/renderers/fileKind';
+import type { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
+import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import type {
   TabHandle,
   TabResource,
@@ -16,6 +18,7 @@ export type DiffRendererData =
   | { kind: 'binary' };
 
 export interface DiffPayload {
+  workspaceId?: string;
   readonly path: GitFilePath;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
@@ -39,6 +42,7 @@ export interface DiffPayload {
 export class DiffTabResource implements TabResource {
   /** Provided so lifecycle stores can close/transition by tabId. */
   readonly tabId: string;
+  readonly workspaceId: string;
 
   readonly path: GitFilePath;
   viewMode: DiffViewMode = 'diff';
@@ -53,12 +57,13 @@ export class DiffTabResource implements TabResource {
   commitModifiedSha: string | undefined;
   status: GitChangeStatus | undefined;
 
-  private readonly _manager: DiffTabManager | null;
+  private _manager: DiffTabManager | null;
   private readonly _handle: TabHandle | null;
 
   constructor(tabId: string, payload: DiffPayload, manager?: DiffTabManager, handle?: TabHandle) {
     this.tabId = tabId;
     this.path = payload.path;
+    this.workspaceId = payload.workspaceId ?? '';
     this._manager = manager ?? null;
     this._handle = handle ?? null;
     this.renderer = resolveDiffRenderer(payload.path);
@@ -72,7 +77,8 @@ export class DiffTabResource implements TabResource {
     this.commitModifiedSha = payload.commitModifiedSha;
     this.status = payload.status;
 
-    makeObservable(this, {
+    makeObservable<DiffTabResource, '_manager'>(this, {
+      _manager: observable.ref,
       viewMode: observable,
       renderer: observable,
       diffGroup: observable,
@@ -84,12 +90,41 @@ export class DiffTabResource implements TabResource {
       commitOriginalSha: observable,
       commitModifiedSha: observable,
       status: observable,
+      workspace: computed,
+      diffView: computed,
+      unavailable: computed,
+      readOnly: computed,
       setViewMode: action,
       transition: action,
       updateStatus: action,
+      bindManager: action,
     });
 
     this._manager?.acquire(this);
+  }
+
+  bindManager(manager: DiffTabManager): void {
+    if (manager === this._manager) return;
+    this._manager?.release(this);
+    this._manager = manager;
+    manager.acquire(this);
+  }
+
+  get workspace(): WorkspaceStore | undefined {
+    return this.diffView?.workspaceFor(this.workspaceId);
+  }
+
+  get diffView(): DiffViewStore | null {
+    return this._manager?.currentDiffView() ?? null;
+  }
+
+  get unavailable(): boolean {
+    const view = this._manager?.currentDiffView();
+    return !!view && !view.worktreesLoading && !this.workspace;
+  }
+
+  get readOnly(): boolean {
+    return this.workspaceId !== this._manager?.currentDiffView()?.taskWorkspaceId;
   }
 
   /** Sync the bound DiffViewStore when this tab is activated (engine-called). */
@@ -138,6 +173,7 @@ export class DiffTabResource implements TabResource {
 
   toActiveFile(): ActiveFile {
     return {
+      workspaceId: this.workspaceId,
       path: this.path,
       type: this.diffGroup === 'disk' ? 'disk' : 'git',
       group: this.diffGroup,

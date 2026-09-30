@@ -13,10 +13,8 @@ import { DiffViewStore } from '@core/features/source-control/api/browser/diff-vi
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
 import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
-import {
-  diffTabManagerStoreToken,
-  gitCheckoutStoreToken,
-} from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { diffTabManagerStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { PreviewServerStore } from '@core/features/tasks/api/browser/stores/preview-server-store';
 import {
   taskChromeStore,
@@ -63,6 +61,7 @@ import {
 } from '@core/primitives/mementos/browser';
 import { getMementoClient } from '@core/primitives/mementos/browser';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
+import type { ScopedStoreValue } from '@core/primitives/scoped-stores/browser';
 import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
 
 export type RendererKind =
@@ -109,6 +108,7 @@ export class TaskComposition {
   private readonly _terminalSelectionHandle: MementoHandle<TaskTerminalSelectionState>;
   private readonly _diffPreferencesHandle: MementoHandle<TaskDiffPreferencesState>;
   private readonly _diffSelectionHandle: MementoHandle<TaskDiffSelectionState>;
+  private readonly _diffTabManager: ScopedStoreValue<typeof diffTabManagerStoreToken>;
 
   constructor(
     readonly projectId: string,
@@ -119,6 +119,7 @@ export class TaskComposition {
     private readonly _conversations: ConversationManagerStore,
     private readonly _gitRepository: GitRepositoryStore
   ) {
+    this._diffTabManager = _taskStore.get(diffTabManagerStoreToken);
     this.space = getMementoClient().subject(taskSubject({ taskId }));
     this.chrome = createChromeStore(taskChromeStore, this.space);
     this._terminalSelectionHandle = sanitizedMemento(
@@ -144,7 +145,7 @@ export class TaskComposition {
       }),
       {
         deps: getWorkspacePath,
-        sanitize: resolvePaneLayoutFilePaths,
+        sanitize: (value, path) => resolvePaneLayoutFilePaths(value, path, workspaceId),
       }
     );
     const taskCtx: TaskTabContext = {
@@ -197,7 +198,10 @@ export class TaskComposition {
 
     makeAutoObservable<
       TaskComposition,
-      '_diffPreferencesHandle' | '_diffSelectionHandle' | '_terminalSelectionHandle'
+      | '_diffPreferencesHandle'
+      | '_diffSelectionHandle'
+      | '_terminalSelectionHandle'
+      | '_diffTabManager'
     >(this, {
       paneLayout: false,
       terminalTabs: false,
@@ -209,6 +213,7 @@ export class TaskComposition {
       _terminalSelectionHandle: false,
       _diffPreferencesHandle: false,
       _diffSelectionHandle: false,
+      _diffTabManager: false,
     });
 
     this._disposers.push(
@@ -259,6 +264,7 @@ export class TaskComposition {
       !!this._workspace?.get(gitCheckoutStoreToken).hasData &&
       !this.isSidebarCollapsed &&
       this.sidebarTab === 'changes' &&
+      this.diffView?.readOnly !== true &&
       !project.get(workspaceChromeStoreToken).state.zen.active &&
       this.diffView?.changesView.expandedSections.pullRequests === true
     );
@@ -417,19 +423,29 @@ export class TaskComposition {
               ...gitCheckout.stagedFileChanges.map((file) => file.path),
             ])
           : undefined,
-      sanitize: sanitizeDiffSelection,
+      sanitize: (value, paths) => sanitizeDiffSelection(value, paths, workspaceId),
     });
     this.diffView = new DiffViewStore(
       gitCheckout,
       this.prStore,
       this._diffPreferencesHandle,
-      diffSelectionHandle
+      diffSelectionHandle,
+      {
+        projectId: this.projectId,
+        taskId: this.taskId,
+        workspace,
+        gitRepository: this._gitRepository,
+      }
     );
     this.prStore.bindDetails(() => ({
       visible: this.isPrPanelVisible,
       comments: this.diffView?.effectivePrTab === 'checks',
     }));
-    workspace.get(diffTabManagerStoreToken).bindSession({
+    const diffManager = this._diffTabManager;
+    for (const { pane } of this.paneLayout.groups) {
+      diffManager.bindResources(pane.resourcesOfKind('diff'));
+    }
+    diffManager.bindSession({
       gitCheckout,
       pr: this.prStore,
       diffView: this.diffView,
@@ -458,9 +474,9 @@ export class TaskComposition {
   }
 
   suspend(): void {
+    this._diffTabManager.unbindSession();
     this.diffView?.dispose();
     this.diffView = null;
-    this._workspace?.get(diffTabManagerStoreToken).unbindSession();
     this.prStore?.dispose();
     this.prStore = null;
     this.previewServers?.dispose();
