@@ -442,10 +442,8 @@ export class AcpChatStore {
     }
 
     void this._submitPrompt(promptId, text, promptAttachments, hiddenContext).then((outcome) => {
-      if (outcome !== 'rejected') {
-        onAccepted?.();
-        return;
-      }
+      if (outcome === 'accepted') onAccepted?.();
+      if (outcome !== 'rejected') return;
       runInAction(() => {
         if (this._disposed || submissionSequence !== this._submissionSequence) return;
         if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {

@@ -51,6 +51,18 @@ describe('DraftCommentsStore', () => {
     expect(store.formattedForAgent).toBe('');
   });
 
+  it('deleteSent removes sent comments but keeps ones edited since', () => {
+    const store = new DraftCommentsStore('task-1');
+    const keptId = store.addComment({ target: diskTarget, lineNumber: 1, content: 'Before edit.' });
+    store.addComment({ target: diskTarget, lineNumber: 2, content: 'Unchanged.' });
+    const sent = store.comments;
+
+    store.updateComment(keptId, 'After edit.');
+    store.deleteSent(sent);
+
+    expect(store.comments.map((comment) => comment.content)).toEqual(['After edit.']);
+  });
+
   it('filters comments by exact target, not file path', () => {
     const store = new DraftCommentsStore('task-1');
 

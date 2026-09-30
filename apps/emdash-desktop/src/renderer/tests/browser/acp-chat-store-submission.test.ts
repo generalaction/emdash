@@ -577,6 +577,21 @@ describe('AcpChatStore prompt submission', () => {
     await vi.waitFor(() => expect(onAccepted).toHaveBeenCalledTimes(1));
   });
 
+  it('does not call onAccepted when prompt delivery is unconfirmed', async () => {
+    const promptId = crypto.randomUUID();
+    const sendPrompt = vi
+      .fn()
+      .mockRejectedValue(new AcpPromptDeliveryUnknownError(promptId, new Error('disconnected')));
+    const live = fakeLiveSession(idleState(), availableHistory(), { sendPrompt });
+    const store = await bootstrapWithSession(live.session);
+    const onAccepted = vi.fn();
+
+    store.submitPrompt('hello', [], undefined, onAccepted);
+
+    await vi.waitFor(() => expect(store.unconfirmedPromptIds).toEqual([promptId]));
+    expect(onAccepted).not.toHaveBeenCalled();
+  });
+
   it('does not call onAccepted when the prompt is rejected', async () => {
     const store = createStore(idleState(), vi.fn());
     store.session = null;

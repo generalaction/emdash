@@ -262,10 +262,10 @@ const ComposerForStore = observer(function ComposerForStore({
       if (!value.trim() && promptAttachments.length === 0) return;
       const comments = draftComments?.comments ?? [];
       const hiddenContext = appendDraftCommentsContext(buildHiddenIssueContext(value), comments);
-      // Only consume the comments that were sent; ones added mid-flight stay drafted.
-      store.submitPrompt(value, promptAttachments, hiddenContext, () => {
-        for (const comment of comments) draftComments?.deleteComment(comment.id);
-      });
+      // Only consume the comments that were sent; ones added or edited mid-flight stay drafted.
+      store.submitPrompt(value, promptAttachments, hiddenContext, () =>
+        draftComments?.deleteSent(comments)
+      );
     },
     [store, buildHiddenIssueContext, draftComments]
   );
