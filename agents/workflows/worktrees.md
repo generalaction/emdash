@@ -20,7 +20,10 @@
 - **Fetch latest base before creation** defaults off, can be saved in Project Settings next to
   Default branch, and can be overridden for each new task or automation. Enabled creation fetches
   only the selected remote branch and starts at its resolved commit. A failed fetch stops
-  creation before the branch, worktree, or agent is created; the fetch is limited to 60 seconds
+  creation before the branch, worktree, or agent is created; the fetch and its lock retries share
+  one 60-second deadline
+- local bases remain usable while project defaults load. If defaults cannot load, remote-base
+  creation can use the cached ref with a visible warning, or explicitly enable fetching
 - local base branches use their local commit; select a remote branch to enable freshness
 - the choice is saved with the workspace or automation configuration, so retries and scheduled
   runs retain it when the project preference changes. Older saved configurations use the cached

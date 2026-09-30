@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { deferred } from '@emdash/shared/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeCreateWorktree } from './create-worktree';
 import { createRegistryGitContext } from './git-context';
 
@@ -216,6 +217,73 @@ describe('executeCreateWorktree resolve-base', () => {
       status: 'failed',
       message: 'Select a remote base branch to fetch its latest commit',
     });
+  });
+
+  it('shares one fetch deadline across slow ref-lock retries and aborts provisioning', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    git(repoPath, 'remote', 'add', 'origin', path.join(root, 'missing.git'));
+    git(repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    const worktreePath = path.join(root, 'deadline-wt');
+    const started = deferred<void>();
+    const fetchSignals: AbortSignal[] = [];
+    const stages: string[] = [];
+    const slowGit = {
+      ...gitContext,
+      exec: (...params: Parameters<typeof gitContext.exec>) => {
+        const bound = gitContext.exec(...params);
+        return {
+          ...bound,
+          exec: (...args: Parameters<typeof bound.exec>) => {
+            if (args[0][0] !== 'fetch') return bound.exec(...args);
+            const signal = args[1]?.signal;
+            if (!signal) throw new Error('Fetch must carry its shared deadline signal');
+            fetchSignals.push(signal);
+            started.resolve();
+            return new Promise<Awaited<ReturnType<typeof bound.exec>>>((_resolve, reject) => {
+              const timer = setTimeout(() => {
+                signal.removeEventListener('abort', abort);
+                reject(new Error('could not lock ref refs/remotes/origin/main'));
+              }, 40_000);
+              const abort = () => {
+                clearTimeout(timer);
+                reject(signal.reason);
+              };
+              signal.addEventListener('abort', abort, { once: true });
+            });
+          },
+        };
+      },
+    };
+    vi.useFakeTimers();
+    try {
+      const pending = executeCreateWorktree({
+        git: slowGit,
+        repositoryPath: repoPath,
+        worktreePath,
+        branch: 'feature/deadline',
+        baseRef: 'origin/main',
+        fetchLatestBase: true,
+        onStage: (stage) => stages.push(stage),
+      });
+      await started.promise;
+      await vi.advanceTimersByTimeAsync(40_050);
+      expect(fetchSignals).toHaveLength(2);
+      expect(fetchSignals[1]).toBe(fetchSignals[0]);
+      await vi.advanceTimersByTimeAsync(19_950);
+      await expect(pending).resolves.toMatchObject({
+        status: 'failed',
+        stage: 'resolve-base',
+        message: 'Operation timed out after 60000ms',
+      });
+      expect(fetchSignals[0]?.aborted).toBe(true);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(fetchSignals).toHaveLength(2);
+      expect(stages).not.toContain('add-worktree');
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(git(repoPath, 'branch', '--list', 'feature/deadline')).toBe('');
+    await expect(fs.access(worktreePath)).rejects.toThrow();
   });
 
   it('reuses an existing branch without fetching an enabled base', async () => {

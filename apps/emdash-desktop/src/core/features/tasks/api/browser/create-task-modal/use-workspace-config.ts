@@ -43,6 +43,7 @@ export type WorkspaceConfigState = {
   fetchLatestBase: boolean;
   setFetchLatestBase: (value: boolean) => void;
   canFetchLatestBase: boolean;
+  fetchLatestBaseSettingsUnavailable: boolean;
 
   // ── Existing-workspace detail ───────────────────────────────────────────
   selectedWorkspaceId: string | null;
@@ -263,13 +264,17 @@ export function useWorkspaceConfig(opts: {
     projectId,
     resetKey,
   });
-  const projectSettings = projectId
-    ? (getProjectSettingsStore(projectId)?.durableDomains ?? null)
-    : null;
+  const projectSettingsStore = projectId ? getProjectSettingsStore(projectId) : undefined;
+  const projectSettings = projectSettingsStore?.durableDomains ?? null;
   const canFetchLatestBase =
     presetId === 'new-worktree' &&
     branchSelection.createBranchAndWorktree &&
     branchSelection.selectedBranch?.type === 'remote';
+  const fetchLatestBaseSettingsUnavailable =
+    canFetchLatestBase &&
+    projectSettings === null &&
+    !projectSettingsStore?.pageData.loading &&
+    projectSettingsStore?.pageData.error !== undefined;
   const fetchLatestBase =
     canFetchLatestBase &&
     (fetchLatestBaseOverride ?? projectSettings?.gitIdentity.stored.fetchLatestBase ?? false);
@@ -403,7 +408,10 @@ export function useWorkspaceConfig(opts: {
 
     // new-worktree — create new branch
     return (
-      (fetchLatestBaseOverride !== undefined || projectSettings !== null) &&
+      (!canFetchLatestBase ||
+        fetchLatestBaseOverride !== undefined ||
+        projectSettings !== null ||
+        fetchLatestBaseSettingsUnavailable) &&
       branchNameState.branchName.trim().length > 0 &&
       !branchNameState.branchAlreadyExists &&
       branchSelection.selectedBranch !== undefined
@@ -422,6 +430,8 @@ export function useWorkspaceConfig(opts: {
     branchConflict,
     fetchLatestBaseOverride,
     projectSettings,
+    canFetchLatestBase,
+    fetchLatestBaseSettingsUnavailable,
   ]);
 
   return {
@@ -434,6 +444,7 @@ export function useWorkspaceConfig(opts: {
     fetchLatestBase,
     setFetchLatestBase,
     canFetchLatestBase,
+    fetchLatestBaseSettingsUnavailable,
     selectedWorkspaceId,
     setSelectedWorkspaceId,
     workspaceOptions,

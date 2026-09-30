@@ -96,9 +96,20 @@ export function NewWorktreePanel({
               />
               Fetch latest base before creation
             </Field.Label>
-            <Field.Description className="text-xs text-foreground-muted">
+            <Field.Description
+              className="text-xs text-foreground-muted"
+              role={
+                workspaceConfig.fetchLatestBaseSettingsUnavailable &&
+                !workspaceConfig.fetchLatestBase
+                  ? 'alert'
+                  : undefined
+              }
+            >
               {workspaceConfig.canFetchLatestBase
-                ? 'Creation stops if the fetch fails.'
+                ? workspaceConfig.fetchLatestBaseSettingsUnavailable &&
+                  !workspaceConfig.fetchLatestBase
+                  ? 'Project defaults could not be loaded. Using the cached base unless you enable fetching.'
+                  : 'Creation stops if the fetch fails.'
                 : 'Select a remote base branch to fetch its latest commit.'}
             </Field.Description>
           </Field.Root>

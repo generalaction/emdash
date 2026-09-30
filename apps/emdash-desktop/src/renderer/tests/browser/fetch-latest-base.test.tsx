@@ -61,4 +61,19 @@ describe('fetch latest base creation control', () => {
     expect(host.textContent).toContain('Select a remote base branch');
     expect(state.setFetchLatestBase).not.toHaveBeenCalled();
   });
+
+  it('announces the cached fallback when defaults cannot load and lets the user enable fetching', async () => {
+    const state = config(true);
+    state.fetchLatestBaseSettingsUnavailable = true;
+    await act(async () => root.render(<NewWorktreePanel workspaceConfig={state} />));
+    await expect
+      .element(page.getByRole('alert'))
+      .toHaveTextContent(
+        'Project defaults could not be loaded. Using the cached base unless you enable fetching.'
+      );
+    await act(async () =>
+      page.getByRole('checkbox', { name: 'Fetch latest base before creation' }).click()
+    );
+    expect(state.setFetchLatestBase).toHaveBeenCalledWith(true);
+  });
 });

@@ -34,9 +34,12 @@ const projectConfigMock = vi.hoisted(() => ({
   preservePatterns: ['.env'] as string[],
   fetchLatestBase: false,
   loaded: true,
+  error: undefined as string | undefined,
+  loading: false,
 }));
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectSettingsStore: () => ({
+    pageData: { error: projectConfigMock.error, loading: projectConfigMock.loading },
     durableDomains: projectConfigMock.loaded
       ? { gitIdentity: { stored: { fetchLatestBase: projectConfigMock.fetchLatestBase } } }
       : null,
@@ -144,6 +147,8 @@ describe('useWorkspaceConfig branch selection', () => {
     projectConfigMock.preservePatterns = ['.env'];
     projectConfigMock.fetchLatestBase = false;
     projectConfigMock.loaded = true;
+    projectConfigMock.error = undefined;
+    projectConfigMock.loading = false;
     repositoryStoreMock.current = {
       baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
       pushRemote: { name: 'fork', url: 'https://github.com/me/repo.git' },
@@ -319,6 +324,41 @@ describe('useWorkspaceConfig branch selection', () => {
     await renderProbe({ branchSelection: { branchOverride: remoteBase } });
     expect(latestState?.isValid).toBe(true);
     expect(latestState?.fetchLatestBase).toBe(true);
+  });
+
+  it('allows local-base creation even when project defaults cannot load', async () => {
+    projectConfigMock.loaded = false;
+    projectConfigMock.error = 'Failed to load project settings';
+    await renderProbe(undefined);
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.canFetchLatestBase).toBe(false);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
+  });
+
+  it('allows cached remote-base creation after a defaults-load failure and exposes the fallback', async () => {
+    projectConfigMock.loaded = false;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.isValid).toBe(false);
+    projectConfigMock.error = 'Failed to load project settings';
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.fetchLatestBaseSettingsUnavailable).toBe(true);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
+    act(() => latestState?.setFetchLatestBase(true));
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: true });
+  });
+
+  it('waits for a settings retry despite the retained error, unless the user chooses an override', async () => {
+    projectConfigMock.loaded = false;
+    projectConfigMock.error = 'Failed to load project settings';
+    projectConfigMock.loading = true;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.fetchLatestBaseSettingsUnavailable).toBe(false);
+    expect(latestState?.isValid).toBe(false);
+    act(() => latestState?.setFetchLatestBase(false));
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
   });
 
   it('defaults unborn repositories to the repository root workspace', async () => {

@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { runWithTimeout } from '@emdash/shared/scheduling';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceGitSetup } from '../api/schemas';
@@ -138,18 +139,23 @@ export async function executeCreateWorktree(
             execution.onStage('fetch-base');
             // Hygiene (spec: git concurrency model): no FETCH_HEAD write, no auto
             // maintenance kicked off on the creation path.
-            await retryTransientLock(() =>
-              exec.exec(
-                [
-                  'fetch',
-                  remoteRef.remote,
-                  `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
-                  '--no-tags',
-                  '--no-write-fetch-head',
-                  '--no-auto-maintenance',
-                ],
-                { timeoutMs: 60_000 }
-              )
+            await runWithTimeout(
+              (signal) =>
+                retryTransientLock(() => {
+                  signal.throwIfAborted();
+                  return exec.exec(
+                    [
+                      'fetch',
+                      remoteRef.remote,
+                      `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
+                      '--no-tags',
+                      '--no-write-fetch-head',
+                      '--no-auto-maintenance',
+                    ],
+                    { timeoutMs: 60_000, signal }
+                  );
+                }),
+              { timeoutMs: 60_000 }
             );
             if (execution.fetchLatestBase) {
               resolvedBaseRef = (
