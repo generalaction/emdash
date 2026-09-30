@@ -30,8 +30,9 @@ does not infer agent status from terminal output. If a provider has no hook/plug
 for an event, the renderer should not show or notify an inferred status for that event.
 
 ACP conversations project agent status from runtime session summaries. Pending permission
-requests set `awaiting-input`; resolving the final request restores `working` if generation
-continues. The task and conversation indicators consume this projected status.
+requests set `awaiting-input`, including requests already present on first observation.
+Resolving the final request restores `working` if generation continues and the session is
+not cancelling. The task and conversation indicators consume this projected status.
 
 Shipped hook integrations install into user-global provider configuration, never into a task
 worktree. The provider behavior resolves its root from the same allowlisted environment passed to

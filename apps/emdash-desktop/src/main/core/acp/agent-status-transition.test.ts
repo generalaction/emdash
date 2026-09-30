@@ -120,11 +120,30 @@ describe('deriveAcpAgentStatusActions', () => {
     ).toEqual([]);
   });
 
-  it('keeps attention status when generation begins with a pending permission request', () => {
+  it('emits attention when a permission request is already present on first observation', () => {
+    const actions = deriveAcpAgentStatusActions(undefined, summary({ pendingPermissionCount: 1 }));
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      kind: 'event',
+      event: { type: 'notification', payload: { notificationType: 'permission_prompt' } },
+    });
+  });
+
+  it('does not repeat attention when generation begins with an existing permission request', () => {
     expect(
       deriveAcpAgentStatusActions(
         summary({ pendingPermissionCount: 1 }),
         summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 })
+      )
+    ).toEqual([]);
+  });
+
+  it('does not restore working when cancellation clears a pending permission request', () => {
+    expect(
+      deriveAcpAgentStatusActions(
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 }),
+        summary({ lifecycle: 'cancelling', isGenerating: true })
       )
     ).toEqual([]);
   });

@@ -62,7 +62,9 @@ export function deriveAcpAgentStatusActions(
     return [resetAction(previous.conversationId)];
   }
 
-  if (!previous) return [];
+  if (!previous) {
+    return next.pendingPermissionCount > 0 ? [permissionAction(next)] : [];
+  }
 
   if (next.lifecycle === 'closed') {
     return [resetAction(next.conversationId)];
@@ -77,6 +79,7 @@ export function deriveAcpAgentStatusActions(
 
   if (
     nowBusy &&
+    next.lifecycle !== 'cancelling' &&
     next.pendingPermissionCount === 0 &&
     (!wasBusy || previousPendingPermissionCount > 0)
   ) {
