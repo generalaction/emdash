@@ -34,7 +34,11 @@ export async function requestAcpReply(
 
   store.submitPrompt(text, [], hiddenContext);
   try {
-    await when(() => store.affordances.isWorking, { timeout: TURN_START_TIMEOUT_MS });
+    // A rejected prompt never starts a turn; the store restores its text into the (empty) composer.
+    await when(() => store.affordances.isWorking || store.draftText !== '', {
+      timeout: TURN_START_TIMEOUT_MS,
+    });
+    if (!store.affordances.isWorking) return null;
     await when(() => !store.affordances.isWorking, { timeout: TURN_END_TIMEOUT_MS });
   } catch {
     return null;
