@@ -854,6 +854,7 @@ export async function bootServices(
     logger: log,
     projects: projectManager,
     runtimes,
+    readProviderSettings: (key) => conversationPreferences.read(key),
     startInitialConversation: createStartInitialConversation({
       db,
       logger: log,

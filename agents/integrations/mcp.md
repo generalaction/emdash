@@ -81,9 +81,13 @@ Behavior:
   "nothing" counts as clean. The gate fails closed: an unreadable checkout is `unknown`,
   which needs confirmation too, and an unopenable one rejects rather than returning an
   error state, so both reads sit inside a `try`.
-- `create_task` mirrors the new-task modal's defaults, including the `project.pushOnCreate`
-  ("Auto-push on create") setting, so an MCP-created task pushes its branch and sets
-  upstream whenever a task created in the UI would
+- `create_task` honors `project.pushOnCreate` ("Auto-push on create") and reads provider
+  preferences for the project's host. Terminal auto-approve uses the provider's saved
+  terminal setting unless explicitly overridden. Chat UI uses native ACP options instead;
+  an explicit model override needs a discovered model option id. MCP still defaults to
+  terminal mode unless `chatUi: true` is supplied.
+- ACP startup calls `startSession` with `mode: 'resume'`; `attach` only creates a suspended
+  handle and does not start an agent
 - tool errors are summarized for the caller and logged in full; internal messages
   (paths, SQL, host errors) must not reach the MCP client
 - the server is headless, so it opens a project attachment itself via

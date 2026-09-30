@@ -23,7 +23,7 @@ export type StartInitialConversationDependencies = Readonly<{
 /**
  * Starts the agent session for a freshly created task, the same two paths the
  * renderer drives when it opens a task: TUI conversations launch through the
- * host's agent session, ACP conversations attach to the host's ACP runtime.
+ * host's agent session, ACP conversations start through the host's ACP runtime.
  *
  * The caller must hold the project attachment: both paths reach the task's
  * session, which only exists while the project is attached.
@@ -44,7 +44,7 @@ export function createStartInitialConversation(
         );
         return { started: true };
       }
-      return await attachAcpSession(dependencies, conversationId);
+      return await startAcpSession(dependencies, conversationId);
     } catch (error) {
       dependencies.logger.warn('McpHttpServer: failed to start the initial conversation', {
         conversationId,
@@ -56,7 +56,7 @@ export function createStartInitialConversation(
   };
 }
 
-async function attachAcpSession(
+async function startAcpSession(
   dependencies: StartInitialConversationDependencies,
   conversationId: string
 ): Promise<{ started: boolean; message?: string }> {
@@ -74,8 +74,11 @@ async function attachAcpSession(
   if (!runtime.success) {
     return { started: false, message: `the task's host is unavailable (${runtime.error.type})` };
   }
-  const attached = await runtime.data.acp.attach(target.acpInput);
-  return attached.success
+  const started = await runtime.data.acp.startSession(
+    { ...target.acpInput, mode: 'resume' },
+    { timeoutMs: 0 }
+  );
+  return started.success
     ? { started: true }
-    : { started: false, message: attached.error.message ?? attached.error.type };
+    : { started: false, message: started.error.message ?? started.error.type };
 }

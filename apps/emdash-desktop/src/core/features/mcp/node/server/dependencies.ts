@@ -1,5 +1,9 @@
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Logger } from '@emdash/shared/logger';
+import type {
+  ProviderSettingsKey,
+  ProviderSettingsSnapshot,
+} from '@core/features/conversations/api/provider-settings';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
@@ -19,6 +23,7 @@ export type McpToolDependencies = Readonly<{
   runtimes: RuntimeBroker;
   workspaceIdentity: WorkspaceIdentityService;
   appSettings: AppSettingsService;
+  readProviderSettings(key: ProviderSettingsKey): Promise<ProviderSettingsSnapshot>;
   telemetry: TelemetryService;
   logger: Logger;
   /** Reported as the MCP server's version. */
