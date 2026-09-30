@@ -28,11 +28,14 @@ function TooltipContent({
   align = 'center',
   alignOffset = 0,
   showArrow = true,
+  tone = 'inverted',
   children,
   ...props
 }: TooltipPrimitive.Popup.Props &
   Pick<TooltipPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'> & {
     showArrow?: boolean;
+    /** Theme-matched surface for longer previews; inverted is the compact default. */
+    tone?: 'inverted' | 'surface';
   }) {
   return (
     <TooltipPrimitive.Portal>
@@ -45,11 +48,12 @@ function TooltipContent({
       >
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
-          className={cx(styles.content, className)}
+          data-tone={tone}
+          className={cx(tone === 'surface' && 'surface-elevated', styles.content, className)}
           {...props}
         >
           {children}
-          {showArrow ? <TooltipPrimitive.Arrow className={styles.arrow} /> : null}
+          {showArrow ? <TooltipPrimitive.Arrow data-tone={tone} className={styles.arrow} /> : null}
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>

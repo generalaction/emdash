@@ -142,9 +142,15 @@ export function AcpMessageNavigator({
                 />
               }
             >
-              {loading ? <LoaderCircle className="animate-spin" /> : <ChevronUp />}
+              {loading ? (
+                <LoaderCircle className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <ChevronUp style={{ opacity: 0.78 }} />
+              )}
             </Tooltip.Trigger>
-            <Tooltip.Content side="right">{error ?? 'Load earlier messages'}</Tooltip.Content>
+            <Tooltip.Content tone="surface" side="right" sideOffset={8}>
+              {error ?? 'Load earlier messages'}
+            </Tooltip.Content>
           </Tooltip.Root>
         )}
         {showMarkers && (
@@ -196,16 +202,23 @@ export function AcpMessageNavigator({
                         <span
                           aria-hidden="true"
                           style={{
-                            width: current ? 16 : 8,
-                            height: current ? 3 : 2,
+                            width: current ? 14 : 8,
+                            height: 2,
                             borderRadius: 2,
                             background: 'currentColor',
+                            opacity: current ? 0.96 : 0.78,
                           }}
                         />
                       </Tooltip.Trigger>
-                      <Tooltip.Content side="right" showArrow={false}>
+                      <Tooltip.Content tone="surface" side="right" sideOffset={8} showArrow={false}>
                         <div style={{ width: 256, maxWidth: 'calc(100vw - 80px)' }}>
-                          <div className="mb-1 text-xs opacity-70">
+                          <div
+                            style={{
+                              color: 'var(--em-foreground-muted)',
+                              fontSize: 12,
+                              marginBottom: 6,
+                            }}
+                          >
                             Message {index + 1} of {items.length}
                           </div>
                           <div

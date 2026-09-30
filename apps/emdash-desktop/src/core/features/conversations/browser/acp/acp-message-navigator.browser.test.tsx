@@ -1,4 +1,5 @@
 import type { UserMessageNavigation } from '@emdash/chat-ui';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import '@emdash/ui/style.css';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -12,18 +13,55 @@ beforeAll(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
+type Color = [number, number, number, number];
+
+function color(css: string): Color {
+  // Canvas converts CSS colors (including display-p3) to its default sRGB pixels.
+  const context = document.createElement('canvas').getContext('2d')!;
+  context.fillStyle = css;
+  context.fillRect(0, 0, 1, 1);
+  return Array.from(context.getImageData(0, 0, 1, 1).data, (channel) => channel / 255) as Color;
+}
+
+function composite(foreground: Color, background: Color, opacity = 1): Color {
+  const alpha = foreground[3] * opacity;
+  return [
+    foreground[0] * alpha + background[0] * (1 - alpha),
+    foreground[1] * alpha + background[1] * (1 - alpha),
+    foreground[2] * alpha + background[2] * (1 - alpha),
+    1,
+  ];
+}
+
+function luminance([r, g, b]: Color): number {
+  const linear = (channel: number) =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+function contrast(foreground: Color, background: Color): number {
+  const a = luminance(foreground);
+  const b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
 describe('AcpMessageNavigator', () => {
   let host: HTMLDivElement;
   let root: Root;
   let navigation: UserMessageNavigation;
+  let originalTheme: string;
   const onNavigate = vi.fn();
   const onLoadOlder = vi.fn();
 
   beforeEach(async () => {
     await page.viewport(800, 700);
+    originalTheme = document.documentElement.className;
+    document.documentElement.classList.remove('emlight', 'emdark');
+    document.documentElement.classList.add('emlight');
     host = document.createElement('div');
-    host.className = 'emlight';
-    host.style.cssText = 'position:relative;width:640px;height:500px;font-family:system-ui';
+    host.className = 'surface-paper';
+    host.style.cssText =
+      'position:relative;width:640px;height:500px;font-family:system-ui;background:var(--em-surface)';
     document.body.append(host);
     root = createRoot(host);
     navigation = {
@@ -42,6 +80,7 @@ describe('AcpMessageNavigator', () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     host.remove();
+    document.documentElement.className = originalTheme;
   });
 
   async function render(hasOlderHistory = false) {
@@ -71,6 +110,91 @@ describe('AcpMessageNavigator', () => {
     expect(bounds.top).toBeGreaterThanOrEqual(viewportBounds.top - 1);
     expect(bounds.bottom).toBeLessThanOrEqual(viewportBounds.bottom + 1);
   }
+
+  it.each(['emlight', 'emdark'])(
+    'shows readable translucent previews and earlier-history hints on keyboard focus in %s',
+    async (theme) => {
+      document.documentElement.classList.replace('emlight', theme);
+      await render(true);
+      const paper = color(getComputedStyle(host).backgroundColor);
+      const expectSurface = async (...texts: string[]) => {
+        const preview = page.getByText(texts[0], { exact: true });
+        await expect.element(preview).toBeVisible();
+        const tooltip = preview.element().closest('[data-slot="tooltip-content"]')!;
+        await vi.waitFor(() => expect(getComputedStyle(tooltip).opacity).toBe('1'));
+        const background = color(getComputedStyle(tooltip).backgroundColor);
+        expect(background[3]).toBeGreaterThan(0);
+        expect(background[3]).toBeLessThan(1);
+        const paintedBackground = composite(background, paper);
+        expect(luminance(paintedBackground) > 0.5).toBe(theme === 'emlight');
+        for (const text of texts) {
+          const content = page.getByText(text, { exact: true });
+          await expect.element(content).toBeVisible();
+          const style = getComputedStyle(content.element());
+          const foreground = composite(
+            color(style.color),
+            paintedBackground,
+            Number(style.opacity)
+          );
+          expect(contrast(foreground, paintedBackground)).toBeGreaterThanOrEqual(4.5);
+        }
+      };
+
+      await act(async () => userEvent.keyboard('{Tab}'));
+      await expect
+        .element(page.getByRole('button', { name: 'Load earlier messages', exact: true }))
+        .toHaveFocus();
+      await expectSurface('Load earlier messages');
+
+      await act(async () => userEvent.keyboard('{Tab}'));
+      await expect.element(marker(2000)).toHaveFocus();
+      await expectSurface('Request 2000', 'Message 2000 of 2000');
+    }
+  );
+
+  it.each(['emlight', 'emdark'])(
+    'keeps inactive marker glyphs distinguishable from paper in %s',
+    async (theme) => {
+      document.documentElement.classList.replace('emlight', theme);
+      await render();
+      await vi.waitFor(() => expectInsideViewport(marker(2000).element()));
+      const paper = color(getComputedStyle(host).backgroundColor);
+      const inactive = marker(1999);
+      await expect.element(inactive).toBeVisible();
+      expect(inactive.element().hasAttribute('aria-current')).toBe(false);
+      const style = getComputedStyle(inactive.element().querySelector('[aria-hidden="true"]')!);
+      const background = composite(
+        color(getComputedStyle(inactive.element()).backgroundColor),
+        paper
+      );
+      const glyph = composite(color(style.backgroundColor), background, Number(style.opacity));
+      expect(contrast(glyph, background)).toBeGreaterThanOrEqual(3);
+    }
+  );
+
+  it.each(['emlight', 'emdark'])(
+    'keeps the default tooltip opaque and inverted in %s',
+    async (theme) => {
+      document.documentElement.classList.replace('emlight', theme);
+      await act(async () =>
+        root.render(
+          <Tooltip.Provider>
+            <Tooltip.Root>
+              <Tooltip.Trigger>Default hint</Tooltip.Trigger>
+              <Tooltip.Content>Default tooltip text</Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
+        )
+      );
+      await act(async () => userEvent.keyboard('{Tab}'));
+      await expect.element(page.getByRole('button', { name: 'Default hint' })).toHaveFocus();
+      const tooltip = page.getByText('Default tooltip text', { exact: true });
+      await expect.element(tooltip).toBeVisible();
+      const background = color(getComputedStyle(tooltip.element()).backgroundColor);
+      expect(background[3]).toBe(1);
+      expect(luminance(background) > 0.5).toBe(theme === 'emdark');
+    }
+  );
 
   it('bounds 2000 loaded markers while Home, End, and Enter retain exact IDs and global ordinals', async () => {
     await render();
