@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { formatHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { err, ok, type Result } from '@emdash/shared';
 import {
@@ -7,6 +8,7 @@ import {
   listPlugins,
 } from '@core/features/agents/api/node/plugin-registry';
 import { DEFAULT_AGENT_ID } from '@core/features/agents/contributions/settings';
+import type { ProviderSettingsSnapshot } from '@core/features/conversations/api/provider-settings';
 import {
   generateRandom,
   generateTaskName,
@@ -74,18 +76,43 @@ async function resolveProvider(
   return ok(isValidProviderId(configured) ? configured : DEFAULT_AGENT_ID);
 }
 
-/**
- * Mirrors the new-task modal: an explicit request wins over the app default,
- * and both are ignored for providers without an auto-approve mode.
- */
-async function resolveAutoApprove(
-  appSettings: AppSettingsService,
+async function resolveLaunchSettings(
+  dependencies: McpToolDependencies,
+  host: HostRef,
   provider: AgentProviderId,
-  requested: boolean | undefined
-): Promise<boolean> {
-  if (getPlugin(provider).capabilities.autoApprove.kind !== 'supported') return false;
-  if (requested !== undefined) return requested;
-  return (await appSettings.get('tasks')).autoApproveByDefault;
+  conversationType: 'pty' | 'acp',
+  input: McpCreateTaskInput,
+  model: string | undefined
+): Promise<
+  Result<{ autoApprove: boolean; options?: ProviderSettingsSnapshot['acp']['options'] }, string>
+> {
+  const settings = await dependencies.readProviderSettings({
+    host: formatHostRef(host),
+    providerId: provider,
+  });
+  if (conversationType === 'pty') {
+    return ok({
+      autoApprove:
+        getPlugin(provider).capabilities.autoApprove.kind === 'supported' &&
+        (input.autoApprove ?? settings.pty.autoApprove),
+    });
+  }
+
+  const options = { ...settings.acp.options };
+  if (model) {
+    const modelOption = settings.catalogs
+      .flat()
+      .find((option) => option.category === 'model' && option.type === 'select');
+    if (!modelOption) {
+      return err(
+        "Emdash has not discovered this provider's ACP model setting yet. Open a chat " +
+          'conversation with this provider first, or omit model to use its saved settings.'
+      );
+    }
+    options[modelOption.id] = model;
+  }
+  // ACP permissions are native provider options, not the terminal auto-approve flag.
+  return ok({ autoApprove: false, options });
 }
 
 export function resolveModel(
@@ -166,16 +193,13 @@ export async function createTaskFromPrompt(
   // since the preset would otherwise read an absent value as "push".
   const pushBranch = (await appSettings.get('project')).pushOnCreate ?? true;
 
-  // Matches the new-task modal: chat UI is opt-in and only available when the
-  // provider supports ACP; otherwise the agent runs in a terminal session.
+  // MCP keeps terminal mode as its default; chat UI requires an ACP-capable provider.
   const conversationType: 'pty' | 'acp' | 'none' = !provider
     ? 'none'
     : (input.chatUi ?? false) && getPlugin(provider).capabilities.acp.kind === 'supported'
       ? 'acp'
       : 'pty';
-  const autoApprove = provider
-    ? await resolveAutoApprove(appSettings, provider, input.autoApprove)
-    : null;
+  let autoApprove: boolean | null = null;
   const conversationId = randomUUID();
   const taskId = randomUUID();
 
@@ -192,6 +216,21 @@ export async function createTaskFromPrompt(
       const fromBranch = await resolveFromBranch(project, input.baseBranch);
       if (!fromBranch.success) return fromBranch;
 
+      let providerOptions: ProviderSettingsSnapshot['acp']['options'] | undefined;
+      if (provider && conversationType !== 'none') {
+        const launchSettings = await resolveLaunchSettings(
+          dependencies,
+          project.host,
+          provider,
+          conversationType,
+          input,
+          model
+        );
+        if (!launchSettings.success) return launchSettings;
+        autoApprove = launchSettings.data.autoApprove;
+        providerOptions = launchSettings.data.options;
+      }
+
       const params: CreateTaskParams = {
         id: taskId,
         projectId: input.projectId,
@@ -203,6 +242,7 @@ export async function createTaskFromPrompt(
           prompt,
           conversationType,
           autoApprove,
+          providerOptions,
         }),
         workspaceConfig: buildWorkspaceConfigFromPreset(
           'new-worktree',
@@ -277,6 +317,7 @@ function buildTaskConfig(options: {
   prompt: string;
   conversationType: 'pty' | 'acp' | 'none';
   autoApprove: boolean | null;
+  providerOptions?: ProviderSettingsSnapshot['acp']['options'];
 }): TaskConfig {
   const { provider, conversationType, prompt } = options;
   if (!provider || conversationType === 'none') {
@@ -290,11 +331,13 @@ function buildTaskConfig(options: {
       provider,
       title: options.taskName,
       type: conversationType,
-      ...(options.autoApprove !== null && { autoApprove: options.autoApprove }),
-      ...(options.model && { model: options.model }),
       ...(conversationType === 'acp'
-        ? { initialQueue: [{ text: prompt }] }
-        : { initialPrompt: prompt }),
+        ? { options: options.providerOptions, initialQueue: [{ text: prompt }] }
+        : {
+            ...(options.autoApprove !== null && { autoApprove: options.autoApprove }),
+            ...(options.model && { model: options.model }),
+            initialPrompt: prompt,
+          }),
     },
   };
 }
