@@ -19,14 +19,17 @@ export const queuedPromptSchema = promptInputSchema.extend({
 });
 export type QueuedPrompt = z.infer<typeof queuedPromptSchema>;
 
-// Providers replay every prompt block as user text on session/load, so hidden context is sent
-// inside a marker that transcript decoding strips back out.
-const HIDDEN_CONTEXT_PATTERN = /<emdash-hidden-context>[\s\S]*?<\/emdash-hidden-context>/g;
+// Providers replay every prompt block as user text on session/load, so hidden context is sent as
+// its own marked block and transcript decoding drops chunks that are exactly one such block.
+// Matching the whole chunk (not a pattern inside it) means marker text inside the context, or in
+// what the user typed, can neither end the block early nor erase visible text.
+const HIDDEN_CONTEXT_OPEN = '<emdash-hidden-context>\n';
+const HIDDEN_CONTEXT_CLOSE = '\n</emdash-hidden-context>';
 
 export function wrapHiddenContext(text: string): string {
-  return `<emdash-hidden-context>\n${text}\n</emdash-hidden-context>`;
+  return `${HIDDEN_CONTEXT_OPEN}${text}${HIDDEN_CONTEXT_CLOSE}`;
 }
 
-export function stripHiddenContext(text: string): string {
-  return text.replace(HIDDEN_CONTEXT_PATTERN, '');
+export function isHiddenContextBlock(text: string): boolean {
+  return text.startsWith(HIDDEN_CONTEXT_OPEN) && text.endsWith(HIDDEN_CONTEXT_CLOSE);
 }
