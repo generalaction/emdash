@@ -241,6 +241,34 @@ describe('DiffTabManager: staleness reconcile', () => {
     expect(resource.closeSelf).toHaveBeenCalledOnce();
     manager.dispose();
   });
+
+  it('reads changed-file lists once per checkout when several tabs share it', () => {
+    for (const path of ['src/a.ts', 'src/b.ts', 'src/c.ts']) {
+      manager.acquire(makeFakeResource({ path }) as never);
+    }
+    const session = makeFakeSession(['src/a.ts', 'src/b.ts', 'src/c.ts']);
+    let unstagedReads = 0;
+    let stagedReads = 0;
+    const checkout = {
+      ...session.gitCheckout,
+      get unstagedFileChanges() {
+        unstagedReads += 1;
+        return session.gitCheckout.unstagedFileChanges;
+      },
+      get stagedFileChanges() {
+        stagedReads += 1;
+        return session.gitCheckout.stagedFileChanges;
+      },
+    };
+    session.diffView.workspaceFor = () => ({ get: () => checkout });
+    manager.bindSession(session as never);
+    expect({ unstagedReads, stagedReads }).toEqual({ unstagedReads: 1, stagedReads: 1 });
+    runInAction(() => {
+      session.gitCheckout.unstagedFileChanges.push({ path: 'src/new.ts', status: 'M' });
+    });
+    expect({ unstagedReads, stagedReads }).toEqual({ unstagedReads: 2, stagedReads: 2 });
+    manager.dispose();
+  });
 });
 
 describe('DiffTabManager: onActivate -> setActiveFile', () => {

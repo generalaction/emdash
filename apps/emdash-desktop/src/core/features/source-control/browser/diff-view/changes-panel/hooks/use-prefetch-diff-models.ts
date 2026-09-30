@@ -38,7 +38,7 @@ export function usePrefetchDiffModels(
       }
       leases.clear();
     };
-  }, [workspace.workspaceId]);
+  }, [workspace.workspaceId, workspace.path, workspace.sshConnectionId]);
 
   return useCallback(
     (filePath: string) => {

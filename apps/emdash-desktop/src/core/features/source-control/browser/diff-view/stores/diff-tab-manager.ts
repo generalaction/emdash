@@ -99,6 +99,7 @@ export class DiffTabManager {
 
   private _validKeys(session: DiffSession): Set<string> {
     const valid = new Set<string>();
+    const scannedWorkspaces = new Set<string>();
     for (const r of this._resources) {
       const workspace = session.diffView.workspaceFor(r.workspaceId);
       const git = workspace?.get(gitCheckoutStoreToken);
@@ -107,8 +108,11 @@ export class DiffTabManager {
         valid.add(`${r.workspaceId}:${r.diffGroup}:${r.path}`);
         continue;
       }
-      for (const c of git.unstagedFileChanges) valid.add(`${r.workspaceId}:disk:${c.path}`);
-      for (const c of git.stagedFileChanges) valid.add(`${r.workspaceId}:staged:${c.path}`);
+      if (!scannedWorkspaces.has(r.workspaceId)) {
+        scannedWorkspaces.add(r.workspaceId);
+        for (const c of git.unstagedFileChanges) valid.add(`${r.workspaceId}:disk:${c.path}`);
+        for (const c of git.stagedFileChanges) valid.add(`${r.workspaceId}:staged:${c.path}`);
+      }
       if (r.diffGroup !== 'pr' || r.prNumber == null) continue;
       const matchedPr = session.pr.pullRequests.find((p) => getPrNumber(p) === r.prNumber);
       if (matchedPr) {
