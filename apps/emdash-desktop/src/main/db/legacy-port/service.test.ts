@@ -47,6 +47,7 @@ function createAppDb(): Database.Database {
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       status TEXT NOT NULL,
+      auto_name_conversation_id TEXT,
       source_branch TEXT,
       task_branch TEXT,
       linked_issue TEXT,

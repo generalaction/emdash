@@ -105,6 +105,10 @@ installed under `tooling/node-deps/` (compiled for system Node). The app's
 7. **Commit everything together**: migration SQL (`drizzle/`), `drizzle/meta/`,
    `pre-XXXX.db`, updated `tooling/fixtures/*.db`, the migration test.
 
+8. Append the new migration's journal identity and SQL SHA-256 to
+   `src/main/db/tests/migration-identities.json`; preserve every shipped entry. Update any
+   hand-built destination schemas in database tests to include the new columns.
+
 ## Versioned JSON columns
 
 ### What they are

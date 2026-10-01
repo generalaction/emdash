@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import type { InitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
@@ -21,8 +22,19 @@ export function useCreateTaskCallback({
   initialConversation,
   navigate,
   onCreated,
-}: UseCreateTaskCallbackParams): { handleCreateTask: () => void; canCreate: boolean } {
+}: UseCreateTaskCallbackParams): {
+  handleCreateTask: () => void;
+  canCreate: boolean;
+  autoNameWithAgent: boolean;
+} {
   const submitting = useRef(false);
+  const { autoNameWithAgent: autoNameEnabled } = useTaskSettings();
+  const autoNameWithAgent =
+    autoNameEnabled &&
+    !state.taskName.taskName.trim() &&
+    !!state.taskName.placeholder &&
+    !(state.linkedType === 'issue' && state.linkedIssue) &&
+    !(state.linkedType === 'pr' && state.linkedPR);
   const canCreate = !!selectedProjectId && state.isValid && initialConversation.settingsReady;
 
   const handleCreateTask = useCallback(async () => {
@@ -46,9 +58,10 @@ export function useCreateTaskCallback({
         taskConfig: {
           version: '1',
           name: state.taskName.effectiveTaskName,
+          ...(autoNameWithAgent && { autoNameWithAgent: true }),
           linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
           initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
-          initialConversation: buildInitialConversation(initialConversation),
+          initialConversation: buildInitialConversation(initialConversation, autoNameWithAgent),
         },
         workspaceConfig: state.workspaceConfig.resolvedConfig,
       })
@@ -56,7 +69,15 @@ export function useCreateTaskCallback({
 
     navigate(taskViewDef({ projectId: selectedProjectId, taskId: id }));
     onCreated();
-  }, [selectedProjectId, state, initialConversation, navigate, onCreated, canCreate]);
+  }, [
+    selectedProjectId,
+    state,
+    initialConversation,
+    navigate,
+    onCreated,
+    canCreate,
+    autoNameWithAgent,
+  ]);
 
-  return { handleCreateTask: () => void handleCreateTask(), canCreate };
+  return { handleCreateTask: () => void handleCreateTask(), canCreate, autoNameWithAgent };
 }

@@ -132,12 +132,27 @@ describe('SETTINGS_SEARCH_INDEX integrity', () => {
     expect(matchedTabsForQuery('cookies')).toEqual(['browser']);
   });
 
+  it.each([
+    'Name tasks with conversation AI',
+    'auto name',
+    'automatic naming',
+    'agent title',
+    'rename',
+    'random',
+  ])('finds conversation naming from "%s"', (query) => {
+    expect(searchSettings(query).map((entry) => entry.id)).toContain(
+      'name-tasks-with-conversation-ai'
+    );
+    expect(matchedTabsForQuery(query)).toContain('general');
+  });
+
   it('resolves SettingRow auto-derived ids: slugified labels match entry ids for row-backed settings', () => {
     // These entries correspond to SettingRow titles rendered as plain strings,
     // so their id must equal slugifySettingLabel(label) for stable search targets.
     const rowBackedIds = [
       'privacy-telemetry',
       'auto-generate-task-names',
+      'name-tasks-with-conversation-ai',
       'enable-tmux',
       'terminal-font-size',
       'notifications',

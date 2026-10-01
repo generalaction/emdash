@@ -148,6 +148,7 @@ export function createTasksWireController(options: {
   });
   return {
     impl: {
+      requestTaskName: (input) => options.service.requestTaskName(input),
       createTask: (input) => taskOperations.createTask(input),
       getDeletePreflight: ({ projectId, taskIds }) =>
         taskOperations.getDeletePreflight(projectId, taskIds),

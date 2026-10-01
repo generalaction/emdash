@@ -162,6 +162,24 @@ export class TuiAgentStates {
     });
   }
 
+  setTaskName(conversationId: string, name: string): void {
+    let changedState: TuiAgentState | undefined;
+    produceCell(this.agentStates.states.list, (draft) => {
+      const previous = draft[conversationId];
+      if (previous?.taskName === name) return;
+      const next: TuiAgentState = {
+        ...previous,
+        conversationId,
+        status: previous?.status ?? 'idle',
+        taskName: name,
+        updatedAt: this.now(),
+      };
+      draft[conversationId] = next;
+      changedState = next;
+    });
+    if (changedState) this.onAgentStateChanged?.(conversationId, changedState);
+  }
+
   private setStatus(
     conversationId: string,
     patch: Omit<Partial<TuiAgentState>, 'conversationId' | 'updatedAt'>
@@ -178,6 +196,7 @@ export class TuiAgentStates {
         title: patch.title,
         message: patch.message,
         lastAssistantMessage: patch.lastAssistantMessage,
+        taskName: previous?.taskName,
         updatedAt: this.now(),
       };
 

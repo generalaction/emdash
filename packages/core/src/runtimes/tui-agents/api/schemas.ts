@@ -17,6 +17,7 @@ export const tuiAgentStartInputSchema = z.object({
   chosenSessionId: z.string().nullable().optional(),
   model: z.string().nullable(),
   initialPrompt: z.string().optional(),
+  nameTaskWithAgent: z.boolean().optional(),
   autoApprove: z.boolean().optional(),
   trustWorkspace: z.boolean().optional(),
   extraArgs: z.array(z.string()).optional(),
@@ -144,6 +145,7 @@ export const tuiAgentStateSchema = z.object({
   title: z.string().optional(),
   message: z.string().optional(),
   lastAssistantMessage: z.string().optional(),
+  taskName: z.string().optional(),
   updatedAt: z.number().int(),
 });
 

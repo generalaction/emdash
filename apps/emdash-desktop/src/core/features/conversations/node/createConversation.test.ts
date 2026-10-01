@@ -46,7 +46,7 @@ const conversationRow = {
 
 function fakeDatabase(options: { failInsert?: boolean } = {}) {
   const inserted: unknown[] = [];
-  return {
+  const database = {
     inserted,
     select: vi.fn(() => ({
       from: () => ({
@@ -77,6 +77,9 @@ function fakeDatabase(options: { failInsert?: boolean } = {}) {
       set: () => ({ where: () => ({ run: () => ({ changes: 1 }) }) }),
     })),
   };
+  return Object.assign(database, {
+    transaction: (callback: (tx: typeof database) => unknown) => callback(database),
+  });
 }
 
 const hostConversations = {

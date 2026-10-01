@@ -39,6 +39,22 @@ describe('TuiConversationProvider', () => {
     expect(resume).not.toHaveBeenCalled();
   });
 
+  it.each([true, false])(
+    'checks naming preference before an auto-approved launch: %s',
+    async (enabled) => {
+      const provider = createProvider({
+        autoNameConversationId: 'conversation-1',
+        getTaskSettings: async () => ({ autoTrustWorktrees: false, autoNameWithAgent: enabled }),
+      });
+      await provider.ensureSession({
+        conversation: conversation({ autoApprove: true, sessionId: undefined }),
+        mode: 'start',
+        initialPrompt: 'Fix login timeout',
+      });
+      expect(start).toHaveBeenCalledWith(expect.objectContaining({ nameTaskWithAgent: enabled }));
+    }
+  );
+
   it.each(['antigravity', 'codex', 'prime-agent'])(
     'routes native-id provider %s to the runtime resume path when a native id exists',
     async (providerId) => {
@@ -131,7 +147,7 @@ describe('TuiConversationProvider', () => {
     expect(start).toHaveBeenCalledWith(expect.objectContaining({ trustWorkspace: true }));
   });
 
-  it('forces runtime trust for auto-approved conversations without reading settings', async () => {
+  it('forces runtime trust for auto-approved conversations while checking task settings', async () => {
     const getTaskSettings = vi.fn(async () => ({ autoTrustWorktrees: false }));
     const provider = createProvider({
       host: { type: 'remote', id: 'ssh-1' },
@@ -143,7 +159,7 @@ describe('TuiConversationProvider', () => {
       mode: 'start',
     });
 
-    expect(getTaskSettings).not.toHaveBeenCalled();
+    expect(getTaskSettings).toHaveBeenCalledTimes(1);
     expect(start).toHaveBeenCalledWith(expect.objectContaining({ trustWorkspace: true }));
   });
 
@@ -213,7 +229,8 @@ function createProvider(
   overrides: {
     host?: TuiConversationProviderOptions['host'];
     autoTrustWorktrees?: boolean;
-    getTaskSettings?: () => Promise<{ autoTrustWorktrees: boolean }>;
+    autoNameConversationId?: string | null;
+    getTaskSettings?: () => Promise<{ autoTrustWorktrees: boolean; autoNameWithAgent?: boolean }>;
     launchContextSource?: TuiConversationProviderOptions['launchContextSource'];
   } = {}
 ): TuiConversationProvider {
@@ -239,7 +256,17 @@ function createProvider(
       },
     },
     {
-      db: { select: vi.fn() } as never,
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [
+                { autoNameConversationId: overrides.autoNameConversationId ?? null },
+              ],
+            }),
+          }),
+        }),
+      } as never,
       getProviderConfig: () => Promise.resolve(undefined),
       getTaskSettings:
         overrides.getTaskSettings ??

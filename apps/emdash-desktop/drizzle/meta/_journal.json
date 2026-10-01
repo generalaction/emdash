@@ -330,6 +330,13 @@
       "when": 1786409358664,
       "tag": "0046_github_kv_account_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1790746495437,
+      "tag": "0047_lean_rictor",
+      "breakpoints": true
     }
   ]
 }

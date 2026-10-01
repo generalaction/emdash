@@ -25,6 +25,7 @@ type TuiAgentStatusBridgeDependencies = {
   runtimes: RuntimeBroker;
   onLocalWorkerStateChanged: WireWorker<TuiAgentsContract>['onStateChanged'];
   loadActiveConversationIds(host: HostRef): Promise<string[]>;
+  nameTaskFromConversation: (conversationId: string, title: string) => Promise<void>;
 };
 
 type TuiHostAttachment = {
@@ -169,6 +170,9 @@ export class TuiAgentStatusBridge {
         await this.applyAgentStateSnapshot(state);
       } else if (shouldApplyAgentStateTransition(previous, state)) {
         await this.applyAgentStateTransition(state);
+      }
+      if (state.taskName && previous?.taskName !== state.taskName) {
+        await this.dependencies?.nameTaskFromConversation(state.conversationId, state.taskName);
       }
       attachment.agentStates.set(state.conversationId, state);
     }

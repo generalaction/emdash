@@ -353,6 +353,10 @@ export function commitCreateTask(
       projectId: params.projectId,
       name: params.taskConfig.name,
       status: initialStatus,
+      autoNameConversationId:
+        params.taskConfig.autoNameWithAgent && !params.taskConfig.linkedIssue
+          ? (params.taskConfig.initialConversation?.id ?? '')
+          : null,
       workspaceId,
       linkedIssue: params.taskConfig.linkedIssue ?? null,
       type: 'task',

@@ -30,6 +30,7 @@ type AcpAgentStatusBridgeDependencies = {
   onLocalWorkerStateChanged: WireWorker<AcpApiContract>['onStateChanged'];
   loadActiveConversationIds(host: HostRef): Promise<string[]>;
   renameConversation: (conversationId: string, name: string) => Promise<unknown>;
+  nameTaskFromConversation: (conversationId: string, title: string) => Promise<void>;
 };
 
 type AcpHostAttachment = {
@@ -156,6 +157,13 @@ export class AcpAgentStatusBridge {
       if (!bootstrap) {
         const titleAction = deriveAcpSessionTitleAction(previous, summary);
         if (titleAction) this.applyTitleAction(titleAction);
+      }
+      if (
+        summary.title &&
+        (summary.isGenerating || summary.lastStopReason !== null) &&
+        previous?.title !== summary.title
+      ) {
+        await this.dependencies?.nameTaskFromConversation(summary.conversationId, summary.title);
       }
       attachment.summaries.set(summary.conversationId, summary);
     }

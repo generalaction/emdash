@@ -208,6 +208,17 @@ export type CreateTaskSuccess = {
 
 export type RenameTaskError = { type: 'task-not-found'; taskId: string };
 
+export const agentTaskNameErrorSchema = z.object({
+  type: z.enum([
+    'task-not-found',
+    'conversation-not-found',
+    'unsupported-conversation',
+    'request-failed',
+  ]),
+  message: z.string(),
+});
+export type AgentTaskNameError = z.infer<typeof agentTaskNameErrorSchema>;
+
 export type RenameTaskSuccess = {
   task: Task;
 };

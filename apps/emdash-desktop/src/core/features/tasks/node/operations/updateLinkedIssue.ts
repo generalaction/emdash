@@ -24,6 +24,7 @@ export async function updateLinkedIssue(
     .update(tasks)
     .set({
       linkedIssue: issue ?? null,
+      ...(issue && { autoNameConversationId: null }),
     })
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .returning();

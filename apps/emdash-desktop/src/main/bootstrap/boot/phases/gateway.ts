@@ -27,6 +27,19 @@ export function installGateway(
     runtimes.broker,
     database.workspaceIdentity
   );
+  const nameTaskFromConversation = async (conversationId: string, title: string) => {
+    try {
+      const settings = await database.appSettings.get('tasks');
+      if (!settings.autoNameWithAgent) return;
+      await services.taskService.nameTaskFromConversation(
+        conversationId,
+        title,
+        settings.preserveNameCapitalization
+      );
+    } catch (error) {
+      log.warn('Could not apply conversation task name', { conversationId, error: String(error) });
+    }
+  };
 
   acpAgentStatusBridge.initialize(
     (handler) => conversationEvents.on('conversation:created', handler),
@@ -35,6 +48,7 @@ export function installGateway(
       onLocalWorkerStateChanged: runtimes.workers.acp.onStateChanged.bind(runtimes.workers.acp),
       loadActiveConversationIds: (host) =>
         loadActiveAgentStatusConversationIds(database.db, host, 'acp'),
+      nameTaskFromConversation,
       renameConversation: (conversationId, name) =>
         renameConversation(
           {
@@ -57,6 +71,7 @@ export function installGateway(
     ),
     loadActiveConversationIds: (host) =>
       loadActiveAgentStatusConversationIds(database.db, host, 'pty'),
+    nameTaskFromConversation,
   });
   appScope.add(services.hostAttachments.register(devServerBridgeParticipant));
   appScope.add(

@@ -98,7 +98,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const initialConversation = useInitialConversationState(selectedProjectId);
   const { navigate } = useNavigate();
 
-  const { handleCreateTask, canCreate } = useCreateTaskCallback({
+  const { handleCreateTask, canCreate, autoNameWithAgent } = useCreateTaskCallback({
     selectedProjectId,
     state,
     initialConversation,
@@ -122,7 +122,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </Dialog.Header>
       <Dialog.Body>
         <div className="flex w-full flex-col gap-5">
-          <TaskNameField state={state.taskName} />
+          <TaskNameField state={state.taskName} autoNameWithAgent={autoNameWithAgent} />
           <LinkedEntitySection
             state={state}
             hasAnyIssueIntegration={hasAnyIssueIntegration}

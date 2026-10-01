@@ -1,4 +1,5 @@
 import type { Logger } from '@emdash/shared/logger';
+import { z } from 'zod';
 import type { CanonicalHookEvent, ResolvedTuiProvider } from '#services/agent-plugins/api/plugins';
 import { defaultHookEventParser } from '#services/agent-plugins/api/plugins/helpers';
 import type { RawHookRequest } from './types';
@@ -12,8 +13,18 @@ export type TuiHookPipelineOptions = {
   getConversationConfig(conversationId: string): HookConversationConfig | null;
   getProvider(providerId: string): ResolvedTuiProvider | null;
   applyCanonicalEvent(conversationId: string, providerId: string, event: CanonicalHookEvent): void;
+  applyTaskName?(conversationId: string, name: string): void;
   logger: Logger;
 };
+
+const taskNamePayloadSchema = z.object({
+  name: z
+    .string()
+    .max(256)
+    .trim()
+    .min(1)
+    .refine((name) => name.split(/[\s-]+/u).filter(Boolean).length <= 5),
+});
 
 export class TuiHookPipeline {
   constructor(private readonly options: TuiHookPipelineOptions) {}
@@ -25,6 +36,13 @@ export class TuiHookPipeline {
         ptyId: raw.ptyId,
         type: raw.type,
       });
+      return;
+    }
+
+    if (raw.type === 'task-name') {
+      const parsed = taskNamePayloadSchema.safeParse(parseHookBody(raw.body));
+      if (!parsed.success) throw new Error('Invalid task-name payload');
+      this.options.applyTaskName?.(config.conversationId, parsed.data.name);
       return;
     }
 

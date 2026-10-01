@@ -3,9 +3,10 @@ import { type TaskNameState } from '@core/features/tasks/api/browser/create-task
 
 interface TaskNameFieldProps {
   state: TaskNameState;
+  autoNameWithAgent?: boolean;
 }
 
-export function TaskNameField({ state }: TaskNameFieldProps) {
+export function TaskNameField({ state, autoNameWithAgent = false }: TaskNameFieldProps) {
   const { taskName, placeholder, handleTaskNameChange, showSlugHint } = state;
 
   return (
@@ -19,6 +20,12 @@ export function TaskNameField({ state }: TaskNameFieldProps) {
         className="px-0 text-lg!"
         onChange={(e) => handleTaskNameChange(e.target.value)}
       />
+      {autoNameWithAgent && (
+        <Field.Description>
+          Your first conversation’s AI will replace this placeholder with a short name of up to five
+          words. If unsupported, the original name stays.
+        </Field.Description>
+      )}
       {showSlugHint && (
         <p className="text-muted-foreground mt-1 text-xs">
           Task names only allow letters, numbers, and hyphens.
