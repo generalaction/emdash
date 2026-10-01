@@ -1,7 +1,8 @@
-import type { ChatContext } from '@emdash/chat-ui';
+import type { ChatConfig, ChatContext } from '@emdash/chat-ui';
 import { getIntegrationsClient } from '@core/features/integrations/api/browser/client';
 import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
 import { advertisedCommandProvider } from './advertised-command-provider';
+import { CHAT_FONT_MONO, CHAT_FONT_SANS } from './chat-font-stacks';
 import { chatMentionProvider } from './chat-mention-provider';
 import { getChatUiRuntime } from './chat-ui-runtime';
 
@@ -19,7 +20,17 @@ let didPreloadIssueMentionIcons = false;
 export function initSharedChatContext(): ChatContext {
   if (!shared) {
     preloadIssueMentionIcons();
-    shared = getChatUiRuntime().createChatContext({
+    const runtime = getChatUiRuntime();
+    // The transcript renders in the system font stack assigned to --chat-font-sans /
+    // --chat-font-mono in index.css. chat-ui pre-measures text with ChatConfig.fonts,
+    // so measurement must use the same stacks or lines packed to the column width
+    // clip at the right edge.
+    const config: ChatConfig = {
+      ...runtime.DEFAULT_CONFIG,
+      fonts: { sans: CHAT_FONT_SANS, mono: CHAT_FONT_MONO },
+    };
+    shared = runtime.createChatContext({
+      config,
       mentionProvider: chatMentionProvider,
       commandProvider: advertisedCommandProvider,
     });
