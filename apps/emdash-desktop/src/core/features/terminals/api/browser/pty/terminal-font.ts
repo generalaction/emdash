@@ -49,18 +49,15 @@ export const splitFontFamilies = (fontFamily: string) => {
   return families.filter(Boolean);
 };
 
-/** Builds a CSS font-family list: quoted custom families first, then fallbacks. */
-export const buildFontFamilyStack = (
-  fontFamily: string | undefined,
-  fallbacks: readonly string[]
-) => {
+/** Joins already-separated family names into a quoted, deduplicated CSS font-family list. */
+export const buildFontFamilyList = (families: readonly string[]) =>
+  Array.from(new Set(families.map(quoteFontFamily).filter(Boolean))).join(', ');
+
+export const buildTerminalFontFamily = (fontFamily?: string) => {
   const customFontFamily = fontFamily?.trim();
   const families = customFontFamily
-    ? [...splitFontFamilies(customFontFamily), ...fallbacks]
-    : fallbacks;
+    ? [...splitFontFamilies(customFontFamily), ...TERMINAL_FONT_FALLBACKS]
+    : TERMINAL_FONT_FALLBACKS;
 
-  return Array.from(new Set(families.map(quoteFontFamily).filter(Boolean))).join(', ');
+  return buildFontFamilyList(families);
 };
-
-export const buildTerminalFontFamily = (fontFamily?: string) =>
-  buildFontFamilyStack(fontFamily, TERMINAL_FONT_FALLBACKS);

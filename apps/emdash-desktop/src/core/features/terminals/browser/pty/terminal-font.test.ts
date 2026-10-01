@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import {
+  buildFontFamilyList,
+  buildTerminalFontFamily,
+} from '@core/features/terminals/api/browser/pty/terminal-font';
 
 describe('buildTerminalFontFamily', () => {
   it('quotes font family names that contain spaces', () => {
@@ -32,5 +35,13 @@ describe('buildTerminalFontFamily', () => {
 
   it('uses terminal-safe fallbacks when no custom font is set', () => {
     expect(buildTerminalFontFamily()).toBe('"Menlo", "Monaco", "Consolas", monospace');
+  });
+});
+
+describe('buildFontFamilyList', () => {
+  it('quotes each given family atomically without re-splitting on commas', () => {
+    expect(buildFontFamilyList(['ACME Mono, Pro', 'Menlo', 'monospace', 'Menlo'])).toBe(
+      '"ACME Mono, Pro", "Menlo", monospace'
+    );
   });
 });

@@ -57,10 +57,13 @@ describe('editor font options', () => {
       buildEditorFontOptions({ fontFamily: '3270 Nerd Font', fontSize: 13 }, monacoDefaults)
         .fontFamily
     ).toBe(`"3270 Nerd Font", "Menlo", "Monaco", 'Courier New', monospace`);
+  });
+
+  it('treats the selected font as one family even when its name contains a comma', () => {
     expect(
-      buildEditorFontOptions({ fontFamily: 'SF Mono, monospace', fontSize: 13 }, monacoDefaults)
+      buildEditorFontOptions({ fontFamily: 'ACME Mono, Pro', fontSize: 13 }, monacoDefaults)
         .fontFamily
-    ).toBe(`"SF Mono", monospace, "Menlo", "Monaco", 'Courier New'`);
+    ).toBe(`"ACME Mono, Pro", "Menlo", "Monaco", 'Courier New', monospace`);
   });
 
   it('updates an open diff editor and scales its line height with the font size', () => {

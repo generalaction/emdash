@@ -1,6 +1,6 @@
 import type { editor } from 'monaco-editor';
 import {
-  buildFontFamilyStack,
+  buildFontFamilyList,
   splitFontFamilies,
 } from '@core/features/terminals/api/browser/pty/terminal-font';
 import { EDITOR_FONT_SIZE_DEFAULT, type EditorSettings } from '@core/primitives/app-settings/api';
@@ -23,10 +23,11 @@ export function buildEditorFontOptions(
   const fontSize = settings?.fontSize ?? EDITOR_FONT_SIZE_DEFAULT;
   const configuredFontFamily = settings?.fontFamily?.trim();
   const options: EditorFontOptions = {
-    // Quote custom names (e.g. "3270 Nerd Font") and fall back to Monaco's own
-    // stack so a missing font never drops to a proportional browser default.
+    // The picker stores one family name, which may itself contain a comma, so
+    // keep it atomic. Fall back to Monaco's own stack so a missing font never
+    // drops to a proportional browser default.
     fontFamily: configuredFontFamily
-      ? buildFontFamilyStack(configuredFontFamily, splitFontFamilies(defaults.fontFamily))
+      ? buildFontFamilyList([configuredFontFamily, ...splitFontFamilies(defaults.fontFamily)])
       : defaults.fontFamily,
     fontSize,
   };
