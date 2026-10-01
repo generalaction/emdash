@@ -37,6 +37,13 @@ function emitCommand(commandId: string): void {
   desktopHostEvents.emit(undefined, { type: 'menu-command', commandId });
 }
 
+const ZOOM_ACCELERATOR_ALIASES = [
+  { role: 'zoomIn', accelerator: 'CmdOrCtrl+=' },
+  { role: 'zoomIn', accelerator: 'CmdOrCtrl+numadd' },
+  { role: 'zoomOut', accelerator: 'CmdOrCtrl+numsub' },
+  { role: 'resetZoom', accelerator: 'CmdOrCtrl+num0' },
+] as const;
+
 function copyInstallationId(): void {
   const instanceId = telemetryService.getInstanceId() ?? 'unavailable';
   const lines = [
@@ -161,6 +168,16 @@ export function setupApplicationMenu(
         { role: 'resetZoom' as const },
         { role: 'zoomIn' as const },
         { role: 'zoomOut' as const },
+        // The zoomIn role's default `CmdOrCtrl+Plus` needs Shift on most layouts and
+        // does not fire for a bare `Ctrl+=` on Windows/Linux, so zoom-in looked missing
+        // while zoom-out worked. Hidden aliases keep the menu tidy but make the usual
+        // `Ctrl/Cmd+=` and numpad keys work.
+        ...ZOOM_ACCELERATOR_ALIASES.map(({ role, accelerator }) => ({
+          role,
+          accelerator,
+          visible: false,
+          acceleratorWorksWhenHidden: true,
+        })),
         { type: 'separator' as const },
         { role: 'togglefullscreen' as const },
       ],
