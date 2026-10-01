@@ -112,6 +112,32 @@ function fixture() {
 const position = { line: 0, character: 1 };
 
 describe('language service client', () => {
+  it('does not contact a host until a supported file is bound, and opens only Python for a Python user', async () => {
+    const f = fixture();
+    expect(f.getClient).not.toHaveBeenCalled();
+    expect(
+      f.service.bindDocument({
+        ref: file('/workspace/README'),
+        workspaceRoot: file('/workspace'),
+        getVersion: () => 1,
+        getText: () => 'readme',
+        onDiagnostics: () => {},
+      })
+    ).toBeUndefined();
+    expect(f.getClient).not.toHaveBeenCalled();
+    const a = f.bind('/workspace/main.py');
+    const b = f.bind('/workspace/types.pyi');
+    await a.binding.hover(position);
+    await b.binding.hover(position);
+    expect(f.resolveProjectRoot.mock.calls.map(([input]) => input)).toEqual([
+      expect.objectContaining({ serverId: 'python' }),
+      expect.objectContaining({ serverId: 'python' }),
+    ]);
+    expect(f.setDocumentSnapshot.mock.calls.map(([input]) => input)).toEqual([
+      expect.objectContaining({ session: expect.objectContaining({ serverId: 'python' }) }),
+      expect.objectContaining({ session: expect.objectContaining({ serverId: 'python' }) }),
+    ]);
+  });
   it('discovers roots and shares a session for documents in the same language project', async () => {
     const f = fixture();
     f.resolveProjectRoot.mockResolvedValue(ok(file('/workspace/nested').path));

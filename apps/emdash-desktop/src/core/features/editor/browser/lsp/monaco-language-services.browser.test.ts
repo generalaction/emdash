@@ -17,14 +17,14 @@ import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeFacetUri } from '../../api/browser/facet-binder/facet-uri';
 import { editorLspContract } from '../../api/lsp-contract';
-import { configureMonacoTypeScript } from '../monaco/monaco-config';
+import { configureMonacoLanguages } from '../monaco/monaco-config';
 import { MonacoLanguageServices } from './monaco-language-services';
 
 // Monaco cancels its own worker requests when a test disposes an editor.
 addEventListener('unhandledrejection', (event) => {
   if (event.reason instanceof Error && event.reason.name === 'Canceled') event.preventDefault();
 });
-configureMonacoTypeScript(monaco);
+configureMonacoLanguages(monaco);
 self.MonacoEnvironment = {
   getWorker: (_id, label) =>
     label === 'typescript' || label === 'javascript' ? new tsWorker() : new editorWorker(),
@@ -132,6 +132,42 @@ function fixture(
 }
 
 describe('Monaco language services', () => {
+  it('leaves built-in completion and formatting enabled while host servers own hover and diagnostics', () => {
+    for (const defaults of [
+      monaco.css.cssDefaults,
+      monaco.css.scssDefaults,
+      monaco.css.lessDefaults,
+      monaco.html.htmlDefaults,
+      monaco.json.jsonDefaults,
+    ]) {
+      expect(defaults.modeConfiguration).toMatchObject({
+        hovers: false,
+        diagnostics: false,
+        completionItems: true,
+        documentFormattingEdits: true,
+      });
+    }
+    expect(monaco.css.cssDefaults.modeConfiguration).toMatchObject({
+      definitions: false,
+      references: false,
+    });
+  });
+  it('registers selectors using Monaco IDs, including shell and JSONC', () => {
+    const register = vi.spyOn(monaco.languages, 'registerHoverProvider');
+    const f = fixture();
+    const selectors = register.mock.calls.at(-1)?.[0];
+    expect(selectors).toEqual(
+      expect.arrayContaining([
+        { language: 'shell', scheme: 'emdash-buffer' },
+        { language: 'json', scheme: 'emdash-buffer' },
+        { language: 'python', scheme: 'emdash-buffer' },
+        { language: 'go', scheme: 'emdash-buffer' },
+        { language: 'rust', scheme: 'emdash-buffer' },
+      ])
+    );
+    expect(f.model.getLanguageId()).toBe('typescript');
+    register.mockRestore();
+  });
   it('synchronizes unsaved text before hover and converts one-based positions', async () => {
     const f = fixture();
     f.model.setValue('const value = "unsaved";');

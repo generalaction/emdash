@@ -9,6 +9,7 @@ import {
 import type * as Monaco from 'monaco-editor';
 import { log } from '@core/primitives/logging/browser/logger';
 import { decodeFacetUri, encodeFacetUri } from '../../api/browser/facet-binder/facet-uri';
+import { toMonacoLanguageId } from '../../api/browser/languageUtils';
 import {
   LanguageServiceClient,
   type LanguageDocumentBinding,
@@ -53,7 +54,7 @@ export class MonacoLanguageServices {
     });
     const languages = new Set(
       (options.servers ?? languageServers).flatMap((server) =>
-        server.languages.map((language) => monacoLanguageId(language.languageId))
+        server.languages.map((language) => toMonacoLanguageId(language.languageId))
       )
     );
     const selector = [...languages].map((language) => ({ language, scheme: 'emdash-buffer' }));
@@ -311,11 +312,6 @@ export class MonacoLanguageServices {
 }
 
 /** Monaco groups JSX/TSX with their base languages; Core keeps protocol language IDs. */
-function monacoLanguageId(languageId: string): string {
-  if (languageId === 'typescriptreact') return 'typescript';
-  if (languageId === 'javascriptreact') return 'javascript';
-  return languageId;
-}
 function toMonacoRange(range: LspLocation['range']): Monaco.IRange {
   return {
     startLineNumber: range.start.line + 1,

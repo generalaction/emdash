@@ -1,3 +1,5 @@
+import { selectLanguageServer } from '@emdash/core/runtimes/lsp/api';
+
 /**
  * Utilities for detecting programming languages from file paths.
  */
@@ -7,44 +9,21 @@
  * Returns a language identifier compatible with Monaco Editor.
  */
 export function getLanguageFromPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase() || '';
+  const selected = selectLanguageServer(path);
+  if (selected) return toMonacoLanguageId(selected.language.languageId);
+  const ext = path.split(/[\\/]/).at(-1)?.split('.').pop()?.toLowerCase() || '';
   const langMap: Record<string, string> = {
-    js: 'javascript',
-    mjs: 'javascript',
-    cjs: 'javascript',
-    jsx: 'javascript',
-    ts: 'typescript',
-    mts: 'typescript',
-    cts: 'typescript',
-    tsx: 'typescript',
-    py: 'python',
     java: 'java',
-    c: 'c',
-    cpp: 'cpp',
-    cc: 'cpp',
-    h: 'c',
-    hpp: 'cpp',
     cs: 'csharp',
-    go: 'go',
-    rs: 'rust',
     rb: 'ruby',
     php: 'php',
     swift: 'swift',
     kt: 'kotlin',
     scala: 'scala',
-    sh: 'bash',
-    bash: 'bash',
-    zsh: 'bash',
-    fish: 'bash',
-    yml: 'yaml',
-    yaml: 'yaml',
-    json: 'json',
+    zsh: 'shell',
+    fish: 'shell',
     xml: 'xml',
-    html: 'html',
-    css: 'css',
-    scss: 'scss',
     sass: 'sass',
-    less: 'less',
     sql: 'sql',
     md: 'markdown',
     markdown: 'markdown',
@@ -59,4 +38,13 @@ export function getLanguageFromPath(path: string): string {
     makefile: 'makefile',
   };
   return langMap[ext] || 'text';
+}
+
+/** Monaco names a few languages differently from the LSP specification. */
+export function toMonacoLanguageId(languageId: string): string {
+  if (languageId === 'typescriptreact') return 'typescript';
+  if (languageId === 'javascriptreact') return 'javascript';
+  if (languageId === 'shellscript') return 'shell';
+  if (languageId === 'jsonc') return 'json';
+  return languageId;
 }

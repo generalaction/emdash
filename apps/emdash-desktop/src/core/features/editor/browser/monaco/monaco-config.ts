@@ -1,6 +1,6 @@
 /**
- * Monaco Editor configuration for TypeScript/JavaScript support
- * Configures language services to match project's tsconfig.json
+ * Monaco syntax, completion and formatting configuration.
+ * Host language servers own hover, navigation and diagnostics.
  */
 import type * as monaco from 'monaco-editor';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -13,16 +13,21 @@ const DIAGNOSTICS_OPTIONS: monaco.typescript.DiagnosticsOptions = {
 };
 
 /**
- * Configure Monaco editor's TypeScript language services
+ * Configure syntax services and give host LSP providers sole ownership of semantic queries
  * @param monacoInstance - Monaco namespace
  */
-export function configureMonacoTypeScript(monacoInstance: typeof monaco): void {
+export function configureMonacoLanguages(monacoInstance: typeof monaco): void {
   try {
     configureTypeScriptDefaults(monacoInstance);
     configureJavaScriptDefaults(monacoInstance);
     for (const defaults of [
       monacoInstance.typescript.typescriptDefaults,
       monacoInstance.typescript.javascriptDefaults,
+      monacoInstance.css.cssDefaults,
+      monacoInstance.css.scssDefaults,
+      monacoInstance.css.lessDefaults,
+      monacoInstance.html.htmlDefaults,
+      monacoInstance.json.jsonDefaults,
     ]) {
       defaults.setModeConfiguration({
         ...defaults.modeConfiguration,
@@ -33,7 +38,7 @@ export function configureMonacoTypeScript(monacoInstance: typeof monaco): void {
       });
     }
   } catch (error) {
-    log.warn('Failed to configure Monaco TypeScript settings:', error);
+    log.warn('Failed to configure Monaco language settings:', error);
   }
 }
 

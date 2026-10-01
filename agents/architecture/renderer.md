@@ -142,14 +142,33 @@ the same missed-update guarantees.
 
 ## Editor language services
 
-TypeScript and JavaScript buffers use the host LSP runtime for hover, definition,
-type definition, references and diagnostics. Install or select
-`typescript-language-server` in the host's machine dependencies (the offered npm
-command installs TypeScript too; Node.js 22.22.2 or newer is required), then use
-the language-service status button in the file toolbar to restart. The executable
-must be on the host containing the worktree; a local installation does not provide
-language services for SSH files.
+Buffers use the host LSP runtime for hover, definition, type definition, references
+and diagnostics, according to each server's capabilities. Install or select the
+server in the host's machine dependencies, then use the language-service status
+button in the file toolbar to restart. These are optional tools: opening a Python
+file starts Pyright, not the Go or TypeScript servers. Nothing is downloaded when
+a file is opened. The executable must be on the host containing the worktree;
+a local installation does not provide language services for SSH files.
 Remote language services require workspace protocol 11.1 or newer.
+
+| Languages | Server | Host requirements |
+| --- | --- | --- |
+| TypeScript, JavaScript, JSX, TSX | [typescript-language-server](https://github.com/typescript-language-server/typescript-language-server) | Node.js 22.22.2+; the offered npm command also installs TypeScript |
+| Bash, sh | [bash-language-server](https://github.com/bash-lsp/bash-language-server) | Node.js 20+; ShellCheck on PATH adds lint diagnostics |
+| Go | [gopls](https://go.dev/gopls/) | Go toolchain; make GOBIN or GOPATH/bin available on PATH after installing |
+| Rust | [rust-analyzer](https://rust-analyzer.github.io/book/installation.html) | Rust toolchain, Cargo and rust-src; the offered rustup command installs the analyzer and sources |
+| Python | [Pyright](https://github.com/microsoft/pyright) | Node.js and the project's Python environment; executable is pyright-langserver |
+| C, C++ | [clangd](https://clangd.llvm.org/installation) | Project compiler flags, normally compile_commands.json; Homebrew LLVM's bin directory must be on PATH or selected explicitly |
+| JSON, JSONC | [VS Code JSON server](https://github.com/hrsh7th/vscode-langservers-extracted) | Node.js; JSONC includes .jsonc, tsconfig.json and jsconfig.json |
+| YAML | [yaml-language-server](https://github.com/redhat-developer/yaml-language-server) | Node.js; schemas may be associated using a file modeline |
+| HTML, CSS, SCSS, Less | [VS Code HTML/CSS servers](https://github.com/hrsh7th/vscode-langservers-extracted) | Node.js; HTML, CSS and JSON executables share one npm install package |
+
+Bash selection includes `.sh`, `.bash` and known startup files such as `.bashrc`;
+there is no shebang discovery for arbitrary extensionless scripts. Zsh and Fish
+do not activate the Bash server. Navigation capabilities vary: for example, schema
+languages principally offer hover and validation, not programming-language type
+definitions. Monaco retains its existing completion and formatting providers;
+host-backed LSP completion, formatting and workspace edits are not implemented.
 
 `editor/browser/lsp/monaco-language-services.ts` adapts Monaco models, providers,
 diagnostics and navigation. It registers providers once during lazy Monaco bootstrap.
@@ -183,9 +202,7 @@ lease keeps the server alive; the last detach releases it after a short grace
 period. Explicit restart replays unsaved buffers, and replacement generations
 invalidate renderer synchronization caches.
 
-This initial server registry supports TS/JS, including JSX and TSX, with UTF-16
-positions and a two-million-character document limit. It leaves completion,
-formatting and workspace-edit operations on their existing editor paths. Adding
+The server registry uses UTF-16 positions and a two-million-character document limit. Adding
 another server means adding portable selection metadata in `lsp/api/server-catalog.ts`
 and a host profile in `lsp/node/server-registry.ts`, then exercising its capability
 negotiation and synchronization behavior. The renderer derives provider selectors,
@@ -200,12 +217,26 @@ file and task workspace selects the root; absent markers and external definition
 targets retain the task workspace root. TypeScript compiler resolution uses the
 project's Node module search path, including hoisted dependencies, with the language
 server's default compiler discovery as fallback. No project code is loaded during
-this resolution. Future Python interpreter or Go toolchain policies belong to
-their host profile. The process transport remains independent of these policies.
+this resolution. Go recognizes `go.mod`/`go.work`; Rust recognizes `Cargo.toml` and
+`rust-project.json`; Python recognizes Pyright, pyproject and common Python project
+files; C/C++ recognizes compilation databases, `.clangd` and CMake roots. Each uses
+the nearest marker inside the task workspace. Bash, JSON, YAML, HTML and CSS use
+the task workspace root without borrowing a nearby TypeScript package root.
+
+The Python host profile discovers `.venv`, then `venv`, then a captured `VIRTUAL_ENV`
+with an executable interpreter, without running project code during discovery.
+Otherwise Pyright discovers Python from the host environment. Pyright continues
+to read `pyrightconfig.json` and `pyproject.toml`; diagnostics are limited to open
+files. Go and Rust inherit the captured host toolchain environment. The process
+transport remains independent of these policies.
 Host configuration is resolved again when a server restarts.
 `vscode-languageserver-protocol` (MIT) supplies standard JSON-RPC framing and
 cancellation. `typescript-language-server` (Apache-2.0) is a development-only
-fixture for real-server integration tests; neither adds native build hooks.
+fixture for real-server integration tests. Bash Language Server, Pyright, YAML
+Language Server and vscode-langservers-extracted (all MIT) are pinned development
+fixtures too. Real protocol behavior cannot be verified by the existing TypeScript
+fixture or mocks alone. The server fixtures are not bundled as servers in the
+application and do not require install scripts or native builds for tests.
 
 The Wire contract names snapshot replacement (`setDocumentSnapshot`), versioned
 edits (`applyDocumentEdit`), save notification (`documentSaved`) and process recovery
@@ -219,4 +250,17 @@ buffer policy in desktop Node tests, and Monaco providers/navigation in browser
 tests. `language-services.e2e.browser.test.ts` carries actual Wire frames through
 Playwright bindings into the production editor controller and host runtime,
 then checks cross-file unsaved types, definitions, diagnostics and restart with
-a real TypeScript server. The bindings exist only in Vitest's test harness.
+real TypeScript and Python servers. The bindings exist only in Vitest's test harness.
+Core's `language-servers.integration.test.ts` additionally checks production host
+profiles against real Bash, JSON/JSONC, YAML, HTML, CSS/SCSS/Less servers in ordinary
+test runs. Enable its native Go, Rust and C++ cases with installed `gopls`, `go`,
+`rust-analyzer`, `cargo`, `rustc` and `clangd` on PATH:
+
+```bash
+EMDASH_TEST_NATIVE_LSP=1 pnpm --dir packages/core exec vitest run src/runtimes/lsp/node/language-servers.integration.test.ts
+```
+
+This opt-in fails if a requested tool is absent; it does not install tools or silently
+skip a broken setup. It covers navigation, type definitions where supported, unsaved
+edits, restart replay and lease cleanup. Schema and stylesheet cases also verify
+diagnostics arriving and clearing after unsaved edits.
