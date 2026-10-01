@@ -137,7 +137,7 @@ it('runs unsaved Monaco buffers through desktop Wire, host runtime and a real Ty
         { timeout: 15_000 }
       )
       .toBe(false);
-    await services.restart(fixture.source);
+    await services.restartServer(fixture.source);
     expect(
       JSON.stringify(await services.hover(consumer, { lineNumber: 2, column: 24 }, token))
     ).toContain('42');

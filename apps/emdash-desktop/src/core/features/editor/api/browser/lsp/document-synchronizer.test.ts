@@ -7,7 +7,7 @@ function fixture() {
   let document: LspDocument = { path, languageId: 'typescript', version: 1, text: 'one' };
   const sent: LspDocument[] = [];
   const close = vi.fn(async () => {});
-  const saved = vi.fn(async () => {});
+  const documentSaved = vi.fn(async () => {});
   const change = vi.fn(async () => true);
   const getText = vi.fn(() => document.text);
   const source = { path, languageId: 'typescript', getVersion: () => document.version, getText };
@@ -17,7 +17,7 @@ function fixture() {
     },
     change,
     close,
-    saved,
+    documentSaved,
     onError: () => {},
     delayMs: 60_000,
   });
@@ -25,7 +25,7 @@ function fixture() {
     synchronizer,
     sent,
     close,
-    saved,
+    documentSaved,
     source,
     change,
     getText,
@@ -82,7 +82,7 @@ describe('editor document synchronization', () => {
       sync,
       change: f.change,
       close: f.close,
-      saved: f.saved,
+      documentSaved: f.documentSaved,
       onError: () => {},
       delayMs: 60_000,
     });
@@ -99,10 +99,12 @@ describe('editor document synchronization', () => {
     await f.synchronizer.flush();
     const closing = release();
     f.synchronizer.track('a', f.source);
-    await f.synchronizer.saved('a');
+    await f.synchronizer.documentSaved('a');
     await closing;
     expect(f.sent).toHaveLength(2);
-    expect(f.close.mock.invocationCallOrder[0]).toBeLessThan(f.saved.mock.invocationCallOrder[0]);
+    expect(f.close.mock.invocationCallOrder[0]).toBeLessThan(
+      f.documentSaved.mock.invocationCallOrder[0]
+    );
     await f.synchronizer.dispose();
   });
   it('does not lose edits made while an earlier update is in flight', async () => {
@@ -121,7 +123,7 @@ describe('editor document synchronization', () => {
       sync,
       change: f.change,
       close: f.close,
-      saved: f.saved,
+      documentSaved: f.documentSaved,
       onError: () => {},
       delayMs: 60_000,
     });

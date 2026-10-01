@@ -71,13 +71,13 @@ describe('language server process transport', () => {
         }),
     });
     try {
-      await session.syncDocument({
+      await session.setDocumentSnapshot({
         uri: source,
         languageId: 'typescript',
         version: 1,
         text: 'export const value = "unsaved";\n',
       });
-      await session.syncDocument({
+      await session.setDocumentSnapshot({
         uri: consumer,
         languageId: 'typescript',
         version: 1,
@@ -100,7 +100,7 @@ describe('language server process transport', () => {
           { timeout: 10_000 }
         )
         .toBe(true);
-      await session.syncDocument({
+      await session.setDocumentSnapshot({
         uri: consumer,
         languageId: 'typescript',
         version: 2,
@@ -113,7 +113,7 @@ describe('language server process transport', () => {
         .toMatchObject({
           diagnostics: expect.not.arrayContaining([expect.objectContaining({ code: 2322 })]),
         });
-      await session.restart();
+      await session.restartServer();
       expect(
         JSON.stringify(
           await session.query('textDocument/hover', source, 1, { line: 0, character: 14 })

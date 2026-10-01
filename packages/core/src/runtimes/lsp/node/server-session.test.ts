@@ -56,7 +56,7 @@ describe('language server session', () => {
   it('rolls back a delta when transport delivery fails', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument({ ...document, text: 'old' });
+      await session.setDocumentSnapshot({ ...document, text: 'old' });
       const change = {
         uri: document.uri,
         baseVersion: 1,
@@ -64,9 +64,9 @@ describe('language server session', () => {
         edit: { start: 0, deleteCount: 3, text: 'new' },
       };
       vi.spyOn(servers[0], 'notify').mockRejectedValueOnce(new Error('delivery failed'));
-      await expect(session.changeDocument(change)).rejects.toThrow('delivery failed');
-      await session.changeDocument(change);
-      await session.restart();
+      await expect(session.applyDocumentEdit(change)).rejects.toThrow('delivery failed');
+      await session.applyDocumentEdit(change);
+      await session.restartServer();
       expect(servers[1].messages.at(-1)?.params).toMatchObject({
         textDocument: { version: 2, text: 'new' },
       });
@@ -77,8 +77,8 @@ describe('language server session', () => {
   it('applies versioned edits and replays the resulting text on restart', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument({ ...document, text: 'a\r\n😀old' });
-      await session.changeDocument({
+      await session.setDocumentSnapshot({ ...document, text: 'a\r\n😀old' });
+      await session.applyDocumentEdit({
         uri: document.uri,
         baseVersion: 1,
         version: 2,
@@ -93,7 +93,7 @@ describe('language server session', () => {
           },
         ],
       });
-      await session.restart();
+      await session.restartServer();
       expect(servers[1].messages.at(-1)?.params).toMatchObject({
         textDocument: { text: 'a\r\n😀new', version: 2 },
       });
@@ -110,10 +110,10 @@ describe('language server session', () => {
       edit: { start: 0, deleteCount: 0, text: 'prefix' },
     };
     try {
-      await expect(session.changeDocument(change)).rejects.toThrow(/synchroniz/i);
-      await session.syncDocument({ ...document, version: 3 });
-      await expect(session.changeDocument(change)).rejects.toThrow(/synchroniz/i);
-      await session.restart();
+      await expect(session.applyDocumentEdit(change)).rejects.toThrow(/synchroniz/i);
+      await session.setDocumentSnapshot({ ...document, version: 3 });
+      await expect(session.applyDocumentEdit(change)).rejects.toThrow(/synchroniz/i);
+      await session.restartServer();
       expect(servers[1].messages.at(-1)?.params).toMatchObject({
         textDocument: { text: document.text, version: 3 },
       });
@@ -124,9 +124,9 @@ describe('language server session', () => {
   it('expands patches for servers that require full-document synchronization', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument({ ...document, text: 'old' });
+      await session.setDocumentSnapshot({ ...document, text: 'old' });
       servers[0].capabilities.textDocumentSync = 1;
-      await session.changeDocument({
+      await session.applyDocumentEdit({
         uri: document.uri,
         baseVersion: 1,
         version: 2,
@@ -143,8 +143,8 @@ describe('language server session', () => {
     const { session, servers, connect } = fixture();
     try {
       await Promise.all([
-        session.syncDocument(document),
-        session.syncDocument({ ...document, uri: 'file:///workspace/b.ts' }),
+        session.setDocumentSnapshot(document),
+        session.setDocumentSnapshot({ ...document, uri: 'file:///workspace/b.ts' }),
       ]);
       expect(connect).toHaveBeenCalledTimes(1);
       expect(servers[0].messages.map((m) => m.method)).toEqual([
@@ -168,9 +168,9 @@ describe('language server session', () => {
   it('treats repeated versions as idempotent and rejects a version with different text', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument(document);
-      await session.syncDocument(document);
-      await expect(session.syncDocument({ ...document, text: 'different' })).rejects.toThrow(
+      await session.setDocumentSnapshot(document);
+      await session.setDocumentSnapshot(document);
+      await expect(session.setDocumentSnapshot({ ...document, text: 'different' })).rejects.toThrow(
         /version/i
       );
       expect(servers[0].messages.filter((m) => m.method === 'textDocument/didOpen')).toHaveLength(
@@ -184,8 +184,8 @@ describe('language server session', () => {
   it('rejects old changes without corrupting the current document', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument({ ...document, version: 3 });
-      await expect(session.syncDocument(document)).rejects.toThrow(/version/i);
+      await session.setDocumentSnapshot({ ...document, version: 3 });
+      await expect(session.setDocumentSnapshot(document)).rejects.toThrow(/version/i);
       expect(servers[0].messages.some((m) => m.method === 'textDocument/didChange')).toBe(false);
     } finally {
       await session.dispose();
@@ -195,8 +195,8 @@ describe('language server session', () => {
   it('sends valid incremental replacements using the previous UTF-16 document range', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument({ ...document, text: 'a\r\n😀x' });
-      await session.syncDocument({ ...document, version: 2, text: 'replacement' });
+      await session.setDocumentSnapshot({ ...document, text: 'a\r\n😀x' });
+      await session.setDocumentSnapshot({ ...document, version: 2, text: 'replacement' });
       expect(servers[0].messages.at(-1)).toEqual({
         method: 'textDocument/didChange',
         params: {
@@ -222,12 +222,12 @@ describe('language server session', () => {
       connect: async () => server,
     });
     try {
-      await session.syncDocument(document);
-      await session.syncDocument({ ...document, version: 2, text: 'new' });
+      await session.setDocumentSnapshot(document);
+      await session.setDocumentSnapshot({ ...document, version: 2, text: 'new' });
       expect(server.messages.at(-1)).toMatchObject({
         params: { contentChanges: [{ text: 'new' }] },
       });
-      await session.saved(document.uri);
+      await session.documentSaved(document.uri);
       expect(server.messages.some((m) => m.method === 'textDocument/didSave')).toBe(false);
     } finally {
       await session.dispose();
@@ -237,7 +237,7 @@ describe('language server session', () => {
   it('queries the synchronized version and forwards cancellation', async () => {
     const { session, servers } = fixture();
     try {
-      const sync = session.syncDocument(document);
+      const sync = session.setDocumentSnapshot(document);
       const abort = new AbortController();
       await session.query(
         'textDocument/hover',
@@ -267,7 +267,7 @@ describe('language server session', () => {
   it('clears diagnostics when documents close and ignores diagnostics for older versions', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument({ ...document, version: 2 });
+      await session.setDocumentSnapshot({ ...document, version: 2 });
       const diagnostic = {
         range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
         message: 'error',
@@ -295,11 +295,11 @@ describe('language server session', () => {
   it('reopens unsaved documents in a fresh generation after a crash', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument(document);
+      await session.setDocumentSnapshot(document);
       const generation = session.current.generation;
       servers[0].crash();
       expect(session.current.phase).toBe('failed');
-      await session.restart();
+      await session.restartServer();
       expect(session.current.generation).not.toBe(generation);
       expect(servers[1].messages.at(-1)).toEqual({
         method: 'textDocument/didOpen',
@@ -336,12 +336,12 @@ describe('language server session', () => {
 
   it('shuts down once and cannot be reopened after disposal', async () => {
     const { session, servers } = fixture();
-    await session.syncDocument(document);
+    await session.setDocumentSnapshot(document);
     await session.dispose();
     await session.dispose();
     expect(servers[0].messages.slice(-2).map((m) => m.method)).toEqual(['shutdown', 'exit']);
     expect(servers[0].dispose).toHaveBeenCalledTimes(1);
-    await expect(session.syncDocument(document)).rejects.toThrow(/disposed/i);
+    await expect(session.setDocumentSnapshot(document)).rejects.toThrow(/disposed/i);
   });
 });
 
@@ -368,7 +368,7 @@ describe('language session races', () => {
       connect: async () => server,
     });
     try {
-      await session.syncDocument(document);
+      await session.setDocumentSnapshot(document);
       expect(session.current.diagnostics[0]?.diagnostics[0].message).toBe('Immediate diagnostic');
     } finally {
       await session.dispose();
@@ -378,7 +378,7 @@ describe('language session races', () => {
   it('rejects late query responses after the process exits, before another generation starts', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument(document);
+      await session.setDocumentSnapshot(document);
       const response = deferred<unknown>();
       servers[0].request.mockImplementationOnce(() => response.promise);
       const query = session.query('textDocument/hover', document.uri, 1, { line: 0, character: 0 });
@@ -394,12 +394,12 @@ describe('language session races', () => {
   it('rejects late query responses after a newer document version arrives', async () => {
     const { session, servers } = fixture();
     try {
-      await session.syncDocument(document);
+      await session.setDocumentSnapshot(document);
       const response = deferred<unknown>();
       servers[0].request.mockImplementationOnce(() => response.promise);
       const query = session.query('textDocument/hover', document.uri, 1, { line: 0, character: 0 });
       await vi.waitFor(() => expect(servers[0].request).toHaveBeenCalledTimes(2));
-      await session.syncDocument({ ...document, version: 2, text: 'new text' });
+      await session.setDocumentSnapshot({ ...document, version: 2, text: 'new text' });
       response.resolve({ contents: 'stale' });
       await expect(query).rejects.toThrow(/version/i);
     } finally {
@@ -417,7 +417,7 @@ describe('language session races', () => {
     try {
       await expect(session.start()).rejects.toThrow('missing executable');
       expect(session.current.phase).toBe('failed');
-      await session.restart();
+      await session.restartServer();
       expect(session.current.phase).toBe('ready');
       expect(connect).toHaveBeenCalledTimes(2);
     } finally {

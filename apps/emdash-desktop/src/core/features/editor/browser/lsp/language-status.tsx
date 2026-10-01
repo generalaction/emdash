@@ -19,7 +19,7 @@ export const LanguageStatus = observer(function LanguageStatus({ file }: { file:
           : 'Restart language services'
       }
       onClick={() => {
-        void services?.restart(file);
+        void services?.restartServer(file);
       }}
     >
       {status.phase === 'starting'

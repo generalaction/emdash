@@ -1,12 +1,14 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { formatAbsolute, parseNativeAbsolute, type HostAbsolutePath } from '#primitives/path/api';
-import type { LspProjectQuery } from '../api/schemas';
+import type { LspProjectRootQuery } from '../api/schemas';
 import { documentUri } from './protocol-values';
 import { getServerProfile } from './server-registry';
 
 /** Discover on the file's host, bounded by the task workspace. External files keep that root. */
-export async function resolveLanguageProject(input: LspProjectQuery): Promise<HostAbsolutePath> {
+export async function resolveLanguageProjectRoot(
+  input: LspProjectRootQuery
+): Promise<HostAbsolutePath> {
   const profile = getServerProfile(input.serverId);
   documentUri(input.workspaceRoot);
   documentUri(input.path);

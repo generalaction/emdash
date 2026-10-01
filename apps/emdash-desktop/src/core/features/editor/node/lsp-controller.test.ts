@@ -13,22 +13,24 @@ const root = parsed.data;
 
 describe('editor language services routing', () => {
   it('resolves roots and sends deltas on the file host', async () => {
-    const resolveProject = vi.fn(async () => ok(root));
-    const changeDocument = vi.fn(async () => ok(undefined));
-    const resolve = vi.fn(async () => ok({ lsp: { resolveProject, changeDocument } } as never));
+    const resolveProjectRoot = vi.fn(async () => ok(root));
+    const applyDocumentEdit = vi.fn(async () => ok(undefined));
+    const resolve = vi.fn(async () =>
+      ok({ lsp: { resolveProjectRoot, applyDocumentEdit } } as never)
+    );
     const runtimes = new RuntimeBroker({ resolve });
     const wire = createTestWire(editorLspContract, createEditorLspImpl({ runtimes }));
     const host = { type: 'remote' as const, id: 'host' };
     try {
       expect(
-        await wire.client.resolveProject({
+        await wire.client.resolveProjectRoot({
           host,
           workspaceRoot: root,
           path: root,
           serverId: 'typescript',
         })
       ).toEqual(ok(root));
-      expect(resolveProject).toHaveBeenCalledWith(
+      expect(resolveProjectRoot).toHaveBeenCalledWith(
         { workspaceRoot: root, path: root, serverId: 'typescript' },
         expect.objectContaining({ signal: expect.any(AbortSignal) })
       );
@@ -38,11 +40,11 @@ describe('editor language services routing', () => {
         version: 2,
         edit: { start: 1, deleteCount: 1, text: 'x' },
       };
-      await wire.client.changeDocument({
+      await wire.client.applyDocumentEdit({
         session: { host, root, clientId: 'client', serverId: 'typescript' },
         change,
       });
-      expect(changeDocument).toHaveBeenCalledWith(
+      expect(applyDocumentEdit).toHaveBeenCalledWith(
         { session: { root, clientId: 'client', serverId: 'typescript' }, change },
         expect.objectContaining({ signal: expect.any(AbortSignal) })
       );
@@ -90,7 +92,7 @@ describe('editor language services routing', () => {
       createEditorLspImpl({ runtimes, isSupported: async () => false })
     );
     try {
-      const result = await wire.client.restart({
+      const result = await wire.client.restartServer({
         host: LOCAL_HOST_REF,
         root,
         clientId: 'editor',

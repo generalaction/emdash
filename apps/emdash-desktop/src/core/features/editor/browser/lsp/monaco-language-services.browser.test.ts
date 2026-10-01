@@ -55,12 +55,12 @@ function fixture(
     capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
     diagnostics: [],
   });
-  const syncDocument = vi.fn(async (_input: unknown) => ok(undefined));
-  const resolveProject = vi.fn(async (input: { workspaceRoot: ReturnType<typeof file>['path'] }) =>
-    ok(input.workspaceRoot)
+  const setDocumentSnapshot = vi.fn(async (_input: unknown) => ok(undefined));
+  const resolveProjectRoot = vi.fn(
+    async (input: { workspaceRoot: ReturnType<typeof file>['path'] }) => ok(input.workspaceRoot)
   );
-  const changeDocument = vi.fn(async () => ok(undefined));
-  const restart = vi.fn(async () => ok(undefined));
+  const applyDocumentEdit = vi.fn(async () => ok(undefined));
+  const restartServer = vi.fn(async () => ok(undefined));
   const closeDocument = vi.fn(async () => ok(undefined));
   const hover = vi.fn(async (_input: unknown, _meta: CallMeta) => ok({ contents: '**string**' }));
   const target = file('/outside/dependency.d.ts', host);
@@ -68,12 +68,12 @@ function fixture(
     editorLspContract,
     {
       session: expose(editorLspContract.session, { current: state }, { scope }),
-      syncDocument,
-      resolveProject,
-      changeDocument,
+      setDocumentSnapshot,
+      resolveProjectRoot,
+      applyDocumentEdit,
       closeDocument,
-      saved: async () => ok(undefined),
-      restart,
+      documentSaved: async () => ok(undefined),
+      restartServer,
       hover,
       locations: async () =>
         ok([
@@ -114,13 +114,13 @@ function fixture(
     state,
     ref,
     target,
-    syncDocument,
+    setDocumentSnapshot,
     closeDocument,
     hover,
     open,
-    resolveProject,
-    changeDocument,
-    restart,
+    resolveProjectRoot,
+    applyDocumentEdit,
+    restartServer,
   };
 }
 
@@ -130,7 +130,7 @@ describe('Monaco language services', () => {
     f.model.setValue('const value = "unsaved";');
     const result = await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
     expect(result?.contents).toEqual([{ value: '**string**', isTrusted: false }]);
-    expect(f.syncDocument).toHaveBeenLastCalledWith(
+    expect(f.setDocumentSnapshot).toHaveBeenLastCalledWith(
       expect.objectContaining({
         document: expect.objectContaining({ text: 'const value = "unsaved";' }),
       }),
@@ -152,7 +152,7 @@ describe('Monaco language services', () => {
     );
     cleanup.push(() => editors.forEach((editor) => editor.dispose()));
     await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
-    expect(f.syncDocument).toHaveBeenCalledTimes(1);
+    expect(f.setDocumentSnapshot).toHaveBeenCalledTimes(1);
     expect(await f.services.hover(disk, { lineNumber: 1, column: 1 }, token)).toBeNull();
     editors[0].dispose();
     expect(f.closeDocument).not.toHaveBeenCalled();
@@ -220,14 +220,14 @@ describe('Monaco language-service lifetimes', () => {
   it('replays every open buffer after a new server generation arrives', async () => {
     const f = fixture();
     await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
-    const before = f.syncDocument.mock.calls.length;
+    const before = f.setDocumentSnapshot.mock.calls.length;
     f.state.set({
       phase: 'ready',
       generation: 'two',
       capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
       diagnostics: [],
     });
-    await expect.poll(() => f.syncDocument.mock.calls.length).toBeGreaterThan(before);
+    await expect.poll(() => f.setDocumentSnapshot.mock.calls.length).toBeGreaterThan(before);
   });
   it('ignores older version diagnostics after an edit', async () => {
     const f = fixture();
@@ -285,7 +285,7 @@ describe('Monaco language-service lifetimes', () => {
 it('retries an initially unavailable connection from the restart action', async () => {
   const f = fixture(true);
   await expect.poll(() => f.services.status(f.ref)?.phase).toBe('failed');
-  await f.services.restart(f.ref);
+  await f.services.restartServer(f.ref);
   const result = await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
   expect(result?.contents[0].value).toBe('**string**');
 });
@@ -293,12 +293,12 @@ it('retries an initially unavailable connection from the restart action', async 
 it('replays documents when a replacement worker transitions through starting', async () => {
   const f = fixture();
   await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
-  const before = f.syncDocument.mock.calls.length;
+  const before = f.setDocumentSnapshot.mock.calls.length;
   const capabilities = { hover: true, definition: true, typeDefinition: true, references: true };
   f.state.set({ phase: 'starting', generation: 'new-worker', capabilities, diagnostics: [] });
   await expect.poll(() => f.services.status(f.ref)?.phase).toBe('starting');
   f.state.set({ phase: 'ready', generation: 'new-worker', capabilities, diagnostics: [] });
-  await expect.poll(() => f.syncDocument.mock.calls.length).toBeGreaterThan(before);
+  await expect.poll(() => f.setDocumentSnapshot.mock.calls.length).toBeGreaterThan(before);
 });
 
 it('keeps definitions on the remote host even when an identical local path is open', async () => {
@@ -366,13 +366,13 @@ it('isolates two language servers in one workspace and derives their labels from
   await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
   await f.services.hover(model, { lineNumber: 1, column: 1 }, token);
   expect(
-    f.syncDocument.mock.calls
+    f.setDocumentSnapshot.mock.calls
       .map(([input]) => (input as { session: { serverId: string } }).session.serverId)
       .sort()
   ).toEqual(['example', 'typescript']);
   expect(f.services.status(ref)?.serverName).toBe('Example language');
-  await f.services.restart(ref);
-  expect(f.restart).toHaveBeenCalledWith(
+  await f.services.restartServer(ref);
+  expect(f.restartServer).toHaveBeenCalledWith(
     expect.objectContaining({ serverId: 'example' }),
     expect.anything()
   );
@@ -381,9 +381,9 @@ it('isolates two language servers in one workspace and derives their labels from
 it('uses the project root discovered by the file host', async () => {
   const f = fixture();
   const project = file('/workspace/nested');
-  f.resolveProject.mockResolvedValue(ok(project.path));
+  f.resolveProjectRoot.mockResolvedValue(ok(project.path));
   await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
-  expect(f.resolveProject).toHaveBeenCalledWith(
+  expect(f.resolveProjectRoot).toHaveBeenCalledWith(
     expect.objectContaining({
       host: LOCAL_HOST_REF,
       path: f.ref.path,
@@ -392,7 +392,7 @@ it('uses the project root discovered by the file host', async () => {
     }),
     expect.anything()
   );
-  expect(f.syncDocument).toHaveBeenCalledWith(
+  expect(f.setDocumentSnapshot).toHaveBeenCalledWith(
     expect.objectContaining({ session: expect.objectContaining({ root: project.path }) }),
     expect.anything()
   );
@@ -401,12 +401,12 @@ it('uses the project root discovered by the file host', async () => {
 it('does not start a session after its document closes during root discovery', async () => {
   const f = fixture();
   const resolution = deferred<ReturnType<typeof ok<ReturnType<typeof file>['path']>>>();
-  f.resolveProject.mockImplementation(() => resolution.promise);
-  await expect.poll(() => f.resolveProject.mock.calls.length).toBe(1);
+  f.resolveProjectRoot.mockImplementation(() => resolution.promise);
+  await expect.poll(() => f.resolveProjectRoot.mock.calls.length).toBe(1);
   f.model.dispose();
   resolution.resolve(ok(file('/workspace').path));
   await new Promise((resolve) => setTimeout(resolve, 30));
-  expect(f.syncDocument).not.toHaveBeenCalled();
+  expect(f.setDocumentSnapshot).not.toHaveBeenCalled();
   expect(f.services.status(f.ref)).toBeUndefined();
 });
 
@@ -414,7 +414,7 @@ it('flushes a sibling whose project discovery is still pending before answering 
   const f = fixture();
   await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
   const resolution = deferred<ReturnType<typeof ok<ReturnType<typeof file>['path']>>>();
-  f.resolveProject.mockImplementationOnce(() => resolution.promise);
+  f.resolveProjectRoot.mockImplementationOnce(() => resolution.promise);
   const ref = file('/workspace/sibling.ts');
   cleanup.push(
     f.services.registerContext(ref, file('/workspace'), { projectId: 'project', taskId: 'task' })
@@ -425,14 +425,14 @@ it('flushes a sibling whose project discovery is still pending before answering 
     monaco.Uri.parse(encodeFacetUri(ref, { kind: 'buffer' }))
   );
   cleanup.push(() => model.dispose());
-  await expect.poll(() => f.resolveProject.mock.calls.length).toBe(2);
+  await expect.poll(() => f.resolveProjectRoot.mock.calls.length).toBe(2);
   f.hover.mockClear();
   const query = f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
   await new Promise((resolve) => setTimeout(resolve, 30));
   expect(f.hover).not.toHaveBeenCalled();
   resolution.resolve(ok(file('/workspace').path));
   await query;
-  expect(f.syncDocument).toHaveBeenLastCalledWith(
+  expect(f.setDocumentSnapshot).toHaveBeenLastCalledWith(
     expect.objectContaining({
       document: expect.objectContaining({ path: ref.path, text: 'unsaved sibling' }),
     }),

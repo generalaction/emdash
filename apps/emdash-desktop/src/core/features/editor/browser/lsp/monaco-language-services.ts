@@ -139,22 +139,22 @@ export class MonacoLanguageServices {
     return state && tracked ? { ...state, serverName: tracked.selection.server.name } : undefined;
   }
 
-  async restart(ref: HostFileRef): Promise<void> {
+  async restartServer(ref: HostFileRef): Promise<void> {
     const tracked = this.models.get(encodeFacetUri(ref, { kind: 'buffer' }));
     if (!tracked) return;
     await tracked.ready;
-    if (tracked.session) await tracked.session.restart();
+    if (tracked.session) await tracked.session.restartServer();
     else {
       tracked.ready = this.attach(tracked);
       await tracked.ready;
     }
   }
 
-  async saved(ref: HostFileRef): Promise<void> {
+  async documentSaved(ref: HostFileRef): Promise<void> {
     const tracked = this.models.get(encodeFacetUri(ref, { kind: 'buffer' }));
     if (!tracked) return;
     await tracked.ready;
-    await tracked.session?.saved(ref.path);
+    await tracked.session?.documentSaved(ref.path);
   }
 
   async hover(
@@ -240,7 +240,7 @@ export class MonacoLanguageServices {
       const client = await this.options.client();
       if (!current()) return;
       const root = unwrap(
-        await client.resolveProject({
+        await client.resolveProjectRoot({
           host: context.ref.host,
           workspaceRoot: context.root.path,
           path: context.ref.path,

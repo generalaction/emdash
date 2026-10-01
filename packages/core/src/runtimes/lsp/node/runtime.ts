@@ -11,10 +11,10 @@ import type {
   LspError,
   LspQuery,
   LspSessionKey,
-  LspProjectQuery,
+  LspProjectRootQuery,
 } from '../api/schemas';
 import { spawnLanguageServer, type LanguageServerLaunch } from './process-transport';
-import { resolveLanguageProject } from './project-resolution';
+import { resolveLanguageProjectRoot } from './project-resolution';
 import { documentUri, parseHover, parseLocations, projectSessionState } from './protocol-values';
 import { createServerRequestHandlers } from './server-configuration';
 import { LanguageServerSession, DocumentOutOfSyncError } from './server-session';
@@ -75,9 +75,11 @@ export class LspRuntime {
   get sessionCount(): number {
     return this.sessions.size;
   }
-  async resolveProject(input: LspProjectQuery): Promise<Result<HostAbsolutePath, LspError>> {
+  async resolveProjectRoot(
+    input: LspProjectRootQuery
+  ): Promise<Result<HostAbsolutePath, LspError>> {
     try {
-      return ok(await resolveLanguageProject(input));
+      return ok(await resolveLanguageProjectRoot(input));
     } catch (error) {
       return err({
         type: 'request-failed',
@@ -85,17 +87,17 @@ export class LspRuntime {
       });
     }
   }
-  changeDocument(key: LspSessionKey, change: LspDocumentChange) {
+  applyDocumentEdit(key: LspSessionKey, change: LspDocumentChange) {
     return this.withSession(key, (session) =>
-      session.changeDocument({
+      session.applyDocumentEdit({
         ...change,
         uri: documentUri(change.path),
       })
     );
   }
-  syncDocument(key: LspSessionKey, document: LspDocument) {
+  setDocumentSnapshot(key: LspSessionKey, document: LspDocument) {
     return this.withSession(key, (session) =>
-      session.syncDocument({
+      session.setDocumentSnapshot({
         languageId: document.languageId,
         version: document.version,
         text: document.text,
@@ -106,11 +108,11 @@ export class LspRuntime {
   closeDocument(key: LspSessionKey, path: HostAbsolutePath) {
     return this.withSession(key, (session) => session.closeDocument(documentUri(path)));
   }
-  saved(key: LspSessionKey, path: HostAbsolutePath) {
-    return this.withSession(key, (session) => session.saved(documentUri(path)));
+  documentSaved(key: LspSessionKey, path: HostAbsolutePath) {
+    return this.withSession(key, (session) => session.documentSaved(documentUri(path)));
   }
-  restart(key: LspSessionKey) {
-    return this.withSession(key, (session) => session.restart());
+  restartServer(key: LspSessionKey) {
+    return this.withSession(key, (session) => session.restartServer());
   }
   hover(input: LspQuery, signal?: AbortSignal) {
     return this.withSession(

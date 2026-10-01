@@ -37,9 +37,9 @@ export function createEditorLspImpl(
     }
   }
   return {
-    resolveProject: async ({ host, ...input }, meta) => {
+    resolveProjectRoot: async ({ host, ...input }, meta) => {
       try {
-        return await (await resolve({ host })).resolveProject(input, { signal: meta.signal });
+        return await (await resolve({ host })).resolveProjectRoot(input, { signal: meta.signal });
       } catch (error) {
         return err({
           type: error instanceof UnsupportedLspError ? 'unsupported' : 'request-failed',
@@ -47,9 +47,9 @@ export function createEditorLspImpl(
         });
       }
     },
-    changeDocument: ({ session, change }, meta) =>
+    applyDocumentEdit: ({ session, change }, meta) =>
       call(session, (client, key) =>
-        client.changeDocument({ session: key, change }, { signal: meta.signal })
+        client.applyDocumentEdit({ session: key, change }, { signal: meta.signal })
       ),
     session: {
       kind: 'liveModelProvider',
@@ -60,18 +60,20 @@ export function createEditorLspImpl(
         throw new Error('Language session state is read-only');
       },
     },
-    syncDocument: ({ session, document }, meta) =>
+    setDocumentSnapshot: ({ session, document }, meta) =>
       call(session, (client, key) =>
-        client.syncDocument({ session: key, document }, { signal: meta.signal })
+        client.setDocumentSnapshot({ session: key, document }, { signal: meta.signal })
       ),
     closeDocument: ({ session, path }, meta) =>
       call(session, (client, key) =>
         client.closeDocument({ session: key, path }, { signal: meta.signal })
       ),
-    saved: ({ session, path }, meta) =>
-      call(session, (client, key) => client.saved({ session: key, path }, { signal: meta.signal })),
-    restart: (session, meta) =>
-      call(session, (client, key) => client.restart(key, { signal: meta.signal })),
+    documentSaved: ({ session, path }, meta) =>
+      call(session, (client, key) =>
+        client.documentSaved({ session: key, path }, { signal: meta.signal })
+      ),
+    restartServer: (session, meta) =>
+      call(session, (client, key) => client.restartServer(key, { signal: meta.signal })),
     hover: (input, meta) =>
       call(input.session, (client, key) =>
         client.hover({ ...input, session: key }, { signal: meta.signal })

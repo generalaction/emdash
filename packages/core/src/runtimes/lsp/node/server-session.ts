@@ -77,14 +77,14 @@ export class LanguageServerSession {
     }));
   }
 
-  syncDocument(document: TextDocumentItem): Promise<void> {
+  setDocumentSnapshot(document: TextDocumentItem): Promise<void> {
     return this.enqueue(async () => {
       await this.start();
       await this.writeDocument(document);
     });
   }
 
-  changeDocument(change: {
+  applyDocumentEdit(change: {
     uri: string;
     baseVersion: number;
     version: number;
@@ -163,7 +163,7 @@ export class LanguageServerSession {
     });
   }
 
-  saved(uri: string): Promise<void> {
+  documentSaved(uri: string): Promise<void> {
     return this.enqueue(async () => {
       const document = this.documents.get(uri);
       const sync = this.current.capabilities.textDocumentSync;
@@ -211,7 +211,7 @@ export class LanguageServerSession {
     return result;
   }
 
-  restart(): Promise<void> {
+  restartServer(): Promise<void> {
     return this.enqueue(async () => {
       await this.starting?.catch(() => {});
       await this.stopTransport();

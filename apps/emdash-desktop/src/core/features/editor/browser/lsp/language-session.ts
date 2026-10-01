@@ -24,15 +24,16 @@ export class LanguageSession {
   ) {
     this.documents = new DocumentSynchronizer({
       sync: async (document) =>
-        unwrap(await (await this.ready).syncDocument({ session: key, document })),
+        unwrap(await (await this.ready).setDocumentSnapshot({ session: key, document })),
       change: async (change) => {
-        const result = await (await this.ready).changeDocument({ session: key, change });
+        const result = await (await this.ready).applyDocumentEdit({ session: key, change });
         if (!result.success && result.error.type === 'document-out-of-sync') return false;
         unwrap(result);
         return true;
       },
       close: async (path) => unwrap(await (await this.ready).closeDocument({ session: key, path })),
-      saved: async (path) => unwrap(await (await this.ready).saved({ session: key, path })),
+      documentSaved: async (path) =>
+        unwrap(await (await this.ready).documentSaved({ session: key, path })),
       onError: (error) => this.fail(error),
     });
     void this.ready.catch((error) => this.fail(error));
@@ -45,9 +46,9 @@ export class LanguageSession {
     }));
   }
 
-  async restart(): Promise<void> {
+  async restartServer(): Promise<void> {
     try {
-      unwrap(await (await this.ready).restart(this.key));
+      unwrap(await (await this.ready).restartServer(this.key));
       this.documents.invalidate();
       await this.documents.flush();
     } catch (error) {
@@ -55,7 +56,7 @@ export class LanguageSession {
     }
   }
 
-  async saved(path: HostAbsolutePath): Promise<void> {
+  async documentSaved(path: HostAbsolutePath): Promise<void> {
     try {
       await this.documents.savedPath(path);
     } catch (error) {

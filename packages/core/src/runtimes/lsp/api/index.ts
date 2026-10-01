@@ -11,7 +11,7 @@ export {
   lspDiagnosticSchema,
   lspDocumentSchema,
   lspDocumentChangeSchema,
-  lspProjectQuerySchema,
+  lspProjectRootQuerySchema,
   type LspDocumentChange,
   type LspDocumentEdit,
   lspErrorSchema,

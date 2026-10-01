@@ -82,7 +82,7 @@ describe('LSP runtime over Wire', () => {
   it('resolves project roots without starting a language process', async () => {
     const { runtime, wire, session, document } = await fixture();
     expect(
-      await wire.client.resolveProject({
+      await wire.client.resolveProjectRoot({
         workspaceRoot: session.root,
         path: document.path,
         serverId: session.serverId,
@@ -93,23 +93,23 @@ describe('LSP runtime over Wire', () => {
   it('applies deltas through Wire and recovers a lost acknowledgement using a snapshot', async () => {
     const { wire, session, document } = await fixture();
     cleanups.push(await attach(wire.client.session, session));
-    await wire.client.syncDocument({ session, document });
+    await wire.client.setDocumentSnapshot({ session, document });
     const change = {
       path: document.path,
       baseVersion: 1,
       version: 2,
       edit: { start: document.text.indexOf('"'), deleteCount: '"unsaved"'.length, text: '42' },
     };
-    expect(await wire.client.changeDocument({ session, change })).toEqual({
+    expect(await wire.client.applyDocumentEdit({ session, change })).toEqual({
       success: true,
       data: undefined,
     });
-    expect(await wire.client.changeDocument({ session, change })).toMatchObject({
+    expect(await wire.client.applyDocumentEdit({ session, change })).toMatchObject({
       success: false,
       error: { type: 'document-out-of-sync' },
     });
     expect(
-      await wire.client.syncDocument({
+      await wire.client.setDocumentSnapshot({
         session,
         document: { ...document, version: 2, text: 'export const answer = 42;' },
       })
@@ -121,17 +121,17 @@ describe('LSP runtime over Wire', () => {
       position: { line: 0, character: 15 },
     };
     expect(JSON.stringify(await wire.client.hover(query))).toContain('42');
-    await wire.client.restart(session);
+    await wire.client.restartServer(session);
     expect(JSON.stringify(await wire.client.hover(query))).toContain('42');
   });
   it('requires a live session lease and releases its process after the last detach', async () => {
     const { runtime, wire, session, document } = await fixture();
-    expect(await wire.client.syncDocument({ session, document })).toMatchObject({
+    expect(await wire.client.setDocumentSnapshot({ session, document })).toMatchObject({
       success: false,
       error: { type: 'session-unavailable' },
     });
     const unsubscribe = await attach(wire.client.session, session);
-    expect(await wire.client.syncDocument({ session, document })).toEqual({
+    expect(await wire.client.setDocumentSnapshot({ session, document })).toEqual({
       success: true,
       data: undefined,
     });
@@ -154,8 +154,8 @@ describe('LSP runtime over Wire', () => {
     );
     cleanups.push(() => Promise.all(subscriptions.map((unsubscribe) => unsubscribe())));
     await Promise.all([
-      wire.client.syncDocument({ session, document }),
-      wire.client.syncDocument({
+      wire.client.setDocumentSnapshot({ session, document }),
+      wire.client.setDocumentSnapshot({
         session: other,
         document: { ...document, text: 'export const answer = true;' },
       }),

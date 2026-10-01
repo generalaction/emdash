@@ -3,7 +3,7 @@ import { hostAbsolutePathSchema } from '@emdash/core/primitives/path/api';
 import {
   lspDocumentSchema,
   lspDocumentChangeSchema,
-  lspProjectQuerySchema,
+  lspProjectRootQuerySchema,
   lspErrorSchema,
   lspHoverSchema,
   lspLocationSchema,
@@ -20,12 +20,12 @@ const documentKey = z.object({ session: editorLspSessionSchema, path: hostAbsolu
 
 /** Host identity is carried once per session; all result paths belong to that host. */
 export const editorLspContract = defineContract({
-  resolveProject: fallible({
-    input: lspProjectQuerySchema.extend({ host: hostRefSchema }),
+  resolveProjectRoot: fallible({
+    input: lspProjectRootQuerySchema.extend({ host: hostRefSchema }),
     data: hostAbsolutePathSchema,
     error: lspErrorSchema,
   }),
-  changeDocument: fallible({
+  applyDocumentEdit: fallible({
     input: z.object({ session: editorLspSessionSchema, change: lspDocumentChangeSchema }),
     data: z.void(),
     error: lspErrorSchema,
@@ -34,14 +34,14 @@ export const editorLspContract = defineContract({
     key: editorLspSessionSchema,
     states: { current: liveState({ data: lspStateSchema }) },
   }),
-  syncDocument: fallible({
+  setDocumentSnapshot: fallible({
     input: z.object({ session: editorLspSessionSchema, document: lspDocumentSchema }),
     data: z.void(),
     error: lspErrorSchema,
   }),
   closeDocument: fallible({ input: documentKey, data: z.void(), error: lspErrorSchema }),
-  saved: fallible({ input: documentKey, data: z.void(), error: lspErrorSchema }),
-  restart: fallible({ input: editorLspSessionSchema, data: z.void(), error: lspErrorSchema }),
+  documentSaved: fallible({ input: documentKey, data: z.void(), error: lspErrorSchema }),
+  restartServer: fallible({ input: editorLspSessionSchema, data: z.void(), error: lspErrorSchema }),
   hover: fallible({ input: query, data: lspHoverSchema, error: lspErrorSchema }),
   locations: fallible({
     input: query.extend({ kind: z.enum(['definition', 'typeDefinition', 'references']) }),

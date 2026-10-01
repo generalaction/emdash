@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { formatAbsolute, parseNativeAbsolute } from '#primitives/path/api';
-import { resolveLanguageProject } from './project-resolution';
+import { resolveLanguageProjectRoot } from './project-resolution';
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -19,7 +19,7 @@ async function fixture() {
     return parsed.data;
   };
   const resolve = (file = 'workspace/packages/app/src/a.ts', serverId = 'typescript') =>
-    resolveLanguageProject({
+    resolveLanguageProjectRoot({
       workspaceRoot: absolute('workspace'),
       path: absolute(file),
       serverId,

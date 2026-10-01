@@ -20,7 +20,7 @@ export const lspSessionKeySchema = z.object({
   root: hostAbsolutePathSchema,
   serverId: lspServerIdSchema,
 });
-export const lspProjectQuerySchema = z.object({
+export const lspProjectRootQuerySchema = z.object({
   workspaceRoot: hostAbsolutePathSchema,
   path: hostAbsolutePathSchema,
   serverId: lspServerIdSchema,
@@ -103,7 +103,7 @@ export const lspLocationSchema = z.object({
 });
 
 export type LspSessionKey = z.infer<typeof lspSessionKeySchema>;
-export type LspProjectQuery = z.infer<typeof lspProjectQuerySchema>;
+export type LspProjectRootQuery = z.infer<typeof lspProjectRootQuerySchema>;
 export type LspDocumentEdit = z.infer<typeof lspDocumentEditSchema>;
 export type LspDocumentChange = z.infer<typeof lspDocumentChangeSchema>;
 export type LspDocument = z.infer<typeof lspDocumentSchema>;
