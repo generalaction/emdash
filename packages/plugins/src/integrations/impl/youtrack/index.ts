@@ -1,3 +1,4 @@
+import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyYouTrackCredentials } from './client';
 import { icon } from './icon';
@@ -42,11 +43,10 @@ const plugin = defineIntegrationPlugin(
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
     credentialsSchema: youTrackCredentialsSchema,
-    async verify(_host, credentials) {
+    async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyYouTrackCredentials(credentials);
-      return result.success
-        ? { connected: true, ...result.data }
-        : { connected: false, error: result.error.message };
+      if (!result.success) return { connected: false, error: result.error.message };
+      return { connected: true, ...result.data };
     },
   },
 });

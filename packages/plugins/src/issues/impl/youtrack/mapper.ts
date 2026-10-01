@@ -1,5 +1,6 @@
 import z from 'zod';
-import type { IssueData } from '../../types';
+import type { IssueData, IssueDetail } from '../../types';
+import type { YouTrackIssueSummaryNode } from './queries';
 
 const userValueSchema = z.object({
   name: z.string().nullable().optional(),
@@ -7,29 +8,7 @@ const userValueSchema = z.object({
   login: z.string().nullable().optional(),
 });
 
-const customFieldSchema = z.object({
-  $type: z.string(),
-  name: z.string(),
-  value: z.unknown(),
-});
-
-export const youTrackIssueSchema = z.object({
-  id: z.string().min(1),
-  idReadable: z.string().min(1),
-  summary: z.string(),
-  description: z.string().nullable(),
-  updated: z.number().int().min(0).max(8_640_000_000_000_000),
-  project: z.object({ name: z.string() }).nullable(),
-  customFields: z.array(customFieldSchema),
-});
-
-export const YOU_TRACK_ISSUE_FIELDS =
-  'id,idReadable,summary,description,updated,project(name),customFields($type,name,value(name,fullName,login))';
-
-export function toIssueData(
-  issue: z.infer<typeof youTrackIssueSchema>,
-  instanceUrl: string
-): IssueData {
+export function toIssueData(issue: YouTrackIssueSummaryNode, instanceUrl: string): IssueData {
   const state = issue.customFields.find((field) => field.$type === 'StateIssueCustomField');
   const assignee = issue.customFields.find(
     (field) =>
@@ -58,4 +37,12 @@ export function toIssueData(
     status,
     assignees: assignees.length ? assignees : undefined,
   };
+}
+
+export function toIssueDetail(
+  issue: YouTrackIssueSummaryNode,
+  instanceUrl: string,
+  context: string | undefined
+): IssueDetail {
+  return { ...toIssueData(issue, instanceUrl), context };
 }
