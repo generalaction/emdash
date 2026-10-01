@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
 import { chatMentionProvider } from './chat-mention-provider';
+import { diffCommentsMention } from './diff-comments-mention';
 
 describe('chatMentionProvider', () => {
+  it('renders the diff comments token as a custom mention in the transcript', () => {
+    expect(chatMentionProvider.resolve(diffCommentsMention.id)).toMatchObject({
+      id: diffCommentsMention.id,
+      name: 'Diff comments',
+      kind: 'custom',
+    });
+  });
   it('resolves issue tokens with provider icon URLs', () => {
     registerIssueMentionIcons([
       {
