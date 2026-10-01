@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
 import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
+import { LanguageStatus } from '../lsp/language-status';
 
 interface FileContentToolbarProps {
   tab: FileTabResource;
@@ -26,6 +27,7 @@ export const FileContentToolbar = observer(function FileContentToolbar({
       >
         {displayPath}
       </span>
+      {tab.ref && <LanguageStatus file={tab.ref} />}
       {canToggle && (
         <ToggleGroup.Root
           multiple={false}

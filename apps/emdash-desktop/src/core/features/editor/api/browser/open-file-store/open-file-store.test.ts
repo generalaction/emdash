@@ -604,7 +604,11 @@ describe('OpenFileStore', () => {
       bufferHandle(entry).setText('one edited');
       await waitFor(() => entry.dirty);
 
+      const didSave = vi.fn();
+      const unsubscribe = h.store.onDidSave(didSave);
       const result = await h.store.save(entry);
+      expect(didSave).toHaveBeenCalledTimes(1);
+      unsubscribe();
       expect(result).toEqual(ok(undefined));
       expect(entry.dirty).toBe(false);
       expect(entry.conflicted).toBe(false);
@@ -625,13 +629,17 @@ describe('OpenFileStore', () => {
       h.publish(h.diskKey(path), textContent('theirs', 'e2'));
       await waitFor(() => entry.conflicted);
 
+      const didSave = vi.fn();
+      h.store.onDidSave(didSave);
       const rejected = await h.store.save(entry);
+      expect(didSave).not.toHaveBeenCalled();
       expect(rejected).toEqual(err({ type: 'conflict' }));
       expect(entry.conflicted).toBe(true);
       expect(entry.dirty).toBe(true);
 
       const overwritten = await h.store.save(entry, { overwrite: true });
       expect(overwritten).toEqual(ok(undefined));
+      expect(didSave).toHaveBeenCalledTimes(1);
       expect(entry.dirty).toBe(false);
       expect(entry.conflicted).toBe(false);
       const disk = h.diskContent(h.diskKey(path));

@@ -20,6 +20,18 @@ export function configureMonacoTypeScript(monacoInstance: typeof monaco): void {
   try {
     configureTypeScriptDefaults(monacoInstance);
     configureJavaScriptDefaults(monacoInstance);
+    for (const defaults of [
+      monacoInstance.typescript.typescriptDefaults,
+      monacoInstance.typescript.javascriptDefaults,
+    ]) {
+      defaults.setModeConfiguration({
+        ...defaults.modeConfiguration,
+        hovers: false,
+        definitions: false,
+        references: false,
+        diagnostics: false,
+      });
+    }
   } catch (error) {
     log.warn('Failed to configure Monaco TypeScript settings:', error);
   }

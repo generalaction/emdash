@@ -10,8 +10,12 @@ export function getLanguageFromPath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || '';
   const langMap: Record<string, string> = {
     js: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
     jsx: 'javascript',
     ts: 'typescript',
+    mts: 'typescript',
+    cts: 'typescript',
     tsx: 'typescript',
     py: 'python',
     java: 'java',

@@ -1,4 +1,5 @@
 import {
+  decodeResourceUri,
   encodeResourceUri,
   resourceKeyFromFileRef,
   type HostFileRef,
@@ -177,6 +178,15 @@ class OpenFileEntryImpl implements OpenFileEntry {
  * through the registered {@link FacetHandleBinder}.
  */
 export class OpenFileStore {
+  private readonly saveListeners = new Set<(ref: HostFileRef) => void>();
+
+  onDidSave(listener: (ref: HostFileRef) => void): () => void {
+    this.saveListeners.add(listener);
+    return () => {
+      this.saveListeners.delete(listener);
+    };
+  }
+
   private readonly entries = new Map<ResourceKey, OpenFileEntryImpl>();
   private readonly scope = createScope({ label: 'open-file-store' });
   private readonly clock: Clock;
@@ -364,6 +374,8 @@ export class OpenFileStore {
       const client = await getEditorClient();
       await client.clearBuffer({ uri: impl.uri });
       this.maybeScheduleBufferEviction(impl);
+      const decoded = decodeResourceUri(impl.uri);
+      if (decoded.success) for (const listener of this.saveListeners) listener(decoded.data);
       return ok(undefined);
     } finally {
       runInAction(() => {

@@ -138,3 +138,51 @@ content determines presentation readiness; history, config, usage, plan, termina
 metadata must not block displaying it. Optional metadata has safe defaults while loading.
 Older runtimes without version metadata use the legacy synchronization path and cannot provide
 the same missed-update guarantees.
+
+
+## Editor language services
+
+TypeScript and JavaScript buffers use the host LSP runtime for hover, definition,
+type definition, references and diagnostics. Install or select
+`typescript-language-server` in the host's machine dependencies (the offered npm
+command installs TypeScript too; Node.js 22.22.2 or newer is required), then use
+the language-service status button in
+the file toolbar to restart. The executable must be on the host containing the
+worktree; a local installation does not provide language services for SSH files.
+Remote language services require workspace protocol 11.1 or newer.
+
+`editor/browser/lsp/monaco-language-services.ts` registers providers once during
+lazy Monaco bootstrap. File tabs register the originating task and workspace
+root before their buffer models are created. Only `emdash-buffer:` models are
+replicated; disk and Git snapshots never enter the language server. Shared model
+lifetime owns open/close, so split panes and dirty buffers surviving tab closure
+remain consistent. `DocumentSynchronizer` coalesces edits and flushes every open
+buffer before a query. The shared file store emits successful saves. Results
+preserve host identity and the originating task when navigating outside the root.
+
+`LanguageSession` leases typed live state through the editor Wire domain. The
+Node editor controller routes to `RuntimeBroker`; it does not own processes or
+LSP protocol state. `packages/core/src/runtimes/lsp/` owns process framing,
+initialization, document versions, cancellation, capabilities, diagnostics and
+shutdown. It runs as a worker on both desktop and workspace-server, with one
+server per renderer client, workspace root and server ID. Server commands come
+from host dependency descriptors, never renderer-supplied shell text. A live-state
+lease keeps the server alive; the last detach releases it after a short grace
+period. Explicit restart replays unsaved buffers, and replacement generations
+invalidate renderer synchronization caches.
+
+This initial server registry supports TS/JS, including JSX and TSX, with UTF-16
+positions and a two-million-character document limit. It leaves completion,
+formatting and workspace-edit operations on their existing editor paths. Adding
+another server means adding a host descriptor/registry entry and a language
+mapping, then exercising its capability negotiation and synchronization behavior.
+`vscode-languageserver-protocol` (MIT) supplies standard JSON-RPC framing and
+cancellation. `typescript-language-server` (Apache-2.0) is a development-only
+fixture for real-server integration tests; neither adds native build hooks.
+
+Tests cover protocol state and actual server behavior in Core, host routing and
+buffer policy in desktop Node tests, and Monaco providers/navigation in browser
+tests. `language-services.e2e.browser.test.ts` carries actual Wire frames through
+Playwright bindings into the production editor controller and host runtime,
+then checks cross-file unsaved types, definitions, diagnostics and restart with
+a real TypeScript server. The bindings exist only in Vitest's test harness.

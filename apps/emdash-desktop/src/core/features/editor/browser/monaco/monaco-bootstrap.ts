@@ -71,6 +71,8 @@ export const monacoBootstrap = {
       (globalThis as any).__monaco = m;
       defineMonacoThemes(m as Parameters<typeof defineMonacoThemes>[0]);
       configureMonacoTypeScript(m);
+      const { installLanguageServices } = await import('../lsp/language-services');
+      installLanguageServices(m);
       return m;
     })();
     return initPromise;
