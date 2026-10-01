@@ -107,6 +107,12 @@ export const plugin = definePlugin(
               'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd',
             uninstallCommand: 'claude uninstall',
           },
+          {
+            method: 'winget',
+            command: 'winget install Anthropic.ClaudeCode',
+            updateCommand: 'winget upgrade Anthropic.ClaudeCode',
+            uninstallCommand: 'winget uninstall Anthropic.ClaudeCode',
+          },
         ],
       },
       updateCommand: {
