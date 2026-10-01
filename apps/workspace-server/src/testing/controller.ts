@@ -6,6 +6,7 @@ import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import { hostSettingsContract } from '@emdash/core/runtimes/host-settings/api';
+import { lspContract } from '@emdash/core/runtimes/lsp/api';
 import { resourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { scriptsContract } from '@emdash/core/runtimes/scripts/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
@@ -44,6 +45,7 @@ export function createTestRuntimeClients(
     files: createDisconnectedClient(filesContract),
     git: createDisconnectedClient(gitContract),
     hostSettings: createDisconnectedClient(hostSettingsContract),
+    lsp: createDisconnectedClient(lspContract),
     resourceUsage: createDisconnectedClient(resourceUsageContract),
     scripts: createDisconnectedClient(scriptsContract),
     terminals: createDisconnectedClient(terminalsContract),
