@@ -11,8 +11,44 @@ describe('language server selection', () => {
     }
   );
   it('does not activate servers for unsupported files', () => {
-    expect(selectLanguageServer('a.py')).toBeUndefined();
-    expect(selectLanguageServer('package.json')).toBeUndefined();
+    for (const name of ['README', 'a.txt', 'a.zsh', 'a.fish', '.zshrc', '/folder.py/README']) {
+      expect(selectLanguageServer(name), name).toBeUndefined();
+    }
+  });
+  it.each([
+    ['scripts/build.sh', 'bash', 'shellscript'],
+    ['scripts/build.bash', 'bash', 'shellscript'],
+    ['/home/user/.bashrc', 'bash', 'shellscript'],
+    ['C:\\Users\\me\\.bash_profile', 'bash', 'shellscript'],
+    ['.bash_aliases', 'bash', 'shellscript'],
+    ['main.go', 'go', 'go'],
+    ['lib.rs', 'rust', 'rust'],
+    ['main.py', 'python', 'python'],
+    ['types.pyi', 'python', 'python'],
+    ['app.pyw', 'python', 'python'],
+    ['main.c', 'cpp', 'c'],
+    ['api.h', 'cpp', 'c'],
+    ['main.cpp', 'cpp', 'cpp'],
+    ['main.cc', 'cpp', 'cpp'],
+    ['main.cxx', 'cpp', 'cpp'],
+    ['api.hpp', 'cpp', 'cpp'],
+    ['api.hh', 'cpp', 'cpp'],
+    ['api.hxx', 'cpp', 'cpp'],
+    ['package.json', 'json', 'json'],
+    ['tsconfig.jsonc', 'json', 'jsonc'],
+    ['tsconfig.json', 'json', 'jsonc'],
+    ['jsconfig.json', 'json', 'jsonc'],
+    ['config.yaml', 'yaml', 'yaml'],
+    ['config.YML', 'yaml', 'yaml'],
+    ['index.html', 'html', 'html'],
+    ['index.htm', 'html', 'html'],
+    ['style.css', 'css', 'css'],
+    ['style.scss', 'css', 'scss'],
+    ['style.less', 'css', 'less'],
+  ])('selects %s independently of the host path syntax', (filename, serverId, languageId) => {
+    const selected = selectLanguageServer(filename);
+    expect(selected?.server.id).toBe(serverId);
+    expect(selected?.language.languageId).toBe(languageId);
   });
   it('selects additional definitions without changing editor logic', () => {
     const custom = {

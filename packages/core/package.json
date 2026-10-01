@@ -399,13 +399,17 @@
     "@types/node": "^24.13.1",
     "@types/semver": "^7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "bash-language-server": "5.8.1",
     "drizzle-kit": "^0.31.10",
     "node-pty": "1.1.0",
+    "pyright": "1.1.414",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
     "typescript": "6.0.3",
     "typescript-language-server": "6.0.1",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "vscode-langservers-extracted": "4.10.0",
+    "yaml-language-server": "1.24.0"
   },
   "peerDependencies": {
     "node-pty": "1.1.0"

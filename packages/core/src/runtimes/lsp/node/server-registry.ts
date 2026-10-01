@@ -4,13 +4,14 @@ import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import { formatAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import type { LspSessionKey } from '../api/schemas';
 import { languageServers } from '../api/server-catalog';
+import { pythonSettings } from './python-settings';
 import type { ResolvedLanguageServer } from './runtime';
 
 interface HostServerProfile {
   dependencyId: string;
   args: string[];
   rootMarkers: string[];
-  configure(
+  configure?(
     root: HostAbsolutePath,
     env: NodeJS.ProcessEnv
   ): Promise<{
@@ -43,6 +44,51 @@ const servers: Readonly<Record<string, HostServerProfile>> = {
       };
     },
   },
+  bash: { dependencyId: 'bash-language-server', args: ['start'], rootMarkers: [] },
+  go: { dependencyId: 'gopls', args: [], rootMarkers: ['go.work', 'go.mod'] },
+  rust: {
+    dependencyId: 'rust-analyzer',
+    args: [],
+    rootMarkers: ['Cargo.toml', 'rust-project.json'],
+  },
+  python: {
+    dependencyId: 'pyright-langserver',
+    args: ['--stdio'],
+    rootMarkers: [
+      'pyrightconfig.json',
+      'pyproject.toml',
+      'setup.py',
+      'setup.cfg',
+      'requirements.txt',
+      'Pipfile',
+    ],
+    configure: async (root, env) => ({ settings: await pythonSettings(root, env) }),
+  },
+  cpp: {
+    dependencyId: 'clangd',
+    args: [],
+    rootMarkers: ['compile_commands.json', 'compile_flags.txt', '.clangd', 'CMakeLists.txt'],
+  },
+  json: {
+    dependencyId: 'vscode-json-language-server',
+    args: ['--stdio'],
+    rootMarkers: [],
+  },
+  yaml: { dependencyId: 'yaml-language-server', args: ['--stdio'], rootMarkers: [] },
+  html: { dependencyId: 'vscode-html-language-server', args: ['--stdio'], rootMarkers: [] },
+  css: {
+    dependencyId: 'vscode-css-language-server',
+    args: ['--stdio'],
+    rootMarkers: [],
+    // This server expects an object for each dialect's workspace/configuration section.
+    configure: async () => ({
+      settings: {
+        css: { validate: true },
+        scss: { validate: true },
+        less: { validate: true },
+      },
+    }),
+  },
 };
 
 export function getServerProfile(id: string): HostServerProfile {
@@ -66,6 +112,6 @@ export async function resolveLanguageServer(
     command: resolved.data.path,
     args: [...definition.args],
     env,
-    ...(await definition.configure(key.root, env)),
+    ...(await definition.configure?.(key.root, env)),
   };
 }

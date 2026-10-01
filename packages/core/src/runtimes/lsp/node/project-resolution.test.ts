@@ -27,6 +27,30 @@ async function fixture() {
   return { root, absolute, resolve };
 }
 describe('host language project resolution', () => {
+  it.each([
+    ['go', 'go.mod'],
+    ['go', 'go.work'],
+    ['rust', 'Cargo.toml'],
+    ['rust', 'rust-project.json'],
+    ['python', 'pyrightconfig.json'],
+    ['python', 'pyproject.toml'],
+    ['python', 'setup.py'],
+    ['cpp', 'compile_commands.json'],
+    ['cpp', 'compile_flags.txt'],
+    ['cpp', '.clangd'],
+  ])('uses the %s project boundary marked by %s', async (serverId, marker) => {
+    const f = await fixture();
+    await writeFile(path.join(f.root, 'workspace/packages/app', marker), '');
+    expect(await f.resolve(undefined, serverId)).toEqual(f.absolute('workspace/packages/app'));
+  });
+  it.each(['bash', 'json', 'yaml', 'html', 'css'])(
+    'keeps %s files in the task workspace instead of borrowing a TypeScript root',
+    async (serverId) => {
+      const f = await fixture();
+      await writeFile(path.join(f.root, 'workspace/packages/app/package.json'), '{}');
+      expect(await f.resolve(undefined, serverId)).toEqual(f.absolute('workspace'));
+    }
+  );
   it('chooses the nearest project boundary inside the workspace', async () => {
     const f = await fixture();
     await writeFile(path.join(f.root, 'workspace', 'package.json'), '{}');

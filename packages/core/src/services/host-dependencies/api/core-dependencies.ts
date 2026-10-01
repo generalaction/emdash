@@ -1,5 +1,6 @@
 import type { HostDependencyDefinition } from '#primitives/host-dependencies/api';
 import { aptInstallCommand } from './apt-commands';
+import { LANGUAGE_SERVER_DEPENDENCIES } from './language-server-dependencies';
 
 const aptInstallOption = (packages: string) => ({
   method: 'apt' as const,
@@ -141,28 +142,6 @@ export const CURL_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   status: 'active',
 };
 
-const typescriptLanguageServerInstall = [
-  {
-    method: 'npm' as const,
-    command: 'npm install -g typescript-language-server@6.0.1 typescript@6.0.3',
-    elevation: 'never' as const,
-  },
-];
-
-export const TYPESCRIPT_LANGUAGE_SERVER_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
-  id: 'typescript-language-server',
-  name: 'TypeScript language server',
-  category: 'core',
-  binaryNames: ['typescript-language-server'],
-  installDocs: 'https://github.com/typescript-language-server/typescript-language-server',
-  installCommands: {
-    macos: typescriptLanguageServerInstall,
-    linux: typescriptLanguageServerInstall,
-    windows: typescriptLanguageServerInstall,
-  },
-  status: 'active',
-};
-
 export const REQUIRED_CORE_DEPENDENCIES: HostDependencyDefinition[] = [
   GIT_DEPENDENCY_DESCRIPTOR,
   RIPGREP_DEPENDENCY_DESCRIPTOR,
@@ -173,7 +152,7 @@ export const RECOMMENDED_CORE_DEPENDENCIES: HostDependencyDefinition[] = [
   NPM_DEPENDENCY_DESCRIPTOR,
   TMUX_DEPENDENCY_DESCRIPTOR,
   CURL_DEPENDENCY_DESCRIPTOR,
-  TYPESCRIPT_LANGUAGE_SERVER_DEPENDENCY_DESCRIPTOR,
+  ...LANGUAGE_SERVER_DEPENDENCIES,
 ];
 
 export const CORE_DEPENDENCIES: HostDependencyDefinition[] = [
