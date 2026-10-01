@@ -20,6 +20,8 @@ const config: OpenSshConfig = {
   password: secret('password-secret', 'test'),
   passphrase: secret('key-secret', 'test'),
 };
+const hostPrompt =
+  "The authenticity of host 'work.example (1.2.3.4)' can't be established.\nED25519 key fingerprint is SHA256:example.\nAre you sure you want to continue connecting (yes/no/[fingerprint])? ";
 const dispose: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const cleanup of dispose.splice(0)) await cleanup();
@@ -64,16 +66,23 @@ describe('askpass credential boundary', () => {
     ).toBeNull();
   });
   it('requires explicit host confirmation', async () => {
-    expect(await answerPrompt(config, 'Trust host?', 'confirm', {})).toBeNull();
+    expect(await answerPrompt(config, hostPrompt, 'confirm', {})).toBeNull();
     expect(
-      await answerPrompt(config, 'Trust host?', 'confirm', { confirmHost: async () => false })
+      await answerPrompt(config, hostPrompt, 'confirm', { confirmHost: async () => false })
     ).toBeNull();
     expect(
-      await answerPrompt(config, 'Trust host?', 'confirm', { confirmHost: async () => true })
+      await answerPrompt(config, hostPrompt, 'confirm', { confirmHost: async () => true })
     ).toBe('yes');
   });
   it('does not return credentials for a confirmation prompt', async () => {
     expect(await answerPrompt(config, "alice@work.example's password:", 'confirm', {})).toBeNull();
+  });
+  it('does not mistake agent-key storage confirmation for host trust', async () => {
+    const confirmHost = vi.fn(async () => true);
+    expect(
+      await answerPrompt(config, 'Add key /keys/work to agent?', 'confirm', { confirmHost })
+    ).toBeNull();
+    expect(confirmHost).not.toHaveBeenCalled();
   });
   it('does not answer prompts after cancellation', async () => {
     const confirmHost = vi.fn(async () => true);
@@ -118,7 +127,7 @@ describe('askpass credential boundary', () => {
 it('does not disclose a secret after an in-flight host confirmation is cancelled', async () => {
   const abort = new AbortController();
   let confirm: (accepted: boolean) => void = () => {};
-  const pending = answerPrompt(config, 'Trust host?', 'confirm', {
+  const pending = answerPrompt(config, hostPrompt, 'confirm', {
     signal: abort.signal,
     confirmHost: () =>
       new Promise<boolean>((resolve) => {

@@ -1,6 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { BrowserWindow, dialog } from 'electron';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
@@ -9,10 +8,6 @@ import { connectOpenSsh } from '@core/services/ssh/node/openssh/session';
 import { fakeSession } from '@core/services/ssh/node/openssh/testing/session';
 import { createSshService } from './ssh-service-factory';
 
-vi.mock('electron', () => ({
-  BrowserWindow: { getFocusedWindow: vi.fn(() => null), getAllWindows: vi.fn(() => []) },
-  dialog: { showMessageBox: vi.fn() },
-}));
 vi.mock('@core/services/ssh/node/openssh/session', () => ({ connectOpenSsh: vi.fn() }));
 afterEach(() => {
   vi.restoreAllMocks();
@@ -76,9 +71,6 @@ describe('createSshService', () => {
 
 it.each([0, 1])('requires an explicit host-trust choice (button %s)', async (response) => {
   const scope = createScope({ label: 'host-confirmation-test' });
-  const parent = {} as BrowserWindow;
-  vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValueOnce(parent);
-  vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response, checkboxChecked: false });
   const session = fakeSession();
   vi.mocked(connectOpenSsh).mockImplementationOnce(async (_config, options) => {
     expect(await options?.confirmHost?.('Host example; SHA256:test-fingerprint')).toBe(
@@ -99,7 +91,7 @@ it.each([0, 1])('requires an explicit host-trust choice (button %s)', async (res
   });
   try {
     if (!(handle.manager instanceof SshConnectionManager)) throw new Error('Expected SSH manager');
-    await handle.manager.createConnection('host', async () => ({
+    const connecting = handle.manager.createConnection('host', async () => ({
       config: {
         destination: 'example',
         hostname: 'example',
@@ -110,16 +102,15 @@ it.each([0, 1])('requires an explicit host-trust choice (button %s)', async (res
       },
       debugLogs: [],
     }));
-    expect(dialog.showMessageBox).toHaveBeenCalledWith(
-      parent,
-      expect.objectContaining({
-        detail: 'Host example; SHA256:test-fingerprint',
-        defaultId: 0,
-        cancelId: 0,
-        buttons: ['Cancel', 'Trust and connect'],
-        signal: expect.any(AbortSignal),
-      })
-    );
+    await vi.waitFor(() => expect(handle.trust.snapshot()).toHaveLength(1));
+    const [request] = handle.trust.snapshot();
+    expect(request.prompt).toEqual({
+      kind: 'unknown',
+      destination: 'example',
+      prompt: 'Host example; SHA256:test-fingerprint',
+    });
+    handle.trust.respond(request.id, response === 1);
+    await connecting;
   } finally {
     await scope.dispose();
   }

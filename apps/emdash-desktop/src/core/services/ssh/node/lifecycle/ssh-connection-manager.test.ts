@@ -17,6 +17,7 @@ const resolved: SshConnectResult = {
 const managers: SshConnectionManager[] = [];
 afterEach(async () => {
   for (const manager of managers.splice(0)) await manager.disconnectAll();
+  vi.useRealTimers();
 });
 function fixture() {
   const session = fakeSession();
@@ -177,4 +178,33 @@ it('bounds authentication and cleans up a session returned after the deadline', 
   session.resolve(f.session);
   await vi.waitFor(() => expect(f.session.close).toHaveBeenCalledOnce());
   expect(f.manager.isConnected('host')).toBe(false);
+});
+
+it('allows trust review beyond the acquisition budget and still cancels on disconnect', async () => {
+  vi.useFakeTimers();
+  const ready = deferred<void>();
+  const approved = deferred<SshSession>();
+  const manager = new SshConnectionManager({
+    connectSession: async (_config, { interaction }) => {
+      const resume = interaction.begin();
+      ready.resolve();
+      try {
+        return await approved.promise;
+      } finally {
+        resume();
+      }
+    },
+  });
+  managers.push(manager);
+  const pending = manager.createConnection('host', async () => resolved);
+  await ready.promise;
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(manager.getConnectionState('host')).toBe('connecting');
+  const rejected = expect(pending).rejects.toThrow('SSH connection closed');
+  manager.resetConnection('host');
+  await rejected;
+  const session = fakeSession();
+  approved.resolve(session);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(session.close).toHaveBeenCalledOnce();
 });

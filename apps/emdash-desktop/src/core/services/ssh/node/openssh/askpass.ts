@@ -6,9 +6,11 @@ import { join } from 'node:path';
 import { waitWithSignal } from '@emdash/shared/scheduling';
 import type { OpenSshConfig } from '../connect/resolve-ssh-connect-config';
 import { sshKeyFingerprint } from '../credentials/credential-identity';
+import type { SshInteraction } from './interaction';
 
 export type AskpassOptions = {
   signal?: AbortSignal;
+  interaction?: SshInteraction;
   readKey?: (path: string) => Promise<string>;
   confirmHost?: (prompt: string) => Promise<boolean>;
 };
@@ -26,14 +28,19 @@ export async function answerPrompt(
     /Are you sure you want to continue connecting \(yes\/no(?:\/\[fingerprint\])?\)\?\s*$/.test(
       prompt
     );
-  if (hint === 'confirm' || hostConfirmation) {
+  if (hostConfirmation && (!hint || hint === 'confirm')) {
     if (!options.confirmHost) return null;
-    const confirmation = options.confirmHost(prompt);
-    const accepted = await (options.signal
-      ? waitWithSignal(confirmation, options.signal)
-      : confirmation);
-    options.signal?.throwIfAborted();
-    return accepted ? 'yes' : null;
+    const resume = options.interaction?.begin();
+    try {
+      const confirmation = options.confirmHost(prompt);
+      const accepted = await (options.signal
+        ? waitWithSignal(confirmation, options.signal)
+        : confirmation);
+      options.signal?.throwIfAborted();
+      return accepted ? 'yes' : null;
+    } finally {
+      resume?.();
+    }
   }
   if (hint) return null;
   const text = prompt.trim();
@@ -62,7 +69,7 @@ const HELPER_SOURCE = `
 const response = await fetch(process.env.EMDASH_SSH_ASKPASS_ENDPOINT, {
   method: 'POST',
   body: JSON.stringify({ token: process.env.EMDASH_SSH_ASKPASS_TOKEN, prompt: process.argv[2] || '', hint: process.env.SSH_ASKPASS_PROMPT || '' }),
-  signal: AbortSignal.timeout(120000),
+  signal: AbortSignal.timeout(310000),
 }).catch(() => null);
 if (!response?.ok) process.exitCode = 1;
 else process.stdout.write((await response.text()) + '\\n');

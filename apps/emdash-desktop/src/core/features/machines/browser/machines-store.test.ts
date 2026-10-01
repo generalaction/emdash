@@ -241,6 +241,7 @@ function setup(
     }
   );
   const sshWire = createTestWire(sshContract, {
+    hostTrust: expose(sshContract.hostTrust, { pending: cell([]) }),
     connections,
     connect: async ({ connectionId }) => {
       updateRuntime((runtime) => {

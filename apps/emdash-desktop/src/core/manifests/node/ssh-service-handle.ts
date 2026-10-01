@@ -6,8 +6,10 @@ import type {
 } from '@core/primitives/ssh/api/node/connection-control';
 import type { SshConnectionManager } from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { SshConnectionsModel } from '@core/services/ssh/node/connections-model';
+import type { HostTrustRequests } from '@core/services/ssh/node/host-trust-requests';
 
 export interface SshServiceHandle {
+  readonly trust: HostTrustRequests;
   readonly control: SshConnectionControl;
   bindLifecycle(lifecycle: SshConnectionLifecycle): void;
   readonly ssh: SshService;

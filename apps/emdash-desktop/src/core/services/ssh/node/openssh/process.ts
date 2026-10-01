@@ -1,6 +1,7 @@
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { Duplex } from 'node:stream';
 import type { SshExecOptions, SshExecResult } from '@core/primitives/ssh/api/node/ssh-client-proxy';
+import { connectionDeadline, type SshInteraction } from './interaction';
 
 export type ProcessInvocation = { executable: string; args: string[]; env: NodeJS.ProcessEnv };
 type ProcessResult = { code: number | null; signal: NodeJS.Signals | null };
@@ -140,12 +141,17 @@ export async function runProcess(
 /** A stream is acquired only after an explicit remote acknowledgement, never merely on spawn. */
 export async function openProcessStream(
   invocation: ProcessInvocation,
-  options: { readyLine: string; signal?: AbortSignal; timeoutMs?: number }
+  options: {
+    readyLine: string;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    interaction?: SshInteraction;
+  }
 ): Promise<Duplex> {
   const process = new OwnedProcess(invocation, options.signal);
   const prefix = Buffer.from(options.readyLine);
   let received = Buffer.alloc(0);
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let disposeDeadline: (() => void) | undefined;
   let consume: (chunk: Buffer) => void = () => {};
   try {
     await Promise.race([
@@ -171,9 +177,10 @@ export async function openProcessStream(
         process.child.stdout.on('data', consume);
         const timeoutMs = options.timeoutMs ?? 10_000;
         if (timeoutMs > 0)
-          timer = setTimeout(
+          disposeDeadline = connectionDeadline(
+            timeoutMs,
             () => reject(new Error(`SSH stream handshake timed out after ${timeoutMs}ms`)),
-            timeoutMs
+            options.interaction
           );
       }),
     ]);
@@ -193,7 +200,7 @@ export async function openProcessStream(
     process.stop();
     throw error;
   } finally {
-    clearTimeout(timer);
+    disposeDeadline?.();
     process.child.stdout.off('data', consume);
   }
 }

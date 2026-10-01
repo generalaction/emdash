@@ -12,6 +12,7 @@ import type {
 } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import type { OpenSshConfig } from '../connect/resolve-ssh-connect-config';
 import { createAskpass, type AskpassOptions } from './askpass';
+import { SshInteraction } from './interaction';
 import { openProcessStream, runProcess, type ProcessInvocation } from './process';
 
 export interface SshSession {
@@ -34,7 +35,8 @@ export async function connectOpenSsh(
   const signal = options.signal
     ? AbortSignal.any([options.signal, lifetime.signal])
     : lifetime.signal;
-  const askpass = await createAskpass(config, { ...options, signal });
+  const interaction = options.interaction ?? new SshInteraction();
+  const askpass = await createAskpass(config, { ...options, signal, interaction });
   let primary: Duplex | undefined;
   let sessionArgs: string[] = [];
   let controlDirectory: string | undefined;
@@ -79,6 +81,7 @@ export async function connectOpenSsh(
       {
         signal: operationSignal(streamOptions.signal),
         readyLine,
+        interaction,
         timeoutMs: streamOptions.timeoutMs ?? config.readyTimeout,
       }
     );

@@ -422,7 +422,7 @@ export const desktopNodeControllers = {
       createIssuesWireController({ projects, providers: issueProviders }),
   },
   ssh: {
-    create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
+    create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections, ssh.trust),
   },
   hosts: {
     create: ({ hostAvailability, hosts, ssh }) =>

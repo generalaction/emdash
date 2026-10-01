@@ -1,6 +1,7 @@
 import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@core/primitives/ssh/api';
+import { hostTrustRequestSchema } from './host-trust';
 
 const voidInput = z.void();
 const connectionInput = z.object({ connectionId: z.string() });
@@ -28,6 +29,14 @@ export type SshConnectionsRuntime = z.infer<typeof connectionRuntimeSchema>;
 export const sshDomain = 'ssh' as const;
 
 export const sshContract = defineContract({
+  hostTrust: liveModel({
+    key: z.void(),
+    states: { pending: liveState({ data: z.array(hostTrustRequestSchema) }) },
+  }),
+  respondToHostTrust: procedure({
+    input: z.object({ id: z.string(), accepted: z.boolean() }),
+    output: z.boolean(),
+  }),
   connections: liveModel({
     key: z.void(),
     states: {

@@ -27,7 +27,7 @@ or shell-profile code.
 ## Authentication And Storage
 
 - SSH credentials are managed through the SSH services and OS-backed secret storage
-- OpenSSH owns known_hosts verification; the desktop composition root supplies new-host confirmation
+- OpenSSH owns known_hosts verification; the machines slice supplies new-host confirmation
 - runtime dependency state for remote hosts belongs to the workspace-server
   `hostDependencies` component, not an Electron-side SSH execution context
 - the desktop owns the managed install under `~/.emdash/workspace-server`; remote

@@ -7,11 +7,15 @@ import type {
   SshConnectionManagerEvent,
 } from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { SshConnectResult, OpenSshConfig } from '../connect/resolve-ssh-connect-config';
+import { SshInteraction, connectionDeadline } from '../openssh/interaction';
 import { connectOpenSsh, type SshSession } from '../openssh/session';
 import { SshClientProxy } from './ssh-client-proxy';
 
 export interface SshConnectionManagerDeps {
-  connectSession?: (config: OpenSshConfig, options: { signal: AbortSignal }) => Promise<SshSession>;
+  connectSession?: (
+    config: OpenSshConfig,
+    options: { signal: AbortSignal; interaction: SshInteraction }
+  ) => Promise<SshSession>;
   publishEvent?: (event: SshConnectionEvent) => void;
   log?: {
     info(message: string, metadata?: Record<string, unknown>): void;
@@ -132,16 +136,20 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
     const signal = controller.signal;
     const current = () =>
       this.connections.get(id) === entry && entry.controller === controller && !signal.aborted;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let disposeDeadline: (() => void) | undefined;
     try {
       const resolved = await waitWithSignal(Promise.resolve().then(resolve), signal);
       signal.throwIfAborted();
-      if (resolved.config.readyTimeout > 0)
-        timer = setTimeout(
-          () => controller.abort(new SshConnectionFailure('timeout', 'SSH connection timed out')),
-          resolved.config.readyTimeout
-        );
-      const connecting = (this.deps.connectSession ?? connectOpenSsh)(resolved.config, { signal });
+      const interaction = new SshInteraction();
+      disposeDeadline = connectionDeadline(
+        resolved.config.readyTimeout,
+        () => controller.abort(new SshConnectionFailure('timeout', 'SSH connection timed out')),
+        interaction
+      );
+      const connecting = (this.deps.connectSession ?? connectOpenSsh)(resolved.config, {
+        signal,
+        interaction,
+      });
       // Even a connector that finishes after cancellation cannot leak a live session.
       void connecting.then(
         (session) => {
@@ -174,7 +182,7 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
       }
       throw failure;
     } finally {
-      clearTimeout(timer);
+      disposeDeadline?.();
     }
   }
   private retire(session: SshSession): void {

@@ -63,9 +63,12 @@ forward removes its listener. Never attach to a user's pre-existing ControlMaste
 Askpass uses a temporary helper plus a capability-protected loopback broker. Credentials never
 appear in helper files, arguments, or environment variables. Match passwords to their account and
 host, and recheck the selected key's fingerprint before releasing a passphrase. Never answer a
-jump-host or unrelated prompt with the destination's secret. Host trust uses OpenSSH known_hosts;
-the Electron composition root supplies the confirmation dialog. The SSH service has no Electron
-imports. Honor explicit user SSH policy; do not add permissive host-key defaults.
+jump-host or unrelated prompt with the destination's secret. Host trust uses OpenSSH known_hosts.
+`HostTrustRequests` owns cancelable, expiring approvals and publishes public details through Wire;
+the machines slice presents the app modal. Answers use one-use request ids, never renderer-supplied
+paths or keys. Acquisition budgets pause during review; connection cancellation still dismisses it.
+The SSH service has no Electron imports. Honor explicit user SSH policy; do not add permissive
+host-key defaults or label unrelated askpass confirmations as host trust.
 
 The workspace stream runs a small stdio-to-Unix-socket relay with the Node binary already bundled
 beside the daemon. Closing the relay closes only that attachment. It does not launch, signal, or
@@ -83,6 +86,9 @@ fixtures are excluded on Windows; subprocess and lifecycle tests still apply the
 Cover agent-only certificate authentication (private key removed after loading), encrypted keys,
 host-trust acceptance/rejection, alias proxy routing, multiplexed and independent connections,
 remote exit status, binary streams, IPv4/IPv6 forwards, cancellation, and stale generations.
+Cover Wire replay/cancellation, modal verification gating, and time spent reviewing trust.
+Native test daemons disable source penalties where supported because rejection tests deliberately
+make many failed loopback connections.
 IPv6 tests may skip locally when the kernel disables IPv6; CI requires IPv6. Native Windows/macOS
 smoke checks and the opt-in Docker workspace-server test remain useful release validation.
 
