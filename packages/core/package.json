@@ -355,6 +355,16 @@
       "development": "./src/services/attachments/node/local-attachment-store.ts",
       "types": "./dist/services-attachments-node.d.mts",
       "default": "./dist/services-attachments-node.mjs"
+    },
+    "./runtimes/lsp/api": {
+      "development": "./src/runtimes/lsp/api/index.ts",
+      "types": "./dist/runtimes-lsp-api.d.mts",
+      "default": "./dist/runtimes-lsp-api.mjs"
+    },
+    "./runtimes/lsp/node": {
+      "development": "./src/runtimes/lsp/node/index.ts",
+      "types": "./dist/runtimes-lsp-node.d.mts",
+      "default": "./dist/runtimes-lsp-node.mjs"
     }
   },
   "scripts": {
@@ -381,6 +391,7 @@
     "minimatch": "^10.2.5",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",
+    "vscode-languageserver-protocol": "3.17.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -392,6 +403,8 @@
     "node-pty": "1.1.0",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
+    "typescript": "6.0.3",
+    "typescript-language-server": "6.0.1",
     "vitest": "^4.1.0"
   },
   "peerDependencies": {

@@ -1,0 +1,147 @@
+import { stat } from 'node:fs/promises';
+import { err, ok, type Result } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, expose } from '@emdash/wire/state';
+import { formatAbsolute, type HostAbsolutePath } from '#primitives/path/api';
+import { lspContract } from '../api/contract';
+import type { LspDocument, LspError, LspQuery, LspSessionKey } from '../api/schemas';
+import { spawnLanguageServer, type LanguageServerLaunch } from './process-transport';
+import { documentUri, parseHover, parseLocations, projectSessionState } from './protocol-values';
+import { LanguageServerSession } from './server-session';
+
+export type ResolvedLanguageServer = Omit<LanguageServerLaunch, 'cwd'> & {
+  initializationOptions?: unknown;
+};
+
+/** Host-scoped sessions are leased by live-state attachments, including over SSH. */
+export class LspRuntime {
+  private readonly sessions = new Map<string, LanguageServerSession>();
+  readonly sessionHost: LeasedLiveModelProvider<typeof lspContract.session>;
+
+  constructor(options: {
+    scope: Scope;
+    resolveServer: (key: LspSessionKey) => Promise<ResolvedLanguageServer>;
+    lingerMs?: number;
+  }) {
+    this.sessionHost = expose(
+      lspContract.session,
+      {
+        current: (key, scope) => {
+          const id = sessionId(key);
+          const session = new LanguageServerSession({
+            rootUri: documentUri(key.root),
+            connect: async () => {
+              const cwd = formatAbsolute(key.root);
+              if (!(await stat(cwd)).isDirectory())
+                throw new Error('Language server workspace root must be a directory');
+              const launch = await options.resolveServer(key);
+              return spawnLanguageServer({ ...launch, cwd });
+            },
+            onState: (state) => current.set(projectSessionState(state)),
+          });
+          const current = cell(projectSessionState(session.current));
+          this.sessions.set(id, session);
+          scope.add(async () => {
+            if (this.sessions.get(id) === session) this.sessions.delete(id);
+            await session.dispose();
+          });
+          void session.start().catch(() => {
+            /* Failure is retained in the live state. */
+          });
+          return current;
+        },
+      },
+      { scope: options.scope.child('lsp-sessions'), lingerMs: options.lingerMs ?? 30_000 }
+    );
+  }
+
+  get sessionCount(): number {
+    return this.sessions.size;
+  }
+  syncDocument(key: LspSessionKey, document: LspDocument) {
+    return this.withSession(key, (session) =>
+      session.syncDocument({
+        languageId: document.languageId,
+        version: document.version,
+        text: document.text,
+        uri: documentUri(document.path),
+      })
+    );
+  }
+  closeDocument(key: LspSessionKey, path: HostAbsolutePath) {
+    return this.withSession(key, (session) => session.closeDocument(documentUri(path)));
+  }
+  saved(key: LspSessionKey, path: HostAbsolutePath) {
+    return this.withSession(key, (session) => session.saved(documentUri(path)));
+  }
+  restart(key: LspSessionKey) {
+    return this.withSession(key, (session) => session.restart());
+  }
+  hover(input: LspQuery, signal?: AbortSignal) {
+    return this.withSession(
+      input.session,
+      async (session) => {
+        await session.start();
+        if (!session.current.capabilities.hoverProvider) return null;
+        return parseHover(
+          await session.query(
+            'textDocument/hover',
+            documentUri(input.path),
+            input.version,
+            input.position,
+            signal
+          )
+        );
+      },
+      signal
+    );
+  }
+  locations(
+    input: LspQuery & { kind: 'definition' | 'typeDefinition' | 'references' },
+    signal?: AbortSignal
+  ) {
+    return this.withSession(
+      input.session,
+      async (session) => {
+        await session.start();
+        if (!session.current.capabilities[`${input.kind}Provider`]) return [];
+        return parseLocations(
+          await session.query(
+            `textDocument/${input.kind}`,
+            documentUri(input.path),
+            input.version,
+            input.position,
+            signal
+          )
+        );
+      },
+      signal
+    );
+  }
+  private async withSession<T>(
+    key: LspSessionKey,
+    run: (session: LanguageServerSession) => Promise<T>,
+    signal?: AbortSignal
+  ): Promise<Result<T, LspError>> {
+    const session = this.sessions.get(sessionId(key));
+    if (!session)
+      return err({
+        type: 'session-unavailable',
+        message: 'Attach language services before using this session.',
+      });
+    try {
+      signal?.throwIfAborted();
+      return ok(await run(session));
+    } catch (error) {
+      return err({
+        type: signal?.aborted ? 'cancelled' : 'request-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+}
+
+function sessionId(key: LspSessionKey): string {
+  return JSON.stringify([key.clientId, key.serverId, formatAbsolute(key.root)]);
+}
