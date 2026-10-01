@@ -12,6 +12,7 @@ import {
 } from './schemas';
 
 const documentKey = z.object({ session: lspSessionKeySchema, path: hostAbsolutePathSchema });
+
 export const lspContract = defineContract({
   session: liveModel({
     key: lspSessionKeySchema,
@@ -32,4 +33,5 @@ export const lspContract = defineContract({
     error: lspErrorSchema,
   }),
 });
+
 export type LspContract = typeof lspContract;

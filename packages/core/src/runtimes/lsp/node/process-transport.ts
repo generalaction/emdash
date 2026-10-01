@@ -50,7 +50,6 @@ export async function spawnLanguageServer(
   };
   child.on('error', close);
   child.on('exit', close);
-  // Always drain stderr. Protocol payloads and project content never enter logs.
   child.stderr.resume();
   try {
     await new Promise<void>((resolve, reject) => {

@@ -36,6 +36,7 @@ export function projectSessionState(state: ServerSessionState): LspState {
 }
 
 const markedString = z.union([z.string(), z.object({ language: z.string(), value: z.string() })]);
+
 const hoverSchema = z.object({
   contents: z.union([
     markedString,
@@ -44,6 +45,7 @@ const hoverSchema = z.object({
   ]),
   range: lspRangeSchema.optional(),
 });
+
 function markdown(value: z.infer<typeof markedString>): string {
   if (typeof value === 'string') return value;
   const fence = '`'.repeat(
@@ -51,6 +53,7 @@ function markdown(value: z.infer<typeof markedString>): string {
   );
   return `${fence}${value.language.replace(/[^\w+-]/g, '')}\n${value.value}\n${fence}`;
 }
+
 export function parseHover(input: unknown): LspHover {
   if (input === null) return null;
   const { contents, range } = hoverSchema.parse(input);
@@ -73,6 +76,7 @@ const locationSchema = z.union([
     originSelectionRange: lspRangeSchema.optional(),
   }),
 ]);
+
 export function parseLocations(input: unknown): LspLocation[] {
   if (input === null) return [];
   return z

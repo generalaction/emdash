@@ -338,7 +338,6 @@ export class LanguageServerSession {
         await transport.notify('exit', undefined);
       }
     } catch {
-      /* A crashed server still needs process cleanup. */
     } finally {
       await transport.dispose();
     }
