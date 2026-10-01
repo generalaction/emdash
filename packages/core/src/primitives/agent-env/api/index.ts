@@ -69,11 +69,16 @@ export const AGENT_ENV_VARS = [
   'KIMI_API_KEY',
   'KIMI_CODE_HOME',
   'KIRO_HOME',
+  'LANGSMITH_API_KEY',
+  'LINEAR_API_KEY',
+  'LINEAR_PAT',
   'META_API_KEY',
   'MISTRAL_API_KEY',
   'MIMOCODE_HOME',
   'MOONSHOT_API_KEY',
   'NO_PROXY',
+  'NOTION_API_KEY',
+  'NOTION_TOKEN',
   'OMP_AUTH_BROKER_SNAPSHOT_CACHE',
   'OMP_AUTH_BROKER_SNAPSHOT_TTL_MS',
   'OMP_AUTH_BROKER_URL',
@@ -116,6 +121,10 @@ export const AGENT_ENV_VARS = [
   'QWEN_RUNTIME_DIR',
   'QWEN_SANDBOX',
   'RLM_MAX_DEPTH',
+  'SUPABASE_ACCESS_TOKEN',
+  'SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_URL',
   'VIBE_HOME',
   'XAI_API_KEY',
   'XDG_CACHE_HOME',
@@ -161,8 +170,7 @@ const CANONICAL_WINDOWS_ENV_NAMES = new Map(
     ...AGENT_ENV_VARS,
     ...WINDOWS_AGENT_ENV_VARS,
     'TMPDIR',
-    'SSH_AUTH_SOCK',
-    'SHELL',
+  'SSH_AUTH_SOCK',
   ].map((key) => [key.toLowerCase(), key] as const)
 );
 
@@ -171,6 +179,7 @@ export interface BuildAllowlistedAgentEnvOptions {
   username?: string;
   includeShellVar?: boolean;
   platform?: AgentEnvPlatform;
+  additionalKeys?: readonly string[];
 }
 
 export type AgentEnvPlatform = 'posix' | 'windows';
@@ -194,6 +203,9 @@ export function buildAllowlistedAgentEnv(
     ...getAllowlistedEnv(sourceEnv, GLOBAL_AGENT_ENV_VARS, platform),
     ...getAllowlistedEnv(sourceEnv, DISPLAY_ENV_VARS, platform),
     ...getAllowlistedEnv(sourceEnv, AGENT_ENV_VARS, platform),
+    ...(options.additionalKeys
+      ? getAllowlistedEnv(sourceEnv, options.additionalKeys, platform)
+      : {}),
   };
 
   if (platform === 'windows') {
