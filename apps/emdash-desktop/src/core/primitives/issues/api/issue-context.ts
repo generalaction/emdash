@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
-import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { issueProviderIdSchema } from '@core/primitives/linked-issues/api/linked-issue';
 
 const ISSUE_TARGET_RE = /\((issue:[^\s)]+)\)/g;
@@ -9,6 +9,7 @@ export type IssueMentionTarget = {
   token: string;
   provider: IssueProviderType;
   identifier: string;
+  displayIdentifier?: string;
   accountId?: string;
   issueUrl?: string;
 };
@@ -17,6 +18,7 @@ const mentionSourceSchema = z
   .object({
     provider: issueProviderIdSchema,
     identifier: z.string().min(1),
+    displayIdentifier: z.string().min(1).optional(),
     accountId: z.string().min(1).optional(),
     issueUrl: z.string().min(1).optional(),
   })
@@ -27,12 +29,13 @@ export type LoadIssueContext = (target: IssueMentionTarget) => Promise<LinkedIss
 export function issueMentionToken(
   provider: IssueProviderType,
   identifier: string,
-  source?: Pick<LinkedIssue, 'accountId' | 'url'>
+  source?: Pick<LinkedIssue, 'accountId' | 'url' | 'displayIdentifier'>
 ): string {
   if (source?.accountId || source?.url) {
     const payload = {
       provider,
       identifier,
+      displayIdentifier: source.displayIdentifier || undefined,
       accountId: source.accountId,
       issueUrl: source.url || undefined,
     };
@@ -109,7 +112,7 @@ export function buildIssueContextText(issue: LinkedIssue): string {
 
   const parts: string[] = [
     `Provider: ${formatIssueProviderId(issue.provider)}`,
-    `Identifier: ${issue.identifier}`,
+    `Identifier: ${linkedIssueDisplayIdentifier(issue) ?? issue.identifier}`,
     `Title: ${issue.title}`,
     `URL: ${issue.url}`,
   ];

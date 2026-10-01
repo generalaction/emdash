@@ -27,6 +27,16 @@ describe('chatMentionProvider', () => {
     expect(meta?.iconUrl).toContain('data:image/svg+xml');
   });
 
+  it('names issue chips by the readable ID carried in the token', () => {
+    const token = issueMentionToken('youtrack', '3-15', {
+      accountId: 'youtrack:account',
+      url: 'https://example.youtrack.cloud/issue/DEMO-16',
+      displayIdentifier: 'DEMO-16',
+    });
+
+    expect(chatMentionProvider.resolve(token)?.name).toBe('DEMO-16');
+  });
+
   it('delegates non-issue tokens to the workspace file provider', () => {
     const meta = chatMentionProvider.resolve('src/app.ts');
 
