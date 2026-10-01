@@ -12,6 +12,8 @@ export function createLspController(runtime: LspRuntime) {
     documentSaved: ({ session, path }) => runtime.documentSaved(session, path),
     restartServer: (key) => runtime.restartServer(key),
     hover: (input, meta) => runtime.hover(input, meta.signal),
-    locations: (input, meta) => runtime.locations(input, meta.signal),
+    definition: (input, meta) => runtime.definition(input, meta.signal),
+    typeDefinition: (input, meta) => runtime.typeDefinition(input, meta.signal),
+    references: (input, meta) => runtime.references(input, meta.signal),
   });
 }

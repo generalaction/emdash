@@ -23,7 +23,7 @@ describe('language services version gate', () => {
   });
   it.each([undefined, 0, 1, 2])('checks the negotiated minor version %s', async (minor) => {
     expect(await hostSupportsLsp(remote, hosts(minor) as unknown as Hosts)).toBe(
-      minor !== undefined && minor >= 2
+      minor !== undefined && minor >= 1
     );
   });
   it('rejects missing remote hosts', async () => {

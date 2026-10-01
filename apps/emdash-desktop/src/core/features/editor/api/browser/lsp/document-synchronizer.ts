@@ -102,17 +102,12 @@ export class DocumentSynchronizer {
     });
   }
 
-  async documentSaved(id: string): Promise<void> {
+  async documentSaved(path: HostAbsolutePath): Promise<void> {
     await this.flush();
-    const document = this.documents.get(id)?.source;
-    if (document) await this.enqueue(() => this.port.documentSaved(document.path));
-  }
-
-  async savedPath(path: HostAbsolutePath): Promise<void> {
-    for (const [id, document] of this.documents) {
-      if (formatAbsolute(document.source.path) === formatAbsolute(path))
-        await this.documentSaved(id);
-    }
+    const tracked = [...this.documents.values()].some(
+      (document) => formatAbsolute(document.source.path) === formatAbsolute(path)
+    );
+    if (tracked) await this.enqueue(() => this.port.documentSaved(path));
   }
 
   async dispose(): Promise<void> {

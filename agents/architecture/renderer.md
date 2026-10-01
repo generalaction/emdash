@@ -149,11 +149,14 @@ command installs TypeScript too; Node.js 22.22.2 or newer is required), then use
 the language-service status button in the file toolbar to restart. The executable
 must be on the host containing the worktree; a local installation does not provide
 language services for SSH files.
-Remote language services require workspace protocol 11.2 or newer.
+Remote language services require workspace protocol 11.1 or newer.
 
-`editor/browser/lsp/monaco-language-services.ts` registers providers once during
-lazy Monaco bootstrap. File tabs register the originating task and workspace
-root before their buffer models are created. Only `emdash-buffer:` models are
+`editor/browser/lsp/monaco-language-services.ts` adapts Monaco models, providers,
+diagnostics and navigation. It registers providers once during lazy Monaco bootstrap.
+`editor/api/browser/lsp/language-service-client.ts` owns project discovery, session
+sharing, buffer lifetime, cancellation and synchronization before queries. Its document
+bindings expose semantic queries without requiring Monaco or session keys. File tabs
+register the originating task and workspace root before their buffer models are created. Only `emdash-buffer:` models are
 replicated; disk and Git snapshots never enter the language server. Shared model
 lifetime owns open/close, so split panes and dirty buffers surviving tab closure
 remain consistent. `DocumentSynchronizer` coalesces edits and flushes every open
@@ -165,7 +168,11 @@ expands edits only when a server requires full-document synchronization. The sha
 file store emits successful saves. Results preserve host identity and the originating
 task when navigating outside the root.
 
-`LanguageSession` leases typed live state through the editor Wire domain. The
+`LanguageSessionClient` leases typed live state through the editor Wire domain.
+Its `attachedClient` promise means the Wire attachment exists; server readiness is
+a separate live state. Connection state is separate from authoritative server status.
+Individual request failures are reported to the caller without marking the server
+as failed or clearing diagnostics. Cancelled and stale queries are discarded. The
 Node editor controller routes to `RuntimeBroker`; it does not own processes or
 LSP protocol state. `packages/core/src/runtimes/lsp/` owns process framing,
 initialization, document versions, cancellation, capabilities, diagnostics and
@@ -182,8 +189,9 @@ formatting and workspace-edit operations on their existing editor paths. Adding
 another server means adding portable selection metadata in `lsp/api/server-catalog.ts`
 and a host profile in `lsp/node/server-registry.ts`, then exercising its capability
 negotiation and synchronization behavior. The renderer derives provider selectors,
-protocol language IDs, session keys and labels from that metadata. Host profiles
-own executable descriptors, arguments, project-root markers and configuration;
+protocol language IDs, session keys and labels from that metadata. Monaco-specific
+language mappings remain in the editor adapter; Core contains only protocol language
+IDs. Host profiles own executable descriptors, arguments, project-root markers and configuration;
 the process transport only binds their supplied request handlers to JSON-RPC.
 
 Project discovery runs through Wire on the file's host before acquiring a session.
@@ -193,11 +201,18 @@ targets retain the task workspace root. TypeScript compiler resolution uses the
 project's Node module search path, including hoisted dependencies, with the language
 server's default compiler discovery as fallback. No project code is loaded during
 this resolution. Future Python interpreter or Go toolchain policies belong to
-their host profile. Adding those profiles does not require changes to Monaco or
-the process transport. Host configuration is resolved again when a server restarts.
+their host profile. The process transport remains independent of these policies.
+Host configuration is resolved again when a server restarts.
 `vscode-languageserver-protocol` (MIT) supplies standard JSON-RPC framing and
 cancellation. `typescript-language-server` (Apache-2.0) is a development-only
 fixture for real-server integration tests; neither adds native build hooks.
+
+The Wire contract names snapshot replacement (`setDocumentSnapshot`), versioned
+edits (`applyDocumentEdit`), save notification (`documentSaved`) and process recovery
+(`restartServer`) explicitly. Definition, type-definition and reference queries are
+separate operations; references preserve the caller's `includeDeclaration` option.
+Snapshot replication is required for initialization and recovery, not compatibility.
+This unreleased feature uses one protocol addition (11.1), with no legacy LSP aliases.
 
 Tests cover protocol state and actual server behavior in Core, host routing and
 buffer policy in desktop Node tests, and Monaco providers/navigation in browser

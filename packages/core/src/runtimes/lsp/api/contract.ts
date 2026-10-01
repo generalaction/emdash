@@ -39,8 +39,18 @@ export const lspContract = defineContract({
   documentSaved: fallible({ input: documentKey, data: z.void(), error: lspErrorSchema }),
   restartServer: fallible({ input: lspSessionKeySchema, data: z.void(), error: lspErrorSchema }),
   hover: fallible({ input: lspQuerySchema, data: lspHoverSchema, error: lspErrorSchema }),
-  locations: fallible({
-    input: lspQuerySchema.extend({ kind: z.enum(['definition', 'typeDefinition', 'references']) }),
+  definition: fallible({
+    input: lspQuerySchema,
+    data: z.array(lspLocationSchema),
+    error: lspErrorSchema,
+  }),
+  typeDefinition: fallible({
+    input: lspQuerySchema,
+    data: z.array(lspLocationSchema),
+    error: lspErrorSchema,
+  }),
+  references: fallible({
+    input: lspQuerySchema.extend({ includeDeclaration: z.boolean() }),
     data: z.array(lspLocationSchema),
     error: lspErrorSchema,
   }),

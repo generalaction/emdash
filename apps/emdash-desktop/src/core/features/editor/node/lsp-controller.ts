@@ -78,9 +78,17 @@ export function createEditorLspImpl(
       call(input.session, (client, key) =>
         client.hover({ ...input, session: key }, { signal: meta.signal })
       ),
-    locations: (input, meta) =>
+    definition: (input, meta) =>
       call(input.session, (client, key) =>
-        client.locations({ ...input, session: key }, { signal: meta.signal })
+        client.definition({ ...input, session: key }, { signal: meta.signal })
+      ),
+    typeDefinition: (input, meta) =>
+      call(input.session, (client, key) =>
+        client.typeDefinition({ ...input, session: key }, { signal: meta.signal })
+      ),
+    references: (input, meta) =>
+      call(input.session, (client, key) =>
+        client.references({ ...input, session: key }, { signal: meta.signal })
       ),
   };
 }

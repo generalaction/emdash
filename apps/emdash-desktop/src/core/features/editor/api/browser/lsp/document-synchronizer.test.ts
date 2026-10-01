@@ -99,7 +99,7 @@ describe('editor document synchronization', () => {
     await f.synchronizer.flush();
     const closing = release();
     f.synchronizer.track('a', f.source);
-    await f.synchronizer.documentSaved('a');
+    await f.synchronizer.documentSaved(f.source.path);
     await closing;
     expect(f.sent).toHaveLength(2);
     expect(f.close.mock.invocationCallOrder[0]).toBeLessThan(
@@ -155,7 +155,7 @@ it('never reads text for unchanged versions, including close and save lookup', a
     await f.synchronizer.flush();
     f.getText.mockClear();
     await f.synchronizer.flush();
-    await f.synchronizer.savedPath(f.source.path);
+    await f.synchronizer.documentSaved(f.source.path);
     await release();
     expect(f.getText).not.toHaveBeenCalled();
   } finally {

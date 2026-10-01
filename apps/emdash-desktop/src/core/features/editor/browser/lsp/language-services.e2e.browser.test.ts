@@ -86,36 +86,35 @@ it('runs unsaved Monaco buffers through desktop Wire, host runtime and a real Ty
   try {
     const hover = await services.hover(consumer, { lineNumber: 2, column: 24 }, token);
     expect(JSON.stringify(hover)).toContain('unsaved');
-    const definitions = await services.locations(
-      'definition',
-      consumer,
-      { lineNumber: 2, column: 24 },
-      token
-    );
+    const definitions = await services.definition(consumer, { lineNumber: 2, column: 24 }, token);
     expect(definitions?.[0].uri.toString()).toBe(source.uri.toString());
     editor.setPosition({ lineNumber: 2, column: 24 });
     editor.focus();
     editor.trigger('keyboard', 'editor.action.revealDefinition', {});
     await expect.poll(() => opened).toContainEqual(fixture.source);
 
-    const types = await services.locations(
-      'typeDefinition',
-      consumer,
-      { lineNumber: 3, column: 2 },
-      token
-    );
+    const types = await services.typeDefinition(consumer, { lineNumber: 3, column: 2 }, token);
     expect(types?.[0].uri.toString()).toBe(source.uri.toString());
     expect(types?.[0].range.startLineNumber).toBe(2);
-    const references = await services.locations(
-      'references',
+    const references = await services.references(
       consumer,
       { lineNumber: 2, column: 24 },
+      { includeDeclaration: true },
       token
     );
     expect(references?.map((location) => location.uri.toString())).toContain(
       consumer.uri.toString()
     );
     expect(references?.map((location) => location.uri.toString())).toContain(source.uri.toString());
+    // Query the declaration itself so exclusion has an unambiguous target, independent of aliases.
+    const usages = await services.references(
+      source,
+      { lineNumber: 1, column: 15 },
+      { includeDeclaration: false },
+      token
+    );
+    expect(usages?.map((location) => location.uri.toString())).toContain(consumer.uri.toString());
+    expect(usages?.map((location) => location.uri.toString())).not.toContain(source.uri.toString());
 
     await expect
       .poll(

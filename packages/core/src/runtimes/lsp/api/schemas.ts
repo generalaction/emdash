@@ -58,6 +58,7 @@ export const lspErrorSchema = z.object({
     'cancelled',
     'unsupported',
     'document-out-of-sync',
+    'stale-query',
   ]),
   message: z.string(),
 });

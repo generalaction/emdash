@@ -12,6 +12,39 @@ if (!parsed.success) throw new Error('invalid test path');
 const root = parsed.data;
 
 describe('editor language services routing', () => {
+  it.each(['definition', 'typeDefinition', 'references'] as const)(
+    'routes %s without losing its options',
+    async (operation) => {
+      const handler = vi.fn(async () => ok([]));
+      const runtimes = new RuntimeBroker({
+        resolve: async () => ok({ lsp: { [operation]: handler } } as never),
+      });
+      const wire = createTestWire(editorLspContract, createEditorLspImpl({ runtimes }));
+      const host = { type: 'remote' as const, id: 'host' };
+      const session = { host, root, clientId: 'client', serverId: 'typescript' };
+      const query = {
+        session,
+        path: root,
+        version: 1,
+        position: { line: 0, character: 1 },
+        includeDeclaration: false,
+      };
+      try {
+        expect(await wire.client[operation](query)).toEqual(ok([]));
+        expect(handler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            session: { root, clientId: 'client', serverId: 'typescript' },
+            ...(operation === 'references' ? { includeDeclaration: false } : {}),
+          }),
+          expect.objectContaining({ signal: expect.any(AbortSignal) })
+        );
+      } finally {
+        await wire.dispose();
+        runtimes.dispose();
+      }
+    }
+  );
+
   it('resolves roots and sends deltas on the file host', async () => {
     const resolveProjectRoot = vi.fn(async () => ok(root));
     const applyDocumentEdit = vi.fn(async () => ok(undefined));

@@ -79,6 +79,44 @@ async function fixture() {
 }
 
 describe('LSP runtime over Wire', () => {
+  it('preserves reference options on dedicated navigation operations', async () => {
+    const { wire, session, document } = await fixture();
+    cleanups.push(await attach(wire.client.session, session));
+    await wire.client.setDocumentSnapshot({ session, document });
+    const query = {
+      session,
+      path: document.path,
+      version: 1,
+      position: { line: 0, character: 15 },
+    };
+    const definition = await wire.client.definition(query);
+    expect(definition.success && definition.data[0]?.path).toEqual(document.path);
+    const included = await wire.client.references({ ...query, includeDeclaration: true });
+    expect(included.success && included.data).toHaveLength(1);
+    expect(await wire.client.references({ ...query, includeDeclaration: false })).toEqual({
+      success: true,
+      data: [],
+    });
+  });
+  it('identifies stale queries without failing the server', async () => {
+    const { wire, session, document } = await fixture();
+    const states: LspState[] = [];
+    cleanups.push(
+      await attach(wire.client.session, session, (state) => {
+        if (state) states.push(state);
+      })
+    );
+    await wire.client.setDocumentSnapshot({ session, document });
+    const result = await wire.client.hover({
+      session,
+      path: document.path,
+      version: 0,
+      position: { line: 0, character: 15 },
+    });
+    expect(result).toMatchObject({ success: false, error: { type: 'stale-query' } });
+    expect(states.at(-1)?.phase).toBe('ready');
+  });
+
   it('resolves project roots without starting a language process', async () => {
     const { runtime, wire, session, document } = await fixture();
     expect(

@@ -7,26 +7,31 @@ export const LanguageStatus = observer(function LanguageStatus({ file }: { file:
   const services = getLanguageServices();
   const status = services?.status(file);
   if (!status) return null;
+  const { connection } = status;
+  const server = connection.kind === 'connected' ? connection.server : undefined;
+  const starting = connection.kind === 'connecting' || server?.phase === 'starting';
+  const unavailable = connection.kind === 'disconnected' || server?.phase === 'failed';
+  const error = connection.kind === 'disconnected' ? connection.message : server?.error;
   return (
     <Button
       variant="ghost"
       size="sm"
-      disabled={status.phase === 'starting'}
-      title={status.error ?? `Restart ${status.serverName} language services`}
+      disabled={starting}
+      title={error ?? `Restart ${status.serverName} language services`}
       aria-label={
-        status.error
-          ? `Language services unavailable: ${status.error}. Retry`
-          : 'Restart language services'
+        error ? `Language services unavailable: ${error}. Retry` : 'Restart language services'
       }
       onClick={() => {
         void services?.restartServer(file);
       }}
     >
-      {status.phase === 'starting'
-        ? 'Starting language services…'
-        : status.phase === 'failed'
-          ? 'Language services unavailable · Retry'
-          : status.serverName}
+      {connection.kind === 'connecting'
+        ? 'Connecting language services…'
+        : starting
+          ? 'Starting language services…'
+          : unavailable
+            ? 'Language services unavailable · Retry'
+            : status.serverName}
     </Button>
   );
 });

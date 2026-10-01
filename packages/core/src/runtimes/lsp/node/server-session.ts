@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { applyDocumentEdit, positionAtOffset } from '../api/document-edits';
 import { lspDiagnosticSchema, type LspDocumentEdit } from '../api/schemas';
 
+export class StaleQueryError extends Error {}
+
 export class DocumentOutOfSyncError extends Error {
   constructor() {
     super('Document synchronization requires a fresh snapshot');
@@ -181,13 +183,14 @@ export class LanguageServerSession {
     uri: string,
     version: number,
     position: Position,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    context?: { includeDeclaration: boolean }
   ): Promise<unknown> {
     const transport = await this.enqueue(async () => {
       signal?.throwIfAborted();
       await this.start();
       if (this.documents.get(uri)?.version !== version)
-        throw new Error('Query document version is not synchronized');
+        throw new StaleQueryError('Query document version is not synchronized');
       return this.requireTransport();
     });
     const generation = this.current.generation;
@@ -196,7 +199,7 @@ export class LanguageServerSession {
       {
         textDocument: { uri },
         position,
-        ...(method === 'textDocument/references' ? { context: { includeDeclaration: true } } : {}),
+        ...(context ? { context } : {}),
       },
       signal
     );
@@ -206,7 +209,7 @@ export class LanguageServerSession {
       generation !== this.current.generation ||
       this.documents.get(uri)?.version !== version
     ) {
-      throw new Error('Query document version or server generation changed');
+      throw new StaleQueryError('Query document version or server generation changed');
     }
     return result;
   }

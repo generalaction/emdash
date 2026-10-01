@@ -4,7 +4,6 @@ export interface LanguageServerDefinition {
   readonly name: string;
   readonly languages: readonly {
     readonly languageId: string;
-    readonly monacoLanguageId: string;
     readonly extensions: readonly string[];
   }[];
 }
@@ -16,16 +15,14 @@ export const languageServers: readonly LanguageServerDefinition[] = [
     languages: [
       {
         languageId: 'typescript',
-        monacoLanguageId: 'typescript',
         extensions: ['ts', 'mts', 'cts'],
       },
-      { languageId: 'typescriptreact', monacoLanguageId: 'typescript', extensions: ['tsx'] },
+      { languageId: 'typescriptreact', extensions: ['tsx'] },
       {
         languageId: 'javascript',
-        monacoLanguageId: 'javascript',
         extensions: ['js', 'mjs', 'cjs'],
       },
-      { languageId: 'javascriptreact', monacoLanguageId: 'javascript', extensions: ['jsx'] },
+      { languageId: 'javascriptreact', extensions: ['jsx'] },
     ],
   },
 ];

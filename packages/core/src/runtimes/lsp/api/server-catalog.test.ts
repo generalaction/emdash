@@ -18,7 +18,7 @@ describe('language server selection', () => {
     const custom = {
       id: 'example',
       name: 'Example',
-      languages: [{ languageId: 'example', monacoLanguageId: 'plaintext', extensions: ['ex'] }],
+      languages: [{ languageId: 'example', extensions: ['ex'] }],
     };
     expect(selectLanguageServer('a.ex', [...languageServers, custom])).toEqual({
       server: custom,

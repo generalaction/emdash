@@ -63,6 +63,8 @@ function fixture(
   const restartServer = vi.fn(async () => ok(undefined));
   const closeDocument = vi.fn(async () => ok(undefined));
   const hover = vi.fn(async (_input: unknown, _meta: CallMeta) => ok({ contents: '**string**' }));
+  const references = vi.fn(async (_input: unknown) => ok([]));
+  const onError = vi.fn();
   const target = file('/outside/dependency.d.ts', host);
   const wire = createTestWire(
     editorLspContract,
@@ -75,13 +77,15 @@ function fixture(
       documentSaved: async () => ok(undefined),
       restartServer,
       hover,
-      locations: async () =>
+      definition: async () =>
         ok([
           {
             path: target.path,
             range: { start: { line: 5, character: 2 }, end: { line: 5, character: 8 } },
           },
         ]),
+      typeDefinition: async () => ok([]),
+      references,
     },
     { validate: 'full' }
   );
@@ -93,6 +97,7 @@ function fixture(
     client: getClient,
     openLocation: open,
     servers,
+    onError,
   });
   cleanup.push(() => services.dispose());
   const ref = file('/workspace/a.ts', host);
@@ -121,6 +126,8 @@ function fixture(
     resolveProjectRoot,
     applyDocumentEdit,
     restartServer,
+    references,
+    onError,
   };
 }
 
@@ -159,12 +166,7 @@ describe('Monaco language services', () => {
   });
   it('maps definitions outside the workspace back to the source host', async () => {
     const f = fixture();
-    const locations = await f.services.locations(
-      'definition',
-      f.model,
-      { lineNumber: 1, column: 8 },
-      token
-    );
+    const locations = await f.services.definition(f.model, { lineNumber: 1, column: 8 }, token);
     expect(locations?.[0]).toMatchObject({
       range: { startLineNumber: 6, startColumn: 3, endLineNumber: 6, endColumn: 9 },
     });
@@ -202,7 +204,9 @@ describe('Monaco language services', () => {
     f.model.setValue('const value = 2;');
     expect(monaco.editor.getModelMarkers({ resource: f.model.uri })).toEqual([]);
     f.state.set({ ...ready, phase: 'failed', error: 'disconnected', diagnostics: [] });
-    await expect.poll(() => f.services.status(f.ref)?.phase).toBe('failed');
+    await expect
+      .poll(() => f.services.status(f.ref)?.connection)
+      .toMatchObject({ kind: 'connected', server: { phase: 'failed' } });
   });
 });
 
@@ -284,7 +288,9 @@ describe('Monaco language-service lifetimes', () => {
 
 it('retries an initially unavailable connection from the restart action', async () => {
   const f = fixture(true);
-  await expect.poll(() => f.services.status(f.ref)?.phase).toBe('failed');
+  await expect
+    .poll(() => f.services.status(f.ref)?.connection)
+    .toMatchObject({ kind: 'disconnected' });
   await f.services.restartServer(f.ref);
   const result = await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
   expect(result?.contents[0].value).toBe('**string**');
@@ -296,7 +302,9 @@ it('replays documents when a replacement worker transitions through starting', a
   const before = f.setDocumentSnapshot.mock.calls.length;
   const capabilities = { hover: true, definition: true, typeDefinition: true, references: true };
   f.state.set({ phase: 'starting', generation: 'new-worker', capabilities, diagnostics: [] });
-  await expect.poll(() => f.services.status(f.ref)?.phase).toBe('starting');
+  await expect
+    .poll(() => f.services.status(f.ref)?.connection)
+    .toMatchObject({ kind: 'connected', server: { phase: 'starting' } });
   f.state.set({ phase: 'ready', generation: 'new-worker', capabilities, diagnostics: [] });
   await expect.poll(() => f.setDocumentSnapshot.mock.calls.length).toBeGreaterThan(before);
 });
@@ -304,8 +312,7 @@ it('replays documents when a replacement worker transitions through starting', a
 it('keeps definitions on the remote host even when an identical local path is open', async () => {
   const local = fixture();
   const remote = fixture(false, hostRef('remote', 'server'));
-  const result = await remote.services.locations(
-    'definition',
+  const result = await remote.services.definition(
     remote.model,
     { lineNumber: 1, column: 8 },
     token
@@ -340,7 +347,10 @@ it('forwards Monaco cancellation and ignores a late response without failing the
   expect(await request).toBeNull();
   await expect.poll(() => f.hover.mock.calls[0][1].signal?.aborted).toBe(true);
   pending.resolve(ok({ contents: 'late' }));
-  expect(f.services.status(f.ref)?.phase).toBe('ready');
+  expect(f.services.status(f.ref)?.connection).toMatchObject({
+    kind: 'connected',
+    server: { phase: 'ready' },
+  });
   expect(cancellation.size).toBe(0);
 });
 
@@ -350,7 +360,7 @@ it('isolates two language servers in one workspace and derives their labels from
     {
       id: 'example',
       name: 'Example language',
-      languages: [{ languageId: 'example', monacoLanguageId: 'plaintext', extensions: ['ex'] }],
+      languages: [{ languageId: 'example', extensions: ['ex'] }],
     },
   ]);
   const ref = file('/workspace/other.ex');
@@ -448,4 +458,25 @@ it('does not read an unchanged Monaco buffer when issuing another query', async 
   await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
   expect(read).not.toHaveBeenCalled();
   read.mockRestore();
+});
+
+it('forwards reference context without claiming a query failure is a server failure', async () => {
+  const f = fixture();
+  await f.services.references(
+    f.model,
+    { lineNumber: 1, column: 1 },
+    { includeDeclaration: false },
+    token
+  );
+  expect(f.references).toHaveBeenCalledWith(
+    expect.objectContaining({ includeDeclaration: false }),
+    expect.anything()
+  );
+  f.hover.mockRejectedValueOnce(new Error('request failed'));
+  expect(await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token)).toBeNull();
+  expect(f.onError).toHaveBeenCalledTimes(1);
+  expect(f.services.status(f.ref)?.connection).toMatchObject({
+    kind: 'connected',
+    server: { phase: 'ready' },
+  });
 });

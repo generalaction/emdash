@@ -17,7 +17,7 @@ import { spawnLanguageServer, type LanguageServerLaunch } from './process-transp
 import { resolveLanguageProjectRoot } from './project-resolution';
 import { documentUri, parseHover, parseLocations, projectSessionState } from './protocol-values';
 import { createServerRequestHandlers } from './server-configuration';
-import { LanguageServerSession, DocumentOutOfSyncError } from './server-session';
+import { LanguageServerSession, DocumentOutOfSyncError, StaleQueryError } from './server-session';
 
 export type ResolvedLanguageServer = Omit<LanguageServerLaunch, 'cwd' | 'requestHandlers'> & {
   settings?: Record<string, unknown>;
@@ -133,22 +133,36 @@ export class LspRuntime {
       signal
     );
   }
-  locations(
-    input: LspQuery & { kind: 'definition' | 'typeDefinition' | 'references' },
-    signal?: AbortSignal
+  definition(input: LspQuery, signal?: AbortSignal) {
+    return this.findLocations(input, 'definition', signal);
+  }
+  typeDefinition(input: LspQuery, signal?: AbortSignal) {
+    return this.findLocations(input, 'typeDefinition', signal);
+  }
+  references(input: LspQuery & { includeDeclaration: boolean }, signal?: AbortSignal) {
+    return this.findLocations(input, 'references', signal, {
+      includeDeclaration: input.includeDeclaration,
+    });
+  }
+  private findLocations(
+    input: LspQuery,
+    kind: 'definition' | 'typeDefinition' | 'references',
+    signal?: AbortSignal,
+    context?: { includeDeclaration: boolean }
   ) {
     return this.withSession(
       input.session,
       async (session) => {
         await session.start();
-        if (!session.current.capabilities[`${input.kind}Provider`]) return [];
+        if (!session.current.capabilities[`${kind}Provider`]) return [];
         return parseLocations(
           await session.query(
-            `textDocument/${input.kind}`,
+            `textDocument/${kind}`,
             documentUri(input.path),
             input.version,
             input.position,
-            signal
+            signal,
+            context
           )
         );
       },
@@ -175,7 +189,9 @@ export class LspRuntime {
           ? 'cancelled'
           : error instanceof DocumentOutOfSyncError
             ? 'document-out-of-sync'
-            : 'request-failed',
+            : error instanceof StaleQueryError
+              ? 'stale-query'
+              : 'request-failed',
         message: error instanceof Error ? error.message : String(error),
       });
     }
