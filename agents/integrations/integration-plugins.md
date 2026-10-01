@@ -16,8 +16,10 @@ complete installation URL so deployments on the same host remain separate.
 The picker initially lists recently updated unresolved tickets. Search accepts ticket numbers,
 plain text, and native YouTrack queries such as `project: Engineering #Unresolved`. Search
 can also find resolved tickets. The adapter keeps the database ID as the stable identifier
-and displays the readable ticket number. State and assignees are adapted from custom fields.
-Details include accessible, non-deleted comments, paginated under one request deadline.
+and shows the readable ticket number in the picker, mention chips, and the prompt's
+`Identifier:` line. State and assignees are adapted from custom fields. Details include the
+latest 100 accessible, non-deleted comments, fetched under one request deadline; the context
+notes how many older comments were omitted.
 
 Task creation retrieves details for providers that support issue context before enabling
 creation with the default context setting. Loading and errors are visible; errors offer a
