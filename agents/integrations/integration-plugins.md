@@ -5,19 +5,13 @@ method descriptors, credential schemas, and credential verification. Issue plugi
 `packages/plugins/src/issues/` reference an integration by `integrationId` and own issue
 operations. GitHub follows the same plugin contracts as the other integrations.
 
-The picker initially lists recently updated unresolved tickets. Search accepts ticket numbers,
-plain text, and native YouTrack queries such as `project: Engineering #Unresolved`. Search
-can also find resolved tickets. The adapter uses the readable ticket number as its identifier
-for API requests, the picker, mention chips, and the prompt's `Identifier:` line, following
-Linear's convention. State and assignees are adapted from custom fields. Details include the
-latest 100 accessible, non-deleted comments, fetched under one request deadline; the context
-notes how many older comments were omitted.
+## Issue Context During Task Creation
 
 Task creation retrieves details for providers that support issue context before enabling
 creation with the default context setting. Loading and errors are visible; errors offer a
 retry. Changing or clearing the selection discards stale query results. Enrichment preserves
 edited context and a removed issue mention. Turning off the default issue-context setting
-skips this retrieval. YouTrack integration reads tickets; it does not change status or post comments.
+skips this retrieval.
 
 ## Authentication Contract
 
