@@ -236,7 +236,8 @@ describe('YouTrack tickets', () => {
   it('retrieves every comment page, including server-limited short pages, and excludes deleted comments', async () => {
     handler = (request, response) => {
       const url = new URL(request.url ?? '/', instanceUrl);
-      if (!url.pathname.endsWith('/comments')) return json(response, issue);
+      if (!url.pathname.endsWith('/comments'))
+        return json(response, { ...issue, commentsCount: 3 });
       const skip = url.searchParams.get('$skip');
       json(
         response,
@@ -279,11 +280,39 @@ describe('YouTrack tickets', () => {
     expect(requests.map(({ url }) => url.searchParams.get('$skip'))).toEqual([null, '0', '1', '3']);
   });
 
+  it('limits context to the latest 100 comments of a long discussion', async () => {
+    handler = (request, response) => {
+      const url = new URL(request.url ?? '/', instanceUrl);
+      if (!url.pathname.endsWith('/comments'))
+        return json(response, { ...issue, commentsCount: 250 });
+      const skip = Number(url.searchParams.get('$skip'));
+      json(
+        response,
+        Array.from({ length: Math.min(100, 250 - skip) }, (_, index) => ({
+          id: `4-${skip + index}`,
+          text: `Comment ${skip + index}`,
+          deleted: false,
+          created: issue.updated,
+          author: null,
+        }))
+      );
+    };
+    const result = await getIssue(host(), { identifier: '2-31' });
+    if (!result.success) throw new Error(result.error.message);
+    expect(result.data.context).toContain('(150 older comments omitted)');
+    expect(result.data.context).toContain('Comment 150');
+    expect(result.data.context).toContain('Comment 249');
+    expect(result.data.context).not.toContain('Comment 149');
+    expect(requests.map(({ url }) => url.searchParams.get('$skip'))).toEqual([null, '150', '250']);
+  });
+
   it('reports a failed comment page instead of silently supplying incomplete context', async () => {
     handler = (request, response) =>
       json(
         response,
-        request.url?.includes('/comments') ? { error: 'Unavailable' } : issue,
+        request.url?.includes('/comments')
+          ? { error: 'Unavailable' }
+          : { ...issue, commentsCount: 1 },
         request.url?.includes('/comments') ? 503 : 200
       );
     expect(await getIssue(host(), { identifier: '2-31' })).toMatchObject({
