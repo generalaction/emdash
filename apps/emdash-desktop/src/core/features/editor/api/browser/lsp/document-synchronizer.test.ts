@@ -8,10 +8,14 @@ function fixture() {
   const sent: LspDocument[] = [];
   const close = vi.fn(async () => {});
   const saved = vi.fn(async () => {});
+  const change = vi.fn(async () => true);
+  const getText = vi.fn(() => document.text);
+  const source = { path, languageId: 'typescript', getVersion: () => document.version, getText };
   const synchronizer = new DocumentSynchronizer({
     sync: async (value) => {
       sent.push(value);
     },
+    change,
     close,
     saved,
     onError: () => {},
@@ -22,7 +26,9 @@ function fixture() {
     sent,
     close,
     saved,
-    read: () => document,
+    source,
+    change,
+    getText,
     update: (text: string) => {
       document = { ...document, text, version: document.version + 1 };
     },
@@ -32,8 +38,8 @@ function fixture() {
 describe('editor document synchronization', () => {
   it('shares one document across consumers and closes it after the last release', async () => {
     const f = fixture();
-    const first = f.synchronizer.track('a', f.read);
-    const second = f.synchronizer.track('a', f.read);
+    const first = f.synchronizer.track('a', f.source);
+    const second = f.synchronizer.track('a', f.source);
     await f.synchronizer.flush();
     expect(f.sent).toHaveLength(1);
     await first();
@@ -44,21 +50,22 @@ describe('editor document synchronization', () => {
   });
   it('coalesces typing and flushes all changed buffers before a query', async () => {
     const f = fixture();
-    f.synchronizer.track('a', f.read);
+    f.synchronizer.track('a', f.source);
     await f.synchronizer.flush();
     f.update('two');
     f.synchronizer.changed();
     f.update('three');
     f.synchronizer.changed();
     await f.synchronizer.flush();
-    expect(f.sent.map((d) => d.text)).toEqual(['one', 'three']);
+    expect(f.sent.map((d) => d.text)).toEqual(['one']);
+    expect(f.change).toHaveBeenCalledWith(expect.objectContaining({ baseVersion: 1, version: 3 }));
     await f.synchronizer.flush();
-    expect(f.sent).toHaveLength(2);
+    expect(f.sent).toHaveLength(1);
     await f.synchronizer.dispose();
   });
   it('replays unchanged documents when a new server generation appears', async () => {
     const f = fixture();
-    f.synchronizer.track('a', f.read);
+    f.synchronizer.track('a', f.source);
     await f.synchronizer.flush();
     f.synchronizer.invalidate();
     await f.synchronizer.flush();
@@ -73,12 +80,13 @@ describe('editor document synchronization', () => {
       .mockResolvedValue(undefined);
     const synchronizer = new DocumentSynchronizer({
       sync,
+      change: f.change,
       close: f.close,
       saved: f.saved,
       onError: () => {},
       delayMs: 60_000,
     });
-    synchronizer.track('a', f.read);
+    synchronizer.track('a', f.source);
     await expect(synchronizer.flush()).rejects.toThrow('disconnected');
     await synchronizer.flush();
     expect(sync).toHaveBeenCalledTimes(2);
@@ -87,10 +95,10 @@ describe('editor document synchronization', () => {
   });
   it('orders close and reopen of the same path and sends saved only after synchronization', async () => {
     const f = fixture();
-    const release = f.synchronizer.track('a', f.read);
+    const release = f.synchronizer.track('a', f.source);
     await f.synchronizer.flush();
     const closing = release();
-    f.synchronizer.track('a', f.read);
+    f.synchronizer.track('a', f.source);
     await f.synchronizer.saved('a');
     await closing;
     expect(f.sent).toHaveLength(2);
@@ -111,12 +119,13 @@ describe('editor document synchronization', () => {
       .mockResolvedValue(undefined);
     const synchronizer = new DocumentSynchronizer({
       sync,
+      change: f.change,
       close: f.close,
       saved: f.saved,
       onError: () => {},
       delayMs: 60_000,
     });
-    synchronizer.track('a', f.read);
+    synchronizer.track('a', f.source);
     const first = synchronizer.flush();
     await vi.waitFor(() => expect(complete).toBeTypeOf('function'));
     f.update('new');
@@ -124,8 +133,84 @@ describe('editor document synchronization', () => {
     complete();
     await first;
     await synchronizer.flush();
-    expect(sync.mock.calls.map(([document]) => document.text)).toEqual(['one', 'new']);
+    expect(sync.mock.calls.map(([document]) => document.text)).toEqual(['one']);
+    expect(f.change).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseVersion: 1,
+        version: 2,
+        edit: { start: 0, deleteCount: 3, text: 'new' },
+      })
+    );
     await synchronizer.dispose();
     await f.synchronizer.dispose();
   });
+});
+
+it('never reads text for unchanged versions, including close and save lookup', async () => {
+  const f = fixture();
+  const release = f.synchronizer.track('a', f.source);
+  try {
+    await f.synchronizer.flush();
+    f.getText.mockClear();
+    await f.synchronizer.flush();
+    await f.synchronizer.savedPath(f.source.path);
+    await release();
+    expect(f.getText).not.toHaveBeenCalled();
+  } finally {
+    await f.synchronizer.dispose();
+  }
+});
+
+it('falls back to a full snapshot only when the host rejects the edit base', async () => {
+  const f = fixture();
+  f.synchronizer.track('a', f.source);
+  try {
+    await f.synchronizer.flush();
+    f.change.mockResolvedValueOnce(false);
+    f.update('two');
+    await f.synchronizer.flush();
+    expect(f.sent.map((d) => d.text)).toEqual(['one', 'two']);
+    f.update('three');
+    await f.synchronizer.flush();
+    expect(f.change).toHaveBeenLastCalledWith(
+      expect.objectContaining({ baseVersion: 2, version: 3 })
+    );
+  } finally {
+    await f.synchronizer.dispose();
+  }
+});
+
+it('retries a failed delta from the last acknowledged version', async () => {
+  const f = fixture();
+  f.synchronizer.track('a', f.source);
+  try {
+    await f.synchronizer.flush();
+    f.change.mockRejectedValueOnce(new Error('offline'));
+    f.update('two');
+    await expect(f.synchronizer.flush()).rejects.toThrow('offline');
+    f.update('three');
+    await f.synchronizer.flush();
+    expect(f.change).toHaveBeenLastCalledWith(
+      expect.objectContaining({ baseVersion: 1, version: 3 })
+    );
+  } finally {
+    await f.synchronizer.dispose();
+  }
+});
+
+it('transfers a tiny edit for a large file', async () => {
+  const f = fixture();
+  f.update('x'.repeat(100_000) + 'value=1;');
+  f.synchronizer.track('a', f.source);
+  try {
+    await f.synchronizer.flush();
+    f.update('x'.repeat(100_000) + 'value=2;');
+    await f.synchronizer.flush();
+    expect(f.change).toHaveBeenCalledWith(
+      expect.objectContaining({ edit: { start: 100_006, deleteCount: 1, text: '2' } })
+    );
+    expect(f.sent).toHaveLength(1);
+  } finally {
+    await f.synchronizer.dispose();
+  }
 });

@@ -1,7 +1,17 @@
 import { formatAbsolute, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
-import type { LspDocument } from '@emdash/core/runtimes/lsp/api';
+import {
+  computeDocumentEdit,
+  type LspDocument,
+  type LspDocumentChange,
+} from '@emdash/core/runtimes/lsp/api';
 
-type TrackedDocument = { read: () => LspDocument; refs: number; sentVersion?: number };
+export interface DocumentSource {
+  path: HostAbsolutePath;
+  languageId: string;
+  getVersion(): number;
+  getText(): string;
+}
+type TrackedDocument = { source: DocumentSource; refs: number; sent?: LspDocument };
 
 /**
  * Replicates current buffers with one ordered queue. A query flushes the entire
@@ -18,6 +28,8 @@ export class DocumentSynchronizer {
   constructor(
     private readonly port: {
       sync(document: LspDocument): Promise<void>;
+      /** False means the host needs a fresh snapshot; other failures must reject. */
+      change(change: LspDocumentChange): Promise<boolean>;
       close(path: HostAbsolutePath): Promise<void>;
       saved(path: HostAbsolutePath): Promise<void>;
       onError(error: unknown): void;
@@ -25,10 +37,10 @@ export class DocumentSynchronizer {
     }
   ) {}
 
-  track(id: string, read: () => LspDocument): () => Promise<void> {
+  track(id: string, source: DocumentSource): () => Promise<void> {
     if (this.disposed) throw new Error('Document synchronizer disposed');
     const existing = this.documents.get(id);
-    const record = existing ?? { read, refs: 0 };
+    const record = existing ?? { source, refs: 0 };
     record.refs += 1;
     this.documents.set(id, record);
     this.changed();
@@ -39,7 +51,7 @@ export class DocumentSynchronizer {
       record.refs -= 1;
       if (record.refs > 0) return;
       this.documents.delete(id);
-      const path = record.read().path;
+      const path = record.source.path;
       await this.enqueue(() => this.port.close(path));
     };
   }
@@ -55,7 +67,7 @@ export class DocumentSynchronizer {
 
   invalidate(): void {
     this.epoch += 1;
-    for (const document of this.documents.values()) document.sentVersion = undefined;
+    for (const document of this.documents.values()) document.sent = undefined;
     this.changed();
   }
 
@@ -64,25 +76,41 @@ export class DocumentSynchronizer {
     this.timer = undefined;
     return this.enqueue(async () => {
       for (const [id, record] of this.documents) {
-        const document = record.read();
-        if (record.sentVersion === document.version) continue;
+        const version = record.source.getVersion();
+        if (record.sent?.version === version) continue;
+        const document = {
+          path: record.source.path,
+          languageId: record.source.languageId,
+          version,
+          text: record.source.getText(),
+        };
         const epoch = this.epoch;
-        await this.port.sync(document);
-        if (epoch === this.epoch && this.documents.get(id) === record)
-          record.sentVersion = document.version;
+        const sent = record.sent;
+        if (
+          !sent ||
+          !(await this.port.change({
+            path: document.path,
+            baseVersion: sent.version,
+            version,
+            edit: computeDocumentEdit(sent.text, document.text),
+          }))
+        ) {
+          await this.port.sync(document);
+        }
+        if (epoch === this.epoch && this.documents.get(id) === record) record.sent = document;
       }
     });
   }
 
   async saved(id: string): Promise<void> {
     await this.flush();
-    const document = this.documents.get(id)?.read();
+    const document = this.documents.get(id)?.source;
     if (document) await this.enqueue(() => this.port.saved(document.path));
   }
 
   async savedPath(path: HostAbsolutePath): Promise<void> {
     for (const [id, document] of this.documents) {
-      if (formatAbsolute(document.read().path) === formatAbsolute(path)) await this.saved(id);
+      if (formatAbsolute(document.source.path) === formatAbsolute(path)) await this.saved(id);
     }
   }
 

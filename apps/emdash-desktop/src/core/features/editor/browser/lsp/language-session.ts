@@ -25,6 +25,12 @@ export class LanguageSession {
     this.documents = new DocumentSynchronizer({
       sync: async (document) =>
         unwrap(await (await this.ready).syncDocument({ session: key, document })),
+      change: async (change) => {
+        const result = await (await this.ready).changeDocument({ session: key, change });
+        if (!result.success && result.error.type === 'document-out-of-sync') return false;
+        unwrap(result);
+        return true;
+      },
       close: async (path) => unwrap(await (await this.ready).closeDocument({ session: key, path })),
       saved: async (path) => unwrap(await (await this.ready).saved({ session: key, path })),
       onError: (error) => this.fail(error),
@@ -95,9 +101,10 @@ export class LanguageSession {
           this.generation !== state.generation || this.wireGeneration !== snapshot.generation;
         this.publish(state);
         if (changed && state.phase === 'ready') {
+          const replacing = this.generation !== undefined || this.wireGeneration !== undefined;
           this.generation = state.generation;
           this.wireGeneration = snapshot.generation;
-          this.documents.invalidate();
+          if (replacing) this.documents.invalidate();
         }
       },
       { scope: attachment }

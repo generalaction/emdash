@@ -5,7 +5,13 @@ import {
   hostFileRef,
   type HostFileRef,
 } from '@emdash/core/primitives/path/api';
-import type { LspState, LspLocation } from '@emdash/core/runtimes/lsp/api';
+import {
+  languageServers,
+  selectLanguageServer,
+  type LanguageServerDefinition,
+  type LspState,
+  type LspLocation,
+} from '@emdash/core/runtimes/lsp/api';
 import { observable, runInAction } from 'mobx';
 import type * as Monaco from 'monaco-editor';
 import { decodeFacetUri, encodeFacetUri } from '../../api/browser/facet-binder/facet-uri';
@@ -16,8 +22,11 @@ type Context = { ref: HostFileRef; root: HostFileRef; navigation: NavigationCont
 type TrackedModel = {
   model: Monaco.editor.ITextModel;
   context: Context;
-  session: LanguageSession;
-  release: () => Promise<void>;
+  selection: NonNullable<ReturnType<typeof selectLanguageServer>>;
+  ready: Promise<void>;
+  sessionId?: string;
+  session?: LanguageSession;
+  release?: () => Promise<void>;
   change: Monaco.IDisposable;
 };
 const OWNER = 'emdash-lsp';
@@ -37,6 +46,7 @@ export class MonacoLanguageServices {
     private readonly monaco: typeof Monaco,
     private readonly options: {
       client: () => Promise<LanguageClient>;
+      servers?: readonly LanguageServerDefinition[];
       openLocation(
         context: NavigationContext,
         ref: HostFileRef,
@@ -44,10 +54,12 @@ export class MonacoLanguageServices {
       ): boolean | Promise<boolean>;
     }
   ) {
-    const selector = ['typescript', 'javascript'].map((language) => ({
-      language,
-      scheme: 'emdash-buffer',
-    }));
+    const languages = new Set(
+      (options.servers ?? languageServers).flatMap((server) =>
+        server.languages.map((language) => language.monacoLanguageId)
+      )
+    );
+    const selector = [...languages].map((language) => ({ language, scheme: 'emdash-buffer' }));
     this.subscriptions.push(
       monaco.editor.onDidCreateModel((model) => this.track(model)),
       monaco.editor.onWillDisposeModel((model) => this.untrack(model)),
@@ -120,19 +132,29 @@ export class MonacoLanguageServices {
     };
   }
 
-  status(ref: HostFileRef): LspState | undefined {
-    const context = this.contexts.get(encodeFacetUri(ref, { kind: 'buffer' }));
-    return context ? this.states.get(encodeResourceUri(context.root)) : undefined;
+  status(ref: HostFileRef): (LspState & { serverName: string }) | undefined {
+    const id = encodeFacetUri(ref, { kind: 'buffer' });
+    const state = this.states.get(id);
+    const tracked = this.models.get(id);
+    return state && tracked ? { ...state, serverName: tracked.selection.server.name } : undefined;
   }
 
   async restart(ref: HostFileRef): Promise<void> {
     const tracked = this.models.get(encodeFacetUri(ref, { kind: 'buffer' }));
-    await tracked?.session.restart();
+    if (!tracked) return;
+    await tracked.ready;
+    if (tracked.session) await tracked.session.restart();
+    else {
+      tracked.ready = this.attach(tracked);
+      await tracked.ready;
+    }
   }
 
   async saved(ref: HostFileRef): Promise<void> {
     const tracked = this.models.get(encodeFacetUri(ref, { kind: 'buffer' }));
-    await tracked?.session.saved(ref.path);
+    if (!tracked) return;
+    await tracked.ready;
+    await tracked.session?.saved(ref.path);
   }
 
   async hover(
@@ -184,35 +206,85 @@ export class MonacoLanguageServices {
     if (this.disposed) return;
     const id = model.uri.toString();
     const context = this.contexts.get(id);
-    const languageId = languageForPath(context?.ref);
-    if (!context || !languageId || this.models.has(id)) return;
-    const sessionId = encodeResourceUri(context.root);
-    let session = this.sessions.get(sessionId);
-    if (!session) {
-      session = new LanguageSession(
-        {
-          clientId: this.clientId,
-          host: context.root.host,
-          root: context.root.path,
-          serverId: 'typescript',
-        },
-        this.options.client,
-        (state) => this.update(sessionId, state)
+    const selection = selectLanguageServer(
+      context?.ref.path.segments.at(-1) ?? '',
+      this.options.servers
+    );
+    if (!context || !selection || this.models.has(id)) return;
+    const tracked: TrackedModel = {
+      model,
+      context,
+      selection,
+      ready: Promise.resolve(),
+      change: model.onDidChangeContent(() => {
+        this.monaco.editor.setModelMarkers(model, OWNER, []);
+        tracked.session?.documents.changed();
+      }),
+    };
+    this.models.set(id, tracked);
+    tracked.ready = this.attach(tracked);
+  }
+
+  private async attach(tracked: TrackedModel): Promise<void> {
+    const { model, context, selection } = tracked;
+    const id = model.uri.toString();
+    const current = () => !this.disposed && this.models.get(id) === tracked;
+    const pending: LspState = {
+      phase: 'starting',
+      generation: '',
+      diagnostics: [],
+      capabilities: { hover: false, definition: false, typeDefinition: false, references: false },
+    };
+    runInAction(() => this.states.set(id, pending));
+    try {
+      const client = await this.options.client();
+      if (!current()) return;
+      const root = unwrap(
+        await client.resolveProject({
+          host: context.ref.host,
+          workspaceRoot: context.root.path,
+          path: context.ref.path,
+          serverId: selection.server.id,
+        })
       );
-      this.sessions.set(sessionId, session);
+      if (!current()) return;
+      const sessionId = JSON.stringify([
+        encodeResourceUri(hostFileRef(context.ref.host, root)),
+        selection.server.id,
+      ]);
+      let session = this.sessions.get(sessionId);
+      if (!session) {
+        session = new LanguageSession(
+          { clientId: this.clientId, host: context.ref.host, root, serverId: selection.server.id },
+          this.options.client,
+          (state) => this.update(sessionId, state)
+        );
+        this.sessions.set(sessionId, session);
+      }
+      tracked.sessionId = sessionId;
+      tracked.session = session;
+      tracked.release = session.documents.track(id, {
+        path: context.ref.path,
+        languageId: selection.language.languageId,
+        getVersion: () => model.getVersionId(),
+        getText: () => model.getValue(),
+      });
+      // A later document can join a session whose live state is already current.
+      const shared = [...this.models.values()].find(
+        (other) => other !== tracked && other.session === session
+      );
+      const state = shared && this.states.get(shared.model.uri.toString());
+      if (state) this.update(sessionId, state);
+    } catch (error) {
+      if (current())
+        runInAction(() =>
+          this.states.set(id, {
+            ...pending,
+            phase: 'failed',
+            error: error instanceof Error ? error.message : String(error),
+          })
+        );
     }
-    const release = session.documents.track(id, () => ({
-      path: context.ref.path,
-      languageId,
-      version: model.getVersionId(),
-      text: model.getValue(),
-    }));
-    const activeSession = session;
-    const change = model.onDidChangeContent(() => {
-      this.monaco.editor.setModelMarkers(model, OWNER, []);
-      activeSession.documents.changed();
-    });
-    this.models.set(id, { model, context, session, release, change });
   }
 
   private untrack(model: Monaco.editor.ITextModel): void {
@@ -220,25 +292,25 @@ export class MonacoLanguageServices {
     const tracked = this.models.get(id);
     if (!tracked) return;
     this.models.delete(id);
+    runInAction(() => this.states.delete(id));
     tracked.change.dispose();
     if (!tracked.context.refs) this.contexts.delete(id);
-    void tracked
-      .release()
-      .catch((error) => tracked.session.fail(error))
+    const { session, sessionId, release } = tracked;
+    if (!session || !sessionId || !release) return;
+    void release()
+      .catch((error) => session.fail(error))
       .then(async () => {
-        if ([...this.models.values()].some((other) => other.session === tracked.session)) return;
-        const key = encodeResourceUri(tracked.context.root);
-        this.sessions.delete(key);
-        runInAction(() => this.states.delete(key));
-        await tracked.session.dispose();
+        if ([...this.models.values()].some((other) => other.session === session)) return;
+        if (this.sessions.get(sessionId) === session) this.sessions.delete(sessionId);
+        await session.dispose();
       });
   }
 
   private update(id: string, state: LspState): void {
     if (this.disposed) return;
-    runInAction(() => this.states.set(id, state));
-    for (const { model, context } of this.models.values()) {
-      if (encodeResourceUri(context.root) !== id) continue;
+    for (const { model, context, sessionId } of this.models.values()) {
+      if (sessionId !== id) continue;
+      runInAction(() => this.states.set(model.uri.toString(), state));
       const entry =
         state.phase === 'ready'
           ? state.diagnostics.find(
@@ -284,13 +356,26 @@ export class MonacoLanguageServices {
     const cancellation = token.onCancellationRequested(() => abort.abort());
     const version = model.getVersionId();
     try {
-      await tracked.session.documents.flush();
+      // Root discovery is asynchronous. A sibling may already contain unsaved
+      // edits while it is still waiting to join this language session.
+      await Promise.all(
+        [...this.models.values()]
+          .filter(
+            (other) =>
+              other.selection.server.id === tracked.selection.server.id &&
+              encodeResourceUri(other.context.root) === encodeResourceUri(tracked.context.root)
+          )
+          .map((other) => other.ready)
+      );
+      const session = tracked.session;
+      if (!session || abort.signal.aborted || model.isDisposed()) return null;
+      await session.documents.flush();
       if (abort.signal.aborted || model.isDisposed() || version !== model.getVersionId())
         return null;
       const result = await request(
-        await tracked.session.ready,
+        await session.ready,
         {
-          session: tracked.session.key,
+          session: session.key,
           path: tracked.context.ref.path,
           version,
           position: { line: position.lineNumber - 1, character: position.column - 1 },
@@ -302,21 +387,12 @@ export class MonacoLanguageServices {
         : result;
     } catch (error) {
       if (!abort.signal.aborted && !model.isDisposed() && version === model.getVersionId())
-        tracked.session.fail(error);
+        tracked.session?.fail(error);
       return null;
     } finally {
       cancellation.dispose();
     }
   }
-}
-
-function languageForPath(ref: HostFileRef | undefined): string | undefined {
-  const extension = ref?.path.segments.at(-1)?.split('.').at(-1)?.toLowerCase();
-  if (extension === 'tsx') return 'typescriptreact';
-  if (extension === 'jsx') return 'javascriptreact';
-  if (extension && ['ts', 'mts', 'cts'].includes(extension)) return 'typescript';
-  if (extension && ['js', 'mjs', 'cjs'].includes(extension)) return 'javascript';
-  return undefined;
 }
 
 function toMonacoRange(range: LspLocation['range']): Monaco.IRange {

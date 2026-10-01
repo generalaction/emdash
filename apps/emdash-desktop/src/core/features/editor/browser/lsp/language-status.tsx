@@ -12,7 +12,7 @@ export const LanguageStatus = observer(function LanguageStatus({ file }: { file:
       variant="ghost"
       size="sm"
       disabled={status.phase === 'starting'}
-      title={status.error ?? 'Restart TypeScript / JavaScript language services'}
+      title={status.error ?? `Restart ${status.serverName} language services`}
       aria-label={
         status.error
           ? `Language services unavailable: ${status.error}. Retry`
@@ -26,7 +26,7 @@ export const LanguageStatus = observer(function LanguageStatus({ file }: { file:
         ? 'Starting language services…'
         : status.phase === 'failed'
           ? 'Language services unavailable · Retry'
-          : 'TypeScript / JavaScript'}
+          : status.serverName}
     </Button>
   );
 });

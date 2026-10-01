@@ -146,10 +146,10 @@ TypeScript and JavaScript buffers use the host LSP runtime for hover, definition
 type definition, references and diagnostics. Install or select
 `typescript-language-server` in the host's machine dependencies (the offered npm
 command installs TypeScript too; Node.js 22.22.2 or newer is required), then use
-the language-service status button in
-the file toolbar to restart. The executable must be on the host containing the
-worktree; a local installation does not provide language services for SSH files.
-Remote language services require workspace protocol 11.1 or newer.
+the language-service status button in the file toolbar to restart. The executable
+must be on the host containing the worktree; a local installation does not provide
+language services for SSH files.
+Remote language services require workspace protocol 11.2 or newer.
 
 `editor/browser/lsp/monaco-language-services.ts` registers providers once during
 lazy Monaco bootstrap. File tabs register the originating task and workspace
@@ -157,15 +157,20 @@ root before their buffer models are created. Only `emdash-buffer:` models are
 replicated; disk and Git snapshots never enter the language server. Shared model
 lifetime owns open/close, so split panes and dirty buffers surviving tab closure
 remain consistent. `DocumentSynchronizer` coalesces edits and flushes every open
-buffer before a query. The shared file store emits successful saves. Results
-preserve host identity and the originating task when navigating outside the root.
+buffer before a query. Unchanged versions are checked before reading model text.
+After the initial snapshot, the synchronizer sends one compact UTF-16 edit against
+the last acknowledged version. A mismatched base requests a fresh snapshot;
+reconnects also replay snapshots. The host retains complete text for restart and
+expands edits only when a server requires full-document synchronization. The shared
+file store emits successful saves. Results preserve host identity and the originating
+task when navigating outside the root.
 
 `LanguageSession` leases typed live state through the editor Wire domain. The
 Node editor controller routes to `RuntimeBroker`; it does not own processes or
 LSP protocol state. `packages/core/src/runtimes/lsp/` owns process framing,
 initialization, document versions, cancellation, capabilities, diagnostics and
 shutdown. It runs as a worker on both desktop and workspace-server, with one
-server per renderer client, workspace root and server ID. Server commands come
+server per renderer client, resolved project root and server ID. Server commands come
 from host dependency descriptors, never renderer-supplied shell text. A live-state
 lease keeps the server alive; the last detach releases it after a short grace
 period. Explicit restart replays unsaved buffers, and replacement generations
@@ -174,8 +179,22 @@ invalidate renderer synchronization caches.
 This initial server registry supports TS/JS, including JSX and TSX, with UTF-16
 positions and a two-million-character document limit. It leaves completion,
 formatting and workspace-edit operations on their existing editor paths. Adding
-another server means adding a host descriptor/registry entry and a language
-mapping, then exercising its capability negotiation and synchronization behavior.
+another server means adding portable selection metadata in `lsp/api/server-catalog.ts`
+and a host profile in `lsp/node/server-registry.ts`, then exercising its capability
+negotiation and synchronization behavior. The renderer derives provider selectors,
+protocol language IDs, session keys and labels from that metadata. Host profiles
+own executable descriptors, arguments, project-root markers and configuration;
+the process transport only binds their supplied request handlers to JSON-RPC.
+
+Project discovery runs through Wire on the file's host before acquiring a session.
+For TS/JS, the nearest `tsconfig.json`, `jsconfig.json` or `package.json` between the
+file and task workspace selects the root; absent markers and external definition
+targets retain the task workspace root. TypeScript compiler resolution uses the
+project's Node module search path, including hoisted dependencies, with the language
+server's default compiler discovery as fallback. No project code is loaded during
+this resolution. Future Python interpreter or Go toolchain policies belong to
+their host profile. Adding those profiles does not require changes to Monaco or
+the process transport. Host configuration is resolved again when a server restarts.
 `vscode-languageserver-protocol` (MIT) supplies standard JSON-RPC framing and
 cancellation. `typescript-language-server` (Apache-2.0) is a development-only
 fixture for real-server integration tests; neither adds native build hooks.

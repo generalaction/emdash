@@ -1,6 +1,10 @@
 import { LOCAL_HOST_REF, hostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import { hostFileRef, parseNativeAbsolute } from '@emdash/core/primitives/path/api';
-import type { LspState } from '@emdash/core/runtimes/lsp/api';
+import {
+  languageServers,
+  type LanguageServerDefinition,
+  type LspState,
+} from '@emdash/core/runtimes/lsp/api';
 import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
@@ -38,7 +42,11 @@ function file(path: string, host: HostRef = LOCAL_HOST_REF) {
   if (!parsed.success) throw new Error('invalid test path');
   return hostFileRef(host, parsed.data);
 }
-function fixture(clientFailure = false, host: HostRef = LOCAL_HOST_REF) {
+function fixture(
+  clientFailure = false,
+  host: HostRef = LOCAL_HOST_REF,
+  servers?: readonly LanguageServerDefinition[]
+) {
   const scope = createScope();
   cleanup.push(() => scope.dispose());
   const state = cell<LspState>({
@@ -47,7 +55,12 @@ function fixture(clientFailure = false, host: HostRef = LOCAL_HOST_REF) {
     capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
     diagnostics: [],
   });
-  const syncDocument = vi.fn(async () => ok(undefined));
+  const syncDocument = vi.fn(async (_input: unknown) => ok(undefined));
+  const resolveProject = vi.fn(async (input: { workspaceRoot: ReturnType<typeof file>['path'] }) =>
+    ok(input.workspaceRoot)
+  );
+  const changeDocument = vi.fn(async () => ok(undefined));
+  const restart = vi.fn(async () => ok(undefined));
   const closeDocument = vi.fn(async () => ok(undefined));
   const hover = vi.fn(async (_input: unknown, _meta: CallMeta) => ok({ contents: '**string**' }));
   const target = file('/outside/dependency.d.ts', host);
@@ -56,9 +69,11 @@ function fixture(clientFailure = false, host: HostRef = LOCAL_HOST_REF) {
     {
       session: expose(editorLspContract.session, { current: state }, { scope }),
       syncDocument,
+      resolveProject,
+      changeDocument,
       closeDocument,
       saved: async () => ok(undefined),
-      restart: async () => ok(undefined),
+      restart,
       hover,
       locations: async () =>
         ok([
@@ -74,7 +89,11 @@ function fixture(clientFailure = false, host: HostRef = LOCAL_HOST_REF) {
   const open = vi.fn(() => true);
   const getClient = vi.fn(async () => wire.client);
   if (clientFailure) getClient.mockRejectedValueOnce(new Error('host offline'));
-  const services = new MonacoLanguageServices(monaco, { client: getClient, openLocation: open });
+  const services = new MonacoLanguageServices(monaco, {
+    client: getClient,
+    openLocation: open,
+    servers,
+  });
   cleanup.push(() => services.dispose());
   const ref = file('/workspace/a.ts', host);
   cleanup.push(
@@ -89,7 +108,20 @@ function fixture(clientFailure = false, host: HostRef = LOCAL_HOST_REF) {
     monaco.Uri.parse(encodeFacetUri(ref, { kind: 'buffer' }))
   );
   cleanup.push(() => model.dispose());
-  return { services, model, state, ref, target, syncDocument, closeDocument, hover, open };
+  return {
+    services,
+    model,
+    state,
+    ref,
+    target,
+    syncDocument,
+    closeDocument,
+    hover,
+    open,
+    resolveProject,
+    changeDocument,
+    restart,
+  };
 }
 
 describe('Monaco language services', () => {
@@ -310,4 +342,110 @@ it('forwards Monaco cancellation and ignores a late response without failing the
   pending.resolve(ok({ contents: 'late' }));
   expect(f.services.status(f.ref)?.phase).toBe('ready');
   expect(cancellation.size).toBe(0);
+});
+
+it('isolates two language servers in one workspace and derives their labels from the catalog', async () => {
+  const f = fixture(false, LOCAL_HOST_REF, [
+    ...languageServers,
+    {
+      id: 'example',
+      name: 'Example language',
+      languages: [{ languageId: 'example', monacoLanguageId: 'plaintext', extensions: ['ex'] }],
+    },
+  ]);
+  const ref = file('/workspace/other.ex');
+  cleanup.push(
+    f.services.registerContext(ref, file('/workspace'), { projectId: 'project', taskId: 'task' })
+  );
+  const model = monaco.editor.createModel(
+    'example',
+    'plaintext',
+    monaco.Uri.parse(encodeFacetUri(ref, { kind: 'buffer' }))
+  );
+  cleanup.push(() => model.dispose());
+  await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
+  await f.services.hover(model, { lineNumber: 1, column: 1 }, token);
+  expect(
+    f.syncDocument.mock.calls
+      .map(([input]) => (input as { session: { serverId: string } }).session.serverId)
+      .sort()
+  ).toEqual(['example', 'typescript']);
+  expect(f.services.status(ref)?.serverName).toBe('Example language');
+  await f.services.restart(ref);
+  expect(f.restart).toHaveBeenCalledWith(
+    expect.objectContaining({ serverId: 'example' }),
+    expect.anything()
+  );
+});
+
+it('uses the project root discovered by the file host', async () => {
+  const f = fixture();
+  const project = file('/workspace/nested');
+  f.resolveProject.mockResolvedValue(ok(project.path));
+  await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
+  expect(f.resolveProject).toHaveBeenCalledWith(
+    expect.objectContaining({
+      host: LOCAL_HOST_REF,
+      path: f.ref.path,
+      workspaceRoot: file('/workspace').path,
+      serverId: 'typescript',
+    }),
+    expect.anything()
+  );
+  expect(f.syncDocument).toHaveBeenCalledWith(
+    expect.objectContaining({ session: expect.objectContaining({ root: project.path }) }),
+    expect.anything()
+  );
+});
+
+it('does not start a session after its document closes during root discovery', async () => {
+  const f = fixture();
+  const resolution = deferred<ReturnType<typeof ok<ReturnType<typeof file>['path']>>>();
+  f.resolveProject.mockImplementation(() => resolution.promise);
+  await expect.poll(() => f.resolveProject.mock.calls.length).toBe(1);
+  f.model.dispose();
+  resolution.resolve(ok(file('/workspace').path));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(f.syncDocument).not.toHaveBeenCalled();
+  expect(f.services.status(f.ref)).toBeUndefined();
+});
+
+it('flushes a sibling whose project discovery is still pending before answering a query', async () => {
+  const f = fixture();
+  await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
+  const resolution = deferred<ReturnType<typeof ok<ReturnType<typeof file>['path']>>>();
+  f.resolveProject.mockImplementationOnce(() => resolution.promise);
+  const ref = file('/workspace/sibling.ts');
+  cleanup.push(
+    f.services.registerContext(ref, file('/workspace'), { projectId: 'project', taskId: 'task' })
+  );
+  const model = monaco.editor.createModel(
+    'unsaved sibling',
+    'typescript',
+    monaco.Uri.parse(encodeFacetUri(ref, { kind: 'buffer' }))
+  );
+  cleanup.push(() => model.dispose());
+  await expect.poll(() => f.resolveProject.mock.calls.length).toBe(2);
+  f.hover.mockClear();
+  const query = f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(f.hover).not.toHaveBeenCalled();
+  resolution.resolve(ok(file('/workspace').path));
+  await query;
+  expect(f.syncDocument).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      document: expect.objectContaining({ path: ref.path, text: 'unsaved sibling' }),
+    }),
+    expect.anything()
+  );
+  expect(f.hover).toHaveBeenCalledTimes(1);
+});
+
+it('does not read an unchanged Monaco buffer when issuing another query', async () => {
+  const f = fixture();
+  await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
+  const read = vi.spyOn(f.model, 'getValue');
+  await f.services.hover(f.model, { lineNumber: 1, column: 1 }, token);
+  expect(read).not.toHaveBeenCalled();
+  read.mockRestore();
 });
