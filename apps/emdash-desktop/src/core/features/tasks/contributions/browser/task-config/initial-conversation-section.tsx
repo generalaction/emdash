@@ -253,12 +253,39 @@ export function InitialConversationField({
     () => (linkedIssue ? buildIssueContextText(linkedIssue) : null),
     [linkedIssue]
   );
+  const issueSource = linkedIssue
+    ? issueMentionToken(linkedIssue.provider, linkedIssue.identifier, linkedIssue)
+    : null;
+  const previousIssueContext = useRef<{
+    source: string | null;
+    context: string | null;
+    includeByDefault: boolean;
+  } | null>(null);
+  const { issueContext, setIssueContext } = state;
 
-  // Auto-inject issue context whenever the linked issue changes.
+  // Detail loading may enrich the same selection; retain edits and an explicitly removed mention.
   useEffect(() => {
-    state.setIssueContext(includeIssueContextByDefault ? defaultIssueContext : null);
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [defaultIssueContext, includeIssueContextByDefault]);
+    const previous = previousIssueContext.current;
+    const context = includeIssueContextByDefault ? defaultIssueContext : null;
+    if (
+      previous?.source !== issueSource ||
+      previous.includeByDefault !== includeIssueContextByDefault ||
+      issueContext === previous.context
+    ) {
+      if (issueContext !== context) setIssueContext(context);
+    }
+    previousIssueContext.current = {
+      source: issueSource,
+      context,
+      includeByDefault: includeIssueContextByDefault,
+    };
+  }, [
+    defaultIssueContext,
+    issueSource,
+    includeIssueContextByDefault,
+    issueContext,
+    setIssueContext,
+  ]);
 
   const { data: agents } = useAgents(hostRefFromConnectionId(state.connectionId));
   const selectedAgent = state.provider
@@ -309,18 +336,26 @@ export function InitialConversationField({
     () => (linkedIssue ? toLinkedIssueMentionItem(linkedIssue) : null),
     [linkedIssue]
   );
+  const previousIssueMention = useRef<MentionItem | null>(null);
 
   useEffect(() => {
     const editor = editorApiRef.current;
-    if (!editor || !linkedIssueMention) return;
-
-    if (!state.issueContext) {
-      editor.removeMention(linkedIssueMention.id);
-      return;
-    }
-
-    if (!promptHasIssueMention(editor.getText(), linkedIssueMention.id)) {
-      editor.prependMention(linkedIssueMention);
+    if (!editor) return;
+    const previous = previousIssueMention.current;
+    previousIssueMention.current = linkedIssueMention;
+    syncingEditorTextRef.current = true;
+    try {
+      if (previous && previous.id !== linkedIssueMention?.id) editor.removeMention(previous.id);
+      if (!linkedIssueMention) return;
+      if (!state.issueContext) {
+        editor.removeMention(linkedIssueMention.id);
+        return;
+      }
+      if (!promptHasIssueMention(editor.getText(), linkedIssueMention.id)) {
+        editor.prependMention(linkedIssueMention);
+      }
+    } finally {
+      syncingEditorTextRef.current = false;
     }
   }, [linkedIssueMention, state.issueContext, state.prompt]);
 

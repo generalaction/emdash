@@ -20,6 +20,7 @@ const credentialsByProvider: Record<string, IntegrationCredentials> = {
   plain: { apiKey: 'test-key' },
   plane: { apiBaseUrl: 'https://example.com/plane', workspaceSlug: 'acme', apiKey: 'test-key' },
   trello: { apiKey: 'test-key', apiToken: 'test-token' },
+  youtrack: { instanceUrl: 'https://example.com/youtrack', apiToken: 'test-token' },
 };
 
 describe('integration credential contracts', () => {

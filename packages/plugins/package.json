@@ -58,10 +58,12 @@
     "@octokit/rest": "^22.0.1",
     "@team-plain/graphql": "^1.0.1",
     "asana": "^3.1.12",
+    "axios": "^1.20.0",
     "featurebase-node": "^0.14.0",
     "jira.js": "^5.4.0",
     "smol-toml": "^1.6.0",
     "trello.js": "^2.1.4",
+    "youtrack-client": "^0.7.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
