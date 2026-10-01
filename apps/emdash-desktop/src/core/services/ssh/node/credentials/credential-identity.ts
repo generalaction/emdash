@@ -73,8 +73,12 @@ export async function readSshPrivateKey(
   const path = expandSshKeyPath(selected);
   const privateKey = await readFile(path, 'utf-8');
   // Include contents to detect replacement at the same path, not just IdentityFile edits.
-  const fingerprint = createHash('sha256')
-    .update(JSON.stringify([path, privateKey]))
-    .digest('hex');
+  const fingerprint = sshKeyFingerprint(path, privateKey);
   return { privateKey, fingerprint };
+}
+
+export function sshKeyFingerprint(path: string, contents: string): string {
+  return createHash('sha256')
+    .update(JSON.stringify([path, contents]))
+    .digest('hex');
 }

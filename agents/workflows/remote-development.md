@@ -18,7 +18,7 @@ or shell-profile code.
 - `src/core/services/ssh/` — desktop SSH connection management, credentials, config
   parsing, and transport setup
 - `src/core/services/hosts/` — managed remote install/ensure flow and the
-  reconnecting Wire client over SSH streamlocal forwarding
+  reconnecting Wire client over an OpenSSH command stream and stdio socket relay
 - `src/main/core/wire-workers/` — desktop-local wire runtime workers for local
   projects while remote runtimes are served by the workspace server
 - `src/main/utils/remoteOpenIn.ts` and `src/main/utils/shellEscape.ts` — external
@@ -27,7 +27,7 @@ or shell-profile code.
 ## Authentication And Storage
 
 - SSH credentials are managed through the SSH services and OS-backed secret storage
-- host key handling is implemented under `src/main/core/ssh/`
+- OpenSSH owns known_hosts verification; the desktop composition root supplies new-host confirmation
 - runtime dependency state for remote hosts belongs to the workspace-server
   `hostDependencies` component, not an Electron-side SSH execution context
 - the desktop owns the managed install under `~/.emdash/workspace-server`; remote

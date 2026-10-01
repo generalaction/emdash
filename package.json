@@ -20,16 +20,16 @@
     "nx": "^23.0.0",
     "tsx": "^4.22.4"
   },
-  "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=10.28.0"
-  },
   "devEngines": {
     "runtime": {
       "name": "node",
       "version": "24.14.0",
       "onFail": "download"
     }
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.28.0"
   },
   "packageManager": "pnpm@10.28.2",
   "pnpm": {
@@ -42,10 +42,6 @@
       "nx",
       "protobufjs",
       "sqlite3"
-    ],
-    "ignoredBuiltDependencies": [
-      "cpu-features",
-      "ssh2"
     ],
     "ignoredOptionalDependencies": [
       "@anthropic-ai/claude-agent-sdk-darwin-arm64",

@@ -3,7 +3,7 @@ import type { Secret } from '@emdash/shared';
 /**
  * Secret-typed key/value storage for credential material. Values stay wrapped
  * in `Secret` end-to-end; plaintext is disclosed via `.expose()` only at true
- * boundaries (safeStorage/keychain writes, ssh2 connect configuration, wire
+ * boundaries (safeStorage/keychain writes, SSH askpass responses, wire
  * serialization edges).
  */
 export interface SecretStore {

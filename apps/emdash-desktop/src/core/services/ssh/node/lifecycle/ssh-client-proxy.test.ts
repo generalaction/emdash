@@ -1,147 +1,73 @@
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
-import type { Client, ClientChannel } from 'ssh2';
 import { describe, expect, it, vi } from 'vitest';
+import type { SshSession } from '../openssh/session';
+import { deferred, fakeSession } from '../openssh/testing/session';
 import { SshClientProxy } from './ssh-client-proxy';
 
-describe('SshClientProxy', () => {
-  it('throws when the SSH connection is unavailable', () => {
-    const proxy = new SshClientProxy('ssh-1');
+const operations = {
+  exec: (proxy: SshClientProxy, signal?: AbortSignal) =>
+    proxy.exec({ command: 'pwd', args: [] }, { signal }),
+  script: (proxy: SshClientProxy, signal?: AbortSignal) => proxy.execScript('pwd', { signal }),
+  stream: (proxy: SshClientProxy, signal?: AbortSignal) =>
+    proxy.openStream({ command: 'cat', args: [] }, { signal }),
+  forward: (proxy: SshClientProxy, signal?: AbortSignal) => proxy.forwardPort(3000, { signal }),
+};
 
-    expect(() => proxy.client).toThrow('SSH connection is not available');
-    expect(proxy.isConnected).toBe(false);
+describe.each(Object.entries(operations))('%s generation ownership', (_name, operation) => {
+  it('rejects an unavailable connection', async () => {
+    await expect(operation(new SshClientProxy('host'))).rejects.toThrow('not available');
   });
-
-  it('exposes the current client while connected', () => {
-    const client = {} as Client;
-    const proxy = new SshClientProxy('ssh-1');
-
-    proxy.update(client);
-
-    expect(proxy.client).toBe(client);
-    expect(proxy.isConnected).toBe(true);
+  it('does not start work after caller cancellation', async () => {
+    const session = fakeSession();
+    const proxy = new SshClientProxy('host');
+    proxy.update(session);
+    await expect(operation(proxy, AbortSignal.abort(new Error('cancelled')))).rejects.toThrow(
+      'cancelled'
+    );
+    expect(session.exec).not.toHaveBeenCalled();
+    expect(session.openStream).not.toHaveBeenCalled();
+    expect(session.forwardPort).not.toHaveBeenCalled();
   });
+  it.each(['caller', 'invalidate', 'replace'] as const)(
+    'revokes the original operation on %s',
+    async (cause) => {
+      const cancelled = (_value: unknown, options?: { signal?: AbortSignal }): Promise<never> =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+            once: true,
+          });
+        });
+      const session: SshSession = {
+        ...fakeSession(),
+        exec: cancelled,
+        openStream: cancelled,
+        forwardPort: cancelled,
+      };
+      const proxy = new SshClientProxy('host');
+      proxy.update(session);
+      const caller = new AbortController();
+      const pending = operation(proxy, caller.signal);
+      const rejected = expect(pending).rejects.toThrow();
+      if (cause === 'caller') caller.abort(new Error('caller cancelled'));
+      else if (cause === 'invalidate') proxy.invalidate();
+      else proxy.update(fakeSession());
+      await rejected;
+      expect(proxy.isConnected).toBe(cause !== 'invalidate');
+    }
+  );
+});
 
-  it('clears the current client on invalidate', () => {
-    const proxy = new SshClientProxy('ssh-1');
-    proxy.update({} as Client);
-
-    proxy.invalidate();
-
-    expect(proxy.isConnected).toBe(false);
-    expect(() => proxy.client).toThrow('SSH connection is not available');
-  });
-
-  it('opens a streamlocal channel through the current client', async () => {
-    const channel = new PassThrough() as unknown as ClientChannel;
-    const opensshForwardOutStreamLocal = vi.fn(
-      (_socketPath: string, callback: (error: Error | undefined, value: ClientChannel) => void) => {
-        callback(undefined, channel);
-      }
-    );
-    const proxy = new SshClientProxy('ssh-1');
-    proxy.update(
-      Object.assign(new EventEmitter(), {
-        openssh_forwardOutStreamLocal: opensshForwardOutStreamLocal,
-      }) as unknown as Client
-    );
-
-    await expect(proxy.forwardOutStreamLocal('/run/workspace.sock')).resolves.toBe(channel);
-    expect(opensshForwardOutStreamLocal).toHaveBeenCalledWith(
-      '/run/workspace.sock',
-      expect.any(Function)
-    );
-  });
-
-  it('rejects a failed streamlocal request', async () => {
-    const error = new Error('administratively prohibited');
-    const proxy = new SshClientProxy('ssh-1');
-    proxy.update(
-      Object.assign(new EventEmitter(), {
-        openssh_forwardOutStreamLocal: (_socketPath: string, callback: (error: Error) => void) =>
-          callback(error),
-      }) as unknown as Client
-    );
-
-    await expect(proxy.forwardOutStreamLocal('/run/workspace.sock')).rejects.toBe(error);
-  });
-
-  it('rejects a pending streamlocal request when the SSH connection closes', async () => {
-    const client = Object.assign(new EventEmitter(), {
-      openssh_forwardOutStreamLocal: vi.fn(),
-    });
-    const proxy = new SshClientProxy('ssh-1');
-    proxy.update(client as unknown as Client);
-
-    const pending = proxy.forwardOutStreamLocal('/run/workspace.sock');
-    client.emit('close');
-
-    await expect(pending).rejects.toThrow(
-      'SSH connection closed while opening streamlocal channel'
-    );
-    expect(client.listenerCount('close')).toBe(0);
-    expect(client.listenerCount('end')).toBe(0);
-  });
-
-  it('destroys a channel delivered after its SSH connection closed', async () => {
-    let callback: ((error: Error | undefined, channel: ClientChannel) => void) | undefined;
-    const client = Object.assign(new EventEmitter(), {
-      openssh_forwardOutStreamLocal: vi.fn(
-        (_socketPath: string, next: (error: Error | undefined, channel: ClientChannel) => void) => {
-          callback = next;
-        }
-      ),
-    });
-    const proxy = new SshClientProxy('ssh-1');
-    proxy.update(client as unknown as Client);
-    const channel = Object.assign(new PassThrough(), { destroy: vi.fn() });
-
-    const pending = proxy.forwardOutStreamLocal('/run/workspace.sock');
-    client.emit('close');
-    await expect(pending).rejects.toThrow(
-      'SSH connection closed while opening streamlocal channel'
-    );
-    callback?.(undefined, channel as unknown as ClientChannel);
-
-    expect(channel.destroy).toHaveBeenCalledOnce();
-  });
-
-  it('formats structured commands for the remote POSIX shell', async () => {
-    const channel = Object.assign(new PassThrough(), { stderr: new PassThrough() });
-    const exec = vi.fn(
-      (_command: string, callback: (error: Error | undefined, value: ClientChannel) => void) =>
-        callback(undefined, channel as unknown as ClientChannel)
-    );
-    const proxy = new SshClientProxy('ssh-1');
-    proxy.update(Object.assign(new EventEmitter(), { exec }) as unknown as Client);
-
-    const pending = proxy.exec({
-      command: '/opt/Emdash Server/bin/emdash',
-      args: ['start', '--socket', '/tmp/emdash socket'],
-    });
-    channel.emit('close', 0);
-
-    await expect(pending).resolves.toMatchObject({ exitCode: 0 });
-    expect(exec).toHaveBeenCalledWith(
-      "'/opt/Emdash Server/bin/emdash' start --socket '/tmp/emdash socket'",
-      expect.any(Function)
-    );
-  });
-
-  it('passes explicit scripts to the remote shell unchanged', async () => {
-    const channel = Object.assign(new PassThrough(), { stderr: new PassThrough() });
-    const exec = vi.fn(
-      (_command: string, callback: (error: Error | undefined, value: ClientChannel) => void) =>
-        callback(undefined, channel as unknown as ClientChannel)
-    );
-    const proxy = new SshClientProxy('ssh-1');
-    proxy.update(Object.assign(new EventEmitter(), { exec }) as unknown as Client);
-
-    const script = 'printf \'%s\\n\' "$HOME"; uname -s';
-    const pending = proxy.execScript(script);
-    channel.emit('close', 0);
-
-    await expect(pending).resolves.toMatchObject({ exitCode: 0 });
-    expect(exec).toHaveBeenCalledWith(script, expect.any(Function));
-  });
+it('keeps a pending operation attached to its original session after replacement', async () => {
+  const old = fakeSession();
+  const next = fakeSession();
+  const result = deferred<{ stdout: string; stderr: string; exitCode: number }>();
+  old.exec = vi.fn(() => result.promise);
+  const proxy = new SshClientProxy('host');
+  proxy.update(old);
+  const pending = proxy.execScript('old');
+  proxy.update(next);
+  await proxy.execScript('new');
+  expect(next.exec).toHaveBeenCalledWith('new', expect.anything());
+  expect(old.exec).toHaveBeenCalledWith('old', expect.anything());
+  result.resolve({ stdout: 'old', stderr: '', exitCode: 0 });
+  await pending;
 });

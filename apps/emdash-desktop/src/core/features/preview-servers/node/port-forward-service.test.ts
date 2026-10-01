@@ -4,10 +4,10 @@ import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-clien
 import { PortForwardService } from './port-forward-service';
 import type { OpenPortForwardTunnelOptions, PortForwardTunnel } from './port-forward-tunnel';
 
-function fakeProxy(): Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'> {
+function fakeProxy(): Pick<SshClientProxy, 'forwardPort' | 'isConnected'> {
   return {
     isConnected: true,
-    async openTcpChannel() {
+    async forwardPort() {
       throw new Error('Unused by this test');
     },
   };

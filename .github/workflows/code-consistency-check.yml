@@ -58,6 +58,13 @@ jobs:
             sleep 10
           done
 
+      - name: Install OpenSSH test tools
+        if: matrix.target == 'test'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client openssh-server
+          sudo mkdir -p /run/sshd
+
       - name: Install native test dependencies
         if: matrix.target == 'test'
         # The install above keeps --ignore-scripts, so lifecycle scripts that

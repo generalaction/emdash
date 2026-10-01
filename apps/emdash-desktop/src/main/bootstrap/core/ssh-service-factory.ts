@@ -1,5 +1,6 @@
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import { BrowserWindow, dialog } from 'electron';
 import {
   MachinesService,
   type MachinesServiceDeps,
@@ -12,6 +13,7 @@ import { createProductionSshConnectConfigResolver } from '@core/services/ssh/nod
 import { SshConnectionsModel } from '@core/services/ssh/node/connections-model';
 import type { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
+import { connectOpenSsh } from '@core/services/ssh/node/openssh/session';
 import { SshService, type SshServiceDeps } from '@core/services/ssh/node/ssh-service';
 
 export interface CreateSshServiceDeps {
@@ -28,6 +30,27 @@ export function createSshService(deps: CreateSshServiceDeps): SshServiceHandle {
   const connections = scope.use(new SshConnectionsModel());
   const resolveConnectConfig = createProductionSshConnectConfigResolver(deps.credentials);
   const manager = new SshConnectionManager({
+    connectSession: (config, { signal }) =>
+      connectOpenSsh(config, {
+        signal,
+        confirmHost: async (prompt) => {
+          const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+          const options = {
+            type: 'question' as const,
+            title: 'Confirm SSH host key',
+            message: 'Trust this SSH host?',
+            detail: prompt,
+            buttons: ['Cancel', 'Trust and connect'],
+            defaultId: 0,
+            cancelId: 0,
+            signal,
+          };
+          const result = parent
+            ? await dialog.showMessageBox(parent, options)
+            : await dialog.showMessageBox(options);
+          return !signal.aborted && result.response === 1;
+        },
+      }),
     publishEvent: (event) => connections.publishEvent(event),
     log: deps.logger,
   });

@@ -17,7 +17,7 @@ function createService(
     openTunnel?: (request: OpenPortForwardTunnelOptions) => Promise<PortForwardTunnel>;
     getSshProxy?: (
       connectionId: string
-    ) => Promise<Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>>;
+    ) => Promise<Pick<SshClientProxy, 'forwardPort' | 'isConnected'>>;
     inspectRemotePort?: (
       connectionId: string,
       remotePort: number
@@ -65,10 +65,10 @@ function createService(
 function fakeProxy() {
   return {
     isConnected: true,
-    async openTcpChannel() {
+    async forwardPort() {
       throw new Error('Unused by this test');
     },
-  } satisfies Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>;
+  } satisfies Pick<SshClientProxy, 'forwardPort' | 'isConnected'>;
 }
 
 function registerLocal(service: PreviewServerService, overrides: { port?: number } = {}) {

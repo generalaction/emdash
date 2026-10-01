@@ -1,953 +1,179 @@
-import { PassThrough } from 'node:stream';
 import { secret } from '@emdash/shared';
-import type { ParsedKey, SignCallback } from 'ssh2';
-import { BaseAgent, utils } from 'ssh2';
 import { describe, expect, it, vi } from 'vitest';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import type { SshConnectionRow } from '@core/services/app-db/node/schema';
-import {
-  createSshConnectConfigResolver,
-  resolveSshConnectConfig,
-  type SshConnectDeps,
-} from './resolve-ssh-connect-config';
+import { parseSshGOutput } from '../config/resolve-ssh-config';
+import { resolveSshConnectConfig, type SshConnectDeps } from './resolve-ssh-connect-config';
 
-function baseConfig(partial: Partial<SshConfig> = {}): SshConfig {
+const base: SshConfig = {
+  id: 'host',
+  name: 'Work',
+  host: 'work.example',
+  port: 2222,
+  username: 'alice',
+  authType: 'agent',
+};
+function deps(output = ''): Partial<SshConnectDeps> {
   return {
-    id: 'ssh-1',
-    name: 'Conn',
-    host: 'manual.example.com',
-    port: 22,
-    username: 'alice',
-    authType: 'password',
-    useAgent: false,
-    ...partial,
+    readFile: vi.fn(async () => 'private key contents'),
+    getPassword: vi.fn(async () => secret('password-secret', 'test')),
+    getPassphrase: vi.fn(async () => secret('passphrase-secret', 'test')),
+    resolveSshConfig: vi.fn(async () => parseSshGOutput(output)),
+    env: {},
   };
 }
 
-describe('testing edited credentials', () => {
-  it.each([{ hostname: 'replacement.example.com' }, { user: 'other' }, { port: 2222 }])(
-    'rejects a stale alias destination before retrieving a password: %j',
-    async (change) => {
-      const config = baseConfig({ sshConfigAlias: 'work' });
-      const getPassword = vi.fn(async () => secret('original password'));
+describe('OpenSSH connection configuration', () => {
+  it('passes a manual destination and explicit account to OpenSSH', async () => {
+    const { config } = await resolveSshConnectConfig({ kind: 'transient', config: base }, deps());
+    expect(config.destination).toBe('work.example');
+    expect(config.args).toEqual(expect.arrayContaining(['-p', '2222', '-l', 'alice']));
+    expect(config.args).toContain('PreferredAuthentications=publickey');
+  });
+
+  it('lets OpenSSH consume alias certificates, agents, and jump configuration', async () => {
+    const dependencies = deps(
+      'hostname resolved.example\nuser bob\nport 2200\nidentityagent none\nidentitiesonly yes'
+    );
+    const { config } = await resolveSshConnectConfig(
+      { kind: 'transient', config: { ...base, sshConfigAlias: 'work' } },
+      dependencies
+    );
+    expect(config.destination).toBe('work');
+    expect(config.args).toContain('HostName=resolved.example');
+    expect(config.args).toEqual(expect.arrayContaining(['-p', '2200', '-l', 'bob']));
+    expect(config.args.join(' ')).not.toMatch(/IdentityAgent|IdentitiesOnly/);
+    expect(dependencies.readFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps password material wrapped and out of arguments and diagnostics', async () => {
+    const result = await resolveSshConnectConfig(
+      { kind: 'transient', config: { ...base, authType: 'password', password: 'top-secret' } },
+      deps()
+    );
+    expect(result.config.password?.expose()).toBe('top-secret');
+    expect(JSON.stringify(result)).not.toContain('top-secret');
+    expect(result.config.args).toContain('PreferredAuthentications=password');
+  });
+
+  it('refuses to send a saved password after an alias changes destination', async () => {
+    const dependencies = deps('hostname other.example\nuser alice\nport 2222');
+    await expect(
+      resolveSshConnectConfig(
+        {
+          kind: 'transient',
+          config: { ...base, authType: 'password', sshConfigAlias: 'work' },
+          previous: { ...base, authType: 'password' },
+        },
+        dependencies
+      )
+    ).rejects.toThrow('destination');
+    expect(dependencies.getPassword).not.toHaveBeenCalled();
+  });
+
+  it('binds retained passphrases to the selected key contents', async () => {
+    const dependencies = deps();
+    const key = { ...base, authType: 'key' as const, privateKeyPath: '/keys/work key' };
+    const first = await resolveSshConnectConfig(
+      { kind: 'transient', config: key, previous: key },
+      dependencies
+    );
+    expect(first.config.args).toEqual(expect.arrayContaining(['-i', '/keys/work key']));
+    expect(first.config.passphrase?.expose()).toBe('passphrase-secret');
+    const firstIdentity = vi.mocked(dependencies.getPassphrase!).mock.calls[0][1];
+    vi.mocked(dependencies.readFile!).mockResolvedValue('replacement key');
+    await resolveSshConnectConfig({ kind: 'transient', config: key, previous: key }, dependencies);
+    expect(vi.mocked(dependencies.getPassphrase!).mock.calls[1][1]).not.toBe(firstIdentity);
+  });
+
+  it.each(['-oProxyCommand=bad', 'host\nother', 'host;bad', ''])(
+    'rejects unsafe destinations: %j',
+    async (host) => {
       await expect(
-        resolveSshConnectConfig(
-          { kind: 'transient', config, previous: config },
-          deps({
-            getPassword,
-            resolveSshConfig: async () => ({
-              hostname: config.host,
-              user: config.username,
-              port: config.port,
-              identityFile: [],
-              identityAgentDisabled: false,
-              identitiesOnly: false,
-              forwardAgent: false,
-              ...change,
-            }),
-          })
-        )
-      ).rejects.toThrow('SSH config changed');
-      expect(getPassword).not.toHaveBeenCalled();
+        resolveSshConnectConfig({ kind: 'transient', config: { ...base, host } }, deps())
+      ).rejects.toThrow();
     }
   );
 
-  it('uses a stored password for an unchanged connection with a blank draft password', async () => {
-    const config = baseConfig();
-    const getPassword = vi.fn(async () => secret('stored-password'));
-    const result = await resolveSshConnectConfig(
-      { kind: 'transient', config: { ...config, password: '' }, previous: config },
-      deps({ getPassword })
-    );
-    expect(result.config.password).toBe('stored-password');
-    expect(getPassword).toHaveBeenCalledWith(config.id, expect.any(String));
+  it.each([0, -1, 65536, 1.5, NaN])('rejects invalid ports: %s', async (port) => {
+    await expect(
+      resolveSshConnectConfig({ kind: 'transient', config: { ...base, port } }, deps())
+    ).rejects.toThrow();
   });
 
-  it('uses a stored passphrase for the same key', async () => {
-    const config = baseConfig({ authType: 'key', privateKeyPath: '/keys/work' });
-    const result = await resolveSshConnectConfig(
-      { kind: 'transient', config, previous: config },
-      deps({ getPassphrase: async () => secret('stored-passphrase') })
+  it('preserves a zero connect timeout and explicit disabled keepalives', async () => {
+    const { config } = await resolveSshConnectConfig(
+      { kind: 'transient', config: { ...base, sshConfigAlias: 'work' } },
+      deps('hostname work.example\nuser alice\nport 2222\nconnecttimeout 0\nserveraliveinterval 0')
     );
-    expect(result.config.passphrase).toBe('stored-passphrase');
+    expect(config.readyTimeout).toBe(0);
+    expect(config.args).toContain('ServerAliveInterval=0');
+  });
+
+  it('does not weaken host verification or enable automatic background execution', async () => {
+    const { config } = await resolveSshConnectConfig({ kind: 'transient', config: base }, deps());
+    // Version-dependent session directives belong to the native backend.
+    expect(config.args.join(' ')).not.toMatch(/ForkAfterAuthentication|StdinNull|SessionType/);
+    expect(config.args).toContain('PermitLocalCommand=no');
+    expect(config.args.join(' ')).not.toMatch(
+      /StrictHostKeyChecking=no|UserKnownHostsFile=\/dev\/null/
+    );
   });
 });
 
-function deps(overrides: Partial<SshConnectDeps> = {}): SshConnectDeps {
-  return {
-    readFile: async () => 'PRIVATE KEY',
-    getPassword: async () => secret('stored-password'),
-    getPassphrase: async () => null,
-    resolveSshConfig: async () => ({
-      hostname: 'resolved.internal',
-      user: 'resolved-user',
-      port: 2201,
-      identityFile: [],
-      identityAgent: '/tmp/resolved-agent.sock',
-      identityAgentDisabled: false,
-      identitiesOnly: false,
-      proxyCommand: undefined,
-      proxyJump: undefined,
-      forwardAgent: false,
-    }),
-    findSshConfigByHostName: async () => undefined,
-    spawnProxyCommand: () => ({
-      sock: new PassThrough(),
-      cleanup: () => {},
-      debugLogs: ['proxy-command'],
-    }),
-    spawnProxyJump: () => ({
-      sock: new PassThrough(),
-      cleanup: () => {},
-      debugLogs: ['proxy-jump'],
-    }),
-    createAgent: () =>
-      ({
-        getIdentities: (callback) => callback(undefined, []),
-        sign: (
-          _pubKey,
-          _data,
-          callbackOrOptions?: SignCallback | object,
-          callback?: SignCallback
-        ) => {
-          const cb = typeof callbackOrOptions === 'function' ? callbackOrOptions : callback;
-          cb?.(undefined, Buffer.from('signature'));
-        },
-        getStream: (callback) => callback(undefined, new PassThrough()),
-      }) satisfies BaseAgent,
-    env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
-    ...overrides,
+it.each(['persisted', 'edit-test'] as const)(
+  'preserves the agent selection of a HostName-only connection (%s)',
+  async (kind) => {
+    const dependencies = {
+      ...deps('hostname work.example\nuser alice\nport 2222'),
+      findSshConfigByHostName: vi.fn(async () =>
+        parseSshGOutput(
+          'hostname work.example\nidentityagent /tmp/legacy-agent.sock\nidentitiesonly yes\nidentityfile /keys/legacy'
+        )
+      ),
+    };
+    const row: SshConnectionRow = {
+      ...base,
+      privateKeyPath: null,
+      useAgent: 1,
+      metadata: null,
+      createdAt: '',
+      updatedAt: '',
+      shouldConnect: 0,
+    };
+    const { config } = await resolveSshConnectConfig(
+      kind === 'persisted'
+        ? { kind: 'persisted', row }
+        : { kind: 'transient', config: base, previous: base },
+      dependencies
+    );
+    expect(config.destination).toBe('work.example');
+    expect(config.args).toEqual(
+      expect.arrayContaining([
+        'IdentityAgent=/tmp/legacy-agent.sock',
+        'IdentitiesOnly=yes',
+        '-i',
+        '/keys/legacy',
+      ])
+    );
+    expect(dependencies.findSshConfigByHostName).toHaveBeenCalledWith('work.example');
+  }
+);
+it('does not override an explicit native agent selection for a saved connection', async () => {
+  const dependencies = {
+    ...deps('hostname work.example\nuser alice\nport 2222\nidentityagent none'),
+    findSshConfigByHostName: vi.fn(),
   };
-}
-
-function parseFixturePublicKey(): ParsedKey {
-  const parsed = utils.parseKey(
-    'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI4wa2zRZoB26D015dsafYmu3jDCI7rh26bFXZrUiAp test-key'
-  );
-  if (parsed instanceof Error) throw parsed;
-  return parsed;
-}
-
-function parseOtherFixturePublicKey(): ParsedKey {
-  const parsed = utils.parseKey(
-    'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDirp5l3HstiHjo9xk1xLcKc7sa5iwQll5OPktBKCnbUjJN6VoE+muKOczApr6ktC3lMShukoUU15w91Pqg+g4oox7qgf+lfQE3IAQH0oVl9mCHS/gngg6I7QocwE2ShMV4au6uw+SphEnQcvgKpipF0g3LWyANTqNQg64MPldnOWkNdvV+1mgJ6L04dJaswpvOJslzrgkUzu1SgrpWXrhiI+DGw1c4lgxOt6VUlh5u2w2skWaHdddAAENW61Yxhvwjois2zzOPGx/pzo3a0peST0bgQMoqKniDRvMOYP99EQ9D28uLn035mzKNYIooTc9lK/C2jItA3fwq9PHfCM1D other-key'
-  );
-  if (parsed instanceof Error) throw parsed;
-  return parsed;
-}
-
-function row(partial: Partial<SshConnectionRow> = {}): SshConnectionRow {
-  return {
-    id: 'ssh-1',
-    name: 'Stored',
-    host: 'stored.example.com',
-    port: 22,
-    username: 'alice',
-    authType: 'agent',
+  const row: SshConnectionRow = {
+    ...base,
     privateKeyPath: null,
     useAgent: 1,
     metadata: null,
-    shouldConnect: null,
-    createdAt: '2026-05-20T00:00:00.000Z',
-    updatedAt: '2026-05-20T00:00:00.000Z',
-    ...partial,
+    createdAt: '',
+    updatedAt: '',
+    shouldConnect: 0,
   };
-}
-
-describe('resolveSshConnectConfig', () => {
-  it.each(['transient', 'persisted'] as const)(
-    'uses a key override with an SSH config target for %s connections',
-    async (kind) => {
-      const override = 'C:/Users/alice/.ssh/id_ed25519';
-      const readFiles: string[] = [];
-      const input =
-        kind === 'transient'
-          ? {
-              kind,
-              config: baseConfig({
-                authType: 'key',
-                sshConfigAlias: 'work.internal',
-                privateKeyPath: override,
-              }),
-            }
-          : {
-              kind,
-              row: row({
-                authType: 'key',
-                metadata: { sshConfigAlias: 'work.internal' },
-                privateKeyPath: override,
-              }),
-            };
-      const result = await resolveSshConnectConfig(
-        input,
-        deps({
-          readFile: async (path) => {
-            readFiles.push(path);
-            return 'OVERRIDE KEY';
-          },
-          resolveSshConfig: async () => ({
-            hostname: 'resolved.internal',
-            user: 'alice',
-            port: 2222,
-            identityFile: ['C:/Users/alice/.ssh/id_rsa'],
-            identityAgentDisabled: false,
-            identitiesOnly: false,
-            forwardAgent: false,
-            proxyJump: 'bastion',
-          }),
-        })
-      );
-      expect(readFiles).toEqual([override]);
-      expect(result.config).toMatchObject({
-        host: 'resolved.internal',
-        port: 2222,
-        privateKey: 'OVERRIDE KEY',
-      });
-      expect(result.debugLogs).toEqual(['proxy-jump']);
-    }
-  );
-
-  it('uses ssh -G as authoritative for alias-backed ProxyCommand', async () => {
-    const spawned: string[] = [];
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'transient',
-        config: baseConfig({
-          sshConfigAlias: 'corp-dev',
-          authType: 'agent',
-        }),
-      },
-      deps({
-        resolveSshConfig: async () => ({
-          hostname: 'dev.internal',
-          user: 'deploy',
-          port: 2222,
-          identityFile: [],
-          identityAgent: '/tmp/agent.sock',
-          identityAgentDisabled: false,
-          identitiesOnly: false,
-          proxyCommand: 'cloudflared access ssh --hostname %h',
-          proxyJump: 'ignored-because-command-wins',
-          forwardAgent: true,
-        }),
-        spawnProxyCommand: (command, tokens) => {
-          spawned.push(`${command} ${tokens.host}:${tokens.port} ${tokens.username}`);
-          return {
-            sock: new PassThrough(),
-            cleanup: () => {},
-            debugLogs: ['command debug'],
-          };
-        },
-      })
-    );
-
-    expect(result.config).toMatchObject({
-      host: 'dev.internal',
-      port: 2222,
-      username: 'deploy',
-      agent: '/tmp/agent.sock',
-      agentForward: true,
-      strictVendor: false,
-    });
-    expect(result.config.sock).toBeDefined();
-    expect(spawned).toEqual(['cloudflared access ssh --hostname %h dev.internal:2222 deploy']);
-    expect(result.debugLogs).toEqual(['command debug']);
-  });
-
-  it('ignores manual ProxyCommand but supports manual ProxyJump and ForwardAgent', async () => {
-    const jumps: string[] = [];
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'transient',
-        config: {
-          ...baseConfig({
-            authType: 'password',
-            forwardAgent: true,
-            proxyJump: 'bastion',
-          }),
-          password: 'secret',
-          proxyCommand: 'not part of SshConfig but should not execute',
-        } as SshConfig & { password: string; proxyCommand: string },
-      },
-      deps({
-        spawnProxyCommand: () => {
-          throw new Error('manual proxy command must not execute');
-        },
-        spawnProxyJump: (jumpSpec, host, port) => {
-          jumps.push(`${jumpSpec}->${host}:${port}`);
-          return {
-            sock: new PassThrough(),
-            cleanup: () => {},
-            debugLogs: ['jump debug'],
-          };
-        },
-      })
-    );
-
-    expect(result.config).toMatchObject({
-      host: 'manual.example.com',
-      port: 22,
-      username: 'alice',
-      password: 'secret',
-      agentForward: true,
-      agent: '/tmp/default-agent.sock',
-    });
-    expect(jumps).toEqual(['bastion->manual.example.com:22']);
-    expect(result.debugLogs).toEqual(['jump debug']);
-  });
-
-  it('honors alias-resolved IdentityAgent none and SSH_AUTH_SOCK values', async () => {
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-        },
-        deps({
-          resolveSshConfig: async () => ({
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: [],
-            identityAgent: undefined,
-            identityAgentDisabled: true,
-            identitiesOnly: false,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: false,
-          }),
-        })
-      )
-    ).rejects.toThrow('SSH agent is disabled');
-
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-        },
-        deps({
-          env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
-          resolveSshConfig: async () => ({
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: [],
-            identityAgent: 'SSH_AUTH_SOCK',
-            identityAgentDisabled: false,
-            identitiesOnly: false,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: false,
-          }),
-        })
-      )
-    ).resolves.toMatchObject({
-      config: { agent: '/tmp/default-agent.sock' },
-    });
-  });
-
-  it('limits alias-backed agent auth to IdentityFile keys when IdentitiesOnly is enabled', async () => {
-    const readFiles: string[] = [];
-    const allowedKey = parseFixturePublicKey();
-    const deniedKey = parseOtherFixturePublicKey();
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'transient',
-        config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-      },
-      deps({
-        readFile: async (path) => {
-          readFiles.push(path);
-          return 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI4wa2zRZoB26D015dsafYmu3jDCI7rh26bFXZrUiAp test-key';
-        },
-        env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
-        createAgent: () =>
-          ({
-            getIdentities: (callback) =>
-              callback(undefined, [{ pubKey: { pubKey: allowedKey } }, deniedKey]),
-            sign: (
-              _pubKey,
-              _data,
-              callbackOrOptions?: SignCallback | object,
-              callback?: SignCallback
-            ) => {
-              const cb = typeof callbackOrOptions === 'function' ? callbackOrOptions : callback;
-              cb?.(undefined, Buffer.from('signature'));
-            },
-            getStream: (callback) => callback(undefined, new PassThrough()),
-          }) satisfies BaseAgent,
-        resolveSshConfig: async () => ({
-          hostname: 'dev.internal',
-          user: 'alice',
-          port: 22,
-          identityFile: ['~/.ssh/corp_ed25519'],
-          identityAgent: 'SSH_AUTH_SOCK',
-          identityAgentDisabled: false,
-          identitiesOnly: true,
-          proxyCommand: undefined,
-          proxyJump: undefined,
-          forwardAgent: false,
-        }),
-      })
-    );
-
-    expect(readFiles).toEqual([expect.stringContaining('/.ssh/corp_ed25519.pub')]);
-    expect(result.config.agent).toEqual(
-      expect.objectContaining({ kind: 'identity-filtered-agent' })
-    );
-    const agent = result.config.agent as BaseAgent;
-    const identities = await new Promise<unknown[]>((resolve, reject) => {
-      agent.getIdentities((error, keys) => {
-        if (error) reject(error);
-        else resolve(keys ?? []);
-      });
-    });
-    expect(identities).toHaveLength(1);
-    const signature = await new Promise<Buffer>((resolve, reject) => {
-      agent.sign(allowedKey, Buffer.from('payload'), (error, signed) => {
-        if (error) reject(error);
-        else resolve(signed ?? Buffer.alloc(0));
-      });
-    });
-    expect(signature.toString()).toBe('signature');
-    await expect(
-      new Promise((resolve, reject) => {
-        agent.getStream?.((error, stream) => {
-          if (error) reject(error);
-          else resolve(stream);
-        });
-      })
-    ).resolves.toBeInstanceOf(PassThrough);
-  });
-
-  it('produces an agent ssh2 accepts: IdentityFilteredAgent must pass the instanceof check', async () => {
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'transient',
-        config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-      },
-      deps({
-        readFile: async () =>
-          'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI4wa2zRZoB26D015dsafYmu3jDCI7rh26bFXZrUiAp test-key',
-        resolveSshConfig: async () => ({
-          hostname: 'dev.internal',
-          user: 'alice',
-          port: 22,
-          identityFile: ['~/.ssh/corp_ed25519'],
-          identityAgent: '/tmp/auth-agent.sock',
-          identityAgentDisabled: false,
-          identitiesOnly: true,
-          proxyCommand: undefined,
-          proxyJump: undefined,
-          forwardAgent: false,
-        }),
-      })
-    );
-
-    // ssh2's client config validation keeps a custom agent only when
-    // isAgent(val) holds, and isAgent is `val instanceof BaseAgent`.
-    expect(result.config.agent).toBeInstanceOf(BaseAgent);
-  });
-
-  it('does not expose agent getStream when the wrapped agent does not support it', async () => {
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'transient',
-        config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-      },
-      deps({
-        readFile: async () =>
-          'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI4wa2zRZoB26D015dsafYmu3jDCI7rh26bFXZrUiAp test-key',
-        createAgent: () =>
-          ({
-            getIdentities: (callback) => callback(undefined, [parseFixturePublicKey()]),
-            sign: (
-              _pubKey,
-              _data,
-              callbackOrOptions?: SignCallback | object,
-              callback?: SignCallback
-            ) => {
-              const cb = typeof callbackOrOptions === 'function' ? callbackOrOptions : callback;
-              cb?.(undefined, Buffer.from('signature'));
-            },
-          }) satisfies BaseAgent,
-        resolveSshConfig: async () => ({
-          hostname: 'dev.internal',
-          user: 'alice',
-          port: 22,
-          identityFile: ['~/.ssh/corp_ed25519'],
-          identityAgent: 'SSH_AUTH_SOCK',
-          identityAgentDisabled: false,
-          identitiesOnly: true,
-          proxyCommand: undefined,
-          proxyJump: undefined,
-          forwardAgent: false,
-        }),
-      })
-    );
-
-    const agent = result.config.agent as BaseAgent;
-    expect('getStream' in agent).toBe(false);
-    expect(agent.getStream).toBeUndefined();
-  });
-
-  it('rejects IdentitiesOnly when no IdentityFile public or private keys can be loaded', async () => {
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-        },
-        deps({
-          readFile: async () => {
-            throw new Error('missing key');
-          },
-          resolveSshConfig: async () => ({
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: ['~/.ssh/missing'],
-            identityAgent: '/tmp/auth-agent.sock',
-            identityAgentDisabled: false,
-            identitiesOnly: true,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: false,
-          }),
-        })
-      )
-    ).rejects.toThrow('IdentitiesOnly is enabled');
-  });
-
-  it('uses SSH_AUTH_SOCK for ForwardAgent yes even when IdentityAgent disables auth agent selection', async () => {
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: {
-            ...baseConfig({
-              sshConfigAlias: 'corp-dev',
-              authType: 'password',
-              host: 'dev.internal',
-            }),
-            password: 'pw',
-          },
-        },
-        deps({
-          env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
-          resolveSshConfig: async () => ({
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: [],
-            identityAgent: undefined,
-            identityAgentDisabled: true,
-            identitiesOnly: false,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: true,
-          }),
-        })
-      )
-    ).resolves.toMatchObject({
-      config: {
-        password: 'pw',
-        agentForward: true,
-        agent: '/tmp/default-agent.sock',
-      },
-    });
-  });
-
-  it('fails clearly when required auth or forwarding credentials are unavailable', async () => {
-    await expect(
-      resolveSshConnectConfig(
-        { kind: 'persisted', row: row({ authType: 'password' }) },
-        deps({ getPassword: async () => null })
-      )
-    ).rejects.toThrow('Enter a password');
-
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: baseConfig({ authType: 'key', privateKeyPath: undefined }),
-        },
-        deps({
-          resolveSshConfig: async () => ({
-            ...(await deps().resolveSshConfig('x')),
-            identityFile: [],
-          }),
-        })
-      )
-    ).rejects.toThrow('Private key path is required');
-
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: baseConfig({ authType: 'agent' }),
-        },
-        deps({
-          env: {},
-          resolveSshConfig: async () => {
-            throw new Error('no matching ssh config');
-          },
-          findSshConfigByHostName: async () => undefined,
-        })
-      )
-    ).rejects.toThrow('SSH agent socket not found');
-
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: { ...baseConfig({ authType: 'password', forwardAgent: true }), password: 'pw' },
-        },
-        deps({ env: {} })
-      )
-    ).rejects.toThrow('no SSH agent socket is available');
-  });
-
-  it('preserves legacy manual agent connections that resolve IdentityAgent by host', async () => {
-    const resolvedAliases: string[] = [];
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'persisted',
-        row: row({ host: 'legacy-host', authType: 'agent', metadata: null }),
-      },
-      deps({
-        env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
-        resolveSshConfig: async (alias) => {
-          resolvedAliases.push(alias);
-          return {
-            hostname: 'should-not-override.example.com',
-            user: 'should-not-override',
-            port: 2200,
-            identityFile: [],
-            identityAgent: '/tmp/legacy-agent.sock',
-            identityAgentDisabled: false,
-            identitiesOnly: false,
-            proxyCommand: 'should-not-run',
-            proxyJump: 'should-not-run',
-            forwardAgent: false,
-          };
-        },
-        spawnProxyCommand: () => {
-          throw new Error('manual host proxy command must not execute');
-        },
-        spawnProxyJump: () => {
-          throw new Error('manual host proxy jump must not execute');
-        },
-      })
-    );
-
-    expect(resolvedAliases).toEqual(['legacy-host']);
-    expect(result.config).toMatchObject({
-      host: 'legacy-host',
-      port: 22,
-      username: 'alice',
-      agent: '/tmp/legacy-agent.sock',
-    });
-    expect(result.config.sock).toBeUndefined();
-  });
-
-  it('preserves legacy IdentityAgent lookup when the row host is the resolved HostName', async () => {
-    const resolvedAliases: string[] = [];
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'persisted',
-        row: row({ host: 'dev.internal', authType: 'agent', metadata: null }),
-      },
-      deps({
-        env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
-        resolveSshConfig: async (alias) => {
-          resolvedAliases.push(alias);
-          if (alias === 'dev.internal') {
-            return {
-              hostname: 'dev.internal',
-              user: 'alice',
-              port: 22,
-              identityFile: [],
-              identityAgent: undefined,
-              identityAgentDisabled: false,
-              identitiesOnly: false,
-              proxyCommand: undefined,
-              proxyJump: undefined,
-              forwardAgent: false,
-            };
-          }
-          return {
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: [],
-            identityAgent: '/tmp/legacy-hostname-agent.sock',
-            identityAgentDisabled: false,
-            identitiesOnly: false,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: false,
-          };
-        },
-        findSshConfigByHostName: async (hostname) =>
-          hostname === 'dev.internal'
-            ? {
-                hostname: 'dev.internal',
-                user: 'alice',
-                port: 22,
-                identityFile: [],
-                identityAgent: '/tmp/legacy-hostname-agent.sock',
-                identityAgentDisabled: false,
-                identitiesOnly: false,
-                proxyCommand: undefined,
-                proxyJump: undefined,
-                forwardAgent: false,
-              }
-            : undefined,
-      })
-    );
-
-    expect(resolvedAliases).toEqual(['dev.internal']);
-    expect(result.config).toMatchObject({
-      host: 'dev.internal',
-      username: 'alice',
-      agent: '/tmp/legacy-hostname-agent.sock',
-    });
-  });
-
-  it('uses ForwardAgent socket values from ssh config instead of the default agent', async () => {
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: {
-            ...baseConfig({
-              sshConfigAlias: 'corp-dev',
-              authType: 'password',
-              host: 'dev.internal',
-            }),
-            password: 'pw',
-          },
-        },
-        deps({
-          env: { WORK_AGENT: '/tmp/work-agent.sock', SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
-          resolveSshConfig: async () => ({
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: [],
-            identityAgent: undefined,
-            identityAgentDisabled: false,
-            identitiesOnly: false,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: true,
-            forwardAgentValue: '$WORK_AGENT',
-          }),
-        })
-      )
-    ).resolves.toMatchObject({
-      config: {
-        agentForward: true,
-        agent: '/tmp/work-agent.sock',
-      },
-    });
-  });
-
-  it('rejects split auth and forwarding agent sockets when using agent auth', async () => {
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-        },
-        deps({
-          resolveSshConfig: async () => ({
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: [],
-            identityAgent: '/tmp/auth-agent.sock',
-            identityAgentDisabled: false,
-            identitiesOnly: false,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: true,
-            forwardAgentValue: '/tmp/forward-agent.sock',
-          }),
-        })
-      )
-    ).rejects.toThrow('different SSH agent sockets');
-  });
-
-  it('rejects split ForwardAgent sockets when IdentitiesOnly wraps agent auth', async () => {
-    await expect(
-      resolveSshConnectConfig(
-        {
-          kind: 'transient',
-          config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-        },
-        deps({
-          readFile: async () =>
-            'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI4wa2zRZoB26D015dsafYmu3jDCI7rh26bFXZrUiAp test-key',
-          resolveSshConfig: async () => ({
-            hostname: 'dev.internal',
-            user: 'alice',
-            port: 22,
-            identityFile: ['~/.ssh/corp_ed25519'],
-            identityAgent: '/tmp/auth-agent.sock',
-            identityAgentDisabled: false,
-            identitiesOnly: true,
-            proxyCommand: undefined,
-            proxyJump: undefined,
-            forwardAgent: true,
-            forwardAgentValue: '/tmp/forward-agent.sock',
-          }),
-        })
-      )
-    ).rejects.toThrow('different SSH agent sockets');
-  });
-
-  it('creates a production resolver with explicit credential dependencies', async () => {
-    const resolver = createSshConnectConfigResolver({
-      ...deps(),
-      getPassword: async (id) => secret(`password-for-${id}`),
-    });
-
-    await expect(
-      resolver({
-        kind: 'persisted',
-        row: row({ authType: 'password' }),
-      })
-    ).resolves.toMatchObject({
-      config: { password: 'password-for-ssh-1' },
-    });
-  });
-
-  it('returns the live proxy debug log array rather than a one-time snapshot', async () => {
-    const debugLogs: string[] = [];
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'transient',
-        config: { ...baseConfig({ authType: 'password', proxyJump: 'bastion' }), password: 'pw' },
-      },
-      deps({
-        spawnProxyJump: () => ({
-          sock: new PassThrough(),
-          cleanup: () => {},
-          debugLogs,
-        }),
-      })
-    );
-
-    debugLogs.push('late stderr');
-    expect(result.debugLogs).toContain('late stderr');
-  });
-
-  it('preserves ConnectTimeout 0 as an infinite ssh2 ready timeout', async () => {
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'transient',
-        config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
-      },
-      deps({
-        resolveSshConfig: async () => ({
-          hostname: 'dev.internal',
-          user: 'deploy',
-          port: 22,
-          identityFile: [],
-          identityAgent: '/tmp/agent.sock',
-          identityAgentDisabled: false,
-          identitiesOnly: false,
-          proxyCommand: undefined,
-          proxyJump: undefined,
-          forwardAgent: false,
-          connectTimeout: 0,
-        }),
-      })
-    );
-
-    expect(result.config.readyTimeout).toBe(0);
-  });
-
-  it('loads persisted credentials and uses the first alias identity file for key auth', async () => {
-    const readFiles: string[] = [];
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'persisted',
-        row: row({
-          authType: 'key',
-          host: 'dev.internal',
-          username: 'deploy',
-          port: 2222,
-          privateKeyPath: null,
-          metadata: { sshConfigAlias: 'corp-dev' },
-        }),
-      },
-      deps({
-        readFile: async (path) => {
-          readFiles.push(path);
-          return 'KEY DATA';
-        },
-        getPassphrase: async (id) => secret(`passphrase-for-${id}`),
-        resolveSshConfig: async () => ({
-          hostname: 'dev.internal',
-          user: 'deploy',
-          port: 2222,
-          identityFile: ['~/.ssh/corp_ed25519', '~/.ssh/fallback'],
-          identityAgent: undefined,
-          identityAgentDisabled: false,
-          identitiesOnly: true,
-          proxyCommand: undefined,
-          proxyJump: undefined,
-          forwardAgent: false,
-        }),
-      })
-    );
-
-    expect(readFiles).toEqual([expect.stringContaining('/.ssh/corp_ed25519')]);
-    expect(result.config).toMatchObject({
-      host: 'dev.internal',
-      port: 2222,
-      username: 'deploy',
-      privateKey: 'KEY DATA',
-      passphrase: 'passphrase-for-ssh-1',
-    });
-  });
-
-  it('treats a blank stored private key path as absent for alias-backed key auth', async () => {
-    const readFiles: string[] = [];
-    const result = await resolveSshConnectConfig(
-      {
-        kind: 'persisted',
-        row: row({
-          authType: 'key',
-          privateKeyPath: '',
-          metadata: { sshConfigAlias: 'corp-dev' },
-        }),
-      },
-      deps({
-        readFile: async (path) => {
-          readFiles.push(path);
-          return 'ALIAS KEY';
-        },
-        resolveSshConfig: async () => ({
-          hostname: 'dev.internal',
-          user: 'deploy',
-          port: 2222,
-          identityFile: ['~/.ssh/corp_ed25519'],
-          identityAgent: undefined,
-          identityAgentDisabled: false,
-          identitiesOnly: true,
-          proxyCommand: undefined,
-          proxyJump: undefined,
-          forwardAgent: false,
-        }),
-      })
-    );
-
-    expect(readFiles).toEqual([expect.stringContaining('/.ssh/corp_ed25519')]);
-    expect(result.config.privateKey).toBe('ALIAS KEY');
-  });
+  const { config } = await resolveSshConnectConfig({ kind: 'persisted', row }, dependencies);
+  expect(dependencies.findSshConfigByHostName).not.toHaveBeenCalled();
+  expect(config.args.join(' ')).not.toContain('IdentityAgent=');
 });

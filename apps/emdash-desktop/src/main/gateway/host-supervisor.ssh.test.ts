@@ -1,21 +1,11 @@
-import { EventEmitter } from 'node:events';
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { peek } from '@emdash/wire/state';
-import type { Client } from 'ssh2';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ManagedHostConnection } from '@core/services/hosts/node/managed-host-connection';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
-
-class PhysicalClient extends EventEmitter {
-  connect() {}
-  destroy() {
-    this.emit('close');
-  }
-  end() {
-    this.emit('close');
-  }
-}
+import type { SshSession } from '@core/services/ssh/node/openssh/session';
+import { deferred, fakeSession } from '@core/services/ssh/node/openssh/testing/session';
 
 describe('supervisor with the production SSH generation adapter', () => {
   let fixture: ReturnType<typeof createFixture>;
@@ -38,23 +28,24 @@ describe('supervisor with the production SSH generation adapter', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(fixture.clients).toHaveLength(2);
     const current = fixture.clients[1]!;
-    current.emit('ready');
+    current.ready.resolve(current.session);
     await connecting;
-    old.emit('ready');
-    old.emit('close');
-    expect(fixture.manager.getProxy('host')?.client).toBe(current);
+    old.ready.resolve(old.session);
+    old.session.lost.resolve(undefined);
+    await fixture.manager.getProxy('host')?.execScript('true');
+    expect(current.session.exec).toHaveBeenCalledOnce();
     expect(fixture.manager.isConnected('host')).toBe(true);
   });
 
   it('owns automatic physical recovery and stops on authentication failure', async () => {
     const connecting = fixture.managed.connectSsh();
     await vi.advanceTimersByTimeAsync(0);
-    fixture.clients[0]!.emit('ready');
+    fixture.clients[0]!.ready.resolve(fixture.clients[0]!.session);
     await connecting;
-    fixture.clients[0]!.emit('close');
+    fixture.clients[0]!.session.lost.resolve(undefined);
     await vi.advanceTimersByTimeAsync(0);
     expect(fixture.clients).toHaveLength(2);
-    fixture.clients[1]!.emit('error', new Error('All configured authentication methods failed'));
+    fixture.clients[1]!.ready.reject(new Error('All configured authentication methods failed'));
     await vi.advanceTimersByTimeAsync(600_000);
     expect(peek(fixture.supervisor.state).kind).toBe('blocked');
     expect(fixture.clients).toHaveLength(2);
@@ -63,12 +54,15 @@ describe('supervisor with the production SSH generation adapter', () => {
 
 function createFixture() {
   const scope = createScope({ label: 'supervisor-physical-ssh-test' });
-  const clients: PhysicalClient[] = [];
+  const clients: Array<{
+    session: ReturnType<typeof fakeSession>;
+    ready: ReturnType<typeof deferred<SshSession>>;
+  }> = [];
   const manager = new SshConnectionManager({
-    createClient: () => {
-      const instance = new PhysicalClient();
+    connectSession: () => {
+      const instance = { session: fakeSession(), ready: deferred<SshSession>() };
       clients.push(instance);
-      return instance as unknown as Client;
+      return instance.ready.promise;
     },
   });
   const managed = new ManagedHostConnection({
@@ -82,8 +76,14 @@ function createFixture() {
         await manager.createConnection(
           'host',
           async () => ({
-            config: { host: 'fault.invalid', username: 'test' },
-            cleanup() {},
+            config: {
+              destination: 'fault.invalid',
+              hostname: 'fault.invalid',
+              username: 'test',
+              args: [],
+              env: {},
+              readyTimeout: 1000,
+            },
             debugLogs: [],
           }),
           { signal }

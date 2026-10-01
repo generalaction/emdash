@@ -20,12 +20,12 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 - **linear** — Linear integration
 - **mcp** — MCP service, adapters, config IO, catalog
 - **projects** — Project management with provider pattern (`local-project-provider.ts`), worktree service, project settings, CRUD operations
-- **pty** — PTY lifecycle (`local-pty.ts`, `ssh2-pty.ts`), session registry, env setup, spawn utilities
+- **pty** — PTY lifecycle in `packages/core/src/services/pty/`, hosted locally or in the remote workspace server; session registry, env setup, spawn utilities
 - **repository** — Repository controller
 - **settings** — App settings service and schema, provider settings (separate controller)
 - **shared** — Shared utilities (OAuth flow)
 - **skills** — Skills service and controller
-- **ssh** — SSH connection management, credentials, config parsing, client proxy
+- **ssh** (`src/core/services/ssh/node/`) — managed OpenSSH processes, credentials, config resolution, stable client proxy
 - **tasks** — Task CRUD (create, delete, archive, restore, provision)
 - **terminals** — Terminal lifecycle with provider pattern (`local-terminal-provider.ts`, `ssh-terminal-provider.ts`); lifecycle scripts run in the host scripts runtime (`packages/core/src/runtimes/scripts/`)
 - **updates** — Auto-update service

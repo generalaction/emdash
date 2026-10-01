@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Command } from '@emdash/core/primitives/exec/api';
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { joinAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
@@ -6,10 +9,10 @@ import { parseChannelPointer, protocolMajor } from '@emdash/core/workspace-serve
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
-import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import { createHosts } from '@core/services/hosts/node/hosts';
 import { workspaceServerLayout } from '@core/services/hosts/node/workspace-server/layout';
+import { resolveSshConnectConfig } from '@core/services/ssh/node/connect/resolve-ssh-connect-config';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
 import { createDesktopRuntimeBroker } from './runtime-broker';
 
@@ -22,19 +25,30 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
     const connectionId = 'docker-workspace-server-smoke';
     const scope = createScope({ label: 'workspace-server-docker-test' });
     const manager = new SshConnectionManager();
-    const connectConfig: ConnectConfig = {
-      host: '127.0.0.1',
-      port: 2223,
-      username: 'devuser',
-      password: 'devpass',
-      readyTimeout: 10_000,
-      keepaliveInterval: 1_000,
-      keepaliveCountMax: 3,
-    };
+    const directory = await mkdtemp(join(tmpdir(), 'emdash-remote-smoke-'));
+    const { config: connectConfig } = await resolveSshConnectConfig({
+      kind: 'transient',
+      config: {
+        id: connectionId,
+        name: 'Docker test',
+        host: '127.0.0.1',
+        port: 2223,
+        username: 'devuser',
+        authType: 'password',
+        password: 'devpass',
+      },
+    });
+    connectConfig.args.unshift(
+      '-F',
+      '/dev/null',
+      '-o',
+      `UserKnownHostsFile=${join(directory, 'known_hosts')}`,
+      '-o',
+      'StrictHostKeyChecking=accept-new'
+    );
     const connect = async () => {
       await manager.createConnection(connectionId, async () => ({
         config: connectConfig,
-        cleanup: () => {},
         debugLogs: [],
       }));
       return manager.getConnectionState(connectionId);
@@ -52,11 +66,9 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
           readIntent: async () => true,
           writeIntent: async () => {},
           establish: (id, signal) =>
-            manager.createConnection(
-              id,
-              async () => ({ config: connectConfig, cleanup() {}, debugLogs: [] }),
-              { signal }
-            ),
+            manager.createConnection(id, async () => ({ config: connectConfig, debugLogs: [] }), {
+              signal,
+            }),
           reset: (id) => manager.resetConnection(id),
           probe: async (id, signal) => {
             const proxy = manager.getProxy(id);
@@ -161,7 +173,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         disconnected.resolve()
       );
       const daemonId = connection.currentHandshake()?.server.daemonId;
-      manager.getProxy(connectionId)?.client.destroy();
+      manager.resetConnection(connectionId);
       await disconnected.promise;
       stopWatchingDisconnect();
 
@@ -177,7 +189,6 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       const proxy = await manager
         .createConnection(connectionId, async () => ({
           config: connectConfig,
-          cleanup: () => {},
           debugLogs: [],
         }))
         .catch(() => undefined);
@@ -185,6 +196,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       await hosts.dispose();
       await manager.disconnectAll();
       await scope.dispose();
+      await rm(directory, { recursive: true, force: true });
     }
   }, 120_000);
 });

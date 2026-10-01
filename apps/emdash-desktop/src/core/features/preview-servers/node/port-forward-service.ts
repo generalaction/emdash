@@ -14,7 +14,7 @@ export type OpenPortForwardRequest = {
   projectId: string;
   workspaceId: string;
   connectionId: string;
-  proxy: Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>;
+  proxy: Pick<SshClientProxy, 'forwardPort' | 'isConnected'>;
   remotePort: number;
   preferredLocalPort?: number;
   probe?: PortForwardProbe;

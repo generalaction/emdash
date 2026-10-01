@@ -117,13 +117,13 @@ to the same socket path.
 underlying socket/channel from `close()`. `streamTransport()` itself only releases
 its parsing listeners because it does not own the streams passed to it.
 
-`ensureWorkspaceDaemon()` is a future desktop bootstrap step. It should call the
-server-side lifecycle CLI to probe the socket, start the daemon if absent, and
-leave version upgrades to the wire update flow. After the daemon exists, each
-`connectOnce` uses the current ssh2 client exposed by `SshClientProxy` to open an
-`openssh_forwardOutStreamLocal` channel and adapts it with
-`streamTransport(channel, channel)`. A convenience method may be added to the proxy
-when the SSH connector is implemented.
+The desktop bootstrap probes and provisions the daemon separately from transport attachment.
+Each SSH attachment calls `SshClientProxy.openStream()` with a stdio relay command. The relay uses
+`<workspace-root>/current/node`, already present in existing server installations, and connects to
+`<workspace-root>/run/workspace.sock`. OpenSSH carries the binary stream; no native SSH library
+client or forwarding extension crosses the application boundary. Closing an attachment terminates
+only its SSH/relay processes, leaving the daemon and other clients running. The Host connection
+supervisor owns recovery; the SSH and stream adapters do not add their own reconnect loops.
 
 ## Handshake and Readiness Invariants
 

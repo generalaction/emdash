@@ -5,7 +5,7 @@ import { bindCredential, readBoundCredential, sshCredentialKeys } from './creden
 /**
  * Stores and retrieves SSH passwords and passphrases as `Secret`-typed values.
  * Plaintext never surfaces here: values arrive wrapped, pass through the
- * Secret-typed store, and are disclosed only at the ssh2 connect-config
+ * Secret-typed store, and are disclosed only at the OpenSSH askpass
  * assembly (`connect/ssh-connect-auth.ts`).
  */
 export class SshCredentialService {

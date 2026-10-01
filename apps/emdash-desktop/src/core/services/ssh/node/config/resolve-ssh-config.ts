@@ -128,6 +128,15 @@ export function createExecFileSshConfigRunner(
         { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer },
         (error, stdout, stderr) => {
           if (error) {
+            if (error.code === 'ENOENT') {
+              reject(
+                new Error(
+                  'OpenSSH client was not found. Install OpenSSH and make ssh available to Emdash.',
+                  { cause: error }
+                )
+              );
+              return;
+            }
             const execError = error as Error & { killed?: boolean; signal?: string | null };
             if (execError.killed && execError.signal === 'SIGKILL') {
               reject(new Error(`ssh -G timed out after ${timeoutMs}ms`));

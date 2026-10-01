@@ -1,9 +1,8 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { createPrivateKey, generateKeyPairSync } from 'node:crypto';
 import { secret } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
-import { utils } from 'ssh2';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MachinesService } from '@core/features/machines/api/node/machines-service';
 import { captureMachineSave } from '@core/features/machines/node/machine-persistence';
@@ -109,7 +108,9 @@ describe('atomic, identity-bound machine credentials', () => {
           passphrase: 'legacy-passphrase',
         },
       });
-      expect(utils.parseKey(privateKey, 'legacy-passphrase')).not.toBeInstanceOf(Error);
+      expect(createPrivateKey({ key: privateKey, passphrase: 'legacy-passphrase' }).type).toBe(
+        'private'
+      );
       readFile.mockResolvedValue(privateKey);
       const config = {
         ...original,
@@ -142,11 +143,13 @@ describe('atomic, identity-bound machine credentials', () => {
       const row = captureMachineSave(fixture.db, config.id).connection!;
       const result = await resolveSshConnectConfig({ kind: 'persisted', row }, connectDeps());
       expect(
-        utils.parseKey(result.config.privateKey!, result.config.passphrase)
+        createPrivateKey({ key: privateKey, passphrase: result.config.passphrase?.expose() })
       ).not.toBeInstanceOf(Error);
       await service.saveMachine({ ...draft, name: 'Renamed again' });
       expect(
-        (await resolveSshConnectConfig({ kind: 'persisted', row }, connectDeps())).config.passphrase
+        (
+          await resolveSshConnectConfig({ kind: 'persisted', row }, connectDeps())
+        ).config.passphrase?.expose()
       ).toBe('legacy-passphrase');
     }
   );
@@ -228,7 +231,7 @@ describe('atomic, identity-bound machine credentials', () => {
       { kind: 'transient', config: original, previous: original },
       connectDeps()
     );
-    expect(result.config.password).toBe('winning password');
+    expect(result.config.password?.expose()).toBe('winning password');
   });
 
   it.each(['path', 'contents'] as const)(
@@ -237,9 +240,9 @@ describe('atomic, identity-bound machine credentials', () => {
       const config = { ...original, authType: 'key' as const, sshConfigAlias: 'work' };
       await service.saveMachine({ ...config, passphrase: 'old key passphrase' });
       const input = { kind: 'transient' as const, config, previous: config };
-      expect((await resolveSshConnectConfig(input, connectDeps())).config.passphrase).toBe(
-        'old key passphrase'
-      );
+      expect(
+        (await resolveSshConnectConfig(input, connectDeps())).config.passphrase?.expose()
+      ).toBe('old key passphrase');
       if (change === 'path')
         resolveSshConfig.mockResolvedValue({
           ...(await resolveSshConfig()),
@@ -247,7 +250,7 @@ describe('atomic, identity-bound machine credentials', () => {
         });
       else readFile.mockResolvedValue('replacement contents at the same path');
       expect(
-        (await resolveSshConnectConfig(input, connectDeps())).config.passphrase
+        (await resolveSshConnectConfig(input, connectDeps())).config.passphrase?.expose()
       ).toBeUndefined();
       const row = fixture.db
         .select()
@@ -255,14 +258,16 @@ describe('atomic, identity-bound machine credentials', () => {
         .where(eq(sshConnections.id, original.id))
         .get()!;
       expect(
-        (await resolveSshConnectConfig({ kind: 'persisted', row }, connectDeps())).config.passphrase
+        (
+          await resolveSshConnectConfig({ kind: 'persisted', row }, connectDeps())
+        ).config.passphrase?.expose()
       ).toBeUndefined();
       await service.saveMachine(config);
       expect(await store.getSecret(sshCredentialKeys(config.id).boundPassphrase)).toBeNull();
       await service.saveMachine({ ...config, passphrase: 'replacement passphrase' });
-      expect((await resolveSshConnectConfig(input, connectDeps())).config.passphrase).toBe(
-        'replacement passphrase'
-      );
+      expect(
+        (await resolveSshConnectConfig(input, connectDeps())).config.passphrase?.expose()
+      ).toBe('replacement passphrase');
     }
   );
 
@@ -320,7 +325,7 @@ describe('atomic, identity-bound machine credentials', () => {
           { kind: 'transient', config: original, previous: original },
           connectDeps()
         )
-      ).config.password
+      ).config.password?.expose()
     ).toBe('legacy password');
     await credentials.storePassphrase(original.id, secret('unbound passphrase'));
     await expect(credentials.getPassphrase(original.id, 'unknown-key')).rejects.toThrow(

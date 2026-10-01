@@ -79,7 +79,6 @@
     "node-pty": "1.1.0",
     "pidusage": "^4.0.1",
     "smol-toml": "^1.6.0",
-    "ssh2": "^1.17.0",
     "tinykeys": "^4.0.0",
     "ts-pattern": "^5.9.0",
     "zod": "^4.3.6"
@@ -102,7 +101,6 @@
     "@types/pidusage": "^2.0.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/ssh2": "^1.15.5",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/browser": "^4.1.0",
     "@vitest/browser-playwright": "^4.1.0",

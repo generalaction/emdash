@@ -49,6 +49,11 @@ serveralivecountmax 2
 });
 
 describe('resolveSshConfig', () => {
+  it('explains a missing OpenSSH installation when resolving an alias', async () => {
+    await expect(resolveSshConfig('corp-dev', { sshPath: '/emdash-missing-ssh' })).rejects.toThrow(
+      /OpenSSH.*not found/
+    );
+  });
   it('rejects aliases that could be interpreted as ssh options', async () => {
     await expect(resolveSshConfig('-F/tmp/config')).rejects.toThrow('Invalid SSH config alias');
     await expect(resolveSshConfig('--')).rejects.toThrow('Invalid SSH config alias');

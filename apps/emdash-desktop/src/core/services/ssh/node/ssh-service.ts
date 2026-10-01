@@ -134,18 +134,7 @@ export class SshService implements SshServiceContract {
             previous,
           });
           debugLogs = resolved.debugLogs;
-          const existingDebug = resolved.config.debug;
-          return {
-            ...resolved,
-            config: {
-              ...resolved.config,
-              readyTimeout: resolved.config.readyTimeout ?? 10_000,
-              debug: (information: string) => {
-                existingDebug?.(information);
-                debugLogs.push(information);
-              },
-            },
-          };
+          return resolved;
         },
         { ephemeral: true }
       );

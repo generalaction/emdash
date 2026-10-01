@@ -1,36 +1,17 @@
 import { EventEmitter } from 'node:events';
 import { waitWithSignal } from '@emdash/shared/scheduling';
-import ssh2, { type Client } from 'ssh2';
 import type { ConnectionState, SshConnectionEvent, SshHealthState } from '@core/primitives/ssh/api';
 import { SshConnectionFailure } from '@core/primitives/ssh/api/node/connection-control';
 import type {
   SshConnectionManager as SshConnectionManagerContract,
   SshConnectionManagerEvent,
 } from '@core/primitives/ssh/api/node/ssh-connection-manager';
-import type { SshConnectResult } from '../connect/resolve-ssh-connect-config';
+import type { SshConnectResult, OpenSshConfig } from '../connect/resolve-ssh-connect-config';
+import { connectOpenSsh, type SshSession } from '../openssh/session';
 import { SshClientProxy } from './ssh-client-proxy';
 
-export class SshAuthError extends SshConnectionFailure {
-  readonly name = 'SshAuthError';
-  constructor(message: string) {
-    super('authentication', message);
-  }
-}
-export class SshTimeoutError extends SshConnectionFailure {
-  readonly name = 'SshTimeoutError';
-  constructor(message: string) {
-    super('timeout', message);
-  }
-}
-export class SshConnectionError extends SshConnectionFailure {
-  readonly name = 'SshConnectionError';
-  constructor(message: string) {
-    super('transport', message);
-  }
-}
-
 export interface SshConnectionManagerDeps {
-  createClient?: () => Client;
+  connectSession?: (config: OpenSshConfig, options: { signal: AbortSignal }) => Promise<SshSession>;
   publishEvent?: (event: SshConnectionEvent) => void;
   log?: {
     info(message: string, metadata?: Record<string, unknown>): void;
@@ -40,19 +21,17 @@ export interface SshConnectionManagerDeps {
 }
 type PhysicalConnection = {
   proxy: SshClientProxy;
-  generation: number;
   ephemeral: boolean;
   established: boolean;
-  client?: Client;
+  session?: SshSession;
   pending?: Promise<SshClientProxy>;
   controller?: AbortController;
-  cleanup?: () => void;
 };
 
-/** Physical SSH adapter. Host supervisors alone own reconnect policy and intent. */
+/** Owns physical generations only. The host supervisor is the sole owner of reconnection policy. */
 export class SshConnectionManager extends EventEmitter implements SshConnectionManagerContract {
   private readonly connections = new Map<string, PhysicalConnection>();
-
+  private readonly closing = new Set<Promise<void>>();
   constructor(private readonly deps: SshConnectionManagerDeps = {}) {
     super();
   }
@@ -62,35 +41,29 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
     resolve: () => Promise<SshConnectResult>,
     options: { ephemeral?: boolean; signal?: AbortSignal } = {}
   ): Promise<SshClientProxy> {
-    if (options.signal?.aborted) throw options.signal.reason;
+    options.signal?.throwIfAborted();
     let entry = this.connections.get(id);
     if (!entry) {
-      entry = {
-        proxy: new SshClientProxy(id),
-        generation: 0,
-        ephemeral: !!options.ephemeral,
-        established: false,
-      };
+      entry = { proxy: new SshClientProxy(id), ephemeral: !!options.ephemeral, established: false };
       this.connections.set(id, entry);
     }
     if (entry.proxy.isConnected) return entry.proxy;
     if (entry.pending) return entry.pending;
     const physical = entry;
-    const generation = ++physical.generation;
     const controller = new AbortController();
     physical.controller = controller;
     const abort = () => {
-      if (this.isCurrent(id, physical, generation)) this.resetConnection(id);
+      if (physical.controller === controller) this.resetConnection(id);
     };
     options.signal?.addEventListener('abort', abort, { once: true });
-    this.publish(
-      id,
-      { type: 'connecting', connectionId: id },
-      { type: 'connecting', connectionId: id }
-    );
-    const pending = this.establish(id, physical, generation, resolve, controller.signal);
+    const pending = this.establish(id, physical, controller, resolve);
     physical.pending = pending;
     try {
+      this.publish(
+        id,
+        { type: 'connecting', connectionId: id },
+        { type: 'connecting', connectionId: id }
+      );
       return await pending;
     } finally {
       options.signal?.removeEventListener('abort', abort);
@@ -98,7 +71,7 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
     }
   }
 
-  getProxy(id: string): SshClientProxy | undefined {
+  getProxy(id: string) {
     return this.connections.get(id)?.proxy;
   }
   isConnected(id: string): boolean {
@@ -109,8 +82,7 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
   }
   getConnectionState(id: string): ConnectionState {
     const entry = this.connections.get(id);
-    if (entry?.proxy.isConnected) return 'connected';
-    return entry?.pending ? 'connecting' : 'disconnected';
+    return entry?.proxy.isConnected ? 'connected' : entry?.pending ? 'connecting' : 'disconnected';
   }
   getAllConnectionStates(): Record<string, ConnectionState> {
     return Object.fromEntries(
@@ -121,163 +93,98 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
     return {};
   }
 
-  /** Retire a physical generation immediately while preserving its logical proxy. */
   resetConnection(id: string): void {
     const entry = this.connections.get(id);
     if (!entry) return;
-    const wasConnected = entry.proxy.isConnected;
-    entry.generation += 1;
+    const connected = entry.proxy.isConnected;
+    const session = entry.session;
     const controller = entry.controller;
-    const client = entry.client;
     entry.controller = undefined;
-    entry.client = undefined;
+    entry.session = undefined;
     entry.pending = undefined;
     entry.proxy.invalidate();
-    controller?.abort(new SshConnectionError('SSH connection closed before ready'));
-    client?.destroy();
-    entry.cleanup?.();
-    entry.cleanup = undefined;
-    if (wasConnected)
+    controller?.abort(new Error('SSH connection closed'));
+    if (session) this.retire(session);
+    if (connected)
       this.publish(
         id,
         { type: 'disconnected', connectionId: id },
         { type: 'disconnected', connectionId: id }
       );
   }
-
   async dropConnection(id: string): Promise<void> {
     this.resetConnection(id);
     this.connections.delete(id);
+    await Promise.all(this.closing);
   }
   async disconnectAll(): Promise<void> {
-    for (const id of this.connections.keys()) await this.dropConnection(id);
+    for (const id of this.connections.keys()) this.resetConnection(id);
+    this.connections.clear();
+    await Promise.all(this.closing);
   }
 
   private async establish(
     id: string,
     entry: PhysicalConnection,
-    generation: number,
-    resolve: () => Promise<SshConnectResult>,
-    signal: AbortSignal
+    controller: AbortController,
+    resolve: () => Promise<SshConnectResult>
   ): Promise<SshClientProxy> {
-    const resolving = Promise.resolve().then(resolve);
-    let resolved: SshConnectResult;
+    const signal = controller.signal;
+    const current = () =>
+      this.connections.get(id) === entry && entry.controller === controller && !signal.aborted;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      resolved = await waitWithSignal(resolving, signal);
+      const resolved = await waitWithSignal(Promise.resolve().then(resolve), signal);
+      signal.throwIfAborted();
+      if (resolved.config.readyTimeout > 0)
+        timer = setTimeout(
+          () => controller.abort(new SshConnectionFailure('timeout', 'SSH connection timed out')),
+          resolved.config.readyTimeout
+        );
+      const connecting = (this.deps.connectSession ?? connectOpenSsh)(resolved.config, { signal });
+      // Even a connector that finishes after cancellation cannot leak a live session.
+      void connecting.then(
+        (session) => {
+          if (!current()) this.retire(session);
+        },
+        () => {}
+      );
+      const session = await waitWithSignal(connecting, signal);
+      signal.throwIfAborted();
+      entry.session = session;
+      entry.proxy.update(session);
+      const type = entry.established ? 'reconnected' : 'connected';
+      entry.established = true;
+      void session.closed.then(() => {
+        if (current() && entry.session === session) this.resetConnection(id);
+      });
+      this.publish(id, { type, connectionId: id, proxy: entry.proxy }, { type, connectionId: id });
+      return entry.proxy;
     } catch (error) {
-      if (signal.aborted)
-        void resolving.then(
-          (late) => late.cleanup(),
-          () => {}
-        );
-      throw error;
-    }
-    if (!this.isCurrent(id, entry, generation) || signal.aborted) {
-      resolved.cleanup();
-      throw new SshConnectionError('SSH connection was disconnected before connecting');
-    }
-    const client = this.deps.createClient?.() ?? new ssh2.Client();
-    entry.client = client;
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      if (entry.cleanup === cleanup) entry.cleanup = undefined;
-      resolved.cleanup();
-    };
-    entry.cleanup = cleanup;
-    return new Promise<SshClientProxy>((resolveReady, reject) => {
-      let ready = false;
-      let settled = false;
-      const current = () => this.isCurrent(id, entry, generation) && !signal.aborted;
-      const finish = (error?: Error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        signal.removeEventListener('abort', abort);
-        if (error) reject(error);
-        else resolveReady(entry.proxy);
-      };
-      const lose = (error: Error) => {
-        if (!current()) {
-          cleanup();
-          finish(error);
-          return;
-        }
-        const wasReady = ready && entry.proxy.isConnected && entry.proxy.client === client;
-        if (entry.client === client) entry.client = undefined;
-        if (wasReady) entry.proxy.invalidate();
-        cleanup();
-        finish(error);
-        if (wasReady)
-          this.publish(
-            id,
-            { type: 'disconnected', connectionId: id },
-            { type: 'disconnected', connectionId: id }
-          );
-      };
-      const abort = () => {
-        cleanup();
-        finish(
-          signal.reason instanceof Error
-            ? signal.reason
-            : new SshConnectionError('SSH establishment cancelled')
-        );
-      };
-      const timeoutMs =
-        resolved.config.readyTimeout && resolved.config.readyTimeout > 0
-          ? resolved.config.readyTimeout
-          : 20_000;
-      const timer = setTimeout(() => {
-        lose(new SshTimeoutError('SSH connection timed out'));
-        client.destroy();
-      }, timeoutMs);
-      timer.unref?.();
-      signal.addEventListener('abort', abort, { once: true });
-      client.on('ready', () => {
-        if (!current() || settled) {
-          if (!ready) {
-            cleanup();
-            client.end();
-            finish(new SshConnectionError('SSH connection closed before ready'));
-          }
-          return;
-        }
-        ready = true;
-        const type = entry.established ? 'reconnected' : 'connected';
-        entry.established = true;
-        entry.proxy.update(client);
-        finish();
+      const failure = classifyError(error);
+      if (entry.controller === controller) {
+        entry.controller = undefined;
+        entry.proxy.invalidate();
+        controller.abort(failure);
         this.publish(
           id,
-          { type, connectionId: id, proxy: entry.proxy },
-          { type, connectionId: id }
+          { type: 'error', connectionId: id, error: failure },
+          { type: 'error', connectionId: id, errorMessage: failure.message }
         );
-      });
-      client.on('error', (error: Error) => {
-        const failure = classifyError(error);
-        const wasCurrent = current();
-        lose(failure);
-        if (wasCurrent)
-          this.publish(
-            id,
-            { type: 'error', connectionId: id, error: failure },
-            { type: 'error', connectionId: id, errorMessage: failure.message }
-          );
-        client.destroy();
-      });
-      client.on('close', () => lose(new SshConnectionError('SSH connection closed before ready')));
-      try {
-        client.connect(resolved.config);
-      } catch (error) {
-        lose(error instanceof Error ? error : new Error(String(error)));
-        client.destroy();
       }
-    });
+      throw failure;
+    } finally {
+      clearTimeout(timer);
+    }
   }
-
-  private isCurrent(id: string, entry: PhysicalConnection, generation: number): boolean {
-    return this.connections.get(id) === entry && entry.generation === generation;
+  private retire(session: SshSession): void {
+    const closing = session
+      .close()
+      .catch((error: unknown) =>
+        this.deps.log?.warn('Could not close SSH session', { error: String(error) })
+      );
+    this.closing.add(closing);
+    void closing.finally(() => this.closing.delete(closing));
   }
   private publish(
     id: string,
@@ -290,19 +197,17 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
   }
 }
 
-function classifyError(error: Error): SshConnectionFailure {
+function classifyError(error: unknown): SshConnectionFailure {
   if (error instanceof SshConnectionFailure) return error;
-  const message = error.message.toLowerCase();
-  if (message.includes('host key') || message.includes('host fingerprint')) {
-    return new SshConnectionFailure('host-key', error.message, { cause: error });
-  }
-  if (
-    message.includes('authentication') ||
-    message.includes('auth') ||
-    message.includes('permission denied')
-  )
-    return new SshAuthError(error.message);
-  if (message.includes('timeout') || message.includes('timed out'))
-    return new SshTimeoutError(error.message);
-  return new SshConnectionError(error.message);
+  const message = error instanceof Error ? error.message : String(error);
+  const kind = /host key|host fingerprint|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(message)
+    ? 'host-key'
+    : /authentication|permission denied|passphrase|password/i.test(message)
+      ? 'authentication'
+      : /timeout|timed out/i.test(message)
+        ? 'timeout'
+        : /not found|bad configuration|invalid ssh/i.test(message)
+          ? 'configuration'
+          : 'transport';
+  return new SshConnectionFailure(kind, message, { cause: error });
 }
