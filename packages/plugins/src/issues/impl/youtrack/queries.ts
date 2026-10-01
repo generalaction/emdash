@@ -65,20 +65,22 @@ export async function queryYouTrackIssueWithActivity(
 export async function fetchYouTrackComments(
   client: YouTrackClient,
   identifier: string,
-  skip: number
+  skip: number,
+  limit: number
 ): Promise<YouTrackCommentNode[]> {
   const issueId = encodeURIComponent(identifier);
   const comments: YouTrackCommentNode[] = [];
-  for (let offset = skip; ; ) {
+  while (comments.length < limit) {
+    const remaining = Math.min(COMMENT_PAGE_SIZE, limit - comments.length);
     const page = z.array(commentSchema).parse(
       await client.IssueComments.getIssueComments(issueId, {
         fields: ['id', 'text', 'deleted', 'created', { author: ['fullName', 'login'] }],
-        $top: COMMENT_PAGE_SIZE,
-        $skip: offset,
+        $top: remaining,
+        $skip: skip + comments.length,
       })
     );
-    if (!page.length) return comments;
-    comments.push(...page);
-    offset += page.length;
+    if (!page.length) break;
+    comments.push(...page.slice(0, remaining));
   }
+  return comments;
 }

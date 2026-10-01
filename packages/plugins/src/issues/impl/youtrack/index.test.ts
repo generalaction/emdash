@@ -153,10 +153,10 @@ describe('YouTrack tickets', () => {
     expect(requests.slice(1).map(({ url }) => url.pathname)).toEqual([
       '/youtrack/api/issues/ENG-123/comments',
       '/youtrack/api/issues/ENG-123/comments',
-      '/youtrack/api/issues/ENG-123/comments',
     ]);
     expect(requests[1]?.url.searchParams.get('fields')).toContain('author(fullName,login)');
-    expect(requests.map(({ url }) => url.searchParams.get('$skip'))).toEqual([null, '0', '1', '3']);
+    expect(requests.map(({ url }) => url.searchParams.get('$skip'))).toEqual([null, '0', '1']);
+    expect(requests.slice(1).map(({ url }) => url.searchParams.get('$top'))).toEqual(['3', '2']);
   });
 
   it('limits context to the latest 100 comments of a long discussion', async () => {
@@ -182,7 +182,67 @@ describe('YouTrack tickets', () => {
     expect(result.data.context).toContain('Comment 150');
     expect(result.data.context).toContain('Comment 249');
     expect(result.data.context).not.toContain('Comment 149');
-    expect(requests.map(({ url }) => url.searchParams.get('$skip'))).toEqual([null, '150', '250']);
+    expect(requests.map(({ url }) => url.searchParams.get('$skip'))).toEqual([null, '150']);
+  });
+
+  it.each([
+    { pageSize: 100, expectedPages: [{ skip: '150', top: '100' }] },
+    {
+      pageSize: 40,
+      expectedPages: [
+        { skip: '150', top: '100' },
+        { skip: '190', top: '60' },
+        { skip: '230', top: '20' },
+      ],
+    },
+  ])(
+    'caps context when comments arrive during retrieval with server page size $pageSize',
+    async ({ pageSize, expectedPages }) => {
+      let commentsCount = 250;
+      http.handler = (request, response) => {
+        const url = new URL(request.url ?? '/', instanceUrl);
+        if (!url.pathname.endsWith('/comments')) return json(response, { ...issue, commentsCount });
+        const skip = Number(url.searchParams.get('$skip'));
+        const top = Number(url.searchParams.get('$top'));
+        const page = Array.from(
+          { length: Math.min(pageSize, top, commentsCount - skip) },
+          (_, index) => ({
+            id: `4-${skip + index}`,
+            text: `Comment ${skip + index}`,
+            deleted: false,
+            created: issue.updated,
+            author: null,
+          })
+        );
+        if (skip === 150) commentsCount += 10;
+        json(response, page);
+      };
+
+      const result = await getIssue(host(), { identifier: 'ENG-123' });
+      if (!result.success) throw new Error(result.error.message);
+      const contextComments = result.data.context
+        ?.split('\n')
+        .filter((line) => line.startsWith('- '));
+      expect(contextComments).toHaveLength(100);
+      expect(result.data.context).toContain('(150 older comments omitted)');
+      expect(result.data.context).toContain('Comment 150');
+      expect(result.data.context).toContain('Comment 249');
+      expect(result.data.context).not.toContain('Comment 250');
+      expect(
+        requests.slice(1).map(({ url }) => ({
+          skip: url.searchParams.get('$skip'),
+          top: url.searchParams.get('$top'),
+        }))
+      ).toEqual(expectedPages);
+    }
+  );
+
+  it('skips comment retrieval when the issue has no comments', async () => {
+    http.handler = (_request, response) => json(response, { ...issue, commentsCount: 0 });
+    const result = await getIssue(host(), { identifier: 'ENG-123' });
+    if (!result.success) throw new Error(result.error.message);
+    expect(result.data.context).toBeUndefined();
+    expect(requests).toHaveLength(1);
   });
 
   it('reports a failed comment page instead of silently supplying incomplete context', async () => {
@@ -207,7 +267,7 @@ describe('YouTrack tickets', () => {
 
   it('encodes ticket identifiers as one path segment for issues and comments', async () => {
     http.handler = (request, response) =>
-      json(response, request.url?.includes('/comments') ? [] : { ...issue, commentsCount: 0 });
+      json(response, request.url?.includes('/comments') ? [] : { ...issue, commentsCount: 1 });
     const result = await getIssue(host(), { identifier: 'ENG%2F-123' });
     expect(result.success).toBe(true);
     expect(requests.map(({ url }) => url.pathname)).toEqual([

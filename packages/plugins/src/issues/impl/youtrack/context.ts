@@ -8,8 +8,9 @@ export async function getYouTrackIssueDetails(
   identifier: string,
   commentsCount: number
 ): Promise<{ context: string | undefined }> {
-  const omitted = Math.max(0, commentsCount - MAX_CONTEXT_COMMENTS);
-  const comments = await fetchYouTrackComments(client, identifier, omitted);
+  const limit = Math.min(commentsCount, MAX_CONTEXT_COMMENTS);
+  const omitted = commentsCount - limit;
+  const comments = await fetchYouTrackComments(client, identifier, omitted, limit);
   return { context: formatYouTrackContext(comments, omitted) };
 }
 
