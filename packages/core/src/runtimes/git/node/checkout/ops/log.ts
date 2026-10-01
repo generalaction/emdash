@@ -10,10 +10,13 @@ import { checkoutFailures } from '#runtimes/git/node/checkout/errors';
 import type { BoundExec } from '#services/exec/api';
 import { parseNameStatus, parseNumstat } from './diff-parser';
 
-const FIELD_SEP = '\x1f';
-const RECORD_SEP = '\x1e';
+// Commit messages can contain any byte except NUL, so NUL is the only safe
+// delimiter. `%x00` emits a literal NUL between fields and `-z` terminates
+// each record with NUL instead of a newline.
+const FIELD_SEP = '\x00';
+const LOG_FIELD_COUNT = 7;
 // `%at` is the author date as unix epoch seconds; the wire carries epoch ms.
-export const LOG_FORMAT = `%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%b${FIELD_SEP}%an${FIELD_SEP}%at${FIELD_SEP}%D${RECORD_SEP}`;
+export const LOG_FORMAT = '%H%x00%P%x00%s%x00%b%x00%an%x00%at%x00%D';
 
 export async function getLog(exec: BoundExec, options: GitLogOptions = {}): Promise<GitLogResult> {
   const maxCount = typeof options.limit === 'number' ? Math.max(1, Math.floor(options.limit)) : 50;
@@ -27,6 +30,7 @@ export async function getLog(exec: BoundExec, options: GitLogOptions = {}): Prom
       `--skip=${skip}`,
       '--decorate=full',
       `--format=${LOG_FORMAT}`,
+      '-z',
       range,
       '--',
     ]),
@@ -46,6 +50,7 @@ export async function getCommit(exec: BoundExec, hash: string): Promise<Commit |
       '--max-count=1',
       '--decorate=full',
       `--format=${LOG_FORMAT}`,
+      '-z',
       hash,
       '--',
     ]);
@@ -77,31 +82,27 @@ export async function getCommitFiles(
 }
 
 export function parseLogRecords(stdout: string, remoteReachable: Set<string>): Commit[] {
-  return stdout
-    .split(RECORD_SEP)
-    .map((record) => record.replace(/^\n/, '').trimEnd())
-    .filter(Boolean)
-    .map((record) => {
-      const [
-        hash = '',
-        parents = '',
-        subject = '',
-        body = '',
-        author = '',
-        date = '',
-        decorations = '',
-      ] = record.split(FIELD_SEP);
-      return {
-        hash,
-        parents: parents ? parents.split(' ').filter(Boolean) : [],
-        subject,
-        body: body.trim(),
-        author,
-        date: (Number.parseInt(date, 10) || 0) * 1000,
-        isPushed: remoteReachable.has(hash),
-        tags: parseDecoratedTags(decorations),
-      };
+  // `-z` terminates the last record too, leaving an empty tail after the split.
+  const fields = stdout.split(FIELD_SEP);
+  if (fields[fields.length - 1] === '') fields.pop();
+  const commits: Commit[] = [];
+  for (let i = 0; i + LOG_FIELD_COUNT <= fields.length; i += LOG_FIELD_COUNT) {
+    const [hash, parents, subject, body, author, date, decorations] = fields.slice(
+      i,
+      i + LOG_FIELD_COUNT
+    );
+    commits.push({
+      hash,
+      parents: parents ? parents.split(' ').filter(Boolean) : [],
+      subject,
+      body: body.trim(),
+      author,
+      date: (Number.parseInt(date, 10) || 0) * 1000,
+      isPushed: remoteReachable.has(hash),
+      tags: parseDecoratedTags(decorations),
     });
+  }
+  return commits;
 }
 
 export function parseDecoratedTags(decorations: string): string[] {
