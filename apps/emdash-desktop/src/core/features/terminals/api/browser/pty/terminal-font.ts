@@ -24,7 +24,7 @@ const quoteFontFamily = (fontFamily: string) => {
   return `"${trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 };
 
-const splitFontFamilies = (fontFamily: string) => {
+export const splitFontFamilies = (fontFamily: string) => {
   const families: string[] = [];
   let current = '';
   let quote: string | undefined;
@@ -49,11 +49,18 @@ const splitFontFamilies = (fontFamily: string) => {
   return families.filter(Boolean);
 };
 
-export const buildTerminalFontFamily = (fontFamily?: string) => {
+/** Builds a CSS font-family list: quoted custom families first, then fallbacks. */
+export const buildFontFamilyStack = (
+  fontFamily: string | undefined,
+  fallbacks: readonly string[]
+) => {
   const customFontFamily = fontFamily?.trim();
   const families = customFontFamily
-    ? [...splitFontFamilies(customFontFamily), ...TERMINAL_FONT_FALLBACKS]
-    : TERMINAL_FONT_FALLBACKS;
+    ? [...splitFontFamilies(customFontFamily), ...fallbacks]
+    : fallbacks;
 
   return Array.from(new Set(families.map(quoteFontFamily).filter(Boolean))).join(', ');
 };
+
+export const buildTerminalFontFamily = (fontFamily?: string) =>
+  buildFontFamilyStack(fontFamily, TERMINAL_FONT_FALLBACKS);
