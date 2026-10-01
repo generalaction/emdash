@@ -13,7 +13,7 @@ import { SshConnectionsModel } from '@core/services/ssh/node/connections-model';
 import type { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { HostTrustRequests } from '@core/services/ssh/node/host-trust-requests';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
-import { connectOpenSsh } from '@core/services/ssh/node/openssh/session';
+import { connectWithHostTrust } from '@core/services/ssh/node/openssh/host-trust';
 import { SshService, type SshServiceDeps } from '@core/services/ssh/node/ssh-service';
 
 export interface CreateSshServiceDeps {
@@ -32,11 +32,10 @@ export function createSshService(deps: CreateSshServiceDeps): SshServiceHandle {
   const resolveConnectConfig = createProductionSshConnectConfigResolver(deps.credentials);
   const manager = new SshConnectionManager({
     connectSession: (config, { signal, interaction }) =>
-      connectOpenSsh(config, {
+      connectWithHostTrust(config, {
         signal,
         interaction,
-        confirmHost: (prompt) =>
-          trust.confirm({ kind: 'unknown', destination: config.destination, prompt }, signal),
+        confirm: (prompt) => trust.confirm(prompt, signal),
       }),
     publishEvent: (event) => connections.publishEvent(event),
     log: deps.logger,

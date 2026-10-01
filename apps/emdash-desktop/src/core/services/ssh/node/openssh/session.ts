@@ -195,7 +195,11 @@ export async function connectOpenSsh(
   }
 }
 
-async function nativeSessionArgs(config: OpenSshConfig, signal: AbortSignal): Promise<string[]> {
+export async function nativeSessionArgs(
+  config: OpenSshConfig,
+  signal: AbortSignal,
+  sessionType: 'default' | 'none' = 'default'
+): Promise<string[]> {
   const version = await runProcess(
     { executable: config.executable ?? 'ssh', args: ['-V'], env: config.env },
     { signal, timeoutMs: 5_000, maxStdoutBytes: 4096, maxStderrBytes: 4096 }
@@ -209,8 +213,10 @@ async function nativeSessionArgs(config: OpenSshConfig, signal: AbortSignal): Pr
   // Older clients cannot enable them in config, so simply omitting the flags is sufficient.
   const modern = Number(match[1]) > 8 || (Number(match[1]) === 8 && Number(match[2]) >= 7);
   return modern
-    ? ['-o', 'ForkAfterAuthentication=no', '-o', 'StdinNull=no', '-o', 'SessionType=default']
-    : [];
+    ? ['-o', 'ForkAfterAuthentication=no', '-o', 'StdinNull=no', '-o', `SessionType=${sessionType}`]
+    : sessionType === 'none'
+      ? ['-N']
+      : [];
 }
 
 function observeStream(stream: Duplex): Promise<Error | undefined> {

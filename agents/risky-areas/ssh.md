@@ -70,6 +70,18 @@ paths or keys. Acquisition budgets pause during review; connection cancellation 
 The SSH service has no Electron imports. Honor explicit user SSH policy; do not add permissive
 host-key defaults or label unrelated askpass confirmations as host trust.
 
+`openssh/host-trust.ts` can resume one failed verification after explicit approval of a replacement
+fingerprint. It probes through the original native route without target authentication, in a private
+copy of user trust. The offered key must match the approved host and fingerprint before committing.
+`known-hosts-recovery.ts` validates the affected file against native configuration and uses
+`ssh-keygen -F` for matching, including hashed entries. Preserve unrelated hosts, aliases, markers,
+comments, and file mode. Compare the reviewed contents and inode immediately before atomic replacement;
+serialize Emdash writes with an exclusive sibling lock. External programs do not honor that lock,
+so this is a final stale-content check, not a filesystem-wide compare-and-swap guarantee.
+Revoked keys, system-managed trust, wildcard records, symlinks, ambiguous paths, KnownHostsCommand,
+and CheckHostIP policies stay manual. Failed or canceled recovery blocks automatic retry. The final
+connection uses strict verification, and another key change never opens a second recovery loop.
+
 The workspace stream runs a small stdio-to-Unix-socket relay with the Node binary already bundled
 beside the daemon. Closing the relay closes only that attachment. It does not launch, signal, or
 restart the daemon and does not require an upgrade of an existing installation. Runtime operations
@@ -86,9 +98,10 @@ fixtures are excluded on Windows; subprocess and lifecycle tests still apply the
 Cover agent-only certificate authentication (private key removed after loading), encrypted keys,
 host-trust acceptance/rejection, alias proxy routing, multiplexed and independent connections,
 remote exit status, binary streams, IPv4/IPv6 forwards, cancellation, and stale generations.
-Cover Wire replay/cancellation, modal verification gating, and time spent reviewing trust.
-Native test daemons disable source penalties where supported because rejection tests deliberately
-make many failed loopback connections.
+Recovery coverage includes fingerprint substitution, stale-file edits, hashed and shared aliases,
+native proxy routes, revoked/system trust, Wire replay/cancellation, modal verification gating, and
+time spent reviewing trust. Native test daemons disable source penalties where supported because
+these tests deliberately reject many loopback connections.
 IPv6 tests may skip locally when the kernel disables IPv6; CI requires IPv6. Native Windows/macOS
 smoke checks and the opt-in Docker workspace-server test remain useful release validation.
 
