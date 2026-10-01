@@ -3,7 +3,13 @@ import { SettingsCard } from '@emdash/ui/react/patterns';
 import { SeparatedList, Textarea } from '@emdash/ui/react/primitives';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
-import type { FilesSettings } from '@core/primitives/app-settings/api';
+import {
+  EDITOR_FONT_SIZE_DEFAULT,
+  EDITOR_FONT_SIZE_MAX,
+  EDITOR_FONT_SIZE_MIN,
+  type FilesSettings,
+} from '@core/primitives/app-settings/api';
+import { FontFamilySettingRow, FontSizeSettingRow } from './FontSettingsRows';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 
 type ExclusionField = keyof FilesSettings;
@@ -20,6 +26,9 @@ type ExclusionListEditorProps = {
   onReset(field: ExclusionField): void;
 };
 
+const clampEditorFontSize = (size: number) =>
+  Math.min(EDITOR_FONT_SIZE_MAX, Math.max(EDITOR_FONT_SIZE_MIN, size));
+
 const FilesSettingsCard: React.FC = () => {
   const {
     value: files,
@@ -29,20 +38,67 @@ const FilesSettingsCard: React.FC = () => {
     isFieldOverridden,
     resetField,
   } = useAppSettingsKey('files');
+  const {
+    value: editor,
+    update: updateEditor,
+    isLoading: editorLoading,
+    isSaving: editorSaving,
+    resetField: resetEditorField,
+  } = useAppSettingsKey('editor');
 
   const current: FilesSettings = files ?? {
     treeExclude: [],
     searchExclude: [],
     watcherExclude: [],
   };
+  const editorFontFamily = editor?.fontFamily ?? '';
+  const editorFontSize = editor?.fontSize ?? EDITOR_FONT_SIZE_DEFAULT;
 
   const commitField = (field: ExclusionField, value: string[]) => {
     update({ [field]: normalizeExclusionPatterns(value) });
   };
 
+  const applyEditorFont = React.useCallback(
+    (next: string) => {
+      const normalized = next.trim();
+      if (normalized) {
+        updateEditor({ fontFamily: normalized });
+        return;
+      }
+      resetEditorField('fontFamily');
+    },
+    [resetEditorField, updateEditor]
+  );
+
+  const applyEditorFontSize = React.useCallback(
+    (next: number) => {
+      updateEditor({ fontSize: clampEditorFontSize(next) });
+    },
+    [updateEditor]
+  );
+
   return (
     <SettingsCard>
       <SeparatedList gap="1rem" direction="column">
+        <FontFamilySettingRow
+          title="File preview font"
+          description="Choose the font family used for text files and diffs."
+          value={editorFontFamily}
+          defaultLabel="Default (Monaco editor)"
+          defaultPreviewFontFamily="monospace"
+          disabled={editorLoading || editorSaving}
+          onChange={applyEditorFont}
+        />
+        <FontSizeSettingRow
+          title="File preview font size"
+          description="Adjust the font size used for text files and diffs."
+          value={editorFontSize}
+          min={EDITOR_FONT_SIZE_MIN}
+          max={EDITOR_FONT_SIZE_MAX}
+          controlLabel="file preview font size"
+          disabled={editorLoading || editorSaving}
+          onChange={applyEditorFontSize}
+        />
         <ExclusionListEditor
           title="File tree exclusions"
           description="Hide matching files or folders from the editor file tree."

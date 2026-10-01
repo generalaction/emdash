@@ -275,6 +275,20 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['macos', 'alt', 'terminal'],
   },
   {
+    id: 'file-preview-font',
+    label: 'File preview font',
+    tab: 'interface',
+    description: 'Choose the font family used for text files and diffs.',
+    keywords: ['font family', 'editor', 'monaco', 'code'],
+  },
+  {
+    id: 'file-preview-font-size',
+    label: 'File preview font size',
+    tab: 'interface',
+    description: 'Adjust the font size used for text files and diffs.',
+    keywords: ['text size', 'zoom', 'editor', 'monaco', 'diff'],
+  },
+  {
     id: 'left-sidebar-line-changes',
     label: 'Left sidebar line changes',
     tab: 'interface',
