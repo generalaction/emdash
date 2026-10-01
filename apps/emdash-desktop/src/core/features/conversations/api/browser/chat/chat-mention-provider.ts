@@ -10,7 +10,7 @@ class ChatMentionProvider implements MentionProvider {
       return {
         id: issue.token,
         label: issue.token,
-        name: issue.displayIdentifier ?? issue.identifier,
+        name: issue.identifier,
         kind: 'issue',
         iconUrl: issueMentionIconUrl(issue.provider),
       };

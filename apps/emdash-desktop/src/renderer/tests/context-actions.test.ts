@@ -67,10 +67,8 @@ describe('buildIssueContextText', () => {
     expect(text).not.toMatch(/\r|\n/);
   });
 
-  it('identifies the issue by its readable ID when the provider has one', () => {
-    const text = buildIssueContextText(
-      makeIssue({ provider: 'youtrack', identifier: '3-15', displayIdentifier: 'DEMO-16' })
-    );
+  it('identifies YouTrack issues by their ticket number', () => {
+    const text = buildIssueContextText(makeIssue({ provider: 'youtrack', identifier: 'DEMO-16' }));
 
     expect(text).toContain('Identifier: DEMO-16');
   });

@@ -40,16 +40,14 @@ import { useBranchName } from './use-branch-name';
 const ticket: LinkedIssue = {
   provider: 'youtrack',
   accountId: 'youtrack-account',
-  identifier: '2-31',
-  displayIdentifier: 'ENG-123',
+  identifier: 'ENG-123',
   title: 'Fix authentication',
   url: 'https://team.youtrack.cloud/issue/ENG-123',
   description: 'Summary only',
 };
 const otherTicket: LinkedIssue = {
   ...ticket,
-  identifier: '2-32',
-  displayIdentifier: 'ENG-124',
+  identifier: 'ENG-124',
   title: 'Fix reconnect',
   url: 'https://team.youtrack.cloud/issue/ENG-124',
 };
@@ -308,6 +306,7 @@ describe('ticket selection to initial agent context', () => {
       await page.getByRole('button', { name: 'Create task' }).click();
       const payload = JSON.stringify(launched);
       expect(payload).toContain('FULL DESCRIPTION');
+      expect(payload).toContain('Identifier: ENG-123');
       expect(payload).toContain('Keep the original account.');
       expect(payload).toContain('Implement the fix.');
       expect(requests[0]).toMatchObject({

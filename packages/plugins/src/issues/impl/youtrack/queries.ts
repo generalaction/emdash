@@ -8,7 +8,6 @@ const customFieldSchema = z.object({
 });
 
 const issueSchema = z.object({
-  id: z.string().min(1),
   idReadable: z.string().min(1),
   summary: z.string(),
   description: z.string().nullable(),
@@ -32,7 +31,7 @@ export type YouTrackIssueWithActivity = z.infer<typeof issueWithActivitySchema>;
 export type YouTrackCommentNode = z.infer<typeof commentSchema>;
 
 const ISSUE_FIELDS =
-  'id,idReadable,summary,description,updated,project(name),customFields($type,name,value(name,fullName,login))';
+  'idReadable,summary,description,updated,project(name),customFields($type,name,value(name,fullName,login))';
 const COMMENT_PAGE_SIZE = 100;
 
 export function queryYouTrackIssues(

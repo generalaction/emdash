@@ -27,8 +27,7 @@ export function toIssueData(issue: YouTrackIssueSummaryNode, instanceUrl: string
     .map((user) => user?.fullName || user?.name || user?.login)
     .filter((name): name is string => !!name);
   return {
-    identifier: issue.id,
-    displayIdentifier: issue.idReadable,
+    identifier: issue.idReadable,
     title: issue.summary,
     url: `${instanceUrl}/issue/${encodeURIComponent(issue.idReadable)}`,
     description: issue.description ?? undefined,

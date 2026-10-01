@@ -5,19 +5,11 @@ method descriptors, credential schemas, and credential verification. Issue plugi
 `packages/plugins/src/issues/` reference an integration by `integrationId` and own issue
 operations. GitHub follows the same plugin contracts as the other integrations.
 
-## YouTrack
-
-Connect YouTrack from Settings → Integrations with the instance URL and a permanent token
-created in the user's profile with the YouTrack scope. Cloud and self-hosted installations
-use the same API. Include a deployment base path such as `/youtrack` in the URL, but omit
-`/api`. Credentials use the shared encrypted account store; account identity includes the
-complete installation URL so deployments on the same host remain separate.
-
 The picker initially lists recently updated unresolved tickets. Search accepts ticket numbers,
 plain text, and native YouTrack queries such as `project: Engineering #Unresolved`. Search
-can also find resolved tickets. The adapter keeps the database ID as the stable identifier
-and shows the readable ticket number in the picker, mention chips, and the prompt's
-`Identifier:` line. State and assignees are adapted from custom fields. Details include the
+can also find resolved tickets. The adapter uses the readable ticket number as its identifier
+for API requests, the picker, mention chips, and the prompt's `Identifier:` line, following
+Linear's convention. State and assignees are adapted from custom fields. Details include the
 latest 100 accessible, non-deleted comments, fetched under one request deadline; the context
 notes how many older comments were omitted.
 

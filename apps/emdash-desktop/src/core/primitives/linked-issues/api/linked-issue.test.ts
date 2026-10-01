@@ -23,8 +23,7 @@ describe('linked issue source persistence', () => {
   it('round-trips a YouTrack ticket and its installation identity', () => {
     const issue = {
       provider: 'youtrack',
-      identifier: '2-31',
-      displayIdentifier: 'ENG-123',
+      identifier: 'ENG-123',
       title: 'Fix authentication',
       url: 'https://example.com/youtrack/issue/ENG-123',
       accountId: 'youtrack-account',

@@ -25,15 +25,14 @@ beforeEach(() => {
 });
 
 describe('YouTrack tickets', () => {
-  it('lists unresolved tickets with stable IDs and readable display numbers', async () => {
+  it('lists unresolved tickets using readable ticket numbers as identifiers', async () => {
     http.handler = (_request, response) => json(response, [issue]);
     const result = await listIssues(host(), { limit: 5 });
     expect(result).toEqual({
       success: true,
       data: [
         {
-          identifier: '2-31',
-          displayIdentifier: 'ENG-123',
+          identifier: 'ENG-123',
           title: issue.summary,
           description: issue.description,
           url: `${instanceUrl}/issue/ENG-123`,
@@ -47,7 +46,7 @@ describe('YouTrack tickets', () => {
     expect(requests[0]?.url.searchParams.get('query')).toBe('#Unresolved sort by: updated desc');
     expect(requests[0]?.url.pathname).toBe('/youtrack/api/issues');
     expect(requests[0]?.url.searchParams.get('fields')).toBe(
-      'id,idReadable,summary,description,updated,project(name),customFields($type,name,value(name,fullName,login))'
+      'idReadable,summary,description,updated,project(name),customFields($type,name,value(name,fullName,login))'
     );
     expect(requests[0]?.url.searchParams.get('$top')).toBe('5');
     expect(requests).toHaveLength(1);
@@ -143,17 +142,18 @@ describe('YouTrack tickets', () => {
             : []
       );
     };
-    const result = await getIssue(host(), { identifier: '2-31' });
+    const result = await getIssue(host(), { identifier: 'ENG-123' });
     if (!result.success) throw new Error(result.error.message);
+    expect(result.data.identifier).toBe('ENG-123');
     expect(result.data.context).toContain('First comment');
     expect(result.data.context).toContain('Second comment');
     expect(result.data.context).not.toContain('Deleted secret');
-    expect(requests[0]?.url.pathname).toBe('/youtrack/api/issues/2-31');
+    expect(requests[0]?.url.pathname).toBe('/youtrack/api/issues/ENG-123');
     expect(requests[0]?.url.searchParams.get('fields')).toContain('commentsCount');
     expect(requests.slice(1).map(({ url }) => url.pathname)).toEqual([
-      '/youtrack/api/issues/2-31/comments',
-      '/youtrack/api/issues/2-31/comments',
-      '/youtrack/api/issues/2-31/comments',
+      '/youtrack/api/issues/ENG-123/comments',
+      '/youtrack/api/issues/ENG-123/comments',
+      '/youtrack/api/issues/ENG-123/comments',
     ]);
     expect(requests[1]?.url.searchParams.get('fields')).toContain('author(fullName,login)');
     expect(requests.map(({ url }) => url.searchParams.get('$skip'))).toEqual([null, '0', '1', '3']);
@@ -176,7 +176,7 @@ describe('YouTrack tickets', () => {
         }))
       );
     };
-    const result = await getIssue(host(), { identifier: '2-31' });
+    const result = await getIssue(host(), { identifier: 'ENG-123' });
     if (!result.success) throw new Error(result.error.message);
     expect(result.data.context).toContain('(150 older comments omitted)');
     expect(result.data.context).toContain('Comment 150');
@@ -194,7 +194,7 @@ describe('YouTrack tickets', () => {
           : { ...issue, commentsCount: 1 },
         request.url?.includes('/comments') ? 503 : 200
       );
-    expect(await getIssue(host(), { identifier: '2-31' })).toMatchObject({
+    expect(await getIssue(host(), { identifier: 'ENG-123' })).toMatchObject({
       success: false,
       error: { type: 'host_unreachable' },
     });
