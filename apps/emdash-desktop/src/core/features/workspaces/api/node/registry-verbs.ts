@@ -53,6 +53,7 @@ export type RegistryWorktreeSpec = {
   branch: string;
   /** Optional when `gitSetup.fetchBranch` materializes the branch instead. */
   baseRef?: string;
+  fetchLatestBase?: boolean;
   path: string;
   preservePatterns: string[];
   publish?: WorktreeGitPlan['publish'];
@@ -89,16 +90,20 @@ export async function createWorktreeThroughRegistry(
   }
   const repositoryId = repository.data.id;
 
-  const created = await registry.createWorktree({
-    workspaceId: spec.workspaceId,
-    repositoryId,
-    branch: spec.branch,
-    ...(spec.baseRef !== undefined && { baseRef: spec.baseRef }),
-    path: spec.path,
-    preservePatterns: spec.preservePatterns,
-    ...(spec.publish !== undefined && { publish: spec.publish }),
-    ...(spec.gitSetup !== undefined && { gitSetup: spec.gitSetup }),
-  });
+  const created = await registry.createWorktree(
+    {
+      workspaceId: spec.workspaceId,
+      repositoryId,
+      branch: spec.branch,
+      ...(spec.baseRef !== undefined && { baseRef: spec.baseRef }),
+      ...(spec.fetchLatestBase !== undefined && { fetchLatestBase: spec.fetchLatestBase }),
+      path: spec.path,
+      preservePatterns: spec.preservePatterns,
+      ...(spec.publish !== undefined && { publish: spec.publish }),
+      ...(spec.gitSetup !== undefined && { gitSetup: spec.gitSetup }),
+    },
+    ...(spec.fetchLatestBase ? ([{ timeoutMs: 120_000 }] as const) : [])
+  );
   if (!created.success) {
     const error = created.error;
     switch (error.type) {

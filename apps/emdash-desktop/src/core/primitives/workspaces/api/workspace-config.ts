@@ -19,31 +19,42 @@ const branchSchema = z.discriminatedUnion('type', [
 // GitSetup schema — mirrors the task setup vocabulary.
 // ---------------------------------------------------------------------------
 
-const gitSetupSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('none') }),
-  z.object({ kind: z.literal('use-branch'), branchName: z.string() }),
-  z.object({
-    kind: z.literal('create-branch'),
-    branchName: z.string(),
-    fromBranch: branchSchema,
-    pushBranch: z.boolean().optional(),
-  }),
-  z.object({
-    kind: z.literal('pr-branch'),
-    /**
-     * Canonical PR identity (the PR cache's key and the breadcrumb payload). Additive:
-     * configs stored before it exist without it and derive it on read (see
-     * `compileWorktreeGitPlan`); no config version bump.
-     */
-    prUrl: z.string().optional(),
-    prNumber: z.number(),
-    headBranch: z.string(),
-    headRepositoryUrl: z.string(),
-    isFork: z.boolean(),
-    taskBranch: z.string().optional(),
-    pushBranch: z.boolean().optional(),
-  }),
-]);
+const gitSetupSchema = z
+  .discriminatedUnion('kind', [
+    z.object({ kind: z.literal('none') }),
+    z.object({ kind: z.literal('use-branch'), branchName: z.string() }),
+    z.object({
+      kind: z.literal('create-branch'),
+      branchName: z.string(),
+      fromBranch: branchSchema,
+      fetchLatestBase: z.boolean().optional(),
+      pushBranch: z.boolean().optional(),
+    }),
+    z.object({
+      kind: z.literal('pr-branch'),
+      /**
+       * Canonical PR identity (the PR cache's key and the breadcrumb payload). Additive:
+       * configs stored before it exist without it and derive it on read (see
+       * `compileWorktreeGitPlan`); no config version bump.
+       */
+      prUrl: z.string().optional(),
+      prNumber: z.number(),
+      headBranch: z.string(),
+      headRepositoryUrl: z.string(),
+      isFork: z.boolean(),
+      taskBranch: z.string().optional(),
+      pushBranch: z.boolean().optional(),
+    }),
+  ])
+  .superRefine((git, ctx) => {
+    if (git.kind === 'create-branch' && git.fetchLatestBase && git.fromBranch.type !== 'remote') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fetchLatestBase'],
+        message: 'Fetching the latest base requires a remote base branch',
+      });
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // v1 schema — stored in workspaces.config rows created before v2

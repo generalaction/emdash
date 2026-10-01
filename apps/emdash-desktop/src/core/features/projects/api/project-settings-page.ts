@@ -63,7 +63,7 @@ export type ProjectEnvironmentDomainSnapshot = {
 export type ProjectGitIdentityDomainSnapshot = {
   stored: Pick<
     StoredProjectGitSettings,
-    'defaultBranch' | 'baseRemote' | 'pushRemote' | 'agentGitCredentials'
+    'defaultBranch' | 'fetchLatestBase' | 'baseRemote' | 'pushRemote' | 'agentGitCredentials'
   >;
 };
 
@@ -109,6 +109,7 @@ type PersonalProjectConfigPatch = PatchPersonalProjectConfigInput['patch'];
 
 export type ProjectGitIdentityStoredPatch = {
   defaultBranch?: StoredDefaultBranch | null;
+  fetchLatestBase?: boolean | null;
   baseRemote?: string | null;
   pushRemote?: string | null;
   agentGitCredentials?: AgentGitCredentialsSetting | null;

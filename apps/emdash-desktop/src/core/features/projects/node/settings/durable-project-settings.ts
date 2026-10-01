@@ -42,6 +42,10 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
     projectId: string,
     patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'integrationAccounts' | 'placement'>
   ): Promise<Result<void, UpdateProjectSettingsError>> {
+    const fetchLatestBase = patch.gitIdentity?.stored.fetchLatestBase;
+    if (fetchLatestBase != null && typeof fetchLatestBase !== 'boolean') {
+      return err({ type: 'invalid-settings' });
+    }
     try {
       await this.storage.insertIfMissing(projectId, {
         baseProjectSettingsJson: '{}',
@@ -54,6 +58,7 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
         if (git) {
           for (const field of [
             'defaultBranch',
+            'fetchLatestBase',
             'baseRemote',
             'pushRemote',
             'agentGitCredentials',

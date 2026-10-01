@@ -51,6 +51,7 @@ export const storedBaseProjectSettingsSchema = z.object({
   /** Renamed from the legacy `worktreeDirectory` key. */
   worktreeRoot: z.string().trim().optional(),
   defaultBranch: storedDefaultBranchSchema.optional(),
+  fetchLatestBase: z.boolean().optional(),
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   integrationAccounts: storedIntegrationAccountsSchema.optional(),

@@ -15,7 +15,21 @@
 - generated task branch names use the configured prefix plus a random suffix by default; app repository settings can disable only the random suffix
 - worktree creation is managed by the project provider pattern
 - creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
-  the base ref is fetched only when it is not locally resolvable
+  the base ref is fetched when it is not locally resolvable or when **Fetch latest base before
+  creation** is enabled for a selected remote base branch
+- **Fetch latest base before creation** defaults off, can be saved in Project Settings next to
+  Default branch, and can be overridden for each new task or automation. Enabled creation fetches
+  only the selected remote branch and starts at its resolved commit. A failed fetch stops
+  creation before the branch, worktree, or agent is created; the fetch and its lock retries share
+  one 60-second deadline
+- local bases remain usable while project defaults load. If defaults cannot load, remote-base
+  creation can use the cached ref with a visible warning, or explicitly enable fetching
+- local base branches use their local commit; select a remote branch to enable freshness
+- the choice is saved with the workspace or automation configuration, so retries and scheduled
+  runs retain it when the project preference changes. Older saved configurations use the cached
+  base behavior. Existing branches and completed creations are reused without resetting them
+- remote freshness requires workspace-server protocol 11.1; older servers show an upgrade
+  message when the option is enabled
 - newly created task branches use `git worktree add --no-track`; the selected base ref is a
   starting point, not the branch's upstream
 - gitignored files named in `preservePatterns` are copied from the repository into the new
@@ -47,6 +61,7 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
 
 - `worktreeDirectory`
 - `defaultBranch`
+- `fetchLatestBase` (personal preference; omitted means off)
 - `baseRemote`
 - `pushRemote`
 - `tmux`

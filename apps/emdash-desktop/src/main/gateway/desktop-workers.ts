@@ -42,7 +42,10 @@ import {
   workspaceRegistryContract,
   type WorkspaceRegistryContract,
 } from '@emdash/core/runtimes/workspace-registry/api';
-import { workspaceRegistryWorkerSpec } from '@emdash/core/runtimes/workspace-registry/node';
+import {
+  forwardWorkspaceRegistry,
+  workspaceRegistryWorkerSpec,
+} from '@emdash/core/runtimes/workspace-registry/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchWorkerSpec } from '@emdash/core/services/fs-watch/node';
@@ -55,7 +58,7 @@ import { createUserShellEnvController } from '@emdash/core/services/shell-env/no
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
-import { queuedClient, type ContractClient } from '@emdash/wire/rpc';
+import { createController, queuedClient, type ContractClient } from '@emdash/wire/rpc';
 import {
   createVitalsCollectingSpawner,
   createWireWorkerHost,
@@ -466,7 +469,10 @@ function startDesktopWorkersWithHost(
             executable: desktopWorkerPath('automations'),
             env: process.env,
             dependencies: {
-              workspaceRegistry,
+              workspaceRegistry: createController(
+                workspaceRegistryContract,
+                forwardWorkspaceRegistry(workspaceRegistry)
+              ),
               // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
               // live in the app db, so the main process answers for the worker.
               creationAdmission: createAutomationCreationAdmissionController(getAppDb),

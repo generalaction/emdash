@@ -83,6 +83,26 @@ beforeEach(() => {
   mocks.resolveWorkspace.mockResolvedValue(null);
 });
 describe('buildAutomationDeployment', () => {
+  it('captures the saved remote base freshness choice in the deployment', async () => {
+    mocks.rows.push([{ base: '{}', shareable: '{}' }]);
+    const automation = automationFixture();
+    if (!automation.taskConfig) throw new Error('Expected task config');
+    automation.taskConfig.workspaceConfig.git = {
+      kind: 'create-branch',
+      branchName: 'replaced-per-run',
+      fromBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+      },
+      fetchLatestBase: true,
+    };
+    await expect(buildAutomationDeployment(dependencies, automation)).resolves.toMatchObject({
+      success: true,
+      data: { workspace: { git: { fetchLatestBase: true } } },
+    });
+  });
+
   it('captures worktree, project, schedule, and ACP session settings', async () => {
     mocks.rows.push([
       {

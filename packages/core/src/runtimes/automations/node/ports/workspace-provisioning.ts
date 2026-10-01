@@ -80,11 +80,14 @@ export function createWorkspacePortFromDependency(
             repositoryId: repository.data,
             branch: compiled.branchName,
             baseRef: compiled.baseRef,
+            ...(compiled.fetchLatestBase !== undefined && {
+              fetchLatestBase: compiled.fetchLatestBase,
+            }),
             path: compiled.worktreePath,
             preservePatterns: compiled.preservePatterns,
             ...(compiled.publish !== undefined && { publish: compiled.publish }),
           },
-          { signal: input.signal }
+          { signal: input.signal, ...(compiled.fetchLatestBase && { timeoutMs: 120_000 }) }
         );
         if (!created.success) return err(createErrorToPortError(created.error));
         return ok({ workspace: compiled.workspace, branchName: compiled.branchName });
@@ -104,6 +107,7 @@ type CompiledCreateWorktree = {
   worktreePath: string;
   branchName: string;
   baseRef: string;
+  fetchLatestBase?: boolean;
   publish?: { remote: string };
   preservePatterns: string[];
   workspace: HostFileRef;
@@ -126,6 +130,9 @@ function compileCreateWorktree(
     worktreePath: compiled.worktreePath,
     branchName,
     baseRef: compileBaseRef(config.git),
+    ...(config.git.kind === 'create-branch' && config.git.fetchLatestBase !== undefined
+      ? { fetchLatestBase: config.git.fetchLatestBase }
+      : {}),
     ...(config.git.kind === 'create-branch' && config.git.pushRemote !== null
       ? { publish: { remote: config.git.pushRemote } }
       : {}),
