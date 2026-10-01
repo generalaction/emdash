@@ -2,6 +2,11 @@ import { z } from 'zod';
 import { hostAbsolutePathSchema } from '#primitives/path/api';
 
 export const MAX_LSP_DOCUMENT_LENGTH = 2_000_000;
+export const lspServerIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9-]*$/);
 
 export const lspPositionSchema = z.object({
   line: z.number().int().nonnegative(),
@@ -13,7 +18,12 @@ export const lspRangeSchema = z.object({ start: lspPositionSchema, end: lspPosit
 export const lspSessionKeySchema = z.object({
   clientId: z.string().min(1).max(128),
   root: hostAbsolutePathSchema,
-  serverId: z.literal('typescript'),
+  serverId: lspServerIdSchema,
+});
+export const lspProjectQuerySchema = z.object({
+  workspaceRoot: hostAbsolutePathSchema,
+  path: hostAbsolutePathSchema,
+  serverId: lspServerIdSchema,
 });
 
 export const lspDocumentSchema = z.object({
@@ -29,9 +39,26 @@ export const lspQuerySchema = z.object({
   version: lspDocumentSchema.shape.version,
   position: lspPositionSchema,
 });
+export const lspDocumentEditSchema = z.object({
+  start: z.number().int().min(0).max(MAX_LSP_DOCUMENT_LENGTH),
+  deleteCount: z.number().int().min(0).max(MAX_LSP_DOCUMENT_LENGTH),
+  text: z.string().max(MAX_LSP_DOCUMENT_LENGTH),
+});
+export const lspDocumentChangeSchema = z.object({
+  path: hostAbsolutePathSchema,
+  baseVersion: lspDocumentSchema.shape.version,
+  version: lspDocumentSchema.shape.version,
+  edit: lspDocumentEditSchema,
+});
 
 export const lspErrorSchema = z.object({
-  type: z.enum(['session-unavailable', 'request-failed', 'cancelled', 'unsupported']),
+  type: z.enum([
+    'session-unavailable',
+    'request-failed',
+    'cancelled',
+    'unsupported',
+    'document-out-of-sync',
+  ]),
   message: z.string(),
 });
 
@@ -76,6 +103,9 @@ export const lspLocationSchema = z.object({
 });
 
 export type LspSessionKey = z.infer<typeof lspSessionKeySchema>;
+export type LspProjectQuery = z.infer<typeof lspProjectQuerySchema>;
+export type LspDocumentEdit = z.infer<typeof lspDocumentEditSchema>;
+export type LspDocumentChange = z.infer<typeof lspDocumentChangeSchema>;
 export type LspDocument = z.infer<typeof lspDocumentSchema>;
 export type LspQuery = z.infer<typeof lspQuerySchema>;
 export type LspError = z.infer<typeof lspErrorSchema>;

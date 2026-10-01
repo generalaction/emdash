@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { hostAbsolutePathSchema } from '#primitives/path/api';
 import {
   lspDocumentSchema,
+  lspDocumentChangeSchema,
+  lspProjectQuerySchema,
   lspErrorSchema,
   lspHoverSchema,
   lspLocationSchema,
@@ -14,6 +16,16 @@ import {
 const documentKey = z.object({ session: lspSessionKeySchema, path: hostAbsolutePathSchema });
 
 export const lspContract = defineContract({
+  resolveProject: fallible({
+    input: lspProjectQuerySchema,
+    data: hostAbsolutePathSchema,
+    error: lspErrorSchema,
+  }),
+  changeDocument: fallible({
+    input: z.object({ session: lspSessionKeySchema, change: lspDocumentChangeSchema }),
+    data: z.void(),
+    error: lspErrorSchema,
+  }),
   session: liveModel({
     key: lspSessionKeySchema,
     states: { current: liveState({ data: lspStateSchema }) },

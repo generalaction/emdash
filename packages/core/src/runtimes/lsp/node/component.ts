@@ -21,7 +21,7 @@ export const lspComponent = defineWireComponent({
     const runtime = new LspRuntime({
       scope,
       resolveServer: async (key) =>
-        resolveLanguageServer(key.serverId, resolver, await dependencies.userEnv.get()),
+        resolveLanguageServer(key, resolver, await dependencies.userEnv.get()),
     });
     return instance({ scope, controller: createLspController(runtime) });
   },

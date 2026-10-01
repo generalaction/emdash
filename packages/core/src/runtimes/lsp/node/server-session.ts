@@ -5,7 +5,14 @@ import type {
   TextDocumentItem,
 } from 'vscode-languageserver-protocol';
 import { z } from 'zod';
-import { lspDiagnosticSchema } from '../api/schemas';
+import { applyDocumentEdit, positionAtOffset } from '../api/document-edits';
+import { lspDiagnosticSchema, type LspDocumentEdit } from '../api/schemas';
+
+export class DocumentOutOfSyncError extends Error {
+  constructor() {
+    super('Document synchronization requires a fresh snapshot');
+  }
+}
 
 /** Process/JSON-RPC boundary. A session owns exactly one transport generation. */
 export interface LanguageServerTransport {
@@ -73,48 +80,77 @@ export class LanguageServerSession {
   syncDocument(document: TextDocumentItem): Promise<void> {
     return this.enqueue(async () => {
       await this.start();
-      const previous = this.documents.get(document.uri);
-      if (previous && document.version <= previous.version) {
-        if (
-          document.version === previous.version &&
-          document.text === previous.text &&
-          document.languageId === previous.languageId
-        )
-          return;
-        throw new Error('Document version is stale or has conflicting content');
-      }
-      const transport = this.requireTransport();
-      this.documents.set(document.uri, { ...document });
-      this.clearDiagnostics(document.uri);
-      try {
-        if (!previous) {
-          await transport.notify('textDocument/didOpen', { textDocument: document });
-        } else if (previous.languageId !== document.languageId) {
-          await transport.notify('textDocument/didClose', { textDocument: { uri: document.uri } });
-          await transport.notify('textDocument/didOpen', { textDocument: document });
-        } else {
-          const sync = this.current.capabilities.textDocumentSync;
-          const kind = typeof sync === 'number' ? sync : sync?.change;
-          if (kind !== 1 && kind !== 2)
-            throw new Error('Language server does not support document changes');
-          const change =
-            kind === 1
-              ? { text: document.text }
-              : {
-                  range: { start: { line: 0, character: 0 }, end: endPosition(previous.text) },
-                  text: document.text,
-                };
-          await transport.notify('textDocument/didChange', {
-            textDocument: { uri: document.uri, version: document.version },
-            contentChanges: [change],
-          });
-        }
-      } catch (error) {
-        if (previous) this.documents.set(document.uri, previous);
-        else this.documents.delete(document.uri);
-        throw error;
-      }
+      await this.writeDocument(document);
     });
+  }
+
+  changeDocument(change: {
+    uri: string;
+    baseVersion: number;
+    version: number;
+    edit: LspDocumentEdit;
+  }): Promise<void> {
+    return this.enqueue(async () => {
+      await this.start();
+      const previous = this.documents.get(change.uri);
+      if (
+        !previous ||
+        previous.version !== change.baseVersion ||
+        change.version <= change.baseVersion
+      )
+        throw new DocumentOutOfSyncError();
+      const text = applyDocumentEdit(previous.text, change.edit);
+      await this.writeDocument({ ...previous, version: change.version, text }, change.edit);
+    });
+  }
+
+  private async writeDocument(document: TextDocumentItem, edit?: LspDocumentEdit): Promise<void> {
+    const previous = this.documents.get(document.uri);
+    if (previous && document.version <= previous.version) {
+      if (
+        document.version === previous.version &&
+        document.text === previous.text &&
+        document.languageId === previous.languageId
+      )
+        return;
+      throw new Error('Document version is stale or has conflicting content');
+    }
+    const transport = this.requireTransport();
+    this.documents.set(document.uri, { ...document });
+    this.clearDiagnostics(document.uri);
+    try {
+      if (!previous) {
+        await transport.notify('textDocument/didOpen', { textDocument: document });
+      } else if (previous.languageId !== document.languageId) {
+        await transport.notify('textDocument/didClose', { textDocument: { uri: document.uri } });
+        await transport.notify('textDocument/didOpen', { textDocument: document });
+      } else {
+        const sync = this.current.capabilities.textDocumentSync;
+        const kind = typeof sync === 'number' ? sync : sync?.change;
+        if (kind !== 1 && kind !== 2)
+          throw new Error('Language server does not support document changes');
+        const change =
+          kind === 1
+            ? { text: document.text }
+            : {
+                range: edit
+                  ? {
+                      start: positionAtOffset(previous.text, edit.start),
+                      end: positionAtOffset(previous.text, edit.start + edit.deleteCount),
+                    }
+                  : { start: { line: 0, character: 0 }, end: endPosition(previous.text) },
+                text: edit?.text ?? document.text,
+              };
+        await transport.notify('textDocument/didChange', {
+          textDocument: { uri: document.uri, version: document.version },
+          contentChanges: [change],
+        });
+      }
+    } catch (error) {
+      if (previous) this.documents.set(document.uri, previous);
+      else this.documents.delete(document.uri);
+      throw error;
+    }
   }
 
   closeDocument(uri: string): Promise<void> {

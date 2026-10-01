@@ -15,7 +15,7 @@ export function createEditorLspImpl(
   options: EditorLspControllerOptions,
   contract = editorLspContract
 ): ContractImpl<typeof editorLspContract> {
-  async function resolve(key: EditorLspSessionKey): Promise<HostRuntimesClient['lsp']> {
+  async function resolve(key: { host: HostRef }): Promise<HostRuntimesClient['lsp']> {
     if (options.isSupported && !(await options.isSupported(key.host)))
       throw new UnsupportedLspError();
     const runtime = await options.runtimes.client(key.host);
@@ -37,6 +37,20 @@ export function createEditorLspImpl(
     }
   }
   return {
+    resolveProject: async ({ host, ...input }, meta) => {
+      try {
+        return await (await resolve({ host })).resolveProject(input, { signal: meta.signal });
+      } catch (error) {
+        return err({
+          type: error instanceof UnsupportedLspError ? 'unsupported' : 'request-failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    changeDocument: ({ session, change }, meta) =>
+      call(session, (client, key) =>
+        client.changeDocument({ session: key, change }, { signal: meta.signal })
+      ),
     session: {
       kind: 'liveModelProvider',
       contract: contract.session,

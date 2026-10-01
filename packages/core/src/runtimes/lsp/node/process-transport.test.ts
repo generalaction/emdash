@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnLanguageServer } from './process-transport';
+import { createServerRequestHandlers } from './server-configuration';
 import { LanguageServerSession } from './server-session';
 
 const directories: string[] = [];
@@ -65,6 +66,7 @@ describe('language server process transport', () => {
           command: process.execPath,
           args: [cli, '--stdio'],
           cwd: root,
+          requestHandlers: createServerRequestHandlers(pathToFileURL(root).href),
           env: process.env,
         }),
     });

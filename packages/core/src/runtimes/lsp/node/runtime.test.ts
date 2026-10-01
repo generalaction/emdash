@@ -79,6 +79,51 @@ async function fixture() {
 }
 
 describe('LSP runtime over Wire', () => {
+  it('resolves project roots without starting a language process', async () => {
+    const { runtime, wire, session, document } = await fixture();
+    expect(
+      await wire.client.resolveProject({
+        workspaceRoot: session.root,
+        path: document.path,
+        serverId: session.serverId,
+      })
+    ).toEqual({ success: true, data: session.root });
+    expect(runtime.sessionCount).toBe(0);
+  });
+  it('applies deltas through Wire and recovers a lost acknowledgement using a snapshot', async () => {
+    const { wire, session, document } = await fixture();
+    cleanups.push(await attach(wire.client.session, session));
+    await wire.client.syncDocument({ session, document });
+    const change = {
+      path: document.path,
+      baseVersion: 1,
+      version: 2,
+      edit: { start: document.text.indexOf('"'), deleteCount: '"unsaved"'.length, text: '42' },
+    };
+    expect(await wire.client.changeDocument({ session, change })).toEqual({
+      success: true,
+      data: undefined,
+    });
+    expect(await wire.client.changeDocument({ session, change })).toMatchObject({
+      success: false,
+      error: { type: 'document-out-of-sync' },
+    });
+    expect(
+      await wire.client.syncDocument({
+        session,
+        document: { ...document, version: 2, text: 'export const answer = 42;' },
+      })
+    ).toEqual({ success: true, data: undefined });
+    const query = {
+      session,
+      path: document.path,
+      version: 2,
+      position: { line: 0, character: 15 },
+    };
+    expect(JSON.stringify(await wire.client.hover(query))).toContain('42');
+    await wire.client.restart(session);
+    expect(JSON.stringify(await wire.client.hover(query))).toContain('42');
+  });
   it('requires a live session lease and releases its process after the last detach', async () => {
     const { runtime, wire, session, document } = await fixture();
     expect(await wire.client.syncDocument({ session, document })).toMatchObject({

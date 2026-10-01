@@ -2,6 +2,8 @@ import { hostRefSchema } from '@emdash/core/primitives/host/api';
 import { hostAbsolutePathSchema } from '@emdash/core/primitives/path/api';
 import {
   lspDocumentSchema,
+  lspDocumentChangeSchema,
+  lspProjectQuerySchema,
   lspErrorSchema,
   lspHoverSchema,
   lspLocationSchema,
@@ -18,6 +20,16 @@ const documentKey = z.object({ session: editorLspSessionSchema, path: hostAbsolu
 
 /** Host identity is carried once per session; all result paths belong to that host. */
 export const editorLspContract = defineContract({
+  resolveProject: fallible({
+    input: lspProjectQuerySchema.extend({ host: hostRefSchema }),
+    data: hostAbsolutePathSchema,
+    error: lspErrorSchema,
+  }),
+  changeDocument: fallible({
+    input: z.object({ session: editorLspSessionSchema, change: lspDocumentChangeSchema }),
+    data: z.void(),
+    error: lspErrorSchema,
+  }),
   session: liveModel({
     key: editorLspSessionSchema,
     states: { current: liveState({ data: lspStateSchema }) },

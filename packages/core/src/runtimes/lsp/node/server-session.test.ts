@@ -53,6 +53,92 @@ function fixture() {
 }
 
 describe('language server session', () => {
+  it('rolls back a delta when transport delivery fails', async () => {
+    const { session, servers } = fixture();
+    try {
+      await session.syncDocument({ ...document, text: 'old' });
+      const change = {
+        uri: document.uri,
+        baseVersion: 1,
+        version: 2,
+        edit: { start: 0, deleteCount: 3, text: 'new' },
+      };
+      vi.spyOn(servers[0], 'notify').mockRejectedValueOnce(new Error('delivery failed'));
+      await expect(session.changeDocument(change)).rejects.toThrow('delivery failed');
+      await session.changeDocument(change);
+      await session.restart();
+      expect(servers[1].messages.at(-1)?.params).toMatchObject({
+        textDocument: { version: 2, text: 'new' },
+      });
+    } finally {
+      await session.dispose();
+    }
+  });
+  it('applies versioned edits and replays the resulting text on restart', async () => {
+    const { session, servers } = fixture();
+    try {
+      await session.syncDocument({ ...document, text: 'a\r\n😀old' });
+      await session.changeDocument({
+        uri: document.uri,
+        baseVersion: 1,
+        version: 2,
+        edit: { start: 5, deleteCount: 3, text: 'new' },
+      });
+      expect(servers[0].messages.at(-1)?.params).toEqual({
+        textDocument: { uri: document.uri, version: 2 },
+        contentChanges: [
+          {
+            range: { start: { line: 1, character: 2 }, end: { line: 1, character: 5 } },
+            text: 'new',
+          },
+        ],
+      });
+      await session.restart();
+      expect(servers[1].messages.at(-1)?.params).toMatchObject({
+        textDocument: { text: 'a\r\n😀new', version: 2 },
+      });
+    } finally {
+      await session.dispose();
+    }
+  });
+  it('rejects missing or mismatched edit bases without corrupting the document', async () => {
+    const { session, servers } = fixture();
+    const change = {
+      uri: document.uri,
+      baseVersion: 1,
+      version: 2,
+      edit: { start: 0, deleteCount: 0, text: 'prefix' },
+    };
+    try {
+      await expect(session.changeDocument(change)).rejects.toThrow(/synchroniz/i);
+      await session.syncDocument({ ...document, version: 3 });
+      await expect(session.changeDocument(change)).rejects.toThrow(/synchroniz/i);
+      await session.restart();
+      expect(servers[1].messages.at(-1)?.params).toMatchObject({
+        textDocument: { text: document.text, version: 3 },
+      });
+    } finally {
+      await session.dispose();
+    }
+  });
+  it('expands patches for servers that require full-document synchronization', async () => {
+    const { session, servers } = fixture();
+    try {
+      await session.syncDocument({ ...document, text: 'old' });
+      servers[0].capabilities.textDocumentSync = 1;
+      await session.changeDocument({
+        uri: document.uri,
+        baseVersion: 1,
+        version: 2,
+        edit: { start: 0, deleteCount: 3, text: 'new' },
+      });
+      expect(servers[0].messages.at(-1)?.params).toMatchObject({
+        contentChanges: [{ text: 'new' }],
+      });
+    } finally {
+      await session.dispose();
+    }
+  });
   it('initializes once before opening documents, including concurrent opens', async () => {
     const { session, servers, connect } = fixture();
     try {

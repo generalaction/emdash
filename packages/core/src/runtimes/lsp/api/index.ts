@@ -1,9 +1,19 @@
 export { lspContract, type LspContract } from './contract';
 export {
+  languageServers,
+  selectLanguageServer,
+  type LanguageServerDefinition,
+} from './server-catalog';
+export { computeDocumentEdit } from './document-edits';
+export {
   MAX_LSP_DOCUMENT_LENGTH,
   lspCapabilitiesSchema,
   lspDiagnosticSchema,
   lspDocumentSchema,
+  lspDocumentChangeSchema,
+  lspProjectQuerySchema,
+  type LspDocumentChange,
+  type LspDocumentEdit,
   lspErrorSchema,
   lspHoverSchema,
   lspLocationSchema,

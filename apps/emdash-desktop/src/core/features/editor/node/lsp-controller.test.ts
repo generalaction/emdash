@@ -12,6 +12,46 @@ if (!parsed.success) throw new Error('invalid test path');
 const root = parsed.data;
 
 describe('editor language services routing', () => {
+  it('resolves roots and sends deltas on the file host', async () => {
+    const resolveProject = vi.fn(async () => ok(root));
+    const changeDocument = vi.fn(async () => ok(undefined));
+    const resolve = vi.fn(async () => ok({ lsp: { resolveProject, changeDocument } } as never));
+    const runtimes = new RuntimeBroker({ resolve });
+    const wire = createTestWire(editorLspContract, createEditorLspImpl({ runtimes }));
+    const host = { type: 'remote' as const, id: 'host' };
+    try {
+      expect(
+        await wire.client.resolveProject({
+          host,
+          workspaceRoot: root,
+          path: root,
+          serverId: 'typescript',
+        })
+      ).toEqual(ok(root));
+      expect(resolveProject).toHaveBeenCalledWith(
+        { workspaceRoot: root, path: root, serverId: 'typescript' },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+      const change = {
+        path: root,
+        baseVersion: 1,
+        version: 2,
+        edit: { start: 1, deleteCount: 1, text: 'x' },
+      };
+      await wire.client.changeDocument({
+        session: { host, root, clientId: 'client', serverId: 'typescript' },
+        change,
+      });
+      expect(changeDocument).toHaveBeenCalledWith(
+        { session: { root, clientId: 'client', serverId: 'typescript' }, change },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+      expect(resolve).toHaveBeenCalledWith(host);
+    } finally {
+      await wire.dispose();
+      runtimes.dispose();
+    }
+  });
   it.each([LOCAL_HOST_REF, { type: 'remote' as const, id: 'ssh:example' }])(
     'routes requests and cancellation to the owning host: %o',
     async (host) => {

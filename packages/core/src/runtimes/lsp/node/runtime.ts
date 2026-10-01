@@ -5,13 +5,22 @@ import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose } from '@emdash/wire/state';
 import { formatAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import { lspContract } from '../api/contract';
-import type { LspDocument, LspError, LspQuery, LspSessionKey } from '../api/schemas';
+import type {
+  LspDocument,
+  LspDocumentChange,
+  LspError,
+  LspQuery,
+  LspSessionKey,
+  LspProjectQuery,
+} from '../api/schemas';
 import { spawnLanguageServer, type LanguageServerLaunch } from './process-transport';
+import { resolveLanguageProject } from './project-resolution';
 import { documentUri, parseHover, parseLocations, projectSessionState } from './protocol-values';
-import { LanguageServerSession } from './server-session';
+import { createServerRequestHandlers } from './server-configuration';
+import { LanguageServerSession, DocumentOutOfSyncError } from './server-session';
 
-export type ResolvedLanguageServer = Omit<LanguageServerLaunch, 'cwd'> & {
-  initializationOptions?: unknown;
+export type ResolvedLanguageServer = Omit<LanguageServerLaunch, 'cwd' | 'requestHandlers'> & {
+  settings?: Record<string, unknown>;
 };
 
 /** Host-scoped sessions are leased by live-state attachments, including over SSH. */
@@ -36,7 +45,14 @@ export class LspRuntime {
               if (!(await stat(cwd)).isDirectory())
                 throw new Error('Language server workspace root must be a directory');
               const launch = await options.resolveServer(key);
-              return spawnLanguageServer({ ...launch, cwd });
+              return spawnLanguageServer({
+                ...launch,
+                cwd,
+                requestHandlers: createServerRequestHandlers(
+                  documentUri(key.root),
+                  launch.settings
+                ),
+              });
             },
             onState: (state) => current.set(projectSessionState(state)),
           });
@@ -58,6 +74,24 @@ export class LspRuntime {
 
   get sessionCount(): number {
     return this.sessions.size;
+  }
+  async resolveProject(input: LspProjectQuery): Promise<Result<HostAbsolutePath, LspError>> {
+    try {
+      return ok(await resolveLanguageProject(input));
+    } catch (error) {
+      return err({
+        type: 'request-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  changeDocument(key: LspSessionKey, change: LspDocumentChange) {
+    return this.withSession(key, (session) =>
+      session.changeDocument({
+        ...change,
+        uri: documentUri(change.path),
+      })
+    );
   }
   syncDocument(key: LspSessionKey, document: LspDocument) {
     return this.withSession(key, (session) =>
@@ -135,7 +169,11 @@ export class LspRuntime {
       return ok(await run(session));
     } catch (error) {
       return err({
-        type: signal?.aborted ? 'cancelled' : 'request-failed',
+        type: signal?.aborted
+          ? 'cancelled'
+          : error instanceof DocumentOutOfSyncError
+            ? 'document-out-of-sync'
+            : 'request-failed',
         message: error instanceof Error ? error.message : String(error),
       });
     }

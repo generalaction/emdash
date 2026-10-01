@@ -1,11 +1,9 @@
 import { spawn } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
 import { recordSpawn } from '@emdash/shared/perf';
 import {
   CancellationTokenSource,
   createProtocolConnection,
 } from 'vscode-languageserver-protocol/node.js';
-import { z } from 'zod';
 import {
   createChildProcessTreeTerminator,
   planExecutableLaunch,
@@ -20,6 +18,7 @@ export interface LanguageServerLaunch {
   env: NodeJS.ProcessEnv;
   requestTimeoutMs?: number;
   initializationOptions?: unknown;
+  requestHandlers?: Readonly<Record<string, (params: unknown) => unknown>>;
 }
 
 /** Owns stdio framing, bounded RPCs, server requests and the entire child tree. */
@@ -65,25 +64,8 @@ export async function spawnLanguageServer(
   connection.onNotification('textDocument/publishDiagnostics', (params: unknown) => {
     for (const listener of notifications) listener('textDocument/publishDiagnostics', params);
   });
-  connection.onRequest('workspace/configuration', (input: unknown) => {
-    const parsed = z
-      .object({ items: z.array(z.object({ section: z.string().optional() })) })
-      .safeParse(input);
-    return parsed.success
-      ? parsed.data.items.map((item) =>
-          item.section === 'formattingOptions' ? { tabSize: 2, insertSpaces: true } : null
-        )
-      : [];
-  });
-  connection.onRequest('workspace/workspaceFolders', () => [
-    { uri: pathToFileURL(options.cwd).href, name: 'workspace' },
-  ]);
-  connection.onRequest('workspace/applyEdit', () => ({
-    applied: false,
-    failureReason: 'Workspace edits are not supported by this client.',
-  }));
-  connection.onRequest('window/workDoneProgress/create', () => null);
-  connection.onRequest('window/showMessageRequest', () => null);
+  for (const [method, handler] of Object.entries(options.requestHandlers ?? {}))
+    connection.onRequest(method, handler);
   connection.listen();
   let disposal: Promise<void> | undefined;
 
