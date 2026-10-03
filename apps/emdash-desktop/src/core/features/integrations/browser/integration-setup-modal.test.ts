@@ -28,6 +28,43 @@ vi.mock('@core/features/integrations/contributions/browser/integrations-provider
           ],
         },
       },
+      jira: {
+        name: 'Jira',
+        auth: {
+          methods: [
+            {
+              kind: 'form',
+              id: 'basic',
+              label: 'Email + API token',
+              fields: [
+                { id: 'siteUrl', label: 'Site URL', required: true },
+                { id: 'email', label: 'Email', required: true },
+                { id: 'apiToken', label: 'API token', secret: true, required: true },
+              ],
+            },
+            {
+              kind: 'form',
+              id: 'bearer',
+              label: 'Bearer token',
+              fields: [
+                {
+                  id: 'siteUrl',
+                  label: 'Site URL',
+                  required: true,
+                  defaultValue: 'https://example.atlassian.net',
+                },
+                {
+                  id: 'accessToken',
+                  label: 'Bearer token',
+                  secret: true,
+                  required: true,
+                  defaultValue: 'scoped-token',
+                },
+              ],
+            },
+          ],
+        },
+      },
     },
     connectIntegration: mocks.connect,
     isIntegrationMutating: () => false,
@@ -127,5 +164,43 @@ describe('integration setup account identity', () => {
       { accountId: 'default', displayName: 'Support team' }
     );
     expect(mocks.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('submits the selected Jira bearer form without Basic Auth fields', async () => {
+    await act(async () =>
+      root.render(React.createElement(IntegrationSetupModal, { integration: 'jira' }))
+    );
+
+    const method = container.querySelector<HTMLSelectElement>('#integration-auth-method');
+    expect(method?.value).toBe('basic');
+    await act(async () => {
+      method!.value = 'bearer';
+      method!.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    });
+
+    expect(container.querySelector('#integration-field-email')).toBeNull();
+    const siteUrl = container.querySelector<HTMLInputElement>('#integration-field-siteUrl');
+    const accessToken = container.querySelector<HTMLInputElement>('#integration-field-accessToken');
+    expect(accessToken?.type).toBe('password');
+    expect(siteUrl?.value).toBe('https://example.atlassian.net');
+    expect(accessToken?.value).toBe('scoped-token');
+
+    const submit = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Connect'
+    );
+    expect(submit?.disabled).toBe(false);
+    await act(async () => {
+      submit?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(mocks.connect).toHaveBeenCalledWith(
+      'jira',
+      {
+        siteUrl: 'https://example.atlassian.net',
+        accessToken: 'scoped-token',
+        authMethod: 'bearer',
+      },
+      { accountId: undefined }
+    );
   });
 });

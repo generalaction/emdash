@@ -18,6 +18,13 @@ export function readJiraCredentials(
 }
 
 export function createJiraClient(credentials: JiraCredentials): JiraClient {
+  if ('authMethod' in credentials && credentials.authMethod === 'bearer') {
+    return new Version3Client({
+      host: credentials.siteUrl,
+      authentication: { oauth2: { accessToken: credentials.accessToken } },
+    });
+  }
+
   return new Version3Client({
     host: credentials.siteUrl,
     authentication: {
@@ -39,12 +46,20 @@ export async function verifyJiraCredentials(
   try {
     const user = await client.myself.getCurrentUser();
     const host = new URL(credentials.data.siteUrl).host;
+    const isBearer = 'authMethod' in credentials.data && credentials.data.authMethod === 'bearer';
+    const email = 'email' in credentials.data ? credentials.data.email : undefined;
     return ok({
       ...(user.accountId
-        ? { account: { id: user.accountId, login: credentials.data.email, host } }
+        ? {
+            account: {
+              id: user.accountId,
+              ...(email ? { login: email } : {}),
+              host,
+            },
+          }
         : {}),
       displayName: user.displayName,
-      displayDetail: `${credentials.data.email} · ${host}`,
+      displayDetail: `${isBearer ? 'Bearer token' : email} · ${host}`,
       credentials: credentials.data,
     });
   } catch (error) {
