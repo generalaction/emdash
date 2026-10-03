@@ -13,6 +13,8 @@ const authFieldSchema = z.object({
 
 const formMethodSchema = z.object({
   kind: z.literal('form'),
+  id: z.string().optional(),
+  label: z.string().optional(),
   fields: z.array(authFieldSchema).min(1),
   help: z.string().optional(),
   helpUrl: z.string().optional(),

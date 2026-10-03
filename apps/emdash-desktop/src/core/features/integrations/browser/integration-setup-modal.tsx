@@ -67,8 +67,12 @@ export const integrationSetupModal = defineModal<void>()({
   size: 'md',
 });
 
-function formMethod(metadata: IntegrationProviderDescriptor | undefined) {
-  return metadata?.auth.methods.find((method) => method.kind === 'form');
+function formMethods(metadata: IntegrationProviderDescriptor | undefined) {
+  return metadata?.auth.methods.filter((method) => method.kind === 'form') ?? [];
+}
+
+function formMethodId(method: ReturnType<typeof formMethods>[number], index: number) {
+  return method.id ?? `form-${index}`;
 }
 
 function IntegrationSetupForm({
@@ -86,7 +90,13 @@ function IntegrationSetupForm({
   onSuccess: () => void;
   onClose: () => void;
 }) {
-  const method = formMethod(metadata);
+  const methods = formMethods(metadata);
+  const [selectedMethodId, setSelectedMethodId] = useState(() =>
+    methods[0] ? formMethodId(methods[0], 0) : ''
+  );
+  const method =
+    methods.find((candidate, index) => formMethodId(candidate, index) === selectedMethodId) ??
+    methods[0];
   const [accountName, setAccountName] = useState(displayName ?? '');
   const needsAccountName = metadata.auth.accountLabelRequired === true;
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -107,12 +117,24 @@ function IntegrationSetupForm({
     setValues((current) => ({ ...current, [id]: value }));
   };
 
+  const updateMethod = (id: string) => {
+    const nextMethod = methods.find((candidate, index) => formMethodId(candidate, index) === id);
+    if (!nextMethod) return;
+    setSelectedMethodId(id);
+    setValues(
+      Object.fromEntries(nextMethod.fields.map((field) => [field.id, field.defaultValue ?? '']))
+    );
+  };
+
   return (
     <SetupFormShell
       providerId={integration}
-      getInput={() =>
-        Object.fromEntries(method.fields.map((field) => [field.id, values[field.id]?.trim() ?? '']))
-      }
+      getInput={() => {
+        const input = Object.fromEntries(
+          method.fields.map((field) => [field.id, values[field.id]?.trim() ?? ''])
+        );
+        return methods.length > 1 && method.id ? { ...input, authMethod: method.id } : input;
+      }}
       getConnectionOptions={() => ({
         accountId,
         ...(needsAccountName ? { displayName: accountName.trim() } : {}),
@@ -123,6 +145,26 @@ function IntegrationSetupForm({
       onClose={onClose}
     >
       <div className="grid gap-3">
+        {methods.length > 1 ? (
+          <div className="grid gap-1.5">
+            <label htmlFor="integration-auth-method" className="text-xs text-foreground-muted">
+              Authentication method
+            </label>
+            <select
+              id="integration-auth-method"
+              aria-label="Authentication method"
+              value={selectedMethodId}
+              onChange={(event) => updateMethod(event.target.value)}
+              className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+            >
+              {methods.map((candidate, index) => (
+                <option key={formMethodId(candidate, index)} value={formMethodId(candidate, index)}>
+                  {candidate.label ?? `Method ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         {needsAccountName ? (
           <div className="grid gap-1.5">
             <Input
