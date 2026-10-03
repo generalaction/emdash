@@ -16,6 +16,8 @@ const plugin = defineIntegrationPlugin(
       methods: [
         {
           kind: 'form',
+          id: 'basic',
+          label: 'Email + API token',
           fields: [
             {
               id: 'siteUrl',
@@ -39,6 +41,27 @@ const plugin = defineIntegrationPlugin(
           ],
           help: 'Create an API token from your Atlassian account security settings.',
           helpUrl: 'https://id.atlassian.com/manage-profile/security/api-tokens',
+        },
+        {
+          kind: 'form',
+          id: 'bearer',
+          label: 'Bearer token',
+          fields: [
+            {
+              id: 'siteUrl',
+              label: 'Site URL',
+              required: true,
+              placeholder: 'https://your-domain.atlassian.net',
+            },
+            {
+              id: 'accessToken',
+              label: 'Bearer token',
+              secret: true,
+              required: true,
+              placeholder: 'Jira bearer token',
+            },
+          ],
+          help: 'Use a Jira OAuth 2.0 access token or another scoped bearer token.',
         },
       ],
     },

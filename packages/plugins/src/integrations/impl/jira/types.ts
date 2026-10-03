@@ -3,13 +3,42 @@ import z from 'zod';
 import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 
-export const jiraCredentialsSchema = z.object({
-  siteUrl: credentialString('Jira site URL is required.')
-    .refine(isHttpUrl, 'Jira site URL must be a valid HTTP(S) URL.')
-    .transform((value) => value.replace(/\/+$/, '')),
+const jiraSiteUrlSchema = credentialString('Jira site URL is required.')
+  .refine(isHttpUrl, 'Jira site URL must be a valid HTTP(S) URL.')
+  .transform((value) => value.replace(/\/+$/, ''));
+
+const basicJiraCredentialsSchema = z.object({
+  authMethod: z.literal('basic'),
+  siteUrl: jiraSiteUrlSchema,
   email: credentialString('Jira email is required.'),
   apiToken: credentialString('Jira API token is required.'),
 });
+
+const bearerJiraCredentialsSchema = z.object({
+  authMethod: z.literal('bearer'),
+  siteUrl: jiraSiteUrlSchema,
+  accessToken: credentialString('Jira bearer token is required.'),
+});
+
+// Credentials stored before authMethod was introduced remain valid Basic Auth.
+const legacyBasicJiraCredentialsSchema = z
+  .object({
+    siteUrl: jiraSiteUrlSchema,
+    email: credentialString('Jira email is required.'),
+    apiToken: credentialString('Jira API token is required.'),
+  })
+  .passthrough()
+  .refine((value) => value.authMethod === undefined, {
+    message: 'Jira authentication method is invalid.',
+    path: ['authMethod'],
+  })
+  .transform(({ siteUrl, email, apiToken }) => ({ siteUrl, email, apiToken }));
+
+export const jiraCredentialsSchema = z.union([
+  basicJiraCredentialsSchema,
+  bearerJiraCredentialsSchema,
+  legacyBasicJiraCredentialsSchema,
+]);
 
 export type JiraCredentials = z.infer<typeof jiraCredentialsSchema>;
 
