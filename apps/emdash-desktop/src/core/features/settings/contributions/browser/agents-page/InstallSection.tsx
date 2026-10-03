@@ -185,13 +185,15 @@ const LocalInstallSection = observer(function LocalInstallSection({
       });
   };
 
-  // For the install command card, narrow to the selected method when concrete.
+  // Show every platform-appropriate option for the initial install flow, even when
+  // the recommended method seeded the source selection. An explicitly chosen method
+  // still narrows the card to preserve the existing source-selection behavior.
   const effectiveInstallOptions = useMemo(() => {
-    if (selectedSource.kind === 'method') {
-      return installOptions.filter((o) => o.method === selectedSource.method);
+    if (sourceDraft?.kind === 'method') {
+      return installOptions.filter((o) => o.method === sourceDraft.method);
     }
     return installOptions;
-  }, [installOptions, selectedSource]);
+  }, [installOptions, sourceDraft]);
 
   if (vm.runtimeError) {
     switch (vm.runtimeError.type) {
