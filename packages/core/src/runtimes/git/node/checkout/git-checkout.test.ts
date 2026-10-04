@@ -349,6 +349,56 @@ describe('GitCheckout', () => {
     }
   });
 
+  it('lists merge commit files against only the first parent', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    const git = (...args: string[]) => execFileAsync('git', args, { cwd: repo });
+    try {
+      await writeFile(path.join(repo, 'deleted file.txt'), 'delete me\n');
+      await writeFile(path.join(repo, 'old name.txt'), 'one\ntwo\nthree\nfour\nfive\n');
+      await git('add', '.');
+      await git('commit', '--amend', '--no-edit');
+      await git('checkout', '-b', 'topic');
+      await writeFile(path.join(repo, 'added café file.txt'), 'from topic\n');
+      await writeFile(path.join(repo, 'tracked.txt'), 'after\nextra\n');
+      await git('rm', 'deleted file.txt');
+      await git('mv', 'old name.txt', 'new name.txt');
+      await git('add', '.');
+      await git('commit', '-m', 'topic changes');
+      await git('checkout', 'main');
+      await writeFile(path.join(repo, 'main only.txt'), 'first parent change\n');
+      await git('add', '.');
+      await git('commit', '-m', 'main changes');
+      await git('merge', '--no-ff', 'topic', '-m', 'merge topic');
+      const { stdout: mergeHash } = await git('rev-parse', 'HEAD');
+      await expect(checkout.getCommitFiles(mergeHash.trim())).resolves.toEqual([
+        { path: gitPath('added café file.txt'), status: 'added', additions: 1, deletions: 0 },
+        { path: gitPath('deleted file.txt'), status: 'deleted', additions: 0, deletions: 1 },
+        { path: gitPath('new name.txt'), status: 'added', additions: 5, deletions: 0 },
+        { path: gitPath('old name.txt'), status: 'deleted', additions: 0, deletions: 5 },
+        { path: gitPath('tracked.txt'), status: 'modified', additions: 2, deletions: 1 },
+      ]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('returns no files for a merge with an empty first-parent diff', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    const git = (...args: string[]) => execFileAsync('git', args, { cwd: repo });
+    try {
+      await git('checkout', '-b', 'topic');
+      await writeFile(path.join(repo, 'topic.txt'), 'second parent change\n');
+      await git('add', '.');
+      await git('commit', '-m', 'topic changes');
+      await git('checkout', 'main');
+      await git('merge', '--no-ff', '-s', 'ours', 'topic', '-m', 'keep first parent tree');
+      const { stdout: mergeHash } = await git('rev-parse', 'HEAD');
+      await expect(checkout.getCommitFiles(mergeHash.trim())).resolves.toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it.skipIf(process.platform === 'win32')(
     'uses the exact destination path and line counts for an edited rename',
     async () => {
