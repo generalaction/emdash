@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import type { PortableRelativePath } from '#primitives/path/api';
@@ -39,8 +40,8 @@ async function makeRepo(): Promise<string> {
   return realpath(repo);
 }
 
-async function makeCheckout() {
-  const repo = await makeRepo();
+async function makeCheckout(existingRepo?: string) {
+  const repo = existingRepo ?? (await makeRepo());
   const gitDir = path.join(repo, '.git');
   const identity = {
     repositoryId: gitDir,
@@ -396,6 +397,24 @@ describe('GitCheckout', () => {
       await expect(checkout.getCommitFiles(mergeHash.trim())).resolves.toEqual([]);
     } finally {
       await cleanup();
+    }
+  });
+
+  it('does not treat a shallow commit with an unavailable parent as a root', async () => {
+    const repo = await makeRepo();
+    try {
+      await writeFile(path.join(repo, 'tracked.txt'), 'after\n');
+      await execFileAsync('git', ['commit', '-am', 'modify tracked file'], { cwd: repo });
+      const shallowRepo = path.join(repo, 'shallow');
+      await execFileAsync('git', ['clone', '--depth=1', pathToFileURL(repo).href, shallowRepo]);
+      const { checkout } = await makeCheckout(shallowRepo);
+      const { stdout: hash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+        cwd: shallowRepo,
+      });
+
+      await expect(checkout.getCommitFiles(hash.trim())).rejects.toThrow();
+    } finally {
+      await rm(repo, { recursive: true, force: true });
     }
   });
 
