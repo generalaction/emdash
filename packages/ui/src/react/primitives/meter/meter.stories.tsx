@@ -19,6 +19,14 @@ export const Default: Story = {};
 export const Warning: Story = { args: { value: 20, tone: 'warning' } };
 export const Exhausted: Story = { args: { value: 0, tone: 'error' } };
 export const Full: Story = { args: { value: 100 } };
+export const Subscription: Story = {
+  args: {
+    size: 'lg',
+    startLabel: '30% left',
+    endLabel: '↻ 6d 20h',
+    value: 30,
+  },
+};
 export const Labeled: Story = {
   args: {
     size: 'lg',

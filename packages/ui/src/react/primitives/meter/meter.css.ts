@@ -1,5 +1,6 @@
 import { createVar, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
+import { textVariants } from '../typography/typography.variants.css';
 import { vars } from '@theme/core/contract/contract.css';
 
 export const meterColor = createVar();
@@ -14,11 +15,11 @@ export const root = recipe({
   },
 });
 export const track = recipe({
-  base: { overflow: 'hidden', backgroundColor: vars.border },
+  base: { overflow: 'hidden' },
   variants: {
     size: {
-      sm: { height: '0.375rem', borderRadius: '999px' },
-      lg: { height: '2.5rem', borderRadius: '0.5rem' },
+      sm: { height: '0.375rem', borderRadius: '999px', backgroundColor: vars.border },
+      lg: { height: '2.5rem', borderRadius: '0.5rem', backgroundColor: vars.surfaceHover },
     },
     striped: {
       true: {
@@ -33,33 +34,35 @@ export const indicator = recipe({
   variants: {
     size: {
       sm: { backgroundColor: meterColor },
-      lg: { backgroundColor: `color-mix(in srgb, ${meterColor} 35%, ${vars.surface})` },
+      lg: { backgroundColor: `color-mix(in srgb, ${meterColor} 25%, ${vars.surface})` },
     },
   },
 });
-export const labels = style({
-  position: 'absolute',
-  inset: 0,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.5rem',
-  paddingInline: '0.625rem',
-  fontSize: '0.8125rem',
-  fontWeight: 500,
-  color: vars.foreground,
-  pointerEvents: 'none',
-});
+export const labels = style([
+  textVariants({ variant: 'body' }),
+  {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    paddingInline: '0.625rem',
+    color: vars.foreground,
+    pointerEvents: 'none',
+  },
+]);
 export const startLabel = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });
-export const endLabel = style({
-  flexShrink: 0,
-  padding: '0.125rem 0.375rem',
-  borderRadius: '0.375rem',
-  backgroundColor: `color-mix(in srgb, ${vars.surface} 85%, transparent)`,
-  fontSize: '0.75rem',
-  fontWeight: 400,
-});
+export const endLabel = style([
+  textVariants({ variant: 'caption' }),
+  {
+    flexShrink: 0,
+    padding: '0.125rem 0.375rem',
+    borderRadius: '0.375rem',
+    backgroundColor: `color-mix(in srgb, ${vars.surface} 85%, transparent)`,
+  },
+]);
