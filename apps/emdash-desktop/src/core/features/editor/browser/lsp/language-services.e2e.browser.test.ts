@@ -93,6 +93,9 @@ it.each(['typescript', 'python'] as const)(
     const answerPosition = { lineNumber: 2, column: python ? 15 : 24 };
     const diagnosticCode = python ? 'reportAssignmentType' : '2322';
     try {
+      await expect
+        .poll(() => services.status(fixture.consumer)?.connection, { timeout: 15_000 })
+        .toMatchObject({ kind: 'connected', server: { phase: 'ready' } });
       const hover = await services.hover(consumer, answerPosition, token);
       expect(JSON.stringify(hover)).toContain('unsaved');
       const definitions = await services.definition(consumer, answerPosition, token);

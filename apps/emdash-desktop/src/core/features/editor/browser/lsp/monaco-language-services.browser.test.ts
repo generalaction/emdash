@@ -4,8 +4,10 @@ import {
   languageServers,
   type LanguageServerDefinition,
   type LspState,
+  type LspHover,
+  type LspError,
 } from '@emdash/core/runtimes/lsp/api';
-import { ok } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import type { CallMeta } from '@emdash/wire/rpc';
@@ -62,7 +64,10 @@ function fixture(
   const applyDocumentEdit = vi.fn(async () => ok(undefined));
   const restartServer = vi.fn(async () => ok(undefined));
   const closeDocument = vi.fn(async () => ok(undefined));
-  const hover = vi.fn(async (_input: unknown, _meta: CallMeta) => ok({ contents: '**string**' }));
+  const hover = vi.fn(
+    async (_input: unknown, _meta: CallMeta): Promise<Result<LspHover, LspError>> =>
+      ok({ contents: '**string**' })
+  );
   const references = vi.fn(async (_input: unknown) => ok([]));
   const onError = vi.fn();
   const target = file('/outside/dependency.d.ts', host);
@@ -132,7 +137,7 @@ function fixture(
 }
 
 describe('Monaco language services', () => {
-  it('leaves built-in completion and formatting enabled while host servers own hover and diagnostics', () => {
+  it('keeps completion and formatting enabled while host LSP owns hover, navigation and diagnostics', () => {
     for (const defaults of [
       monaco.css.cssDefaults,
       monaco.css.scssDefaults,
@@ -151,6 +156,19 @@ describe('Monaco language services', () => {
       definitions: false,
       references: false,
     });
+    for (const defaults of [
+      monaco.typescript.typescriptDefaults,
+      monaco.typescript.javascriptDefaults,
+    ]) {
+      expect(defaults.modeConfiguration).toMatchObject({
+        hovers: false,
+        definitions: false,
+        references: false,
+        diagnostics: false,
+        completionItems: true,
+        documentRangeFormattingEdits: true,
+      });
+    }
   });
   it('registers selectors using Monaco IDs, including shell and JSONC', () => {
     const register = vi.spyOn(monaco.languages, 'registerHoverProvider');
@@ -196,7 +214,9 @@ describe('Monaco language services', () => {
     cleanup.push(() => editors.forEach((editor) => editor.dispose()));
     await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
     expect(f.setDocumentSnapshot).toHaveBeenCalledTimes(1);
-    expect(await f.services.hover(disk, { lineNumber: 1, column: 1 }, token)).toBeNull();
+    const queries = f.hover.mock.calls.length;
+    await f.services.hover(disk, { lineNumber: 1, column: 1 }, token);
+    expect(f.hover).toHaveBeenCalledTimes(queries);
     editors[0].dispose();
     expect(f.closeDocument).not.toHaveBeenCalled();
   });
@@ -208,7 +228,7 @@ describe('Monaco language services', () => {
     });
     expect(locations?.[0].uri.toString()).toBe(encodeFacetUri(f.target, { kind: 'buffer' }));
   });
-  it('publishes diagnostics only on the buffer and clears them on edits and disconnection', async () => {
+  it('publishes host diagnostics and clears them on edits, failure and disposal', async () => {
     const f = fixture();
     await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
     const ready = {
@@ -216,22 +236,24 @@ describe('Monaco language services', () => {
       generation: 'one',
       capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
     };
-    f.state.set({
-      ...ready,
-      diagnostics: [
-        {
-          path: f.ref.path,
-          version: f.model.getVersionId(),
-          diagnostics: [
-            {
-              message: 'Type mismatch',
-              severity: 1,
-              range: { start: { line: 0, character: 6 }, end: { line: 0, character: 11 } },
-            },
-          ],
-        },
-      ],
-    });
+    const publishDiagnostics = () =>
+      f.state.set({
+        ...ready,
+        diagnostics: [
+          {
+            path: f.ref.path,
+            version: f.model.getVersionId(),
+            diagnostics: [
+              {
+                message: 'Type mismatch',
+                severity: 1,
+                range: { start: { line: 0, character: 6 }, end: { line: 0, character: 11 } },
+              },
+            ],
+          },
+        ],
+      });
+    publishDiagnostics();
     await expect
       .poll(() =>
         monaco.editor.getModelMarkers({ resource: f.model.uri }).map((marker) => marker.message)
@@ -239,10 +261,21 @@ describe('Monaco language services', () => {
       .toEqual(['Type mismatch']);
     f.model.setValue('const value = 2;');
     expect(monaco.editor.getModelMarkers({ resource: f.model.uri })).toEqual([]);
+    publishDiagnostics();
+    await expect
+      .poll(() => monaco.editor.getModelMarkers({ resource: f.model.uri }).length)
+      .toBe(1);
     f.state.set({ ...ready, phase: 'failed', error: 'disconnected', diagnostics: [] });
     await expect
       .poll(() => f.services.status(f.ref)?.connection)
       .toMatchObject({ kind: 'connected', server: { phase: 'failed' } });
+    expect(monaco.editor.getModelMarkers({ resource: f.model.uri })).toEqual([]);
+    publishDiagnostics();
+    await expect
+      .poll(() => monaco.editor.getModelMarkers({ resource: f.model.uri }).length)
+      .toBe(1);
+    await f.services.dispose();
+    expect(monaco.editor.getModelMarkers({ resource: f.model.uri })).toEqual([]);
   });
 });
 
@@ -515,4 +548,100 @@ it('forwards reference context without claiming a query failure is a server fail
     kind: 'connected',
     server: { phase: 'ready' },
   });
+});
+
+it('returns no language results when the host is offline', async () => {
+  const f = fixture(true);
+  f.model.setValue('const localValue = 42;\nlocalValue;');
+  await expect.poll(() => f.services.status(f.ref)?.connection.kind).toBe('disconnected');
+  const position = { lineNumber: 2, column: 3 };
+  expect(await f.services.hover(f.model, position, token)).toBeNull();
+  expect(await f.services.definition(f.model, position, token)).toBeNull();
+  expect(await f.services.typeDefinition(f.model, position, token)).toBeNull();
+  expect(
+    await f.services.references(f.model, position, { includeDeclaration: true }, token)
+  ).toBeNull();
+  expect(monaco.editor.getModelMarkers({ resource: f.model.uri })).toEqual([]);
+  expect(f.hover).not.toHaveBeenCalled();
+  expect(f.onError).not.toHaveBeenCalled();
+});
+
+it('keeps local and remote availability independent and switches back after recovery', async () => {
+  const local = fixture();
+  const remote = fixture(true, hostRef('remote', 'offline'));
+  remote.model.setValue('const remoteValue = 42;\nremoteValue;');
+  await expect.poll(() => remote.services.status(remote.ref)?.connection.kind).toBe('disconnected');
+  const position = { lineNumber: 2, column: 3 };
+  expect(await remote.services.hover(remote.model, position, token)).toBeNull();
+  expect(
+    (await local.services.hover(local.model, { lineNumber: 1, column: 8 }, token))?.contents
+  ).toEqual([{ value: '**string**', isTrusted: false }]);
+  await remote.services.restartServer(remote.ref);
+  expect((await remote.services.hover(remote.model, position, token))?.contents).toEqual([
+    { value: '**string**', isTrusted: false },
+  ]);
+});
+
+it.each(['starting', 'failed'] as const)(
+  'returns no language results while the server is %s',
+  async (phase) => {
+    const f = fixture();
+    f.model.setValue('const localValue = 42;\nlocalValue;');
+    const ready = {
+      phase: 'ready' as const,
+      generation: 'one',
+      capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+      diagnostics: [],
+    };
+    f.state.set({ ...ready, phase });
+    await expect
+      .poll(() => f.services.status(f.ref)?.connection)
+      .toMatchObject({ kind: 'connected', server: { phase } });
+    const position = { lineNumber: 2, column: 3 };
+    expect(await f.services.hover(f.model, position, token)).toBeNull();
+    expect(await f.services.definition(f.model, position, token)).toBeNull();
+    expect(await f.services.typeDefinition(f.model, position, token)).toBeNull();
+    expect(
+      await f.services.references(f.model, position, { includeDeclaration: true }, token)
+    ).toBeNull();
+    expect(f.hover).not.toHaveBeenCalled();
+    expect(f.onError).not.toHaveBeenCalled();
+  }
+);
+
+it('returns no result for unsupported capabilities and preserves empty host answers', async () => {
+  const f = fixture();
+  f.model.setValue('const localValue = 42;\nlocalValue;');
+  const position = { lineNumber: 2, column: 3 };
+  const ready = {
+    phase: 'ready' as const,
+    generation: 'one',
+    capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+    diagnostics: [],
+  };
+  f.state.set({ ...ready, capabilities: { ...ready.capabilities, hover: false } });
+  expect(await f.services.hover(f.model, position, token)).toBeNull();
+  expect(f.hover).not.toHaveBeenCalled();
+  expect(
+    await f.services.references(f.model, position, { includeDeclaration: true }, token)
+  ).toEqual([]);
+  f.state.set(ready);
+  await expect
+    .poll(() => f.services.status(f.ref)?.connection)
+    .toMatchObject({ kind: 'connected', server: { capabilities: { hover: true } } });
+  f.hover.mockResolvedValueOnce(ok(null));
+  expect(await f.services.hover(f.model, position, token)).toBeNull();
+  expect(f.onError).not.toHaveBeenCalled();
+});
+
+it('returns no language results for snapshots without opening them on a host', async () => {
+  const f = fixture();
+  const model = monaco.editor.createModel(
+    'const diskValue = 42;\ndiskValue;',
+    'typescript',
+    monaco.Uri.parse(encodeFacetUri(f.ref, { kind: 'disk' }))
+  );
+  cleanup.push(() => model.dispose());
+  expect(await f.services.hover(model, { lineNumber: 2, column: 3 }, token)).toBeNull();
+  expect(f.hover).not.toHaveBeenCalled();
 });

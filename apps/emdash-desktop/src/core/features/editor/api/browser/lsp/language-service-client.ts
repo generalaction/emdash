@@ -126,19 +126,19 @@ export class LanguageServiceClient {
         }
       },
       hover: (position, signal) =>
-        this.query(record, position, signal, (client, input, signal) =>
+        this.query(record, 'hover', position, signal, (client, input, signal) =>
           client.hover(input, { signal }).then(unwrap)
         ),
       definition: (position, signal) =>
-        this.query(record, position, signal, (client, input, signal) =>
+        this.query(record, 'definition', position, signal, (client, input, signal) =>
           client.definition(input, { signal }).then(unwrap)
         ),
       typeDefinition: (position, signal) =>
-        this.query(record, position, signal, (client, input, signal) =>
+        this.query(record, 'typeDefinition', position, signal, (client, input, signal) =>
           client.typeDefinition(input, { signal }).then(unwrap)
         ),
       references: (position, options, signal) =>
-        this.query(record, position, signal, (client, input, signal) =>
+        this.query(record, 'references', position, signal, (client, input, signal) =>
           client.references({ ...input, ...options }, { signal }).then(unwrap)
         ),
       dispose: () => this.release(record),
@@ -248,6 +248,7 @@ export class LanguageServiceClient {
 
   private async query<T>(
     record: BoundDocument,
+    capability: keyof LspState['capabilities'],
     position: Position,
     signal: AbortSignal | undefined,
     request: (
@@ -278,10 +279,19 @@ export class LanguageServiceClient {
         abort
       );
       const session = record.session;
-      if (!session) return null;
+      if (!session || session.connection.kind === 'disconnected')
+        throw new LanguageServiceError('session-unavailable', 'Language server is unavailable');
+      const client = await waitWithSignal(session.attachedClient, abort);
+      const connection = session.connection;
+      if (connection.kind !== 'connected' || connection.server.phase !== 'ready')
+        throw new LanguageServiceError('session-unavailable', 'Language server is not ready');
+      if (!connection.server.capabilities[capability])
+        throw new LanguageServiceError(
+          'unsupported',
+          `Language server does not support ${capability}`
+        );
       await waitWithSignal(session.documents.flush(), abort);
       if (version !== record.source.getVersion()) return null;
-      const client = await waitWithSignal(session.attachedClient, abort);
       const result = await waitWithSignal(
         request(
           client,

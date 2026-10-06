@@ -14,7 +14,10 @@ import {
   LanguageServiceClient,
   type LanguageDocumentBinding,
 } from '../../api/browser/lsp/language-service-client';
-import type { LanguageClient } from '../../api/browser/lsp/language-session-client';
+import {
+  LanguageServiceError,
+  type LanguageClient,
+} from '../../api/browser/lsp/language-session-client';
 
 type NavigationContext = { projectId: string; taskId: string };
 type Context = { ref: HostFileRef; root: HostFileRef; navigation: NavigationContext; refs: number };
@@ -287,21 +290,40 @@ export class MonacoLanguageServices {
       signal: AbortSignal
     ) => Promise<T>
   ): Promise<T | null> {
+    if (token.isCancellationRequested || model.isDisposed() || this.disposed) return null;
     const tracked = this.models.get(model.uri.toString());
-    if (!tracked || token.isCancellationRequested) return null;
+    if (!tracked) return null;
+    const version = model.getVersionId();
+    const language = model.getLanguageId();
     const abort = new AbortController();
     const cancellation = token.onCancellationRequested(() => abort.abort());
+    const disposal = model.onWillDispose(() => abort.abort());
+    const current = () =>
+      !abort.signal.aborted &&
+      !this.disposed &&
+      !model.isDisposed() &&
+      model.getVersionId() === version &&
+      model.getLanguageId() === language;
     try {
-      return await request(
+      const result = await request(
         tracked.binding,
         { line: position.lineNumber - 1, character: position.column - 1 },
         abort.signal
       );
+      return current() ? result : null;
     } catch (error) {
-      if (!abort.signal.aborted && !model.isDisposed()) this.report(error);
+      if (
+        current() &&
+        !(
+          error instanceof LanguageServiceError &&
+          (error.type === 'session-unavailable' || error.type === 'unsupported')
+        )
+      )
+        this.report(error);
       return null;
     } finally {
       cancellation.dispose();
+      disposal.dispose();
     }
   }
 
@@ -311,7 +333,6 @@ export class MonacoLanguageServices {
   }
 }
 
-/** Monaco groups JSX/TSX with their base languages; Core keeps protocol language IDs. */
 function toMonacoRange(range: LspLocation['range']): Monaco.IRange {
   return {
     startLineNumber: range.start.line + 1,

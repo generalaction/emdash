@@ -28,6 +28,21 @@ languages principally offer hover and validation, not programming-language type
 definitions. Monaco retains its existing completion and formatting providers;
 host-backed LSP completion, formatting and workspace edits are not implemented.
 
+Hover, navigation and diagnostics require a ready host language server with the
+corresponding capability. Missing tools, starting/failed servers and disconnected
+hosts leave these features unavailable; the language-service status shows connection
+or server failures and offers retry. Monaco's overlapping built-in providers are
+disabled, with no local fallback. Syntax highlighting, editing and the existing
+completion and formatting providers remain available independently of host LSP.
+This deliberately gives up Monaco's built-in hover, navigation and validation when
+the server is unavailable, including TypeScript syntax and JSON validation, to keep
+one source of language intelligence.
+
+The Monaco adapter owns model lifetimes, provider registration and host diagnostic
+markers. Edits, server failure and disconnection clear those markers; stale results
+cannot replace results for a newer document. Disk/Git snapshots have no hover,
+navigation or diagnostics from this integration and are never replicated to a host.
+
 [editor/browser/lsp/monaco-language-services.ts](../../../../../apps/emdash-desktop/src/core/features/editor/browser/lsp/monaco-language-services.ts) adapts Monaco models, providers,
 diagnostics and navigation. It registers providers once during lazy Monaco bootstrap.
 [editor/api/browser/lsp/language-service-client.ts](../../../../../apps/emdash-desktop/src/core/features/editor/api/browser/lsp/language-service-client.ts) owns project discovery, session
