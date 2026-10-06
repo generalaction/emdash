@@ -90,6 +90,7 @@ function LimitRow({ window, title }: { window: LimitWindow; title: string }) {
               : `Resets ${new Date(window.resetsAt).toLocaleString()}`
           }
           size="lg"
+          color="var(--em-primary-button-background)"
           startLabel={`${percent(remaining)} left`}
           endLabel={reset}
         />
