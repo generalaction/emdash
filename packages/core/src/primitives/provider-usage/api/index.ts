@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-/** Only public account metadata crosses the host boundary. Never include credentials. */
 export const usageAccountSchema = z.object({
   id: z.string().optional(),
   email: z.string().optional(),
@@ -43,7 +42,6 @@ export type HostUsage = z.infer<typeof hostUsageSchema>;
 
 export const USAGE_CACHE_MS = 5 * 60_000;
 
-/** Scope is part of identity; one email can have several separate subscriptions. */
 export function usageAccountIdentity(account: UsageAccount): string | undefined {
   const identity = account.id
     ? ['id', account.id]

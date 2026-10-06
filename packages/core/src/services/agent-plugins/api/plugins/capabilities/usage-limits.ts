@@ -10,7 +10,6 @@ export type UsageProbeContext = {
 };
 
 export type IUsageLimitsBehavior = {
-  /** Read account-wide subscription limits without sending a prompt. */
   probe(context: UsageProbeContext): Promise<UsageProbeResult>;
 };
 
