@@ -328,6 +328,9 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1
+      acorn:
+        specifier: 8.18.0
+        version: 8.18.0
       s3mini:
         specifier: ^0.9.5
         version: 0.9.5
