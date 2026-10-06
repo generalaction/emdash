@@ -179,7 +179,15 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
         return false;
       }
 
-      if (!openFileStore.autoSaveEnabled()) {
+      // With auto-save on, closing saves without asking. The prompt, and its
+      // discard choice, comes back only when that write fails.
+      const autoSaved = openFileStore.autoSaveEnabled()
+        ? await openFileStore.save(fileEntry).catch(() => null)
+        : null;
+      if (autoSaved?.success) return true;
+      const conflicted = autoSaved?.success === false && autoSaved.error.type === 'conflict';
+
+      if (!conflicted) {
         const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
         const unsavedOutcome = await openModal('unsavedChangesModal', { fileName });
         if (!unsavedOutcome.success) return false;
@@ -190,7 +198,7 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
       }
 
       try {
-        const saved = await openFileStore.save(fileEntry);
+        const saved = conflicted ? autoSaved : await openFileStore.save(fileEntry);
         if (saved.success) return true;
         if (saved.error.type !== 'conflict') return false;
 
