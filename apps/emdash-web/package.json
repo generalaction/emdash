@@ -1,0 +1,43 @@
+{
+  "name": "@emdash/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Emdash Web — self-hosted web frontend for the Emdash agentic development environment",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build-server.mjs && pnpm build:web",
+    "build:web": "vite build",
+    "dev:web": "vite",
+    "start": "node dist/server.js",
+    "lint": "oxlint .",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsgo --noEmit -p tsconfig.server.json && tsgo --noEmit -p tsconfig.web.json",
+    "test": "echo 'no tests yet' && exit 0"
+  },
+  "dependencies": {
+    "@emdash/chat-ui": "workspace:*",
+    "@emdash/core": "workspace:*",
+    "@emdash/plugins": "workspace:*",
+    "@emdash/shared": "workspace:*",
+    "@emdash/theme": "workspace:*",
+    "@emdash/ui": "workspace:*",
+    "@emdash/wire": "workspace:*",
+    "better-sqlite3": "^12.6.0",
+    "node-pty": "1.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/node": "^24.13.0",
+    "@types/ws": "^8.5.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.25.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.0.0"
+  }
+}
