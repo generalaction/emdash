@@ -32,6 +32,8 @@ export interface StickyDiffEditorProps {
   /** Checkout-relative path, used by the save-conflict dialog. */
   filePath: string;
   diffStyle: 'unified' | 'split';
+  /** Fold unchanged lines into expandable regions around each change. */
+  collapseUnchanged?: boolean;
   /** Jump to the first change when no viewport was saved; disabled for stacked diffs. */
   revealFirstChange?: boolean;
   /** Called whenever the content height changes, for auto-sizing parent containers. */
@@ -98,6 +100,7 @@ export function StickyDiffEditor({
   modified,
   filePath,
   diffStyle,
+  collapseUnchanged = false,
   revealFirstChange = true,
   onHeightChange,
   ref,
@@ -144,6 +147,7 @@ export function StickyDiffEditor({
       ...DIFF_EDITOR_BASE_OPTIONS,
       readOnly: true,
       renderSideBySide: diffStyle === 'split',
+      hideUnchangedRegions: { enabled: collapseUnchanged },
     });
 
     const modifiedEditor = editor.getModifiedEditor();
@@ -186,6 +190,10 @@ export function StickyDiffEditor({
   useEffect(() => {
     editorBox.get()?.updateOptions({ renderSideBySide: diffStyle === 'split' });
   }, [diffStyle, editorBox]);
+
+  useEffect(() => {
+    editorBox.get()?.updateOptions({ hideUnchangedRegions: { enabled: collapseUnchanged } });
+  }, [collapseUnchanged, editorBox]);
 
   // Sync global Monaco theme (affects all editor instances simultaneously).
   useEffect(() => {

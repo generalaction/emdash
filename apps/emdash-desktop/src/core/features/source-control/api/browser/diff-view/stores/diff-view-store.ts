@@ -62,10 +62,12 @@ export class DiffViewStore {
       activeFile: computed,
       effectivePrTab: computed,
       diffStyle: computed,
+      collapseUnchanged: computed,
       commitAction: computed,
       prTab: computed,
       setActiveFile: action,
       setDiffStyle: action,
+      setCollapseUnchanged: action,
       setPrTab: action,
       preferencesHandle: false,
       selectionHandle: false,
@@ -99,6 +101,10 @@ export class DiffViewStore {
 
   get diffStyle(): 'unified' | 'split' {
     return this.preferencesHandle.value.diffStyle;
+  }
+
+  get collapseUnchanged(): boolean {
+    return this.preferencesHandle.value.collapseUnchanged ?? false;
   }
 
   get commitAction(): CommitAction | null {
@@ -197,6 +203,10 @@ export class DiffViewStore {
 
   setDiffStyle(style: 'unified' | 'split'): void {
     this.preferencesHandle.update((current) => ({ ...current, diffStyle: style }));
+  }
+
+  setCollapseUnchanged(collapse: boolean): void {
+    this.preferencesHandle.update((current) => ({ ...current, collapseUnchanged: collapse }));
   }
 
   setPrTab(tab: 'files' | 'commits' | 'checks'): void {

@@ -1,5 +1,5 @@
-import { MicroLabel, ToggleGroup } from '@emdash/ui/react/primitives';
-import { AlignJustify, Columns2 } from 'lucide-react';
+import { MicroLabel, Toggle, ToggleGroup, Tooltip } from '@emdash/ui/react/primitives';
+import { AlignJustify, Columns2, FoldVertical } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
@@ -44,6 +44,24 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
               Preview
             </ToggleGroup.Item>
           </ToggleGroup.Root>
+        )}
+        {tab.viewMode === 'diff' && (
+          <Tooltip.Root>
+            <Tooltip.Trigger
+              render={
+                <Toggle
+                  size="sm"
+                  icon
+                  aria-label="Collapse unchanged lines"
+                  pressed={diffView.collapseUnchanged}
+                  onPressedChange={(pressed) => diffView.setCollapseUnchanged(pressed)}
+                >
+                  <FoldVertical className="h-3.5 w-3.5" />
+                </Toggle>
+              }
+            />
+            <Tooltip.Content>Collapse unchanged lines</Tooltip.Content>
+          </Tooltip.Root>
         )}
         {tab.viewMode === 'diff' && (
           <ToggleGroup.Root
