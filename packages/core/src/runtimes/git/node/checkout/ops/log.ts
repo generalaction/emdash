@@ -62,9 +62,16 @@ export async function getCommitFiles(
   hash: string,
   toPortablePath: (filePath: string) => PortableRelativePath
 ): Promise<CommitFile[]> {
+  const { stdout } = await exec.exec(['cat-file', 'commit', hash]);
+  const firstParent = stdout
+    .split('\n\n', 1)[0]
+    .split('\n')
+    .find((line) => line.startsWith('parent '))
+    ?.slice('parent '.length);
+  const revisions = firstParent ? [firstParent, hash] : [hash];
   const [numstatRes, nameStatusRes] = await Promise.all([
-    exec.exec(['diff-tree', '--root', '--no-commit-id', '--numstat', '-z', '-r', hash]),
-    exec.exec(['diff-tree', '--root', '--no-commit-id', '--name-status', '-z', '-r', hash]),
+    exec.exec(['diff-tree', '--root', '--no-commit-id', '--numstat', '-z', '-r', ...revisions]),
+    exec.exec(['diff-tree', '--root', '--no-commit-id', '--name-status', '-z', '-r', ...revisions]),
   ]);
   const numstat = parseNumstat(numstatRes.stdout);
   const statusByPath = new Map(parseNameStatus(nameStatusRes.stdout));
