@@ -121,8 +121,13 @@ function IntegrationSetupForm({
     const nextMethod = methods.find((candidate, index) => formMethodId(candidate, index) === id);
     if (!nextMethod) return;
     setSelectedMethodId(id);
-    setValues(
-      Object.fromEntries(nextMethod.fields.map((field) => [field.id, field.defaultValue ?? '']))
+    setValues((current) =>
+      Object.fromEntries(
+        nextMethod.fields.map((field) => [
+          field.id,
+          current[field.id]?.trim() || field.defaultValue || '',
+        ])
+      )
     );
   };
 

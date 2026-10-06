@@ -166,6 +166,26 @@ describe('integration setup account identity', () => {
     expect(mocks.complete).toHaveBeenCalledTimes(1);
   });
 
+  it('preserves a shared site URL when switching Jira authentication methods', async () => {
+    await act(async () =>
+      root.render(React.createElement(IntegrationSetupModal, { integration: 'jira' }))
+    );
+    const method = container.querySelector<HTMLSelectElement>('#integration-auth-method');
+    await act(async () => {
+      method!.value = 'bearer';
+      method!.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    });
+    await act(async () => {
+      method!.value = 'basic';
+      method!.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    });
+
+    expect(container.querySelector<HTMLInputElement>('#integration-field-siteUrl')?.value).toBe(
+      'https://example.atlassian.net'
+    );
+    expect(container.querySelector('#integration-field-accessToken')).toBeNull();
+  });
+
   it('submits the selected Jira bearer form without Basic Auth fields', async () => {
     await act(async () =>
       root.render(React.createElement(IntegrationSetupModal, { integration: 'jira' }))

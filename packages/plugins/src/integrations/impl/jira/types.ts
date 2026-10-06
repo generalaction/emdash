@@ -18,6 +18,9 @@ const bearerJiraCredentialsSchema = z.object({
   authMethod: z.literal('bearer'),
   siteUrl: jiraSiteUrlSchema,
   accessToken: credentialString('Jira bearer token is required.'),
+  // OAuth 2.0 requests are made through Atlassian's resource gateway. This is
+  // resolved from siteUrl during verification and retained for later use.
+  cloudId: z.string().trim().min(1).optional(),
 });
 
 // Credentials stored before authMethod was introduced remain valid Basic Auth.

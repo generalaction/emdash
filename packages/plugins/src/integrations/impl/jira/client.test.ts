@@ -21,6 +21,7 @@ vi.mock('jira.js', () => ({
 describe('Jira credentials', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', vi.fn());
   });
 
   it('accepts new Basic Auth credentials and preserves legacy Basic Auth records', () => {
@@ -80,12 +81,13 @@ describe('Jira credentials', () => {
       authMethod: 'bearer',
       siteUrl: 'https://example.atlassian.net',
       accessToken: 'scoped-token',
+      cloudId: 'cloud-1',
     });
 
     createJiraClient(credentials);
 
     expect(mocks.createClient).toHaveBeenCalledWith({
-      host: 'https://example.atlassian.net',
+      host: 'https://api.atlassian.com/ex/jira/cloud-1',
       authentication: { oauth2: { accessToken: 'scoped-token' } },
     });
   });
@@ -106,6 +108,9 @@ describe('Jira credentials', () => {
   });
 
   it('verifies bearer credentials without inventing an email identity', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([{ id: 'cloud-1', url: 'https://example.atlassian.net/' }]))
+    );
     mocks.getCurrentUser.mockResolvedValueOnce({
       accountId: 'account-1',
       displayName: 'Ada Lovelace',
@@ -127,9 +132,29 @@ describe('Jira credentials', () => {
           authMethod: 'bearer',
           siteUrl: 'https://example.atlassian.net',
           accessToken: 'scoped-token',
+          cloudId: 'cloud-1',
         },
       },
     });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.atlassian.com/oauth/token/accessible-resources',
+      { headers: { Authorization: 'Bearer scoped-token' } }
+    );
     expect(integration.capabilities.auth.methods).toHaveLength(2);
+  });
+
+  it('rejects a bearer token that cannot access the selected Jira site', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([{ id: 'cloud-2', url: 'https://other.atlassian.net' }]))
+    );
+
+    const result = await verifyJiraCredentials({
+      authMethod: 'bearer',
+      siteUrl: 'https://example.atlassian.net',
+      accessToken: 'scoped-token',
+    });
+
+    expect(result).toMatchObject({ success: false, error: { type: 'generic' } });
+    expect(mocks.createClient).not.toHaveBeenCalled();
   });
 });
