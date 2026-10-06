@@ -45,7 +45,7 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
             </ToggleGroup.Item>
           </ToggleGroup.Root>
         )}
-        {tab.viewMode === 'diff' && (
+        {tab.viewMode === 'diff' && tab.renderer.kind === 'text' && (
           <Tooltip.Root>
             <Tooltip.Trigger
               render={

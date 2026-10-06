@@ -260,19 +260,36 @@ it.each(['split', 'unified'] as const)(
       'collapsed',
       longFile.replace('line 500', 'changed 500')
     );
+    const other = await createDiffSides(
+      binder,
+      'collapsed-other',
+      longFile.replace('line 700', 'changed 700')
+    );
     const render = mountDiff(diffStyle);
     const diff = await render(sides);
     const right = diff.getModifiedEditor();
     const fullHeight = right.getContentHeight();
+    const shows = (line: number) =>
+      right
+        .getVisibleRanges()
+        .some((range) => range.startLineNumber <= line && line <= range.endLineNumber);
 
     await render(sides, true);
     await expect.poll(() => right.getContentHeight()).toBeLessThan(fullHeight / 10);
     const visible = right.getVisibleRanges();
     expect(visible[0]?.startLineNumber).toBeGreaterThan(400);
     expect(visible.at(-1)?.endLineNumber).toBeLessThan(600);
+    expect(shows(500)).toBe(true);
+
+    // The change stays in view across a file switch while collapsed.
+    await render(other, true);
+    await expect.poll(() => shows(700)).toBe(true);
+    await render(sides, true);
+    await expect.poll(() => shows(500)).toBe(true);
 
     await render(sides, false);
     await expect.poll(() => right.getContentHeight()).toBe(fullHeight);
+    expect(shows(500)).toBe(true);
   }
 );
 
