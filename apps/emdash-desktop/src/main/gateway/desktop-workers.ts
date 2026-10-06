@@ -27,6 +27,8 @@ import {
   type HostSettingsContract,
 } from '@emdash/core/runtimes/host-settings/api';
 import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
+import { lspContract, type LspContract } from '@emdash/core/runtimes/lsp/api';
+import { lspWorkerSpec } from '@emdash/core/runtimes/lsp/node';
 import {
   resourceUsageContract,
   type ResourceUsageContract,
@@ -111,6 +113,7 @@ export type DesktopRuntimeClients = {
   readonly conversations: ConversationsRuntimeClient;
   readonly fileSearch: FileSearchRuntimeClient;
   readonly files: FilesRuntimeClient;
+  readonly lsp: ContractClient<LspContract>;
   readonly git: GitRuntimeClient;
   readonly hostDependencies: HostDependenciesClient;
   readonly hostSettings: HostSettingsRuntimeClient;
@@ -319,6 +322,14 @@ function startDesktopWorkersWithHost(
       },
     })
   );
+  const lspWorker = host.create(
+    ...lspWorkerSpec({
+      executable: desktopWorkerPath('lsp'),
+      env: process.env,
+      dependencies: { userEnv: userShellEnv, hostDependencies: hostDependencies.client.resolver },
+    })
+  );
+  const lspReady = timedReady('lsp', lspWorker.ready());
   const resourceUsageWorker = host.create(
     ...resourceUsageWorkerSpec({
       executable: desktopWorkerPath('resource-usage'),
@@ -483,6 +494,7 @@ function startDesktopWorkersWithHost(
     )
   );
   const runtimeReady = Promise.all([
+    lspReady,
     acpReady,
     agentConfigReady,
     automationsReady,
@@ -503,6 +515,7 @@ function startDesktopWorkersWithHost(
   let disposePromise: Promise<void> | undefined;
   return {
     clients: {
+      lsp: queuedClient(lspContract, () => lspReady),
       acp: queuedClient(acpApiContract, () => acpReady),
       agentConfig: queuedClient(agentConfigContract, () => agentConfigReady),
       automations: queuedClient(automationsContract, () =>
