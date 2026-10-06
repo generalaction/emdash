@@ -1,11 +1,11 @@
 import { Combobox } from '@emdash/ui/react/primitives';
-import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
+import { ChevronDown, ChevronUp, MessageSquare, SquareTerminal, TextInitial } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useChordKeydown } from '@core/primitives/keybindings/browser';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
-import { buildContextActionText, type ContextAction } from '../context-bar/context-actions';
+import { type ContextAction } from '../context-bar/context-actions';
 
 const ADD_CONTEXT_HOTKEY = 'Mod+Shift+A';
 type AddContextPopoverSide = 'top' | 'bottom';
@@ -56,6 +56,14 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
           text={action.prompt.prompt}
         />
       );
+    case 'terminal-output':
+      return (
+        <ActionItemBaseRow
+          icon={<SquareTerminal className="size-3.5 shrink-0 text-foreground-muted" />}
+          label={action.terminalName}
+          text="Terminal selection or recent output"
+        />
+      );
     default:
       return null;
   }
@@ -68,11 +76,7 @@ export interface AddContextPopoverProps {
   hideTrigger?: boolean;
   hotkeyEnabled?: boolean;
   isActivePane?: boolean;
-  onApplyAction: (
-    text: string,
-    action: ContextAction,
-    opts?: { andSend?: boolean }
-  ) => Promise<void>;
+  onApplyAction: (action: ContextAction, opts?: { andSend?: boolean }) => Promise<void>;
   /** Replace the default "Add context" button with a custom trigger. */
   renderTrigger?: (ctx: { open: boolean; disabled: boolean }) => ReactNode;
   side?: AddContextPopoverSide;
@@ -111,6 +115,8 @@ export function AddContextPopover({
             action.prompt.title.toLowerCase().includes(q) ||
             action.prompt.prompt.toLowerCase().includes(q)
           );
+        case 'terminal-output':
+          return 'terminal output'.includes(q) || action.terminalName.toLowerCase().includes(q);
       }
     });
   }, [query, actions]);
@@ -126,8 +132,7 @@ export function AddContextPopover({
 
   const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
     if (!action) return;
-    const text = buildContextActionText(action);
-    void onApplyAction(text, action, opts);
+    void onApplyAction(action, opts);
     setOpen(false);
   };
 

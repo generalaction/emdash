@@ -6,6 +6,9 @@ import {
   buildLinkedIssueContextAction,
   buildPromptLibraryContextActions,
   buildTaskContextActions,
+  buildTerminalOutputContextActions,
+  formatTerminalOutputForAgent,
+  readContextActionText,
 } from '@core/features/tasks/browser/context-bar/context-actions';
 import {
   getDraftCommentTargetKey,
@@ -204,5 +207,52 @@ describe('buildTaskContextActions', () => {
     const actions = buildTaskContextActions(makeIssue(), [], []);
     expect(actions).toHaveLength(1);
     expect(actions[0]?.kind).toBe('linked-issue');
+  });
+
+  it('lists terminals after draft comments and before prompts', () => {
+    const terminals = buildTerminalOutputContextActions([
+      { id: 't1', name: 'Terminal 1', readOutput: async () => '' },
+    ]);
+    const actions = buildTaskContextActions(
+      makeIssue(),
+      [makeDraftComment()],
+      [{ id: 'p', title: 'P', prompt: 'Do it.' }],
+      terminals
+    );
+    expect(actions.map((a) => a.id)).toEqual([
+      'linked-issue:github:EMD-123',
+      'draft-comments',
+      'terminal-output:t1',
+      'prompt:p',
+    ]);
+  });
+});
+
+describe('terminal output context', () => {
+  it('wraps output in a fenced block labelled with the terminal name', () => {
+    expect(formatTerminalOutputForAgent('Terminal 1', 'npm test\n1 failed')).toBe(
+      'Output from terminal "Terminal 1":\n```\nnpm test\n1 failed\n```'
+    );
+  });
+
+  it('uses a longer fence when the output contains backticks', () => {
+    expect(formatTerminalOutputForAgent('dev', 'a ```js b')).toBe(
+      'Output from terminal "dev":\n````\na ```js b\n````'
+    );
+  });
+
+  it('produces no text for an empty terminal', () => {
+    expect(formatTerminalOutputForAgent('dev', '  \n')).toBe('');
+  });
+
+  it('reads the terminal when the action is applied', async () => {
+    let output = 'first';
+    const [action] = buildTerminalOutputContextActions([
+      { id: 't1', name: 'dev', readOutput: async () => output },
+    ]);
+    output = 'second';
+    expect(await readContextActionText(action!)).toBe(
+      'Output from terminal "dev":\n```\nsecond\n```'
+    );
   });
 });
