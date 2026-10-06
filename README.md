@@ -64,8 +64,8 @@ and provider-specific behavior.
 ## Remote Projects
 
 Connect to remote machines with SSH/SFTP and run the same parallel workflow on remote
-codebases. Emdash supports SSH agent, key, and password authentication, with credentials
-stored in your OS keychain.
+codebases. Emdash supports SSH agent, key, and password authentication, including OpenSSH
+certificates held by the agent, with credentials stored in your OS keychain.
 
 See [Remote Projects](https://emdash.sh/docs/remote-projects) for setup details.
 
