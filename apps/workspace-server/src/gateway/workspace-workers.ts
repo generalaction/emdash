@@ -17,7 +17,10 @@ import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
 import type { HostSettingsContract } from '@emdash/core/runtimes/host-settings/api';
 import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
-import type { ProviderUsageContract } from '@emdash/core/runtimes/provider-usage/api';
+import {
+  providerUsageContract,
+  type ProviderUsageContract,
+} from '@emdash/core/runtimes/provider-usage/api';
 import { providerUsageWorkerSpec } from '@emdash/core/runtimes/provider-usage/node';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
@@ -45,7 +48,7 @@ import { pluginRegistry } from '@emdash/plugins/agents';
 import { ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { createController, type ContractClient } from '@emdash/wire/rpc';
+import { createController, queuedClient, type ContractClient } from '@emdash/wire/rpc';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { workspaceServerRuntimePaths } from '../runtime/paths';
@@ -181,7 +184,7 @@ export async function createWorkspaceServerRuntimeHost(
       },
     })
   );
-  const providerUsagePromise = workerHost.spawn(
+  const providerUsageWorker = workerHost.create(
     ...providerUsageWorkerSpec({
       pluginRegistry,
       executable: workspaceWorkerPath('provider-usage'),
@@ -217,7 +220,6 @@ export async function createWorkspaceServerRuntimeHost(
     scripts,
     acp,
     agentConfig,
-    providerUsage,
     tuiAgents,
   ] = await Promise.all([
     conversationsPromise,
@@ -228,7 +230,6 @@ export async function createWorkspaceServerRuntimeHost(
     scriptsPromise,
     acpPromise,
     agentConfigPromise,
-    providerUsagePromise,
     tuiAgentsPromise,
   ]);
 
@@ -320,7 +321,7 @@ export async function createWorkspaceServerRuntimeHost(
     runtimes: {
       acp,
       agentConfig,
-      providerUsage,
+      providerUsage: queuedClient(providerUsageContract, () => providerUsageWorker.ready()),
       automations,
       conversations,
       fileSearch,

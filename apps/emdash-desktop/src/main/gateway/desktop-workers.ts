@@ -148,7 +148,7 @@ export type DesktopRuntimeWorkers = {
 export type DesktopWorkersHandle = {
   readonly clients: DesktopRuntimeClients;
   readonly workers: DesktopRuntimeWorkers;
-  /** Resolves after every local Host runtime has completed its Wire worker handshake. */
+  /** Resolves after required local Host runtimes have completed their Wire worker handshakes. */
   runtimeReady(): Promise<void>;
   /**
    * Activate per-worker vitals self-sampling (telemetry-sampled sessions
@@ -364,7 +364,6 @@ function startDesktopWorkersWithHost(
     'acp',
     acpStart.then((result) => result.client)
   );
-  const providerUsageReady = timedReady('provider-usage', providerUsageWorker.ready());
   const agentConfigReady = timedReady('agent-config', agentConfigWorker.ready());
   const mementosReady = timedReady('mementos', mementosWorker.ready());
   const pullRequestsReady = timedReady('pull-requests', pullRequestsWorker.ready());
@@ -503,7 +502,6 @@ function startDesktopWorkersWithHost(
   const runtimeReady = Promise.all([
     acpReady,
     agentConfigReady,
-    providerUsageReady,
     automationsReady,
     conversationsReady,
     fileSearchReady,
@@ -524,7 +522,9 @@ function startDesktopWorkersWithHost(
     clients: {
       acp: queuedClient(acpApiContract, () => acpReady),
       agentConfig: queuedClient(agentConfigContract, () => agentConfigReady),
-      providerUsage: queuedClient(providerUsageContract, () => providerUsageReady),
+      providerUsage: queuedClient(providerUsageContract, () =>
+        timedReady('provider-usage', providerUsageWorker.ready())
+      ),
       automations: queuedClient(automationsContract, () =>
         automationsReady.then((result) => result.client)
       ),
