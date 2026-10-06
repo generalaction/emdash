@@ -1,14 +1,5 @@
 import { SettingsCard, SettingsSection } from '@emdash/ui/react/patterns';
-import {
-  AbsoluteTime,
-  CountdownTime,
-  Icon,
-  Meter,
-  Popover,
-  RelativeTime,
-  Separator,
-} from '@emdash/ui/react/primitives';
-import type { ReactNode } from 'react';
+import { CountdownTime, Heading, Icon, Meter, Text } from '@emdash/ui/react/primitives';
 import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import type { UsageAccountView } from '../api/schemas';
 
@@ -17,196 +8,92 @@ const percent = (value: number) => `${Number(value.toFixed(1))}%`;
 const providerName = (id: string) => (id === 'claude' ? 'Claude' : id === 'codex' ? 'Codex' : id);
 const windowName = (window: LimitWindow) => window.label.replace(/(^| · )5-hour$/, '$1Session');
 
-export function UsageAccountSection({ view, number }: { view: UsageAccountView; number: number }) {
+export function usageAccountTitle(view: UsageAccountView): string {
+  const plan = view.account.plan
+    ?.trim()
+    .replace(/^(?:claude|codex|chatgpt)\s+/i, '')
+    .replace(/\s+subscription$/i, '')
+    .replaceAll('_', ' ');
   const name = providerName(view.providerId);
-  const title = number === 1 ? name : `${name} (${number})`;
+  const subscription = plan ? `${name} ${plan.charAt(0).toUpperCase()}${plan.slice(1)}` : name;
+  const identity = view.account.organization?.trim() || view.account.email?.trim();
+  return identity ? `${subscription} (${identity})` : subscription;
+}
+
+export function UsageAccountSection({ view, title }: { view: UsageAccountView; title: string }) {
   return (
-    <SettingsSection
-      bare
-      title={
-        <span className="flex items-center gap-2.5 text-base font-medium">
-          <span aria-hidden="true">
-            <AgentIcon id={view.providerId} size={20} />
-          </span>
-          {title}
-        </span>
-      }
-    >
-      <div className="space-y-3">
-        {view.windows.length ? (
-          view.windows.map((window) => (
-            <LimitRow key={window.id} view={view} window={window} title={title} />
-          ))
-        ) : (
-          <SettingsCard>
-            <p className="text-sm text-foreground-muted">
-              {view.message ?? 'Subscription limits are unavailable.'}
-            </p>
-          </SettingsCard>
-        )}
-      </div>
+    <SettingsSection bare>
+      <SettingsCard>
+        <div className="space-y-5">
+          <Heading level={3}>
+            <span className="flex items-center gap-2">
+              <span aria-hidden="true" className="flex shrink-0 items-center justify-center">
+                <AgentIcon id={view.providerId} size={18} />
+              </span>
+              <span className="min-w-0 break-words">{title}</span>
+            </span>
+          </Heading>
+          <div className="space-y-4">
+            {view.windows.length ? (
+              view.windows.map((window) => (
+                <LimitRow key={window.id} window={window} title={title} />
+              ))
+            ) : (
+              <Text as="p" tone="muted">
+                {view.message ?? 'Subscription limits are unavailable.'}
+              </Text>
+            )}
+          </div>
+        </div>
+      </SettingsCard>
     </SettingsSection>
   );
 }
 
-function LimitRow({
-  view,
-  window,
-  title,
-}: {
-  view: UsageAccountView;
-  window: LimitWindow;
-  title: string;
-}) {
+function LimitRow({ window, title }: { window: LimitWindow; title: string }) {
   const remaining = window.usedPercent === null ? null : 100 - window.usedPercent;
   const label = windowName(window);
-  const name = providerName(view.providerId);
+  const reset =
+    window.resetsAt === null ? (
+      'Reset time unavailable'
+    ) : (
+      <span className="flex items-center gap-1 tabular-nums">
+        <Icon name="rotate-cw" size="xs" />
+        <CountdownTime value={window.resetsAt} expiredLabel="Reset pending" />
+      </span>
+    );
   return (
-    <SettingsCard>
-      <div className="grid items-center gap-5 py-1 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-8">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            {label}
-            {window.stale && (
-              <span className="text-xs font-normal text-foreground-muted">Stale</span>
-            )}
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl leading-none font-semibold tracking-tight tabular-nums">
-              {remaining === null ? '—' : percent(remaining)}
-            </span>
-            <span className="text-sm text-foreground-muted">
-              {remaining === null ? 'unknown' : 'left'}
-            </span>
-          </div>
-          <p className="flex items-center gap-1 text-xs text-foreground-muted tabular-nums">
-            <Icon name="rotate-cw" size="xs" />
-            {window.resetsAt === null ? (
-              'Reset time unavailable'
-            ) : (
-              <CountdownTime
-                value={window.resetsAt}
-                prefix={
-                  window.usedPercent === null ? 'Resets in ' : `+${percent(window.usedPercent)} in `
-                }
-                expiredLabel="Reset pending"
-              />
-            )}
-          </p>
-        </div>
-        <Popover.Root>
-          <Popover.Trigger
-            openOnHover
-            delay={150}
-            closeDelay={150}
-            nativeButton={false}
-            render={<div />}
-            className="w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-foreground-info"
-            aria-label={`${title} ${label}: ${remaining === null ? 'usage unknown' : `${percent(remaining)} left`}. Account details`}
-          >
-            {remaining === null ? (
-              <span className="block py-3 text-sm text-foreground-muted">Usage unavailable</span>
-            ) : (
-              <Meter
-                label={`${title} ${label} remaining`}
-                value={remaining}
-                aria-valuetext={`${percent(remaining)} left`}
-                size="lg"
-                striped
-                color={view.providerId === 'claude' ? '#D97757' : 'var(--em-foreground)'}
-                startLabel={`${name} ${percent(remaining)}`}
-                endLabel={
-                  window.resetsAt === null ? undefined : (
-                    <span className="flex items-center gap-1 tabular-nums">
-                      <Icon name="rotate-cw" size="xs" />
-                      <CountdownTime value={window.resetsAt} expiredLabel="Pending" />
-                    </span>
-                  )
-                }
-              />
-            )}
-          </Popover.Trigger>
-          <Popover.Content side="top" sideOffset={8} className="w-80 max-w-[calc(100vw-2rem)]">
-            <AccountDetails view={view} window={window} title={title} />
-          </Popover.Content>
-        </Popover.Root>
+    <div className="space-y-1.5">
+      <div className="flex items-baseline gap-2">
+        <Text>{label}</Text>
+        {window.stale && (
+          <Text variant="caption" tone="muted">
+            Stale
+          </Text>
+        )}
       </div>
-    </SettingsCard>
-  );
-}
-
-function Detail({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 text-sm">
-      <dt className="text-foreground-muted">{label}</dt>
-      <dd className="min-w-0 break-words">{children}</dd>
-    </div>
-  );
-}
-
-function AccountDetails({
-  view,
-  window,
-  title,
-}: {
-  view: UsageAccountView;
-  window: LimitWindow;
-  title: string;
-}) {
-  const remaining = window.usedPercent === null ? null : 100 - window.usedPercent;
-  return (
-    <>
-      <Popover.Header>
-        <Popover.Title>
-          <span className="flex items-center gap-2 text-base font-medium">
-            <span aria-hidden="true">
-              <AgentIcon id={view.providerId} size={20} />
-            </span>
-            {title}
-          </span>
-        </Popover.Title>
-        <Popover.Description className="break-all">
-          {view.account.email ?? 'Account identity unavailable'}
-        </Popover.Description>
-      </Popover.Header>
-      <Separator />
-      <dl className="space-y-1.5">
-        {view.account.plan && <Detail label="Plan">{view.account.plan}</Detail>}
-        {view.account.organization && (
-          <Detail label="Workspace">{view.account.organization}</Detail>
-        )}
-        <Detail label="Signed in">
-          {view.sources
-            .map(
-              (source) =>
-                `${source.machineName}${source.status === 'disconnected' ? ' (offline)' : ''}`
-            )
-            .join(', ')}
-        </Detail>
-      </dl>
-      <Separator />
-      <dl className="space-y-1.5">
-        <Detail label="Left">{remaining === null ? 'Unknown' : percent(remaining)}</Detail>
-        <Detail label="Resets">
-          {window.resetsAt === null ? (
-            'Unknown'
-          ) : (
-            <>
-              <AbsoluteTime value={window.resetsAt} /> ·{' '}
-              <CountdownTime value={window.resetsAt} prefix="in " expiredLabel="Reset pending" />
-            </>
-          )}
-        </Detail>
-        {window.usedPercent !== null && window.resetsAt !== null && (
-          <Detail label="Restores">+{percent(window.usedPercent)} of allowance</Detail>
-        )}
-      </dl>
-      {window.stale && (
-        <p className="text-xs text-foreground-muted">
-          Last read <RelativeTime value={window.observedAt} /> on {window.sourceName}. Refresh for
-          current limits.
-        </p>
+      {remaining === null ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Text tone="muted">Usage unavailable</Text>
+          <Text variant="caption" tone="muted">
+            {reset}
+          </Text>
+        </div>
+      ) : (
+        <Meter
+          label={`${title} ${label} remaining`}
+          value={remaining}
+          aria-valuetext={`${percent(remaining)} left${window.stale ? ' (stale)' : ''}`}
+          aria-description={
+            window.resetsAt === null
+              ? 'Reset time unavailable'
+              : `Resets ${new Date(window.resetsAt).toLocaleString()}`
+          }
+          size="lg"
+          startLabel={`${percent(remaining)} left`}
+          endLabel={reset}
+        />
       )}
-    </>
+    </div>
   );
 }

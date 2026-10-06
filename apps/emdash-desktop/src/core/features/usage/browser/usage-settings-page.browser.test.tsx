@@ -9,7 +9,7 @@ vi.mock('@core/features/agents/contributions/browser/agent-icon', () => ({
 }));
 
 describe('Usage settings', () => {
-  it('shows separate numbered subscriptions and puts account details in the popover', async () => {
+  it('groups limits in subscription cards with visible identities and a header refresh action', async () => {
     const host = document.createElement('div');
     document.body.append(host);
     const root = createRoot(host);
@@ -20,7 +20,7 @@ describe('Usage settings', () => {
         {
           key: 'account',
           providerId: 'claude',
-          account: { email: 'one@example.com', plan: 'pro' },
+          account: { email: 'one@example.com', plan: 'Claude Max', organization: 'Design team' },
           sources: [
             { machineId: 'laptop', machineName: 'Laptop', status: 'ready', refreshing: false },
             {
@@ -49,6 +49,15 @@ describe('Usage settings', () => {
               sourceName: 'Server',
               stale: true,
             },
+            {
+              id: 'weekly_fable',
+              label: 'Weekly · Fable',
+              usedPercent: 40,
+              resetsAt: Date.now() + 100000,
+              observedAt: Date.now(),
+              sourceName: 'Laptop',
+              stale: false,
+            },
           ],
         },
       ],
@@ -65,7 +74,7 @@ describe('Usage settings', () => {
         ...first,
         key: 'codex',
         providerId: 'codex',
-        account: { email: 'codex@example.com', plan: 'Pro' },
+        account: { email: 'codex@example.com', plan: 'ChatGPT Pro' },
         windows: [{ ...first.windows[0]!, id: 'weekly', label: 'Weekly', usedPercent: 5 }],
       }
     );
@@ -77,25 +86,35 @@ describe('Usage settings', () => {
             loading={false}
             refreshing={false}
             onRefresh={refresh}
-            onMachines={() => {}}
           />
         )
       );
       expect([...host.querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual([
-        'Codex',
-        'Claude',
-        'Claude (2)',
+        'Codex Pro (codex@example.com)',
+        'Claude Max (Design team)',
+        'Claude Max (two@example.com)',
       ]);
+      const cards = host.querySelectorAll('[data-slot="settings-card"]');
+      expect(cards).toHaveLength(3);
+      expect(cards[1]?.querySelector('h3')?.textContent).toBe('Claude Max (Design team)');
+      expect(cards[1]?.textContent).toContain('Session');
+      expect(cards[1]?.textContent).toContain('Weekly');
+      expect(cards[1]?.textContent).toContain('Weekly · Fable');
+      expect(cards[1]?.querySelectorAll('[role="meter"]')).toHaveLength(2);
       expect(host.textContent).toContain('25%');
       expect(host.textContent).toContain('86%');
-      expect(host.textContent).toContain('unknown');
+      expect(host.textContent).toContain('Usage unavailable');
+      expect(host.textContent).toContain('Reset time unavailable');
       expect(host.textContent).toContain('Stale');
       expect(host.textContent).not.toContain('one@example.com');
       expect(host.textContent).not.toContain('Laptop');
+      expect(host.textContent).not.toContain('Manage machines');
+      expect(host.querySelector('[aria-haspopup="dialog"]')).toBeNull();
       const meters = host.querySelectorAll('[role="meter"]');
       expect([...meters].map((meter) => meter.getAttribute('aria-valuenow'))).toEqual([
         '95',
         '25',
+        '60',
         '86',
       ]);
       const button = [...host.querySelectorAll('button')].find(
@@ -103,13 +122,43 @@ describe('Usage settings', () => {
       );
       await act(async () => button?.click());
       expect(refresh).toHaveBeenCalledOnce();
-      const details = host.querySelector<HTMLElement>(
-        '[aria-label="Claude Session: 25% left. Account details"]'
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('keeps unidentified subscriptions separate and numbers duplicate headings', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(
+          <UsageOverviewView
+            overview={{
+              machines: [],
+              accounts: ['one', 'two'].map((key) => ({
+                key,
+                providerId: 'claude',
+                account: {},
+                sources: [],
+                windows: [],
+              })),
+            }}
+            loading={false}
+            refreshing={false}
+            onRefresh={() => {}}
+          />
+        )
       );
-      expect(details).not.toBeNull();
-      await act(async () => details?.click());
-      expect(document.body.textContent).toContain('one@example.com');
-      expect(document.body.textContent).toContain('Laptop, Server (offline)');
+      expect([...host.querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual([
+        'Claude',
+        'Claude (2)',
+      ]);
+      expect(host.querySelectorAll('[data-slot="settings-card"]')).toHaveLength(2);
+      expect(host.querySelectorAll('[role="meter"]')).toHaveLength(0);
+      expect(host.textContent).toContain('Subscription limits are unavailable.');
     } finally {
       await act(async () => root.unmount());
       host.remove();

@@ -2,7 +2,7 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import { Button, Icon } from '@emdash/ui/react/primitives';
 import type { UsageOverview } from '../api/schemas';
-import { UsageAccountSection } from './usage-account-section';
+import { UsageAccountSection, usageAccountTitle } from './usage-account-section';
 
 export function UsageOverviewView({
   overview,
@@ -10,14 +10,12 @@ export function UsageOverviewView({
   refreshing,
   error,
   onRefresh,
-  onMachines,
 }: {
   overview?: UsageOverview;
   loading: boolean;
   refreshing: boolean;
   error?: string;
   onRefresh(): void;
-  onMachines(): void;
 }) {
   const busy =
     refreshing ||
@@ -33,32 +31,23 @@ export function UsageOverviewView({
     (a, b) => order(a.providerId) - order(b.providerId)
   );
   const counts = new Map<string, number>();
-  const machinesNeedingAttention =
-    overview?.machines.filter(
-      (machine) =>
-        ['disconnected', 'upgrade-required', 'error'].includes(machine.status) ||
-        machine.providers.some((provider) =>
-          ['signed-out', 'unavailable'].includes(provider.status)
-        )
-    ).length ?? 0;
   return (
     <div className="space-y-8 pb-4">
       <PageLayout.Header
         sticky
         title="Usage"
         description="Your subscription limits."
-        actions={
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              onClick={onRefresh}
-              disabled={loading || busy}
-              aria-label="Refresh usage"
-            >
-              <Icon name="rotate-cw" size="sm" />
-              {busy ? 'Refreshing…' : 'Refresh'}
-            </Button>
-          </div>
+        titleActions={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onRefresh}
+            disabled={loading || busy}
+            aria-label="Refresh usage"
+          >
+            <Icon name="rotate-cw" size="sm" />
+            {busy ? 'Refreshing…' : 'Refresh'}
+          </Button>
         }
       />
       {(error ?? overview?.error) && (
@@ -68,9 +57,16 @@ export function UsageOverviewView({
       )}
       {accounts.length ? (
         accounts.map((account) => {
-          const number = (counts.get(account.providerId) ?? 0) + 1;
-          counts.set(account.providerId, number);
-          return <UsageAccountSection key={account.key} view={account} number={number} />;
+          const title = usageAccountTitle(account);
+          const number = (counts.get(title) ?? 0) + 1;
+          counts.set(title, number);
+          return (
+            <UsageAccountSection
+              key={account.key}
+              view={account}
+              title={number === 1 ? title : `${title} (${number})`}
+            />
+          );
         })
       ) : (
         <EmptyState
@@ -78,18 +74,6 @@ export function UsageOverviewView({
           description="Sign in with Codex or Claude Code on a connected machine, then refresh."
         />
       )}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-foreground-muted">
-        <Button variant="link" onClick={onMachines}>
-          Manage machines
-        </Button>
-        {machinesNeedingAttention > 0 && (
-          <span>
-            {machinesNeedingAttention === 1
-              ? '1 machine needs attention'
-              : `${machinesNeedingAttention} machines need attention`}
-          </span>
-        )}
-      </div>
     </div>
   );
 }

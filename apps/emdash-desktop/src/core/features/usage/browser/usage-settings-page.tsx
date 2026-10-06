@@ -1,7 +1,5 @@
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useState } from 'react';
-import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import { getUsageClient } from '../api/browser/client';
 import { usageContract } from '../api/contract';
@@ -19,7 +17,6 @@ export function UsageSettingsPage() {
   const state = useRemoteModelState(usageContract.overview, getModel, undefined, 'current');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string>();
-  const { navigate } = useNavigate();
   const refresh = async () => {
     setRefreshing(true);
     setRefreshError(undefined);
@@ -41,7 +38,6 @@ export function UsageSettingsPage() {
       onRefresh={() => {
         void refresh();
       }}
-      onMachines={() => navigate(settingsViewDef({ tab: 'connections' }))}
     />
   );
 }
