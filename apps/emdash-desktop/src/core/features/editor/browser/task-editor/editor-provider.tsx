@@ -260,12 +260,16 @@ export const EditorProvider = observer(function EditorProvider({
         const filePath = editorView.pendingConflictPath; // reactive
         if (!filePath) return;
         if (!editorView.openFilePaths.includes(filePath)) return;
-        void (async () => {
-          const outcome = await openConflictModal({ filePath });
-          if (outcome.success) {
-            void editorView.resolveConflict(outcome.data);
-          }
-        })();
+        // Opening a modal reads and writes the modal stack. Tracked, that re-runs
+        // this autorun and stacks a new dialog on every run.
+        untracked(() => {
+          void (async () => {
+            const outcome = await openConflictModal({ filePath });
+            if (outcome.success) {
+              void editorView.resolveConflict(outcome.data);
+            }
+          })();
+        });
       }),
     // oxlint-disable-next-line react/exhaustive-deps
     []
