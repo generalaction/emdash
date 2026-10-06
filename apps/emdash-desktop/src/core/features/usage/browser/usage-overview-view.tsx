@@ -1,6 +1,6 @@
 import { EmptyState } from '@emdash/ui/react/components';
 import { PageLayout } from '@emdash/ui/react/patterns';
-import { Button, Icon } from '@emdash/ui/react/primitives';
+import { Button } from '@emdash/ui/react/primitives';
 import type { UsageOverview } from '../api/schemas';
 import { UsageAccountSection, usageAccountTitle } from './usage-account-section';
 
@@ -33,23 +33,7 @@ export function UsageOverviewView({
   const counts = new Map<string, number>();
   return (
     <div className="space-y-8 pb-4">
-      <PageLayout.Header
-        sticky
-        title="Usage"
-        description="Your subscription limits."
-        titleActions={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onRefresh}
-            disabled={loading || busy}
-            aria-label="Refresh usage"
-          >
-            <Icon name="rotate-cw" size="sm" />
-            {busy ? 'Refreshing…' : 'Refresh'}
-          </Button>
-        }
-      />
+      <PageLayout.Header sticky title="Usage" description="Your subscription limits." />
       {(error ?? overview?.error) && (
         <p role="alert" className="text-sm text-foreground-destructive">
           {error ?? overview?.error}
@@ -74,6 +58,16 @@ export function UsageOverviewView({
           description="Sign in with Codex or Claude Code on a connected machine, then refresh."
         />
       )}
+      <div className="flex justify-start">
+        <Button
+          variant="link"
+          onClick={onRefresh}
+          disabled={loading || busy}
+          aria-label="Refresh usage"
+        >
+          {busy ? 'Refreshing…' : 'Refresh'}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -9,7 +9,7 @@ vi.mock('@core/features/agents/contributions/browser/agent-icon', () => ({
 }));
 
 describe('Usage settings', () => {
-  it('groups limits in subscription cards with visible identities and a header refresh action', async () => {
+  it('groups limits in subscription cards with visible identities and a refresh action', async () => {
     const host = document.createElement('div');
     document.body.append(host);
     const root = createRoot(host);
