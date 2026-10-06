@@ -802,6 +802,43 @@ describe('OpenFileStore', () => {
       expect(disk?.kind === 'text' && disk.content).toBe('one edited again');
     });
 
+    it('drops a pending delayed save once auto-save is turned off', async () => {
+      const h = start();
+      h.autoSave.mode = 'afterDelay';
+      const { entry } = await openReady(h, '/repo/src/index.ts', 'one');
+
+      bufferHandle(entry).setText('one edited');
+      h.autoSave.mode = 'off';
+      h.clock.advance(AUTO_SAVE_DELAY_MS);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(h.beforeWrite).not.toHaveBeenCalled();
+      expect(entry.dirty).toBe(true);
+    });
+
+    it('drops a delayed save queued behind a slow write when auto-save is turned off', async () => {
+      const h = start();
+      h.autoSave.mode = 'afterDelay';
+      const path = '/repo/src/index.ts';
+      const { entry } = await openReady(h, path, 'one');
+      const pending = deferred<void>();
+      h.beforeWrite.mockImplementationOnce(() => pending.promise);
+
+      bufferHandle(entry).setText('saved by hand');
+      const manual = h.store.save(entry);
+      await waitFor(() => h.beforeWrite.mock.calls.length === 1);
+      bufferHandle(entry).setText('saved by hand, then more');
+      h.clock.advance(AUTO_SAVE_DELAY_MS);
+      h.autoSave.mode = 'off';
+      pending.resolve();
+
+      expect(await manual).toEqual(ok(undefined));
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(h.beforeWrite).toHaveBeenCalledTimes(1);
+      expect(entry.dirty).toBe(true);
+      const disk = h.diskContent(h.diskKey(path));
+      expect(disk?.kind === 'text' && disk.content).toBe('saved by hand');
+    });
+
     it('leaves dirty buffers alone while auto-save is off', async () => {
       const h = start();
       const { entry } = await openReady(h, '/repo/src/index.ts', 'one');

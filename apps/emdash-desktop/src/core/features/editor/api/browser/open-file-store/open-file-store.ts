@@ -355,30 +355,32 @@ export class OpenFileStore {
     return this.enqueueWrite(impl, () => this.writeBuffer(impl, options));
   }
 
+  /** Called when an editor showing `entry` loses focus or switches to another file. */
+  saveOnFocusChange(entry: OpenFileEntry): void {
+    void this.autoSave(entry, 'onFocusChange');
+  }
+
+  /** With any auto-save mode on, closing a dirty file saves it instead of asking. */
+  autoSaveEnabled(): boolean {
+    return this.autoSaveMode() !== 'off';
+  }
+
   /**
    * The save behind the auto-save setting: the same etag-guarded write, minus
    * anything that needs the user. Clean, conflicted and read-only entries are
    * skipped, and a conflict found here only flags the entry so an explicit
    * save can resolve it.
    */
-  async autoSave(entry: OpenFileEntry): Promise<void> {
+  private async autoSave(entry: OpenFileEntry, mode: AutoSaveMode): Promise<void> {
     const impl = this.entries.get(entry.key);
     if (!impl || impl !== entry) return;
     await this.enqueueWrite(impl, async () => {
-      // Checked once earlier writes finish: one of them may already cover these edits.
+      // Checked once earlier writes finish: one may already cover these edits,
+      // or the user may have changed the setting while this one waited.
+      if (this.autoSaveMode() !== mode) return;
       if (!impl.dirty || impl.conflicted || impl.readOnly) return;
       await this.writeBuffer(impl, {});
     }).catch(() => undefined);
-  }
-
-  /** Called when an editor showing `entry` loses focus or switches to another file. */
-  saveOnFocusChange(entry: OpenFileEntry): void {
-    if (this.autoSaveMode() === 'onFocusChange') void this.autoSave(entry);
-  }
-
-  /** With any auto-save mode on, closing a dirty file saves it instead of asking. */
-  autoSaveEnabled(): boolean {
-    return this.autoSaveMode() !== 'off';
   }
 
   /**
@@ -982,7 +984,7 @@ export class OpenFileStore {
       entry.autoSaveTimer?.dispose();
       entry.autoSaveTimer = this.clock.schedule(AUTO_SAVE_DELAY_MS, () => {
         entry.autoSaveTimer = null;
-        void this.autoSave(entry);
+        void this.autoSave(entry, 'afterDelay');
       });
     }
 
