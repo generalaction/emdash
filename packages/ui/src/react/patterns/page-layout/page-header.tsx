@@ -10,9 +10,11 @@ export interface PageHeaderProps {
   title: string;
   /** Optional muted description below the title. */
   description?: string;
+  /** Compact actions aligned to the right of the title and description. */
+  titleActions?: React.ReactNode;
   /**
-   * Toolbar / action content rendered below the title block, above the
-   * separator. Typically a `SearchInput` + `Button` row.
+   * Toolbar / action content rendered below the separator.
+   * Typically a `SearchInput` + `Button` row.
    */
   actions?: React.ReactNode;
   /**
@@ -53,6 +55,7 @@ export interface PageHeaderProps {
 function PageHeader({
   title,
   description,
+  titleActions,
   actions,
   sticky = false,
   draggable = false,
@@ -71,14 +74,21 @@ function PageHeader({
 
   const body = (
     <div className={styles.header}>
-      <div className={styles.titleBlock} style={titleBlockStyle}>
-        <Text as="h2" variant="h1" tone="default">
-          {title}
-        </Text>
-        {description && (
-          <Text as="p" variant="description" tone="muted">
-            {description}
+      <div className={styles.titleRow}>
+        <div className={styles.titleBlock} style={titleBlockStyle}>
+          <Text as="h2" variant="h1" tone="default">
+            {title}
           </Text>
+          {description && (
+            <Text as="p" variant="description" tone="muted">
+              {description}
+            </Text>
+          )}
+        </div>
+        {titleActions && (
+          <div className={styles.titleActions} style={actionsStyle}>
+            {titleActions}
+          </div>
         )}
       </div>
       <div className={styles.separator} />

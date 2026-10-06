@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { PlusIcon, WrenchIcon } from 'lucide-react';
+import { PlusIcon, RefreshCwIcon, WrenchIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
 import { SearchInput } from '../../primitives/search-input';
@@ -11,6 +11,25 @@ const meta: Meta = {
 };
 export default meta;
 type Story = StoryObj;
+
+export const TitleActions: Story = {
+  name: 'Header — actions beside the title',
+  render: () => (
+    <div style={{ padding: '2rem', maxWidth: '50rem' }}>
+      <PageLayout.Header
+        title="Usage"
+        description="Your subscription limits."
+        draggable
+        titleActions={
+          <Button size="sm" variant="secondary">
+            <RefreshCwIcon size={14} />
+            Refresh
+          </Button>
+        }
+      />
+    </div>
+  ),
+};
 
 // ── Placeholder helpers ───────────────────────────────────────────────────────
 

@@ -20,14 +20,31 @@ export const headerSticky = style({
 
 // ── Title block ───────────────────────────────────────────────────────────────
 
+export const titleRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '1rem',
+});
+
 export const titleBlock = style({
   display: 'flex',
   flexDirection: 'column',
+  minWidth: 0,
+  flex: 1,
   gap: '0.25rem',
   ...({ WebkitAppRegion: 'drag' } as CSSExtra),
 });
 
 // ── Actions slot ──────────────────────────────────────────────────────────────
+
+export const titleActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexShrink: 0,
+  gap: '0.5rem',
+  ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
+});
 
 export const actions = style({
   display: 'flex',
