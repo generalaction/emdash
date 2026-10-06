@@ -101,7 +101,6 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
     // src holds only deep, so they share one compacted row and deep is listed too.
     await vi.waitFor(() => expect(store.nodes.has(at('src/deep/file.ts'))).toBe(true));
     expect(store.loadedPaths.has(at('dest'))).toBe(false);
-    expect(store.pendingPaths.size).toBe(0);
   });
 
   it('observes actual OS watcher events through both Wire hops', async () => {
@@ -121,7 +120,6 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
     const { store, at, open } = await setup();
     store.setExpandedPaths([at('src/deep')]);
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(store.pendingPaths.size).toBe(0);
     expect(store.loadedPaths.has(at('src/deep'))).toBe(false);
     await open(at('src'), at('src/deep'));
     expect(store.nodes.has(at('src/deep/file.ts'))).toBe(true);
@@ -160,7 +158,6 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
     const reveals = Array.from({ length: 12 }, () => store.revealFile(at('src/deep/file.ts')));
     expect((await Promise.all(reveals)).every((result) => result.success)).toBe(true);
     await open(at('dest'));
-    expect(store.pendingPaths.size).toBe(0);
   });
 
   it('rereads listed folders on Refresh when watcher events were missed', async () => {
@@ -194,7 +191,6 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
     await writeFile(at('dest/new.ts'), 'new');
     await expect(store.retry(at('dest'))).resolves.toEqual(ok(undefined));
     await vi.waitFor(() => expect(store.nodes.has(at('dest/new.ts'))).toBe(true));
-    expect(store.pendingPaths.size).toBe(0);
   });
 
   it('reflects create, rename, move, copy and delete before each operation returns', async () => {

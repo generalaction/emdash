@@ -106,17 +106,6 @@ describe('file tree browser interactions', () => {
     expect(button('arrived.ts')).toBeDefined();
   });
 
-  it('shows progress while a folder read is pending', async () => {
-    await render({
-      expandedPaths: new Set(['/repo/src']),
-      getRowState: (entry) => (entry.name === 'src' ? { loading: true } : undefined),
-    });
-    expect(button('src').getAttribute('aria-busy')).toBe('true');
-    expect(button('README.md').hasAttribute('aria-busy')).toBe(false);
-    await render({ getRowState: () => undefined });
-    expect(button('src').hasAttribute('aria-busy')).toBe(false);
-  });
-
   it('retries an expanded failed folder with one click and keeps it expanded', async () => {
     const onRequestExpand = vi.fn();
     const onToggleExpand = vi.fn();

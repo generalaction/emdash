@@ -145,7 +145,6 @@ export class FilesStore {
       expandedPaths: observable.ref,
       viewData: computed,
       demand: computed({ equals: comparer.structural }),
-      pendingPaths: computed,
       directoryErrors: computed,
       isLoading: computed,
       error: computed,
@@ -181,15 +180,6 @@ export class FilesStore {
 
   get loadedPaths(): Set<string> {
     return this.viewData.loadedPaths;
-  }
-
-  /** Folders whose listing is still on its way. */
-  get pendingPaths(): ReadonlySet<string> {
-    const pending = new Set<string>();
-    for (const [path, view] of this.folders) {
-      if (view.status === 'loading') pending.add(this.absolute(path));
-    }
-    return pending;
   }
 
   /** Folders that could not be listed, with the reason shown on their row. */

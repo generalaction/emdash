@@ -63,19 +63,17 @@ export const Interactive: Story = {
   ),
 };
 
-export const FolderLoadingAndRetry: Story = {
+export const FolderLoadError: Story = {
   render: () => (
-    <StoryFrame note="Folder reads show progress and keep a visible retry action after failure.">
+    <StoryFrame note="A folder that could not be read keeps a visible retry action.">
       <FileTree
-        rootNodes={[directory('loading'), directory('unavailable'), directory('empty')]}
+        rootNodes={[directory('unavailable'), directory('empty')]}
         childrenById={new Map()}
-        expandedPaths={new Set(['loading', 'unavailable', 'empty'])}
+        expandedPaths={new Set(['unavailable', 'empty'])}
         getRowState={(node) =>
-          node.name === 'loading'
-            ? { loading: true }
-            : node.name === 'unavailable'
-              ? { loadError: 'Folder could not be read. Click to retry.' }
-              : undefined
+          node.name === 'unavailable'
+            ? { loadError: 'Folder could not be read. Click to retry.' }
+            : undefined
         }
       />
     </StoryFrame>

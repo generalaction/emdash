@@ -79,7 +79,6 @@ export interface FileTreeDndSpec {
 }
 
 export interface FileTreeRowState {
-  loading?: boolean;
   loadError?: string;
   muted?: boolean;
   strikethrough?: boolean;
@@ -408,7 +407,6 @@ function FileTreeInner(
         data-drop-target={dropTargetPath === normalizedPath || undefined}
         data-pending={pendingMovePaths.has(normalizedPath) || undefined}
         aria-expanded={isExpandableFileTreeNode(node) ? isExpanded : undefined}
-        aria-busy={state?.loading || undefined}
         title={state?.loadError}
         onClick={(event) => {
           if (
@@ -452,13 +450,7 @@ function FileTreeInner(
         ))}
         {isExpandableFileTreeNode(node) ? (
           <span className={styles.chevron} aria-hidden>
-            {state?.loading ? (
-              <Loader2Icon size={14} className={styles.spinner} />
-            ) : isExpanded ? (
-              <ChevronDownIcon size={14} />
-            ) : (
-              <ChevronRightIcon size={14} />
-            )}
+            {isExpanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
           </span>
         ) : (
           <span className={styles.chevron} aria-hidden>

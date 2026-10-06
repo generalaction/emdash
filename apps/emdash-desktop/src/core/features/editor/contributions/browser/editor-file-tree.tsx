@@ -231,7 +231,6 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const tabLayout = useTabLayout();
   const editorView = taskView.editorView;
   const files = editorView.files;
-  const pendingPaths = new Set(files?.pendingPaths ?? []);
   const directoryErrors = files?.directoryErrors;
   const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
     taskView.projectId
@@ -887,7 +886,6 @@ export const EditorFileTree = observer(function EditorFileTree() {
               ? { muted: true }
               : undefined
           ),
-          loading: pendingPaths.has(node.path),
           loadError: directoryErrors?.get(node.path),
         })}
         dnd={

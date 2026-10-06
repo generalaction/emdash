@@ -238,7 +238,7 @@ describe('FilesStore', () => {
 
     await waitFor(() => store.rootNodes.length === 2);
     await waitFor(() => !store.directoryErrors.has('/repo/gone'));
-    expect(store.pendingPaths.has('/repo/gone')).toBe(false);
+    expect(store.loadedPaths.has('/repo/gone')).toBe(false);
   });
 
   it('releases a folder when it is collapsed', async () => {
@@ -282,23 +282,6 @@ describe('FilesStore', () => {
 
     await expect(store.refresh()).resolves.toEqual(ok(undefined));
     expect(refreshes).toEqual(['']);
-  });
-
-  it('shows a pending folder until its listing arrives', async () => {
-    const gate = deferred<void>();
-    const { store } = setup({
-      beforeListing: async (path) => {
-        if (path === 'src') await gate.promise;
-      },
-    });
-    await store.start();
-    await waitFor(() => store.rootNodes.length === 2);
-
-    store.setExpandedPaths(['/repo/src']);
-    await waitFor(() => store.pendingPaths.has('/repo/src'));
-    gate.resolve();
-    await waitFor(() => store.nodes.has('/repo/src/index.ts'));
-    expect(store.pendingPaths.size).toBe(0);
   });
 
   it('reveals a file by opening every folder on its way at once', async () => {
