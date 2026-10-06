@@ -89,8 +89,6 @@ function LimitRow({ window, title }: { window: LimitWindow; title: string }) {
               ? 'Reset time unavailable'
               : `Resets ${new Date(window.resetsAt).toLocaleString()}`
           }
-          size="lg"
-          color="var(--em-foreground-muted)"
           startLabel={`${percent(remaining)} left`}
           endLabel={reset}
         />
