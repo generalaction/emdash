@@ -29,6 +29,8 @@ vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   }),
 }));
 
+vi.mock('@core/primitives/logging/browser/logger', () => ({ log: { warn: vi.fn() } }));
+
 const { useOpenInApps } = await import('./useOpenInApps');
 
 async function flushQueries(): Promise<void> {
@@ -47,6 +49,20 @@ describe('useOpenInApps', () => {
   function Probe() {
     latest = useOpenInApps();
     return null;
+  }
+
+  async function renderProbe() {
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(Probe)
+        )
+      );
+      await flushQueries();
+    });
+    await act(flushQueries);
   }
 
   beforeEach(() => {
@@ -100,10 +116,10 @@ describe('useOpenInApps', () => {
   it('uses resolved Windows labels and filters out macOS-only apps', async () => {
     mocks.getPlatform.mockResolvedValue('win32');
     mocks.checkInstalledApps.mockResolvedValue({
-      cursor: true,
-      finder: true,
-      terminal: true,
-      xcode: false,
+      cursor: 'detected',
+      finder: 'detected',
+      terminal: 'detected',
+      xcode: 'not-detected',
     });
 
     await act(async () => {
@@ -126,5 +142,72 @@ describe('useOpenInApps', () => {
       expect.arrayContaining(['finder', 'terminal', 'cursor'])
     );
     expect(latest?.installedApps.map((app) => app.id)).not.toContain('xcode');
+  });
+
+  it('keeps Finder detected while other apps are still being checked', async () => {
+    mocks.getPlatform.mockResolvedValue('darwin');
+    mocks.checkInstalledApps.mockReturnValue(new Promise(() => {}));
+    await renderProbe();
+    expect(latest?.availability.finder).toBe('detected');
+    expect(latest?.availability.zed).toBe('checking');
+    expect(latest?.hasDetectionProblem).toBe(false);
+  });
+
+  it('exposes request failures as unknown, then recovers on explicit retry', async () => {
+    mocks.getPlatform.mockResolvedValue('darwin');
+    mocks.checkInstalledApps.mockRejectedValueOnce(new Error('Wire request timed out'));
+    await renderProbe();
+    expect(latest?.availability.zed).toBe('unknown');
+    expect(latest?.availability.finder).toBe('detected');
+    expect(latest?.hasDetectionProblem).toBe(true);
+    expect(mocks.checkInstalledApps).toHaveBeenCalledTimes(1);
+    mocks.checkInstalledApps.mockResolvedValue({ zed: 'detected' });
+    await act(async () => {
+      latest?.refresh();
+      await flushQueries();
+    });
+    await act(flushQueries);
+    expect(latest?.availability.zed).toBe('detected');
+    expect(mocks.checkInstalledApps).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves known apps during a background refresh and a failed refresh', async () => {
+    mocks.getPlatform.mockResolvedValue('win32');
+    mocks.checkInstalledApps.mockResolvedValue({
+      vscode: 'detected',
+      cursor: 'not-detected',
+      zed: 'unknown',
+    });
+    await renderProbe();
+    let rejectRefresh: (error: Error) => void = () => {};
+    mocks.checkInstalledApps.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectRefresh = reject;
+        })
+    );
+    await act(async () => {
+      latest?.refresh();
+      await flushQueries();
+    });
+    expect(latest?.availability.vscode).toBe('detected');
+    expect(latest?.availability.cursor).toBe('not-detected');
+    expect(latest?.availability.zed).toBe('unknown');
+    await act(async () => {
+      rejectRefresh(new Error('Disconnected'));
+      await flushQueries();
+    });
+    await act(flushQueries);
+    expect(latest?.availability.vscode).toBe('detected');
+    expect(latest?.hasDetectionProblem).toBe(true);
+  });
+
+  it('flags unknown results and omits confirmed absences from installed apps', async () => {
+    mocks.getPlatform.mockResolvedValue('win32');
+    mocks.checkInstalledApps.mockResolvedValue({ vscode: 'unknown', cursor: 'not-detected' });
+    await renderProbe();
+    expect(latest?.availability.vscode).toBe('unknown');
+    expect(latest?.hasDetectionProblem).toBe(true);
+    expect(latest?.installedApps.map((app) => app.id)).not.toContain('cursor');
   });
 });

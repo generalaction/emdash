@@ -2,6 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import { log } from '@core/primitives/logging/browser/logger';
+import type {
+  AppDetectionResults,
+  AppDetectionStatus,
+} from '@core/primitives/open-in-apps/api/app-detection';
 import {
   getResolvedIconPath,
   getResolvedLabel,
@@ -24,10 +29,13 @@ function getIconUrl(iconPath: string): string | undefined {
 export interface UseOpenInAppsResult {
   icons: Partial<Record<OpenInAppId, string>>;
   labels: Partial<Record<OpenInAppId, string>>;
-  availability: Record<string, boolean>;
+  availability: Record<string, AppDetectionStatus | 'checking'>;
   installedApps: OpenInAppConfig[];
   platform?: PlatformKey;
   loading: boolean;
+  refreshing: boolean;
+  hasDetectionProblem: boolean;
+  refresh: () => void;
 }
 
 function supportsPlatform(app: OpenInAppConfig, platform: PlatformKey): boolean {
@@ -43,16 +51,34 @@ export function useOpenInApps(): UseOpenInAppsResult {
     staleTime: Infinity,
   });
 
-  const { data: availability = {}, isLoading: availabilityLoading } = useQuery({
+  const detection = useQuery({
     queryKey: ['app', 'installedApps'],
-    queryFn: async () => {
-      const apps = await (await getHostClient()).checkInstalledApps();
-      return (apps ?? {}) as Record<string, boolean>;
+    queryFn: async (): Promise<AppDetectionResults> => {
+      try {
+        return await (await getHostClient()).checkInstalledApps();
+      } catch (error) {
+        log.warn('[open-in] Detection request failed', { error });
+        throw error;
+      }
     },
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
-  const loading = settingsLoading || platformLoading || availabilityLoading;
+  const loading = settingsLoading || platformLoading || detection.isLoading;
+  const availability = useMemo<UseOpenInAppsResult['availability']>(() => {
+    return Object.fromEntries(
+      Object.values(OPEN_IN_APPS).map((app) => [
+        app.id,
+        app.alwaysAvailable
+          ? 'detected'
+          : platform && !supportsPlatform(app, platform)
+            ? 'not-detected'
+            : (detection.data?.[app.id] ?? (detection.isLoading ? 'checking' : 'unknown')),
+      ])
+    );
+  }, [detection.data, detection.isLoading, platform]);
+  const hasDetectionProblem = detection.isError || Object.values(availability).includes('unknown');
 
   const labels = useMemo(() => {
     const result: Partial<Record<OpenInAppId, string>> = {};
@@ -80,9 +106,20 @@ export function useOpenInApps(): UseOpenInAppsResult {
     const platformApps = Object.values(OPEN_IN_APPS).filter(
       (app) => supportsPlatform(app, platform) && !hiddenApps.includes(app.id)
     );
-    if (loading) return platformApps;
-    return platformApps.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
-  }, [availability, loading, openIn?.hidden, platform]);
+    return platformApps.filter((app) => availability[app.id] !== 'not-detected');
+  }, [availability, openIn?.hidden, platform]);
 
-  return { icons, labels, availability, installedApps, platform, loading };
+  return {
+    icons,
+    labels,
+    availability,
+    installedApps,
+    platform,
+    loading,
+    refreshing: detection.isFetching,
+    hasDetectionProblem,
+    refresh: () => {
+      void detection.refetch();
+    },
+  };
 }
