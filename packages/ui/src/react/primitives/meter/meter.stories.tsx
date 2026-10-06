@@ -22,7 +22,7 @@ export const Full: Story = { args: { value: 100 } };
 export const Subscription: Story = {
   args: {
     size: 'lg',
-    color: 'var(--em-primary-button-background)',
+    color: 'var(--em-foreground-muted)',
     startLabel: '30% left',
     endLabel: '↻ 6d 20h',
     value: 30,
