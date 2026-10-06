@@ -30,6 +30,11 @@ import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node
 import { lspContract, type LspContract } from '@emdash/core/runtimes/lsp/api';
 import { lspWorkerSpec } from '@emdash/core/runtimes/lsp/node';
 import {
+  providerUsageContract,
+  type ProviderUsageContract,
+} from '@emdash/core/runtimes/provider-usage/api';
+import { providerUsageWorkerSpec } from '@emdash/core/runtimes/provider-usage/node';
+import {
   resourceUsageContract,
   type ResourceUsageContract,
 } from '@emdash/core/runtimes/resource-usage/api';
@@ -108,6 +113,7 @@ export type WorkspaceRegistryRuntimeClient = ContractClient<WorkspaceRegistryCon
 
 export type DesktopRuntimeClients = {
   readonly acp: AcpRuntimeClient;
+  readonly providerUsage: ContractClient<ProviderUsageContract>;
   readonly agentConfig: AgentConfigRuntimeClient;
   readonly automations: AutomationsRuntimeClient;
   readonly conversations: ConversationsRuntimeClient;
@@ -145,7 +151,7 @@ export type DesktopRuntimeWorkers = {
 export type DesktopWorkersHandle = {
   readonly clients: DesktopRuntimeClients;
   readonly workers: DesktopRuntimeWorkers;
-  /** Resolves after every local Host runtime has completed its Wire worker handshake. */
+  /** Resolves after required local Host runtimes have completed their Wire worker handshakes. */
   runtimeReady(): Promise<void>;
   /**
    * Activate per-worker vitals self-sampling (telemetry-sampled sessions
@@ -279,6 +285,17 @@ function startDesktopWorkersWithHost(
       },
     })
   );
+  const providerUsageWorker = host.create(
+    ...providerUsageWorkerSpec({
+      pluginRegistry,
+      executable: desktopWorkerPath('provider-usage'),
+      env: process.env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        userEnv: userShellEnv,
+      },
+    })
+  );
   const mementosWorker = host.create(mementosComponent, {
     name: 'mementos',
     executable: desktopWorkerPath('mementos'),
@@ -329,7 +346,6 @@ function startDesktopWorkersWithHost(
       dependencies: { userEnv: userShellEnv, hostDependencies: hostDependencies.client.resolver },
     })
   );
-  const lspReady = timedReady('lsp', lspWorker.ready());
   const resourceUsageWorker = host.create(
     ...resourceUsageWorkerSpec({
       executable: desktopWorkerPath('resource-usage'),
@@ -494,7 +510,6 @@ function startDesktopWorkersWithHost(
     )
   );
   const runtimeReady = Promise.all([
-    lspReady,
     acpReady,
     agentConfigReady,
     automationsReady,
@@ -515,9 +530,16 @@ function startDesktopWorkersWithHost(
   let disposePromise: Promise<void> | undefined;
   return {
     clients: {
-      lsp: queuedClient(lspContract, () => lspReady),
+      lsp: queuedClient(lspContract, () => timedReady('lsp', lspWorker.ready()), {
+        retryReadinessOnFailure: true,
+      }),
       acp: queuedClient(acpApiContract, () => acpReady),
       agentConfig: queuedClient(agentConfigContract, () => agentConfigReady),
+      providerUsage: queuedClient(
+        providerUsageContract,
+        () => timedReady('provider-usage', providerUsageWorker.ready()),
+        { retryReadinessOnFailure: true }
+      ),
       automations: queuedClient(automationsContract, () =>
         automationsReady.then((result) => result.client)
       ),

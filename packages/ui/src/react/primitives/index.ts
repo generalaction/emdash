@@ -24,6 +24,7 @@ export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export { Text, type TextProps } from './typography/Text';
 export { AbsoluteTime, type AbsoluteTimeProps } from './time/absolute-time';
+export { CountdownTime, type CountdownTimeProps } from './time/countdown-time';
 export { RelativeTime, type RelativeTimeProps } from './time/relative-time';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
@@ -116,3 +117,5 @@ export { resolveFileIconClass } from '../lib/file-icons';
 // to a dangling relative path, silently degrading the exported types.
 export { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
 export { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
+
+export { Meter, type MeterProps } from './meter';

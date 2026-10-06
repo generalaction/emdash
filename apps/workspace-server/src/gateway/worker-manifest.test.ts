@@ -12,6 +12,7 @@ const runtimeIds = [
   'lsp',
   'git',
   'host-settings',
+  'provider-usage',
   'resource-usage',
   'scripts',
   'terminals',

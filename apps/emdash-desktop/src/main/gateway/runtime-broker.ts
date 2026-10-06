@@ -80,6 +80,7 @@ async function resolveDesktopRuntimeClient(
     conversations: clients.conversations,
     tuiAgents: clients.tuiAgents,
     agentConfig: clients.agentConfig,
+    providerUsage: clients.providerUsage,
     terminals: clients.terminals,
     workspaceRegistry: clients.workspaceRegistry,
     resourceUsage: clients.resourceUsage,

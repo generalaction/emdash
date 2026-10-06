@@ -7,7 +7,13 @@ button in the file toolbar to restart. These are optional tools: opening a Pytho
 file starts Pyright, not the Go or TypeScript servers. Nothing is downloaded when
 a file is opened. The executable must be on the host containing the worktree;
 a local installation does not provide language services for SSH files.
-Remote language services require workspace protocol 11.1 or newer.
+Remote language services are included in workspace protocol 12.0.
+
+The LSP worker starts on the first language-service request in both desktop and workspace-server
+hosts. Its startup is excluded from required host readiness, so a failed or pending LSP startup does
+not block unrelated runtimes. A later request can retry failed startup; concurrent requests share
+one attempt, and successful readiness stays cached. Individual language servers still start only
+when a session is attached.
 
 | Languages | Server | Host requirements |
 | --- | --- | --- |
@@ -121,7 +127,7 @@ edits (`applyDocumentEdit`), save notification (`documentSaved`) and process rec
 (`restartServer`) explicitly. Definition, type-definition and reference queries are
 separate operations; references preserve the caller's `includeDeclaration` option.
 Snapshot replication is required for initialization and recovery, not compatibility.
-This unreleased feature uses one protocol addition (11.1), with no legacy LSP aliases.
+This unreleased feature is included in protocol 12.0, with no legacy LSP aliases.
 
 Tests cover protocol state and actual server behavior in Core, host routing and
 buffer policy in desktop Node tests, and Monaco providers/navigation in browser

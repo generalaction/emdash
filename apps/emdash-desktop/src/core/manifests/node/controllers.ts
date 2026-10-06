@@ -68,6 +68,8 @@ import {
   createUpdatesWireController,
   type UpdateOperations,
 } from '@core/features/updates/node/wire-controller';
+import type { UsageOverviewSource } from '@core/features/usage/node/usage-overview';
+import { createUsageWireController } from '@core/features/usage/node/wire-controller';
 import {
   createDesktopHostWireController,
   type DesktopHostControllerOperations,
@@ -160,6 +162,7 @@ export type DesktopControllerContext = {
   readonly terminalFileSources: TerminalFileSources;
   readonly terminalShell: CreateTerminalsWireControllerOptions['terminalShell'];
   readonly updateOperations: UpdateOperations;
+  readonly usage: UsageOverviewSource;
   readonly workspaceIdentity: WorkspaceIdentityService;
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly workspaces: Omit<CreateWorkspacesWireControllerOptions, 'db' | 'mutations'>;
@@ -429,6 +432,9 @@ export const desktopNodeControllers = {
   },
   ssh: {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
+  },
+  usage: {
+    create: ({ scope, usage }) => createUsageWireController({ scope, usage }),
   },
   hosts: {
     create: ({ hostAvailability, hosts, ssh }) =>

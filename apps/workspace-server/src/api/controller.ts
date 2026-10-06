@@ -59,6 +59,10 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
       sendPrompt: (input, meta) =>
         deps.runtimes.acp.sendPrompt(input, { signal: meta.signal, timeoutMs: 0 }),
     },
+    providerUsage: forwardContractImpl(
+      workspaceWireContract.providerUsage,
+      deps.runtimes.providerUsage
+    ),
     agentConfig: forwardContractImpl(workspaceWireContract.agentConfig, deps.runtimes.agentConfig),
     automations: forwardContractImpl(workspaceWireContract.automations, deps.runtimes.automations),
     conversations: forwardContractImpl(

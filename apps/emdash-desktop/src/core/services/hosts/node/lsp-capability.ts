@@ -1,12 +1,11 @@
 import { hostRefEquals, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { Hosts } from './hosts';
 
-/** Language services require workspace protocol 11.1. */
+/** Language services are included in protocol 12.0, enforced by the connection handshake. */
 export async function hostSupportsLsp(host: HostRef, hosts: Hosts): Promise<boolean> {
   if (hostRefEquals(host, LOCAL_HOST_REF)) return true;
   const service = hosts.get(host);
   if (!service) return false;
   const connection = await service.runtime.client({ waitForReady: false });
-  const handshake = connection.currentHandshake();
-  return handshake !== undefined && handshake.agreedMinor >= 1;
+  return connection.currentHandshake() !== undefined;
 }

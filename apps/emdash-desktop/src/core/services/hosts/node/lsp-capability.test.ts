@@ -21,10 +21,11 @@ describe('language services version gate', () => {
     expect(await hostSupportsLsp(LOCAL_HOST_REF, registry as unknown as Hosts)).toBe(true);
     expect(registry.get).not.toHaveBeenCalled();
   });
-  it.each([undefined, 0, 1, 2])('checks the negotiated minor version %s', async (minor) => {
-    expect(await hostSupportsLsp(remote, hosts(minor) as unknown as Hosts)).toBe(
-      minor !== undefined && minor >= 1
-    );
+  it.each([0, 1, 2])('supports connected protocol 12 hosts at minor %s', async (minor) => {
+    expect(await hostSupportsLsp(remote, hosts(minor) as unknown as Hosts)).toBe(true);
+  });
+  it('requires a completed remote handshake', async () => {
+    expect(await hostSupportsLsp(remote, hosts() as unknown as Hosts)).toBe(false);
   });
   it('rejects missing remote hosts', async () => {
     expect(await hostSupportsLsp(remote, { get: () => undefined } as unknown as Hosts)).toBe(false);

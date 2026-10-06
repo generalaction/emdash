@@ -17,8 +17,13 @@ import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
 import type { HostSettingsContract } from '@emdash/core/runtimes/host-settings/api';
 import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
-import type { LspContract } from '@emdash/core/runtimes/lsp/api';
+import { lspContract, type LspContract } from '@emdash/core/runtimes/lsp/api';
 import { lspWorkerSpec } from '@emdash/core/runtimes/lsp/node';
+import {
+  providerUsageContract,
+  type ProviderUsageContract,
+} from '@emdash/core/runtimes/provider-usage/api';
+import { providerUsageWorkerSpec } from '@emdash/core/runtimes/provider-usage/node';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
 import type { ScriptsContract } from '@emdash/core/runtimes/scripts/api';
@@ -45,7 +50,7 @@ import { pluginRegistry } from '@emdash/plugins/agents';
 import { ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { createController, type ContractClient } from '@emdash/wire/rpc';
+import { createController, queuedClient, type ContractClient } from '@emdash/wire/rpc';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { workspaceServerRuntimePaths } from '../runtime/paths';
@@ -54,6 +59,7 @@ import { workspaceWorkerPath } from './worker-paths';
 export type WorkspaceServerRuntimeClients = {
   acp: ContractClient<AcpApiContract>;
   agentConfig: ContractClient<AgentConfigContract>;
+  providerUsage: ContractClient<ProviderUsageContract>;
   automations: ContractClient<AutomationsContract>;
   conversations: ContractClient<ConversationsContract>;
   fileSearch: ContractClient<FileSearchContract>;
@@ -134,7 +140,7 @@ export async function createWorkspaceServerRuntimeHost(
       },
     })
   );
-  const lspPromise = workerHost.spawn(
+  const lspWorker = workerHost.create(
     ...lspWorkerSpec({
       executable: workspaceWorkerPath('lsp'),
       env,
@@ -188,6 +194,17 @@ export async function createWorkspaceServerRuntimeHost(
       },
     })
   );
+  const providerUsageWorker = workerHost.create(
+    ...providerUsageWorkerSpec({
+      pluginRegistry,
+      executable: workspaceWorkerPath('provider-usage'),
+      env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        userEnv: userShellEnv,
+      },
+    })
+  );
   const tuiAgentsPromise = conversationsPromise.then((conversations) =>
     workerHost.spawn(
       ...tuiAgentsWorkerSpec({
@@ -209,7 +226,6 @@ export async function createWorkspaceServerRuntimeHost(
     watcher,
     terminals,
     resourceUsage,
-    lsp,
     hostSettings,
     scripts,
     acp,
@@ -220,7 +236,6 @@ export async function createWorkspaceServerRuntimeHost(
     watcherPromise,
     terminalsPromise,
     resourceUsagePromise,
-    lspPromise,
     hostSettingsPromise,
     scriptsPromise,
     acpPromise,
@@ -316,6 +331,9 @@ export async function createWorkspaceServerRuntimeHost(
     runtimes: {
       acp,
       agentConfig,
+      providerUsage: queuedClient(providerUsageContract, () => providerUsageWorker.ready(), {
+        retryReadinessOnFailure: true,
+      }),
       automations,
       conversations,
       fileSearch,
@@ -323,7 +341,9 @@ export async function createWorkspaceServerRuntimeHost(
       git,
       hostSettings,
       resourceUsage,
-      lsp,
+      lsp: queuedClient(lspContract, () => lspWorker.ready(), {
+        retryReadinessOnFailure: true,
+      }),
       scripts,
       terminals,
       tuiAgents,
