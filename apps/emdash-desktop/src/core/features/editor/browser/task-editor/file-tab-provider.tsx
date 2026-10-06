@@ -179,12 +179,14 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
         return false;
       }
 
-      const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
-      const unsavedOutcome = await openModal('unsavedChangesModal', { fileName });
-      if (!unsavedOutcome.success) return false;
-      if (unsavedOutcome.data === 'discard') {
-        openFileStore.reloadFromDisk(fileEntry);
-        return true;
+      if (!openFileStore.autoSaveEnabled()) {
+        const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
+        const unsavedOutcome = await openModal('unsavedChangesModal', { fileName });
+        if (!unsavedOutcome.success) return false;
+        if (unsavedOutcome.data === 'discard') {
+          openFileStore.reloadFromDisk(fileEntry);
+          return true;
+        }
       }
 
       try {

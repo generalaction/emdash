@@ -13,6 +13,7 @@ const filesSettingsSchema = z.object({
   treeExclude: exclusionListSchema,
   searchExclude: exclusionListSchema,
   watcherExclude: exclusionListSchema,
+  autoSave: z.enum(['off', 'afterDelay', 'onFocusChange']).default('off'),
 });
 
 export const filesSettingsContribution = defineSettingsContribution<'files', FilesSettings>({
@@ -22,5 +23,6 @@ export const filesSettingsContribution = defineSettingsContribution<'files', Fil
     treeExclude: [...DEFAULT_TREE_EXCLUDE],
     searchExclude: [...DEFAULT_SEARCH_EXCLUDE],
     watcherExclude: [...DEFAULT_WATCHER_EXCLUDE],
+    autoSave: 'off',
   },
 });

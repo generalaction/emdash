@@ -152,6 +152,12 @@ export function StickyDiffEditor({
       if (side?.kind !== 'facet' || side.facet.kind !== 'buffer') return;
       void saveDiffBuffer(side.entry, filePathRef.current);
     });
+    const blurDisposable = modifiedEditor.onDidBlurEditorWidget(() => {
+      const side = modifiedRef.current;
+      if (side?.kind === 'facet' && side.facet.kind === 'buffer') {
+        openFileStore.saveOnFocusChange(side.entry);
+      }
+    });
 
     const heightDisposable = modifiedEditor.onDidContentSizeChange(
       (e: { contentHeightChanged: boolean; contentHeight: number }) => {
@@ -166,6 +172,7 @@ export function StickyDiffEditor({
     const emptyModels = emptyModelsRef.current;
     return () => {
       heightDisposable.dispose();
+      blurDisposable.dispose();
       // Save the viewport before disposal. The sides effect's cleanup can't
       // cover unmount: it runs after this one, when editorBox is already null.
       const attached = attachedUrisRef.current;

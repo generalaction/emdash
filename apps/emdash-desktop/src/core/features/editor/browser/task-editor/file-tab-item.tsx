@@ -5,6 +5,7 @@ import type { FileTabResource } from '@core/features/editor/api/browser/task-edi
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { useDelayedBoolean } from '@core/primitives/react-hooks/browser/use-delay-boolean';
+import { cn } from '@core/primitives/styling/browser/cn';
 import type {
   TabBarItemProps,
   ResolvedTab,
@@ -28,6 +29,36 @@ function fileTabErrorTooltip(status: ContentStatus): string | undefined {
     case 'unavailable':
       return 'Could not load file';
   }
+}
+
+/** Save state shown under the tab's close button. */
+const FileTabSaveStatus = observer(function FileTabSaveStatus({
+  resource,
+}: {
+  resource: FileTabResource;
+}) {
+  const entry = resource.entry;
+  // Local writes finish well before this; slow remote ones show a spinner.
+  const showSaving = useDelayedBoolean(entry?.saving ?? false, 300);
+  if (!entry?.dirty) return null;
+  if (entry.conflicted) {
+    return (
+      <SaveStatusDot className="bg-foreground-warning" title="Changed on disk. Save to resolve." />
+    );
+  }
+  if (entry.saveFailed) {
+    return <SaveStatusDot className="bg-foreground-error" title="Couldn't save changes" />;
+  }
+  if (showSaving) {
+    return <Loader2 className="h-3 w-3 animate-spin group-hover:opacity-0" aria-label="Saving" />;
+  }
+  return <SaveStatusDot className="bg-foreground" title="Unsaved changes" />;
+});
+
+function SaveStatusDot({ className, title }: { className: string; title: string }) {
+  return (
+    <div className={cn('size-2 rounded-full group-hover:opacity-0', className)} title={title} />
+  );
 }
 
 export const FileTabBarItem = observer(function FileTabBarItem({
@@ -77,14 +108,7 @@ export const FileTabBarItem = observer(function FileTabBarItem({
             ]
           : undefined
       }
-      statusSlot={
-        resource.isDirty ? (
-          <div
-            className="size-2 rounded-full bg-foreground group-hover:opacity-0"
-            title="Unsaved changes"
-          />
-        ) : undefined
-      }
+      statusSlot={<FileTabSaveStatus resource={resource} />}
     />
   );
 });

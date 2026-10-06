@@ -31,10 +31,13 @@ export type TaskSettings = {
   includeIssueContextByDefault: boolean;
 };
 
+export type AutoSaveMode = 'off' | 'afterDelay' | 'onFocusChange';
+
 export type FilesSettings = {
   treeExclude: string[];
   searchExclude: string[];
   watcherExclude: string[];
+  autoSave: AutoSaveMode;
 };
 
 export type TerminalSettings = {

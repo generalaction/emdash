@@ -9,10 +9,12 @@ import { cell, expose, snapshot, type Cell } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { filesWireContract, type FilesContentKey } from '@core/features/files/api';
+import type { AutoSaveMode } from '@core/primitives/app-settings/api';
 import { hostFileRefFromNativePath, portablePath } from '@core/primitives/desktop-runtime/api';
 import { HEAD_REF, type GitRef } from '@core/primitives/git/api';
 import type { FacetDescriptor, FacetHandle, FacetHandleBinder } from './facet-handle';
 import {
+  AUTO_SAVE_DELAY_MS,
   BUFFER_AUTOSAVE_DEBOUNCE_MS,
   FIRST_LOAD_DEADLINE_MS,
   OPEN_FILE_LINGER_MS,
@@ -152,6 +154,8 @@ function setup() {
   let etagSeq = 0;
   const beforeWrite = vi.fn(async () => {});
   const beforeClear = vi.fn(async () => {});
+  const autoSave = { mode: 'off' as AutoSaveMode };
+  const failWrites = { current: false };
 
   const cellFor = (key: FilesContentKey): Cell<FileContentModel | undefined> => {
     const id = stableStringify(key);
@@ -177,6 +181,9 @@ function setup() {
       mutations: {
         write: async (context) => {
           await beforeWrite();
+          if (failWrites.current) {
+            return err({ type: 'io' as const, path: 'file.ts', message: 'disk full' });
+          }
           const contentCell = cellFor(context.key);
           const current = snapshot(contentCell).value;
           const currentEtag = current?.kind === 'text' ? current.etag : undefined;
@@ -241,7 +248,7 @@ function setup() {
     },
   };
 
-  const store = new OpenFileStore({ clock });
+  const store = new OpenFileStore({ clock, autoSaveMode: () => autoSave.mode });
   store.registerBinder(binder);
 
   const diskKey = (path: string): FilesContentKey => ({
@@ -261,6 +268,8 @@ function setup() {
     store,
     beforeWrite,
     beforeClear,
+    autoSave,
+    failWrites,
     clock,
     resolves,
     leases,
@@ -732,6 +741,116 @@ describe('OpenFileStore', () => {
       bufferHandle(entry).setText('theirs edited');
       await waitFor(() => entry.dirty);
       expect(await h.store.save(entry)).toEqual(ok(undefined));
+    });
+
+    it('queues a save behind an in-flight write instead of reporting a conflict', async () => {
+      const h = start();
+      const path = '/repo/src/index.ts';
+      const { entry } = await openReady(h, path, 'one');
+      const pending = deferred<void>();
+      h.beforeWrite.mockImplementationOnce(() => pending.promise);
+
+      bufferHandle(entry).setText('first');
+      const first = h.store.save(entry);
+      await waitFor(() => h.beforeWrite.mock.calls.length === 1);
+      bufferHandle(entry).setText('first then second');
+      const second = h.store.save(entry);
+      pending.resolve();
+
+      expect(await first).toEqual(ok(undefined));
+      expect(await second).toEqual(ok(undefined));
+      expect(entry.conflicted).toBe(false);
+      expect(entry.dirty).toBe(false);
+      const disk = h.diskContent(h.diskKey(path));
+      expect(disk?.kind === 'text' && disk.content).toBe('first then second');
+    });
+
+    it('flags a failed write until a later save succeeds', async () => {
+      const h = start();
+      const { entry } = await openReady(h, '/repo/src/index.ts', 'one');
+      bufferHandle(entry).setText('edited');
+
+      h.failWrites.current = true;
+      const failed = await h.store.save(entry);
+      expect(failed.success ? null : failed.error.type).toBe('write-failed');
+      expect(entry.saveFailed).toBe(true);
+      expect(entry.dirty).toBe(true);
+
+      h.failWrites.current = false;
+      expect(await h.store.save(entry)).toEqual(ok(undefined));
+      expect(entry.saveFailed).toBe(false);
+    });
+  });
+
+  describe('auto-save', () => {
+    it('writes a dirty buffer to disk once edits pause', async () => {
+      const h = start();
+      h.autoSave.mode = 'afterDelay';
+      const path = '/repo/src/index.ts';
+      const { entry } = await openReady(h, path, 'one');
+
+      bufferHandle(entry).setText('one edited');
+      h.clock.advance(AUTO_SAVE_DELAY_MS - 1);
+      bufferHandle(entry).setText('one edited again');
+      h.clock.advance(AUTO_SAVE_DELAY_MS - 1);
+      expect(h.beforeWrite).not.toHaveBeenCalled();
+
+      h.clock.advance(1);
+      await waitFor(() => !entry.dirty);
+      expect(h.beforeWrite).toHaveBeenCalledTimes(1);
+      const disk = h.diskContent(h.diskKey(path));
+      expect(disk?.kind === 'text' && disk.content).toBe('one edited again');
+    });
+
+    it('leaves dirty buffers alone while auto-save is off', async () => {
+      const h = start();
+      const { entry } = await openReady(h, '/repo/src/index.ts', 'one');
+
+      bufferHandle(entry).setText('one edited');
+      h.clock.advance(AUTO_SAVE_DELAY_MS * 5);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(h.beforeWrite).not.toHaveBeenCalled();
+      expect(entry.dirty).toBe(true);
+    });
+
+    it('stops at a conflict and never writes over the newer file', async () => {
+      const h = start();
+      h.autoSave.mode = 'afterDelay';
+      const path = '/repo/src/index.ts';
+      const { entry } = await openReady(h, path, 'one');
+      // Something else writes the file just before the auto-save lands.
+      h.beforeWrite.mockImplementationOnce(async () => {
+        h.publish(h.diskKey(path), textContent('theirs', 'e2'));
+      });
+
+      bufferHandle(entry).setText('mine');
+      h.clock.advance(AUTO_SAVE_DELAY_MS);
+      await waitFor(() => entry.conflicted);
+
+      bufferHandle(entry).setText('mine, still typing');
+      h.clock.advance(AUTO_SAVE_DELAY_MS);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(h.beforeWrite).toHaveBeenCalledTimes(1);
+      expect(entry.dirty).toBe(true);
+      const disk = h.diskContent(h.diskKey(path));
+      expect(disk?.kind === 'text' && disk.content).toBe('theirs');
+    });
+
+    it('saves on focus change only when that mode is selected', async () => {
+      const h = start();
+      const path = '/repo/src/index.ts';
+      const { entry } = await openReady(h, path, 'one');
+      bufferHandle(entry).setText('edited');
+
+      h.store.saveOnFocusChange(entry);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(h.beforeWrite).not.toHaveBeenCalled();
+
+      h.autoSave.mode = 'onFocusChange';
+      h.store.saveOnFocusChange(entry);
+      await waitFor(() => !entry.dirty);
+      const disk = h.diskContent(h.diskKey(path));
+      expect(disk?.kind === 'text' && disk.content).toBe('edited');
     });
   });
 

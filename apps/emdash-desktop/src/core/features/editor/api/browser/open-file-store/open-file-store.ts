@@ -15,6 +15,8 @@ import { makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { filesWireContract } from '@core/features/files/api';
 import { getFilesClient } from '@core/features/files/api/browser/client';
+import { getAppSettingValueSnapshot } from '@core/features/settings/api/browser/app-settings-client';
+import type { AutoSaveMode } from '@core/primitives/app-settings/api';
 import type { GitRef } from '@core/primitives/git/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { facetSlotKey, type Facet, type FacetHandle, type FacetHandleBinder } from './facet-handle';
@@ -41,6 +43,9 @@ export const OPEN_FILE_LINGER_MS = 15_000;
  * harvested from the Monaco model registry's buffer debounce.
  */
 export const BUFFER_AUTOSAVE_DEBOUNCE_MS = 2_000;
+
+/** Idle time after the last edit before `afterDelay` auto-save writes to disk. */
+export const AUTO_SAVE_DELAY_MS = 1_000;
 
 /** The closed seam-error enum rendered by retryable placeholders (spec §4). */
 export type SeamErrorCode = ContentSeamErrorCode;
@@ -72,6 +77,8 @@ export interface OpenFileEntry {
   readonly dirty: boolean;
   readonly conflicted: boolean;
   readonly saving: boolean;
+  /** True when the last save failed for a reason other than a conflict. */
+  readonly saveFailed: boolean;
   readonly readOnly: boolean;
   handleFor(facet: Facet): FacetHandle | undefined;
   /** Per-ref readiness of a git snapshot facet (spec §6). */
@@ -124,6 +131,7 @@ class OpenFileEntryImpl implements OpenFileEntry {
   dirty = false;
   conflicted = false;
   saving = false;
+  saveFailed = false;
   readOnly = false;
 
   readonly facetHandles = observable.map<string, FacetHandle>([], { deep: false });
@@ -145,6 +153,10 @@ class OpenFileEntryImpl implements OpenFileEntry {
   /** Suppresses buffer change handling while the store itself writes text. */
   applyingStoreEdit = false;
   autosaveTimer: TimerHandle | null = null;
+  /** Pending `afterDelay` disk save (distinct from the crash-recovery timer). */
+  autoSaveTimer: TimerHandle | null = null;
+  /** Tail of this entry's write queue; see `OpenFileStore.enqueueWrite`. */
+  saveQueue: Promise<unknown> = Promise.resolve();
 
   constructor(key: ResourceKey, uri: ResourceUri) {
     this.key = key;
@@ -156,6 +168,7 @@ class OpenFileEntryImpl implements OpenFileEntry {
       dirty: observable,
       conflicted: observable,
       saving: observable,
+      saveFailed: observable,
       readOnly: observable,
     });
   }
@@ -202,8 +215,12 @@ export class OpenFileStore {
   private binderWaiters: Array<(binder: FacetHandleBinder) => void> = [];
   private contentRemotePromise: Promise<ContentRemote> | null = null;
 
-  constructor(options: { clock?: Clock } = {}) {
+  private readonly autoSaveMode: () => AutoSaveMode;
+
+  constructor(options: { clock?: Clock; autoSaveMode?: () => AutoSaveMode } = {}) {
     this.clock = options.clock ?? systemClock;
+    this.autoSaveMode =
+      options.autoSaveMode ?? (() => getAppSettingValueSnapshot('files')?.autoSave ?? 'off');
   }
 
   /**
@@ -335,6 +352,51 @@ export class OpenFileStore {
   ): Promise<Result<void, SaveFileError>> {
     const impl = this.entries.get(entry.key);
     if (!impl || impl !== entry) return err({ type: 'not-open' as const });
+    return this.enqueueWrite(impl, () => this.writeBuffer(impl, options));
+  }
+
+  /**
+   * The save behind the auto-save setting: the same etag-guarded write, minus
+   * anything that needs the user. Clean, conflicted and read-only entries are
+   * skipped, and a conflict found here only flags the entry so an explicit
+   * save can resolve it.
+   */
+  async autoSave(entry: OpenFileEntry): Promise<void> {
+    const impl = this.entries.get(entry.key);
+    if (!impl || impl !== entry) return;
+    await this.enqueueWrite(impl, async () => {
+      // Checked once earlier writes finish: one of them may already cover these edits.
+      if (!impl.dirty || impl.conflicted || impl.readOnly) return;
+      await this.writeBuffer(impl, {});
+    }).catch(() => undefined);
+  }
+
+  /** Called when an editor showing `entry` loses focus or switches to another file. */
+  saveOnFocusChange(entry: OpenFileEntry): void {
+    if (this.autoSaveMode() === 'onFocusChange') void this.autoSave(entry);
+  }
+
+  /** With any auto-save mode on, closing a dirty file saves it instead of asking. */
+  autoSaveEnabled(): boolean {
+    return this.autoSaveMode() !== 'off';
+  }
+
+  /**
+   * Runs `write` after the entry's earlier writes. Writes carry the etag the
+   * buffer was synced to, so one sent while another is in flight would hit a
+   * stale etag and report a conflict with the app's own save.
+   */
+  private enqueueWrite<T>(impl: OpenFileEntryImpl, write: () => Promise<T>): Promise<T> {
+    const run = impl.saveQueue.then(write);
+    impl.saveQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async writeBuffer(
+    impl: OpenFileEntryImpl,
+    options: { overwrite?: boolean }
+  ): Promise<Result<void, SaveFileError>> {
+    if (this.entries.get(impl.key) !== impl) return err({ type: 'not-open' as const });
     if (impl.readOnly) return err({ type: 'readonly' as const });
     const slot = impl.slots.get(BUFFER_SLOT);
     const handle = slot?.handle;
@@ -365,6 +427,9 @@ export class OpenFileStore {
           });
           return err({ type: 'conflict' as const });
         }
+        runInAction(() => {
+          impl.saveFailed = true;
+        });
         return err({ type: 'write-failed' as const, message: describeWriteError(failure) });
       }
       await invocation.settled;
@@ -375,6 +440,7 @@ export class OpenFileStore {
       impl.baseEtag = impl.lastDiskEtag;
       runInAction(() => {
         impl.conflicted = false;
+        impl.saveFailed = false;
       });
       this.reconcileDirty(impl);
       // A completed write only cleans the snapshot it wrote. Keep newer edits recoverable.
@@ -422,9 +488,12 @@ export class OpenFileStore {
     runInAction(() => {
       impl.dirty = false;
       impl.conflicted = false;
+      impl.saveFailed = false;
     });
     impl.autosaveTimer?.dispose();
     impl.autosaveTimer = null;
+    impl.autoSaveTimer?.dispose();
+    impl.autoSaveTimer = null;
     const uri = impl.uri;
     void getEditorClient()
       .then((client) => client.clearBuffer({ uri }))
@@ -476,6 +545,8 @@ export class OpenFileStore {
     entry.pendingBufferSeed = dirtyText;
     entry.autosaveTimer?.dispose();
     entry.autosaveTimer = null;
+    entry.autoSaveTimer?.dispose();
+    entry.autoSaveTimer = null;
     entry.lastDiskText = undefined;
     entry.lastDiskEtag = undefined;
     entry.baseEtag = undefined;
@@ -907,6 +978,14 @@ export class OpenFileStore {
     if (entry.applyingStoreEdit) return;
     this.reconcileDirty(entry);
 
+    if (this.autoSaveMode() === 'afterDelay') {
+      entry.autoSaveTimer?.dispose();
+      entry.autoSaveTimer = this.clock.schedule(AUTO_SAVE_DELAY_MS, () => {
+        entry.autoSaveTimer = null;
+        void this.autoSave(entry);
+      });
+    }
+
     entry.autosaveTimer?.dispose();
     entry.autosaveTimer = this.clock.schedule(BUFFER_AUTOSAVE_DEBOUNCE_MS, () => {
       entry.autosaveTimer = null;
@@ -1009,6 +1088,8 @@ export class OpenFileStore {
       if (slotKey === BUFFER_SLOT) {
         entry.autosaveTimer?.dispose();
         entry.autosaveTimer = null;
+        entry.autoSaveTimer?.dispose();
+        entry.autoSaveTimer = null;
       }
       if (!entry.slots.has(BUFFER_SLOT) && !entry.slots.has(DISK_SLOT) && entry.diskSource) {
         const binding = entry.diskSource;

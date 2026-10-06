@@ -283,6 +283,13 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['macos', 'alt', 'terminal'],
   },
   {
+    id: 'auto-save',
+    label: 'Auto-save',
+    tab: 'interface',
+    description: 'Save editor changes to disk automatically, for local and remote files.',
+    keywords: ['autosave', 'save', 'editor', 'ssh', 'remote', 'focus'],
+  },
+  {
     id: 'left-sidebar-line-changes',
     label: 'Left sidebar line changes',
     tab: 'interface',
