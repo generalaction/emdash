@@ -2,7 +2,7 @@ import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import type { ContentUnavailableCode, FileContentModel } from '@emdash/core/runtimes/files/api';
 import { err, ok } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
-import { waitFor } from '@emdash/shared/testing';
+import { deferred, waitFor } from '@emdash/shared/testing';
 import { stableStringify } from '@emdash/shared/util';
 import { defineContract } from '@emdash/wire/rpc';
 import { cell, expose, snapshot, type Cell } from '@emdash/wire/state';
@@ -150,6 +150,8 @@ function setup() {
   const resolves: FilesContentKey[] = [];
   const leases = { acquired: 0, released: 0 };
   let etagSeq = 0;
+  const beforeWrite = vi.fn(async () => {});
+  const beforeClear = vi.fn(async () => {});
 
   const cellFor = (key: FilesContentKey): Cell<FileContentModel | undefined> => {
     const id = stableStringify(key);
@@ -174,6 +176,7 @@ function setup() {
       lingerMs: 0,
       mutations: {
         write: async (context) => {
+          await beforeWrite();
           const contentCell = cellFor(context.key);
           const current = snapshot(contentCell).value;
           const currentEtag = current?.kind === 'text' ? current.etag : undefined;
@@ -225,6 +228,7 @@ function setup() {
     },
     clearBuffer: async (input: { uri: string }) => {
       clearBufferCalls.push(input.uri);
+      await beforeClear();
     },
   };
 
@@ -255,6 +259,8 @@ function setup() {
 
   return {
     store,
+    beforeWrite,
+    beforeClear,
     clock,
     resolves,
     leases,
@@ -604,7 +610,11 @@ describe('OpenFileStore', () => {
       bufferHandle(entry).setText('one edited');
       await waitFor(() => entry.dirty);
 
+      const didSave = vi.fn();
+      const unsubscribe = h.store.onDidSave(didSave);
       const result = await h.store.save(entry);
+      expect(didSave).toHaveBeenCalledTimes(1);
+      unsubscribe();
       expect(result).toEqual(ok(undefined));
       expect(entry.dirty).toBe(false);
       expect(entry.conflicted).toBe(false);
@@ -613,6 +623,66 @@ describe('OpenFileStore', () => {
       const disk = h.diskContent(h.diskKey(path));
       expect(disk?.kind === 'text' && disk.content).toBe('one edited');
       expect(h.clearBufferCalls).toEqual([entry.uri]);
+    });
+
+    it.each(['newer unsaved', 'one'])(
+      'publishes the saved snapshot and preserves edits during the write: %s',
+      async (newerText) => {
+        const h = start();
+        const { ref, entry } = await openReady(h, '/repo/src/index.ts', 'one');
+        bufferHandle(entry).setText('saved');
+        const pending = deferred<void>();
+        h.beforeWrite.mockImplementationOnce(() => pending.promise);
+        const listener = vi.fn();
+        h.store.onDidSave(listener);
+        const saving = h.store.save(entry);
+        await waitFor(() => h.beforeWrite.mock.calls.length === 1);
+        bufferHandle(entry).setText(newerText);
+        pending.resolve();
+        expect(await saving).toEqual(ok(undefined));
+        expect(listener).toHaveBeenCalledWith({ ref, text: 'saved' });
+        expect(bufferHandle(entry).getText()).toBe(newerText);
+        expect(entry.dirty).toBe(true);
+        expect(h.clearBufferCalls).toEqual([]);
+        h.clock.advance(BUFFER_AUTOSAVE_DEBOUNCE_MS);
+        await waitFor(() => h.saveBufferCalls.length === 1);
+        expect(h.saveBufferCalls[0].content).toBe(newerText);
+        expect(await h.store.save(entry)).toEqual(ok(undefined));
+        expect(entry.dirty).toBe(false);
+      }
+    );
+
+    it('restores recovery text when an edit arrives during recovery cleanup', async () => {
+      const h = start();
+      const { entry } = await openReady(h, '/repo/src/index.ts', 'one');
+      bufferHandle(entry).setText('saved');
+      const pending = deferred<void>();
+      h.beforeClear.mockImplementationOnce(() => pending.promise);
+      const saving = h.store.save(entry);
+      await waitFor(() => h.beforeClear.mock.calls.length === 1);
+      bufferHandle(entry).setText('newer');
+      pending.resolve();
+      expect(await saving).toEqual(ok(undefined));
+      expect(entry.dirty).toBe(true);
+      expect(h.saveBufferCalls.at(-1)).toEqual({ uri: entry.uri, content: 'newer' });
+    });
+
+    it('isolates synchronous and asynchronous observer failures after a successful write', async () => {
+      const h = start();
+      const { ref, entry } = await openReady(h, '/repo/src/index.ts', 'one');
+      bufferHandle(entry).setText('saved');
+      h.store.onDidSave(() => {
+        throw new Error('observer failed');
+      });
+      h.store.onDidSave(async () => {
+        throw new Error('async observer failed');
+      });
+      const listener = vi.fn();
+      h.store.onDidSave(listener);
+      expect(await h.store.save(entry)).toEqual(ok(undefined));
+      expect(listener).toHaveBeenCalledWith({ ref, text: 'saved' });
+      expect(entry.saving).toBe(false);
+      expect(entry.dirty).toBe(false);
     });
 
     it('flags conflict on a stale etag and resolves it by overwrite', async () => {
@@ -625,13 +695,17 @@ describe('OpenFileStore', () => {
       h.publish(h.diskKey(path), textContent('theirs', 'e2'));
       await waitFor(() => entry.conflicted);
 
+      const didSave = vi.fn();
+      h.store.onDidSave(didSave);
       const rejected = await h.store.save(entry);
+      expect(didSave).not.toHaveBeenCalled();
       expect(rejected).toEqual(err({ type: 'conflict' }));
       expect(entry.conflicted).toBe(true);
       expect(entry.dirty).toBe(true);
 
       const overwritten = await h.store.save(entry, { overwrite: true });
       expect(overwritten).toEqual(ok(undefined));
+      expect(didSave).toHaveBeenCalledTimes(1);
       expect(entry.dirty).toBe(false);
       expect(entry.conflicted).toBe(false);
       const disk = h.diskContent(h.diskKey(path));

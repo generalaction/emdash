@@ -74,6 +74,7 @@ async function resolveDesktopRuntimeClient(
     git: clients.git,
     fileSearch: clients.fileSearch,
     files: clients.files,
+    lsp: clients.lsp,
     acp: clients.acp,
     automations: clients.automations,
     conversations: clients.conversations,

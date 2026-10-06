@@ -96,6 +96,7 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import type { TerminalFileSources } from '@core/services/attachments/node/prepare-terminal-files';
 import type { HostAvailabilityService } from '@core/services/hosts/node/availability';
 import type { Hosts } from '@core/services/hosts/node/hosts';
+import { hostSupportsLsp } from '@core/services/hosts/node/lsp-capability';
 import { createHostsWireController } from '@core/services/hosts/node/wire-controller';
 import {
   createLoggingWireController,
@@ -206,7 +207,12 @@ export const desktopNodeControllers = {
       createDevPerfWireController(devPerfOperations, logger),
   },
   editor: {
-    create: ({ editorBuffer }) => createEditorWireController({ editorBuffer }),
+    create: ({ editorBuffer, runtimes, hosts }) =>
+      createEditorWireController({
+        editorBuffer,
+        runtimes,
+        isSupported: (host) => hostSupportsLsp(host, hosts),
+      }),
   },
   files: {
     create: ({ runtimes }) => createFilesWireController({ runtimes }),

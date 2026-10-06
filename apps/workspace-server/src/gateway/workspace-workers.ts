@@ -17,6 +17,8 @@ import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
 import type { HostSettingsContract } from '@emdash/core/runtimes/host-settings/api';
 import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
+import type { LspContract } from '@emdash/core/runtimes/lsp/api';
+import { lspWorkerSpec } from '@emdash/core/runtimes/lsp/node';
 import {
   providerUsageContract,
   type ProviderUsageContract,
@@ -62,6 +64,7 @@ export type WorkspaceServerRuntimeClients = {
   conversations: ContractClient<ConversationsContract>;
   fileSearch: ContractClient<FileSearchContract>;
   files: ContractClient<FilesContract>;
+  lsp: ContractClient<LspContract>;
   git: ContractClient<GitContract>;
   hostSettings: ContractClient<HostSettingsContract>;
   resourceUsage: ContractClient<ResourceUsageContract>;
@@ -135,6 +138,13 @@ export async function createWorkspaceServerRuntimeHost(
       lifecycle: {
         terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
       },
+    })
+  );
+  const lspPromise = workerHost.spawn(
+    ...lspWorkerSpec({
+      executable: workspaceWorkerPath('lsp'),
+      env,
+      dependencies: { userEnv: userShellEnv, hostDependencies: hostDependencies.client.resolver },
     })
   );
   const resourceUsagePromise = workerHost.spawn(
@@ -216,6 +226,7 @@ export async function createWorkspaceServerRuntimeHost(
     watcher,
     terminals,
     resourceUsage,
+    lsp,
     hostSettings,
     scripts,
     acp,
@@ -226,6 +237,7 @@ export async function createWorkspaceServerRuntimeHost(
     watcherPromise,
     terminalsPromise,
     resourceUsagePromise,
+    lspPromise,
     hostSettingsPromise,
     scriptsPromise,
     acpPromise,
@@ -329,6 +341,7 @@ export async function createWorkspaceServerRuntimeHost(
       git,
       hostSettings,
       resourceUsage,
+      lsp,
       scripts,
       terminals,
       tuiAgents,

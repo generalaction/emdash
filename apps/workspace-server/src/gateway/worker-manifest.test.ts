@@ -9,6 +9,7 @@ const runtimeIds = [
   'conversations',
   'file-search',
   'files',
+  'lsp',
   'git',
   'host-settings',
   'provider-usage',

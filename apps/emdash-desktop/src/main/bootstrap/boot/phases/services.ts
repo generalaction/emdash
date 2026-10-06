@@ -690,6 +690,7 @@ export async function bootServices(
     acquireWorkspaceRuntime: createDesktopWorkspaceRuntimeAcquirer(runtimes, workspaceIdentity),
     emitHostEvent: (event) => desktopHostEvents.emit(undefined, event),
   });
+  appScope.add(() => appService.dispose());
   await step('services:app-settings-init', () => appSettingsService.initialize());
   setTrayVisible((await appSettingsService.get('interface')).showTrayIcon);
   applyNativeTheme(await appSettingsService.get('theme'));
