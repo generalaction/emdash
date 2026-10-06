@@ -24,6 +24,7 @@ export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export { Text, type TextProps } from './typography/Text';
 export { AbsoluteTime, type AbsoluteTimeProps } from './time/absolute-time';
+export { CountdownTime, type CountdownTimeProps } from './time/countdown-time';
 export { RelativeTime, type RelativeTimeProps } from './time/relative-time';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
