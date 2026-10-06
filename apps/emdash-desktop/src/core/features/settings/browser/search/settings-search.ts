@@ -215,6 +215,14 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['prompt library', 'snippets'],
   },
 
+  {
+    id: 'usage',
+    label: 'Usage',
+    tab: 'usage',
+    description: 'Subscription limits for Codex and Claude Code accounts on all machines.',
+    keywords: ['limits', 'quota', 'subscription', 'account', 'codex', 'claude', 'reset'],
+  },
+
   // System
   {
     id: 'system',

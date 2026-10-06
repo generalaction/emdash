@@ -68,6 +68,7 @@ import {
   createUpdatesWireController,
   type UpdateOperations,
 } from '@core/features/updates/node/wire-controller';
+import { createUsageWireController } from '@core/features/usage/node/wire-controller';
 import {
   createDesktopHostWireController,
   type DesktopHostControllerOperations,
@@ -423,6 +424,16 @@ export const desktopNodeControllers = {
   },
   ssh: {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
+  },
+  usage: {
+    create: ({ scope, runtimes, hosts, hostAvailability, ssh }) =>
+      createUsageWireController({
+        scope,
+        runtimes,
+        hosts,
+        hostAvailability,
+        machines: ssh.machines,
+      }),
   },
   hosts: {
     create: ({ hostAvailability, hosts, ssh }) =>
