@@ -38,7 +38,7 @@ export interface LanguageDocumentStatus {
 export interface LanguageDocumentBinding {
   readonly status: LanguageDocumentStatus;
   changed(): void;
-  documentSaved(): Promise<void>;
+  documentSaved(text: string): Promise<void>;
   restartServer(): Promise<void>;
   hover(position: Position, signal?: AbortSignal): Promise<LspHover>;
   definition(position: Position, signal?: AbortSignal): Promise<LspLocation[] | null>;
@@ -110,9 +110,10 @@ export class LanguageServiceClient {
         source.onDiagnostics([]);
         record.session?.documents.changed();
       },
-      documentSaved: async () => {
+      documentSaved: async (text) => {
         await record.attached;
-        if (!record.lifetime.signal.aborted) await record.session?.documentSaved(source.ref.path);
+        if (!record.lifetime.signal.aborted)
+          await record.session?.documentSaved(source.ref.path, text);
       },
       restartServer: async () => {
         const attachment = record.attached;

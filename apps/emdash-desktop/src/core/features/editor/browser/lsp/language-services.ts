@@ -65,8 +65,6 @@ export function installLanguageServices(monaco: typeof Monaco): void {
       registration.root,
       registration.context
     );
-  openFileStore.onDidSave((ref) => {
-    void services.documentSaved(ref);
-  });
+  openFileStore.onDidSave(({ ref, text }) => services.documentSaved(ref, text));
   runInAction(() => instance.set(services));
 }

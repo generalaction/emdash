@@ -43,8 +43,8 @@ export class LanguageSessionClient {
       },
       close: async (path) =>
         unwrap(await (await this.attachedClient).closeDocument({ session: key, path })),
-      documentSaved: async (path) =>
-        unwrap(await (await this.attachedClient).documentSaved({ session: key, path })),
+      documentSaved: async (path, text) =>
+        unwrap(await (await this.attachedClient).documentSaved({ session: key, path, text })),
       onError: options.onError,
     });
     void this.attachedClient.catch(() => {}); // Attachment failures are published as connection state.
@@ -68,8 +68,8 @@ export class LanguageSessionClient {
     await this.documents.flush();
   }
 
-  documentSaved(path: HostAbsolutePath): Promise<void> {
-    return this.documents.documentSaved(path);
+  documentSaved(path: HostAbsolutePath, text: string): Promise<void> {
+    return this.documents.documentSaved(path, text);
   }
 
   async dispose(): Promise<void> {

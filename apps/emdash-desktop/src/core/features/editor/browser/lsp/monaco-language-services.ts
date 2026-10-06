@@ -142,9 +142,9 @@ export class MonacoLanguageServices {
     }
   }
 
-  async documentSaved(ref: HostFileRef): Promise<void> {
+  async documentSaved(ref: HostFileRef, text: string): Promise<void> {
     try {
-      await this.models.get(encodeFacetUri(ref, { kind: 'buffer' }))?.binding.documentSaved();
+      await this.models.get(encodeFacetUri(ref, { kind: 'buffer' }))?.binding.documentSaved(text);
     } catch (error) {
       this.report(error);
     }

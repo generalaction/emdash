@@ -42,8 +42,13 @@ After the initial snapshot, the synchronizer sends one compact UTF-16 edit again
 the last acknowledged version. A mismatched base requests a fresh snapshot;
 reconnects also replay snapshots. The host retains complete text for restart and
 expands edits only when a server requires full-document synchronization. The shared
-file store emits successful saves. Results preserve host identity and the originating
-task when navigating outside the root.
+file store emits successful saves with the exact text written to disk. That immutable
+snapshot crosses Wire with the save notification; the host uses it for didSave's
+optional text instead of its newer live overlay. Synchronization can keep newer edits
+without rolling the server document back. The store leaves those edits dirty and
+recoverable, and isolates synchronous and asynchronous save-observer failures from
+the completed write. Results preserve host identity and the originating task when
+navigating outside the root.
 
 `LanguageSessionClient` leases typed live state through the editor Wire domain.
 Its `attachedClient` promise means the Wire attachment exists; server readiness is

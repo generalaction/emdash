@@ -165,7 +165,7 @@ export class LanguageServerSession {
     });
   }
 
-  documentSaved(uri: string): Promise<void> {
+  documentSaved(uri: string, savedText: string): Promise<void> {
     return this.enqueue(async () => {
       const document = this.documents.get(uri);
       const sync = this.current.capabilities.textDocumentSync;
@@ -173,7 +173,7 @@ export class LanguageServerSession {
       if (!document || !save || !this.transport) return;
       await this.transport.notify('textDocument/didSave', {
         textDocument: { uri },
-        ...(typeof save === 'object' && save.includeText ? { text: document.text } : {}),
+        ...(typeof save === 'object' && save.includeText ? { text: savedText } : {}),
       });
     });
   }

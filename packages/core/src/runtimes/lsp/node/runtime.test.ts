@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createScope } from '@emdash/shared/concurrency';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { observe, remote } from '@emdash/wire/state';
@@ -79,6 +80,82 @@ async function fixture() {
 }
 
 describe('LSP runtime over Wire', () => {
+  it.each(['saved 😀\r\n', ''])(
+    'carries saved content over Wire and stdio while retaining the newer overlay: %j',
+    async (savedText) => {
+      const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-save-'));
+      cleanups.push(() => rm(root, { recursive: true, force: true }));
+      const file = path.join(root, 'a.ts');
+      await writeFile(file, savedText);
+      const protocol = pathToFileURL(
+        createRequire(import.meta.url).resolve('vscode-languageserver-protocol/node.js')
+      ).href;
+      // A protocol peer observes the real notifications rather than mocking runtime methods.
+      const source = `
+      import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from ${JSON.stringify(protocol)};
+      import { readFile } from 'node:fs/promises';
+      const connection = createMessageConnection(new StreamMessageReader(process.stdin), new StreamMessageWriter(process.stdout));
+      let overlay, saved, uri;
+      connection.onRequest('initialize', () => ({ capabilities: {
+        hoverProvider: true, textDocumentSync: { openClose: true, change: 1, save: { includeText: true } }
+      } }));
+      connection.onNotification('textDocument/didOpen', ({ textDocument }) => { overlay = textDocument.text; uri = textDocument.uri; });
+      connection.onNotification('textDocument/didChange', ({ contentChanges }) => { overlay = contentChanges.at(-1).text; });
+      connection.onNotification('textDocument/didSave', ({ text }) => { saved = text; });
+      connection.onRequest('textDocument/hover', async () => ({ contents: JSON.stringify({ saved, overlay, disk: await readFile(new URL(uri), 'utf8') }) }));
+      connection.onRequest('shutdown', () => null);
+      connection.onNotification('exit', () => process.exit(0));
+      connection.listen();
+    `;
+      const scope = createScope();
+      cleanups.push(() => scope.dispose());
+      const runtime = new LspRuntime({
+        scope,
+        lingerMs: 0,
+        resolveServer: async () => ({
+          command: process.execPath,
+          args: ['--input-type=module', '-e', source],
+          env: process.env,
+        }),
+      });
+      const wire = createTestWire(lspContract, createLspController(runtime), { validate: 'full' });
+      cleanups.push(() => wire.dispose());
+      const session = { clientId: 'save', root: absolute(root), serverId: 'typescript' };
+      cleanups.push(await attach(wire.client.session, session));
+      const document = {
+        path: absolute(file),
+        languageId: 'typescript',
+        version: 1,
+        text: savedText,
+      };
+      expect((await wire.client.setDocumentSnapshot({ session, document })).success).toBe(true);
+      expect(
+        (
+          await wire.client.setDocumentSnapshot({
+            session,
+            document: { ...document, version: 2, text: 'newer unsaved' },
+          })
+        ).success
+      ).toBe(true);
+      expect(
+        (await wire.client.documentSaved({ session, path: document.path, text: savedText })).success
+      ).toBe(true);
+      const result = await wire.client.hover({
+        session,
+        path: document.path,
+        version: 2,
+        position: { line: 0, character: 0 },
+      });
+      expect(result.success).toBe(true);
+      if (!result.success || !result.data) throw new Error('Expected protocol response');
+      expect(JSON.parse(result.data.contents)).toEqual({
+        saved: savedText,
+        disk: savedText,
+        overlay: 'newer unsaved',
+      });
+    }
+  );
+
   it('preserves reference options on dedicated navigation operations', async () => {
     const { wire, session, document } = await fixture();
     cleanups.push(await attach(wire.client.session, session));

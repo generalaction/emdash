@@ -45,6 +45,38 @@ describe('editor language services routing', () => {
     }
   );
 
+  it('carries the saved snapshot through the remote host route', async () => {
+    const documentSaved = vi.fn(async () => ok(undefined));
+    const runtimes = new RuntimeBroker({
+      resolve: async () => ok({ lsp: { documentSaved } } as never),
+    });
+    const wire = createTestWire(editorLspContract, createEditorLspImpl({ runtimes }), {
+      validate: 'full',
+    });
+    const session = {
+      host: { type: 'remote' as const, id: 'host' },
+      root,
+      clientId: 'client',
+      serverId: 'typescript',
+    };
+    try {
+      expect(
+        await wire.client.documentSaved({ session, path: root, text: 'saved snapshot' })
+      ).toEqual(ok(undefined));
+      expect(documentSaved).toHaveBeenCalledWith(
+        {
+          session: { root, clientId: 'client', serverId: 'typescript' },
+          path: root,
+          text: 'saved snapshot',
+        },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+    } finally {
+      await wire.dispose();
+      runtimes.dispose();
+    }
+  });
+
   it('resolves roots and sends deltas on the file host', async () => {
     const resolveProjectRoot = vi.fn(async () => ok(root));
     const applyDocumentEdit = vi.fn(async () => ok(undefined));

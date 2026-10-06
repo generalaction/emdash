@@ -108,8 +108,8 @@ export class LspRuntime {
   closeDocument(key: LspSessionKey, path: HostAbsolutePath) {
     return this.withSession(key, (session) => session.closeDocument(documentUri(path)));
   }
-  documentSaved(key: LspSessionKey, path: HostAbsolutePath) {
-    return this.withSession(key, (session) => session.documentSaved(documentUri(path)));
+  documentSaved(key: LspSessionKey, path: HostAbsolutePath, text: string) {
+    return this.withSession(key, (session) => session.documentSaved(documentUri(path), text));
   }
   restartServer(key: LspSessionKey) {
     return this.withSession(key, (session) => session.restartServer());

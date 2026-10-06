@@ -294,9 +294,13 @@ describe('language service client', () => {
       expect.anything()
     );
     source.getVersion.mockReturnValue(2);
-    source.getText.mockReturnValue('saved text');
+    source.getText.mockReturnValue('newer unsaved text');
     binding.changed();
-    await binding.documentSaved();
+    await binding.documentSaved('saved text');
+    expect(f.documentSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'saved text' }),
+      expect.anything()
+    );
     expect(f.applyDocumentEdit).toHaveBeenCalledTimes(1);
     expect(f.documentSaved.mock.invocationCallOrder[0]).toBeGreaterThan(
       f.applyDocumentEdit.mock.invocationCallOrder[0]

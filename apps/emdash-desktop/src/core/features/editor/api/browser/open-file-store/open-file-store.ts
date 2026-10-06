@@ -169,7 +169,12 @@ class OpenFileEntryImpl implements OpenFileEntry {
   }
 }
 
-type SaveListener = (ref: HostFileRef) => void | Promise<void>;
+export interface FileSaveEvent {
+  readonly ref: HostFileRef;
+  readonly text: string;
+}
+
+type SaveListener = (event: FileSaveEvent) => void | Promise<void>;
 
 /**
  * The app-global owner of open-file state (spec §4/§7/§9): one instance per
@@ -369,19 +374,24 @@ export class OpenFileStore {
       if (latest?.kind === 'text') impl.lastDiskEtag = latest.etag;
       impl.baseEtag = impl.lastDiskEtag;
       runInAction(() => {
-        impl.dirty = false;
         impl.conflicted = false;
       });
-      impl.autosaveTimer?.dispose();
-      impl.autosaveTimer = null;
+      this.reconcileDirty(impl);
+      // A completed write only cleans the snapshot it wrote. Keep newer edits recoverable.
       const client = await getEditorClient();
-      await client.clearBuffer({ uri: impl.uri });
+      if (!impl.dirty) {
+        impl.autosaveTimer?.dispose();
+        impl.autosaveTimer = null;
+        await client.clearBuffer({ uri: impl.uri });
+        if (impl.dirty) await client.saveBuffer({ uri: impl.uri, content: handle.getText() });
+      }
       this.maybeScheduleBufferEviction(impl);
       const decoded = decodeResourceUri(impl.uri);
       if (decoded.success) {
+        const event = Object.freeze({ ref: decoded.data, text: content });
         for (const listener of [...this.saveListeners]) {
           try {
-            void Promise.resolve(listener(decoded.data)).catch((error) =>
+            void Promise.resolve(listener(event)).catch((error) =>
               log.warn('File save listener failed', error)
             );
           } catch (error) {
@@ -808,6 +818,10 @@ export class OpenFileStore {
     const bufferHandle = entry.slots.get(BUFFER_SLOT)?.handle;
     if (!bufferHandle) return;
     const matches = bufferHandle.getText() === text;
+    if (entry.saving && !matches) {
+      this.reconcileDirty(entry);
+      return;
+    }
     if (!entry.dirty || matches) {
       if (!matches) this.silentSet(entry, bufferHandle, text);
       entry.baseEtag = entry.lastDiskEtag;

@@ -1,12 +1,17 @@
 import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
+import type { ServerCapabilities } from 'vscode-languageserver-protocol';
 import { LanguageServerSession, type LanguageServerTransport } from './server-session';
 
 class TestServer implements LanguageServerTransport {
   readonly messages: Array<{ method: string; params: unknown }> = [];
   readonly notifications = new Set<(method: string, params: unknown) => void>();
   readonly closes = new Set<() => void>();
-  capabilities = { textDocumentSync: 2, hoverProvider: true, definitionProvider: true };
+  capabilities: ServerCapabilities = {
+    textDocumentSync: 2,
+    hoverProvider: true,
+    definitionProvider: true,
+  };
   request = vi.fn(
     async (method: string, params: unknown, signal?: AbortSignal): Promise<unknown> => {
       signal?.throwIfAborted();
@@ -227,12 +232,43 @@ describe('language server session', () => {
       expect(server.messages.at(-1)).toMatchObject({
         params: { contentChanges: [{ text: 'new' }] },
       });
-      await session.documentSaved(document.uri);
+      await session.documentSaved(document.uri, document.text);
       expect(server.messages.some((m) => m.method === 'textDocument/didSave')).toBe(false);
     } finally {
       await session.dispose();
     }
   });
+
+  it.each([true, false])(
+    'notifies the saved snapshot without rolling back newer edits (includeText=%s)',
+    async (includeText) => {
+      const server = new TestServer();
+      server.capabilities.textDocumentSync = { openClose: true, change: 2, save: { includeText } };
+      const session = new LanguageServerSession({
+        rootUri: 'file:///workspace',
+        connect: async () => server,
+      });
+      try {
+        await session.setDocumentSnapshot(document);
+        await session.setDocumentSnapshot({ ...document, version: 2, text: 'newer unsaved' });
+        await session.documentSaved(document.uri, document.text);
+        expect(server.messages.at(-1)).toEqual({
+          method: 'textDocument/didSave',
+          params: {
+            textDocument: { uri: document.uri },
+            ...(includeText ? { text: document.text } : {}),
+          },
+        });
+        await session.restartServer();
+        expect(server.messages.at(-1)).toMatchObject({
+          method: 'textDocument/didOpen',
+          params: { textDocument: { version: 2, text: 'newer unsaved' } },
+        });
+      } finally {
+        await session.dispose();
+      }
+    }
+  );
 
   it('queries the synchronized version and forwards cancellation', async () => {
     const { session, servers } = fixture();

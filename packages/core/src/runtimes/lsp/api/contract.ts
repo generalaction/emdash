@@ -36,7 +36,11 @@ export const lspContract = defineContract({
     error: lspErrorSchema,
   }),
   closeDocument: fallible({ input: documentKey, data: z.void(), error: lspErrorSchema }),
-  documentSaved: fallible({ input: documentKey, data: z.void(), error: lspErrorSchema }),
+  documentSaved: fallible({
+    input: documentKey.extend({ text: lspDocumentSchema.shape.text }),
+    data: z.void(),
+    error: lspErrorSchema,
+  }),
   restartServer: fallible({ input: lspSessionKeySchema, data: z.void(), error: lspErrorSchema }),
   hover: fallible({ input: lspQuerySchema, data: lspHoverSchema, error: lspErrorSchema }),
   definition: fallible({

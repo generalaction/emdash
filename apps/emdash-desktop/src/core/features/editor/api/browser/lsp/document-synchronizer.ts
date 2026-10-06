@@ -31,7 +31,7 @@ export class DocumentSynchronizer {
       /** False means the host needs a fresh snapshot; other failures must reject. */
       change(change: LspDocumentChange): Promise<boolean>;
       close(path: HostAbsolutePath): Promise<void>;
-      documentSaved(path: HostAbsolutePath): Promise<void>;
+      documentSaved(path: HostAbsolutePath, text: string): Promise<void>;
       onError(error: unknown): void;
       delayMs?: number;
     }
@@ -102,12 +102,12 @@ export class DocumentSynchronizer {
     });
   }
 
-  async documentSaved(path: HostAbsolutePath): Promise<void> {
+  async documentSaved(path: HostAbsolutePath, text: string): Promise<void> {
     await this.flush();
     const tracked = [...this.documents.values()].some(
       (document) => formatAbsolute(document.source.path) === formatAbsolute(path)
     );
-    if (tracked) await this.enqueue(() => this.port.documentSaved(path));
+    if (tracked) await this.enqueue(() => this.port.documentSaved(path, text));
   }
 
   async dispose(): Promise<void> {

@@ -68,9 +68,9 @@ export function createEditorLspImpl(
       call(session, (client, key) =>
         client.closeDocument({ session: key, path }, { signal: meta.signal })
       ),
-    documentSaved: ({ session, path }, meta) =>
+    documentSaved: ({ session, path, text }, meta) =>
       call(session, (client, key) =>
-        client.documentSaved({ session: key, path }, { signal: meta.signal })
+        client.documentSaved({ session: key, path, text }, { signal: meta.signal })
       ),
     restartServer: (session, meta) =>
       call(session, (client, key) => client.restartServer(key, { signal: meta.signal })),

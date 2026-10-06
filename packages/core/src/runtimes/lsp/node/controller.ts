@@ -9,7 +9,7 @@ export function createLspController(runtime: LspRuntime) {
     session: runtime.sessionHost,
     setDocumentSnapshot: ({ session, document }) => runtime.setDocumentSnapshot(session, document),
     closeDocument: ({ session, path }) => runtime.closeDocument(session, path),
-    documentSaved: ({ session, path }) => runtime.documentSaved(session, path),
+    documentSaved: ({ session, path, text }) => runtime.documentSaved(session, path, text),
     restartServer: (key) => runtime.restartServer(key),
     hover: (input, meta) => runtime.hover(input, meta.signal),
     definition: (input, meta) => runtime.definition(input, meta.signal),
