@@ -28,6 +28,11 @@ import {
 } from '@emdash/core/runtimes/host-settings/api';
 import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
 import {
+  providerUsageContract,
+  type ProviderUsageContract,
+} from '@emdash/core/runtimes/provider-usage/api';
+import { providerUsageWorkerSpec } from '@emdash/core/runtimes/provider-usage/node';
+import {
   resourceUsageContract,
   type ResourceUsageContract,
 } from '@emdash/core/runtimes/resource-usage/api';
@@ -106,6 +111,7 @@ export type WorkspaceRegistryRuntimeClient = ContractClient<WorkspaceRegistryCon
 
 export type DesktopRuntimeClients = {
   readonly acp: AcpRuntimeClient;
+  readonly providerUsage: ContractClient<ProviderUsageContract>;
   readonly agentConfig: AgentConfigRuntimeClient;
   readonly automations: AutomationsRuntimeClient;
   readonly conversations: ConversationsRuntimeClient;
@@ -276,6 +282,17 @@ function startDesktopWorkersWithHost(
       },
     })
   );
+  const providerUsageWorker = host.create(
+    ...providerUsageWorkerSpec({
+      pluginRegistry,
+      executable: desktopWorkerPath('provider-usage'),
+      env: process.env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        userEnv: userShellEnv,
+      },
+    })
+  );
   const mementosWorker = host.create(mementosComponent, {
     name: 'mementos',
     executable: desktopWorkerPath('mementos'),
@@ -347,6 +364,7 @@ function startDesktopWorkersWithHost(
     'acp',
     acpStart.then((result) => result.client)
   );
+  const providerUsageReady = timedReady('provider-usage', providerUsageWorker.ready());
   const agentConfigReady = timedReady('agent-config', agentConfigWorker.ready());
   const mementosReady = timedReady('mementos', mementosWorker.ready());
   const pullRequestsReady = timedReady('pull-requests', pullRequestsWorker.ready());
@@ -485,6 +503,7 @@ function startDesktopWorkersWithHost(
   const runtimeReady = Promise.all([
     acpReady,
     agentConfigReady,
+    providerUsageReady,
     automationsReady,
     conversationsReady,
     fileSearchReady,
@@ -505,6 +524,7 @@ function startDesktopWorkersWithHost(
     clients: {
       acp: queuedClient(acpApiContract, () => acpReady),
       agentConfig: queuedClient(agentConfigContract, () => agentConfigReady),
+      providerUsage: queuedClient(providerUsageContract, () => providerUsageReady),
       automations: queuedClient(automationsContract, () =>
         automationsReady.then((result) => result.client)
       ),

@@ -6,6 +6,7 @@ import { fileSearchWorker } from '../../../../../../packages/core/src/runtimes/f
 import { filesWorker } from '../../../../../../packages/core/src/runtimes/files/api/worker';
 import { gitWorker } from '../../../../../../packages/core/src/runtimes/git/api/worker';
 import { hostSettingsWorker } from '../../../../../../packages/core/src/runtimes/host-settings/api/worker';
+import { providerUsageWorker } from '../../../../../../packages/core/src/runtimes/provider-usage/api/worker';
 import { resourceUsageWorker } from '../../../../../../packages/core/src/runtimes/resource-usage/api/worker';
 import { scriptsWorker } from '../../../../../../packages/core/src/runtimes/scripts/api/worker';
 import { terminalsWorker } from '../../../../../../packages/core/src/runtimes/terminals/api/worker';
@@ -27,6 +28,10 @@ function desktopRuntimeWorker<const Id extends string>(
 }
 
 export const desktopWorkers = {
+  [providerUsageWorker.id]: desktopRuntimeWorker(
+    providerUsageWorker,
+    'src/main/gateway/entries/provider-usage.ts'
+  ),
   [acpWorker.id]: desktopRuntimeWorker(acpWorker, 'src/main/gateway/entries/acp.ts'),
   [automationsWorker.id]: desktopRuntimeWorker(
     automationsWorker,

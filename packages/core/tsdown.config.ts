@@ -2,6 +2,10 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
+    'primitives-exec-node': 'src/primitives/exec/node/index.ts',
+    'primitives-provider-usage-api': 'src/primitives/provider-usage/api/index.ts',
+    'runtimes-provider-usage-api': 'src/runtimes/provider-usage/api/index.ts',
+    'runtimes-provider-usage-node': 'src/runtimes/provider-usage/node/index.ts',
     'services-attachments-node': 'src/services/attachments/node/local-attachment-store.ts',
     'services-attachments-api': 'src/services/attachments/api/index.ts',
     'primitives-path-api': 'src/primitives/path/api/index.ts',

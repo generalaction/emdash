@@ -7,6 +7,7 @@ import { fileSearchContract } from '../../../runtimes/file-search/api';
 import { filesContract } from '../../../runtimes/files/api';
 import { gitContract } from '../../../runtimes/git/api';
 import { hostSettingsContract } from '../../../runtimes/host-settings/api';
+import { providerUsageContract } from '../../../runtimes/provider-usage/api';
 import { resourceUsageContract } from '../../../runtimes/resource-usage/api';
 import { scriptsContract } from '../../../runtimes/scripts/api';
 import { terminalsContract } from '../../../runtimes/terminals/api';
@@ -32,6 +33,7 @@ export const hostRuntimesDefinitions = {
   conversations: conversationsContract,
   tuiAgents: tuiAgentsContract,
   agentConfig: agentConfigContract,
+  providerUsage: providerUsageContract,
   terminals: terminalsContract,
   workspaceRegistry: workspaceRegistryContract,
   resourceUsage: resourceUsageContract,

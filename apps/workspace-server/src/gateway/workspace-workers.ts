@@ -17,6 +17,8 @@ import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
 import type { HostSettingsContract } from '@emdash/core/runtimes/host-settings/api';
 import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
+import type { ProviderUsageContract } from '@emdash/core/runtimes/provider-usage/api';
+import { providerUsageWorkerSpec } from '@emdash/core/runtimes/provider-usage/node';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
 import type { ScriptsContract } from '@emdash/core/runtimes/scripts/api';
@@ -52,6 +54,7 @@ import { workspaceWorkerPath } from './worker-paths';
 export type WorkspaceServerRuntimeClients = {
   acp: ContractClient<AcpApiContract>;
   agentConfig: ContractClient<AgentConfigContract>;
+  providerUsage: ContractClient<ProviderUsageContract>;
   automations: ContractClient<AutomationsContract>;
   conversations: ContractClient<ConversationsContract>;
   fileSearch: ContractClient<FileSearchContract>;
@@ -178,6 +181,17 @@ export async function createWorkspaceServerRuntimeHost(
       },
     })
   );
+  const providerUsagePromise = workerHost.spawn(
+    ...providerUsageWorkerSpec({
+      pluginRegistry,
+      executable: workspaceWorkerPath('provider-usage'),
+      env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        userEnv: userShellEnv,
+      },
+    })
+  );
   const tuiAgentsPromise = conversationsPromise.then((conversations) =>
     workerHost.spawn(
       ...tuiAgentsWorkerSpec({
@@ -203,6 +217,7 @@ export async function createWorkspaceServerRuntimeHost(
     scripts,
     acp,
     agentConfig,
+    providerUsage,
     tuiAgents,
   ] = await Promise.all([
     conversationsPromise,
@@ -213,6 +228,7 @@ export async function createWorkspaceServerRuntimeHost(
     scriptsPromise,
     acpPromise,
     agentConfigPromise,
+    providerUsagePromise,
     tuiAgentsPromise,
   ]);
 
@@ -304,6 +320,7 @@ export async function createWorkspaceServerRuntimeHost(
     runtimes: {
       acp,
       agentConfig,
+      providerUsage,
       automations,
       conversations,
       fileSearch,

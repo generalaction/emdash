@@ -11,6 +11,7 @@ const runtimeIds = [
   'files',
   'git',
   'host-settings',
+  'provider-usage',
   'resource-usage',
   'scripts',
   'terminals',

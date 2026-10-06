@@ -15,6 +15,7 @@ import { claudeAuthStatus } from './auth';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 import { buildClaudeTrustBehavior } from './trust';
+import { probeClaudeUsage } from './usage';
 
 export const plugin = definePlugin(
   {
@@ -25,6 +26,7 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
+    usageLimits: { kind: 'supported' },
     acp: {
       kind: 'supported',
     },
@@ -134,6 +136,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  usageLimits: { probe: probeClaudeUsage },
   acp: {
     buildSpawn: (ctx) => ({
       // Run the adapter as plain Node inside the Electron binary.
