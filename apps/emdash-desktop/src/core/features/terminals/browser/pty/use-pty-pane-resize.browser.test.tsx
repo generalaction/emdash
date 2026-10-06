@@ -3,8 +3,23 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FrontendPty, TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
 import { computeGridDimensions } from '@core/features/terminals/api/browser/pty/pty-dimensions';
-import { createPaneDimensionSink } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
+import { createWorkspaceTerminalAttachments } from '@core/features/terminals/api/browser/terminal-attachments';
+import { PaneSizingContextProvider } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
+import { PtyPane } from '@core/features/terminals/contributions/browser/pty/pty-pane';
+import type * as hostClientModule from '@core/primitives/desktop-host/browser/host-client';
+import {
+  createPaneDimensionSink,
+  PaneDimensionProvider,
+} from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { usePtyPaneResize, type PtyPaneResizeControls } from './use-pty-pane-resize';
+
+vi.mock('@core/services/settings/api/client', () => ({
+  getAppSettingsClient: async () => ({ get: async () => ({}) }),
+}));
+vi.mock('@core/primitives/desktop-host/browser/host-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof hostClientModule>()),
+  getHostClient: async () => ({ events: { subscribe: async () => () => {} } }),
+}));
 
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -77,5 +92,63 @@ describe('usePtyPaneResize', () => {
     expect(resize).toHaveBeenCalledWith(expected!.cols, expected!.rows);
     expect(pty.terminal.cols).toBe(expected!.cols);
     expect(pty.terminal.rows).toBe(expected!.rows);
+  });
+});
+
+describe('PtyPane remount', () => {
+  // Task switching unmounts the pane and later mounts the parked terminal under a
+  // fresh, uncalibrated controller. The pane's dimension sink outlives the view and
+  // the sizing provider commits before the terminal does, so the controller already
+  // has pixel dimensions when the terminal mounts. That remount must not resize xterm
+  // on its own.
+  it('never resizes xterm without its PTY when the terminal is mounted again', async () => {
+    const backend: Array<[number, number]> = [];
+    pty = new FrontendPty('pane-resize-remount', undefined, undefined, undefined, {
+      connect: () => () => {},
+      resize: (cols, rows) => backend.push([cols, rows]),
+    });
+    const grid: Array<[number, number]> = [];
+    pty.terminal.onResize(({ cols, rows }) => grid.push([cols, rows]));
+    const sink = createPaneDimensionSink();
+    const renderPane = (withTerminal: boolean) =>
+      act(() =>
+        root!.render(
+          <div style={{ width: 800, height: 400 }}>
+            <PaneDimensionProvider sink={sink}>
+              <PaneSizingContextProvider sessionIds={[pty!.sessionId]}>
+                {withTerminal ? (
+                  <PtyPane
+                    attachments={createWorkspaceTerminalAttachments('workspace-1')}
+                    pty={pty!}
+                    sessionId={pty!.sessionId}
+                    workspaceId="workspace-1"
+                  />
+                ) : null}
+              </PaneSizingContextProvider>
+            </PaneDimensionProvider>
+          </div>
+        )
+      );
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    renderPane(false);
+    renderPane(true);
+    await expect.poll(() => backend.length).toBeGreaterThan(0);
+    const settled = [pty.terminal.cols, pty.terminal.rows];
+    expect(backend.at(-1)).toEqual(settled);
+
+    // Switch away, then back.
+    act(() => root!.render(null));
+    grid.length = 0;
+    backend.length = 0;
+    renderPane(false);
+    renderPane(true);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(grid).toEqual([]);
+    expect([pty.terminal.cols, pty.terminal.rows]).toEqual(settled);
+    for (const call of backend) expect(call).toEqual(settled);
   });
 });
