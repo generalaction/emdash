@@ -4,8 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { UsageOverview } from '../api/schemas';
 import { UsageOverviewView } from './usage-overview-view';
 
+vi.mock('@core/features/agents/contributions/browser/agent-icon', () => ({
+  AgentIcon: () => null,
+}));
+
 describe('Usage settings', () => {
-  it('renders remaining limits, unknown values, stale provenance and refresh controls', async () => {
+  it('shows separate numbered subscriptions and puts account details in the popover', async () => {
     const host = document.createElement('div');
     document.body.append(host);
     const root = createRoot(host);
@@ -49,6 +53,22 @@ describe('Usage settings', () => {
         },
       ],
     };
+    const first = overview.accounts[0]!;
+    overview.accounts.push(
+      {
+        ...first,
+        key: 'second-claude',
+        account: { email: 'two@example.com', plan: 'Max' },
+        windows: [{ ...first.windows[0]!, usedPercent: 14 }],
+      },
+      {
+        ...first,
+        key: 'codex',
+        providerId: 'codex',
+        account: { email: 'codex@example.com', plan: 'Pro' },
+        windows: [{ ...first.windows[0]!, id: 'weekly', label: 'Weekly', usedPercent: 5 }],
+      }
+    );
     try {
       await act(async () =>
         root.render(
@@ -61,18 +81,35 @@ describe('Usage settings', () => {
           />
         )
       );
-      expect(host.textContent).toContain('25% remaining');
-      expect(host.textContent).toContain('Unknown');
+      expect([...host.querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual([
+        'Codex',
+        'Claude',
+        'Claude (2)',
+      ]);
+      expect(host.textContent).toContain('25%');
+      expect(host.textContent).toContain('86%');
+      expect(host.textContent).toContain('unknown');
       expect(host.textContent).toContain('Stale');
-      expect(host.textContent).toContain('Server · Offline');
+      expect(host.textContent).not.toContain('one@example.com');
+      expect(host.textContent).not.toContain('Laptop');
       const meters = host.querySelectorAll('[role="meter"]');
-      expect(meters.length).toBe(1);
-      expect(meters[0]?.getAttribute('aria-valuenow')).toBe('25');
+      expect([...meters].map((meter) => meter.getAttribute('aria-valuenow'))).toEqual([
+        '95',
+        '25',
+        '86',
+      ]);
       const button = [...host.querySelectorAll('button')].find(
-        (button) => button.textContent === 'Refresh usage'
+        (button) => button.getAttribute('aria-label') === 'Refresh usage'
       );
       await act(async () => button?.click());
       expect(refresh).toHaveBeenCalledOnce();
+      const details = host.querySelector<HTMLElement>(
+        '[aria-label="Claude Session: 25% left. Account details"]'
+      );
+      expect(details).not.toBeNull();
+      await act(async () => details?.click());
+      expect(document.body.textContent).toContain('one@example.com');
+      expect(document.body.textContent).toContain('Laptop, Server (offline)');
     } finally {
       await act(async () => root.unmount());
       host.remove();
