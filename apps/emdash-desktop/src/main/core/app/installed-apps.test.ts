@@ -191,8 +191,9 @@ describe('installed app detection', () => {
         const result = runCommand(
           process.execPath,
           [
+            '--input-type=module',
             '-e',
-            'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)',
+            'import { writeFileSync } from "node:fs"; writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)',
             pidFile,
           ],
           process.env,
