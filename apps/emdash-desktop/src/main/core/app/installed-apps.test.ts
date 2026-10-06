@@ -158,6 +158,24 @@ describe('installed app detection', () => {
     expect(run.mock.calls[0]![0]).toMatch(/vswhere\.exe$/);
   });
 
+  it.each(['ProgramFiles(x86)', 'PROGRAMFILES(X86)', 'programfiles(x86)'])(
+    'finds Visual Studio under a custom %s directory',
+    async (key) => {
+      const vswhere = 'D:\\Programs\\Microsoft Visual Studio\\Installer\\vswhere.exe';
+      const run = vi.fn<RunCommand>(async (file) =>
+        file === vswhere ? completed('D:\\VS\\devenv.exe') : failed('ENOENT')
+      );
+      const detector = createInstalledAppDetector({
+        platform: 'win32',
+        apps: [OPEN_IN_APPS['visual-studio']],
+        run,
+        resolveEnv: async () => ({ [key]: 'D:\\Programs' }),
+      });
+      expect(await detector.check()).toEqual({ 'visual-studio': 'detected' });
+      expect(run.mock.calls[0]![0]).toBe(vswhere);
+    }
+  );
+
   it('shares concurrent scans and aborts lookups on dispose', async () => {
     let lookupSignal: AbortSignal | undefined;
     const run = vi.fn<RunCommand>(

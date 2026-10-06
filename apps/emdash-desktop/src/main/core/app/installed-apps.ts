@@ -88,7 +88,7 @@ async function resolveLaunchEnv(): Promise<NodeJS.ProcessEnv> {
 
 function envValue(env: NodeJS.ProcessEnv, key: string, platform: PlatformKey) {
   if (platform !== 'win32') return env[key];
-  const match = Object.keys(env).find((name) => name.toUpperCase() === key);
+  const match = Object.keys(env).find((name) => name.toUpperCase() === key.toUpperCase());
   return match ? env[match] : undefined;
 }
 
