@@ -264,42 +264,36 @@ describe('files runtime fs mutations', () => {
   });
 
   // Spec §3.4: the runtime reflects its own stateless mutations into affected
-  // live tree sessions at ack time. The watcher here is a stub that never
-  // emits, so every tree update observed after a mutation ack must come from
-  // the synchronous republish path.
-  it('reflects fs mutations into open tree sessions at ack time without the watcher', async () => {
+  // folder listings at ack time. The watcher here is a stub that never emits,
+  // so every listing update observed after a mutation ack must come from the
+  // synchronous republish path.
+  it('reflects fs mutations into listed folders at ack time without the watcher', async () => {
     const dir = await makeDir();
     await mkdir(path.join(dir, 'src'));
     await writeFile(path.join(dir, 'src/kept.ts'), 'kept\n');
     await writeFile(path.join(dir, 'src/doomed.ts'), 'doomed\n');
     const { connection, dispose } = await makeRuntime({ watcher: new SilentWatcher() });
-    const key = { root: runtimeRoot(dir), sessionId: 'republish' };
-    const treeEntries = async () =>
-      (await connection.api.tree.model.state(key, 'tree').snapshot()).data.entries;
+    const key = { root: runtimeRoot(dir), path: relativePath('src') };
+    const entries = async () => {
+      const listing = (await connection.api.listing.state(key, 'listing').snapshot()).data;
+      return listing.status === 'ready' ? listing.entries : {};
+    };
 
     try {
-      for (const entryPath of ['', 'src']) {
-        await expect(
-          connection.api.tree.model.mutate('expand', {
-            key,
-            input: { path: relativePath(entryPath) },
-          })
-        ).resolves.toMatchObject({ success: true });
-      }
-      expect(await treeEntries()).toMatchObject({
-        'src/kept.ts': { kind: 'file' },
-        'src/doomed.ts': { kind: 'file' },
+      expect(await entries()).toMatchObject({
+        'kept.ts': { kind: 'file' },
+        'doomed.ts': { kind: 'file' },
       });
 
       await expect(
         connection.api.fs.delete({ path: runtimeRoot(path.join(dir, 'src/doomed.ts')) })
       ).resolves.toEqual({ success: true, data: undefined });
-      expect((await treeEntries())['src/doomed.ts']).toBeUndefined();
+      expect((await entries())['doomed.ts']).toBeUndefined();
 
       await expect(
         connection.api.fs.createFile({ path: runtimeRoot(path.join(dir, 'src/fresh.ts')) })
       ).resolves.toEqual({ success: true, data: undefined });
-      expect(await treeEntries()).toMatchObject({ 'src/fresh.ts': { kind: 'file' } });
+      expect(await entries()).toMatchObject({ 'fresh.ts': { kind: 'file' } });
 
       await expect(
         connection.api.fs.rename({
@@ -307,9 +301,9 @@ describe('files runtime fs mutations', () => {
           to: runtimeRoot(path.join(dir, 'src/kept-renamed.ts')),
         })
       ).resolves.toEqual({ success: true, data: undefined });
-      const afterRename = await treeEntries();
-      expect(afterRename['src/kept.ts']).toBeUndefined();
-      expect(afterRename['src/kept-renamed.ts']).toMatchObject({ kind: 'file' });
+      const afterRename = await entries();
+      expect(afterRename['kept.ts']).toBeUndefined();
+      expect(afterRename['kept-renamed.ts']).toMatchObject({ kind: 'file' });
     } finally {
       await dispose();
     }

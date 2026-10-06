@@ -1,7 +1,12 @@
-import { decodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
+import {
+  containsAbsolute,
+  decodeResourceUri,
+  hostFileRef,
+  parseNativeAbsolute,
+} from '@emdash/core/primitives/path/api';
 import { type Result } from '@emdash/shared';
 import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { normalizeFileTreePath } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import {
@@ -63,6 +68,7 @@ export class EditorViewStore {
   private nextRevealFileRequestId = 1;
   private activeRevealFileRequestId = 0;
   private activeRevealRun: Run<Result<string[], TreeMutationError>> | null = null;
+  private disposeFilesExpansion: (() => void) | null = null;
 
   constructor(
     paneLayout: PaneLayoutStore,
@@ -114,6 +120,11 @@ export class EditorViewStore {
       });
       return;
     }
+    const target = parseNativeAbsolute(path);
+    if (target.success && !containsAbsolute(hostPathFromNative(files.rootPath), target.data)) {
+      return;
+    }
+    if (files.isTreeExcluded(path)) return;
     const run = this.revealScope.run(`reveal:${id}`, (signal) =>
       files.revealFile(path, { signal })
     );
@@ -157,12 +168,20 @@ export class EditorViewStore {
     runInAction(() => {
       this.files = store;
     });
+    // The open folders decide which listings the projection subscribes to.
+    this.disposeFilesExpansion = reaction(
+      () => this.expandedPaths,
+      (paths) => store.setExpandedPaths(paths),
+      { fireImmediately: true }
+    );
     void store.start();
   }
 
   /** Closes the projection subscription and clears the per-view tree state. */
   disposeFiles(): void {
     const store = this.files;
+    this.disposeFilesExpansion?.();
+    this.disposeFilesExpansion = null;
     this.activeRevealRun?.cancel(new Error('File tree disposed'));
     this.activeRevealRun = null;
     runInAction(() => {

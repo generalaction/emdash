@@ -2,7 +2,7 @@ import {
   hostAbsolutePathSchema,
   portableRelativePathSchema,
 } from '@emdash/core/primitives/path/api';
-import { fileTreeModelSchema, fsErrorSchema } from '@emdash/core/runtimes/files/api';
+import { directoryListResultSchema, fsErrorSchema } from '@emdash/core/runtimes/files/api';
 import { projectConfigStateSchema } from '@emdash/core/runtimes/workspace-registry/api';
 import type { Result } from '@emdash/shared';
 import {
@@ -12,7 +12,6 @@ import {
   liveJob,
   liveModel,
   liveState,
-  mutation,
   procedure,
 } from '@emdash/wire/rpc';
 import z from 'zod';
@@ -93,20 +92,6 @@ export const createProjectFromRemoteInputSchema = z.object({
   name: z.string().min(1),
 });
 
-export const projectDirectoryTreeKeySchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('local'),
-    root: hostAbsolutePathSchema,
-    sessionId: z.string(),
-  }),
-  z.object({
-    type: z.literal('ssh'),
-    connectionId: z.string().min(1),
-    root: hostAbsolutePathSchema,
-    sessionId: z.string(),
-  }),
-]);
-
 const projectIdInputSchema = z.object({
   projectId: z.string(),
 });
@@ -149,6 +134,12 @@ export const projectsWireContract = defineContract({
       path: portableRelativePathSchema,
     }),
     data: z.void(),
+    error: fsErrorSchema,
+  }),
+  /** One-shot listing of a host directory for the folder picker; nothing is watched. */
+  listHostDirectory: fallible({
+    input: z.object({ host: projectHostParamsSchema, path: hostAbsolutePathSchema }),
+    data: directoryListResultSchema,
     error: fsErrorSchema,
   }),
   resolveRepositoryDestination: procedure({
@@ -226,30 +217,6 @@ export const projectsWireContract = defineContract({
     key: projectCreationKeySchema,
     states: {
       state: liveState({ data: projectCreationStateSchema }),
-    },
-  }),
-  directoryTree: liveModel({
-    key: projectDirectoryTreeKeySchema,
-    states: {
-      tree: liveState({ data: fileTreeModelSchema }),
-    },
-    mutations: {
-      expand: mutation({
-        input: z.object({
-          path: portableRelativePathSchema,
-          depth: z.number().int().min(1).max(2).optional(),
-        }),
-        data: z.void(),
-        error: fsErrorSchema,
-      }),
-      reveal: mutation({
-        input: z.object({
-          path: portableRelativePathSchema,
-          depth: z.number().int().min(1).max(2).optional(),
-        }),
-        data: z.void(),
-        error: fsErrorSchema,
-      }),
     },
   }),
   create: liveJob({

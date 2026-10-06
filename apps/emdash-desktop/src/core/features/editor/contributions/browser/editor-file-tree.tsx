@@ -146,7 +146,6 @@ async function importLocalFiles(args: {
 
   const handleFailure = async (error: ResultLikeError) => {
     for (const p of inserted) files.removeNode(p);
-    await files.registerDir(destDirPath, true);
     const message = resultErrorMessage(error);
     const existingPaths = conflictPaths(error);
     if (existingPaths.length > 0 && !overwrite) {
@@ -216,7 +215,6 @@ async function importLocalFiles(args: {
         return;
       }
     }
-    files.confirmOptimisticNodes(inserted);
   } catch (error) {
     await handleFailure({
       type: 'fs_error',
@@ -233,6 +231,8 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const tabLayout = useTabLayout();
   const editorView = taskView.editorView;
   const files = editorView.files;
+  const pendingPaths = new Set(files?.pendingPaths ?? []);
+  const directoryErrors = files?.directoryErrors;
   const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
     taskView.projectId
   );
@@ -359,10 +359,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
   };
 
   const collapseAll = () => editorView.collapsePaths([...expandedPaths]);
-  const loadDirectory = useCallback(
+  const retryFolder = useCallback(
     (path: string) => {
       if (!files) return;
-      void files.registerDir(path).then((result) => {
+      void files.retry(path).then((result) => {
         if (!result.success) {
           toast.error('Folder load failed', { description: resultErrorMessage(result.error) });
         }
@@ -496,7 +496,6 @@ export const EditorFileTree = observer(function EditorFileTree() {
       for (const node of targets) {
         const result = await files.deleteEntry(node.path, node.type === 'directory');
         if (!result.success) {
-          await files.registerDir(node.parentPath ?? workspace.path, true);
           toast.error('Delete failed', { description: resultErrorMessage(result.error) });
           return;
         }
@@ -850,19 +849,14 @@ export const EditorFileTree = observer(function EditorFileTree() {
         renderHeader={() => null}
         onCollapseAll={collapseAll}
         onExpandAll={(paths) => editorView.expandPaths([...paths])}
+        // Opening a folder subscribes to its listing; collapsing it releases it.
         onToggleExpand={(node, expanded) => {
-          if (expanded) {
-            editorView.expandPath(node.path);
-            if (files && isExpandableFileTreeNode(node) && !files.loadedPaths.has(node.path)) {
-              loadDirectory(node.path);
-            }
-          } else {
-            editorView.collapsePath(node.path);
-          }
+          if (expanded) editorView.expandPath(node.path);
+          else editorView.collapsePath(node.path);
         }}
         onRequestExpand={(path) => {
           editorView.expandPath(path);
-          loadDirectory(path);
+          if (files?.directoryErrors.has(path)) retryFolder(path);
         }}
         onSelectionChange={(paths, anchorPath) => {
           setSelectedPaths(new Set(paths));
@@ -886,14 +880,16 @@ export const EditorFileTree = observer(function EditorFileTree() {
           );
           return status ? <FileTreeGitChangeIndicator status={status} /> : null;
         }}
-        getRowState={(node) =>
-          mergeRowState(
+        getRowState={(node) => ({
+          ...mergeRowState(
             rowStateForNode(node, workspace.path, gitDecorations),
             clipboard?.mode === 'cut' && clipboard.paths.includes(node.path)
               ? { muted: true }
               : undefined
-          )
-        }
+          ),
+          loading: pendingPaths.has(node.path),
+          loadError: directoryErrors?.get(node.path),
+        })}
         dnd={
           files && !liveActionsDisabled
             ? {
@@ -1048,18 +1044,39 @@ function HeaderAction({
   );
 }
 
+// The store reuses nodes and child lists for unchanged entries; mapping them through
+// these caches keeps that identity, so the tree only re-sorts folders that changed.
+const fileTreeNodeCache = new WeakMap<RenderableFileNode, FileTreeNode>();
+const fileTreeListCache = new WeakMap<readonly RenderableFileNode[], readonly FileTreeNode[]>();
+
 function mapFileTreeData(
   roots: readonly RenderableFileNode[],
   children: Map<string | null, RenderableFileNode[]>
-): { rootNodes: FileTreeNode[]; childrenById: ChildrenById } {
-  const mappedChildren = new Map<string | null, FileTreeNode[]>();
+): { rootNodes: readonly FileTreeNode[]; childrenById: ChildrenById } {
+  const mappedChildren = new Map<string | null, readonly FileTreeNode[]>();
   for (const [parentId, entries] of children) {
-    mappedChildren.set(parentId, entries.map(toFileTreeNode));
+    mappedChildren.set(parentId, toFileTreeNodes(entries));
   }
   return {
-    rootNodes: roots.map(toFileTreeNode),
+    rootNodes: toFileTreeNodes(roots),
     childrenById: mappedChildren,
   };
+}
+
+function toFileTreeNodes(nodes: readonly RenderableFileNode[]): readonly FileTreeNode[] {
+  let mapped = fileTreeListCache.get(nodes);
+  if (!mapped) {
+    mapped = nodes.map((node) => {
+      let treeNode = fileTreeNodeCache.get(node);
+      if (!treeNode) {
+        treeNode = toFileTreeNode(node);
+        fileTreeNodeCache.set(node, treeNode);
+      }
+      return treeNode;
+    });
+    fileTreeListCache.set(nodes, mapped);
+  }
+  return mapped;
 }
 
 function collectFileTreeNodes(
@@ -1123,7 +1140,6 @@ function toFileTreeNode(node: RenderableFileNode): FileTreeNode {
     type: node.type,
     symlink: Boolean(node.symlink),
     symlinkTargetKind: node.symlink?.targetType,
-    childrenLoaded: node.childrenLoaded,
     isHidden: node.isHidden,
     extension: node.extension,
   };

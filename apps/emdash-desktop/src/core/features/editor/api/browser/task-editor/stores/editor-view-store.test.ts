@@ -7,6 +7,8 @@ import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import { EditorViewStore } from './editor-view-store';
 
+const isTreeExcluded = (path: string) => path.split('/').includes('dist');
+
 function mementoHandle(initial: TaskEditorTreeState): MementoHandle<TaskEditorTreeState> {
   let value = initial;
   return {
@@ -28,6 +30,27 @@ function mementoHandle(initial: TaskEditorTreeState): MementoHandle<TaskEditorTr
 }
 
 describe('EditorViewStore file reveal', () => {
+  it.each(['/repo/dist/app.js', '/elsewhere/app.ts'])(
+    'skips revealing %s, which has no tree row, without an error',
+    async (path) => {
+      const store = new EditorViewStore(
+        { groups: [] } as unknown as PaneLayoutStore,
+        'project-1',
+        'workspace-1',
+        mementoHandle({ version: '1', expandedPaths: [] })
+      );
+      const revealFile = vi.fn();
+      store.files = { rootPath: '/repo', revealFile, isTreeExcluded } as unknown as NonNullable<
+        EditorViewStore['files']
+      >;
+
+      await store.revealFile(path);
+
+      expect(revealFile).not.toHaveBeenCalled();
+      expect(store.revealFileRequest).toBeNull();
+    }
+  );
+
   it('runs Runtime reveal once and exposes a consumable presentation request', async () => {
     const treeHandle = mementoHandle({ version: '1', expandedPaths: [] });
     const store = new EditorViewStore(
@@ -37,7 +60,9 @@ describe('EditorViewStore file reveal', () => {
       treeHandle
     );
     const revealFile = vi.fn().mockResolvedValue(ok(['/repo/src']));
-    store.files = { revealFile } as unknown as NonNullable<EditorViewStore['files']>;
+    store.files = { rootPath: '/repo', revealFile, isTreeExcluded } as unknown as NonNullable<
+      EditorViewStore['files']
+    >;
 
     await store.revealFile('/repo/src/app.ts');
 
@@ -73,7 +98,9 @@ describe('EditorViewStore file reveal', () => {
       .fn()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
-    store.files = { revealFile } as unknown as NonNullable<EditorViewStore['files']>;
+    store.files = { rootPath: '/repo', revealFile, isTreeExcluded } as unknown as NonNullable<
+      EditorViewStore['files']
+    >;
 
     const firstRun = store.revealFile('/repo/old/file.ts');
     await vi.waitFor(() => expect(revealFile).toHaveBeenCalledOnce());
@@ -113,7 +140,9 @@ describe('EditorViewStore file reveal', () => {
         return Promise.resolve(ok(['/repo/new']));
       }
     );
-    store.files = { revealFile } as unknown as NonNullable<EditorViewStore['files']>;
+    store.files = { rootPath: '/repo', revealFile, isTreeExcluded } as unknown as NonNullable<
+      EditorViewStore['files']
+    >;
 
     const firstRun = store.revealFile('/repo/old/file.ts');
     await vi.waitFor(() => expect(firstSignal).toBeDefined());

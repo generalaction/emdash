@@ -1,10 +1,9 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import { ROOT_RELATIVE_PATH, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import type { GitPathInspection, InspectPathError } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { waitFor } from '@emdash/shared/testing';
-import type { LiveSource } from '@emdash/wire/rpc';
 import { cell, observe, remote, snapshot, whenReady } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
@@ -90,28 +89,29 @@ describe('Projects Wire attachments', () => {
   });
 });
 
-describe('Projects Wire directory tree', () => {
+describe('Projects Wire directory listing', () => {
   it('browses and inspects the selected host even when the same path exists locally', async () => {
     const root: HostAbsolutePath = { root: { kind: 'posix' }, segments: ['workspace'] };
     const remoteHost = hostRef('remote', 'ssh-nixos');
     function hostRuntime(directoryName: string) {
-      const source = liveSource({
-        root,
-        entries: {
-          '': {
-            path: '',
-            name: directoryName,
-            parentPath: null,
-            kind: 'directory',
-            childrenLoaded: true,
-            children: [],
-          },
-        },
-      });
       return {
         files: {
-          tree: { model: { state: vi.fn(() => ({ asLiveSource: () => source })) } },
-          fs: { stat: vi.fn(async () => ok({ type: 'directory' as const })) },
+          fs: {
+            listDirectory: vi.fn(async () =>
+              ok({
+                entries: [
+                  {
+                    name: directoryName,
+                    kind: 'directory' as const,
+                    size: 0,
+                    mtimeMs: 0,
+                    isRepository: false,
+                  },
+                ],
+              })
+            ),
+            stat: vi.fn(async () => ok({ type: 'directory' as const })),
+          },
         },
         git: {
           inspectPath: vi.fn(
@@ -130,25 +130,25 @@ describe('Projects Wire directory tree', () => {
     });
     const dependencies = { runtimes: { client } } as unknown as ProjectOperationDependencies;
     const controller = createProjectsWireController(dependencies);
+    const wire = createTestWire(projectsWireContract, controller.impl);
     try {
-      const directoryTree = controller.impl.directoryTree;
-      if (directoryTree?.kind !== 'liveModelProvider')
-        throw new Error('Expected directory tree provider');
-      const source = await directoryTree.resolveState(
-        { type: 'ssh', connectionId: remoteHost.id, root, sessionId: 'remote-picker' },
-        'tree'
-      );
-      if (!source) throw new Error('Expected the remote directory tree');
-      expect((await source.snapshot()).data).toMatchObject({
-        entries: { '': { name: 'remote-folder' } },
+      await expect(
+        wire.client.listHostDirectory({
+          host: { type: 'ssh', connectionId: remoteHost.id },
+          path: root,
+        })
+      ).resolves.toMatchObject({
+        success: true,
+        data: { entries: [{ name: 'remote-folder', kind: 'directory' }] },
       });
+      expect(remote.files.fs.listDirectory).toHaveBeenCalledWith({ path: root });
       await expect(getProjectPathStatus(dependencies, remoteHost, '/workspace')).resolves.toEqual({
         isDirectory: true,
         isGitRepo: true,
       });
       expect(remote.files.fs.stat).toHaveBeenCalledOnce();
       expect(remote.git.inspectPath).toHaveBeenCalledWith({ path: root });
-      expect(local.files.tree.model.state).not.toHaveBeenCalled();
+      expect(local.files.fs.listDirectory).not.toHaveBeenCalled();
       expect(local.files.fs.stat).not.toHaveBeenCalled();
       expect(local.git.inspectPath).not.toHaveBeenCalled();
       expect(client).not.toHaveBeenCalledWith(LOCAL_HOST_REF);
@@ -163,69 +163,8 @@ describe('Projects Wire directory tree', () => {
       });
       expect(local.git.inspectPath).not.toHaveBeenCalled();
     } finally {
+      await wire.dispose();
       await controller.dispose();
     }
   });
-
-  it('uses children-scoped watching for both picker state and mutations', async () => {
-    const root: HostAbsolutePath = {
-      root: { kind: 'posix' },
-      segments: ['home', 'dev'],
-    };
-    const source = liveSource({
-      root,
-      entries: {
-        '': {
-          path: '',
-          name: 'dev',
-          parentPath: null,
-          kind: 'directory',
-          childrenLoaded: false,
-          children: [],
-        },
-      },
-    });
-    const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const mutate = vi.fn(async () => err({ type: 'not-found' as const, path: '' }));
-    const client = vi.fn(async () => ok({ files: { tree: { model: { state, mutate } } } }));
-    const controller = createProjectsWireController({
-      runtimes: { client },
-    } as unknown as ProjectOperationDependencies);
-    const key = {
-      type: 'ssh' as const,
-      connectionId: 'ssh-2',
-      root,
-      sessionId: 'picker-1',
-    };
-    const directoryTree = controller.impl.directoryTree;
-    if (directoryTree?.kind !== 'liveModelProvider') {
-      throw new Error('Expected the Projects directory tree provider');
-    }
-
-    await directoryTree.resolveState(key, 'tree');
-    expect(state).toHaveBeenCalledWith(
-      { root, sessionId: 'picker-1', watchScope: 'children' },
-      'tree'
-    );
-
-    await directoryTree.runMutation('reveal', {
-      key,
-      input: { path: ROOT_RELATIVE_PATH, depth: 2 },
-      mutationId: 'reveal-1',
-    });
-    expect(mutate).toHaveBeenCalledWith('reveal', {
-      key: { root, sessionId: 'picker-1', watchScope: 'children' },
-      input: { path: ROOT_RELATIVE_PATH, depth: 2 },
-      mutationId: 'reveal-1',
-    });
-
-    await controller.dispose();
-  });
 });
-
-function liveSource(data: unknown): LiveSource {
-  return {
-    snapshot: async () => ({ generation: 1, sequence: 0, timestamp: 0, data }),
-    subscribe: () => () => {},
-  };
-}

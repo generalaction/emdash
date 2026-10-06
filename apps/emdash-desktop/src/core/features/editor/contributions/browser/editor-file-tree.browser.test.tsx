@@ -88,7 +88,6 @@ describe('FileTreeHeaderBar layout', () => {
       parentPath: '/repo',
       depth: 0,
       type: 'directory',
-      childrenLoaded: true,
     };
 
     await act(async () => {
@@ -163,7 +162,6 @@ describe('FileTree Git decorations', () => {
       parentPath: '/repo',
       depth: 0,
       type: 'directory',
-      childrenLoaded: true,
     };
 
     await act(async () => {

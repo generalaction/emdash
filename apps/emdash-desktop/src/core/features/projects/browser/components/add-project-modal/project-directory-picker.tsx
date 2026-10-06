@@ -3,15 +3,13 @@ import {
   joinAbsolute,
   joinPortableRelativePath,
   type HostAbsolutePath,
-  type PortableRelativePath,
 } from '@emdash/core/primitives/path/api';
 import {
-  type FileEntry,
-  type FileTreeModel,
-  isExpandableFileEntry,
+  isExpandableListingEntry,
+  type DirectoryEntry as HostDirectoryEntry,
 } from '@emdash/core/runtimes/files/api';
-import { createScope } from '@emdash/shared/concurrency';
 import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
+import { compareFileNames } from '@emdash/shared/util';
 import {
   DirectorySelector,
   useDirectoryHistory,
@@ -20,21 +18,14 @@ import {
 } from '@emdash/ui/react/components';
 import { Button, Input, toast } from '@emdash/ui/react/primitives';
 import { type Contract, type ContractClient } from '@emdash/wire/rpc';
-import { observe, remote, whenReady, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  projectsWireContract,
-  type ProjectHostParams,
-  type ProjectsWireContract,
-} from '@core/features/projects/api';
+import { type ProjectHostParams, type ProjectsWireContract } from '@core/features/projects/api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { type Strategy } from './add-project-modal';
 import { projectDirectoryLocation } from './project-directory-location';
 
-type DirectoryTreeModel = typeof projectsWireContract.directoryTree;
-type DirectoryTreeRemote = RemoteModel<DirectoryTreeModel>;
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
-const DIRECTORY_TREE_READY_TIMEOUT_MS = 30_000;
+const DIRECTORY_LISTING_TIMEOUT_MS = 30_000;
 export type ProjectDirectoryPickerClient = ContractClient<
   ContractDefinitionsOf<ProjectsWireContract>
 >;
@@ -95,16 +86,13 @@ export function ProjectDirectoryPicker({
   const root = location?.root ?? null;
   const navigationRoot = location?.navigationRoot ?? homePath;
   const separator = location?.separator ?? '/';
-  const sessionId = useMemo(() => crypto.randomUUID(), []);
-  const tree = useProjectDirectoryTree(host, root, sessionId, getProjectsClient);
+  const directory = useHostDirectoryListing(host, root, getProjectsClient);
 
   const listing = directoryListing({
     homePending,
     homeError,
-    syncError: tree.error,
-    pending: tree.pending,
-    model: tree.model,
-    path: ROOT_RELATIVE_PATH,
+    listError: directory.error,
+    entries: directory.entries,
   });
 
   async function createFolder(_parentPath: string, name: string) {
@@ -128,6 +116,7 @@ export function ProjectDirectoryPicker({
       return;
     }
 
+    directory.reload();
     const createdPath = joinAbsolute(root, childPath.data);
     if (!createdPath.success) {
       toast.error('Could not select folder', { description: createdPath.error.message });
@@ -189,151 +178,78 @@ export function ProjectDirectoryPicker({
   );
 }
 
-function useProjectDirectoryTree(
+/** Lists the browsed directory once per visit; the picker does not watch it. */
+function useHostDirectoryListing(
   host: ProjectHostParams | null,
   root: HostAbsolutePath | null,
-  sessionId: string,
   getProjectsClient: () => Promise<ProjectDirectoryPickerClient>
-): {
-  model: FileTreeModel | null;
-  error: string | null;
-  pending: boolean;
-} {
-  const [model, setModel] = useState<FileTreeModel | null>(null);
+): { entries: HostDirectoryEntry[] | null; error: string | null; reload(): void } {
+  const [entries, setEntries] = useState<HostDirectoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [generation, setGeneration] = useState(0);
+  const reload = useCallback(() => setGeneration((current) => current + 1), []);
 
   useEffect(() => {
-    if (!host || !root) {
-      setModel(null);
-      setError(null);
-      setPending(false);
-      return;
-    }
-
-    const currentHost = host;
-    const currentRoot = root;
+    setEntries(null);
+    setError(null);
+    if (!host || !root) return;
     let disposed = false;
-    const scope = createScope({ label: `project-directory-picker:${sessionId}` });
-
-    async function start() {
-      setModel(null);
-      setError(null);
-      setPending(true);
+    void (async () => {
       try {
         const client = await getProjectsClient();
-        if (disposed) return;
-        const treeRemote: DirectoryTreeRemote = remote(
-          projectsWireContract.directoryTree,
-          client.directoryTree,
-          { scope, lingerMs: 15_000 }
-        );
-        const treeMember = treeRemote(
-          currentHost.type === 'ssh'
-            ? {
-                type: 'ssh',
-                connectionId: currentHost.connectionId,
-                root: currentRoot,
-                sessionId,
-              }
-            : { type: 'local', root: currentRoot, sessionId }
-        );
-        observe(
-          treeMember.states.tree,
-          (snapshot) => {
-            if (disposed) return;
-            if (snapshot.status === 'error') {
-              setError(errorMessage(snapshot.error));
-              return;
-            }
-            setModel(snapshot.value ?? null);
-          },
-          { scope }
-        );
-        const ready = await runWithTimeout(() => whenReady(treeMember.states.tree, { scope }), {
-          timeoutMs: DIRECTORY_TREE_READY_TIMEOUT_MS,
+        const result = await runWithTimeout(() => client.listHostDirectory({ host, path: root }), {
+          timeoutMs: DIRECTORY_LISTING_TIMEOUT_MS,
         });
-        if (ready.status === 'error') throw ready.error;
         if (disposed) return;
-
-        const mutation = await treeMember.mutations.reveal({
-          path: ROOT_RELATIVE_PATH,
-          depth: 2,
-        });
-        if (!mutation.result.success) {
-          throw new Error(fsErrorMessage(mutation.result.error));
-        }
-        await mutation.settled;
-        if (disposed) return;
-        setError(null);
+        if (result.success) setEntries(result.data.entries);
+        else setError(fsErrorMessage(result.error));
       } catch (caught) {
-        if (!disposed) {
-          setError(
-            caught instanceof TimeoutError
-              ? 'The folder browser did not become ready within 30 seconds. The home directory may be too large to monitor.'
-              : errorMessage(caught)
-          );
-        }
-        void scope.dispose();
-      } finally {
-        if (!disposed) setPending(false);
+        if (disposed) return;
+        setError(
+          caught instanceof TimeoutError
+            ? 'The folder could not be listed within 30 seconds.'
+            : errorMessage(caught)
+        );
       }
-    }
-
-    void start();
+    })();
     return () => {
       disposed = true;
-      void scope.dispose();
     };
-  }, [getProjectsClient, host, root, sessionId]);
+  }, [generation, getProjectsClient, host, root]);
 
-  return { model, error, pending };
+  return { entries, error, reload };
 }
 
 function directoryListing({
   homePending,
   homeError,
-  syncError,
-  pending,
-  model,
-  path,
+  listError,
+  entries,
 }: {
   homePending: boolean;
   homeError: unknown;
-  syncError: string | null;
-  pending: boolean;
-  model: FileTreeModel | null;
-  path: PortableRelativePath;
+  listError: string | null;
+  entries: HostDirectoryEntry[] | null;
 }): DirectoryListing {
   if (homeError) return { status: 'error', message: errorMessage(homeError) };
-  if (syncError) return { status: 'error', message: syncError };
-  if (homePending || pending || !model) return { status: 'loading' };
-  const entry = model.entries[path];
-  if (!entry) return { status: 'loading' };
-  if (!entry.childrenLoaded) return { status: 'loading' };
+  if (listError) return { status: 'error', message: listError };
+  if (homePending || !entries) return { status: 'loading' };
   return {
     status: 'ready',
-    entries: entry.children.flatMap((childPath) => {
-      const child = model.entries[childPath];
-      return child ? [directoryEntry(child, model)] : [];
-    }),
+    entries: [...entries].sort(compareDirectoryEntries).map(directoryEntry),
   };
 }
 
-function directoryEntry(entry: FileEntry, model: FileTreeModel): DirectoryEntry {
+function directoryEntry(entry: HostDirectoryEntry): DirectoryEntry {
   const metadata = { sizeBytes: entry.size, addedAtMs: entry.mtimeMs };
-  if (entry.kind === 'directory' && hasGitChild(entry, model)) {
-    return { name: entry.name, kind: 'repository', ...metadata };
-  }
-  if (entry.kind === 'symlink' && entry.symlinkTargetKind === 'directory') {
-    return { name: entry.name, kind: 'directory', ...metadata };
-  }
+  if (entry.isRepository) return { name: entry.name, kind: 'repository', ...metadata };
+  if (isExpandableListingEntry(entry)) return { name: entry.name, kind: 'directory', ...metadata };
   return { name: entry.name, kind: entry.kind, ...metadata };
 }
 
-function hasGitChild(entry: FileEntry, model: FileTreeModel): boolean {
-  if (!isExpandableFileEntry(entry) || !entry.childrenLoaded) return false;
-  return entry.children.some((childPath) => model.entries[childPath]?.name === '.git');
+function compareDirectoryEntries(left: HostDirectoryEntry, right: HostDirectoryEntry): number {
+  const rank = Number(isExpandableListingEntry(right)) - Number(isExpandableListingEntry(left));
+  return rank || compareFileNames(left.name, right.name);
 }
 
 function projectHostParams(

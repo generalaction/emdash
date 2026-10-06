@@ -1,36 +1,29 @@
 import {
   canonicalExclusionPatterns,
   DEFAULT_TREE_EXCLUDE,
+  ExclusionPolicy,
 } from '@emdash/core/primitives/exclusion-policy/api';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import {
   encodeResourceUri,
   hostFileRef,
+  ROOT_RELATIVE_PATH,
   type HostAbsolutePath,
   type PortableRelativePath,
   type ResourceUri,
 } from '@emdash/core/primitives/path/api';
-import type { FsError } from '@emdash/core/runtimes/files/api';
+import {
+  isExpandableListingEntry,
+  type FolderListing,
+  type FsError,
+  type ListingEntry,
+} from '@emdash/core/runtimes/files/api';
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, pin, remote, type RemoteModel, type Snapshot } from '@emdash/wire/state';
+import { comparer, computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
 import {
-  createRequestScheduler,
-  requestPriorities,
-  type RequestScheduler,
-} from '@emdash/shared/requests';
-import { throwIfAborted, waitWithSignal } from '@emdash/shared/scheduling';
-import {
-  observe,
-  optimistic,
-  pin,
-  remote,
-  type OptimisticView,
-  type RemoteModel,
-} from '@emdash/wire/state';
-import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import {
-  buildFileTreeVisibleRows,
   isExpandableFileTreeNode,
   normalizeFileTreePath,
   sortFileNodes,
@@ -38,14 +31,13 @@ import {
   type FileNodeId,
   type RenderableFileNode,
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
-import { filesWireContract, type FilesTreeModel } from '@core/features/files/api';
+import { filesWireContract } from '@core/features/files/api';
 import { getFilesClient, type FilesClient } from '@core/features/files/api/browser/client';
 import {
   classifyLiveRuntimeObservation,
   type LiveRuntimeObservation,
 } from '@core/features/projects/api/browser/live-runtime-observation';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
-import { fetchAppSettingsMeta } from '@core/features/settings/api/browser/app-settings-client';
 import {
   absoluteRuntimePath,
   hostFileRefFromNativePath,
@@ -56,9 +48,10 @@ import {
   resolveRelativePath,
 } from '@core/primitives/desktop-runtime/api';
 
-type TreeModel = typeof filesWireContract.tree.model;
-type TreeRemote = RemoteModel<TreeModel>;
-type TreeRemoteMember = ReturnType<TreeRemote>;
+type ListingModel = typeof filesWireContract.listing;
+type ListingRemote = RemoteModel<ListingModel>;
+type ListingMember = ReturnType<ListingRemote>;
+
 export type TreeMutationError =
   | FsError
   | {
@@ -69,8 +62,15 @@ export type TreeMutationError =
       host?: unknown;
     }
   | { type: 'unavailable'; message: string };
+
+/** What one subscribed folder currently shows. */
+export type FolderView =
+  | { status: 'loading' }
+  | { status: 'ready'; entries: Readonly<Record<string, ListingEntry>> }
+  | { status: 'error'; message: string };
+
 type PendingUploadNode = { node: RenderableFileNode };
-type DirectoryLoadPriority = 'foreground' | 'background';
+type FolderSubscription = { scope: Scope; member: ListingMember };
 type ViewData = {
   nodes: Map<string, RenderableFileNode>;
   rootNodes: RenderableFileNode[];
@@ -79,32 +79,48 @@ type ViewData = {
   pathToId: Map<string, FileNodeId>;
 };
 
+const LISTING_LINGER_MS = 15_000;
+
+/**
+ * One task view's projection of a workspace's file tree. The host keeps a
+ * shared, watched listing per folder; this store subscribes to exactly the
+ * folders the view shows (the root and every open folder whose parents are
+ * open), and derives rows, exclusions and pending uploads from those listings.
+ * Collapsing a folder releases its subscription; reopening it shortly after is
+ * served from the lingering replica.
+ */
 export class FilesStore {
   private readonly root: HostAbsolutePath;
   private readonly host: HostRef;
   /** The workspace root's serialized identity — the scope key for buffer restore and the tree. */
   readonly rootUri: ResourceUri;
-  private treeRemote: TreeRemote | null = null;
-  private treeModel: TreeRemoteMember | null = null;
-  private treeScope: Scope | null = null;
-  private optimistic: OptimisticView<FilesTreeModel> | null = null;
-  private treeData: FilesTreeModel | null = null;
+  private runtimeScope: Scope | null = null;
+  private listingRemote: ListingRemote | null = null;
+  private bound = false;
   private startPromise: Promise<void> | null = null;
   private started = false;
   private syncError: string | null = null;
-  private bindVersion = 0;
   private exclusions = canonicalExclusionPatterns(DEFAULT_TREE_EXCLUDE);
-  private exclusionsLoaded = false;
-  private pendingRebind = false;
+  private expandedPaths: ReadonlySet<string> = new Set();
   private nextPendingUploadId = 1;
+  private policyCache: { patterns: readonly string[]; policy: ExclusionPolicy } | null = null;
+  private disposeDemand: (() => void) | null = null;
+  private releaseTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly disposeHostReaction: () => void;
 
+  // Shallow: listings are immutable replica values whose identity the projection caches rely on.
+  private readonly folders = observable.map<PortableRelativePath, FolderView>({}, { deep: false });
+  /** Folders held open while a reveal waits for them, counted per in-flight reveal. */
+  private readonly revealing = observable.map<PortableRelativePath, number>();
+  private readonly subscriptions = new Map<PortableRelativePath, FolderSubscription>();
   private readonly pendingUploadNodes = observable.map<FileNodeId, PendingUploadNode>();
-  private readonly pendingPathSet = observable.set<string>();
-  private readonly directoryLoadErrors = observable.map<string, TreeMutationError>();
-  private readonly forcedDirectoryLoadPaths = new Set<string>();
-  private treeHydrationScheduler: RequestScheduler | null = null;
-  private treeHydrationAbort: AbortController | null = null;
+  // Projection caches: unchanged listing entries keep their node, and unchanged
+  // listings their sorted, filtered child list.
+  private readonly renderableNodes = new WeakMap<ListingEntry, RenderableFileNode>();
+  private readonly childLists = new WeakMap<
+    Readonly<Record<string, ListingEntry>>,
+    { exclusions: readonly string[]; nodes: RenderableFileNode[] }
+  >();
 
   constructor(
     private readonly projectId: string,
@@ -114,17 +130,23 @@ export class FilesStore {
     readonly hostAccess?: ProjectHostAccess
   ) {
     // Workspace→root resolution happens here at the renderer edge (spec §2/§8):
-    // the tree is keyed by the root's ResourceUri, never by workspaceId.
+    // listings are keyed by the root's ResourceUri, never by workspaceId.
     const rootRef = hostFileRefFromNativePath(workspacePath, sshConnectionId);
     this.root = rootRef.path;
     this.host = rootRef.host;
     this.rootUri = encodeResourceUri(rootRef);
-    makeObservable<FilesStore, 'optimistic' | 'treeData' | 'syncError' | 'viewData'>(this, {
-      optimistic: observable.ref,
-      treeData: observable.ref,
+    makeObservable<
+      FilesStore,
+      'bound' | 'syncError' | 'exclusions' | 'expandedPaths' | 'viewData' | 'demand'
+    >(this, {
+      bound: observable,
       syncError: observable,
+      exclusions: observable.ref,
+      expandedPaths: observable.ref,
       viewData: computed,
+      demand: computed({ equals: comparer.structural }),
       pendingPaths: computed,
+      directoryErrors: computed,
       isLoading: computed,
       error: computed,
       observation: computed,
@@ -133,18 +155,14 @@ export class FilesStore {
       () => this.hostAccess?.state,
       (state) => {
         if (state === undefined || state.kind !== 'ready' || !this.started) return;
-        if (this.pendingRebind) {
-          this.pendingRebind = false;
-          this.bindVersion += 1;
-          this.disposeRuntime(true);
-          void this.ensureStarted(true);
+        if (!this.bound) {
+          void this.ensureStarted();
           return;
         }
-        if (this.treeModel) {
-          void this.refreshAfterRecovery(this.treeModel);
-          return;
+        // Reattach after the host connection recovered.
+        for (const { member } of this.subscriptions.values()) {
+          void member.states.listing.refresh().catch(() => {});
         }
-        void this.ensureStarted(true);
       }
     );
   }
@@ -165,29 +183,42 @@ export class FilesStore {
     return this.viewData.loadedPaths;
   }
 
-  get pendingPaths(): Set<string> {
-    return this.pendingPathSet;
+  /** Folders whose listing is still on its way. */
+  get pendingPaths(): ReadonlySet<string> {
+    const pending = new Set<string>();
+    for (const [path, view] of this.folders) {
+      if (view.status === 'loading') pending.add(this.absolute(path));
+    }
+    return pending;
+  }
+
+  /** Folders that could not be listed, with the reason shown on their row. */
+  get directoryErrors(): ReadonlyMap<string, string> {
+    const errors = new Map<string, string>();
+    for (const [path, view] of this.folders) {
+      if (view.status === 'error') errors.set(this.absolute(path), view.message);
+    }
+    return errors;
   }
 
   get isLoading(): boolean {
-    if (this.hostAccess?.liveAction.kind === 'disabled' && this.treeData === null) return false;
+    const root = this.folders.get(ROOT_RELATIVE_PATH);
+    if (this.hostAccess?.liveAction.kind === 'disabled' && root?.status !== 'ready') return false;
     if (this.syncError !== null) return false;
-    if (this.directoryLoadErrors.has(this.rootPath)) return false;
-    if (this.optimistic === null) return true;
-    return this.tree?.entries['']?.childrenLoaded !== true;
+    return root === undefined || root.status === 'loading';
   }
 
   get error(): string | undefined {
     if (this.syncError !== null) return this.syncError;
-    if (this.tree?.entries['']?.childrenLoaded === true) return undefined;
-    const rootError = this.directoryLoadErrors.get(this.rootPath);
-    return rootError ? treeMutationErrorMessage(rootError) : undefined;
+    const root = this.folders.get(ROOT_RELATIVE_PATH);
+    return root?.status === 'error' ? root.message : undefined;
   }
 
-  get observation(): LiveRuntimeObservation<FilesTreeModel> {
+  get observation(): LiveRuntimeObservation<FolderView> {
+    const root = this.folders.get(ROOT_RELATIVE_PATH);
     return classifyLiveRuntimeObservation(
       this.hostAccess?.state ?? { kind: 'ready', hostGeneration: 0 },
-      this.treeData ?? undefined
+      root?.status === 'ready' ? root : undefined
     );
   }
 
@@ -202,93 +233,109 @@ export class FilesStore {
     await this.ensureStarted();
   }
 
-  async resync(): Promise<void> {
-    const model = await this.requireModel();
-    await model.states.tree.refresh();
-  }
-
   dispose(): void {
     this.disposeHostReaction();
     this.started = false;
-    this.bindVersion += 1;
-    this.pendingUploadNodes.clear();
-    this.pendingPathSet.clear();
-    this.disposeRuntime();
+    this.unbind();
+    runInAction(() => {
+      this.pendingUploadNodes.clear();
+      this.revealing.clear();
+    });
   }
 
+  /** Exclusions only filter the projection; no listing is reread. */
   setExclusions(patterns: readonly string[] | undefined): void {
     const next = canonicalExclusionPatterns(patterns ?? DEFAULT_TREE_EXCLUDE);
-    this.exclusionsLoaded = true;
     if (this.exclusions.join('\0') === next.join('\0')) return;
-    this.exclusions = next;
-    if (!this.started) return;
-    if (this.hostAccess?.liveAction.kind === 'disabled') {
-      this.pendingRebind = true;
-      return;
-    }
-    this.bindVersion += 1;
-    this.disposeRuntime();
-    this.startPromise = this.bindRuntime(this.bindVersion);
+    runInAction(() => {
+      this.exclusions = next;
+    });
   }
 
-  reconcileVisibleScopes(expandedPaths: Set<string>): void {
-    const missing = new Set<string>();
-    for (const expandedPath of expandedPaths) {
-      const node = this.viewData.nodes.get(normalizeFileTreePath(expandedPath));
-      if (node && isExpandableFileTreeNode(node) && !this.loadedPaths.has(node.path)) {
-        missing.add(node.path);
-      }
-    }
-    const rows = buildFileTreeVisibleRows(
-      this.rootNodes,
-      expandedPaths,
-      this.childrenById,
-      this.loadedPaths
-    );
-    for (const row of rows) {
-      if (
-        isExpandableFileTreeNode(row.node) &&
-        expandedPaths.has(row.node.path) &&
-        !this.loadedPaths.has(row.node.path)
-      ) {
-        missing.add(row.node.path);
-      }
-    }
-    for (const path of [...missing].sort(compareDirectoryDepth)) {
-      void this.requestDirectoryLoad(path, 'background');
+  /** The view's open folders; the store subscribes to the ones that are visible. */
+  setExpandedPaths(paths: Iterable<string>): void {
+    const next = new Set([...paths].map(normalizeFileTreePath));
+    runInAction(() => {
+      this.expandedPaths = next;
+    });
+  }
+
+  /** Rereads one folder (and listed folders beneath it) on the host, e.g. after a failed read. */
+  async retry(path: string): Promise<Result<void, TreeMutationError>> {
+    try {
+      return await this.refreshFolder(this.relative(this.resolveWorkspacePath(path)));
+    } catch (error) {
+      return err(treeMutationError(error));
     }
   }
 
-  registerDir(dirPath: string, force = false): Promise<Result<void, TreeMutationError>> {
-    return this.requestDirectoryLoad(dirPath, 'foreground', force);
+  /** Rereads every listed folder of the workspace, reconnecting first if the tree never bound. */
+  async refresh(): Promise<Result<void, TreeMutationError>> {
+    if (!this.bound) {
+      this.startPromise = null;
+      await this.ensureStarted();
+      return this.syncError === null
+        ? ok<void>()
+        : err({ type: 'unavailable', message: this.syncError });
+    }
+    return this.refreshFolder(ROOT_RELATIVE_PATH);
   }
 
+  /**
+   * Opens the folders on the way to `filePath`, all at once, and waits for their
+   * listings. Resolves to the absolute folders the view must expand.
+   */
   async revealFile(
     filePath: string,
     options: { signal?: AbortSignal } = {}
   ): Promise<Result<string[], TreeMutationError>> {
+    let target: PortableRelativePath;
     try {
-      const model = await this.requireModel();
-      throwIfAborted(options.signal, 'File reveal cancelled');
-      const scheduler = this.treeHydrationScheduler;
-      const abort = this.treeHydrationAbort;
-      if (!scheduler || !abort || abort.signal.aborted) {
-        return err({ type: 'unavailable', message: 'File tree is unavailable' });
-      }
-      const absolute = this.resolveWorkspacePath(filePath);
-      const waiterSignal = options.signal
-        ? AbortSignal.any([abort.signal, options.signal])
-        : abort.signal;
-      return await scheduler.submit(
-        {
-          key: `reveal:${absolute}`,
-          priority: requestPriorities.interactive,
-          run: (signal) => this.performFileReveal(model, absolute, signal),
-        },
-        { signal: waiterSignal }
-      );
+      target = this.relative(this.resolveWorkspacePath(filePath));
     } catch (error) {
       return err(treeMutationError(error));
+    }
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      return err({
+        type: 'unavailable',
+        message: 'Live actions are unavailable for this Project.',
+      });
+    }
+    await this.ensureStarted();
+    if (!this.bound) {
+      return err({ type: 'unavailable', message: this.syncError ?? 'File tree is unavailable' });
+    }
+    const folders = folderChain(target);
+    runInAction(() => {
+      for (const folder of folders)
+        this.revealing.set(folder, (this.revealing.get(folder) ?? 0) + 1);
+    });
+    try {
+      await when(
+        () =>
+          folders.every((folder) => (this.folders.get(folder)?.status ?? 'loading') !== 'loading'),
+        { signal: options.signal }
+      );
+      const segments = target.split('/');
+      for (const [index, folder] of folders.entries()) {
+        const view = this.folders.get(folder);
+        if (view?.status === 'error') return err({ type: 'unavailable', message: view.message });
+        const child = segments[index]!;
+        if (view?.status !== 'ready' || !Object.hasOwn(view.entries, child)) {
+          return err({ type: 'not-found', path: target });
+        }
+      }
+      return ok(folders.slice(1).map((folder) => this.absolute(folder)));
+    } catch (error) {
+      return err(treeMutationError(options.signal?.aborted ? options.signal.reason : error));
+    } finally {
+      runInAction(() => {
+        for (const folder of folders) {
+          const count = (this.revealing.get(folder) ?? 1) - 1;
+          if (count > 0) this.revealing.set(folder, count);
+          else this.revealing.delete(folder);
+        }
+      });
     }
   }
 
@@ -339,10 +386,7 @@ export class FilesStore {
     );
   }
 
-  refresh(): Promise<Result<void, TreeMutationError>> {
-    return this.runTreeMutation((model) => model.mutations.refresh, undefined);
-  }
-
+  /** Shows rows for files being uploaded until the live listing contains them. */
   addOptimisticNodes(nodes: Array<{ path: string; type: 'file' | 'directory' }>): string[] {
     const inserted: string[] = [];
     runInAction(() => {
@@ -365,7 +409,6 @@ export class FilesStore {
             parentPath,
             depth: this.relative(absolute).split('/').length - 1,
             type: candidate.type,
-            childrenLoaded: false,
             isHidden: name.startsWith('.'),
             extension:
               candidate.type === 'file' && name.includes('.') ? name.split('.').pop() : undefined,
@@ -377,18 +420,67 @@ export class FilesStore {
     return inserted;
   }
 
-  confirmOptimisticNodes(_paths: string[]): void {
-    // Uploads are procedure-based, so the pending node remains until the watcher-backed tree
-    // contains the authoritative path. The computed view filters resolved pending uploads out.
-  }
-
   removeNode(path: string): void {
     const id = this.pendingUploadNodeForPath(this.resolveWorkspacePath(path));
     if (id) runInAction(() => this.pendingUploadNodes.delete(id));
   }
 
-  private get tree(): FilesTreeModel | null {
-    return this.treeData;
+  /** The policy for the current exclusions, rebuilt only when they change. */
+  private get exclusionPolicy(): ExclusionPolicy {
+    const patterns = this.exclusions;
+    if (this.policyCache?.patterns !== patterns) {
+      this.policyCache = { patterns, policy: new ExclusionPolicy(patterns) };
+    }
+    return this.policyCache.policy;
+  }
+
+  /** Whether the tree's exclusion patterns hide `path` or one of its folders. */
+  isTreeExcluded(path: string): boolean {
+    try {
+      return this.exclusionPolicy.excludes(this.relative(this.resolveWorkspacePath(path)));
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * The folders to subscribe to, found by walking down from the root through open
+   * folders. A folder is open when it is expanded, or when it is the lone
+   * subfolder of an open folder: the tree compacts such a chain into one row that
+   * is open while its first folder is. A remembered folder loads alongside its
+   * parent until the parent's listing shows it no longer exists. Folders an
+   * in-flight reveal waits for are added on top.
+   */
+  private get demand(): PortableRelativePath[] {
+    const policy = this.exclusionPolicy;
+    const expandedByParent = new Map<PortableRelativePath, PortableRelativePath[]>();
+    for (const path of this.expandedPaths) {
+      const relative = this.relativeOrNull(path);
+      if (!relative || policy.excludes(relative)) continue;
+      const parent = parentOf(relative);
+      expandedByParent.set(parent, [...(expandedByParent.get(parent) ?? []), relative]);
+    }
+    const wanted = new Set<PortableRelativePath>();
+    const pending: PortableRelativePath[] = [ROOT_RELATIVE_PATH];
+    while (pending.length > 0) {
+      const folder = pending.pop()!;
+      if (wanted.has(folder)) continue;
+      wanted.add(folder);
+      const view = this.folders.get(folder);
+      const entries = view?.status === 'ready' ? view.entries : undefined;
+      for (const child of expandedByParent.get(folder) ?? []) {
+        const name = basenameFromPath(child);
+        const entry = entries && Object.hasOwn(entries, name) ? entries[name] : undefined;
+        if (!entries || (entry && isExpandableListingEntry(entry))) pending.push(child);
+      }
+      if (!entries) continue;
+      const children = this.childNodes(folder, entries);
+      if (children.length === 1 && children[0]!.type === 'directory') {
+        pending.push(portablePath(children[0]!.id));
+      }
+    }
+    for (const path of this.revealing.keys()) wanted.add(path);
+    return [...wanted].sort();
   }
 
   private get viewData(): ViewData {
@@ -396,29 +488,28 @@ export class FilesStore {
     const childrenById = new Map<FileNodeId | null, RenderableFileNode[]>();
     const loadedPaths = new Set<string>();
     const pathToId = new Map<string, FileNodeId>();
-    const tree = this.tree;
-    if (tree) {
-      const rootEntry = tree.entries[''];
-      if (rootEntry?.childrenLoaded) loadedPaths.add(this.rootPath);
-      for (const entry of Object.values(tree.entries)) {
-        if (entry.path === '') continue;
-        const node = toRenderableFileNode(entry, this.rootPath);
+    const visit = (folder: PortableRelativePath, parentId: FileNodeId | null) => {
+      const view = this.folders.get(folder);
+      if (view?.status !== 'ready') return;
+      loadedPaths.add(this.absolute(folder));
+      const children = this.childNodes(folder, view.entries);
+      childrenById.set(parentId, children);
+      for (const node of children) {
         nodes.set(node.path, node);
         pathToId.set(node.path, node.id);
-        pushChild(childrenById, node);
-        if (entry.childrenLoaded) loadedPaths.add(node.path);
+        if (isExpandableFileTreeNode(node)) visit(portablePath(node.id), node.id);
       }
-    }
+    };
+    visit(ROOT_RELATIVE_PATH, null);
     for (const { node } of this.pendingUploadNodes.values()) {
       if (nodes.has(node.path)) continue;
       const parentPath = parentPathFromPath(node.path) ?? this.rootPath;
       if (!loadedPaths.has(parentPath)) continue;
       nodes.set(node.path, node);
       pathToId.set(node.path, node.id);
-      pushChild(childrenById, node);
-    }
-    for (const [parentId, children] of childrenById) {
-      childrenById.set(parentId, sortFileNodes(children));
+      // Copy rather than mutate: the listed children may be a cached list.
+      const siblings = childrenById.get(node.parentId) ?? [];
+      childrenById.set(node.parentId, sortFileNodes([...siblings, node]));
     }
     return {
       nodes,
@@ -429,151 +520,148 @@ export class FilesStore {
     };
   }
 
-  private ensureStarted(refresh = false): Promise<void> {
-    this.startPromise ??= this.bindRuntime(this.bindVersion, refresh);
+  /** The folder's visible children, sorted; reused while its listing and the exclusions hold. */
+  private childNodes(
+    folder: PortableRelativePath,
+    entries: Readonly<Record<string, ListingEntry>>
+  ): RenderableFileNode[] {
+    const exclusions = this.exclusions;
+    const cached = this.childLists.get(entries);
+    if (cached?.exclusions === exclusions) return cached.nodes;
+    const policy = this.exclusionPolicy;
+    const nodes: RenderableFileNode[] = [];
+    for (const [name, entry] of Object.entries(entries)) {
+      const path = folder ? `${folder}/${name}` : name;
+      if (policy.excludes(portablePath(path))) continue;
+      let node = this.renderableNodes.get(entry);
+      if (!node) {
+        node = toRenderableFileNode({ path, name, entry }, this.rootPath);
+        this.renderableNodes.set(entry, node);
+      }
+      nodes.push(node);
+    }
+    const sorted = sortFileNodes(nodes);
+    this.childLists.set(entries, { exclusions, nodes: sorted });
+    return sorted;
+  }
+
+  private ensureStarted(): Promise<void> {
+    this.startPromise ??= this.bind();
     return this.startPromise;
   }
 
-  private async requireModel(): Promise<TreeRemoteMember> {
-    if (this.hostAccess?.liveAction.kind === 'disabled') {
-      throw new Error('Live actions are unavailable for this Project.');
-    }
-    await this.ensureStarted();
-    if (!this.treeModel) throw new Error(this.syncError ?? 'File tree is unavailable');
-    return this.treeModel;
-  }
-
-  private async refreshAfterRecovery(model: TreeRemoteMember): Promise<void> {
+  private async bind(): Promise<void> {
     try {
-      await model.states.tree.refresh();
-      runInAction(() => {
-        this.syncError = null;
-        this.directoryLoadErrors.clear();
-      });
-      if (this.tree?.entries['']?.childrenLoaded !== true) {
-        void this.requestDirectoryLoad(this.rootPath, 'background');
-      }
-    } catch (error) {
-      if (this.tree?.entries['']?.childrenLoaded !== true) {
-        runInAction(() => this.directoryLoadErrors.set(this.rootPath, treeMutationError(error)));
-      }
-    }
-  }
-
-  private async bindRuntime(version: number, refresh = false): Promise<void> {
-    let scope: Scope | null = null;
-    let treeRemote: TreeRemote | null = null;
-    try {
-      // Before the first bind, fetch the settings snapshot so we start with the
-      // user's treeExclude rather than defaults. This eliminates the double-bind
-      // that would otherwise occur when EditorFileTree calls setExclusions shortly
-      // after construction.
-      if (!this.exclusionsLoaded) {
-        try {
-          const meta = await fetchAppSettingsMeta('files');
-          const patterns = meta?.value?.treeExclude;
-          if (patterns) {
-            const canonical = canonicalExclusionPatterns(patterns);
-            this.exclusionsLoaded = true;
-            this.exclusions = canonical;
-          }
-        } catch {
-          // Fall back to defaults on any error (e.g. settings not yet loaded).
-        }
-        if (!this.started || version !== this.bindVersion) return;
-      }
-
       const client = await getFilesClient();
-      const runtimeScope = createScope({ label: `files-store:${this.workspaceId}` });
-      scope = runtimeScope;
-      treeRemote = remote(filesWireContract.tree.model, client.tree.model, {
-        scope: runtimeScope,
-        lingerMs: 15_000,
+      if (!this.started) return;
+      const scope = createScope({ label: `files-store:${this.workspaceId}` });
+      const listingRemote = remote(filesWireContract.listing, client.listing, {
+        scope,
+        lingerMs: LISTING_LINGER_MS,
       });
-      const model = treeRemote({
-        root: this.rootUri,
-        sessionId: this.workspaceId,
-        exclusions: this.exclusions,
-      });
-      pin(runtimeScope, [model.states.tree]);
-      const view = optimistic(model.states.tree);
-      await new Promise<void>((resolve, reject) => {
-        let resolved = false;
-        observe(
-          view,
-          (current) => {
-            runInAction(() => {
-              if (current.status === 'error') {
-                reject(current.error);
-                return;
-              }
-              if (!current.value) return;
-              this.treeData = current.value;
-              if (!resolved) {
-                resolved = true;
-                resolve();
-              }
-            });
-          },
-          { scope: runtimeScope }
-        );
-      });
-      if (!this.started || version !== this.bindVersion) {
-        await treeRemote.dispose();
-        await scope.dispose();
-        return;
-      }
-      const treeHydrationAbort = new AbortController();
-      runtimeScope.add(() => {
-        if (!treeHydrationAbort.signal.aborted) {
-          treeHydrationAbort.abort(new Error('File tree runtime disposed'));
-        }
-      });
-      const treeHydrationScheduler = createRequestScheduler({
-        scope: runtimeScope,
-        maxConcurrency: 1,
-        label: 'tree-hydration',
-      });
+      this.runtimeScope = scope;
+      this.listingRemote = listingRemote;
       runInAction(() => {
-        this.treeScope = runtimeScope;
-        this.treeRemote = treeRemote;
-        this.treeModel = model;
-        this.optimistic = view;
-        this.treeHydrationAbort = treeHydrationAbort;
-        this.treeHydrationScheduler = treeHydrationScheduler;
+        this.bound = true;
         this.syncError = null;
       });
-      scope = null;
-      treeRemote = null;
-      if (refresh || this.tree?.entries['']?.childrenLoaded !== true) {
-        void this.requestDirectoryLoad(this.rootPath, 'background', refresh);
-      }
+      this.disposeDemand = reaction(
+        () => this.demand,
+        (paths) => this.syncSubscriptions(paths),
+        { fireImmediately: true }
+      );
     } catch (error) {
-      try {
-        await treeRemote?.dispose();
-      } finally {
-        await scope?.dispose();
-      }
-      if (version !== this.bindVersion) return;
       runInAction(() => {
         this.syncError = error instanceof Error ? error.message : String(error);
       });
     }
   }
 
-  private async runTreeMutation<Input>(
-    mutation: (model: TreeRemoteMember) => (
-      input: Input,
-      options?: { mutationId?: string }
-    ) => Promise<{
-      result: Result<unknown, TreeMutationError>;
-      settled: Promise<void>;
-    }>,
-    input: Input
+  private syncSubscriptions(paths: readonly PortableRelativePath[]): void {
+    for (const path of paths) {
+      if (!this.subscriptions.has(path)) this.subscribe(path);
+    }
+    // Release on the next tick: a reveal hands its folders over to the view's
+    // expansion right after it settles, and that brief gap must not drop rows.
+    if (this.releaseTimer !== null || this.subscriptions.size === paths.length) return;
+    this.releaseTimer = setTimeout(() => {
+      this.releaseTimer = null;
+      const wanted = new Set(this.demand);
+      for (const path of [...this.subscriptions.keys()]) {
+        if (!wanted.has(path)) this.unsubscribe(path);
+      }
+    }, 0);
+  }
+
+  private subscribe(path: PortableRelativePath): void {
+    const remoteModel = this.listingRemote;
+    const runtimeScope = this.runtimeScope;
+    if (!remoteModel || !runtimeScope) return;
+    const scope = runtimeScope.child(`listing:${path}`);
+    const member = remoteModel({ root: this.rootUri, path });
+    this.subscriptions.set(path, { scope, member });
+    observe(
+      member.states.listing,
+      (snapshot) => {
+        if (this.subscriptions.get(path)?.member !== member) return;
+        runInAction(() => this.folders.set(path, folderView(snapshot)));
+      },
+      { scope, immediate: true }
+    );
+    pin(scope, [member.states.listing]);
+  }
+
+  private unsubscribe(path: PortableRelativePath): void {
+    const subscription = this.subscriptions.get(path);
+    if (!subscription) return;
+    this.subscriptions.delete(path);
+    void subscription.scope.dispose();
+    runInAction(() => this.folders.delete(path));
+  }
+
+  private unbind(): void {
+    this.disposeDemand?.();
+    this.disposeDemand = null;
+    if (this.releaseTimer !== null) clearTimeout(this.releaseTimer);
+    this.releaseTimer = null;
+    const scope = this.runtimeScope;
+    const listingRemote = this.listingRemote;
+    this.runtimeScope = null;
+    this.listingRemote = null;
+    this.subscriptions.clear();
+    this.startPromise = null;
+    runInAction(() => {
+      this.bound = false;
+      this.syncError = null;
+      this.folders.clear();
+    });
+    void (async () => {
+      try {
+        await listingRemote?.dispose();
+      } finally {
+        await scope?.dispose();
+      }
+    })();
+  }
+
+  private async refreshFolder(
+    path: PortableRelativePath
   ): Promise<Result<void, TreeMutationError>> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      return err({
+        type: 'unavailable',
+        message: 'Live actions are unavailable for this Project.',
+      });
+    }
+    await this.ensureStarted();
+    const listingRemote = this.listingRemote;
+    if (!listingRemote) {
+      return err({ type: 'unavailable', message: this.syncError ?? 'File tree is unavailable' });
+    }
     try {
-      const model = await this.requireModel();
-      const invocation = await mutation(model)(input);
+      const member =
+        this.subscriptions.get(path)?.member ?? listingRemote({ root: this.rootUri, path });
+      const invocation = await member.mutations.refresh(undefined);
       if (!invocation.result.success) return invocation.result;
       await invocation.settled;
       return ok<void>();
@@ -584,8 +672,8 @@ export class FilesStore {
 
   /**
    * Stateless fs verbs keyed by the entry's ResourceUri (spec §3.4). The files
-   * runtime reflects successful mutations into the live tree session at ack
-   * time, so no renderer-side optimistic recipe is needed.
+   * runtime reflects successful mutations into the live listings at ack time,
+   * so no renderer-side optimistic recipe is needed.
    */
   private async runFsMutation<T>(
     run: (client: FilesClient) => Promise<Result<T, TreeMutationError>>
@@ -626,173 +714,42 @@ export class FilesStore {
     return relativePathWithin(this.root, hostPathFromNative(absolutePath));
   }
 
+  private relativeOrNull(absolutePath: string): PortableRelativePath | null {
+    try {
+      return this.relative(absolutePath);
+    } catch {
+      return null;
+    }
+  }
+
   private absolute(relativePath: PortableRelativePath): string {
     return normalizeFileTreePath(nativePathFromHost(resolveRelativePath(this.root, relativePath)));
   }
+}
 
-  private async performFileReveal(
-    model: TreeRemoteMember,
-    absolutePath: string,
-    signal: AbortSignal
-  ): Promise<Result<string[], TreeMutationError>> {
-    try {
-      throwIfAborted(signal, 'File reveal cancelled');
-      const relative = this.relative(absolutePath);
-      const invocation = await model.mutations.reveal({ path: relative }, { signal });
-      if (!invocation.result.success) return invocation.result;
-      await waitWithSignal(invocation.settled, signal, 'File reveal cancelled');
-      const segments = relative.split('/').filter(Boolean);
-      const ancestors: string[] = [];
-      for (let index = 1; index < segments.length; index += 1) {
-        ancestors.push(this.absolute(portablePath(segments.slice(0, index).join('/'))));
-      }
-      return ok(ancestors);
-    } catch (error) {
-      return err(treeMutationError(error));
-    }
+function folderView(snapshot: Snapshot<FolderListing | undefined>): FolderView {
+  if (snapshot.status === 'error') {
+    return {
+      status: 'error',
+      message: treeMutationErrorMessage(treeMutationError(snapshot.error)),
+    };
   }
+  const listing = snapshot.value;
+  if (!listing) return { status: 'loading' };
+  if (listing.status === 'error')
+    return { status: 'error', message: fsErrorMessage(listing.error) };
+  return { status: 'ready', entries: listing.entries };
+}
 
-  private async requestDirectoryLoad(
-    dirPath: string,
-    priority: DirectoryLoadPriority,
-    force = false
-  ): Promise<Result<void, TreeMutationError>> {
-    let absolute: string;
-    try {
-      absolute = this.resolveWorkspacePath(dirPath);
-    } catch (error) {
-      return Promise.resolve(err(treeMutationError(error)));
-    }
+/** The root and every folder between it and `target`, outermost first. */
+function folderChain(target: PortableRelativePath): PortableRelativePath[] {
+  const segments = target.split('/').filter(Boolean);
+  return segments.map((_, index) => portablePath(segments.slice(0, index).join('/')));
+}
 
-    if (priority === 'foreground') {
-      runInAction(() => this.directoryLoadErrors.delete(absolute));
-    }
-    if (!force && this.loadedPaths.has(absolute)) {
-      runInAction(() => this.directoryLoadErrors.delete(absolute));
-      return Promise.resolve(ok<void>());
-    }
-    if (priority === 'background' && this.directoryLoadErrors.has(absolute)) {
-      return Promise.resolve(err(this.directoryLoadErrors.get(absolute)!));
-    }
-
-    if (!this.treeHydrationScheduler) {
-      try {
-        await this.ensureStarted();
-      } catch (error) {
-        return err(treeMutationError(error));
-      }
-    }
-    const scheduler = this.treeHydrationScheduler;
-    const abort = this.treeHydrationAbort;
-    if (!scheduler || !abort || abort.signal.aborted) {
-      return err({ type: 'unavailable', message: 'File tree is unavailable' });
-    }
-
-    if (force) this.forcedDirectoryLoadPaths.add(absolute);
-    runInAction(() => this.pendingPathSet.add(absolute));
-
-    try {
-      const result = await scheduler.submit(
-        {
-          key: `directory:${absolute}`,
-          priority:
-            priority === 'foreground'
-              ? requestPriorities.interactive
-              : requestPriorities.background,
-          run: (signal) => this.performDirectoryLoad(scheduler, abort, absolute, signal),
-        },
-        { signal: abort.signal }
-      );
-      if (
-        force &&
-        this.treeHydrationScheduler === scheduler &&
-        !abort.signal.aborted &&
-        this.forcedDirectoryLoadPaths.has(absolute)
-      ) {
-        return this.requestDirectoryLoad(absolute, 'foreground', true);
-      }
-      return result;
-    } catch (error) {
-      return err(treeMutationError(error));
-    }
-  }
-
-  private async performDirectoryLoad(
-    scheduler: RequestScheduler,
-    abort: AbortController,
-    path: string,
-    signal: AbortSignal
-  ): Promise<Result<void, TreeMutationError>> {
-    const force = this.forcedDirectoryLoadPaths.delete(path);
-    let result: Result<void, TreeMutationError>;
-    try {
-      const model = this.treeModel ?? (await this.requireModel());
-      throwIfAborted(signal, 'Directory load cancelled');
-      if (!force && this.loadedPaths.has(path)) {
-        result = ok<void>();
-      } else {
-        if (force) {
-          await model.states.tree.refresh();
-          throwIfAborted(signal, 'Directory load cancelled');
-        }
-        const invocation = await model.mutations.expand({ path: this.relative(path) }, { signal });
-        if (!invocation.result.success) {
-          result = invocation.result;
-        } else {
-          await waitWithSignal(invocation.settled, signal, 'Directory load cancelled');
-          result = ok<void>();
-        }
-      }
-    } catch (error) {
-      result = err(treeMutationError(error));
-    }
-    if (this.treeHydrationScheduler === scheduler && !abort.signal.aborted) {
-      runInAction(() => {
-        if (result.success) this.directoryLoadErrors.delete(path);
-        else this.directoryLoadErrors.set(path, result.error);
-        if (!this.forcedDirectoryLoadPaths.has(path)) this.pendingPathSet.delete(path);
-      });
-    }
-    return result;
-  }
-
-  private cancelTreeHydration(): void {
-    const scheduler = this.treeHydrationScheduler;
-    const abort = this.treeHydrationAbort;
-    this.treeHydrationScheduler = null;
-    this.treeHydrationAbort = null;
-    if (abort && !abort.signal.aborted) {
-      abort.abort(new Error('File tree is unavailable'));
-    }
-    void scheduler?.dispose();
-    this.forcedDirectoryLoadPaths.clear();
-    runInAction(() => {
-      this.pendingPathSet.clear();
-      this.directoryLoadErrors.clear();
-    });
-  }
-
-  private disposeRuntime(preserveData = false): void {
-    const remote = this.treeRemote;
-    const scope = this.treeScope;
-    this.cancelTreeHydration();
-    runInAction(() => {
-      this.optimistic = null;
-      if (!preserveData) this.treeData = null;
-      this.treeModel = null;
-      this.treeRemote = null;
-      this.treeScope = null;
-      this.syncError = null;
-      this.startPromise = null;
-    });
-    void (async () => {
-      try {
-        await remote?.dispose();
-      } finally {
-        await scope?.dispose();
-      }
-    })();
-  }
+function parentOf(path: PortableRelativePath): PortableRelativePath {
+  const slash = path.lastIndexOf('/');
+  return slash < 0 ? ROOT_RELATIVE_PATH : portablePath(path.slice(0, slash));
 }
 
 function treeMutationError(error: unknown): TreeMutationError {
@@ -809,18 +766,8 @@ function treeMutationErrorMessage(error: TreeMutationError): string {
   return error.type;
 }
 
-function compareDirectoryDepth(left: string, right: string): number {
-  const depth = (path: string) => path.split('/').filter(Boolean).length;
-  return depth(left) - depth(right) || left.localeCompare(right);
-}
-
-function pushChild(
-  childrenById: Map<FileNodeId | null, RenderableFileNode[]>,
-  node: RenderableFileNode
-): void {
-  const children = childrenById.get(node.parentId) ?? [];
-  children.push(node);
-  childrenById.set(node.parentId, children);
+function fsErrorMessage(error: FsError): string {
+  return 'message' in error ? error.message : `${error.type}: ${error.path}`;
 }
 
 function parentPathFromPath(path: string): string | null {

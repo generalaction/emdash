@@ -111,29 +111,29 @@ describe('files wire controller against a live files runtime', () => {
     }
   });
 
-  it('serves the tree live model keyed by root ResourceUri and exclusions', async () => {
+  it('serves folder listings keyed by root ResourceUri and folder path', async () => {
     const { dir, controller } = await makeStack();
     await mkdir(path.join(dir, 'src'));
     await writeFile(path.join(dir, 'src/index.ts'), 'export {};\n');
     await mkdir(path.join(dir, 'node_modules/pkg'), { recursive: true });
-    const key = {
-      root: localUri(dir),
-      sessionId: 'session-1',
-      exclusions: ['node_modules'],
-    };
-    const topic = encodeTopic(filesWireContract.tree.model.states.tree.id, key);
+    const key = { root: localUri(dir), path: 'src' };
+    const topic = encodeTopic(filesWireContract.listing.states.listing.id, key);
 
     const lease = controller.acquireLive(topic);
     const source = await lease?.ready();
-    if (!source) throw new Error('Expected a live tree source');
+    if (!source) throw new Error('Expected a live listing source');
     try {
+      await expect(source.snapshot()).resolves.toMatchObject({
+        data: { status: 'ready', entries: { 'index.ts': { kind: 'file' } } },
+      });
+      await writeFile(path.join(dir, 'src/added.ts'), '');
       await expect(
-        controller.call('tree.model.expand', { key, input: { path: '' }, mutationId: 'expand-1' })
+        controller.call('listing.refresh', { key, input: undefined, mutationId: 'refresh-1' })
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
         const snapshot = await source.snapshot();
-        const entries = (snapshot.data as { entries: Record<string, unknown> }).entries;
-        return 'src' in entries && !('node_modules' in entries);
+        const listing = snapshot.data as { entries?: Record<string, unknown> };
+        return 'added.ts' in (listing.entries ?? {});
       });
     } finally {
       await lease?.release();
