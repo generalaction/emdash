@@ -1,6 +1,6 @@
 import { EmptyState } from '@emdash/ui/react/components';
 import { PageLayout } from '@emdash/ui/react/patterns';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Icon } from '@emdash/ui/react/primitives';
 import type { UsageOverview } from '../api/schemas';
 import { UsageAccountSection, usageAccountTitle } from './usage-account-section';
 
@@ -60,11 +60,12 @@ export function UsageOverviewView({
       )}
       <div className="flex justify-start">
         <Button
-          variant="link"
+          variant="text"
           onClick={onRefresh}
           disabled={loading || busy}
           aria-label="Refresh usage"
         >
+          <Icon name="rotate-cw" size="sm" />
           {busy ? 'Refreshing…' : 'Refresh'}
         </Button>
       </div>
