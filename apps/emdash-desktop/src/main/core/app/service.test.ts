@@ -7,6 +7,7 @@ import {
   hostFileRefFromNativePath,
   hostPathFromNative,
 } from '@core/primitives/desktop-runtime/api';
+import { log } from '@main/lib/logger';
 
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
@@ -73,6 +74,8 @@ vi.mock('@main/host/events', () => ({
 vi.mock('@main/lib/logger', () => ({
   log: {
     error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 
@@ -129,6 +132,10 @@ describe('AppService.openIn', () => {
     );
     expect(mocks.openPath).toHaveBeenCalledWith(target);
     expect(mocks.exec).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalledWith(
+      '[open-in] Launch failed',
+      expect.objectContaining({ appId: 'finder', platform: 'win32', error: 'Path does not exist' })
+    );
   });
 });
 

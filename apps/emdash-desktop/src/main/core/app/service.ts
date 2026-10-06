@@ -13,7 +13,6 @@ import { nativePathFromHost, resolveRelativePath } from '@core/primitives/deskto
 import {
   getAppById,
   getResolvedLabel,
-  OPEN_IN_APPS,
   type OpenInAppId,
   type PlatformConfig,
   type PlatformKey,
@@ -29,12 +28,8 @@ import {
 import { getMainWindow } from '@main/host/window';
 import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
 import { log } from '@main/lib/logger';
+import { createInstalledAppDetector } from './installed-apps';
 import {
-  checkCommand,
-  checkMacApp,
-  checkMacAppByName,
-  checkMacMdfindQuery,
-  checkWindowsVisualStudio,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
@@ -86,6 +81,7 @@ type ShowWorkspaceItemInFolderError =
     };
 
 class AppService implements Disposable {
+  private readonly installedAppDetector = createInstalledAppDetector();
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
@@ -101,7 +97,9 @@ class AppService implements Disposable {
     void this.getCachedAppVersion();
   }
 
-  dispose(): void {}
+  dispose(): void {
+    this.installedAppDetector.dispose();
+  }
 
   getCachedAppVersion(): Promise<string> {
     if (this.cachedAppVersion) return Promise.resolve(this.cachedAppVersion);
@@ -138,60 +136,8 @@ class AppService implements Disposable {
     }
   }
 
-  async checkInstalledApps(): Promise<Record<string, boolean>> {
-    const platform = process.platform as PlatformKey;
-    const availability: Record<string, boolean> = {};
-
-    for (const openInApp of Object.values(OPEN_IN_APPS)) {
-      const platformConfig = openInApp.platforms[platform];
-      if (!platformConfig && !openInApp.alwaysAvailable) {
-        availability[openInApp.id] = false;
-        continue;
-      }
-      if (openInApp.alwaysAvailable) {
-        availability[openInApp.id] = true;
-        continue;
-      }
-      try {
-        let isAvailable = false;
-        if (platformConfig?.bundleIds) {
-          for (const bundleId of platformConfig.bundleIds) {
-            if (await checkMacApp(bundleId)) {
-              isAvailable = true;
-              break;
-            }
-          }
-        }
-        if (!isAvailable && platformConfig?.appNames) {
-          for (const appName of platformConfig.appNames) {
-            if (await checkMacAppByName(appName)) {
-              isAvailable = true;
-              break;
-            }
-          }
-        }
-        if (!isAvailable && platformConfig?.checkCommands) {
-          for (const cmd of platformConfig.checkCommands) {
-            if (await checkCommand(cmd)) {
-              isAvailable = true;
-              break;
-            }
-          }
-        }
-        if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
-          isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
-        }
-        if (!isAvailable && platformConfig?.winVswhere && platform === 'win32') {
-          isAvailable = await checkWindowsVisualStudio();
-        }
-        availability[openInApp.id] = isAvailable;
-      } catch (error) {
-        log.error(`Error checking installed app ${openInApp.id}:`, error);
-        availability[openInApp.id] = false;
-      }
-    }
-
-    return availability;
+  checkInstalledApps() {
+    return this.installedAppDetector.check();
   }
 
   async openExternal(url: string): Promise<void> {
@@ -354,6 +300,33 @@ class AppService implements Disposable {
   }
 
   async openIn(args: {
+    app: OpenInAppId;
+    path: string;
+    isRemote?: boolean;
+    sshConnectionId?: string | null;
+  }): Promise<void> {
+    const started = Date.now();
+    const fields = {
+      appId: args.app,
+      platform: process.platform,
+      isRemote: args.isRemote ?? false,
+    };
+    log.info('[open-in] Launch requested', fields);
+    try {
+      await this.performOpenIn(args);
+      log.info('[open-in] Launch completed', { ...fields, elapsedMs: Date.now() - started });
+    } catch (error) {
+      log.warn('[open-in] Launch failed', {
+        ...fields,
+        elapsedMs: Date.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+        code: error instanceof Error && 'code' in error ? error.code : undefined,
+      });
+      throw error;
+    }
+  }
+
+  private async performOpenIn(args: {
     app: OpenInAppId;
     path: string;
     isRemote?: boolean;

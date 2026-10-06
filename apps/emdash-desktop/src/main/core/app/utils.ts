@@ -192,15 +192,6 @@ export const resolveAppVersion = async (): Promise<string> => {
 
 // ─── Installed-app detection ─────────────────────────────────────────────────
 
-export const checkCommand = (cmd: string): Promise<boolean> =>
-  new Promise((resolve) => {
-    const check =
-      process.platform !== 'win32' ? `command -v ${cmd} >/dev/null 2>&1` : `where ${cmd}`;
-    exec(check, { env: buildExternalToolEnv() }, (error) => {
-      resolve(!error);
-    });
-  });
-
 /**
  * Resolve the full path to the latest Visual Studio's `devenv.exe` via `vswhere.exe`,
  * the canonical VS locator installed at a fixed path with any VS 2017+ install.
@@ -219,43 +210,6 @@ export const resolveWindowsVsProductPath = (): Promise<string | null> =>
         if (error) return resolve(null);
         const productPath = stdout.split(/\r?\n/)[0]?.trim();
         resolve(productPath && productPath.length > 0 ? productPath : null);
-      }
-    );
-  });
-
-export const checkWindowsVisualStudio = async (): Promise<boolean> =>
-  (await resolveWindowsVsProductPath()) !== null;
-
-export const checkMacApp = (bundleId: string): Promise<boolean> =>
-  new Promise((resolve) => {
-    exec(
-      `mdfind "kMDItemCFBundleIdentifier == '${bundleId}'"`,
-      { env: buildExternalToolEnv() },
-      (error, stdout) => {
-        resolve(!error && stdout.trim().length > 0);
-      }
-    );
-  });
-
-export const checkMacAppByName = (appName: string): Promise<boolean> =>
-  new Promise((resolve) => {
-    exec(
-      `osascript -e 'id of application "${appName}"' 2>/dev/null`,
-      { env: buildExternalToolEnv() },
-      (error) => {
-        resolve(!error);
-      }
-    );
-  });
-
-export const checkMacMdfindQuery = (query: string): Promise<boolean> =>
-  new Promise((resolve) => {
-    execFile(
-      'mdfind',
-      [query],
-      { timeout: 30_000, env: buildExternalToolEnv() },
-      (error, stdout) => {
-        resolve(!error && stdout.trim().length > 0);
       }
     );
   });
