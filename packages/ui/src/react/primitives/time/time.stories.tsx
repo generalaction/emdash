@@ -17,8 +17,8 @@ const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000);
 export const Countdown: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="2">
-      <CountdownTime value={Date.now() + 59 * 60_000} prefix="Resets in " />
-      <CountdownTime value={Date.now() + 164 * 3_600_000} prefix="Resets in " />
+      <CountdownTime value={Date.now() + 59 * 60_000} />
+      <CountdownTime value={Date.now() + 164 * 3_600_000} />
       <CountdownTime value={Date.now() - 1_000} expiredLabel="Reset pending" />
     </Box>
   ),

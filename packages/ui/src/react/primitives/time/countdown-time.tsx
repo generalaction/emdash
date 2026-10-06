@@ -14,18 +14,12 @@ export function formatCountdown(value: number, now: number): string | null {
 
 export interface CountdownTimeProps {
   value: number;
-  prefix?: string;
   expiredLabel?: string;
   className?: string;
 }
 
 /** Compact time until an event, without inferring that the event has occurred. */
-export function CountdownTime({
-  value,
-  prefix = '',
-  expiredLabel = 'Due',
-  className,
-}: CountdownTimeProps) {
+export function CountdownTime({ value, expiredLabel = 'Due', className }: CountdownTimeProps) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
@@ -35,7 +29,7 @@ export function CountdownTime({
   const label = formatCountdown(value, now);
   return (
     <time dateTime={new Date(value).toISOString()} className={className}>
-      {label === null ? expiredLabel : `${prefix}${label}`}
+      {label ?? expiredLabel}
     </time>
   );
 }
