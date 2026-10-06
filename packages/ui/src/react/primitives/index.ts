@@ -116,3 +116,5 @@ export { resolveFileIconClass } from '../lib/file-icons';
 // to a dangling relative path, silently degrading the exported types.
 export { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
 export { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
+
+export { Meter, type MeterProps } from './meter';
