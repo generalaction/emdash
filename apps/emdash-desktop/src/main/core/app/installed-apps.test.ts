@@ -3,7 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OPEN_IN_APPS } from '@core/primitives/open-in-apps/api/open-in-apps';
-import { createInstalledAppDetector, runCommand, type RunCommand } from './installed-apps';
+import { runCommand, type RunCommand } from './app-path-lookup';
+import { createInstalledAppDetector } from './installed-apps';
 
 const mocks = vi.hoisted(() => ({ currentEnv: vi.fn(async () => ({})) }));
 
@@ -173,6 +174,38 @@ describe('installed app detection', () => {
       });
       expect(await detector.check()).toEqual({ 'visual-studio': 'detected' });
       expect(run.mock.calls[0]![0]).toBe(vswhere);
+    }
+  );
+
+  it.each([
+    { platform: 'win32', appId: 'visual-studio' },
+    { platform: 'darwin', appId: 'android-studio-canary' },
+  ] as const)(
+    'detects $appId when its path lookup takes over five seconds',
+    async ({ platform, appId }) => {
+      vi.useFakeTimers();
+      try {
+        const run: RunCommand = async (file, _args, _env, _signal, timeout = 5_000) => {
+          if (file === '/usr/bin/osascript') return completed(JSON.stringify({ [appId]: false }));
+          return new Promise((resolve) =>
+            setTimeout(
+              () => resolve(timeout < 6_000 ? failed('ETIMEDOUT') : completed('/installed/app')),
+              Math.min(timeout, 6_000)
+            )
+          );
+        };
+        const detector = createInstalledAppDetector({
+          platform,
+          apps: [OPEN_IN_APPS[appId]],
+          run,
+          resolveEnv: async () => ({}),
+        });
+        const pending = detector.check();
+        await vi.advanceTimersByTimeAsync(6_000);
+        expect(await pending).toEqual({ [appId]: 'detected' });
+      } finally {
+        vi.useRealTimers();
+      }
     }
   );
 

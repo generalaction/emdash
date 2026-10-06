@@ -120,7 +120,6 @@ function launchTargets(config: PlatformConfig) {
   const appNames = new Set<string>();
   const bundleIds = new Set<string>();
   const checkCommands = new Set<string>();
-  const spotlightQueries = new Set<string>();
   for (const command of config.openCommands ?? []) {
     for (const [, quoted, bare] of command.matchAll(/\bopen (?:-\w+ )*-n?a (?:"([^"]+)"|(\S+))/g)) {
       const name = quoted ?? bare!;
@@ -128,7 +127,6 @@ function launchTargets(config: PlatformConfig) {
     }
     for (const [, id] of command.matchAll(/\bopen (?:-\w+ )*-b (\S+)/g)) bundleIds.add(id!);
     for (const [, cli] of command.matchAll(/command -v (\S+)/g)) checkCommands.add(cli!);
-    for (const [, query] of command.matchAll(/mdfind '([^']+)'/g)) spotlightQueries.add(query!);
     if (!/^(open |command -v |\w+=)/.test(command)) {
       const cli = command.replace(/^start "" /, '').split(' ')[0]!;
       if (!DEFAULT_HANDLER_FALLBACKS.has(cli)) checkCommands.add(cli);
@@ -138,7 +136,6 @@ function launchTargets(config: PlatformConfig) {
     appNames: [...appNames].sort(),
     bundleIds: [...bundleIds].sort(),
     checkCommands: [...checkCommands].sort(),
-    spotlightQueries: [...spotlightQueries],
   };
 }
 
@@ -157,7 +154,6 @@ describe('open-in detection', () => {
       appNames: [...(config.appNames ?? [])].sort(),
       bundleIds: [...(config.bundleIds ?? [])].sort(),
       checkCommands: [...(config.checkCommands ?? [])].sort(),
-      spotlightQueries: config.mdfindQuery ? [config.mdfindQuery] : [],
     }).toEqual(launchTargets(config));
   });
 });

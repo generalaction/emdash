@@ -151,6 +151,7 @@ describe('useOpenInApps', () => {
     expect(latest?.availability.finder).toBe('detected');
     expect(latest?.availability.zed).toBe('checking');
     expect(latest?.hasDetectionProblem).toBe(false);
+    expect(mocks.checkInstalledApps).toHaveBeenCalledWith(undefined, { timeoutMs: 60_000 });
   });
 
   it('exposes request failures as unknown, then recovers on explicit retry', async () => {

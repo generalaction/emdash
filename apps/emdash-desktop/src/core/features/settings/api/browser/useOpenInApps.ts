@@ -55,7 +55,7 @@ export function useOpenInApps(): UseOpenInAppsResult {
     queryKey: ['app', 'installedApps'],
     queryFn: async (): Promise<AppDetectionResults> => {
       try {
-        return await (await getHostClient()).checkInstalledApps();
+        return await (await getHostClient()).checkInstalledApps(undefined, { timeoutMs: 60_000 });
       } catch (error) {
         log.warn('[open-in] Detection request failed', { error });
         throw error;

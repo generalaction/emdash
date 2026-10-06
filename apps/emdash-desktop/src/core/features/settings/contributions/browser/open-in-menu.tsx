@@ -49,12 +49,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
       try {
         const res = await (
           await getHostClient()
-        ).openIn({
-          app: appId,
-          path,
-          isRemote,
-          sshConnectionId,
-        });
+        ).openIn({ app: appId, path, isRemote, sshConnectionId }, { timeoutMs: 75_000 });
         if (!res?.success) {
           toast.error(`Open in ${label} failed`, {
             description: res?.error || 'Application not available.',

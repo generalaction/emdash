@@ -179,12 +179,10 @@ describe('OpenInMenu', () => {
 
     expect(mocks.updateOpenIn).toHaveBeenCalledWith({ default: 'cursor' });
     expect(mocks.updateOpenIn).toHaveBeenCalledTimes(1);
-    expect(mocks.openIn).toHaveBeenCalledWith({
-      app: 'cursor',
-      isRemote: false,
-      path: 'C:/repo',
-      sshConnectionId: undefined,
-    });
+    expect(mocks.openIn).toHaveBeenCalledWith(
+      { app: 'cursor', isRemote: false, path: 'C:/repo', sshConnectionId: undefined },
+      { timeoutMs: 75_000 }
+    );
     expect(mocks.openIn).toHaveBeenCalledTimes(1);
   });
 
@@ -225,7 +223,9 @@ describe('OpenInMenu', () => {
     await act(async () => {
       button?.click();
     });
-    expect(mocks.openIn).toHaveBeenCalledWith(expect.objectContaining({ app: 'finder' }));
+    expect(mocks.openIn).toHaveBeenCalledWith(expect.objectContaining({ app: 'finder' }), {
+      timeoutMs: 75_000,
+    });
     expect(container.querySelector('[data-testid="open-in-option-cursor"]')).toBeNull();
     expect(container.textContent).not.toContain('Checking');
   });

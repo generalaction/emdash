@@ -189,27 +189,3 @@ export const resolveAppVersion = async (): Promise<string> => {
     return UNKNOWN_VERSION;
   }
 };
-
-// ─── Installed-app detection ─────────────────────────────────────────────────
-
-/**
- * Resolve the full path to the latest Visual Studio's `devenv.exe` via `vswhere.exe`,
- * the canonical VS locator installed at a fixed path with any VS 2017+ install.
- * `devenv` is rarely on PATH, so this is the reliable way to both detect and launch it.
- * Returns null when Visual Studio is not installed.
- */
-export const resolveWindowsVsProductPath = (): Promise<string | null> =>
-  new Promise((resolve) => {
-    const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
-    const vswhere = join(programFilesX86, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
-    execFile(
-      vswhere,
-      ['-latest', '-property', 'productPath'],
-      { timeout: 30_000, env: buildExternalToolEnv() },
-      (error, stdout) => {
-        if (error) return resolve(null);
-        const productPath = stdout.split(/\r?\n/)[0]?.trim();
-        resolve(productPath && productPath.length > 0 ? productPath : null);
-      }
-    );
-  });

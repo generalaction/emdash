@@ -1,3 +1,5 @@
+import type { ExecFileOptions } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,10 +9,15 @@ import {
   hostFileRefFromNativePath,
   hostPathFromNative,
 } from '@core/primitives/desktop-runtime/api';
+import { OPEN_IN_APPS } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { log } from '@main/lib/logger';
+import { createInstalledAppDetector } from './installed-apps';
 
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
+  execFile: vi.fn(),
+  spawn: vi.fn(),
+  launchEnv: {} as NodeJS.ProcessEnv,
   getVersion: vi.fn(() => '1.1.27'),
   openExternal: vi.fn(),
   openPath: vi.fn(),
@@ -28,6 +35,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:child_process', () => ({
   exec: mocks.exec,
+  execFile: mocks.execFile,
+  spawn: mocks.spawn,
 }));
 
 vi.mock('electron', () => ({
@@ -80,7 +89,7 @@ vi.mock('@main/lib/logger', () => ({
 }));
 
 vi.mock('@main/lib/childProcessEnv', () => ({
-  buildExternalToolEnv: () => ({}),
+  buildExternalToolEnv: () => mocks.launchEnv,
 }));
 
 const { appService } = await import('./service');
@@ -102,15 +111,22 @@ describe('AppService.openIn', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setPlatform('win32');
+    mocks.launchEnv = {};
     mocks.openPath.mockResolvedValue('');
     mocks.exec.mockImplementation(
       (_command: string, _options: object, callback: (error: Error | null) => void) => {
         callback(null);
       }
     );
+    mocks.spawn.mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
+      setTimeout(() => child.emit('spawn'), 0);
+      return child;
+    });
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform);
   });
 
@@ -136,6 +152,134 @@ describe('AppService.openIn', () => {
       '[open-in] Launch failed',
       expect.objectContaining({ appId: 'finder', platform: 'win32', error: 'Path does not exist' })
     );
+  });
+
+  it.each([
+    { platform: 'win32', appId: 'visual-studio', appPath: 'D:\\VS Preview\\devenv.exe' },
+    { platform: 'darwin', appId: 'android-studio-canary', appPath: "/Apps/Canary '$(literal).app" },
+  ] as const)(
+    'detects and launches $appId through the same slow lookup',
+    async ({ platform, appId, appPath }) => {
+      vi.useFakeTimers();
+      setPlatform(platform);
+      mocks.launchEnv = { 'pRoGrAmFiLeS(x86)': 'D:\\Programs' };
+      mocks.execFile.mockImplementation(
+        (
+          file: string,
+          _args: string[],
+          options: ExecFileOptions,
+          callback: (error: Error | null, stdout: string) => void
+        ) => {
+          if (file === '/usr/bin/osascript') {
+            callback(null, JSON.stringify({ [appId]: false }));
+          } else if (file === '/usr/bin/open') {
+            callback(null, '');
+          } else {
+            const timeout = options.timeout ?? Infinity;
+            setTimeout(
+              () =>
+                callback(
+                  timeout < 29_000 ? new Error('timed out') : null,
+                  `${appPath}\r\n/second/result\r\n`
+                ),
+              Math.min(timeout, 29_000)
+            );
+          }
+        }
+      );
+      const detector = createInstalledAppDetector({
+        platform,
+        apps: [OPEN_IN_APPS[appId]],
+        resolveEnv: async () => mocks.launchEnv,
+      });
+      const detection = detector.check();
+      await vi.advanceTimersByTimeAsync(29_000);
+      expect(await detection).toEqual({ [appId]: 'detected' });
+
+      const target = "/workspace/a '$(literal)";
+      const launch = appService.openIn({ app: appId, path: target });
+      await vi.advanceTimersByTimeAsync(29_001);
+      await launch;
+
+      const lookupFile =
+        platform === 'win32'
+          ? 'D:\\Programs\\Microsoft Visual Studio\\Installer\\vswhere.exe'
+          : '/usr/bin/mdfind';
+      const lookupCalls = mocks.execFile.mock.calls.filter(([file]) => file === lookupFile);
+      expect(lookupCalls).toHaveLength(2);
+      for (const [, args, options] of lookupCalls) {
+        expect(args).toEqual(
+          platform === 'win32'
+            ? ['-latest', '-property', 'productPath']
+            : [OPEN_IN_APPS['android-studio-canary'].platforms.darwin!.mdfindQuery]
+        );
+        expect(options).toMatchObject({
+          env: mocks.launchEnv,
+          timeout: 30_000,
+          killSignal: 'SIGKILL',
+        });
+        expect(options.signal).toBeInstanceOf(AbortSignal);
+      }
+      if (platform === 'win32') {
+        expect(mocks.spawn).toHaveBeenCalledWith(appPath, [target], expect.any(Object));
+      } else {
+        expect(mocks.execFile).toHaveBeenCalledWith(
+          '/usr/bin/open',
+          ['-a', appPath, target],
+          expect.any(Object),
+          expect.any(Function)
+        );
+      }
+      expect(mocks.exec).not.toHaveBeenCalled();
+      detector.dispose();
+    }
+  );
+
+  it.each(['empty', 'timeout', 'open failure'] as const)(
+    'falls back to Android Studio Preview after a Spotlight %s',
+    async (outcome) => {
+      setPlatform('darwin');
+      mocks.execFile.mockImplementation(
+        (
+          file: string,
+          _args: string[],
+          _options: ExecFileOptions,
+          callback: (error: Error | null, stdout: string) => void
+        ) => {
+          if (file === '/usr/bin/open' || outcome === 'timeout') callback(new Error('failed'), '');
+          else callback(null, outcome === 'empty' ? '' : '/Apps/Canary.app\n');
+        }
+      );
+      await appService.openIn({ app: 'android-studio-canary', path: '/workspace' });
+      expect(mocks.exec).toHaveBeenCalledWith(
+        'open -a "Android Studio Preview" \'/workspace\'',
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mocks.execFile.mock.calls.filter(([file]) => file === '/usr/bin/mdfind')).toHaveLength(
+        1
+      );
+    }
+  );
+
+  it('falls back to devenv on PATH when vswhere is missing', async () => {
+    mocks.execFile.mockImplementation(
+      (
+        _file: string,
+        _args: string[],
+        _options: ExecFileOptions,
+        callback: (error: Error | null, stdout: string) => void
+      ) => {
+        callback(Object.assign(new Error('missing'), { code: 'ENOENT' }), '');
+      }
+    );
+    await appService.openIn({ app: 'visual-studio', path: 'C:/workspace' });
+    expect(mocks.exec).toHaveBeenCalledWith(
+      'start "" devenv "C:/workspace"',
+      expect.any(Object),
+      expect.any(Function)
+    );
+    expect(mocks.spawn).not.toHaveBeenCalled();
   });
 });
 

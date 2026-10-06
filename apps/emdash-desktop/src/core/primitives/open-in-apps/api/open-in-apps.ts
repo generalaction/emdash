@@ -8,8 +8,8 @@ export type PlatformConfig = {
   checkCommands?: string[];
   bundleIds?: string[];
   appNames?: string[];
-  // Free-form mdfind query (darwin only). App is considered installed if the
-  // query returns any results. Use when bundleIds/appNames can't distinguish
+  // Free-form mdfind query (darwin only), shared by detection and launch before
+  // trying openCommands. Use when bundleIds/appNames can't distinguish
   // the app (e.g., stable and Canary share a bundle ID but differ in display name).
   mdfindQuery?: string;
   // Windows only: detect and launch via `vswhere.exe` (the canonical Visual Studio
@@ -601,10 +601,7 @@ const _OPEN_IN_APPS = {
         // 3 Feature Drop 2025.2.3 Canary 3.app" or "Android Studio Canary X.Y").
         mdfindQuery:
           'kMDItemCFBundleIdentifier == "com.google.android.studio" && kMDItemDisplayName == "*Canary*"cd',
-        openCommands: [
-          'CANARY=$(mdfind \'kMDItemCFBundleIdentifier == "com.google.android.studio" && kMDItemDisplayName == "*Canary*"cd\' | head -n 1) && [ -n "$CANARY" ] && open -a "$CANARY" {{path}}',
-          'open -a "Android Studio Preview" {{path}}',
-        ],
+        openCommands: ['open -a "Android Studio Preview" {{path}}'],
         appNames: ['Android Studio Preview'],
       },
       win32: {

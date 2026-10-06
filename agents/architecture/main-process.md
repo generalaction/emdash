@@ -55,7 +55,10 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 Open-in app detection (`src/main/core/app/installed-apps.ts`) checks exactly what launch uses,
 in the environment launch uses: LaunchServices for `open -a`/`open -b` targets, an in-process PATH
 lookup after the login-shell env capture for CLIs, and vswhere/Spotlight only for the apps that
-launch through them. Keep every lookup noninteractive; never use AppleScript's `id of application`,
+launch through them. `app-path-lookup.ts` owns the shared vswhere/Spotlight path resolution and
+30-second timeout for both detection and launch; LaunchServices retains its 5-second timeout.
+Keep renderer request deadlines longer than the lookups they await. Keep every lookup
+noninteractive; never use AppleScript's `id of application`,
 which prompts, beeps, and blocks for a missing app. When adding an app, its `checkCommands`,
 `bundleIds`, and `appNames` must name exactly what its `openCommands` launch;
 `open-in-apps.test.ts` enforces this. Detection and launch log with the `[open-in]` prefix;

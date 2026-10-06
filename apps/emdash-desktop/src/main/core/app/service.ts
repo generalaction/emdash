@@ -28,13 +28,13 @@ import {
 import { getMainWindow } from '@main/host/window';
 import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
 import { log } from '@main/lib/logger';
+import { lookupAppPath } from './app-path-lookup';
 import { createInstalledAppDetector } from './installed-apps';
 import {
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
   resolveAppVersion,
-  resolveWindowsVsProductPath,
   spawnDetachedCommand,
 } from './utils';
 
@@ -81,6 +81,7 @@ type ShowWorkspaceItemInFolderError =
     };
 
 class AppService implements Disposable {
+  private readonly appLookupLifetime = new AbortController();
   private readonly installedAppDetector = createInstalledAppDetector();
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
@@ -98,6 +99,7 @@ class AppService implements Disposable {
   }
 
   dispose(): void {
+    this.appLookupLifetime.abort();
     this.installedAppDetector.dispose();
   }
 
@@ -529,13 +531,25 @@ class AppService implements Disposable {
       return;
     }
 
-    if (platformConfig?.winVswhere && process.platform === 'win32') {
-      const productPath = await resolveWindowsVsProductPath();
-      if (productPath) {
-        await spawnDetachedCommand(productPath, [target]);
-        return;
+    if (platformConfig?.winVswhere || platformConfig?.mdfindQuery) {
+      const found = await lookupAppPath(
+        platformConfig,
+        process.platform as PlatformKey,
+        buildExternalToolEnv(),
+        this.appLookupLifetime.signal
+      );
+      this.appLookupLifetime.signal.throwIfAborted();
+      if (found.status === 'detected') {
+        if (process.platform === 'win32') {
+          await spawnDetachedCommand(found.path, [target]);
+          return;
+        }
+        try {
+          await execFileCommand('/usr/bin/open', ['-a', found.path, target]);
+          return;
+        } catch {}
       }
-      // Fall through to the `devenv {{path}}` openCommands fallback (devenv on PATH).
+      // Fall through to the configured CLI or app-name launch fallback.
     }
 
     if (platformConfig?.openUrls) {

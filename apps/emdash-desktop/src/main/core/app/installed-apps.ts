@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -14,6 +13,7 @@ import {
 import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
 import { log } from '@main/lib/logger';
 import { userShellEnvManager } from '@main/lib/userEnv';
+import { envValue, lookupAppPath, runCommand, type RunCommand } from './app-path-lookup';
 
 // Detection asks exactly what launch asks, in the environment launch uses:
 // - `open -a Name` / `open -b id` resolve through LaunchServices, so macOS asks
@@ -23,43 +23,6 @@ import { userShellEnvManager } from '@main/lib/userEnv';
 //   so those two run the same lookup.
 // Every lookup is noninteractive. Never use AppleScript's `id of application`:
 // for a missing app it shows a "Where is…?" chooser, beeps, and blocks.
-
-const COMMAND_TIMEOUT_MS = 5_000;
-
-type CommandResult = { ok: true; stdout: string } | { ok: false; code?: string | number };
-
-export type RunCommand = (
-  file: string,
-  args: string[],
-  env: NodeJS.ProcessEnv,
-  signal: AbortSignal
-) => Promise<CommandResult>;
-
-export const runCommand = (
-  file: string,
-  args: string[],
-  env: NodeJS.ProcessEnv,
-  signal: AbortSignal,
-  timeout = COMMAND_TIMEOUT_MS
-): Promise<CommandResult> =>
-  new Promise((resolve) => {
-    execFile(
-      file,
-      args,
-      {
-        env,
-        encoding: 'utf8',
-        maxBuffer: 128 * 1024,
-        timeout,
-        signal,
-        killSignal: 'SIGKILL',
-        windowsHide: true,
-      },
-      (error, stdout) => {
-        resolve(error ? { ok: false, code: error.code ?? undefined } : { ok: true, stdout });
-      }
-    );
-  });
 
 const MAC_LAUNCH_SERVICES_SCRIPT = `
 ObjC.import('AppKit');
@@ -84,12 +47,6 @@ async function resolveLaunchEnv(): Promise<NodeJS.ProcessEnv> {
   // minimal PATH that GUI-launched apps start with.
   await userShellEnvManager.current();
   return buildExternalToolEnv();
-}
-
-function envValue(env: NodeJS.ProcessEnv, key: string, platform: PlatformKey) {
-  if (platform !== 'win32') return env[key];
-  const match = Object.keys(env).find((name) => name.toUpperCase() === key.toUpperCase());
-  return match ? env[match] : undefined;
 }
 
 async function isExecutableFile(file: string, platform: PlatformKey): Promise<boolean> {
@@ -168,20 +125,6 @@ export function createInstalledAppDetector(options: DetectorOptions = {}) {
     return null;
   }
 
-  async function lookup(
-    label: string,
-    file: string,
-    args: string[],
-    env: NodeJS.ProcessEnv,
-    missingCode?: string
-  ): Promise<AppDetectionStatus> {
-    const result = await run(file, args, env, lifetime.signal);
-    if (result.ok) return result.stdout.trim() ? 'detected' : 'not-detected';
-    if (missingCode !== undefined && result.code === missingCode) return 'not-detected';
-    log.warn('[open-in] Detection lookup failed', { lookup: label, code: result.code });
-    return 'unknown';
-  }
-
   async function detect(
     app: OpenInAppConfig,
     env: NodeJS.ProcessEnv,
@@ -200,22 +143,8 @@ export function createInstalledAppDetector(options: DetectorOptions = {}) {
     for (const command of config.checkCommands ?? []) {
       if (await findOnPath(command, env, platform)) return 'detected';
     }
-    if (platform === 'darwin' && config.mdfindQuery) {
-      const spotlight = await lookup('spotlight', '/usr/bin/mdfind', [config.mdfindQuery], env);
-      if (spotlight !== 'not-detected') return spotlight;
-    }
-    if (platform === 'win32' && config.winVswhere) {
-      const vswhere = path.win32.join(
-        envValue(env, 'ProgramFiles(x86)', platform) ?? 'C:\\Program Files (x86)',
-        'Microsoft Visual Studio',
-        'Installer',
-        'vswhere.exe'
-      );
-      const args = ['-latest', '-property', 'productPath'];
-      const found = await lookup('vswhere', vswhere, args, env, 'ENOENT');
-      if (found !== 'not-detected') return found;
-    }
-    return status;
+    const found = await lookupAppPath(config, platform, env, lifetime.signal, run);
+    return found.status === 'not-detected' ? status : found.status;
   }
 
   async function scan(): Promise<AppDetectionResults> {
