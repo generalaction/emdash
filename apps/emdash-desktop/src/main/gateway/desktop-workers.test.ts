@@ -54,16 +54,18 @@ vi.mock('./worker-paths', () => ({ desktopWorkerPath: (name: string) => `/tmp/${
 
 describe('desktop runtime readiness', () => {
   it.each(['fails', 'stalls'] as const)(
-    'keeps required runtimes available when provider usage %s',
+    'keeps required runtimes available and recovers after provider usage %s',
     async (mode) => {
       const scope = createScope();
       onTestFinished(() => scope.dispose());
       const failure = new Error('Usage worker failed to start');
       const pending = deferred<unknown>();
       const getSettings = vi.fn(async () => ({ success: true }));
+      const usageReady = vi.fn(() =>
+        mode === 'fails' ? Promise.reject(failure) : pending.promise
+      );
       mocks.ready.mockImplementation((name) => {
-        if (name === 'provider-usage')
-          return mode === 'fails' ? Promise.reject(failure) : pending.promise;
+        if (name === 'provider-usage') return usageReady();
         return Promise.resolve({ get: getSettings });
       });
       const workers = await startDesktopWorkers({
@@ -73,6 +75,7 @@ describe('desktop runtime readiness', () => {
       onTestFinished(() => workers.dispose());
       await expect(workers.runtimeReady()).resolves.toBeUndefined();
       await expect(workers.clients.hostSettings.get()).resolves.toMatchObject({ success: true });
+      expect(usageReady).not.toHaveBeenCalled();
       const refresh = workers.clients.providerUsage.refresh(undefined);
       const rejected = expect(refresh).rejects.toBe(failure);
       if (mode === 'stalls') {
@@ -80,6 +83,14 @@ describe('desktop runtime readiness', () => {
         pending.reject(failure);
       }
       await rejected;
+      expect(usageReady).toHaveBeenCalledOnce();
+
+      const refreshUsage = vi.fn(async () => {});
+      usageReady.mockResolvedValue({ refresh: refreshUsage });
+      await expect(workers.clients.providerUsage.refresh(undefined)).resolves.toBeUndefined();
+      await expect(workers.clients.providerUsage.refresh(undefined)).resolves.toBeUndefined();
+      expect(usageReady).toHaveBeenCalledTimes(2);
+      expect(refreshUsage).toHaveBeenCalledTimes(2);
     }
   );
 });

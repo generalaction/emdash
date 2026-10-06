@@ -535,8 +535,10 @@ function startDesktopWorkersWithHost(
       lsp: queuedClient(lspContract, () => lspReady),
       acp: queuedClient(acpApiContract, () => acpReady),
       agentConfig: queuedClient(agentConfigContract, () => agentConfigReady),
-      providerUsage: queuedClient(providerUsageContract, () =>
-        timedReady('provider-usage', providerUsageWorker.ready())
+      providerUsage: queuedClient(
+        providerUsageContract,
+        () => timedReady('provider-usage', providerUsageWorker.ready()),
+        { retryReadinessOnFailure: true }
       ),
       automations: queuedClient(automationsContract, () =>
         automationsReady.then((result) => result.client)

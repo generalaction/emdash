@@ -28,7 +28,7 @@ vi.mock('@emdash/core/services/host-dependencies/node', async (importOriginal) =
 
 describe('workspace runtime readiness', () => {
   it.each(['fails', 'stalls'] as const)(
-    'keeps required runtimes available when provider usage %s',
+    'keeps required runtimes available and recovers after provider usage %s',
     async (mode) => {
       const scope = createScope();
       const directory = await mkdtemp(join(tmpdir(), 'emdash-usage-workers-'));
@@ -42,9 +42,11 @@ describe('workspace runtime readiness', () => {
         success: true,
         data: { settings: { watcherExclude: [] } },
       }));
+      const usageReady = vi.fn(() =>
+        mode === 'fails' ? Promise.reject(failure) : pending.promise
+      );
       mocks.ready.mockImplementation((name) => {
-        if (name === 'provider-usage')
-          return mode === 'fails' ? Promise.reject(failure) : pending.promise;
+        if (name === 'provider-usage') return usageReady();
         return Promise.resolve({ get: getSettings });
       });
       const host = await createWorkspaceServerRuntimeHost({
@@ -56,6 +58,7 @@ describe('workspace runtime readiness', () => {
         } as ShellEnvManager,
       });
       await expect(host.runtimes.hostSettings.get()).resolves.toMatchObject({ success: true });
+      expect(usageReady).not.toHaveBeenCalled();
       const refresh = host.runtimes.providerUsage.refresh(undefined);
       const rejected = expect(refresh).rejects.toBe(failure);
       if (mode === 'stalls') {
@@ -63,6 +66,14 @@ describe('workspace runtime readiness', () => {
         pending.reject(failure);
       }
       await rejected;
+      expect(usageReady).toHaveBeenCalledOnce();
+
+      const refreshUsage = vi.fn(async () => {});
+      usageReady.mockResolvedValue({ refresh: refreshUsage });
+      await expect(host.runtimes.providerUsage.refresh(undefined)).resolves.toBeUndefined();
+      await expect(host.runtimes.providerUsage.refresh(undefined)).resolves.toBeUndefined();
+      expect(usageReady).toHaveBeenCalledTimes(2);
+      expect(refreshUsage).toHaveBeenCalledTimes(2);
     }
   );
 });

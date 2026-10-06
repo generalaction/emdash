@@ -81,6 +81,7 @@ depends on the workspace registry: automation workspace activation flows through
 become ready; there are no unavailable-domain fallback implementations in the aggregate controller.
 Provider usage is optional in both hosts: its worker starts on the first usage request and is excluded
 from required runtime readiness. Startup failures reject usage calls without blocking other runtimes.
+Later usage requests can retry failed startup; concurrent requests share one readiness attempt.
 
 Interactive TUI processes do not expire after an hour of silence. The worker and runtime use
 the `always` lifecycle policy; explicit stop/delete and workspace teardown still release them.

@@ -333,7 +333,9 @@ export async function createWorkspaceServerRuntimeHost(
     runtimes: {
       acp,
       agentConfig,
-      providerUsage: queuedClient(providerUsageContract, () => providerUsageWorker.ready()),
+      providerUsage: queuedClient(providerUsageContract, () => providerUsageWorker.ready(), {
+        retryReadinessOnFailure: true,
+      }),
       automations,
       conversations,
       fileSearch,

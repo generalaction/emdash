@@ -5,7 +5,7 @@ import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/ap
 import { ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createManualClock, deferred, waitFor } from '@emdash/shared/testing';
-import { createController } from '@emdash/wire/rpc';
+import { createController, queuedClient } from '@emdash/wire/rpc';
 import { cell, expose, peek } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -233,5 +233,38 @@ describe('Usage overview', () => {
     expect(peek(overview).accounts[0]?.sources.every((source) => source.status === 'error')).toBe(
       true
     );
+  });
+
+  it('reattaches usage readings on refresh after worker startup fails', async () => {
+    const f = createFixture();
+    f.availability.current.set({ kind: 'suspended', reason: 'user-disconnected' });
+    let available = false;
+    const getReady = vi.fn(async () => {
+      if (!available) throw new Error('Usage worker failed to start');
+      return f.runtime.providerUsage;
+    });
+    f.resolve.mockResolvedValue(
+      ok({
+        ...f.runtime,
+        providerUsage: queuedClient(providerUsageContract, getReady, {
+          retryReadinessOnFailure: true,
+        }),
+      })
+    );
+    const overview = f.overview.observe(f.scope.child('view'));
+    await waitFor(
+      () => peek(overview).machines.find((machine) => machine.id === 'local')?.status === 'error'
+    );
+    expect(peek(overview).accounts).toEqual([]);
+
+    available = true;
+    await f.overview.refresh();
+    await waitFor(() => peek(overview).accounts[0]?.windows[0]?.usedPercent === 25);
+    expect(peek(overview).machines.find((machine) => machine.id === 'local')?.status).toBe(
+      'connected'
+    );
+    expect(getReady).toHaveBeenCalledTimes(2);
+    f.setUsage(60);
+    await waitFor(() => peek(overview).accounts[0]?.windows[0]?.usedPercent === 60);
   });
 });
