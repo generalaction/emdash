@@ -15,7 +15,7 @@ describe('Usage settings', () => {
     const root = createRoot(host);
     const refresh = vi.fn();
     const overview: UsageOverview = {
-      machines: [],
+      machines: [{ id: 'preparing', name: 'Preparing remote', status: 'checking', providers: [] }],
       accounts: [
         {
           key: 'account',
@@ -120,6 +120,18 @@ describe('Usage settings', () => {
       const button = [...host.querySelectorAll('button')].find(
         (button) => button.getAttribute('aria-label') === 'Refresh usage'
       );
+      expect(button?.disabled).toBe(false);
+      expect(button?.textContent).toContain('Refresh');
+      expect(button?.textContent).not.toContain('Refreshing');
+      await act(async () => button?.click());
+      expect(refresh).toHaveBeenCalledOnce();
+      await act(async () =>
+        root.render(
+          <UsageOverviewView overview={overview} loading={false} refreshing onRefresh={refresh} />
+        )
+      );
+      expect(button?.disabled).toBe(true);
+      expect(button?.textContent).toContain('Refreshing');
       await act(async () => button?.click());
       expect(refresh).toHaveBeenCalledOnce();
     } finally {

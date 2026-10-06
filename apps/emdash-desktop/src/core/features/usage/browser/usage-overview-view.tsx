@@ -17,8 +17,8 @@ export function UsageOverviewView({
   error?: string;
   onRefresh(): void;
 }) {
-  const busy =
-    refreshing ||
+  const discovering =
+    loading ||
     (overview?.machines.some(
       (machine) =>
         machine.status === 'checking' ||
@@ -54,7 +54,9 @@ export function UsageOverviewView({
         })
       ) : (
         <EmptyState
-          label={loading || busy ? 'Discovering accounts…' : 'No subscription accounts found'}
+          label={
+            discovering || refreshing ? 'Discovering accounts…' : 'No subscription accounts found'
+          }
           description="Sign in with Codex or Claude Code on a connected machine, then refresh."
         />
       )}
@@ -62,11 +64,11 @@ export function UsageOverviewView({
         <Button
           variant="text"
           onClick={onRefresh}
-          disabled={loading || busy}
+          disabled={loading || refreshing}
           aria-label="Refresh usage"
         >
           <Icon name="rotate-cw" size="sm" />
-          {busy ? 'Refreshing…' : 'Refresh'}
+          {refreshing ? 'Refreshing…' : 'Refresh'}
         </Button>
       </div>
     </div>
