@@ -619,6 +619,24 @@ describe('OpenFileStore', () => {
       expect(h.clearBufferCalls).toEqual([entry.uri]);
     });
 
+    it('isolates synchronous and asynchronous observer failures after a successful write', async () => {
+      const h = start();
+      const { ref, entry } = await openReady(h, '/repo/src/index.ts', 'one');
+      bufferHandle(entry).setText('saved');
+      h.store.onDidSave(() => {
+        throw new Error('observer failed');
+      });
+      h.store.onDidSave(async () => {
+        throw new Error('async observer failed');
+      });
+      const listener = vi.fn();
+      h.store.onDidSave(listener);
+      expect(await h.store.save(entry)).toEqual(ok(undefined));
+      expect(listener).toHaveBeenCalledWith(ref);
+      expect(entry.saving).toBe(false);
+      expect(entry.dirty).toBe(false);
+    });
+
     it('flags conflict on a stale etag and resolves it by overwrite', async () => {
       const h = start();
       const path = '/repo/src/index.ts';

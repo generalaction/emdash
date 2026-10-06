@@ -16,6 +16,7 @@ import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { filesWireContract } from '@core/features/files/api';
 import { getFilesClient } from '@core/features/files/api/browser/client';
 import type { GitRef } from '@core/primitives/git/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import { facetSlotKey, type Facet, type FacetHandle, type FacetHandleBinder } from './facet-handle';
 
 /**
@@ -168,6 +169,8 @@ class OpenFileEntryImpl implements OpenFileEntry {
   }
 }
 
+type SaveListener = (ref: HostFileRef) => void | Promise<void>;
+
 /**
  * The app-global owner of open-file state (spec §4/§7/§9): one instance per
  * app, keyed by ResourceKey, editor-framework-free. Consumers acquire
@@ -178,9 +181,9 @@ class OpenFileEntryImpl implements OpenFileEntry {
  * through the registered {@link FacetHandleBinder}.
  */
 export class OpenFileStore {
-  private readonly saveListeners = new Set<(ref: HostFileRef) => void>();
+  private readonly saveListeners = new Set<SaveListener>();
 
-  onDidSave(listener: (ref: HostFileRef) => void): () => void {
+  onDidSave(listener: SaveListener): () => void {
     this.saveListeners.add(listener);
     return () => {
       this.saveListeners.delete(listener);
@@ -375,7 +378,17 @@ export class OpenFileStore {
       await client.clearBuffer({ uri: impl.uri });
       this.maybeScheduleBufferEviction(impl);
       const decoded = decodeResourceUri(impl.uri);
-      if (decoded.success) for (const listener of this.saveListeners) listener(decoded.data);
+      if (decoded.success) {
+        for (const listener of [...this.saveListeners]) {
+          try {
+            void Promise.resolve(listener(decoded.data)).catch((error) =>
+              log.warn('File save listener failed', error)
+            );
+          } catch (error) {
+            log.warn('File save listener failed', error);
+          }
+        }
+      }
       return ok(undefined);
     } finally {
       runInAction(() => {
