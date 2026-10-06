@@ -11,7 +11,6 @@ import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { MachinesService } from '@core/features/machines/api/node/machines-service';
 import type { HostAvailabilityState, HostInvalidation } from '@core/services/hosts/api';
-import type { HostService } from '@core/services/hosts/api/node/host-service';
 import { createUsageOverview } from './usage-overview';
 
 function createFixture() {
@@ -47,27 +46,16 @@ function createFixture() {
   const availability = {
     local: cell<HostAvailabilityState>({ kind: 'ready', generation: 1 }),
     current: cell<HostAvailabilityState>({ kind: 'ready', generation: 2 }),
-    legacy: cell<HostAvailabilityState>({ kind: 'ready', generation: 3 }),
     offline: cell<HostAvailabilityState>({ kind: 'suspended', reason: 'user-disconnected' }),
   };
   const state = (host: HostRef) => availability[host.id as keyof typeof availability];
-  const inventory = ['current', 'legacy', 'offline'];
+  const inventory = ['current', 'offline'];
   let invalidate: ((event: HostInvalidation) => void) | undefined;
   let mutate: (() => void) | undefined;
   const removeInvalidationListener = vi.fn();
   const removeMutationListener = vi.fn();
   const runtime = { providerUsage: hostWire.client } as HostRuntimesClient;
   const resolve = vi.fn(async (_host: HostRef) => ok(runtime));
-  const getHost = vi.fn(
-    (host: HostRef) =>
-      ({
-        runtime: {
-          client: async () => ({
-            currentHandshake: () => ({ agreedMinor: host.id === 'legacy' ? 0 : 1 }),
-          }),
-        },
-      }) as HostService
-  );
   const release = vi.fn();
   const lease = vi.fn((_host: HostRef, owner: Scope) => owner.add(release));
   const getMachines = vi.fn(async () =>
@@ -85,7 +73,6 @@ function createFixture() {
     clock,
     runtimes: { client: resolve },
     hosts: {
-      get: getHost,
       onInvalidate: (listener) => {
         invalidate = listener;
         return removeInvalidationListener;
@@ -113,7 +100,6 @@ function createFixture() {
     availability,
     resolve,
     runtime,
-    getHost,
     getMachines,
     lease,
     release,
@@ -137,14 +123,10 @@ function createFixture() {
 }
 
 describe('Usage overview', () => {
-  it('observes only ready compatible hosts, streams deduped readings and clears forgotten identities', async () => {
+  it('observes ready protocol 12 hosts without activating disconnected machines', async () => {
     const f = createFixture();
     const overview = f.overview.observe(f.scope.child('view'));
     await waitFor(() => peek(overview).accounts[0]?.sources.length === 2);
-    expect(peek(overview).machines.find((machine) => machine.id === 'legacy')?.status).toBe(
-      'upgrade-required'
-    );
-    expect(f.getHost.mock.calls.some(([host]) => host.id === 'offline')).toBe(false);
     expect(f.resolve.mock.calls.map(([host]) => host.id).sort()).toEqual(['current', 'local']);
     f.setUsage(60);
     await waitFor(() => peek(overview).accounts[0]?.windows[0]?.usedPercent === 60);

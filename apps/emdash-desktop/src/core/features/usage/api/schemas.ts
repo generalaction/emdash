@@ -8,7 +8,7 @@ import { z } from 'zod';
 export const usageMachineSchema = z.object({
   id: z.string(),
   name: z.string(),
-  status: z.enum(['connected', 'disconnected', 'checking', 'upgrade-required', 'error']),
+  status: z.enum(['connected', 'disconnected', 'checking', 'error']),
   providers: z.array(providerUsageSchema),
 });
 

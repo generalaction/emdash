@@ -16,7 +16,7 @@ type Options = {
   clock?: Clock;
   runtimes: Pick<RuntimeBroker, 'client'>;
   machines: Pick<MachinesService, 'getMachines' | 'on'>;
-  hosts: Pick<Hosts, 'get' | 'onInvalidate'>;
+  hosts: Pick<Hosts, 'onInvalidate'>;
   hostAvailability: Pick<HostAvailabilityService, 'state' | 'stateFor' | 'lease'>;
 };
 type Binding = {
@@ -77,18 +77,6 @@ export function createUsageOverview(options: Options): UsageOverviewSource {
     };
     status('checking');
     try {
-      if (host.type === 'remote') {
-        const service = options.hosts.get(host);
-        const connection = await service?.runtime.client({
-          waitForReady: false,
-          signal: binding.scope.signal,
-        });
-        if (!current()) return;
-        if ((connection?.currentHandshake()?.agreedMinor ?? 0) < 1) {
-          status('upgrade-required');
-          return;
-        }
-      }
       const result = await options.runtimes.client(host);
       if (!current()) return;
       if (!result.success) {
