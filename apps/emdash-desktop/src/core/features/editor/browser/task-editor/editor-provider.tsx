@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
@@ -13,6 +14,10 @@ import { useTheme } from '@core/primitives/theme/browser';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
+import {
+  type EditorFontDefaults,
+  updateCodeEditorFontOptions,
+} from '../monaco/editor-font-settings';
 import { installMonacoFacetBinder } from '../monaco/install-monaco-facet-binder';
 import { monacoBootstrap } from '../monaco/monaco-bootstrap';
 import { addMonacoKeyboardShortcuts, configureMonacoEditor } from '../monaco/monaco-config';
@@ -48,6 +53,7 @@ export const EditorProvider = observer(function EditorProvider({
   const { editorView, paneLayout } = taskView;
   const { paneId, pane: paneTabManager } = usePaneContext();
   const { effectiveTheme } = useTheme();
+  const { value: editorSettings } = useAppSettingsKey('editor');
   const isActive = useIsActiveTask(taskId);
   const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const editorScopeImplementation = {
@@ -80,6 +86,7 @@ export const EditorProvider = observer(function EditorProvider({
 
   // The directly-created Monaco editor for this pane.
   const editorRef = useRef<monacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const editorFontDefaultsRef = useRef<EditorFontDefaults | null>(null);
   // The container <div> appended to the pane's host element.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const focusPendingRef = useRef(false);
@@ -116,6 +123,9 @@ export const EditorProvider = observer(function EditorProvider({
 
     const editor = m.editor.create(container, { ...DEFAULT_EDITOR_OPTIONS, glyphMargin: true });
     editorRef.current = editor;
+    editorFontDefaultsRef.current = {
+      fontFamily: editor.getOption(m.editor.EditorOption.fontFamily),
+    };
 
     configureMonacoEditor(editor);
 
@@ -150,10 +160,18 @@ export const EditorProvider = observer(function EditorProvider({
       editor.dispose();
       container.remove();
       editorRef.current = null;
+      editorFontDefaultsRef.current = null;
       containerRef.current = null;
     };
     // oxlint-disable-next-line react/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    const defaults = editorFontDefaultsRef.current;
+    if (!editor || !defaults) return;
+    updateCodeEditorFontOptions(editor, editorSettings, defaults);
+  }, [editorSettings]);
 
   useEffect(() => {
     const container = containerRef.current;

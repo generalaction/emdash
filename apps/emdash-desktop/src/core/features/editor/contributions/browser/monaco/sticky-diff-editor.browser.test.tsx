@@ -8,10 +8,14 @@ import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
 import { MonacoFacetBinder } from '@core/features/editor/api/browser/facet-binder/monaco-facet-binder';
 import type { OpenFileEntry } from '@core/features/editor/api/browser/open-file-store/open-file-store';
+import type { EditorSettings } from '@core/primitives/app-settings/api';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { StickyDiffEditor, type DiffSideModel } from './sticky-diff-editor';
 
-const runtime = vi.hoisted(() => ({ binder: null as MonacoFacetBinder | null }));
+const runtime = vi.hoisted(() => ({
+  binder: null as MonacoFacetBinder | null,
+  editorSettings: undefined as EditorSettings | undefined,
+}));
 vi.mock('@core/features/editor/browser/monaco/install-monaco-facet-binder', () => ({
   installMonacoFacetBinder: () => runtime.binder,
 }));
@@ -22,6 +26,9 @@ vi.mock('@core/features/editor/api/browser/open-file-store/open-file-store', () 
   openFileStore: { save: vi.fn() },
 }));
 vi.mock('@core/manifests/browser/modal-api', () => ({ openModal: vi.fn() }));
+vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
+  useAppSettingsKey: () => ({ value: runtime.editorSettings }),
+}));
 vi.mock('@core/primitives/theme/browser', () => ({
   useTheme: () => ({ effectiveTheme: 'dark' }),
 }));
@@ -36,6 +43,7 @@ beforeAll(() => {
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
   runtime.binder = null;
+  runtime.editorSettings = undefined;
 });
 
 async function createDiffSides(binder: MonacoFacetBinder, name: string, modifiedText: string) {
@@ -232,6 +240,35 @@ it.each(['split', 'unified'] as const)('reveals a deletion in a %s diff', async 
   await expect.poll(() => right.getVisibleRanges()[0]?.startLineNumber).toBeGreaterThan(880);
   expect(right.getVisibleRanges()[0]?.startLineNumber).toBeLessThan(900);
   expect(right.getVisibleRanges().at(-1)?.endLineNumber).toBeGreaterThanOrEqual(900);
+});
+
+it('applies editor font settings live without recreating the diff editor', async () => {
+  const binder = new MonacoFacetBinder(async () => monaco);
+  runtime.binder = binder;
+  const sides = await createDiffSides(binder, 'fonts', longFile.replace('line 900', 'changed 900'));
+  const render = mountDiff('split', false);
+  const diff = await render(sides);
+  const left = diff.getOriginalEditor();
+  const right = diff.getModifiedEditor();
+  const model = right.getModel();
+  const nativeFontFamily = right.getOption(monaco.editor.EditorOption.fontFamily);
+  expect(right.getOption(monaco.editor.EditorOption.fontSize)).toBe(13);
+  expect(right.getOption(monaco.editor.EditorOption.lineHeight)).toBe(20);
+
+  runtime.editorSettings = { fontFamily: 'Fira Code', fontSize: 18 };
+  expect(await render(sides)).toBe(diff);
+  for (const side of [left, right]) {
+    expect(side.getOption(monaco.editor.EditorOption.fontSize)).toBe(18);
+    expect(side.getOption(monaco.editor.EditorOption.lineHeight)).toBe(28);
+    expect(side.getOption(monaco.editor.EditorOption.fontFamily)).toMatch(/^"Fira Code", /);
+  }
+  expect(right.getModel()).toBe(model);
+
+  runtime.editorSettings = { fontSize: 13 };
+  expect(await render(sides)).toBe(diff);
+  expect(right.getOption(monaco.editor.EditorOption.fontFamily)).toBe(nativeFontFamily);
+  expect(right.getOption(monaco.editor.EditorOption.lineHeight)).toBe(20);
+  expect(right.getModel()).toBe(model);
 });
 
 it('keeps stacked diffs at the top', async () => {

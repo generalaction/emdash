@@ -123,6 +123,26 @@ describe('SettingsStore contributions', () => {
     expect(await restarted.get('interface')).toEqual(value);
   });
 
+  it('persists editor fonts and resets the optional font family back to absent', async () => {
+    rows.clear();
+    const settings = new SettingsStore(db, appSettingsContributions);
+    expect(await settings.get('editor')).toEqual({ fontSize: 13 });
+
+    // Resetting a field that was never set is a no-op rather than a parse failure.
+    await settings.resetField('editor', 'fontFamily');
+    expect(rows.has('editor')).toBe(false);
+
+    await settings.update('editor', { fontFamily: 'JetBrains Mono', fontSize: 16 });
+    const restarted = new SettingsStore(db, appSettingsContributions);
+    expect(await restarted.get('editor')).toEqual({ fontFamily: 'JetBrains Mono', fontSize: 16 });
+
+    await restarted.resetField('editor', 'fontFamily');
+    expect(JSON.parse(rows.get('editor')!)).toEqual({ fontSize: 16 });
+    const meta = await new SettingsStore(db, appSettingsContributions).getWithMeta('editor');
+    expect(meta.value.fontFamily).toBeUndefined();
+    expect(meta.overrides).toEqual({ fontSize: 16 });
+  });
+
   for (const key of AppSettingsKeys) {
     it(`round-trips the ${key} contribution defaults`, async () => {
       rows.clear();
