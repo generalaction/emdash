@@ -346,7 +346,6 @@ function startDesktopWorkersWithHost(
       dependencies: { userEnv: userShellEnv, hostDependencies: hostDependencies.client.resolver },
     })
   );
-  const lspReady = timedReady('lsp', lspWorker.ready());
   const resourceUsageWorker = host.create(
     ...resourceUsageWorkerSpec({
       executable: desktopWorkerPath('resource-usage'),
@@ -511,7 +510,6 @@ function startDesktopWorkersWithHost(
     )
   );
   const runtimeReady = Promise.all([
-    lspReady,
     acpReady,
     agentConfigReady,
     automationsReady,
@@ -532,7 +530,9 @@ function startDesktopWorkersWithHost(
   let disposePromise: Promise<void> | undefined;
   return {
     clients: {
-      lsp: queuedClient(lspContract, () => lspReady),
+      lsp: queuedClient(lspContract, () => timedReady('lsp', lspWorker.ready()), {
+        retryReadinessOnFailure: true,
+      }),
       acp: queuedClient(acpApiContract, () => acpReady),
       agentConfig: queuedClient(agentConfigContract, () => agentConfigReady),
       providerUsage: queuedClient(

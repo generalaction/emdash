@@ -79,9 +79,10 @@ commands and shell setup, and sends strict execution inputs to scripts. Automati
 depends on the workspace registry: automation workspace activation flows through the registry's
 `createWorkspace` and `activateWorkspace` verbs. Server startup fails if any required worker cannot
 become ready; there are no unavailable-domain fallback implementations in the aggregate controller.
-Provider usage is optional in both hosts: its worker starts on the first usage request and is excluded
-from required runtime readiness. Startup failures reject usage calls without blocking other runtimes.
-Later usage requests can retry failed startup; concurrent requests share one readiness attempt.
+LSP and provider usage are optional in both hosts: each worker starts on its first request and is
+excluded from required runtime readiness. Startup failures reject that domain's calls without blocking
+other runtimes. Later requests can retry failed startup; concurrent requests share one readiness
+attempt, and successful readiness remains cached.
 
 Interactive TUI processes do not expire after an hour of silence. The worker and runtime use
 the `always` lifecycle policy; explicit stop/delete and workspace teardown still release them.

@@ -1,4 +1,6 @@
+import { parseAbsolute } from '@emdash/core/primitives/path/api';
 import type * as HostDependenciesModule from '@emdash/core/services/host-dependencies/node';
+import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import type * as WireWorkerModule from '@emdash/wire/worker';
@@ -53,6 +55,52 @@ vi.mock('@core/services/pull-requests/node/sync-identity', () => ({
 vi.mock('./worker-paths', () => ({ desktopWorkerPath: (name: string) => `/tmp/${name}.mjs` }));
 
 describe('desktop runtime readiness', () => {
+  it.each(['fails', 'stalls'] as const)(
+    'keeps required runtimes available and recovers after LSP startup %s',
+    async (mode) => {
+      const scope = createScope();
+      onTestFinished(() => scope.dispose());
+      const failure = new Error('LSP worker failed to start');
+      const pending = deferred<unknown>();
+      const getSettings = vi.fn(async () => ({ success: true }));
+      const lspReady = vi.fn(() => (mode === 'fails' ? Promise.reject(failure) : pending.promise));
+      mocks.ready.mockImplementation((name) => {
+        if (name === 'lsp') return lspReady();
+        return Promise.resolve({ get: getSettings });
+      });
+      const workers = await startDesktopWorkers({
+        scope,
+        getFilesSettings: async () => ({ watcherExclude: [] }),
+      });
+      onTestFinished(() => workers.dispose());
+      await expect(workers.runtimeReady()).resolves.toBeUndefined();
+      expect(lspReady).not.toHaveBeenCalled();
+
+      const root = parseAbsolute('/workspace', { profile: { style: 'posix' } });
+      if (!root.success) throw new Error(root.error.message);
+      const input = { workspaceRoot: root.data, path: root.data, serverId: 'typescript' };
+      const discovery = workers.clients.lsp.resolveProjectRoot(input);
+      const rejected = expect(discovery).rejects.toBe(failure);
+      await expect(workers.runtimeReady()).resolves.toBeUndefined();
+      await expect(workers.clients.hostSettings.get()).resolves.toMatchObject({ success: true });
+      if (mode === 'stalls') pending.reject(failure);
+      await rejected;
+      expect(lspReady).toHaveBeenCalledOnce();
+
+      const resolveProjectRoot = vi.fn(async () => ok(root.data));
+      lspReady.mockResolvedValue({ resolveProjectRoot });
+      await expect(
+        Promise.all([
+          workers.clients.lsp.resolveProjectRoot(input),
+          workers.clients.lsp.resolveProjectRoot(input),
+        ])
+      ).resolves.toEqual([ok(root.data), ok(root.data)]);
+      await expect(workers.clients.lsp.resolveProjectRoot(input)).resolves.toEqual(ok(root.data));
+      expect(lspReady).toHaveBeenCalledTimes(2);
+      expect(resolveProjectRoot).toHaveBeenCalledTimes(3);
+    }
+  );
+
   it.each(['fails', 'stalls'] as const)(
     'keeps required runtimes available and recovers after provider usage %s',
     async (mode) => {

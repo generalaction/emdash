@@ -9,6 +9,12 @@ a file is opened. The executable must be on the host containing the worktree;
 a local installation does not provide language services for SSH files.
 Remote language services are included in workspace protocol 12.0.
 
+The LSP worker starts on the first language-service request in both desktop and workspace-server
+hosts. Its startup is excluded from required host readiness, so a failed or pending LSP startup does
+not block unrelated runtimes. A later request can retry failed startup; concurrent requests share
+one attempt, and successful readiness stays cached. Individual language servers still start only
+when a session is attached.
+
 | Languages | Server | Host requirements |
 | --- | --- | --- |
 | TypeScript, JavaScript, JSX, TSX | [typescript-language-server](https://github.com/typescript-language-server/typescript-language-server) | Node.js 22.22.2+; the offered npm command also installs TypeScript |
