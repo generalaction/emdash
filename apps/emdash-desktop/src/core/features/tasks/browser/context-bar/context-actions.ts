@@ -67,7 +67,10 @@ export async function readContextActionText(action: ContextAction): Promise<stri
 
 export function formatTerminalOutputForAgent(terminalName: string, output: string): string {
   if (!output.trim()) return '';
-  const longestBacktickRun = Math.max(0, ...Array.from(output.matchAll(/`+/g), (m) => m[0].length));
+  let longestBacktickRun = 0;
+  for (const match of output.matchAll(/`+/g)) {
+    longestBacktickRun = Math.max(longestBacktickRun, match[0].length);
+  }
   const fence = '`'.repeat(Math.max(3, longestBacktickRun + 1));
   return `Output from terminal "${terminalName}":\n${fence}\n${output}\n${fence}`;
 }

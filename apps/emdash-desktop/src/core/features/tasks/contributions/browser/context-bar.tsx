@@ -1,4 +1,4 @@
-import { ContextMenu } from '@emdash/ui/react/primitives';
+import { ContextMenu, toast } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
@@ -76,7 +76,15 @@ export const ContextBar = observer(function ContextBar({
 
   const handleApplyAction = async (action: ContextAction, opts?: { andSend?: boolean }) => {
     if (!activeSessionId) return;
-    const text = await readContextActionText(action);
+    let text: string;
+    try {
+      text = await readContextActionText(action);
+    } catch (error) {
+      toast.error('Could not add context', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
+      return;
+    }
     if (!text) return;
 
     await pastePromptInjection({

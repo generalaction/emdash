@@ -241,6 +241,13 @@ describe('terminal output context', () => {
     );
   });
 
+  it('handles output with more backtick runs than a function can take arguments', () => {
+    const output = '`a'.repeat(500_000);
+    expect(
+      formatTerminalOutputForAgent('dev', output).startsWith('Output from terminal "dev":\n```\n')
+    ).toBe(true);
+  });
+
   it('produces no text for an empty terminal', () => {
     expect(formatTerminalOutputForAgent('dev', '  \n')).toBe('');
   });
