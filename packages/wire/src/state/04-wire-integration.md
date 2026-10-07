@@ -146,7 +146,9 @@ Semantics:
 - Each state is query-shaped: `undefined`/`'loading'` before the first
   snapshot, `'stale'` when seeded from a persistent store or after a
   connection gap until resynced, `'live'` when following, `'error'` on
-  attachment failure (with retry per existing replica behavior).
+  attachment failure. A failed attachment is not final: the member's next
+  state `refresh()` or mutation attaches again (going back to `'loading'`), so
+  a source that was briefly unavailable recovers without a new member.
 - `snapshot(state).mutationIds` exposes the tags from `LiveUpdate`, which is
   what the [`optimistic` primitive](./02-primitives.md#optimistic) keys its
   acknowledgment pruning on

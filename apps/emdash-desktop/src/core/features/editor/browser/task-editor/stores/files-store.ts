@@ -21,7 +21,14 @@ import {
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, pin, remote, type RemoteModel, type Snapshot } from '@emdash/wire/state';
+import {
+  observe,
+  pin,
+  remote,
+  snapshot,
+  type RemoteModel,
+  type Snapshot,
+} from '@emdash/wire/state';
 import { comparer, computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
 import {
   isExpandableFileTreeNode,
@@ -259,7 +266,11 @@ export class FilesStore {
     }
   }
 
-  /** Rereads every listed folder of the workspace, reconnecting first if the tree never bound. */
+  /**
+   * Rereads every listed folder of the workspace. Folders whose subscription
+   * failed (the root was missing, the host was unreachable) attach again first;
+   * the tree binds again if it never bound.
+   */
   async refresh(): Promise<Result<void, TreeMutationError>> {
     if (!this.bound) {
       this.startPromise = null;
@@ -268,6 +279,11 @@ export class FilesStore {
         ? ok<void>()
         : err({ type: 'unavailable', message: this.syncError });
     }
+    await Promise.allSettled(
+      [...this.subscriptions.values()]
+        .filter(({ member }) => snapshot(member.states.listing).status === 'error')
+        .map(({ member }) => member.states.listing.refresh())
+    );
     return this.refreshFolder(ROOT_RELATIVE_PATH);
   }
 
@@ -592,9 +608,9 @@ export class FilesStore {
     this.subscriptions.set(path, { scope, member });
     observe(
       member.states.listing,
-      (snapshot) => {
+      (current) => {
         if (this.subscriptions.get(path)?.member !== member) return;
-        runInAction(() => this.folders.set(path, folderView(snapshot)));
+        runInAction(() => this.folders.set(path, folderView(current)));
       },
       { scope, immediate: true }
     );
@@ -717,14 +733,14 @@ export class FilesStore {
   }
 }
 
-function folderView(snapshot: Snapshot<FolderListing | undefined>): FolderView {
-  if (snapshot.status === 'error') {
+function folderView(current: Snapshot<FolderListing | undefined>): FolderView {
+  if (current.status === 'error') {
     return {
       status: 'error',
-      message: treeMutationErrorMessage(treeMutationError(snapshot.error)),
+      message: treeMutationErrorMessage(treeMutationError(current.error)),
     };
   }
-  const listing = snapshot.value;
+  const listing = current.value;
   if (!listing) return { status: 'loading' };
   if (listing.status === 'error')
     return { status: 'error', message: fsErrorMessage(listing.error) };

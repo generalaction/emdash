@@ -36,15 +36,19 @@ afterEach(async () => {
 // the renderer store and real disk I/O. Only host lookup and OS event timing are
 // controlled. The remote case tests URI routing, not an actual SSH connection.
 describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (sshConnectionId) => {
-  async function setup(nativeWatcher = false) {
-    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-tree-e2e-')));
-    cleanups.push(() => rm(root, { recursive: true, force: true }));
-    await mkdir(path.join(root, 'src/deep'), { recursive: true });
-    await mkdir(path.join(root, 'dest'));
-    await writeFile(path.join(root, 'README.md'), 'readme');
-    await writeFile(path.join(root, 'src/deep/file.ts'), 'original');
+  async function setup(options: { nativeWatcher?: boolean; missingRoot?: boolean } = {}) {
+    const parent = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-tree-e2e-')));
+    cleanups.push(() => rm(parent, { recursive: true, force: true }));
+    const root = path.join(parent, 'workspace');
+    const createRoot = async () => {
+      await mkdir(path.join(root, 'src/deep'), { recursive: true });
+      await mkdir(path.join(root, 'dest'));
+      await writeFile(path.join(root, 'README.md'), 'readme');
+      await writeFile(path.join(root, 'src/deep/file.ts'), 'original');
+    };
+    if (!options.missingRoot) await createRoot();
     const watcher = new ManualWatcher();
-    const runtime = new FilesRuntime(nativeWatcher ? {} : { watcher });
+    const runtime = new FilesRuntime(options.nativeWatcher ? {} : { watcher });
     const upstream = createTestWire(filesContract, createFilesController(runtime));
     const desktop = createTestWire(
       filesWireContract,
@@ -63,7 +67,9 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
       await runtime.dispose();
     });
     await store.start();
-    await vi.waitFor(() => expect(store.loadedPaths.has(root)).toBe(true));
+    if (!options.missingRoot) {
+      await vi.waitFor(() => expect(store.loadedPaths.has(root)).toBe(true));
+    }
     const at = (relative: string) => path.join(root, relative);
     // Opening folders is how the view creates demand, as EditorViewStore does.
     const expanded = new Set<string>();
@@ -89,7 +95,7 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
       if (result.success) await open(...result.data);
       return result;
     };
-    return { root, store, watcher, at, open, close, reveal };
+    return { root, store, watcher, at, open, close, reveal, createRoot };
   }
 
   it('lists just the root initially and a folder once it is opened', async () => {
@@ -104,7 +110,7 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
   });
 
   it('observes actual OS watcher events through both Wire hops', async () => {
-    const { store, at, open } = await setup(true);
+    const { store, at, open } = await setup({ nativeWatcher: true });
     await open(at('src'));
     await writeFile(at('src/native.ts'), 'native');
     await vi.waitFor(() => expect(store.nodes.has(at('src/native.ts'))).toBe(true), {
@@ -181,6 +187,33 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
     await expect(store.refresh()).resolves.toEqual(ok(undefined));
     await vi.waitFor(() => expect(store.nodes.has(at('dest/recovered.ts'))).toBe(true));
     expect(store.directoryErrors.get(at('dest'))).toBeUndefined();
+  });
+
+  it('recovers through Refresh when the workspace was missing at first', async () => {
+    const { root, store, at, open, createRoot } = await setup({ missingRoot: true });
+    await vi.waitFor(() => expect(store.error).toContain('not-found'));
+    // A remembered folder subscribes alongside the root and fails with it.
+    await open(at('dest'));
+    expect(store.directoryErrors.get(at('dest'))).toContain('not-found');
+
+    await createRoot();
+    await writeFile(at('dest/recovered.ts'), 'recovered');
+    await expect(store.refresh()).resolves.toEqual(ok(undefined));
+    await vi.waitFor(() => expect(store.nodes.has(at('dest/recovered.ts'))).toBe(true));
+    expect(store.loadedPaths.has(root)).toBe(true);
+    expect(store.error).toBeUndefined();
+    expect(store.directoryErrors.size).toBe(0);
+  });
+
+  it('recovers through Retry when the workspace was missing at first', async () => {
+    const { root, store, at, createRoot } = await setup({ missingRoot: true });
+    await vi.waitFor(() => expect(store.error).toContain('not-found'));
+    await expect(store.retry(root)).resolves.toMatchObject({ success: false });
+
+    await createRoot();
+    await expect(store.retry(root)).resolves.toEqual(ok(undefined));
+    await vi.waitFor(() => expect(store.nodes.has(at('README.md'))).toBe(true));
+    expect(store.error).toBeUndefined();
   });
 
   it('retries one failed folder without touching the rest of the tree', async () => {
