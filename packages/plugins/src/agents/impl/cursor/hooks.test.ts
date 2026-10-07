@@ -25,7 +25,7 @@ function createFs(initial: Record<string, unknown> = {}) {
 const SESSION_ID = 'conv-cursor-1';
 
 describe('Cursor hooks', () => {
-  const hooks = buildCursorHookConfig();
+  const hooks = buildCursorHookConfig({ platform: 'linux' });
 
   it('declares session/start/stop so Enter no longer owns the working spinner', () => {
     expect(provider.capabilities.hooks).toEqual({
@@ -54,6 +54,24 @@ describe('Cursor hooks', () => {
     expect(await hooks.getHooksInstalled(fs)).toBe(true);
   });
 
+  it('installs Windows commands without a POSIX wrapper', async () => {
+    const { fs, read } = createFs();
+    await buildCursorHookConfig({ platform: 'win32' }).writeHooks(fs, []);
+    for (const event of ['sessionStart', 'beforeSubmitPrompt', 'stop'] as const) {
+      const command = read(CURSOR_HOOKS_PATH).hooks[event][0].command;
+      expect(command).toMatch(/^cmd\.exe .* -EncodedCommand [A-Za-z0-9+/]+=*$/);
+      expect(command).not.toContain('/dev/null');
+      expect(command).not.toContain('printf');
+      const script = Buffer.from(command.split(' -EncodedCommand ')[1], 'base64').toString(
+        'utf16le'
+      );
+      expect(script).toContain('X-Emdash-Event-Type');
+      if (event === 'beforeSubmitPrompt') {
+        expect(script).toContain('"continue":true');
+      }
+    }
+  });
+
   it('preserves user hooks while replacing managed emdash entries', async () => {
     const { fs, read } = createFs({
       [CURSOR_HOOKS_PATH]: {
@@ -67,9 +85,7 @@ describe('Cursor hooks', () => {
 
     await hooks.writeHooks(fs, []);
     const config = read(CURSOR_HOOKS_PATH);
-    expect(config.hooks.afterFileEdit).toEqual([
-      { type: 'command', command: './hooks/format.sh' },
-    ]);
+    expect(config.hooks.afterFileEdit).toEqual([{ type: 'command', command: './hooks/format.sh' }]);
     expect(config.hooks.stop).toHaveLength(1);
     expect(config.hooks.stop[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.stop[0].command).not.toContain('stale');

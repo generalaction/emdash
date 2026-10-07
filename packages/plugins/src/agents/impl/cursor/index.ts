@@ -30,8 +30,8 @@ export const plugin = definePlugin(
       kind: 'config',
       scope: 'global',
       // beforeSubmitPrompt → start, stop → stop, sessionStart → session.
-      // Declaring start suppresses the Enter-key working heuristic so status
-      // only sticks while Cursor's agent loop is actually running.
+      // Declaring start suppresses Enter→working when hooks are installed; if
+      // hook setup fails the runtime keeps the input fallback (see prepareHookEnv).
       supportedEvents: ['session', 'start', 'stop'],
     },
     hostDependency: {

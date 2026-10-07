@@ -62,6 +62,30 @@ describe('TuiAgentStates', () => {
     expect(peek(agentStates.states.list)['conv-2']).toBeUndefined();
   });
 
+  it('keeps Enter→working when start hooks are declared but not active', () => {
+    const { tracker, agentStates } = createTracker();
+    const provider = {
+      hooks: {
+        kind: 'config' as const,
+        scope: 'global' as const,
+        supportedEvents: ['start' as const],
+      },
+    };
+
+    tracker.markInputSubmitted('conv-1', provider, '\r', false);
+    expect(peek(agentStates.states.list)['conv-1']).toMatchObject({
+      status: 'working',
+      source: 'input',
+    });
+
+    tracker.markInitialPromptSubmitted('conv-2', 'cursor', provider, 'hello', false);
+    expect(peek(agentStates.states.list)['conv-2']).toMatchObject({
+      status: 'working',
+      source: 'input',
+      providerId: 'cursor',
+    });
+  });
+
   it('publishes valid provider session ids through the sessions model', () => {
     const { tracker, sessions, onSessionIdChanged } = createTracker();
     produceCell(sessions.states.list, (draft) => {
