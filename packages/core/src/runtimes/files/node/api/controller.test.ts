@@ -15,7 +15,7 @@ import {
 } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createPathProfile } from '#primitives/path/api';
-import { filesContract, type FolderListing } from '#runtimes/files/api';
+import { filesContract, listingEntry, type FolderListing } from '#runtimes/files/api';
 import { FilesRuntime } from '#runtimes/files/node/files-runtime';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
 import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
@@ -49,7 +49,7 @@ describe('createFilesController', () => {
       await expect(
         connection.api.listing.state(listingKey(''), 'listing').snapshot()
       ).resolves.toMatchObject({
-        data: { status: 'ready', entries: { src: { kind: 'directory' } } },
+        data: { status: 'ready', entries: { '/src': { kind: 'directory' } } },
       });
       const refreshed = await connection.api.listing.mutate('refresh', {
         key: listingKey(''),
@@ -68,7 +68,7 @@ describe('createFilesController', () => {
 
       const listingState = connection.api.listing.state(listingKey('src/foo'), 'listing');
       await expect(listingState.snapshot()).resolves.toMatchObject({
-        data: { status: 'ready', entries: { 'bar.ts': { kind: 'file' } } },
+        data: { status: 'ready', entries: { '/bar.ts': { kind: 'file' } } },
       });
       const listingUpdates: LiveUpdate[] = [];
       detachListing = await listingState.attach((update) => listingUpdates.push(update));
@@ -86,11 +86,16 @@ describe('createFilesController', () => {
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
         const entries = readyEntries((await listingState.snapshot()).data);
-        return entries['bar.ts'] === undefined && entries['baar.ts']?.kind === 'file';
+        return (
+          listingEntry(entries, 'bar.ts') === undefined &&
+          listingEntry(entries, 'baar.ts')?.kind === 'file'
+        );
       });
       expect(listingUpdates).toContainEqual(
         expect.objectContaining({
-          delta: expect.arrayContaining([expect.objectContaining({ path: ['entries', 'bar.ts'] })]),
+          delta: expect.arrayContaining([
+            expect.objectContaining({ path: ['entries', '/bar.ts'] }),
+          ]),
         })
       );
       expect(
@@ -232,14 +237,14 @@ describe('createFilesController', () => {
 
     try {
       await expect(nested.snapshot()).resolves.toMatchObject({
-        data: { status: 'ready', entries: { 'file.ts': { kind: 'file' } } },
+        data: { status: 'ready', entries: { '/file.ts': { kind: 'file' } } },
       });
       await rm(path.join(root, 'src/nested/file.ts'));
       await writeFile(path.join(root, 'src/nested/new.ts'), 'two');
       watcher.resync(root);
       await waitFor(async () => {
         const listing = (await nested.snapshot()).data;
-        return listing.status === 'ready' && Object.keys(listing.entries).join() === 'new.ts';
+        return listing.status === 'ready' && Object.keys(listing.entries).join() === '/new.ts';
       });
     } finally {
       detach();
@@ -273,7 +278,7 @@ describe('createFilesController', () => {
 
     try {
       await expect(linked.snapshot()).resolves.toMatchObject({
-        data: { status: 'ready', entries: { 'a.txt': { kind: 'file' } } },
+        data: { status: 'ready', entries: { '/a.txt': { kind: 'file' } } },
       });
 
       await rm(path.join(root, 'linked'));
@@ -282,7 +287,7 @@ describe('createFilesController', () => {
 
       await waitFor(async () => {
         const listing = (await linked.snapshot()).data;
-        return listing.status === 'ready' && Object.keys(listing.entries).join() === 'b.txt';
+        return listing.status === 'ready' && Object.keys(listing.entries).join() === '/b.txt';
       });
     } finally {
       detachTop();

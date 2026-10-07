@@ -3,17 +3,21 @@ import {
   folderListingSchema,
   isExpandableListingEntry,
   isOpenableListingEntry,
+  listingEntry,
+  listingEntryKey,
+  listingEntryName,
   listingEntrySchema,
+  type ListingEntries,
 } from './state';
 
 describe('folder listing state', () => {
-  it('lists children by name with their kinds', () => {
+  it('lists children by key with their kinds', () => {
     const listing = {
       status: 'ready' as const,
       entries: {
-        src: { kind: 'directory' as const },
-        'README.md': { kind: 'file' as const },
-        linked: {
+        '/src': { kind: 'directory' as const },
+        '/README.md': { kind: 'file' as const },
+        '/linked': {
           kind: 'symlink' as const,
           symlinkTarget: '../shared',
           symlinkTargetKind: 'directory' as const,
@@ -22,6 +26,24 @@ describe('folder listing state', () => {
       },
     };
     expect(folderListingSchema.parse(listing)).toEqual(listing);
+  });
+
+  it('rejects a child keyed by its bare name', () => {
+    const listing = { status: 'ready', entries: { src: { kind: 'directory' } } };
+    expect(folderListingSchema.safeParse(listing).success).toBe(false);
+  });
+
+  it('keeps children named like reserved object keys as ordinary entries', () => {
+    const names = ['__proto__', 'constructor', 'toString', 'hasOwnProperty'];
+    const entries: ListingEntries = {};
+    for (const name of names) entries[listingEntryKey(name)] = { kind: 'file' };
+
+    expect(Object.keys(entries).map(listingEntryName)).toEqual(names);
+    expect(Object.getPrototypeOf(entries)).toBe(Object.prototype);
+    for (const name of names) expect(listingEntry(entries, name)).toEqual({ kind: 'file' });
+    expect(listingEntry(entries, 'missing')).toBeUndefined();
+    const wire = JSON.parse(JSON.stringify({ status: 'ready', entries }));
+    expect(folderListingSchema.parse(wire)).toEqual({ status: 'ready', entries });
   });
 
   it('describes a folder that cannot be listed', () => {

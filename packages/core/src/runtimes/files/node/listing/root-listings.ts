@@ -10,7 +10,14 @@ import {
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '#primitives/path/api';
-import type { FolderListing, ListingEntry } from '#runtimes/files/api';
+import {
+  listingEntry,
+  listingEntryKey,
+  type FolderListing,
+  type ListingEntries,
+  type ListingEntry,
+  type ListingEntryKey,
+} from '#runtimes/files/api';
 import { expectedFsError } from '#runtimes/files/node/api/errors';
 import type {
   AbsoluteChange,
@@ -336,7 +343,7 @@ export class RootListings {
       })
     );
     if (this.folders.get(folder.path) !== folder) return;
-    let entries: Record<string, ListingEntry> | null = null;
+    let entries: ListingEntries | null = null;
     for (const result of reads) {
       if (!result) continue;
       const { name, read } = result;
@@ -344,14 +351,14 @@ export class RootListings {
         await this.relist(folder);
         return;
       }
-      const existing = entryNamed(previous.entries, name);
+      const existing = listingEntry(previous.entries, name);
       if (read.success) {
         if (existing && sameEntry(existing, read.data.entry)) continue;
         entries ??= { ...previous.entries };
-        entries[name] = read.data.entry;
+        entries[listingEntryKey(name)] = read.data.entry;
       } else if (existing) {
         entries ??= { ...previous.entries };
-        delete entries[name];
+        delete entries[listingEntryKey(name)];
       }
     }
     if (entries) this.publish(folder, previous, { status: 'ready', entries });
@@ -400,14 +407,11 @@ function settled(updates: Promise<void>[]): Promise<void> {
 }
 
 /** Keeps the previous entry object for every child that did not change. */
-function reuseEntries(
-  previous: FolderListing,
-  reads: readonly ReadEntry[]
-): Record<string, ListingEntry> {
-  const entries: Record<string, ListingEntry> = {};
+function reuseEntries(previous: FolderListing, reads: readonly ReadEntry[]): ListingEntries {
+  const entries: ListingEntries = {};
   for (const { name, entry } of reads) {
-    const existing = previous.status === 'ready' ? entryNamed(previous.entries, name) : undefined;
-    entries[name] = existing && sameEntry(existing, entry) ? existing : entry;
+    const existing = entryOf(previous, name);
+    entries[listingEntryKey(name)] = existing && sameEntry(existing, entry) ? existing : entry;
   }
   return entries;
 }
@@ -429,17 +433,13 @@ function sameListing(left: FolderListing, right: FolderListing): boolean {
       JSON.stringify(left.error) === JSON.stringify(right.error)
     );
   }
-  const names = Object.keys(left.entries);
-  if (names.length !== Object.keys(right.entries).length) return false;
-  return names.every((name) => entryNamed(right.entries, name) === left.entries[name]);
-}
-
-function entryNamed(entries: Record<string, ListingEntry>, name: string): ListingEntry | undefined {
-  return Object.hasOwn(entries, name) ? entries[name] : undefined;
+  const keys = Object.keys(left.entries) as ListingEntryKey[];
+  if (keys.length !== Object.keys(right.entries).length) return false;
+  return keys.every((key) => right.entries[key] === left.entries[key]);
 }
 
 function entryOf(listing: FolderListing, name: string): ListingEntry | undefined {
-  return listing.status === 'ready' ? entryNamed(listing.entries, name) : undefined;
+  return listing.status === 'ready' ? listingEntry(listing.entries, name) : undefined;
 }
 
 function entryCount(folder: Folder): number {

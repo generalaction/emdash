@@ -244,6 +244,24 @@ describe.each([undefined, 'test-remote'])('file tree end to end (host=%s)', (ssh
     await expect(readFile(at('src/copy.ts'), 'utf8')).resolves.toBe('');
   });
 
+  it('lists, reveals, creates and deletes children named __proto__', async () => {
+    const { store, watcher, at, open, reveal } = await setup();
+    await writeFile(at('src/__proto__'), '');
+    await open(at('src'), at('dest'));
+    expect(store.nodes.has(at('src/__proto__'))).toBe(true);
+    await expect(reveal(at('src/__proto__'))).resolves.toMatchObject({ success: true });
+
+    // Later children travel as patches rather than in the first snapshot.
+    await writeFile(at('dest/__proto__'), '');
+    watcher.emit([{ kind: 'create', path: at('dest/__proto__') }]);
+    await vi.waitFor(() => expect(store.nodes.has(at('dest/__proto__'))).toBe(true));
+    await expect(store.createFile(at('__proto__'))).resolves.toEqual(ok(undefined));
+    await vi.waitFor(() => expect(store.nodes.has(at('__proto__'))).toBe(true));
+    await expect(store.deleteEntry(at('src/__proto__'))).resolves.toEqual(ok(undefined));
+    await vi.waitFor(() => expect(store.nodes.has(at('src/__proto__'))).toBe(false));
+    expect(store.nodes.has(at('src/deep'))).toBe(true);
+  });
+
   it('reflects directory creation and subtree deletion', async () => {
     const { store, at, reveal } = await setup();
     await store.createDirectory(at('new-folder'));

@@ -14,8 +14,11 @@ import {
 } from '@emdash/core/primitives/path/api';
 import {
   isExpandableListingEntry,
+  listingEntry,
+  listingEntryName,
   type FolderListing,
   type FsError,
+  type ListingEntries,
   type ListingEntry,
 } from '@emdash/core/runtimes/files/api';
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
@@ -73,7 +76,7 @@ export type TreeMutationError =
 /** What one subscribed folder currently shows. */
 export type FolderView =
   | { status: 'loading' }
-  | { status: 'ready'; entries: Readonly<Record<string, ListingEntry>> }
+  | { status: 'ready'; entries: Readonly<ListingEntries> }
   | { status: 'error'; message: string };
 
 type PendingUploadNode = { node: RenderableFileNode };
@@ -125,7 +128,7 @@ export class FilesStore {
   // listings their sorted, filtered child list.
   private readonly renderableNodes = new WeakMap<ListingEntry, RenderableFileNode>();
   private readonly childLists = new WeakMap<
-    Readonly<Record<string, ListingEntry>>,
+    Readonly<ListingEntries>,
     { exclusions: readonly string[]; nodes: RenderableFileNode[] }
   >();
 
@@ -327,7 +330,7 @@ export class FilesStore {
         const view = this.folders.get(folder);
         if (view?.status === 'error') return err({ type: 'unavailable', message: view.message });
         const child = segments[index]!;
-        if (view?.status !== 'ready' || !Object.hasOwn(view.entries, child)) {
+        if (view?.status !== 'ready' || !listingEntry(view.entries, child)) {
           return err({ type: 'not-found', path: target });
         }
       }
@@ -476,7 +479,7 @@ export class FilesStore {
       const entries = view?.status === 'ready' ? view.entries : undefined;
       for (const child of expandedByParent.get(folder) ?? []) {
         const name = basenameFromPath(child);
-        const entry = entries && Object.hasOwn(entries, name) ? entries[name] : undefined;
+        const entry = entries && listingEntry(entries, name);
         if (!entries || (entry && isExpandableListingEntry(entry))) pending.push(child);
       }
       if (!entries) continue;
@@ -529,14 +532,15 @@ export class FilesStore {
   /** The folder's visible children, sorted; reused while its listing and the exclusions hold. */
   private childNodes(
     folder: PortableRelativePath,
-    entries: Readonly<Record<string, ListingEntry>>
+    entries: Readonly<ListingEntries>
   ): RenderableFileNode[] {
     const exclusions = this.exclusions;
     const cached = this.childLists.get(entries);
     if (cached?.exclusions === exclusions) return cached.nodes;
     const policy = this.exclusionPolicy;
     const nodes: RenderableFileNode[] = [];
-    for (const [name, entry] of Object.entries(entries)) {
+    for (const [key, entry] of Object.entries(entries)) {
+      const name = listingEntryName(key);
       const path = folder ? `${folder}/${name}` : name;
       if (policy.excludes(portablePath(path))) continue;
       let node = this.renderableNodes.get(entry);

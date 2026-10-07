@@ -124,7 +124,7 @@ describe('files wire controller against a live files runtime', () => {
     if (!source) throw new Error('Expected a live listing source');
     try {
       await expect(source.snapshot()).resolves.toMatchObject({
-        data: { status: 'ready', entries: { 'index.ts': { kind: 'file' } } },
+        data: { status: 'ready', entries: { '/index.ts': { kind: 'file' } } },
       });
       await writeFile(path.join(dir, 'src/added.ts'), '');
       await expect(
@@ -133,7 +133,7 @@ describe('files wire controller against a live files runtime', () => {
       await waitFor(async () => {
         const snapshot = await source.snapshot();
         const listing = snapshot.data as { entries?: Record<string, unknown> };
-        return 'added.ts' in (listing.entries ?? {});
+        return '/added.ts' in (listing.entries ?? {});
       });
     } finally {
       await lease?.release();

@@ -1,5 +1,5 @@
 import { encodeResourceUri } from '@emdash/core/primitives/path/api';
-import type { FolderListing, FsError } from '@emdash/core/runtimes/files/api';
+import { listingEntryKey, type FolderListing, type FsError } from '@emdash/core/runtimes/files/api';
 import { ok, type Result } from '@emdash/shared';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { defineContract } from '@emdash/wire/rpc';
@@ -26,7 +26,9 @@ type Folders = Record<string, FolderListing>;
 function ready(entries: Record<string, 'file' | 'directory'>): FolderListing {
   return {
     status: 'ready',
-    entries: Object.fromEntries(Object.entries(entries).map(([name, kind]) => [name, { kind }])),
+    entries: Object.fromEntries(
+      Object.entries(entries).map(([name, kind]) => [listingEntryKey(name), { kind }])
+    ),
   };
 }
 
@@ -220,7 +222,7 @@ describe('FilesStore', () => {
         '': ready({ src: 'directory' }),
         src: {
           status: 'ready',
-          entries: { linked: { kind: 'symlink', symlinkTargetKind: 'directory' } },
+          entries: { '/linked': { kind: 'symlink', symlinkTargetKind: 'directory' } },
         },
       },
     });
@@ -389,7 +391,7 @@ describe('FilesStore', () => {
       status: 'ready',
       entries: {
         ...(previous.status === 'ready' ? previous.entries : {}),
-        'new.ts': { kind: 'file' },
+        '/new.ts': { kind: 'file' },
       },
     }));
     await waitFor(() => store.nodes.has('/repo/src/new.ts'));
@@ -413,7 +415,7 @@ describe('FilesStore', () => {
       status: 'ready',
       entries: {
         ...(previous.status === 'ready' ? previous.entries : {}),
-        'upload.txt': { kind: 'file' },
+        '/upload.txt': { kind: 'file' },
       },
     }));
     await waitFor(() => store.nodes.get('/repo/upload.txt')?.id === 'upload.txt');

@@ -6,7 +6,7 @@ import { deferred } from '@emdash/shared/testing';
 import { peek, revisionOf } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostAbsolutePath } from '#primitives/path/api';
-import type { FolderListing } from '#runtimes/files/api';
+import { listingEntryName, type FolderListing, type ListingEntry } from '#runtimes/files/api';
 import { resolveRootIdentity } from '#runtimes/files/node/allocation/identity';
 import { RootResource } from '#runtimes/files/node/root/root-resource';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
@@ -261,6 +261,25 @@ describe('RootListings', () => {
     expect(readFolder.mock.calls.length).toBeLessThanOrEqual(1);
     expect(() => listings.acquire(relativePath(''))).toThrow('disposed');
   });
+
+  it('lists a nested child named __proto__ like any other child', async () => {
+    const { rootPath, listings, watcher } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'));
+    await writeFile(path.join(rootPath, 'src/__proto__'), '');
+    const { state } = await acquire(listings, 'src');
+    expect(names(peek(state))).toEqual(['__proto__']);
+
+    await rm(path.join(rootPath, 'src/__proto__'));
+    watcher.emit([{ kind: 'delete', path: path.join(rootPath, 'src/__proto__') }]);
+    await vi.waitFor(() => expect(names(peek(state))).toEqual([]));
+
+    await mkdir(path.join(rootPath, 'src/__proto__'));
+    watcher.emit([{ kind: 'create', path: path.join(rootPath, 'src/__proto__') }]);
+    await vi.waitFor(() =>
+      expect(entries(peek(state))['__proto__']).toEqual({ kind: 'directory' })
+    );
+    expect(Object.getPrototypeOf(entries(peek(state)))).toBe(Object.prototype);
+  });
 });
 
 async function acquire(listings: RootListings, folder: string) {
@@ -269,8 +288,12 @@ async function acquire(listings: RootListings, folder: string) {
   return lease.ready();
 }
 
-function entries(listing: FolderListing) {
-  return listing.status === 'ready' ? listing.entries : {};
+/** The listing's children by name. */
+function entries(listing: FolderListing): Record<string, ListingEntry> {
+  if (listing.status !== 'ready') return {};
+  return Object.fromEntries(
+    Object.entries(listing.entries).map(([key, entry]) => [listingEntryName(key), entry])
+  );
 }
 
 function names(listing: FolderListing): string[] {

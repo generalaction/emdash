@@ -4,7 +4,7 @@ import path from 'node:path';
 import { ok } from '@emdash/shared';
 import { client, connect, memoryTransportPair, serve } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
-import { filesContract } from '#runtimes/files/api';
+import { filesContract, listingEntryName } from '#runtimes/files/api';
 import { FilesRuntime, type FilesRuntimeOptions } from '#runtimes/files/node/files-runtime';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
 import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
@@ -276,7 +276,10 @@ describe('files runtime fs mutations', () => {
     const key = { root: runtimeRoot(dir), path: relativePath('src') };
     const entries = async () => {
       const listing = (await connection.api.listing.state(key, 'listing').snapshot()).data;
-      return listing.status === 'ready' ? listing.entries : {};
+      if (listing.status !== 'ready') return {};
+      return Object.fromEntries(
+        Object.entries(listing.entries).map(([name, entry]) => [listingEntryName(name), entry])
+      );
     };
 
     try {
