@@ -18,6 +18,7 @@ export const issueProviderIdSchema = z.enum([
   'monday',
   'notion',
   'trello',
+  'youtrack',
 ]);
 
 const v0Schema = z.object({

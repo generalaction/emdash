@@ -222,8 +222,10 @@ export function agentSupportsInitialPromptDelivery(
 }
 
 export function agentSupportsAutoApprove(
-  capabilities: AgentCapabilities | undefined | null
+  capabilities: AgentCapabilities | undefined | null,
+  transport: 'acp' | 'pty' = 'pty'
 ): boolean {
+  if (transport === 'acp') return false;
   return capabilities?.autoApprove.kind === 'supported';
 }
 

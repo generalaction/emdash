@@ -67,6 +67,19 @@ async function roundTripDefault<K extends AppSettingsKey>(key: K): Promise<void>
 }
 
 describe('SettingsStore contributions', () => {
+  it('remembers the last conversation interface globally across restarts', async () => {
+    rows.clear();
+    const settings = new SettingsStore(db, appSettingsContributions);
+    expect(await settings.get('preferredConversationType')).toBe('pty');
+    await settings.update('preferredConversationType', 'acp');
+    const restarted = new SettingsStore(db, appSettingsContributions);
+    expect(await restarted.get('preferredConversationType')).toBe('acp');
+    await restarted.update('preferredConversationType', 'pty');
+    expect(
+      await new SettingsStore(db, appSettingsContributions).get('preferredConversationType')
+    ).toBe('pty');
+  });
+
   it('applies tray visibility immediately through Wire updates and resets', async () => {
     rows.clear();
     const service = new AppSettingsService(new SettingsStore(db, appSettingsContributions));
@@ -128,10 +141,10 @@ describe('SettingsStore contributions', () => {
 
     const value: AppSettings['tasks'] = {
       ...getDefaultForKey('tasks'),
-      autoApproveByDefault: true,
+      autoTrustWorktrees: false,
     };
     await settings.update('tasks', value);
-    expect(JSON.parse(rows.get('tasks')!)).toEqual({ autoApproveByDefault: true });
+    expect(JSON.parse(rows.get('tasks')!)).toEqual({ autoTrustWorktrees: false });
   });
 
   it('adopts legacy scalar values', async () => {

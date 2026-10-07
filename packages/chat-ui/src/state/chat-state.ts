@@ -104,11 +104,10 @@ type LiveReadable<T> = {
 };
 
 export type ConnectSessionSource = {
-  activeTurn: LiveReadable<TranscriptTurn | null>;
   plan: LiveReadable<PlanState | null>;
   sessionState: LiveReadable<{
     pendingPermissions: readonly AcpPermissionRequest[];
-    transcript?: TranscriptSnapshot;
+    transcript: TranscriptSnapshot | null;
   }>;
 };
 
@@ -331,38 +330,20 @@ export function connectSession(
   source: ConnectSessionSource,
   options: ConnectSessionOptions = {}
 ): () => void {
-  let previousTurnId = state.transcript.state.activeTurnSnapshot?.id ?? null;
-  let usesVersionedTranscript = false;
-
   const syncSessionState = (): void => {
     const snapshot = source.sessionState.getSnapshot();
     state.session.setPermissions(snapshot?.pendingPermissions ?? []);
-    if (snapshot?.transcript) {
-      usesVersionedTranscript = true;
-      if (state.transcript.observe(snapshot.transcript)) options.onTurnCommitted?.();
-    }
+    if (snapshot && state.transcript.observe(snapshot.transcript)) options.onTurnCommitted?.();
   };
 
   const syncPlan = (): void => {
     state.session.setPlan(source.plan.getSnapshot() ?? null);
   };
 
-  const syncActiveTurn = (): void => {
-    if (usesVersionedTranscript) return;
-    const turn = source.activeTurn.getSnapshot() ?? null;
-    state.transcript.activeTurn.set(turn);
-    if (previousTurnId && previousTurnId !== turn?.id) options.onTurnCommitted?.();
-    previousTurnId = turn?.id ?? null;
-  };
   syncSessionState();
   syncPlan();
-  syncActiveTurn();
 
-  const unsubs = [
-    source.sessionState.subscribe(syncSessionState),
-    source.plan.subscribe(syncPlan),
-    source.activeTurn.subscribe(syncActiveTurn),
-  ];
+  const unsubs = [source.sessionState.subscribe(syncSessionState), source.plan.subscribe(syncPlan)];
   return () => {
     for (const unsub of unsubs) unsub();
   };

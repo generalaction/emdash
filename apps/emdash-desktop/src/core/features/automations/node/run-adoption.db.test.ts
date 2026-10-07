@@ -8,9 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
 import { automations, projects, sshConnections, tasks } from '@core/services/app-db/node/schema';
 import { adoptRun } from './run-adoption';
-
 const remoteHost = hostRef('remote', 'ssh-1');
-
 function remoteRunFixture(): AutomationRun {
   return {
     id: 'run-1',
@@ -25,7 +23,6 @@ function remoteRunFixture(): AutomationRun {
         type: 'acp',
         start: {
           providerId: 'claude',
-          model: null,
           initialQueue: [{ text: 'Review changes' }],
         },
       },
@@ -66,7 +63,6 @@ function remoteRunFixture(): AutomationRun {
     error: null,
   };
 }
-
 function hostWorkspaceRecord(id: string): WorkspaceRecord {
   return {
     id,
@@ -89,10 +85,8 @@ function hostWorkspaceRecord(id: string): WorkspaceRecord {
     runtime: null,
   };
 }
-
 describe('remote automation run adoption', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>> | undefined;
-
   beforeEach(async () => {
     fixture = await openFixture('empty');
     await fixture.db.insert(sshConnections).values({
@@ -122,11 +116,9 @@ describe('remote automation run adoption', () => {
       updatedAt: 100,
     });
   });
-
   afterEach(() => {
     fixture?.close();
   });
-
   it('persists the runtime workspace host and creates a desktop task', async () => {
     if (!fixture) throw new Error('Database fixture was not initialized');
     const getRun = vi.fn().mockResolvedValue(ok({ run: remoteRunFixture() }));
@@ -151,7 +143,6 @@ describe('remote automation run adoption', () => {
             updatedAt: '2026-01-01',
           }
         : undefined;
-
     const result = await adoptRun(
       {
         db: fixture.db,
@@ -165,7 +156,6 @@ describe('remote automation run adoption', () => {
       'automation-1',
       'run-1'
     );
-
     expect(result.success).toBe(true);
     expect(client).toHaveBeenCalledWith(remoteHost);
     expect(getRun).toHaveBeenCalledWith({
@@ -176,7 +166,6 @@ describe('remote automation run adoption', () => {
       workspaceId: 'run-1',
       path: '/worktrees/repo-12345678/review-changes-run-1',
     });
-
     const workspacePath = '/worktrees/repo-12345678/review-changes-run-1';
     const [workspace] = await fixture.db
       .select()
@@ -190,7 +179,6 @@ describe('remote automation run adoption', () => {
       sshConnectionId: 'ssh-1',
       path: workspacePath,
     });
-
     const [task] = await fixture.db.select().from(tasks).where(eq(tasks.automationRunId, 'run-1'));
     expect(task).toMatchObject({
       projectId: 'project-1',
@@ -199,7 +187,6 @@ describe('remote automation run adoption', () => {
     });
     expect(notifyTaskCreated).toHaveBeenCalledOnce();
   });
-
   it('merges with a snapshot-sync-adopted row for the same path instead of duplicating it', async () => {
     if (!fixture) throw new Error('Database fixture was not initialized');
     const workspacePath = '/worktrees/repo-12345678/review-changes-run-1';
@@ -213,7 +200,6 @@ describe('remote automation run adoption', () => {
       path: workspacePath,
       config: null,
     });
-
     const getRun = vi.fn().mockResolvedValue(ok({ run: remoteRunFixture() }));
     const createWorkspace = vi.fn().mockResolvedValue(ok(hostWorkspaceRecord('adopted-workspace')));
     const client = vi
@@ -233,7 +219,6 @@ describe('remote automation run adoption', () => {
             updatedAt: '2026-01-01',
           }
         : undefined;
-
     const result = await adoptRun(
       {
         db: fixture.db,
@@ -247,7 +232,6 @@ describe('remote automation run adoption', () => {
       'automation-1',
       'run-1'
     );
-
     expect(result.success).toBe(true);
     const rows = await fixture.db
       .select()
@@ -256,7 +240,6 @@ describe('remote automation run adoption', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ id: 'adopted-workspace', path: workspacePath });
     expect(rows[0]?.config).not.toBeNull();
-
     const [task] = await fixture.db.select().from(tasks).where(eq(tasks.automationRunId, 'run-1'));
     expect(task?.workspaceId).toBe('adopted-workspace');
   });

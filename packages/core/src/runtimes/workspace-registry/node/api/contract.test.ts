@@ -7,7 +7,7 @@ import { ManualClock } from '@emdash/shared/testing';
 import type { LiveUpdate } from '@emdash/wire/rpc';
 import { pin, remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import { WorkspaceRecordStore } from '#runtimes/workspace-registry/node/persistence/record-store';
@@ -18,6 +18,7 @@ import {
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { WorkspaceScanScheduler } from '#runtimes/workspace-registry/node/scan/scheduler';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
+import * as execApi from '#services/exec/api';
 import { measureAbsolutePathUsage } from '#services/fs-usage/node';
 import { nativeWatchBackend } from '#services/fs-watch/impl/native-backend';
 import { createWatchService } from '#services/fs-watch/impl/watch-service';
@@ -91,20 +92,24 @@ describe('workspace registry contract', () => {
   let clock: ManualClock;
   let runtime: WorkspaceRegistryRuntime;
   let wire: TestWire<typeof workspaceRegistryContract>;
+  let env: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-registry-')));
     handle = await workspaceRegistryStore.openTemp();
     clock = new ManualClock(10_000);
+    env = { ...process.env };
     runtime = new WorkspaceRegistryRuntime({
       attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock,
+      env: async () => env,
     });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     wire.dispose();
     runtime.dispose();
     handle.close();
@@ -197,6 +202,76 @@ describe('workspace registry contract', () => {
     await fs.mkdir(sub);
     const subCreated = await wire.client.createWorkspace({ workspaceId: 'ws-sub', path: sub });
     expect(subCreated).toMatchObject({ success: true, data: { kind: 'directory' } });
+  });
+
+  it.each(['config', 'gitfile'] as const)(
+    'does not register a repository with broken %s',
+    async (kind) => {
+      const repoPath = await makeRepo(root, 'broken-repo');
+      if (kind === 'config') {
+        await fs.writeFile(path.join(repoPath, '.git', 'config'), '[broken\n');
+      } else {
+        await fs.rm(path.join(repoPath, '.git'), { recursive: true });
+        await fs.writeFile(path.join(repoPath, '.git'), 'gitdir: missing-git-directory\n');
+      }
+
+      await expect(
+        wire.client.createWorkspace({ workspaceId: 'ws-broken', path: repoPath })
+      ).resolves.toMatchObject({
+        success: false,
+        error: {
+          type: 'inspect-failed',
+          path: repoPath,
+          message: expect.stringContaining(
+            kind === 'config' ? 'bad config line' : 'not a git repository:'
+          ),
+        },
+      });
+      expect(await listRecords()).toEqual({});
+      expect(new WorkspaceRecordStore(handle).getByPath(repoPath)).toBeNull();
+    }
+  );
+
+  it('does not register when Git is unavailable and allows retry after the host environment recovers', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const emptyPath = path.join(root, 'empty-path');
+    await fs.mkdir(emptyPath);
+    env = { ...process.env, PATH: emptyPath, Path: emptyPath };
+    const input = { workspaceId: 'ws-retry', path: repoPath };
+
+    await expect(wire.client.createWorkspace(input)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'inspect-failed', message: expect.stringContaining('ENOENT') },
+    });
+    expect(await listRecords()).toEqual({});
+    expect(new WorkspaceRecordStore(handle).getByPath(repoPath)).toBeNull();
+
+    env = { ...process.env };
+    await expect(wire.client.createWorkspace(input)).resolves.toMatchObject({
+      success: true,
+      data: { id: 'ws-retry', kind: 'repository' },
+    });
+  });
+
+  it.each([
+    [127, 'git launcher: command not found'],
+    [null, 'Timed out after 10000ms'],
+  ])('does not register after command failure %s: %s', async (exitCode, stderr) => {
+    const repoPath = await makeRepo(root, 'repo');
+    const exec = execApi.createBoundExec({ file: 'git', cwd: repoPath });
+    vi.spyOn(exec, 'exec').mockRejectedValue(
+      new execApi.ExecError('git', [], exitCode, '', stderr)
+    );
+    vi.spyOn(execApi, 'createBoundExec').mockReturnValue(exec);
+
+    await expect(
+      wire.client.createWorkspace({ workspaceId: 'ws-failed', path: repoPath })
+    ).resolves.toEqual({
+      success: false,
+      error: { type: 'inspect-failed', path: repoPath, message: stderr },
+    });
+    expect(await listRecords()).toEqual({});
+    expect(new WorkspaceRecordStore(handle).getByPath(repoPath)).toBeNull();
   });
 
   it('persists personal config and legacy imports for directory project roots', async () => {

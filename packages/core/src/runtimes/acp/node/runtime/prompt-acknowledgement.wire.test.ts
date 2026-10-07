@@ -61,7 +61,9 @@ describe('prompt acknowledgement over Wire', () => {
         expect(h.agent.cancel).not.toHaveBeenCalled();
         turn.resolve({ stopReason: 'end_turn' });
         await vi.waitFor(() => expect(runtime.getSessionState('conv-1').isGenerating).toBe(false));
-        expect(runtime.manager.getHistory('conv-1').turns[0].items[0]).toMatchObject({
+        const history = runtime.manager.getHistory('conv-1');
+        if (history.kind !== 'available') throw new Error('Expected available history');
+        expect(history.turns[0].items[0]).toMatchObject({
           text: 'continue',
           promptId,
         });

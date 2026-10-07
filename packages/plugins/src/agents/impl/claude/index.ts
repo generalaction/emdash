@@ -15,6 +15,7 @@ import { claudeAuthStatus } from './auth';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 import { buildClaudeTrustBehavior } from './trust';
+import { probeClaudeUsage } from './usage';
 
 export const plugin = definePlugin(
   {
@@ -25,6 +26,7 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
+    usageLimits: { kind: 'supported' },
     acp: {
       kind: 'supported',
     },
@@ -53,28 +55,24 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
-        'claude-fable-5-1': {
-          name: 'Claude Fable 5.1',
-          modelFeatures: { intelligence: 4, speed: 3 },
-        },
-        'claude-fable-5': {
-          name: 'Claude Fable 5',
-          modelFeatures: { intelligence: 4, speed: 3 },
-        },
-        'claude-opus-4-8': {
-          name: 'Claude Opus 4.8',
+        'opus[1m]': {
+          name: 'Opus 5.5',
+          description: 'Opus 5.5 with 1M context · Best for everyday, complex tasks',
           modelFeatures: { intelligence: 5, speed: 2 },
         },
-        'claude-opus-5': {
-          name: 'Claude Opus 5',
-          modelFeatures: { intelligence: 5, speed: 2 },
+        'claude-fable-5-1[1m]': {
+          name: 'Fable 5.1',
+          description: 'Most capable for your hardest and longest-running tasks',
+          modelFeatures: { intelligence: 4, speed: 3 },
         },
-        'claude-sonnet-5': {
-          name: 'Claude Sonnet 5',
+        sonnet: {
+          name: 'Sonnet 5',
+          description: 'Efficient for routine tasks',
           modelFeatures: { intelligence: 4, speed: 4 },
         },
-        'claude-haiku-4-5': {
-          name: 'Claude Haiku 4.5',
+        haiku: {
+          name: 'Haiku 4.5',
+          description: 'Fastest for quick answers',
           modelFeatures: { intelligence: 3, speed: 5 },
         },
       },
@@ -111,6 +109,12 @@ export const plugin = definePlugin(
               'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd',
             uninstallCommand: 'claude uninstall',
           },
+          {
+            method: 'winget',
+            command: 'winget install Anthropic.ClaudeCode',
+            updateCommand: 'winget upgrade Anthropic.ClaudeCode',
+            uninstallCommand: 'winget uninstall Anthropic.ClaudeCode',
+          },
         ],
       },
       updateCommand: {
@@ -138,6 +142,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  usageLimits: { probe: probeClaudeUsage },
   acp: {
     buildSpawn: (ctx) => ({
       // Run the adapter as plain Node inside the Electron binary.

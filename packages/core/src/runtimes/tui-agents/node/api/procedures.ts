@@ -14,7 +14,7 @@ export type StartTuiSessionInput = TuiAgentStartInput;
 
 export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
   return {
-    start(
+    startSession(
       input: StartTuiSessionInput
     ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
       return runtime.startSession(input);

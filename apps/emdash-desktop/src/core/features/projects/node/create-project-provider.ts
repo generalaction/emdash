@@ -7,13 +7,19 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { log } from '@emdash/shared/logger';
+import { abortableWait, throwIfAborted, TimeoutError } from '@emdash/shared/scheduling';
+import { WireError } from '@emdash/wire/rpc';
 import {
   ProjectProvider,
   type GitRepositoryFetchPort,
   type GitRepositoryPort,
   type ProjectProviderTransport,
 } from '@core/features/projects/api/node/project-provider';
-import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
+import {
+  resolveProjectEffectiveSettings,
+  type RepoFactsSource,
+} from '@core/features/projects/api/node/settings/effective-settings';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import {
   dirnameHostPath,
@@ -48,7 +54,10 @@ import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
 import { createRepoFactsCache } from './settings/repo-facts';
 
-export type CreateProviderError = { type: 'error'; message: string } | RuntimeResolveError;
+export type CreateProviderError =
+  | { type: 'error'; message: string }
+  | { type: 'timeout'; message: string }
+  | RuntimeResolveError;
 
 export type CreateProjectProviderDependencies = {
   db: AppDb;
@@ -84,11 +93,24 @@ export type CreateProjectProviderDependencies = {
 
 export async function createProvider(
   dependencies: CreateProjectProviderDependencies,
-  project: Project
+  project: Project,
+  signal?: AbortSignal
 ): Promise<Result<ProjectProvider, CreateProviderError>> {
+  const startedAt = Date.now();
+  let stage = 'runtime';
+  let ownedRepoFacts: RepoFactsSource | undefined;
+  let fetchService: GitRepositoryFetchPort | undefined;
+  const step = async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+    stage = name;
+    const result = await abortableWait<T>({ signal }, (settle) => {
+      work().then(settle.resolve, settle.reject);
+    });
+    throwIfAborted(signal);
+    return result;
+  };
   try {
     const host = projectHostRef(project);
-    const runtime = await dependencies.runtimes.client(host);
+    const runtime = await step('runtime', () => dependencies.runtimes.client(host));
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
     const git = runtime.data.git;
     const filesClient = runtime.data.files;
@@ -96,7 +118,9 @@ export async function createProvider(
     const projectFiles = filesClientScope(filesClient, project.path);
     const repository = repositorySelector(project.path);
     const checkout = checkoutSelector(project.path);
-    const repositoryInspection = await git.inspectPath({ path: hostPathFromNative(project.path) });
+    const repositoryInspection = await step('repository-inspection', () =>
+      git.inspectPath({ path: hostPathFromNative(project.path) }, { signal })
+    );
     const hasRepository =
       !repositoryInspection.success || repositoryInspection.data.kind === 'repository';
     const gitInspector = {
@@ -118,6 +142,7 @@ export async function createProvider(
       },
     };
     const repoFacts = createRepoFactsCache(git, repository, hasRepository);
+    ownedRepoFacts = repoFacts;
     const settings = new HostProjectSettingsProvider(
       project.id,
       project.path,
@@ -171,11 +196,15 @@ export async function createProvider(
         },
       }
     );
-    await settings.ensure();
-    await migrateProjectSettingsOnAttachment(project, settings, runtime.data.workspaceRegistry, {
-      migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
-    });
+    await step('settings-storage', () => settings.ensure());
+    await step('settings-migration', () =>
+      migrateProjectSettingsOnAttachment(project, settings, runtime.data.workspaceRegistry, {
+        migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
+        signal,
+      })
+    );
 
+    stage = 'provider';
     const repositoryService = dependencies.createGitRepository(git, repository, () =>
       resolveProjectEffectiveSettings({ settings, repoFacts, projectId: project.id })
     );
@@ -194,7 +223,7 @@ export async function createProvider(
       workspaceRegistry: runtime.data.workspaceRegistry,
       repoFacts,
     };
-    const fetchService = dependencies.createGitRepositoryFetch(git, repository, () =>
+    fetchService = dependencies.createGitRepositoryFetch(git, repository, () =>
       repositoryService.getBaseRemote()
     );
     if (hasRepository) fetchService.start();
@@ -213,11 +242,32 @@ export async function createProvider(
     );
     return ok(provider);
   } catch (error) {
+    const detail = { projectId: project.id, stage, elapsedMs: Date.now() - startedAt, error };
+    if (signal?.aborted && !(error instanceof TimeoutError)) {
+      log.debug('Project provider initialization cancelled', detail);
+    } else {
+      log.warn('Project provider initialization failed', detail);
+    }
+    const cleanup = await Promise.allSettled([
+      Promise.resolve().then(() => fetchService?.stop()),
+      ownedRepoFacts?.dispose(),
+    ]);
+    for (const result of cleanup) {
+      if (result.status === 'rejected') {
+        log.warn('Project provider initialization cleanup failed', {
+          projectId: project.id,
+          error: result.reason,
+        });
+      }
+    }
     return err(toCreateProviderError(error));
   }
 }
 
 function toCreateProviderError(error: unknown): CreateProviderError {
   if (isRuntimeResolveError(error)) return error;
+  if (error instanceof WireError && error.code === 'TIMEOUT') {
+    return { type: 'timeout', message: error.message };
+  }
   return { type: 'error', message: error instanceof Error ? error.message : String(error) };
 }

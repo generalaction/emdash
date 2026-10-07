@@ -2,10 +2,15 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
+    'primitives-exec-node': 'src/primitives/exec/node/index.ts',
+    'primitives-provider-usage-api': 'src/primitives/provider-usage/api/index.ts',
+    'runtimes-provider-usage-api': 'src/runtimes/provider-usage/api/index.ts',
+    'runtimes-provider-usage-node': 'src/runtimes/provider-usage/node/index.ts',
     'services-attachments-node': 'src/services/attachments/node/local-attachment-store.ts',
     'services-attachments-api': 'src/services/attachments/api/index.ts',
     'primitives-path-api': 'src/primitives/path/api/index.ts',
     'primitives-host-api': 'src/primitives/host/api/index.ts',
+    'primitives-git-api': 'src/primitives/git/api/index.ts',
     'primitives-git-credentials-api': 'src/primitives/git-credentials/api/index.ts',
     'primitives-exclusion-policy-api': 'src/primitives/exclusion-policy/api/index.ts',
     'primitives-skills-api': 'src/primitives/skills/api/index.ts',
@@ -39,6 +44,8 @@ export default defineConfig({
     'services-fs-watch-node': 'src/services/fs-watch/node/index.ts',
     'runtimes-git-api': 'src/runtimes/git/api/index.ts',
     'runtimes-git-node': 'src/runtimes/git/node/index.ts',
+    'runtimes-lsp-api': 'src/runtimes/lsp/api/index.ts',
+    'runtimes-lsp-node': 'src/runtimes/lsp/node/index.ts',
     'runtimes-files-api': 'src/runtimes/files/api/index.ts',
     'runtimes-files-node': 'src/runtimes/files/node/index.ts',
     'runtimes-file-search-api': 'src/runtimes/file-search/api/index.ts',
@@ -87,6 +94,7 @@ export default defineConfig({
       'semver',
       'smol-toml',
       'zod',
+      'vscode-languageserver-protocol',
     ],
   },
   sourcemap: true,

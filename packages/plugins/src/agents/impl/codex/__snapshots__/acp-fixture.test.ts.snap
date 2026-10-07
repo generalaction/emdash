@@ -115,70 +115,83 @@ exports[`Codex ACP fixture parsing > config 1`] = `
       "source": "provider-command",
     },
   ],
-  "collaborationModeOptions": null,
-  "efforts": {
-    "available": [
-      {
-        "description": "Fast responses with lighter reasoning",
-        "id": "low",
-        "name": "low",
-      },
-      {
-        "description": "Balances speed and reasoning depth for everyday tasks",
-        "id": "medium",
-        "name": "medium",
-      },
-      {
-        "description": "Greater reasoning depth for complex problems",
-        "id": "high",
-        "name": "high",
-      },
-      {
-        "description": "Extra high reasoning depth for complex problems",
-        "id": "xhigh",
-        "name": "xhigh",
-      },
-    ],
-    "configId": "reasoning_effort",
-    "selected": "low",
-  },
-  "modeOptions": {
-    "available": [
-      {
-        "description": "Requires approval to edit files and run commands.",
-        "id": "read-only",
-        "name": "Read-only",
-      },
-      {
-        "description": "Read and edit files, and run commands.",
-        "id": "agent",
-        "name": "Agent",
-      },
-      {
-        "description": "Codex can edit files outside this workspace and run commands with network access. Exercise caution when using.",
-        "id": "agent-full-access",
-        "name": "Agent (full access)",
-      },
-    ],
-    "configId": "mode",
-    "selected": "agent",
-  },
-  "modelOptions": {
-    "available": [
-      {
-        "description": "Frontier model for complex coding, research, and real-world work.",
-        "id": "gpt-5.5",
-        "name": "GPT-5.5",
-      },
-      {
-        "description": "Small, fast, and cost-efficient model for simpler coding tasks.",
-        "id": "gpt-5.4-mini",
-        "name": "GPT-5.4-Mini",
-      },
-    ],
-    "configId": "model",
-    "selected": "gpt-5.4-mini",
-  },
+  "options": [
+    {
+      "category": "mode",
+      "currentValue": "agent",
+      "description": "Approval and sandboxing preset for the session",
+      "id": "mode",
+      "name": "Mode",
+      "options": [
+        {
+          "description": "Requires approval to edit files and run commands.",
+          "name": "Read-only",
+          "value": "read-only",
+        },
+        {
+          "description": "Read and edit files, and run commands.",
+          "name": "Agent",
+          "value": "agent",
+        },
+        {
+          "description": "Codex can edit files outside this workspace and run commands with network access. Exercise caution when using.",
+          "name": "Agent (full access)",
+          "value": "agent-full-access",
+        },
+      ],
+      "type": "select",
+    },
+    {
+      "category": "model",
+      "currentValue": "gpt-5.4-mini",
+      "description": "Model Codex uses for the session",
+      "id": "model",
+      "name": "Model",
+      "options": [
+        {
+          "description": "Frontier model for complex coding, research, and real-world work.",
+          "name": "GPT-5.5",
+          "value": "gpt-5.5",
+        },
+        {
+          "description": "Small, fast, and cost-efficient model for simpler coding tasks.",
+          "name": "GPT-5.4-Mini",
+          "value": "gpt-5.4-mini",
+        },
+      ],
+      "type": "select",
+    },
+    {
+      "category": "thought_level",
+      "currentValue": "low",
+      "description": "How much reasoning effort the model should use",
+      "id": "reasoning_effort",
+      "name": "Reasoning effort",
+      "options": [
+        {
+          "description": "Fast responses with lighter reasoning",
+          "name": "low",
+          "value": "low",
+        },
+        {
+          "description": "Balances speed and reasoning depth for everyday tasks",
+          "name": "medium",
+          "value": "medium",
+        },
+        {
+          "description": "Greater reasoning depth for complex problems",
+          "name": "high",
+          "value": "high",
+        },
+        {
+          "description": "Extra high reasoning depth for complex problems",
+          "name": "xhigh",
+          "value": "xhigh",
+        },
+      ],
+      "type": "select",
+    },
+  ],
 }
 `;
 

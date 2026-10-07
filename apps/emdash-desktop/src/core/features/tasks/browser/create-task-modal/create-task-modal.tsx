@@ -94,12 +94,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     initialWorkspaceId
   );
 
-  const { autoApproveByDefault, includeIssueContextByDefault } = useTaskSettings();
-  const initialConversation = useInitialConversationState(
-    selectedProjectId,
-    undefined,
-    autoApproveByDefault
-  );
+  const { includeIssueContextByDefault } = useTaskSettings();
+  const initialConversation = useInitialConversationState(selectedProjectId);
   const { navigate } = useNavigate();
 
   const { handleCreateTask, canCreate } = useCreateTaskCallback({

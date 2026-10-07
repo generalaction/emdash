@@ -74,7 +74,7 @@ export type TranscriptApi = {
   /** Imperative history write surface (seed / prepend / append). */
   history: ChatHistory;
   /** Apply a coherent live snapshot. Returns whether history needs catching up. */
-  observe(snapshot: TranscriptSnapshot): boolean;
+  observe(snapshot: TranscriptSnapshot | null): boolean;
   /** Merge only the page's authoritative range; reject obsolete responses. */
   applyPage(page: HistoryPage): boolean;
   readonly needsHistory: boolean;
@@ -151,6 +151,7 @@ export function createTranscript(): TranscriptApi {
     return displayed;
   };
   let head: TranscriptSnapshot | undefined;
+  let unavailable = true;
   let historyGeneration: string | undefined;
   let displayGeneration: string | undefined;
   let appliedRevision = -1;
@@ -310,6 +311,11 @@ export function createTranscript(): TranscriptApi {
   return {
     history,
     observe(snapshot) {
+      if (snapshot === null) {
+        unavailable = true;
+        activeTurnApi.set(null);
+        return false;
+      }
       if (retiredGenerations.has(snapshot.generation)) return false;
       if (
         head?.generation === snapshot.generation &&
@@ -317,6 +323,8 @@ export function createTranscript(): TranscriptApi {
       )
         return false;
       const previous = head;
+      const wasUnavailable = unavailable;
+      unavailable = false;
       if (head && head.generation !== snapshot.generation) retiredGenerations.add(head.generation);
       head = snapshot;
       displayGeneration ??= snapshot.generation;
@@ -328,21 +336,18 @@ export function createTranscript(): TranscriptApi {
         );
       }
       return (
-        previous !== undefined &&
-        (previous.generation !== snapshot.generation ||
-          previous.historyRevision !== snapshot.historyRevision)
+        (snapshot.generation !== historyGeneration || snapshot.historyRevision > appliedRevision) &&
+        (previous
+          ? wasUnavailable ||
+            previous.generation !== snapshot.generation ||
+            previous.historyRevision !== snapshot.historyRevision
+          : historyGeneration !== undefined)
       );
     },
     applyPage(page) {
-      if (page.unavailable) return false;
+      if (page.kind === 'unavailable') return false;
       const position = page.position;
-      if (!position) {
-        if (head || historyGeneration) return false;
-        history.replace(page.turns);
-        return true;
-      }
       if (
-        !page.coverage ||
         retiredGenerations.has(position.generation) ||
         (head && position.generation !== head.generation)
       )
@@ -374,7 +379,7 @@ export function createTranscript(): TranscriptApi {
         historyGeneration = position.generation;
         appliedRevision = position.historyRevision;
         history.replace([...next.values()].sort((a, b) => a.seq - b.seq));
-        if (head) {
+        if (head && !unavailable) {
           const turn = head.activeTurn;
           activeTurnApi.set(
             turn &&
@@ -392,7 +397,9 @@ export function createTranscript(): TranscriptApi {
     },
     get needsHistory() {
       return (
-        !!head && (head.generation !== historyGeneration || head.historyRevision > appliedRevision)
+        !unavailable &&
+        !!head &&
+        (head.generation !== historyGeneration || head.historyRevision > appliedRevision)
       );
     },
     activeTurn: activeTurnApi,
@@ -419,6 +426,7 @@ export function createTranscript(): TranscriptApi {
         setCommitted([]);
         setRetained([]);
         head = undefined;
+        unavailable = true;
         historyGeneration = undefined;
         displayGeneration = undefined;
         appliedRevision = -1;

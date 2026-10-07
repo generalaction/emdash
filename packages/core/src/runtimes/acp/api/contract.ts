@@ -9,7 +9,6 @@ import {
 } from '#runtimes/acp/api/models/config';
 import { planStateSchema } from '#runtimes/acp/api/models/plan';
 import { sessionStateSchema, sessionSummarySchema } from '#runtimes/acp/api/models/session';
-import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 import {
   acpCancelTurnErrorSchema,
   acpChangeQueuePromptOrderErrorSchema,
@@ -27,6 +26,7 @@ import {
 } from './errors';
 import {
   acpStartInputSchema,
+  acpSessionStartModeSchema,
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
   deleteQueuedPromptCommandSchema,
@@ -34,19 +34,17 @@ import {
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
   historyPageInputSchema,
-  loadHistoryResultSchema,
+  historyPageSchema,
   resolvePermissionCommandSchema,
   sendPromptCommandSchema,
   sendPromptResponseSchema,
   setOptionCommandSchema,
+  setOptionResultSchema,
   terminateCommandSchema,
 } from './schemas';
 
-const launchResultSchema = z.object({
+const startSessionResultSchema = z.object({
   sessionId: z.string(),
-  clearedConfiguration: z
-    .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
-    .optional(),
 });
 const sessionKeySchema = z.object({ conversationId: z.string() });
 const terminalOutputKeySchema = z.object({ terminalId: z.string() });
@@ -54,11 +52,12 @@ const terminalOutputKeySchema = z.object({ terminalId: z.string() });
 export const acpApiContract = defineContract({
   attach: fallible({
     input: acpStartInputSchema,
+    data: z.object({ sessionId: z.string().nullable() }),
     error: acpStartErrorSchema,
   }),
-  launch: fallible({
-    input: acpStartInputSchema,
-    data: launchResultSchema,
+  startSession: fallible({
+    input: acpStartInputSchema.extend({ mode: acpSessionStartModeSchema }),
+    data: startSessionResultSchema,
     error: acpLaunchErrorSchema,
   }),
   /**
@@ -93,6 +92,7 @@ export const acpApiContract = defineContract({
   }),
   setOption: fallible({
     input: setOptionCommandSchema,
+    data: setOptionResultSchema,
     error: acpSetOptionErrorSchema,
   }),
   resolvePermission: fallible({
@@ -112,7 +112,7 @@ export const acpApiContract = defineContract({
 
   loadHistory: fallible({
     input: historyPageInputSchema,
-    data: loadHistoryResultSchema,
+    data: historyPageSchema,
     error: acpLoadHistoryErrorSchema,
   }),
   sessions: liveModel({
@@ -129,7 +129,6 @@ export const acpApiContract = defineContract({
       usage: liveState({ data: sessionUsageSchema.nullable() }),
       plan: liveState({ data: planStateSchema.nullable() }),
       agents: liveState({ data: z.array(agentStateSchema) }),
-      activeTurn: liveState({ data: transcriptTurnSchema.nullable() }),
       terminals: liveState({ data: z.array(terminalStateSchema) }),
       mcpServers: liveState({ data: z.array(sessionMcpServerSchema) }),
     },

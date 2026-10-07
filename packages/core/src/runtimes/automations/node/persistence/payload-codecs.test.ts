@@ -8,7 +8,6 @@ import {
   serializeDeploymentPayload,
   serializeRunPayload,
 } from './payload-codecs';
-
 function deployment(): AutomationDeployment {
   return {
     automationId: 'auto-1',
@@ -19,7 +18,6 @@ function deployment(): AutomationDeployment {
       type: 'acp',
       start: {
         providerId: 'claude',
-        model: null,
         initialQueue: [{ text: 'Review open PRs' }],
       },
     },
@@ -44,7 +42,6 @@ function deployment(): AutomationDeployment {
     revision: 1,
   };
 }
-
 function run(): AutomationRun {
   const deployed = deployment();
   return {
@@ -71,27 +68,22 @@ function run(): AutomationRun {
     error: null,
   };
 }
-
 describe('stored automation payloads', () => {
   it('round-trips runs without leaking the storage version', () => {
     const value = run();
     const serialized = serializeRunPayload(value);
-
     expect(JSON.parse(serialized)).toMatchObject({ version: '1', id: value.id });
     expect(parseRunPayload(serialized)).toEqual(value);
   });
-
   it('round-trips deployments without leaking the storage version', () => {
     const value = deployment();
     const serialized = serializeDeploymentPayload(value);
-
     expect(JSON.parse(serialized)).toMatchObject({
       version: '1',
       automationId: value.automationId,
     });
     expect(parseDeploymentPayload(serialized)).toEqual(value);
   });
-
   it('rejects version-less and future-version payloads', () => {
     expect(() => parseRunPayload(JSON.stringify(run()))).toThrow(/Missing 'version'/);
     expect(() => parseRunPayload(JSON.stringify({ ...run(), version: '2' }))).toThrow(
@@ -102,7 +94,6 @@ describe('stored automation payloads', () => {
       /future-version '2'/
     );
   });
-
   it('requires resolved placement fields in v1 worktree payloads', () => {
     const invalidDeployment = deployment();
     if (invalidDeployment.workspace.kind !== 'worktree') throw new Error('Expected worktree');
@@ -111,13 +102,11 @@ describe('stored automation payloads', () => {
       baseRemote: _baseRemote,
       ...invalidWorkspace
     } = invalidDeployment.workspace;
-
     expect(() =>
       parseDeploymentPayload(
         JSON.stringify({ ...invalidDeployment, workspace: invalidWorkspace, version: '1' })
       )
     ).toThrow(/Validation failed for version '1'/);
-
     const invalidRun = run();
     expect(() =>
       parseRunPayload(
@@ -129,7 +118,6 @@ describe('stored automation payloads', () => {
       )
     ).toThrow(/Validation failed for version '1'/);
   });
-
   it('reports malformed JSON explicitly', () => {
     expect(() => parseRunPayload('{')).toThrow('Stored automation run contains invalid JSON');
     expect(() => parseDeploymentPayload('{')).toThrow(

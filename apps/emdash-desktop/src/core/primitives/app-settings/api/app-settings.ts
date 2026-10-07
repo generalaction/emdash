@@ -24,7 +24,6 @@ export type NotificationSettings = {
 
 export type TaskSettings = {
   autoGenerateName: boolean;
-  autoApproveByDefault: boolean;
   autoTrustWorktrees: boolean;
   createBranchAndWorktree: boolean;
   deleteBranchByDefault: boolean;
@@ -68,6 +67,7 @@ export type ChangesViewMode = {
   unstaged: 'flat' | 'tree';
   staged: 'flat' | 'tree';
   pr: 'flat' | 'tree';
+  commits: 'flat' | 'tree';
 };
 
 export type BrowserSettings = {

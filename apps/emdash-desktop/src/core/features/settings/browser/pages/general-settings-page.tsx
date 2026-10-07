@@ -2,7 +2,6 @@ import { PageLayout, SettingsSection } from '@emdash/ui/react/patterns';
 import { AccountTab } from '../components/AccountTab';
 import NotificationSettingsCard from '../components/NotificationSettingsCard';
 import {
-  AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
@@ -35,7 +34,6 @@ export function GeneralSettingsPage() {
       </SettingsSection>
       <SettingsSection title="Preferences">
         <AutoGenerateTaskNamesRow />
-        <AutoApproveByDefaultRow />
         <AutoTrustWorktreesRow />
         <CreateBranchAndWorktreeRow />
         <DeleteBranchByDefaultRow />

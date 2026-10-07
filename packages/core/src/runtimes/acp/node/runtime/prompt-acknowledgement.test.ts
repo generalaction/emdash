@@ -12,7 +12,7 @@ describe('prompt acceptance', () => {
     const h = makeAcpHarness({ resolveAttachment });
     const runtime = new AcpRuntime(h.deps);
     try {
-      await runtime.launchSession(makeStartInput());
+      await runtime.startSession(makeStartInput(), 'resume');
       let settled = false;
       const submission = runtime
         .sendPrompt('conv-1', {
@@ -43,7 +43,7 @@ describe('prompt acceptance', () => {
     h.agent.prompt.mockReturnValueOnce(turn.promise);
     const runtime = new AcpRuntime(h.deps);
     try {
-      await runtime.launchSession(makeStartInput());
+      await runtime.startSession(makeStartInput(), 'resume');
       await runtime.sendPrompt('conv-1', { text: 'first' });
       await expect(
         runtime.sendPrompt(
@@ -166,7 +166,7 @@ describe('prompt acceptance', () => {
       });
       const runtime = new AcpRuntime(h.deps);
       try {
-        await runtime.launchSession(makeStartInput());
+        await runtime.startSession(makeStartInput(), 'resume');
         await expect(
           runtime.manager.sendPrompt({
             conversationId: 'conv-1',
@@ -195,7 +195,7 @@ describe('prompt acceptance', () => {
       h.agent.prompt.mockReturnValueOnce(turn.promise);
       const runtime = new AcpRuntime(h.deps);
       try {
-        await runtime.launchSession(makeStartInput());
+        await runtime.startSession(makeStartInput(), 'resume');
         await runtime.manager.sendPrompt({
           conversationId: 'conv-1',
           promptId: randomUUID(),
@@ -229,7 +229,7 @@ describe('prompt acceptance', () => {
     h.agent.prompt.mockReturnValueOnce(turn.promise);
     const runtime = new AcpRuntime(h.deps);
     try {
-      await runtime.launchSession(makeStartInput());
+      await runtime.startSession(makeStartInput(), 'resume');
       await expect(
         runtime.manager.sendPrompt({
           conversationId: 'conv-1',

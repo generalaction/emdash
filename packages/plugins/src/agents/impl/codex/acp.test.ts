@@ -26,6 +26,25 @@ describe('codex acp behavior', () => {
     expect(pluginRegistry.get('claude')!.behavior.acp!.enrich).not.toBe(enrichCodexUpdate);
   });
 
+  it('recognizes the captured missing-rollout error only for the requested session', () => {
+    const missing = {
+      code: -32603,
+      message: 'Internal error',
+      data: { details: 'no rollout found for thread id saved' },
+    };
+    expect(acpBehavior().isSessionNotFound?.(missing, 'saved')).toBe(true);
+    expect(acpBehavior().isSessionNotFound?.(missing, 'another-session')).toBe(false);
+    expect(
+      acpBehavior().isSessionNotFound?.(
+        { ...missing, data: { details: 'permission denied' } },
+        'saved'
+      )
+    ).toBe(false);
+    expect(
+      acpBehavior().isSessionNotFound?.({ code: -32603, message: 'Internal error' }, 'saved')
+    ).toBe(false);
+  });
+
   describe('buildSpawn', () => {
     const spawnCtx = { cwd: '/home/user/worktrees/task-1', env: {}, cli: '/usr/local/bin/codex' };
 

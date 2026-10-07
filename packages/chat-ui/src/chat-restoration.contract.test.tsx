@@ -69,11 +69,10 @@ describe('conversation restoration', () => {
     }
   });
 
-  it('keeps coherent state authoritative when replay temporarily omits the transcript', () => {
+  it('retains visible content while replay has no authoritative transcript', () => {
     const context = createChatContext({ theme: DEFAULT_THEME });
     const state = createChatState(context);
-    const activeTurn = source<TranscriptTurn | null>(userTurn('legacy'));
-    const sessionState = source<{ pendingPermissions: []; transcript?: TranscriptSnapshot }>({
+    const sessionState = source<{ pendingPermissions: []; transcript: TranscriptSnapshot | null }>({
       pendingPermissions: [],
       transcript: {
         generation: 'one',
@@ -82,12 +81,13 @@ describe('conversation restoration', () => {
         activeTurn: userTurn('current'),
       },
     });
-    const disconnect = connectSession(state, { activeTurn, sessionState, plan: source(null) });
+    const disconnect = connectSession(state, { sessionState, plan: source(null) });
     try {
       expect(state.transcript.state.activeTurnSnapshot?.id).toBe('turn-current');
-      sessionState.set({ pendingPermissions: [] });
-      activeTurn.set(userTurn('stale'));
-      expect(state.transcript.state.activeTurnSnapshot?.id).toBe('turn-current');
+      sessionState.set({ pendingPermissions: [], transcript: null });
+      expect(state.transcript.state.activeTurnSnapshot).toBeNull();
+      expect(state.transcript.state.displayTurns.map((turn) => turn.id)).toEqual(['turn-current']);
+      expect(state.transcript.needsHistory).toBe(false);
     } finally {
       disconnect();
       state.dispose();
@@ -98,18 +98,30 @@ describe('conversation restoration', () => {
   it('reconciles only the matching prompt, even without a mounted view', async () => {
     const context = createChatContext({ theme: DEFAULT_THEME });
     const state = createChatState(context);
-    const activeTurn = source<TranscriptTurn | null>(null);
+    const sessionState = source<{ pendingPermissions: []; transcript: TranscriptSnapshot | null }>({
+      pendingPermissions: [],
+      transcript: null,
+    });
+    const publish = (activeTurn: TranscriptTurn | null) =>
+      sessionState.set({
+        pendingPermissions: [],
+        transcript: {
+          generation: 'test',
+          historyRevision: 0,
+          lastCommittedTurnSeq: null,
+          activeTurn,
+        },
+      });
     const disconnect = connectSession(state, {
-      activeTurn,
       plan: source(null),
-      sessionState: source({ pendingPermissions: [] }),
+      sessionState,
     });
     try {
       state.session.setPendingPrompt({ id: 'latest', text: 'Hello' });
-      activeTurn.set(userTurn('previous'));
+      publish(userTurn('previous'));
       await nextPaint();
       expect(state.session.state.pendingPrompt?.id).toBe('latest');
-      activeTurn.set(null);
+      publish(null);
       state.transcript.history.seed([userTurn('previous')]);
       await nextPaint();
       expect(state.session.state.pendingPrompt?.id).toBe('latest');
@@ -118,7 +130,7 @@ describe('conversation restoration', () => {
       expect(state.session.state.pendingPrompt).toBeNull();
 
       state.session.setPendingPrompt({ id: 'next', text: 'Hello' });
-      activeTurn.set(userTurn('next', 2));
+      publish(userTurn('next', 2));
       await nextPaint();
       expect(state.session.state.pendingPrompt).toBeNull();
     } finally {

@@ -1,4 +1,6 @@
+import { hostRefFromParts, hostRefKey } from '@emdash/core/primitives/host/api';
 import type Database from 'better-sqlite3';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
@@ -217,7 +219,7 @@ export async function runLegacyPort(
         skipLegacyProjectIds: selection.skipLegacyProjectIds,
       });
       const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
-      ensureImportedTaskWorkspaces(appTarget.db);
+      ensureImportedTaskWorkspaces(appTarget.db, taskResult.workspacePaths);
       const conversationsSummary = await portConversations({
         appDb: appTarget.db,
         legacyDb,
@@ -226,6 +228,29 @@ export async function runLegacyPort(
         userDataPath: legacyUserDataPath,
         tmuxExec: runLocalCommand,
       });
+
+      const importedProjectIds = [...new Set(remap.projectId.values())];
+      if (importedProjectIds.length > 0) {
+        const hosts = appTarget.db
+          .selectDistinct({
+            location: schema.workspaces.location,
+            sshConnectionId: schema.workspaces.sshConnectionId,
+          })
+          .from(schema.projects)
+          .innerJoin(
+            schema.workspaces,
+            eq(schema.projects.repositoryWorkspaceId, schema.workspaces.id)
+          )
+          .where(inArray(schema.projects.id, importedProjectIds))
+          .all();
+        const markerKeys = hosts.flatMap(({ location, sshConnectionId }) => {
+          const hostKey = hostRefKey(hostRefFromParts(location, sshConnectionId));
+          return [`workspace-registry-backfill:${hostKey}`, `conversation-backfill:${hostKey}`];
+        });
+        if (markerKeys.length > 0) {
+          appTarget.db.delete(schema.kv).where(inArray(schema.kv.key, markerKeys)).run();
+        }
+      }
 
       return { sshSummary, projectsSummary, taskResult, conversationsSummary };
     });

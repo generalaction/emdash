@@ -27,14 +27,10 @@ export type Conversation = {
    * conversations store the id returned by newSession/loadSession.
    */
   sessionId?: string;
-  /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
+  /** Explicit selections keyed by provider-native ACP config ID. */
+  options?: Record<string, string | boolean>;
+  /** Model to pass to the TUI CLI. Absent or empty string means use the CLI default. */
   model?: string;
-  /** Last user-selected ACP session mode id (provider-specific), re-applied on session start. */
-  modeId?: string;
-  /** Last user-selected ACP reasoning/effort id, re-applied on session start. */
-  effort?: string;
-  /** Last user-selected ACP collaboration mode, re-applied on session start. */
-  collaborationMode?: string;
   /** Initial queued prompts to deliver on first ACP spawn. Only present before sessionId is set. */
   initialQueue?: InitialQueuePrompt[];
   isInitialConversation: boolean | null;
@@ -51,16 +47,7 @@ export type ConversationEvent =
       taskId: string;
       projectId: string;
       changes: Partial<
-        Pick<
-          Conversation,
-          | 'lastInteractedAt'
-          | 'title'
-          | 'sessionId'
-          | 'model'
-          | 'modeId'
-          | 'effort'
-          | 'collaborationMode'
-        >
+        Pick<Conversation, 'lastInteractedAt' | 'title' | 'sessionId' | 'model' | 'autoApprove'>
       >;
     }
   | { type: 'created'; conversation: Conversation }
@@ -122,14 +109,10 @@ export type CreateConversationParams = {
   provider: AgentProviderId;
   title: string;
   autoApprove?: boolean;
-  /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
+  /** Explicit selections keyed by provider-native ACP config ID. */
+  options?: Record<string, string | boolean>;
+  /** Model to pass to the TUI CLI. Absent or empty string means use the CLI default. */
   model?: string;
-  /** Provider-native ACP mode id to apply on first activation. */
-  modeId?: string;
-  /** Provider-native ACP reasoning/effort id to apply on first activation. */
-  effort?: string;
-  /** Provider-native ACP collaboration mode to apply on first activation. */
-  collaborationMode?: string;
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;

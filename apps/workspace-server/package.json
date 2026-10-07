@@ -1,6 +1,6 @@
 {
   "name": "@emdash/workspace-server",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via wire",
   "license": "Apache-2.0",
@@ -40,6 +40,7 @@
   "devDependencies": {
     "@types/node": "^24.13.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "acorn": "8.18.0",
     "s3mini": "^0.9.5",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",

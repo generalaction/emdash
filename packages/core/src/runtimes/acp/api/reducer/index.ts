@@ -52,13 +52,5 @@ export {
 export { AcpTranscriptParser } from './parser';
 export type { AcpTranscriptParserDeps, ReplayEntry, ReplayResult } from './parser';
 
-export type {
-  EffortOption,
-  ModeOption,
-  ModelChoice,
-  ModelOption,
-  SessionCommand,
-  SessionConfigState,
-  SessionUsage,
-} from '../models/config';
+export type { SessionCommand, SessionConfigState, SessionUsage } from '../models/config';
 export { initialSessionConfigState } from '../models/config';

@@ -135,10 +135,6 @@ export type NormalizedEvent =
       options: ReadonlyArray<SessionConfigOption>;
     }
   | {
-      kind: 'mode_selected';
-      modeId: string;
-    }
-  | {
       kind: 'commands';
       commands: ReadonlyArray<AvailableCommand>;
     }

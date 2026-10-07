@@ -95,9 +95,7 @@ describe('AcpLiveSession.loadHistory', () => {
     const loadHistory = vi.fn(async () => ({
       success: true as const,
       data: {
-        turns: [],
-        nextCursor: null,
-        unavailable: true as const,
+        kind: 'unavailable' as const,
       },
     }));
     const session = Object.assign(Object.create(AcpLiveSession.prototype), {
@@ -107,7 +105,7 @@ describe('AcpLiveSession.loadHistory', () => {
 
     await expect(session.loadHistory(undefined, 100)).resolves.toEqual({
       success: true,
-      data: { turns: [], nextCursor: null, unavailable: true },
+      data: { kind: 'unavailable' },
     });
     expect(loadHistory).toHaveBeenCalledWith({
       conversationId: 'conversation-1',

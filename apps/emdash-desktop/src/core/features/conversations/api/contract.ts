@@ -3,7 +3,13 @@ import {
   runtimeResolveErrorSchema,
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
-import { acpApiContract, sessionSummarySchema } from '@emdash/core/runtimes/acp/api/client';
+import {
+  acpApiContract,
+  acpSessionStartModeSchema,
+  acpSetOptionErrorSchema,
+  sessionSummarySchema,
+  setOptionResultSchema,
+} from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
 import { attachmentErrorSchema } from '@emdash/core/services/attachments/api';
 import { conversationAttachmentsContract } from '@emdash/core/services/attachments/api';
@@ -34,6 +40,7 @@ import {
   localTerminalFilesSchema,
   preparedTerminalFileSchema,
 } from '@core/services/attachments/api/terminal-files';
+import { providerSettingsContract } from './provider-settings';
 
 const conversationKey = z.object({ conversationId: z.string() });
 const conversationLocation = z.object({
@@ -95,6 +102,10 @@ const desktopTuiSessions = liveModel({
 
 const conversationsAcpContract = defineContract({
   attach: runtimeFallibleProcedure(conversationKey, acpApiContract.attach.output),
+  startSession: runtimeFallibleProcedure(
+    conversationKey.extend({ mode: acpSessionStartModeSchema }),
+    acpApiContract.startSession.output
+  ),
   terminate: runtimeFallibleProcedure(
     acpApiContract.terminate.input,
     acpApiContract.terminate.output
@@ -119,10 +130,11 @@ const conversationsAcpContract = defineContract({
     acpApiContract.cancelTurn.input,
     acpApiContract.cancelTurn.output
   ),
-  setOption: runtimeFallibleProcedure(
-    acpApiContract.setOption.input,
-    acpApiContract.setOption.output
-  ),
+  setOption: fallible({
+    input: acpApiContract.setOption.input,
+    data: setOptionResultSchema.extend({ preferenceSaveError: z.string().optional() }),
+    error: projectAttachmentErrorUnion(acpSetOptionErrorSchema),
+  }),
   resolvePermission: runtimeFallibleProcedure(
     acpApiContract.resolvePermission.input,
     acpApiContract.resolvePermission.output
@@ -147,7 +159,10 @@ const conversationsAcpContract = defineContract({
 });
 
 const conversationsTuiContract = defineContract({
-  start: runtimeFallibleProcedure(tuiAgentsContract.start.input, tuiAgentsContract.start.output),
+  startSession: runtimeFallibleProcedure(
+    tuiAgentsContract.startSession.input,
+    tuiAgentsContract.startSession.output
+  ),
   resume: runtimeFallibleProcedure(tuiAgentsContract.resume.input, tuiAgentsContract.resume.output),
   stop: runtimeFallibleProcedure(tuiAgentsContract.stop.input, tuiAgentsContract.stop.output),
   delete: runtimeFallibleProcedure(tuiAgentsContract.delete.input, tuiAgentsContract.delete.output),
@@ -164,6 +179,7 @@ const conversationsTuiContract = defineContract({
 export const conversationsDomain = 'conversations' as const;
 
 export const conversationsContract = defineContract({
+  providerSettings: providerSettingsContract,
   attachments: defineContract({
     prepareLocalFiles: fallible({
       input: z.object({ conversationId: z.string(), sources: localTerminalFilesSchema }),

@@ -15,7 +15,3 @@ export function activeConversationId(pane: PaneStore): string | undefined {
 export function activeConversationResource(pane: PaneStore): ConversationTabResource | undefined {
   return pane.activeResourceOfKind<ConversationTabResource>('conversation');
 }
-
-/** @deprecated Use activeConversationResource */
-export const activeConversation = (pane: PaneStore, _conversations?: unknown) =>
-  activeConversationResource(pane)?.store;

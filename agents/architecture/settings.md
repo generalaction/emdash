@@ -97,3 +97,73 @@ committed and shared.
 - Historical desktop/project `shellSetup` values are deliberately dropped. They are not imported
   into host-local personal config. Current `shellSetup` comes only from `.emdash.json` or the host
   settings JSON chain above.
+
+## Conversation Preferences And Discovered Options
+
+`ProviderSettingsService` in the conversations slice is the sole desktop writer for provider
+preferences and discovered options. It stores versioned JSON in two namespaces in the existing
+SQLite KV store, exposed through typed Wire procedures and a keyed live model. Renderer state is
+an optimistic projection, not a separate persistence owner.
+
+| Namespace | Key | Value |
+| --- | --- | --- |
+| `provider-preferences` | host, provider, transport | ACP: `{ version: '1', options: {} }`; PTY: `{ version: '1', autoApprove: false }` |
+| `provider-options` | host, provider, transport (`acp`), configuration fingerprint | `{ version: '1', options: ProviderConfigOption[] }` |
+
+Preferences contain only explicit selections, using native provider option IDs and string/boolean
+values. Missing overrides use provider defaults. Pickers contain only discovered choices, including
+any provider-owned default alias; there is no synthetic default entry or reset action.
+Preference patches are discriminated by transport: ACP accepts only native `options`, and PTY
+accepts only `autoApprove`. The Wire boundary rejects fields belonging to the other transport.
+Per-field patches are serialized in main; database read failures cannot become empty
+preferences. The retired global setting, localStorage defaults, and preference mementos are not
+migrated. Draft text/attachments continue to use their own memento.
+
+The app settings service stores the last explicitly selected interface as the global SQLite
+`preferredConversationType` setting (`'acp' | 'pty'`, initially `'pty'`). Both interactive creation
+flows share it across providers, projects, and hosts. Providers without ACP support use TUI without
+changing the saved preference. Opening existing conversations never writes this setting. Creation
+waits for it to load and for the form's interface selection to save. The old scoped launch records
+are not read or migrated.
+
+Creation flows integrate an icon-only Chat UI/TUI toggle into the provider field, with
+auto-approve below for TUI only. Create Conversation exposes no model picker. Create Task and active chat
+share discovered composer controls. Creation waits for pending preference writes and copies settings
+into the new conversation. Later changes do not alter other existing conversations. TUI task creation
+retains its plugin model list as a one-off choice; only its approval toggle is remembered.
+
+The active composer uses cached option definitions with the conversation's own saved selections
+while session configuration is unavailable. Cached controls are visible but disabled; cached current
+values are never treated as resolved defaults. Session options replace the cache, including an empty
+catalog. During reconnect, the conversation retains its last reported controls until new session
+options arrive. Preference changes in another conversation do not alter these selections.
+
+Main observes successful live ACP configuration snapshots, including sessions without a mounted
+renderer. Discovery does not launch a process or run periodic scans. The cache includes native
+select/boolean options, groups and categories. All projects share their host/provider/transport cache.
+If that host has no catalog, creation borrows the most recently observed host's catalogs for the same
+provider and transport. Within that host's cache, creation prefers a catalog observed for the selected
+model and otherwise uses the latest complete snapshot; it never merges option lists across snapshots.
+Re-observing an unchanged configuration from any project refreshes its recency. Catalog storage is
+bounded to 64 variants per host/provider/transport. Catalog changes refresh open forms across hosts.
+Borrowing choices never copies another host's preferences or cached current values as selections;
+edits belong to the target host. TUI continues to use plugin model lists. Missing cache everywhere
+hides unknown controls. Live provider responses replace cached controls, including successfully
+discovered empty catalogs. Discovery failures preserve stored data;
+confirmed invalid overrides are removed conditionally so a newer user choice survives delayed cleanup.
+Provider-reported defaults and automatic changes never become user preferences.
+
+New automations use shared ACP preferences for their host/provider and reuse discovered option
+catalogs. Explicit option changes in creation or editing also update shared preferences. Saving an
+automation stores its own option snapshot; opening an existing automation uses only its saved options,
+including an empty map, and later preference changes do not alter scheduled runs. Switching provider
+or project loads preferences for the target scope. Creation waits for preferences and pending writes.
+Automation interface choices stay independent, and each new automation starts with TUI auto-approve
+false. TUI approval never inherits or writes interactive preferences. ACP options and TUI approval
+travel in the deployment and conversation snapshot, including headless execution.
+
+ACP permissions use the provider access mode; Emdash never auto-approves ACP requests.
+`conversations.create` sets the initial config; `conversations.patchConfig` is its sole mutation API.
+Provider-option changes patch only their own fields through the host's
+`conversations.patchConfig` operation. The host merges synchronously against its current record;
+the desktop mirror must not replace the host config or suppress writes based on cached equality.

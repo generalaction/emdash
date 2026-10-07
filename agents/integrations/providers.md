@@ -29,6 +29,11 @@ installed by the `tui-agents` runtime in `packages/core/src/runtimes/tui-agents/
 does not infer agent status from terminal output. If a provider has no hook/plugin integration
 for an event, the renderer should not show or notify an inferred status for that event.
 
+ACP conversations project agent status from runtime session summaries. Pending permission
+requests set `awaiting-input`, including requests already present on first observation.
+Resolving the final request restores `working` if generation continues and the session is
+not cancelling. The task and conversation indicators consume this projected status.
+
 Shipped hook integrations install into user-global provider configuration, never into a task
 worktree. The provider behavior resolves its root from the same allowlisted environment passed to
 the CLI, including provider-specific home overrides and XDG/APPDATA conventions. Paths returned by
@@ -76,6 +81,9 @@ you select an OrcaRouter model from the OpenCode model picker.
   Provider plugins declare PATH-only definitions (`binaryNames`, install guidance, and optional
   update argv). Runtimes receive only the narrow resolver contract and must not infer package
   managers, fetch latest versions, or keep a second executable cache.
+- Agent list/status reads observe the demand-driven dependency snapshot; they must not force a
+  full refresh. Explicit overlapping desktop refreshes share one request, and independent provider
+  PATH probes run concurrently so Windows lookup latency does not accumulate across every provider.
 - Install command metadata stays sudo-free and declares an elevation policy. Commands that always
   require elevation are wrapped by the host-dependency runtime, while npm-style `on-failure`
   commands first run with user privileges and may be explicitly retried with passwordless sudo
@@ -94,6 +102,10 @@ you select an OrcaRouter model from the OpenCode model picker.
   with a `command` field. Overrides accept executable files or PATH names; use a wrapper script for
   commands with arguments, such as `srt claude`.
 - Claude uses deterministic `--session-id` values for conversation isolation.
+- Static plugin model catalogs supply suggestions before a conversation starts. Keep their IDs
+  compatible with the provider's ACP catalog and terminal model flag. Preserve saved IDs that are
+  absent from the static suggestions; only the live ACP catalog can determine whether a chat
+  selection is unsupported on that host.
 - Codex ACP exposes collaboration mode separately from permission mode. The ACP runtime maps the
   provider-owned `collaboration_mode` config category to the chat composer's Default/Plan selector
   and persists that selection with the conversation; filesystem and approval controls remain in

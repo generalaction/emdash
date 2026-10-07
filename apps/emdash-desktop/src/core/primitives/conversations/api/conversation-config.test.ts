@@ -24,11 +24,15 @@ describe('conversation-config v1 schema', () => {
     const result = conversationConfig.safeParse({
       version: '1',
       type: 'acp',
-      model: 'claude-opus-4-8',
+      options: { model: 'claude-opus-4-8' },
     });
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
-      expect(result.data).toEqual({ version: '1', type: 'acp', model: 'claude-opus-4-8' });
+      expect(result.data).toEqual({
+        version: '1',
+        type: 'acp',
+        options: { model: 'claude-opus-4-8' },
+      });
     }
   });
 
@@ -74,7 +78,7 @@ describe('conversation-config v1 schema', () => {
     const config = conversationConfig.safeParse({
       version: '1',
       type: 'acp',
-      initialPrompt: 'hello',
+      initialQueue: [{ text: 'hello' }],
     });
     expect(config.status).toBe('ok');
     if (config.status === 'ok') {
@@ -83,48 +87,22 @@ describe('conversation-config v1 schema', () => {
     }
   });
 
-  it('round-trips modeId on a v1 acp config', () => {
-    const config = conversationConfig.safeParse({
+  it('round-trips native string and boolean ACP choices', () => {
+    const value = {
       version: '1',
       type: 'acp',
-      modeId: 'agent-full-access',
-    });
-    expect(config.status).toBe('ok');
-    if (config.status === 'ok') {
-      expect(config.data.type === 'acp' && config.data.modeId).toBe('agent-full-access');
-      const json = conversationConfig.serialize(config.data);
-      expect(conversationConfig.parseJson(json)).toEqual(config.data);
-    }
-  });
-
-  it('round-trips effort on a v1 acp config', () => {
-    const config = conversationConfig.safeParse({
-      version: '1',
-      type: 'acp',
-      effort: 'high',
-    });
-    expect(config.status).toBe('ok');
-    if (config.status === 'ok') {
-      expect(config.data.type === 'acp' && config.data.effort).toBe('high');
-      expect(conversationConfig.parseJson(conversationConfig.serialize(config.data))).toEqual(
-        config.data
-      );
-    }
-  });
-
-  it('round-trips collaboration mode on a v1 acp config', () => {
-    const config = conversationConfig.safeParse({
-      version: '1',
-      type: 'acp',
-      collaborationMode: 'plan',
-    });
-    expect(config.status).toBe('ok');
-    if (config.status === 'ok') {
-      expect(config.data.type === 'acp' && config.data.collaborationMode).toBe('plan');
-      expect(conversationConfig.parseJson(conversationConfig.serialize(config.data))).toEqual(
-        config.data
-      );
-    }
+      options: {
+        'provider-model': 'sonnet',
+        mode: 'agent-full-access',
+        reasoning_effort: 'high',
+        fast: false,
+      },
+    };
+    const parsed = conversationConfig.safeParse(value);
+    expect(parsed.status).toBe('ok');
+    if (parsed.status !== 'ok') throw new Error('invalid config');
+    expect(parsed.data).toEqual(value);
+    expect(conversationConfig.parseJson(conversationConfig.serialize(parsed.data))).toEqual(value);
   });
 
   it('returns invalid for non-object input', () => {
@@ -144,7 +122,7 @@ describe('conversation-config v1 schema', () => {
     const result = conversationConfig.safeParse({ model: 'claude-sonnet-5' });
     expect(result.status).toBe('ok');
     if (result.status === 'ok') {
-      expect(result.data.model).toBe('claude-sonnet-5');
+      expect(result.data.type === 'pty' && result.data.model).toBe('claude-sonnet-5');
     }
   });
 });

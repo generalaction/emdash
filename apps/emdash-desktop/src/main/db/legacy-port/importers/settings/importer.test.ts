@@ -190,7 +190,6 @@ describe('portLegacySettings', () => {
       'project.branchPrefix',
       'project.pushOnCreate',
       'tasks.autoGenerateName',
-      'tasks.autoApproveByDefault',
       'tasks.autoTrustWorktrees',
       'notifications.enabled',
       'notifications.sound',
@@ -210,7 +209,6 @@ describe('portLegacySettings', () => {
 
     expect(readRawSetting(appSqlite, 'tasks')).toEqual({
       autoGenerateName: false,
-      autoApproveByDefault: true,
       autoTrustWorktrees: false,
     });
     expect(readRawSetting(appSqlite, 'notifications')).toEqual({

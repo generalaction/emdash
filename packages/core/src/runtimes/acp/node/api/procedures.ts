@@ -10,14 +10,15 @@ import type {
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetOptionError,
-  AcpStartError,
+  AcpSessionStartMode,
   AcpStartInputWire,
   AcpTerminateError,
-  LoadHistoryResult,
+  HistoryPage,
   PromptInput,
   PromptPlacement,
 } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
+import type { AcpSetOptionResult } from '#runtimes/acp/api/schemas';
 import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
 import { isAcpWakeFailure, type AcpWakeFailure } from '#runtimes/acp/node/runtime/session-manager';
 
@@ -25,11 +26,14 @@ export type SessionDescriptorInput = AcpStartInputWire;
 
 export function createAcpProcedures(runtime: AcpRuntime) {
   return {
-    attach(input: SessionDescriptorInput): Promise<Result<void, AcpStartError>> {
+    attach(input: SessionDescriptorInput): ReturnType<AcpRuntime['attachSession']> {
       return runtime.attachSession(input);
     },
-    launch(input: SessionDescriptorInput): ReturnType<AcpRuntime['launchSession']> {
-      return runtime.launchSession(input);
+    startSession(
+      input: SessionDescriptorInput & { mode: AcpSessionStartMode }
+    ): ReturnType<AcpRuntime['startSession']> {
+      const { mode, ...descriptor } = input;
+      return runtime.startSession(descriptor, mode);
     },
     terminate(input: { conversationId: string }): Promise<Result<void, AcpTerminateError>> {
       return runtime.terminateSession(input.conversationId);
@@ -71,16 +75,13 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     },
     async setOption(input: {
       conversationId: string;
-      key: 'model' | 'mode' | 'effort' | 'collaborationMode';
-      value: string;
-    }): Promise<Result<void, AcpSetOptionError>> {
-      const result = await runtime.setOption(input.conversationId, input.key, input.value);
-      if (!result.success && isAcpWakeFailure(result.error)) {
-        return input.key === 'mode'
-          ? acpErr.setModeFailed(wakeFailureCause(result.error))
-          : acpErr.setConfigFailed(wakeFailureCause(result.error));
-      }
-      return result as Result<void, AcpSetOptionError>;
+      configId: string;
+      value: string | boolean;
+    }): Promise<Result<AcpSetOptionResult, AcpSetOptionError>> {
+      const result = await runtime.setOption(input.conversationId, input.configId, input.value);
+      if (!result.success && isAcpWakeFailure(result.error))
+        return acpErr.setConfigFailed(wakeFailureCause(result.error));
+      return result as Result<AcpSetOptionResult, AcpSetOptionError>;
     },
     resolvePermission(input: {
       conversationId: string;
@@ -105,7 +106,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       conversationId: string;
       before?: number;
       limit: number;
-    }): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
+    }): Promise<Result<HistoryPage, AcpLoadHistoryError>> {
       return runtime.loadHistory(input.conversationId, input.before, input.limit);
     },
   };

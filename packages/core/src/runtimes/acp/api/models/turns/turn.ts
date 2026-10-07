@@ -32,7 +32,6 @@ export const errorTurnReasonSchema = z.enum([
   'load_session_failed',
   'cancel_failed',
   'set_config_failed',
-  'set_mode_failed',
 ]);
 export type ErrorTurnReason = z.infer<typeof errorTurnReasonSchema>;
 

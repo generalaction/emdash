@@ -11,12 +11,10 @@ import type { AutomationSessionPort } from '../ports/session-start';
 import type { AutomationWorkspacePort } from '../ports/workspace-provisioning';
 import { createAutomationRunExecutor } from './executor';
 import { AutomationRunTransitions } from './transitions';
-
 const worktree = {
   host: LOCAL_HOST_REF,
   path: { root: { kind: 'posix' as const }, segments: ['tmp', 'wt-1'] },
 };
-
 const configSnapshot = {
   name: 'Nightly',
   schedule: { expr: '0 9 * * *', tz: 'America/Los_Angeles' },
@@ -24,7 +22,6 @@ const configSnapshot = {
     type: 'acp' as const,
     start: {
       providerId: 'claude',
-      model: null,
       initialQueue: [{ text: 'Review open PRs' }],
     },
   },
@@ -47,7 +44,6 @@ const configSnapshot = {
     },
   },
 };
-
 function claimedRun(
   handle: TempStoreHandle<AutomationsDb>,
   overrides: Partial<Omit<AutomationRun, 'seq'>> = {}
@@ -61,7 +57,7 @@ function claimedRun(
     triggerKind: 'cron',
     configSnapshot,
     generatedName: 'emdash-abc',
-    scheduledAt: 1_000,
+    scheduledAt: 1000,
     deadlineAt: null,
     startedAt: null,
     finishedAt: null,
@@ -74,18 +70,16 @@ function claimedRun(
   });
   if (!inserted) throw new Error('insert failed');
   transitions.markQueued(inserted.id);
-  const claimed = transitions.claimQueued(inserted.id, 2_000);
+  const claimed = transitions.claimQueued(inserted.id, 2000);
   if (!claimed) throw new Error('claim failed');
   return claimed;
 }
-
 function fakeWorkspacePort(
   result: () => ReturnType<AutomationWorkspacePort['provision']> = () =>
     Promise.resolve(ok({ workspace: worktree, branchName: 'emdash-abc' }))
 ): AutomationWorkspacePort {
   return { provision: vi.fn(result) };
 }
-
 function fakeSessionPort(options?: {
   start?: () => ReturnType<AutomationSessionPort['start']>;
 }): AutomationSessionPort {
@@ -93,13 +87,11 @@ function fakeSessionPort(options?: {
     start: vi.fn(options?.start ?? (() => Promise.resolve(ok({ sessionId: 'sess-1' })))),
   };
 }
-
 describe('createAutomationRunExecutor', () => {
   let handle: TempStoreHandle<AutomationsDb>;
   let runStore: AutomationRunStore;
   let changed: AutomationRun[];
   let transitions: AutomationRunTransitions;
-
   beforeEach(async () => {
     handle = await automationsStore.openTemp();
     runStore = new AutomationRunStore(handle);
@@ -109,11 +101,9 @@ describe('createAutomationRunExecutor', () => {
       onRunChanged: (run) => changed.push(run),
     });
   });
-
   afterEach(() => {
     handle.close();
   });
-
   it('walks the happy path: provision, start session, done', async () => {
     const run = claimedRun(handle);
     const workspace = fakeWorkspacePort();
@@ -124,9 +114,7 @@ describe('createAutomationRunExecutor', () => {
       sessionPort: session,
       createConversationId: () => 'conv-1',
     });
-
     await executor(run, new AbortController().signal);
-
     const final = runStore.getRun('run-1');
     expect(final?.status).toBe('done');
     expect(final?.workspace).toEqual(worktree);
@@ -134,10 +122,8 @@ describe('createAutomationRunExecutor', () => {
     expect(final?.conversationId).toBe('conv-1');
     expect(final?.sessionId).toBe('sess-1');
     expect(final?.finishedAt).toBeTypeOf('number');
-
     expect(changed.map((run) => run.status)).toEqual(['starting_session', 'done']);
   });
-
   it('fails with step provision_workspace on workspace port failure', async () => {
     const run = claimedRun(handle);
     const portError: AutomationPortError = { code: 'worktree_create_failed' };
@@ -148,16 +134,13 @@ describe('createAutomationRunExecutor', () => {
       workspacePort: workspace,
       sessionPort: session,
     });
-
     await executor(run, new AbortController().signal);
-
     const final = runStore.getRun('run-1');
     expect(final?.status).toBe('failed');
     expect(final?.error?.step).toBe('provision_workspace');
     expect(final?.error?.code).toBe('worktree_create_failed');
     expect(session.start).not.toHaveBeenCalled();
   });
-
   it('fails with step start_session on session start failure', async () => {
     const run = claimedRun(handle);
     const portError: AutomationPortError = { code: 'provider_unavailable' };
@@ -170,22 +153,19 @@ describe('createAutomationRunExecutor', () => {
       workspacePort: workspace,
       sessionPort: session,
     });
-
     await executor(run, new AbortController().signal);
-
     const final = runStore.getRun('run-1');
     expect(final?.status).toBe('failed');
     expect(final?.error?.step).toBe('start_session');
     expect(final?.error?.code).toBe('provider_unavailable');
   });
-
   it('does not overwrite terminal state when the run was externally terminalized', async () => {
     const run = claimedRun(handle);
     const workspace = fakeWorkspacePort(async () => {
       transitions.markFailed(
         run.id,
         { step: 'provision_workspace', code: 'external_cancel' },
-        5_000
+        5000
       );
       return ok({ workspace: worktree, branchName: 'emdash-abc' });
     });
@@ -195,9 +175,7 @@ describe('createAutomationRunExecutor', () => {
       workspacePort: workspace,
       sessionPort: session,
     });
-
     await executor(run, new AbortController().signal);
-
     const final = runStore.getRun('run-1');
     expect(final?.status).toBe('failed');
     expect(final?.error?.code).toBe('external_cancel');

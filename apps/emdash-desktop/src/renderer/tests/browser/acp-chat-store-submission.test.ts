@@ -1,4 +1,8 @@
-import type { HistoryPage, SessionState } from '@emdash/core/runtimes/acp/api/client';
+import type {
+  HistoryPage,
+  SessionState,
+  TranscriptTurn,
+} from '@emdash/core/runtimes/acp/api/client';
 import { deferred } from '@emdash/shared/testing';
 import { toast } from '@emdash/ui/react/primitives';
 import {
@@ -20,8 +24,10 @@ import {
 import {
   AcpLiveSession,
   AcpPromptDeliveryUnknownError,
+  AcpStartError,
 } from '@core/features/conversations/browser/acp/acp-live-session';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
+import { availableHistory, transcriptSnapshot } from './acp-transcript-fixtures';
 
 type DraftState = {
   version: '1';
@@ -84,13 +90,13 @@ const setPendingPrompt = vi.fn((prompt: { id: string; text: string } | null) => 
   chatSessionTestState.pendingPrompt = prompt;
 });
 const transcriptTestState = {
-  committedTurns: [] as HistoryPage['turns'],
+  committedTurns: [] as TranscriptTurn[],
   get displayTurns() {
     return this.committedTurns;
   },
-  activeTurnSnapshot: null as HistoryPage['turns'][number] | null,
+  activeTurnSnapshot: null as TranscriptTurn | null,
 };
-const historySeed = vi.fn((turns: HistoryPage['turns']) => {
+const historySeed = vi.fn((turns: TranscriptTurn[]) => {
   transcriptTestState.committedTurns = turns;
 });
 let connectSessionOptions: { onTurnCommitted?: () => void } | undefined;
@@ -98,19 +104,28 @@ const connectSession = vi.fn(
   (
     _state: unknown,
     source: {
-      activeTurn: {
-        getSnapshot(): HistoryPage['turns'][number] | null;
+      sessionState: {
+        getSnapshot(): SessionState;
         subscribe(cb: () => void): () => void;
       };
     },
     options: { onTurnCommitted?: () => void } | undefined
   ) => {
     connectSessionOptions = options;
+    let previous = source.sessionState.getSnapshot().transcript;
     const update = () => {
-      transcriptTestState.activeTurnSnapshot = source.activeTurn.getSnapshot();
+      const next = source.sessionState.getSnapshot().transcript;
+      transcriptTestState.activeTurnSnapshot = next?.activeTurn ?? null;
+      if (
+        next &&
+        (next.generation !== previous?.generation ||
+          next.historyRevision !== previous?.historyRevision)
+      )
+        options?.onTurnCommitted?.();
+      previous = next;
     };
     update();
-    return source.activeTurn.subscribe(update);
+    return source.sessionState.subscribe(update);
   }
 );
 
@@ -188,6 +203,7 @@ describe('AcpChatStore prompt submission', () => {
           return usable.get();
         },
         revalidate,
+        startSession: vi.fn(async () => ({ success: true, data: { sessionId: 'session-1' } })),
         dispose: vi.fn(),
       } as never;
       try {
@@ -223,12 +239,7 @@ describe('AcpChatStore prompt submission', () => {
       const sendPrompt = vi
         .fn()
         .mockRejectedValue(new AcpPromptDeliveryUnknownError(promptId, new Error('disconnected')));
-      const activeTurn = new FakeRemote<HistoryPage['turns'][number] | null>(null);
-      const live = fakeLiveSession(
-        idleState(),
-        { turns: [], nextCursor: null },
-        { sendPrompt, activeTurn }
-      );
+      const live = fakeLiveSession(idleState(), availableHistory(), { sendPrompt });
       const store = await bootstrapWithSession(live.session);
       const errorToast = vi.spyOn(toast, 'error');
       try {
@@ -237,7 +248,7 @@ describe('AcpChatStore prompt submission', () => {
         expect(store.draftText).toBe('');
         expect(errorToast).not.toHaveBeenCalled();
         store.setDraftText('a new draft');
-        const turn: HistoryPage['turns'][number] = {
+        const turn: TranscriptTurn = {
           id: 'turn',
           seq: 0,
           initiator: 'user',
@@ -260,11 +271,11 @@ describe('AcpChatStore prompt submission', () => {
         } else if (source === 'history') {
           live.loadHistory.mockResolvedValue({
             success: true,
-            data: { turns: [turn], nextCursor: null },
+            data: availableHistory([turn]),
           });
           connectSessionOptions?.onTurnCommitted?.();
         } else {
-          activeTurn.set(turn);
+          live.sessionState.set({ ...idleState(), transcript: transcriptSnapshot(turn) });
         }
         await vi.waitFor(() =>
           expect(store.unconfirmedPromptIds).toEqual(source === 'unrelated' ? [promptId] : [])
@@ -305,10 +316,10 @@ describe('AcpChatStore prompt submission', () => {
     });
     try {
       store.setDraftText('keep writing offline');
-      store.setModel('model');
-      store.setMode('mode');
-      store.setEffort('high');
-      store.setCollaborationMode('plan');
+      store.setOption('model', 'model');
+      store.setOption('mode', 'mode');
+      store.setOption('effort', 'high');
+      store.setOption('collaboration', 'plan');
       store.stop();
       store.deleteQueuedPrompt('queued');
       store.reorderQueuedPrompts(['queued']);
@@ -317,6 +328,84 @@ describe('AcpChatStore prompt submission', () => {
       expect(store.affordances.canSubmit).toBe(false);
     } finally {
       store.dispose();
+    }
+  });
+
+  it('warns about secondary option failures without reporting the accepted change as failed', async () => {
+    const warningToast = vi.spyOn(toast, 'warning').mockImplementation(() => 'warning');
+    const errorToast = vi.spyOn(toast, 'error').mockImplementation(() => 'error');
+    const setOption = vi.fn(async () => ({
+      success: true as const,
+      data: {
+        reapplyFailures: [
+          {
+            configId: 'reasoning_effort',
+            error: {
+              type: 'set_config_failed' as const,
+              cause: { name: 'Error', message: 'effort temporarily unavailable' },
+            },
+          },
+        ],
+      },
+    }));
+    const store = createStore(idleState(), vi.fn(), {
+      setOption,
+      config: {
+        current: () => ({
+          options: [
+            {
+              id: 'reasoning_effort',
+              name: 'Effort',
+              type: 'select',
+              currentValue: 'low',
+              options: [
+                { value: 'low', name: 'Low' },
+                { value: 'high', name: 'High' },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+    try {
+      store.setOption('model', 'b');
+      await vi.waitFor(() =>
+        expect(warningToast).toHaveBeenCalledWith(
+          'Setting saved, but some settings could not be restored',
+          { description: 'Effort: effort temporarily unavailable' }
+        )
+      );
+      expect(setOption).toHaveBeenCalledWith('model', 'b');
+      expect(errorToast).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+      warningToast.mockRestore();
+      errorToast.mockRestore();
+    }
+  });
+
+  it('warns when a saved conversation setting could not be remembered for new conversations', async () => {
+    const warningToast = vi.spyOn(toast, 'warning').mockImplementation(() => 'warning');
+    const errorToast = vi.spyOn(toast, 'error').mockImplementation(() => 'error');
+    const setOption = vi.fn(async () => ({
+      success: true as const,
+      data: { reapplyFailures: [], preferenceSaveError: 'database unavailable' },
+    }));
+    const store = createStore(idleState(), vi.fn(), { setOption });
+    try {
+      store.setOption('model', 'astra');
+      await vi.waitFor(() =>
+        expect(warningToast).toHaveBeenCalledWith(
+          'Setting saved for this conversation, but could not be remembered for new conversations',
+          { description: 'database unavailable' }
+        )
+      );
+      expect(setOption).toHaveBeenCalledOnce();
+      expect(errorToast).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+      warningToast.mockRestore();
+      errorToast.mockRestore();
     }
   });
 
@@ -355,9 +444,7 @@ describe('AcpChatStore prompt submission', () => {
         prompt
       )
     );
-    const store = createStore(idleState(), sendPrompt, {
-      activeTurn: { current: () => transcriptTestState.activeTurnSnapshot },
-    });
+    const store = createStore(idleState(), sendPrompt);
     const errorToast = vi.spyOn(toast, 'error');
     try {
       store.submitPrompt('continue');
@@ -396,7 +483,7 @@ describe('AcpChatStore prompt submission', () => {
             history: { replace: historySeed },
             needsHistory: false,
             applyPage(page: HistoryPage) {
-              if (page.unavailable) return false;
+              if (page.kind === 'unavailable') return false;
               const pending = chatSessionTestState.pendingPrompt;
               historySeed(page.turns);
               if (pending)
@@ -478,6 +565,42 @@ describe('AcpChatStore prompt submission', () => {
       expect(sendPrompt).toHaveBeenCalledWith({ text: 'hello' }, undefined, expect.any(String))
     );
     expect(store.draftText).toBe('');
+  });
+
+  it('calls onAccepted once the prompt is accepted', async () => {
+    const sendPrompt = vi.fn(async () => ({ success: true, data: { queued: false } }));
+    const store = createStore(idleState(), sendPrompt);
+    const onAccepted = vi.fn();
+
+    store.submitPrompt('hello', [], undefined, onAccepted);
+
+    await vi.waitFor(() => expect(onAccepted).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not call onAccepted when prompt delivery is unconfirmed', async () => {
+    const promptId = crypto.randomUUID();
+    const sendPrompt = vi
+      .fn()
+      .mockRejectedValue(new AcpPromptDeliveryUnknownError(promptId, new Error('disconnected')));
+    const live = fakeLiveSession(idleState(), availableHistory(), { sendPrompt });
+    const store = await bootstrapWithSession(live.session);
+    const onAccepted = vi.fn();
+
+    store.submitPrompt('hello', [], undefined, onAccepted);
+
+    await vi.waitFor(() => expect(store.unconfirmedPromptIds).toEqual([promptId]));
+    expect(onAccepted).not.toHaveBeenCalled();
+  });
+
+  it('does not call onAccepted when the prompt is rejected', async () => {
+    const store = createStore(idleState(), vi.fn());
+    store.session = null;
+    const onAccepted = vi.fn();
+
+    store.submitPrompt('hello', [], undefined, onAccepted);
+
+    await vi.waitFor(() => expect(store.draftText).toBe('hello'));
+    expect(onAccepted).not.toHaveBeenCalled();
   });
 
   it('restores the persisted draft when the live session is unavailable', async () => {
@@ -860,44 +983,35 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
-  it('does not remember a rejected provider change as a future default', async () => {
+  it('reports a rejected provider option without changing local preferences', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockImplementation(() => 'test-toast');
     const setOption = vi.fn(async () => ({
       success: false as const,
-      error: { type: 'set_mode_failed' as const, cause: { message: 'rejected' } },
+      error: { type: 'set_config_failed' as const, cause: { message: 'rejected' } },
     }));
     const store = createStore(idleState(), vi.fn(), { setOption });
-    const rememberPreference = vi
-      .spyOn(
-        store as unknown as {
-          _rememberPreference(patch: { modeId: string }): Promise<void>;
-        },
-        '_rememberPreference'
-      )
-      .mockResolvedValue();
-
-    store.setMode('agent-full-access');
-
-    await vi.waitFor(() => expect(setOption).toHaveBeenCalledWith('mode', 'agent-full-access'));
-    expect(rememberPreference).not.toHaveBeenCalled();
+    store.setOption('native-mode', 'agent-full-access');
+    await vi.waitFor(() =>
+      expect(setOption).toHaveBeenCalledWith('native-mode', 'agent-full-access')
+    );
+    expect(toastError).toHaveBeenCalled();
+    toastError.mockRestore();
     store.dispose();
   });
 
-  it('remembers a successful collaboration-mode change', async () => {
-    const setOption = vi.fn(async () => ({ success: true as const, data: undefined }));
+  it('forwards native options including provider-owned defaults', async () => {
+    const setOption = vi.fn(async () => ({
+      success: true as const,
+      data: { reapplyFailures: [] },
+    }));
     const store = createStore(idleState(), vi.fn(), { setOption });
-    const rememberPreference = vi
-      .spyOn(
-        store as unknown as {
-          _rememberPreference(patch: { collaborationMode: string }): Promise<void>;
-        },
-        '_rememberPreference'
-      )
-      .mockResolvedValue();
-
-    store.setCollaborationMode('plan');
-
-    await vi.waitFor(() => expect(setOption).toHaveBeenCalledWith('collaborationMode', 'plan'));
-    expect(rememberPreference).toHaveBeenCalledWith({ collaborationMode: 'plan' });
+    store.setOption('collaboration_mode', 'plan');
+    store.setOption('collaboration_mode', 'default');
+    await vi.waitFor(() => expect(setOption).toHaveBeenCalledTimes(2));
+    expect(setOption.mock.calls).toEqual([
+      ['collaboration_mode', 'plan'],
+      ['collaboration_mode', 'default'],
+    ]);
     store.dispose();
   });
 
@@ -912,6 +1026,81 @@ describe('AcpChatStore prompt submission', () => {
         message: 'Conversation history is unavailable. Retry loading this conversation.',
       });
       expect(historySeed).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+    }
+  });
+
+  it('bounds transient history retries and allows explicit recovery', async () => {
+    const live = fakeLiveSession(idleState(), historyPage('retained'), {
+      revalidate: vi.fn(async () => {}),
+    });
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    live.loadHistory.mockRejectedValue(new Error('Connection interrupted'));
+    vi.useFakeTimers();
+    try {
+      connectSessionOptions?.onTurnCommitted?.();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(live.loadHistory).toHaveBeenCalledTimes(6);
+      expect(store.loadError?.kind).toBe('history_unavailable');
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(live.loadHistory).toHaveBeenCalledTimes(6);
+      live.loadHistory.mockResolvedValue({ success: true, data: historyPage('recovered') });
+      store.retry();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(store.loadError).toBeNull();
+      expect(transcriptTestState.committedTurns[0]?.id).toBe('recovered');
+    } finally {
+      store.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('preserves the draft and exposes recovery when a prompt wakes a missing session', async () => {
+    const sendPrompt = vi.fn(async () => ({
+      success: false as const,
+      error: {
+        type: 'session_not_found' as const,
+        message: 'The agent could not find this saved conversation.',
+      },
+    }));
+    const store = createStore(suspendedState(), sendPrompt);
+    try {
+      store.setDraftText('keep my draft');
+      store.submitPrompt('keep my draft');
+      await vi.waitFor(() => expect(store.loadError?.kind).toBe('session_not_found'));
+      expect(store.draftText).toBe('keep my draft');
+      expect(store.affordances.canSubmit).toBe(false);
+      store.submitPrompt('keep my draft');
+      expect(sendPrompt).toHaveBeenCalledOnce();
+      expect(store.draftText).toBe('keep my draft');
+    } finally {
+      store.dispose();
+    }
+  });
+
+  it('does not reload history because a failed restore changes provisional revisions', async () => {
+    const live = fakeLiveSession(suspendedState(), historyPage('retained'));
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    live.loadHistory.mockImplementation(async () => {
+      // Bound a broken implementation so the regression cannot starve the test runner.
+      if (live.loadHistory.mock.calls.length <= 5) {
+        live.sessionState.set({ ...idleState(), lifecycle: 'starting' });
+        live.sessionState.set({ ...idleState(), lifecycle: 'replaying', transcript: null });
+        live.sessionState.set(suspendedState());
+      }
+      return {
+        success: false,
+        error: { type: 'invalid_state', message: 'Could not restore this conversation.' },
+      };
+    });
+    try {
+      connectSessionOptions?.onTurnCommitted?.();
+      await vi.waitFor(() => expect(store.loadError).not.toBeNull());
+      expect(live.loadHistory).toHaveBeenCalledTimes(1);
+      expect(transcriptTestState.committedTurns[0]?.id).toBe('retained');
     } finally {
       store.dispose();
     }
@@ -934,7 +1123,7 @@ describe('AcpChatStore prompt submission', () => {
       expect(historySeed).toHaveBeenCalledOnce();
 
       live.loadHistory.mockResolvedValueOnce({ success: true, data: historyPage('recovered') });
-      live.sessionState.set({ ...idleState(), historyRevision: 1 });
+      live.sessionState.set({ ...idleState(), transcript: transcriptSnapshot(null, 1) });
       await vi.waitFor(() => expect(transcriptTestState.committedTurns[0]?.id).toBe('recovered'));
       expect(store.loadError).toBeNull();
     } finally {
@@ -950,7 +1139,7 @@ describe('AcpChatStore prompt submission', () => {
       expect(store.loadError).not.toBeNull();
 
       live.loadHistory.mockResolvedValueOnce({ success: true, data: historyPage('recovered') });
-      live.sessionState.set({ ...idleState(), historyRevision: 1 });
+      live.sessionState.set({ ...idleState(), transcript: transcriptSnapshot(null, 1) });
       await vi.waitFor(() => expect(transcriptTestState.committedTurns[0]?.id).toBe('recovered'));
       expect(store.historyKnown).toBe(true);
       expect(store.loadError).toBeNull();
@@ -1016,6 +1205,64 @@ describe('AcpChatStore prompt submission', () => {
     }
   );
 
+  it('starts fresh in the same conversation and preserves the draft', async () => {
+    const failed = fakeLiveSession(suspendedState(), unavailableHistory());
+    failed.startSession.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'session_not_found', message: 'Session missing' },
+    });
+    const fresh = fakeLiveSession(idleState(), availableHistory());
+    const pending = deferred<AcpLiveSession>();
+    const create = vi
+      .spyOn(AcpLiveSession, 'create')
+      .mockResolvedValueOnce(failed.session)
+      .mockReturnValueOnce(pending.promise);
+    const store = new AcpChatStore('conversation-1', 'project-1', 'task-1');
+    try {
+      store.bootstrap();
+      await vi.waitFor(() => expect(store.loadError?.kind).toBe('session_not_found'));
+      store.setDraftText('keep my unsent prompt');
+      store.retry({ mode: 'fresh' });
+      store.retry({ mode: 'fresh' });
+      expect(create.mock.calls).toEqual([['conversation-1'], ['conversation-1']]);
+      expect(failed.loadHistory).not.toHaveBeenCalled();
+      pending.resolve(fresh.session);
+      await vi.waitFor(() => expect(store.historyLoading).toBe(false));
+      expect(fresh.startSession).toHaveBeenCalledWith('fresh');
+      expect(store.session).toBe(fresh.session);
+      expect(store.historyLoading).toBe(false);
+      expect(store.loadError).toBeNull();
+      expect(store.isEmpty).toBe(true);
+      expect(store.draftText).toBe('keep my unsent prompt');
+      expect(fresh.session.sendPrompt).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+      create.mockRestore();
+    }
+  });
+
+  it('retains the transcript and draft if creating a fresh session fails', async () => {
+    const live = fakeLiveSession(idleState(), historyPage('retained'));
+    const store = await bootstrapWithSession(live.session);
+    try {
+      runInAction(() => {
+        store.loadError = { kind: 'session_not_found', message: 'Session missing' };
+      });
+      store.setDraftText('still here');
+      vi.spyOn(AcpLiveSession, 'create').mockRejectedValueOnce(
+        new AcpStartError({ type: 'auth_required' })
+      );
+      store.retry({ mode: 'fresh' });
+      await vi.waitFor(() => expect(store.loadError?.kind).toBe('auth_required'));
+      expect(store.historyLoading).toBe(false);
+      expect(store.draftText).toBe('still here');
+      expect(transcriptTestState.committedTurns).toMatchObject([{ id: 'retained' }]);
+      expect(live.session.dispose).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+    }
+  });
+
   it('keeps the ordinary active-turn completion history refresh', async () => {
     const live = fakeLiveSession(idleState(), historyPage('initial'));
     const store = await bootstrapWithSession(live.session);
@@ -1032,18 +1279,25 @@ describe('AcpChatStore prompt submission', () => {
   });
 
   it('refreshes amended history without a foreground turn transition', async () => {
-    const live = fakeLiveSession({ ...idleState(), historyRevision: 0 }, historyPage('initial'));
+    const live = fakeLiveSession(
+      { ...idleState(), transcript: transcriptSnapshot() },
+      historyPage('initial')
+    );
     const store = await bootstrapWithSession(live.session);
     try {
       live.loadHistory.mockClear();
       historySeed.mockClear();
       live.loadHistory.mockResolvedValue({ success: true, data: historyPage('amended') });
-      live.sessionState.set({ ...idleState(), historyRevision: 1 });
+      live.sessionState.set({ ...idleState(), transcript: transcriptSnapshot(null, 1) });
       await vi.waitFor(() =>
         expect(historySeed).toHaveBeenCalledWith([expect.objectContaining({ id: 'amended' })])
       );
       expect(live.loadHistory).toHaveBeenCalledTimes(1);
-      live.sessionState.set({ ...idleState(), historyRevision: 1, backgroundAgentCount: 1 });
+      live.sessionState.set({
+        ...idleState(),
+        transcript: transcriptSnapshot(null, 1),
+        backgroundAgentCount: 1,
+      });
       await Promise.resolve();
       expect(live.loadHistory).toHaveBeenCalledTimes(1);
     } finally {
@@ -1080,7 +1334,12 @@ describe('AcpChatStore prompt submission', () => {
     live.loadHistory.mockResolvedValue({ success: true, data: historyPage('replayed') });
     setPendingPrompt({ id: 'optimistic-1', text: 'continue' });
 
-    live.sessionState.set({ ...idleState(), lifecycle: 'replaying', canSubmit: true });
+    live.sessionState.set({
+      ...idleState(),
+      lifecycle: 'replaying',
+      transcript: null,
+      canSubmit: true,
+    });
     expect(store.affordances).toMatchObject({
       isWorking: false,
       isBusy: false,
@@ -1113,7 +1372,12 @@ describe('AcpChatStore prompt submission', () => {
         })
     );
 
-    live.sessionState.set({ ...idleState(), lifecycle: 'replaying', canSubmit: true });
+    live.sessionState.set({
+      ...idleState(),
+      lifecycle: 'replaying',
+      transcript: null,
+      canSubmit: true,
+    });
     live.sessionState.set(idleState());
     await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
     transcriptTestState.activeTurnSnapshot = historyPage('active').turns[0];
@@ -1156,12 +1420,16 @@ function fakeLiveSession(
     success: true,
     data: initialHistory,
   }));
+  const startSession = vi.fn<AcpLiveSession['startSession']>(async () => ({
+    success: true,
+    data: { sessionId: 'session-1' },
+  }));
   const session = {
+    startSession,
     sessionState,
     config: new FakeRemote({ availableCommands: [] }),
     usage: new FakeRemote(null),
     plan: new FakeRemote(null),
-    activeTurn: new FakeRemote(null),
     terminals: new FakeRemote([]),
     mcpServers: new FakeRemote([]),
     loadHistory,
@@ -1171,7 +1439,7 @@ function fakeLiveSession(
     dispose: vi.fn(),
     ...overrides,
   } as unknown as AcpLiveSession;
-  return { session, sessionState, loadHistory };
+  return { session, sessionState, loadHistory, startSession };
 }
 
 async function bootstrapWithSession(session: AcpLiveSession): Promise<AcpChatStore> {
@@ -1182,15 +1450,12 @@ async function bootstrapWithSession(session: AcpLiveSession): Promise<AcpChatSto
   return store;
 }
 
-function historyPage(turnId: string): HistoryPage {
-  return {
-    turns: [{ id: turnId, seq: 0, initiator: 'user', items: [] }],
-    nextCursor: null,
-  };
+function historyPage(turnId: string) {
+  return availableHistory([{ id: turnId, seq: 0, initiator: 'user', items: [] }]);
 }
 
 function unavailableHistory(): HistoryPage {
-  return { turns: [], nextCursor: null, unavailable: true };
+  return { kind: 'unavailable' };
 }
 
 function createStore(
@@ -1199,13 +1464,16 @@ function createStore(
   sessionOverrides: Record<string, unknown> = {}
 ) {
   const store = new AcpChatStore('conversation-1', 'project-1', 'task-1');
-  store.session = {
-    usable: true,
-    sessionState: { current: () => state },
-    sendPrompt,
-    dispose: vi.fn(),
-    ...sessionOverrides,
-  } as never;
+  runInAction(() => {
+    store.session = {
+      usable: true,
+      sessionState: { current: () => state },
+      config: { current: () => ({ options: [] }) },
+      sendPrompt,
+      dispose: vi.fn(),
+      ...sessionOverrides,
+    } as never;
+  });
   return store;
 }
 
@@ -1220,6 +1488,7 @@ function idleState(): SessionState {
   return {
     lifecycle: 'ready',
     activeTurnId: null,
+    transcript: transcriptSnapshot(),
     pendingPermissions: [],
     lastStopReason: null,
     lastTurnErrored: false,
@@ -1236,6 +1505,7 @@ function suspendedState(): SessionState {
   return {
     ...idleState(),
     lifecycle: 'closed',
+    transcript: null,
     suspended: true,
   };
 }
