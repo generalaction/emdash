@@ -58,6 +58,9 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'global',
+      // session.status busy/retry → start, idle → stop (custom providers like
+      // Unbar/MiniMax); session.execution.* kept as a secondary V2 path.
+      // Declaring start suppresses Enter→working when the plugin is installed.
       supportedEvents: ['notification', 'start', 'stop', 'session'],
     },
     hostDependency: npmDependency({ id: 'opencode', package: 'opencode-ai' }),

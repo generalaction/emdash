@@ -78,34 +78,35 @@ function isOpenCodeSessionId(value) {
   return typeof value === 'string' && value.trim().startsWith('ses');
 }
 
+function sessionStatusType(event) {
+  const status = event.properties?.status ?? event.data?.status;
+  return typeof status?.type === 'string' ? status.type : undefined;
+}
+
 function toEmdashPayload(event) {
+  // Prefer session.status — reliable for custom OpenAI-compatible providers
+  // (Unbar/MiniMax/etc.) where session.execution.* may never fire.
+  if (event.type === 'session.status') {
+    const status = sessionStatusType(event);
+    if (status === 'busy' || status === 'retry') {
+      return { type: 'start', body: { title: 'OpenCode' } };
+    }
+    if (status === 'idle') {
+      return { type: 'stop', body: { title: 'OpenCode' } };
+    }
+    return undefined;
+  }
+
   if (event.type === 'session.execution.started') {
     return { type: 'start', body: { title: 'OpenCode' } };
   }
 
-  if (event.type === 'session.execution.succeeded') {
+  if (
+    event.type === 'session.execution.succeeded' ||
+    event.type === 'session.execution.interrupted' ||
+    event.type === 'session.idle'
+  ) {
     return { type: 'stop', body: { title: 'OpenCode' } };
-  }
-
-  if (event.type === 'session.execution.interrupted') {
-    return {
-      type: 'notification',
-      body: {
-        title: 'OpenCode',
-        message: 'OpenCode execution was interrupted.',
-      },
-    };
-  }
-
-  if (event.type === 'session.idle') {
-    return {
-      type: 'notification',
-      body: {
-        notification_type: 'idle_prompt',
-        title: 'OpenCode',
-        message: 'OpenCode is ready for input.',
-      },
-    };
   }
 
   if (event.type === 'session.error' || event.type === 'session.execution.failed') {

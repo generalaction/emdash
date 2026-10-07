@@ -54,9 +54,51 @@ describe('OpenCode plugin hooks', () => {
     expect(content).toContain('export const EmdashNotifications');
     expect(content).toContain("id: 'emdash-notifications'");
     expect(content).toContain('eventApi.subscribe({ signal })');
+    expect(content).toContain("event.type === 'session.status'");
   });
 
-  it('reports v1 idle events as notifications', async () => {
+  it('maps session.status busy/idle for custom OpenAI-compatible providers', async () => {
+    vi.stubEnv('EMDASH_HOOK_PORT', '9876');
+    vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
+    vi.stubEnv('EMDASH_PTY_ID', 'pty-status');
+    const fetchMock = vi.fn().mockResolvedValue(new Response());
+    vi.stubGlobal('fetch', fetchMock);
+    const plugin = await loadPlugin();
+    const v1 = await plugin.EmdashNotifications();
+
+    await v1.event({
+      event: {
+        type: 'session.status',
+        properties: { sessionID: 'ses_unbar', status: { type: 'busy' } },
+      },
+    });
+    await v1.event({
+      event: {
+        type: 'session.status',
+        properties: {
+          sessionID: 'ses_unbar',
+          status: { type: 'retry', attempt: 1, message: 'rate', next: 2 },
+        },
+      },
+    });
+    await v1.event({
+      event: {
+        type: 'session.status',
+        properties: { sessionID: 'ses_unbar', status: { type: 'idle' } },
+      },
+    });
+
+    expect(hookTypes(fetchMock)).toEqual([
+      'session',
+      'start',
+      'session',
+      'start',
+      'session',
+      'stop',
+    ]);
+  });
+
+  it('reports v1 idle events as stop so the sidebar spinner clears', async () => {
     vi.stubEnv('EMDASH_HOOK_PORT', '9876');
     vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
     vi.stubEnv('EMDASH_PTY_ID', 'pty-1');
@@ -69,7 +111,7 @@ describe('OpenCode plugin hooks', () => {
       event: { type: 'session.idle', properties: { sessionID: 'ses_v1' } },
     });
 
-    expect(hookTypes(fetchMock)).toEqual(['session', 'notification']);
+    expect(hookTypes(fetchMock)).toEqual(['session', 'stop']);
   });
 
   it('reports v2 execution lifecycle events as start and stop hooks', async () => {
@@ -97,7 +139,7 @@ describe('OpenCode plugin hooks', () => {
     cleanup();
   });
 
-  it('does not report interrupted v2 executions as completed', async () => {
+  it('clears working status when a v2 execution is interrupted', async () => {
     vi.stubEnv('EMDASH_HOOK_PORT', '9876');
     vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
     vi.stubEnv('EMDASH_PTY_ID', 'pty-3');
@@ -117,11 +159,15 @@ describe('OpenCode plugin hooks', () => {
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
-    expect(hookTypes(fetchMock)).toEqual(['session', 'notification']);
-    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({
-      title: 'OpenCode',
-      message: 'OpenCode execution was interrupted.',
-    });
+    expect(hookTypes(fetchMock)).toEqual(['session', 'stop']);
     cleanup();
+  });
+
+  it('declares start so Enter no longer owns the working spinner', () => {
+    expect(provider.capabilities.hooks).toEqual({
+      kind: 'plugin',
+      scope: 'global',
+      supportedEvents: ['notification', 'start', 'stop', 'session'],
+    });
   });
 });
