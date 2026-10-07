@@ -1,26 +1,18 @@
-import {
-  canonicalExclusionPatterns,
-  DEFAULT_TREE_EXCLUDE,
-} from '@emdash/core/primitives/exclusion-policy/api';
 import { encodeResourceUri } from '@emdash/core/primitives/path/api';
-import type { FileTreeModel, FsError } from '@emdash/core/runtimes/files/api';
+import { listingEntryKey, type FolderListing, type FsError } from '@emdash/core/runtimes/files/api';
 import { ok, type Result } from '@emdash/shared';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { defineContract } from '@emdash/wire/rpc';
-import { cell, expose } from '@emdash/wire/state';
+import { cell, expose, type Cell } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { filesWireContract, type FilesTreeKey } from '@core/features/files/api';
+import { filesWireContract, type FilesListingKey } from '@core/features/files/api';
 import type {
   ProjectHostAccess,
   ProjectHostAccessState,
 } from '@core/features/projects/api/browser/stores/project-context';
-import {
-  hostFileRefFromNativePath,
-  hostPathFromNative,
-  portablePath,
-} from '@core/primitives/desktop-runtime/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { FilesStore } from './files-store';
 
 const wireClient = vi.hoisted(() => ({ current: undefined as unknown }));
@@ -29,116 +21,84 @@ vi.mock('@core/features/files/api/browser/client', () => ({
   getFilesClient: async () => wireClient.current,
 }));
 
-vi.mock('@core/features/settings/api/browser/app-settings-client', () => ({
-  fetchAppSettingsMeta: async () => undefined,
-}));
+type Folders = Record<string, FolderListing>;
 
-type RecordedMutation = { name: string; key: FilesTreeKey; input: unknown };
-
-function expandedMutationPaths(calls: RecordedMutation[]): string[] {
-  return calls.flatMap((call) => {
-    if (call.name !== 'expand' || call.input === undefined) return [];
-    const path = (call.input as { path: string }).path;
-    return path === '' ? [] : [path];
-  });
-}
-
-function treeMutationOrder(calls: RecordedMutation[]): string[] {
-  return calls.flatMap((call) => {
-    if ((call.name !== 'expand' && call.name !== 'reveal') || call.input === undefined) return [];
-    const path = (call.input as { path: string }).path;
-    return path === '' ? [] : [`${call.name}:${path}`];
-  });
-}
-
-function makeEntry(
-  path: string,
-  kind: 'file' | 'directory',
-  children: readonly string[] = [],
-  childrenLoaded = kind === 'directory'
-): FileTreeModel['entries'][string] {
+function ready(entries: Record<string, 'file' | 'directory'>): FolderListing {
   return {
-    path: portablePath(path),
-    name: path.split('/').pop() ?? '',
-    parentPath:
-      path === '' ? null : portablePath(path.slice(0, Math.max(path.lastIndexOf('/'), 0))),
-    kind,
-    childrenLoaded,
-    children: children.map((child) => portablePath(child)),
+    status: 'ready',
+    entries: Object.fromEntries(
+      Object.entries(entries).map(([name, kind]) => [listingEntryKey(name), { kind }])
+    ),
   };
 }
 
-function makeTreeModel(root: string): FileTreeModel {
+function defaultFolders(): Folders {
   return {
-    root: hostPathFromNative(root),
-    entries: {
-      '': makeEntry('', 'directory', ['README.md', 'src']),
-      'README.md': makeEntry('README.md', 'file'),
-      src: makeEntry('src', 'directory', ['src/index.ts']),
-      'src/index.ts': makeEntry('src/index.ts', 'file'),
-    },
+    '': ready({ 'README.md': 'file', src: 'directory' }),
+    src: ready({ 'index.ts': 'file' }),
   };
 }
 
 function setup(
   options: {
+    folders?: Folders;
     sshConnectionId?: string;
     hostAccess?: ProjectHostAccess;
-    tree?: FileTreeModel;
     workspacePath?: string;
-    beforeMutation?: (name: string, input: unknown) => Promise<Result<void, FsError> | undefined>;
+    beforeListing?: (path: string) => Promise<void>;
+    onRefresh?: (path: string) => Promise<Result<void, FsError> | undefined>;
   } = {}
 ) {
   const workspacePath = options.workspacePath ?? '/repo';
-  const treeCell = cell<FileTreeModel>(options.tree ?? makeTreeModel(workspacePath));
-  const stateKeys: FilesTreeKey[] = [];
-  const mutationCalls: RecordedMutation[] = [];
+  const folders = options.folders ?? defaultFolders();
+  const cells = new Map<string, Cell<FolderListing>>();
+  const listed = (path: string): FolderListing =>
+    folders[path] ?? { status: 'error', error: { type: 'not-found', path } };
+  const cellFor = (path: string) => {
+    let existing = cells.get(path);
+    if (!existing) {
+      existing = cell(listed(path));
+      cells.set(path, existing);
+    }
+    return existing;
+  };
+  const listingKeys: FilesListingKey[] = [];
+  const refreshes: string[] = [];
   const fsCalls: Array<{ name: string; input: unknown }> = [];
 
-  const touch = async (
-    name: string,
-    context: {
-      key: FilesTreeKey;
-      input?: unknown;
-      mutationId: string;
-      observed(state: 'tree', revision: ReturnType<typeof treeCell.update>): Promise<void>;
-    }
-  ) => {
-    mutationCalls.push({ name, key: context.key, input: context.input });
-    const intercepted = await options.beforeMutation?.(name, context.input);
-    if (intercepted) return intercepted;
-    const revision = treeCell.update((previous) => ({ ...previous }), {
-      mutationIds: [context.mutationId],
-    });
-    await context.observed('tree', revision);
-    return ok(undefined);
-  };
-
   const provider = expose(
-    filesWireContract.tree.model,
+    filesWireContract.listing,
     {
-      tree: (key) => {
-        stateKeys.push(key);
-        return treeCell;
+      listing: async (key) => {
+        listingKeys.push(key);
+        await options.beforeListing?.(key.path);
+        return cellFor(key.path);
       },
     },
     {
       mutations: {
-        expand: (context) => touch('expand', context),
-        reveal: (context) => touch('reveal', context),
-        refresh: (context) => touch('refresh', context),
+        // Like the host: a refresh rereads the folder from "disk".
+        refresh: async (context) => {
+          refreshes.push(context.key.path);
+          const intercepted = await options.onRefresh?.(context.key.path);
+          if (intercepted) return intercepted;
+          const revision = cellFor(context.key.path).set(listed(context.key.path), {
+            mutationIds: [context.mutationId],
+          });
+          await context.observed('listing', revision);
+          return ok(undefined);
+        },
       },
+      publish: { listing: 'diff' },
     }
   );
-
-  const testContract = defineContract({ tree: filesWireContract.tree });
-  const wire = createTestWire(testContract, { tree: { model: provider } });
+  const wire = createTestWire(defineContract({ listing: filesWireContract.listing }), {
+    listing: provider,
+  });
   const recordFsCall = (name: string) => async (input: unknown) => {
     fsCalls.push({ name, input });
     return ok(undefined);
   };
-  // The write verbs are stateless fs procedures; the tree updates arrive
-  // through the live model after the runtime's ack-time republish.
   wireClient.current = {
     ...wire.client,
     fs: {
@@ -158,7 +118,12 @@ function setup(
     options.sshConnectionId,
     options.hostAccess
   );
-  return { store, stateKeys, mutationCalls, fsCalls };
+  disposeStore = () => store.dispose();
+  return { store, folders, cellFor, listingKeys, refreshes, fsCalls };
+}
+
+function subscribedPaths(keys: FilesListingKey[]): string[] {
+  return [...new Set(keys.map((key) => key.path))].sort();
 }
 
 let disposeStore: (() => void) | null = null;
@@ -170,42 +135,294 @@ afterEach(() => {
 });
 
 describe('FilesStore', () => {
-  it('binds the files domain tree model without re-expanding a populated root', async () => {
-    const { store, stateKeys, mutationCalls } = setup();
-    disposeStore = () => store.dispose();
-
+  it('lists the workspace root from its own subscription keyed by the root ResourceUri', async () => {
+    const { store, listingKeys } = setup();
     await store.start();
 
-    expect(stateKeys[0]).toEqual({
-      root: encodeResourceUri(hostFileRefFromNativePath('/repo')),
-      sessionId: 'workspace-1',
-      exclusions: canonicalExclusionPatterns(DEFAULT_TREE_EXCLUDE),
-    });
-    expect(mutationCalls).not.toContainEqual({
-      name: 'expand',
-      key: stateKeys[0],
-      input: { path: '' },
-    });
-
     await waitFor(() => store.rootNodes.length === 2);
+    expect(listingKeys[0]).toEqual({
+      root: encodeResourceUri(hostFileRefFromNativePath('/repo')),
+      path: '',
+    });
     expect(store.rootNodes.map((node) => node.path)).toEqual(['/repo/src', '/repo/README.md']);
     expect(store.isLoading).toBe(false);
   });
 
-  it('carries the workspace host into the tree key for remote workspaces', async () => {
-    const { store, stateKeys } = setup({ sshConnectionId: 'ssh-1' });
-    disposeStore = () => store.dispose();
-
+  it('carries the workspace host into the listing key for remote workspaces', async () => {
+    const { store, listingKeys } = setup({ sshConnectionId: 'ssh-1' });
     await store.start();
 
-    expect(stateKeys[0]?.root).toEqual(
+    await waitFor(() => listingKeys.length > 0);
+    expect(listingKeys[0]?.root).toEqual(
       encodeResourceUri(hostFileRefFromNativePath('/repo', 'ssh-1'))
     );
   });
 
+  it('retries a failed initial connection through Refresh', async () => {
+    const { store } = setup();
+    const client = wireClient.current;
+    wireClient.current = {
+      get listing() {
+        throw new Error('Host is still starting');
+      },
+    };
+    await store.start();
+    expect(store.error).toBe('Host is still starting');
+    expect(store.isLoading).toBe(false);
+
+    wireClient.current = client;
+    await expect(store.refresh()).resolves.toEqual(ok(undefined));
+    expect(store.error).toBeUndefined();
+    await waitFor(() => store.nodes.has('/repo/README.md'));
+  });
+
+  it('subscribes to every open folder whose parents are open, all at once', async () => {
+    const gate = deferred<void>();
+    const { store, listingKeys } = setup({
+      folders: {
+        ...defaultFolders(),
+        src: ready({ deep: 'directory' }),
+        'src/deep': ready({ 'leaf.ts': 'file' }),
+      },
+      beforeListing: async (path) => {
+        if (path === '') await gate.promise;
+      },
+    });
+    store.setExpandedPaths(['/repo/src', '/repo/src/deep', '/repo/hidden/below-collapsed']);
+    void store.start();
+
+    // Remembered folders load alongside the root rather than one level at a time.
+    await waitFor(() => subscribedPaths(listingKeys).length === 3);
+    expect(subscribedPaths(listingKeys)).toEqual(['', 'src', 'src/deep']);
+    gate.resolve();
+    await waitFor(() => store.nodes.has('/repo/src/deep/leaf.ts'));
+  });
+
+  it('opens the lone subfolder of an open folder, as its compacted row shows it', async () => {
+    const { store, listingKeys } = setup({
+      folders: {
+        '': ready({ src: 'directory' }),
+        src: ready({ main: 'directory' }),
+        'src/main': ready({ java: 'directory', 'README.md': 'file' }),
+        'src/main/java': ready({ 'App.java': 'file' }),
+      },
+    });
+    store.setExpandedPaths(['/repo/src']);
+    await store.start();
+
+    await waitFor(() => store.nodes.has('/repo/src/main/java'));
+    // src/main holds two entries, so the chain stops there and java stays closed.
+    expect(subscribedPaths(listingKeys)).toEqual(['', 'src', 'src/main']);
+    expect(store.nodes.has('/repo/src/main/java/App.java')).toBe(false);
+  });
+
+  it('does not follow a lone folder link into the chain', async () => {
+    const { store, listingKeys } = setup({
+      folders: {
+        '': ready({ src: 'directory' }),
+        src: {
+          status: 'ready',
+          entries: { '/linked': { kind: 'symlink', symlinkTargetKind: 'directory' } },
+        },
+      },
+    });
+    store.setExpandedPaths(['/repo/src']);
+    await store.start();
+
+    await waitFor(() => store.nodes.has('/repo/src/linked'));
+    expect(subscribedPaths(listingKeys)).toEqual(['', 'src']);
+  });
+
+  it('drops a remembered folder that its listed parent no longer contains', async () => {
+    const { store } = setup();
+    store.setExpandedPaths(['/repo/gone']);
+    await store.start();
+
+    await waitFor(() => store.rootNodes.length === 2);
+    await waitFor(() => !store.directoryErrors.has('/repo/gone'));
+    expect(store.loadedPaths.has('/repo/gone')).toBe(false);
+  });
+
+  it('releases a folder when it is collapsed', async () => {
+    const { store } = setup();
+    store.setExpandedPaths(['/repo/src']);
+    await store.start();
+    await waitFor(() => store.nodes.has('/repo/src/index.ts'));
+
+    store.setExpandedPaths([]);
+
+    await waitFor(() => !store.loadedPaths.has('/repo/src'));
+    expect(store.nodes.has('/repo/src/index.ts')).toBe(false);
+    expect(store.nodes.has('/repo/src')).toBe(true);
+  });
+
+  it('shows a folder that cannot be listed on its row and retries it on the host', async () => {
+    const { store, folders, refreshes } = setup({
+      folders: {
+        ...defaultFolders(),
+        src: { status: 'error', error: { type: 'permission-denied', path: 'src' } },
+      },
+    });
+    store.setExpandedPaths(['/repo/src']);
+    await store.start();
+    await waitFor(() => store.directoryErrors.has('/repo/src'));
+    expect(store.directoryErrors.get('/repo/src')).toContain('permission-denied');
+    expect(store.error).toBeUndefined();
+
+    folders.src = ready({ 'recovered.ts': 'file' });
+    await expect(store.retry('/repo/src')).resolves.toEqual(ok(undefined));
+
+    expect(refreshes).toEqual(['src']);
+    await waitFor(() => store.nodes.has('/repo/src/recovered.ts'));
+    expect(store.directoryErrors.has('/repo/src')).toBe(false);
+  });
+
+  it('refreshes the whole workspace through the root listing', async () => {
+    const { store, refreshes } = setup();
+    await store.start();
+    await waitFor(() => store.rootNodes.length === 2);
+
+    await expect(store.refresh()).resolves.toEqual(ok(undefined));
+    expect(refreshes).toEqual(['']);
+  });
+
+  it('reveals a file by opening every folder on its way at once', async () => {
+    const gate = deferred<void>();
+    const { store, listingKeys } = setup({
+      folders: {
+        '': ready({ a: 'directory' }),
+        a: ready({ b: 'directory' }),
+        'a/b': ready({ 'c.ts': 'file' }),
+      },
+      beforeListing: async (path) => {
+        if (path === 'a') await gate.promise;
+      },
+    });
+    await store.start();
+
+    const reveal = store.revealFile('/repo/a/b/c.ts');
+    await waitFor(() => subscribedPaths(listingKeys).length === 3);
+    gate.resolve();
+
+    await expect(reveal).resolves.toEqual(ok(['/repo/a', '/repo/a/b']));
+  });
+
+  it('keeps revealed folders listed while the view takes them over as expanded', async () => {
+    const { store, listingKeys } = setup({
+      folders: { '': ready({ a: 'directory' }), a: ready({ 'b.ts': 'file' }) },
+    });
+    await store.start();
+
+    const revealed = await store.revealFile('/repo/a/b.ts');
+    expect(revealed).toEqual(ok(['/repo/a']));
+    expect(store.loadedPaths.has('/repo/a')).toBe(true);
+    if (revealed.success) store.setExpandedPaths(revealed.data);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(store.loadedPaths.has('/repo/a')).toBe(true);
+    expect(listingKeys.filter((key) => key.path === 'a')).toHaveLength(1);
+  });
+
+  it('reports a reveal of a missing file as not found', async () => {
+    const { store } = setup();
+    await store.start();
+
+    await expect(store.revealFile('/repo/src/missing.ts')).resolves.toMatchObject({
+      success: false,
+      error: { type: 'not-found', path: 'src/missing.ts' },
+    });
+  });
+
+  it('cancels a reveal through its signal', async () => {
+    const gate = deferred<void>();
+    const { store } = setup({
+      beforeListing: async (path) => {
+        if (path === 'src') await gate.promise;
+      },
+    });
+    await store.start();
+    const abort = new AbortController();
+
+    const reveal = store.revealFile('/repo/src/index.ts', { signal: abort.signal });
+    abort.abort(new Error('File reveal superseded'));
+
+    await expect(reveal).resolves.toMatchObject({
+      success: false,
+      error: { type: 'unavailable', message: 'File reveal superseded' },
+    });
+    gate.resolve();
+  });
+
+  it('filters exclusions in the projection without listing anything again', async () => {
+    const { store, listingKeys } = setup({
+      folders: { '': ready({ '.git': 'directory', node_modules: 'directory', src: 'directory' }) },
+    });
+    await store.start();
+    await waitFor(() => store.rootNodes.length > 0);
+    expect(store.rootNodes.map((node) => node.name)).toEqual(['node_modules', 'src']);
+    const subscriptions = listingKeys.length;
+
+    store.setExclusions(['node_modules']);
+
+    expect(store.rootNodes.map((node) => node.name)).toEqual(['.git', 'src']);
+    expect(store.isTreeExcluded('/repo/node_modules/react/index.js')).toBe(true);
+    expect(store.isTreeExcluded('/repo/src/index.ts')).toBe(false);
+    expect(listingKeys).toHaveLength(subscriptions);
+  });
+
+  it('keeps unchanged folders and nodes by identity across listing updates', async () => {
+    const { store, cellFor } = setup({
+      folders: {
+        ...defaultFolders(),
+        '': ready({ 'README.md': 'file', lib: 'directory', src: 'directory' }),
+        lib: ready({ 'util.ts': 'file' }),
+      },
+    });
+    store.setExpandedPaths(['/repo/lib', '/repo/src']);
+    await store.start();
+    await waitFor(
+      () => store.nodes.has('/repo/lib/util.ts') && store.nodes.has('/repo/src/index.ts')
+    );
+    const rootNodes = store.rootNodes;
+    const libChildren = store.childrenById.get('lib');
+    const indexNode = store.nodes.get('/repo/src/index.ts');
+
+    cellFor('src').update((previous) => ({
+      status: 'ready',
+      entries: {
+        ...(previous.status === 'ready' ? previous.entries : {}),
+        '/new.ts': { kind: 'file' },
+      },
+    }));
+    await waitFor(() => store.nodes.has('/repo/src/new.ts'));
+
+    expect(store.rootNodes).toBe(rootNodes);
+    expect(store.childrenById.get('lib')).toBe(libChildren);
+    expect(store.nodes.get('/repo/src/index.ts')).toBe(indexNode);
+  });
+
+  it('shows rows for uploads until the live listing contains them', async () => {
+    const { store, cellFor } = setup();
+    await store.start();
+    await waitFor(() => store.rootNodes.length === 2);
+
+    expect(store.addOptimisticNodes([{ path: '/repo/upload.txt', type: 'file' }])).toEqual([
+      '/repo/upload.txt',
+    ]);
+    expect(store.nodes.get('/repo/upload.txt')?.id).toMatch(/^pending-upload:/);
+
+    cellFor('').update((previous) => ({
+      status: 'ready',
+      entries: {
+        ...(previous.status === 'ready' ? previous.entries : {}),
+        '/upload.txt': { kind: 'file' },
+      },
+    }));
+    await waitFor(() => store.nodes.get('/repo/upload.txt')?.id === 'upload.txt');
+  });
+
   it('routes write operations through the stateless fs verbs keyed by ResourceUri', async () => {
     const { store, fsCalls } = setup();
-    disposeStore = () => store.dispose();
     await store.start();
 
     await expect(store.createFile('/repo/src/new.ts')).resolves.toEqual(ok(undefined));
@@ -232,10 +449,9 @@ describe('FilesStore', () => {
     });
   });
 
-  it('round-trips a UNC root through tree identities and filesystem mutations', async () => {
+  it('round-trips a UNC root through listing keys and filesystem mutations', async () => {
     const workspacePath = String.raw`\\server\share\repo`;
     const { store, fsCalls } = setup({ workspacePath });
-    disposeStore = () => store.dispose();
     await store.start();
 
     await waitFor(() => store.rootNodes.length === 2);
@@ -252,281 +468,6 @@ describe('FilesStore', () => {
       from: encodeResourceUri(hostFileRefFromNativePath(String.raw`\\server\share\repo\README.md`)),
       to: encodeResourceUri(hostFileRefFromNativePath(String.raw`\\server\share\repo\README2.md`)),
     });
-  });
-
-  it('reveals files through the tree model and reports ancestor directories', async () => {
-    const { store, mutationCalls } = setup();
-    disposeStore = () => store.dispose();
-    await store.start();
-
-    await expect(store.revealFile('/repo/src/index.ts')).resolves.toEqual(ok(['/repo/src']));
-    expect(mutationCalls.filter((call) => call.name === 'reveal')[0]?.input).toEqual({
-      path: 'src/index.ts',
-    });
-  });
-
-  it('cancels a superseded reveal through the Wire mutation signal', async () => {
-    const revealGate = deferred<void>();
-    const { store, mutationCalls } = setup({
-      beforeMutation: async (name) => {
-        if (name === 'reveal') await revealGate.promise;
-      },
-    });
-    disposeStore = () => store.dispose();
-    await store.start();
-    const abort = new AbortController();
-
-    const reveal = store.revealFile('/repo/src/index.ts', { signal: abort.signal });
-    await vi.waitFor(() =>
-      expect(mutationCalls).toContainEqual(
-        expect.objectContaining({ name: 'reveal', input: { path: 'src/index.ts' } })
-      )
-    );
-    abort.abort(new Error('File reveal superseded'));
-
-    await expect(reveal).resolves.toMatchObject({
-      success: false,
-      error: { type: 'unavailable' },
-    });
-    revealGate.resolve();
-  });
-
-  it('attaches the Replica before background root hydration settles', async () => {
-    const rootGate = deferred<void>();
-    const tree = makeTreeModel('/repo');
-    tree.entries = { '': makeEntry('', 'directory', [], false) };
-    const { store, mutationCalls } = setup({
-      tree,
-      beforeMutation: async (name, input) => {
-        if (name === 'expand' && (input as { path: string }).path === '') {
-          await rootGate.promise;
-        }
-        return undefined;
-      },
-    });
-    disposeStore = () => store.dispose();
-
-    await expect(store.start()).resolves.toBeUndefined();
-    await vi.waitFor(() =>
-      expect(mutationCalls).toContainEqual(
-        expect.objectContaining({ name: 'expand', input: { path: '' } })
-      )
-    );
-    expect(store.error).toBeUndefined();
-    expect(store.isLoading).toBe(true);
-
-    rootGate.resolve();
-    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
-  });
-
-  it('hydrates restored directories serially and prioritizes a foreground request', async () => {
-    const gates: Array<ReturnType<typeof deferred<void>>> = [];
-    const tree = makeTreeModel('/repo');
-    tree.entries = {
-      '': makeEntry('', 'directory', ['a', 'b', 'c']),
-      a: makeEntry('a', 'directory', [], false),
-      b: makeEntry('b', 'directory', [], false),
-      c: makeEntry('c', 'directory', [], false),
-    };
-    const { store, mutationCalls } = setup({
-      tree,
-      beforeMutation: async (name, input) => {
-        if (name !== 'expand' || (input as { path: string }).path === '') return;
-        const gate = deferred<void>();
-        gates.push(gate);
-        await gate.promise;
-      },
-    });
-    disposeStore = () => store.dispose();
-    await store.start();
-
-    store.reconcileVisibleScopes(new Set(['/repo/a', '/repo/b']));
-    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['a']));
-
-    const foreground = store.registerDir('/repo/c');
-    gates[0]?.resolve();
-    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['a', 'c']));
-    gates[1]?.resolve();
-    await expect(foreground).resolves.toEqual(ok(undefined));
-    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['a', 'c', 'b']));
-    gates[2]?.resolve();
-    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
-  });
-
-  it('prioritizes a foreground reveal over queued restored directories', async () => {
-    const gates: Array<ReturnType<typeof deferred<void>>> = [];
-    const tree = makeTreeModel('/repo');
-    tree.entries = {
-      '': makeEntry('', 'directory', ['a', 'b', 'c']),
-      a: makeEntry('a', 'directory', [], false),
-      b: makeEntry('b', 'directory', [], false),
-      c: makeEntry('c', 'directory', ['c/file.ts']),
-      'c/file.ts': makeEntry('c/file.ts', 'file'),
-    };
-    const { store, mutationCalls } = setup({
-      tree,
-      beforeMutation: async (name, input) => {
-        if (name !== 'expand' || (input as { path: string }).path === '') return;
-        const gate = deferred<void>();
-        gates.push(gate);
-        await gate.promise;
-      },
-    });
-    disposeStore = () => store.dispose();
-    await store.start();
-
-    store.reconcileVisibleScopes(new Set(['/repo/a', '/repo/b']));
-    await vi.waitFor(() => expect(treeMutationOrder(mutationCalls)).toEqual(['expand:a']));
-    const reveal = store.revealFile('/repo/c/file.ts');
-
-    gates[0]?.resolve();
-    await expect(reveal).resolves.toEqual(ok(['/repo/c']));
-    await vi.waitFor(() =>
-      expect(treeMutationOrder(mutationCalls).slice(0, 3)).toEqual([
-        'expand:a',
-        'reveal:c/file.ts',
-        'expand:b',
-      ])
-    );
-    gates[1]?.resolve();
-    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
-  });
-
-  it('runs a trailing forced load when a normal load is already active', async () => {
-    const gates: Array<ReturnType<typeof deferred<void>>> = [];
-    const tree = makeTreeModel('/repo');
-    tree.entries = {
-      '': makeEntry('', 'directory', ['src']),
-      src: makeEntry('src', 'directory', [], false),
-    };
-    const { store, mutationCalls } = setup({
-      tree,
-      beforeMutation: async (name, input) => {
-        if (name !== 'expand' || (input as { path: string }).path !== 'src') return;
-        const gate = deferred<void>();
-        gates.push(gate);
-        await gate.promise;
-      },
-    });
-    disposeStore = () => store.dispose();
-    await store.start();
-    const refresh = vi
-      .spyOn(
-        (
-          store as unknown as {
-            treeModel: { states: { tree: { refresh(): Promise<void> } } };
-          }
-        ).treeModel.states.tree,
-        'refresh'
-      )
-      .mockResolvedValue();
-
-    const normal = store.registerDir('/repo/src');
-    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['src']));
-    const forced = store.registerDir('/repo/src', true);
-
-    gates[0]?.resolve();
-    await expect(normal).resolves.toEqual(ok(undefined));
-    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['src', 'src']));
-    gates[1]?.resolve();
-    await expect(forced).resolves.toEqual(ok(undefined));
-    expect(refresh).toHaveBeenCalledOnce();
-    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
-  });
-
-  it('runs a trailing forced load when a forced load is already active', async () => {
-    const tree = makeTreeModel('/repo');
-    tree.entries = {
-      '': makeEntry('', 'directory', ['src']),
-      src: makeEntry('src', 'directory', [], false),
-    };
-    const { store, mutationCalls } = setup({ tree });
-    disposeStore = () => store.dispose();
-    await store.start();
-    const firstRefresh = deferred<void>();
-    const refresh = vi
-      .spyOn(
-        (
-          store as unknown as {
-            treeModel: { states: { tree: { refresh(): Promise<void> } } };
-          }
-        ).treeModel.states.tree,
-        'refresh'
-      )
-      .mockImplementationOnce(() => firstRefresh.promise)
-      .mockResolvedValue();
-
-    const first = store.registerDir('/repo/src', true);
-    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
-    const second = store.registerDir('/repo/src', true);
-    firstRefresh.resolve();
-
-    await expect(Promise.all([first, second])).resolves.toEqual([ok(undefined), ok(undefined)]);
-    expect(refresh).toHaveBeenCalledTimes(2);
-    expect(expandedMutationPaths(mutationCalls)).toEqual(['src', 'src']);
-    expect(store.pendingPaths.size).toBe(0);
-  });
-
-  it('settles a queued directory load when the tree Runtime is disposed', async () => {
-    const gate = deferred<void>();
-    const tree = makeTreeModel('/repo');
-    tree.entries = {
-      '': makeEntry('', 'directory', ['src']),
-      src: makeEntry('src', 'directory', [], false),
-    };
-    const { store, mutationCalls } = setup({
-      tree,
-      beforeMutation: async (name, input) => {
-        if (name === 'expand' && (input as { path: string }).path === 'src') {
-          await gate.promise;
-        }
-      },
-    });
-    await store.start();
-
-    const load = store.registerDir('/repo/src');
-    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['src']));
-    store.dispose();
-
-    await expect(load).resolves.toMatchObject({
-      success: false,
-      error: { type: 'unavailable', message: 'File tree is unavailable' },
-    });
-    gate.resolve();
-  });
-
-  it('keeps a directory-load failure scoped to the requested path', async () => {
-    const tree = makeTreeModel('/repo');
-    tree.entries.src = makeEntry('src', 'directory', [], false);
-    const { store } = setup({
-      tree,
-      beforeMutation: async (name, input) => {
-        if (name === 'expand' && (input as { path: string }).path === 'src') {
-          return {
-            success: false,
-            error: {
-              type: 'io',
-              path: 'src',
-              message: "Wire call 'files.tree.model.expand' timed out after 30000ms",
-            },
-          };
-        }
-        return undefined;
-      },
-    });
-    disposeStore = () => store.dispose();
-    await store.start();
-
-    await expect(store.registerDir('/repo/src')).resolves.toMatchObject({
-      success: false,
-      error: {
-        type: 'io',
-        path: 'src',
-        message: "Wire call 'files.tree.model.expand' timed out after 30000ms",
-      },
-    });
-    expect(store.error).toBeUndefined();
-    expect(store.rootNodes.map((node) => node.path)).toEqual(['/repo/src', '/repo/README.md']);
   });
 
   it('retains the observed tree as stale and blocks writes while offline', async () => {
@@ -546,25 +487,19 @@ describe('FilesStore', () => {
       },
     } as ProjectHostAccess;
     const { store, fsCalls } = setup({ hostAccess });
-    disposeStore = () => store.dispose();
     await store.start();
     await waitFor(() => store.rootNodes.length === 2);
-    const refresh = vi.spyOn(
-      (
-        store as unknown as {
-          treeModel: { states: { tree: { refresh(): Promise<void> } } };
-        }
-      ).treeModel.states.tree,
-      'refresh'
-    );
+    const subscriptions = (
+      store as unknown as {
+        subscriptions: Map<
+          string,
+          { member: { states: { listing: { refresh(): Promise<void> } } } }
+        >;
+      }
+    ).subscriptions;
+    const refresh = vi.spyOn(subscriptions.get('')!.member.states.listing, 'refresh');
 
-    runInAction(() =>
-      state.set({
-        kind: 'degraded',
-        situation: 'offline',
-        recovery: 'automatic',
-      })
-    );
+    runInAction(() => state.set({ kind: 'degraded', situation: 'offline', recovery: 'automatic' }));
 
     expect(store.observation.kind).toBe('stale');
     expect(store.rootNodes.map((node) => node.path)).toEqual(['/repo/src', '/repo/README.md']);
@@ -577,7 +512,6 @@ describe('FilesStore', () => {
     runInAction(() => state.set({ kind: 'ready', hostGeneration: 2 }));
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
     expect(store.observation.kind).toBe('live');
-    expect(store.rootNodes.map((node) => node.path)).toEqual(['/repo/src', '/repo/README.md']);
   });
 
   it('reports a never-observed offline tree unavailable without contacting Files', async () => {
@@ -590,13 +524,12 @@ describe('FilesStore', () => {
       state,
       liveAction: { kind: 'disabled', state },
     } as ProjectHostAccess;
-    const { store, stateKeys } = setup({ hostAccess });
-    disposeStore = () => store.dispose();
+    const { store, listingKeys } = setup({ hostAccess });
 
     await store.start();
 
     expect(store.observation).toEqual({ kind: 'unavailable' });
     expect(store.isLoading).toBe(false);
-    expect(stateKeys).toEqual([]);
+    expect(listingKeys).toEqual([]);
   });
 });
