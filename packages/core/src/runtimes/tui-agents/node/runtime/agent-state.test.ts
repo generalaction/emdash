@@ -140,4 +140,26 @@ describe('TuiAgentStates', () => {
 
     expect(onSessionIdChanged).not.toHaveBeenCalled();
   });
+
+  it('does not restore input-inferred working status across session resume', () => {
+    const { tracker, agentStates } = createTracker();
+
+    tracker.restore({
+      conversationId: 'conv-1',
+      providerId: 'cursor',
+      status: 'working',
+      source: 'input',
+      updatedAt: 1,
+    });
+    expect(peek(agentStates.states.list)['conv-1']?.status).toBe('idle');
+
+    tracker.restore({
+      conversationId: 'conv-2',
+      providerId: 'cursor',
+      status: 'working',
+      source: 'hook',
+      updatedAt: 1,
+    });
+    expect(peek(agentStates.states.list)['conv-2']?.status).toBe('working');
+  });
 });

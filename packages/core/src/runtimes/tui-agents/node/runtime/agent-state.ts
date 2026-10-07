@@ -157,8 +157,16 @@ export class TuiAgentStates {
   }
 
   restore(state: TuiAgentState): void {
+    // Input-inferred "working" is ephemeral: providers without a start hook
+    // mark working on Enter and only clear on process exit, so long-lived TUI
+    // sessions permanently restore the sidebar spinner. Drop that durable lie;
+    // a live hook (or a fresh Enter on a hookless provider) re-asserts working.
+    const restored =
+      state.status === 'working' && state.source === 'input'
+        ? { ...state, status: 'idle' as const }
+        : state;
     produceCell(this.agentStates.states.list, (draft) => {
-      draft[state.conversationId] = state;
+      draft[restored.conversationId] = restored;
     });
   }
 
