@@ -14,7 +14,6 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
 import { useMemento } from '@core/primitives/mementos/react';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
-import { useMobileViewport } from '@core/primitives/styling/browser/use-mobile-viewport';
 import { registeredTaskData } from '@core/primitives/task-state/browser/task-state';
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { MultitaskGrid } from './multitask-grid';
@@ -38,6 +37,19 @@ import {
 import { MultitaskPicker } from './multitask-picker';
 
 const COLUMN_OPTIONS = [1, 2, 3, 4] as const;
+
+function useMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  return isMobile;
+}
 
 function collectMultitaskProjects(): MultitaskProjectInput[] {
   return [...getProjectManagerStore().projects.values()].map((project) => {
