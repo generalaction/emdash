@@ -1,11 +1,14 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { KeyedMutex } from '@emdash/shared/concurrency';
+import { Minimatch } from 'minimatch';
 import type { PortableRelativePath } from '#primitives/path/api';
 import type { RootIdentity } from '#runtimes/files/node/allocation/identity';
 import { RootPathPolicy, normalizeRelativePath } from '#runtimes/files/node/fs/path-policy';
 import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
 
 const WATCH_DEBOUNCE_MS = 50;
+/** Stands in for an arbitrary child when asking whether a folder's listing is watched. */
+const LISTING_PROBE = '.emdash-listing-probe';
 
 export type RootChange =
   | { kind: 'create' | 'update' | 'delete'; path: PortableRelativePath }
@@ -34,6 +37,7 @@ export class RootResource {
 
   private readonly listeners = new Set<(changes: RootChange[]) => void>();
   private readonly mutationMutex = new KeyedMutex();
+  private readonly watchIgnore: readonly Minimatch[];
   private readonly watch: WatchHandle;
   private readonly watchReadyPromise: Promise<void>;
   private disposed = false;
@@ -49,6 +53,9 @@ export class RootResource {
   private constructor(options: RootResourceOptions) {
     this.identity = options.identity;
     this.paths = new RootPathPolicy(options.identity.rootPath);
+    this.watchIgnore = (options.watchIgnoreGlobs ?? []).map(
+      (pattern) => new Minimatch(pattern, { dot: true })
+    );
     this.watch = options.watcher.watch(
       options.identity.rootPath,
       (events) => {
@@ -81,6 +88,16 @@ export class RootResource {
    */
   watchReady(): Promise<void> {
     return this.watchReadyPromise;
+  }
+
+  /**
+   * Whether changes inside `directoryPath` reach subscribers. Listings under
+   * watcher-ignored folders (dependency installs, by default) only change when
+   * they are read again.
+   */
+  watchesListing(directoryPath: PortableRelativePath): boolean {
+    const child = directoryPath === '' ? LISTING_PROBE : `${directoryPath}/${LISTING_PROBE}`;
+    return !this.watchIgnore.some((matcher) => matcher.match(child));
   }
 
   subscribe(listener: (changes: RootChange[]) => void): Unsubscribe {

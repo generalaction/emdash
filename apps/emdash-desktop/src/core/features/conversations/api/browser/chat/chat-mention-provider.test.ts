@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
 import { chatMentionProvider } from './chat-mention-provider';
+import { diffCommentsMention } from './diff-comments-mention';
 
 describe('chatMentionProvider', () => {
+  it('renders the diff comments token as a custom mention in the transcript', () => {
+    expect(chatMentionProvider.resolve(diffCommentsMention.id)).toMatchObject({
+      id: diffCommentsMention.id,
+      name: 'Diff comments',
+      kind: 'custom',
+    });
+  });
   it('resolves issue tokens with provider icon URLs', () => {
     registerIssueMentionIcons([
       {
@@ -25,6 +33,15 @@ describe('chatMentionProvider', () => {
       kind: 'issue',
     });
     expect(meta?.iconUrl).toContain('data:image/svg+xml');
+  });
+
+  it('names YouTrack issue chips by their ticket identifier', () => {
+    const token = issueMentionToken('youtrack', 'DEMO-16', {
+      accountId: 'youtrack:account',
+      url: 'https://example.youtrack.cloud/issue/DEMO-16',
+    });
+
+    expect(chatMentionProvider.resolve(token)?.name).toBe('DEMO-16');
   });
 
   it('delegates non-issue tokens to the workspace file provider', () => {

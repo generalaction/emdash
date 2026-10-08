@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ok, type Result } from '@emdash/shared';
+import { isGitDiscoveryMiss } from '#primitives/git/api';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import {
   computeBaseRef,
@@ -98,9 +99,23 @@ export class GitRepositoryProvisioner {
   ): Promise<Result<GitPathInspection, InspectPathError>> {
     const exec = (args: string[]) => this.exec.exec(['-C', nativePath, ...args]);
     try {
-      const { stdout: insideWorkTree } = await exec(['rev-parse', '--is-inside-work-tree']);
-      if (insideWorkTree.trim() !== 'true') {
+      let insideWorkTree: string;
+      try {
+        ({ stdout: insideWorkTree } = await exec(['rev-parse', '--is-inside-work-tree']));
+      } catch (error) {
+        if (error instanceof ExecError && isGitDiscoveryMiss(error)) {
+          return ok({ kind: 'not-repository', path: requestedPath });
+        }
+        throw error;
+      }
+      if (insideWorkTree.trim() === 'false') {
         return ok({ kind: 'not-repository', path: requestedPath });
+      }
+      if (insideWorkTree.trim() !== 'true') {
+        return gitErr.inspectFailed(
+          requestedPath,
+          `Unexpected git rev-parse output: ${insideWorkTree}`
+        );
       }
 
       const { stdout: remoteOutput } = await exec(['remote']);
@@ -132,9 +147,6 @@ export class GitRepositoryProvisioner {
         baseRef: computeBaseRef(undefined, remoteName, branch),
       });
     } catch (error) {
-      if (error instanceof ExecError && repositoryFailures.isNotRepository(error)) {
-        return ok({ kind: 'not-repository', path: requestedPath });
-      }
       return gitErr.inspectFailed(
         requestedPath,
         error instanceof ExecError

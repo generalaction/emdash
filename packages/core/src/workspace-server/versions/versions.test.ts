@@ -74,18 +74,16 @@ describe('negotiateProtocol', () => {
 
   describe('uses PROTOCOL_VERSION default for serverProtocolVersion', () => {
     it('accepts the current protocol version without a second argument', () => {
-      // Re-importing PROTOCOL_VERSION directly avoids hardcoding the string.
-      // This test will catch an unintentional default change.
       const result = negotiateProtocol(PROTOCOL_VERSION);
-      expect(result.compatible).toBe(true);
+      expect(result).toEqual({ compatible: true, agreedVersion: '12.0.0', agreedMinor: 0 });
     });
 
     it('rejects the previous protocol major with upgrade-client', () => {
-      expect(PROTOCOL_VERSION).toBe('11.0.0');
-      expect(negotiateProtocol('10.0.0')).toEqual({
+      expect(PROTOCOL_VERSION).toBe('12.0.0');
+      expect(negotiateProtocol('11.0.0')).toEqual({
         compatible: false,
         action: 'upgrade-client',
-        clientProtocolVersion: '10.0.0',
+        clientProtocolVersion: '11.0.0',
         serverProtocolVersion: PROTOCOL_VERSION,
       });
     });

@@ -5,7 +5,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolveRootIdentity, type RootIdentity } from '#runtimes/files/node/allocation/identity';
-import { runtimeRoot } from '#runtimes/files/node/testing/paths';
+import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
 import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
 import { RootResource, type RootChange } from './root-resource';
 
@@ -27,6 +27,21 @@ describe('RootResource', () => {
 
     expect(watcher.readyResolved).toBe(false);
     expect(root.subscribe(() => {})).toBeTypeOf('function');
+  });
+
+  it('reports folder listings under watcher-ignored paths as unwatched', async () => {
+    const identity = await createIdentity();
+    const root = await RootResource.create({
+      identity,
+      watcher: new PendingWatcher(),
+      watchIgnoreGlobs: ['**/node_modules/**'],
+    });
+    cleanups.push(() => root.dispose());
+
+    expect(root.watchesListing(relativePath(''))).toBe(true);
+    expect(root.watchesListing(relativePath('src'))).toBe(true);
+    expect(root.watchesListing(relativePath('node_modules'))).toBe(false);
+    expect(root.watchesListing(relativePath('packages/app/node_modules/react'))).toBe(false);
   });
 
   it('emits a resync once the watcher becomes ready', async () => {

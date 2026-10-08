@@ -1,3 +1,4 @@
+import { reaction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -12,6 +13,8 @@ import { CommentWidget } from './comment-widget';
 const COMMENT_ZONE_HEIGHT_PX = 140 + 24;
 
 interface MonacoCommentManagerOptions {
+  getComments: () => DraftComment[];
+  getAnnotations?: () => readonly AiAnnotation[];
   onAddComment: (lineNumber: number, content: string, lineContent?: string) => void | Promise<void>;
   onEditComment: (id: string, content: string) => void | Promise<void>;
   onDeleteComment: (id: string) => void | Promise<void>;
@@ -56,21 +59,39 @@ export class MonacoCommentManager {
   private activeInputLine: number | null = null;
 
   private disposed = false;
+  private comments: DraftComment[] = [];
+  private readonly stopComments: () => void;
+  private readonly stopAnnotations: () => void;
+  private readonly modelChangeDisposable: monaco.IDisposable;
   private hoverMoveDisposable: monaco.IDisposable | null = null;
   private hoverLeaveDisposable: monaco.IDisposable | null = null;
-  private modelDisposables: monaco.IDisposable[] = [];
+  private readonly modelContentDisposable: monaco.IDisposable;
 
   constructor(editor: monaco.editor.IStandaloneDiffEditor, options: MonacoCommentManagerOptions) {
     this.editor = editor;
     this.options = options;
     this.setupHoverHandler();
-
-    // Re-anchor annotations when the modified side loads or changes on disk.
-    const modifiedEditor = editor.getModifiedEditor();
-    this.modelDisposables = [
-      modifiedEditor.onDidChangeModel(() => this.renderAnnotations()),
-      modifiedEditor.onDidChangeModelContent(() => this.renderAnnotations()),
-    ];
+    this.modelChangeDisposable = editor.getModifiedEditor().onDidChangeModel(() => {
+      this.clearModelWidgets();
+      this.renderComments();
+      this.renderAnnotations();
+    });
+    this.modelContentDisposable = editor
+      .getModifiedEditor()
+      .onDidChangeModelContent(() => this.renderAnnotations());
+    this.stopComments = reaction(
+      options.getComments,
+      (comments) => {
+        this.comments = comments;
+        this.renderComments();
+      },
+      { fireImmediately: true }
+    );
+    this.stopAnnotations = reaction(
+      () => options.getAnnotations?.() ?? [],
+      (annotations) => this.setAnnotations(annotations),
+      { fireImmediately: true }
+    );
   }
 
   private createGlyphWidget(
@@ -165,10 +186,13 @@ export class MonacoCommentManager {
     this.hoverWidgetHandle = null;
   }
 
-  setComments(comments: DraftComment[]) {
+  private renderComments() {
     if (this.disposed) return;
 
     const modifiedEditor = this.editor.getModifiedEditor();
+    if (!modifiedEditor.getModel()) return;
+    const comments = this.comments;
+
     this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
 
     const zones = comments.map((comment) => ({
@@ -369,18 +393,9 @@ export class MonacoCommentManager {
     }
   }
 
-  dispose() {
-    this.disposed = true;
-
-    this.hoverMoveDisposable?.dispose();
-    this.hoverLeaveDisposable?.dispose();
-    for (const disposable of this.modelDisposables) disposable.dispose();
-
-    if (this.hoverWidgetHandle) {
-      this.removeGlyphWidgetHandle(this.hoverWidgetHandle);
-      this.hoverWidgetHandle = null;
-    }
-
+  private clearModelWidgets() {
+    this.clearHoverWidget();
+    this.hoveredLine = null;
     this.hideInput();
 
     const modifiedEditor = this.editor.getModifiedEditor();
@@ -389,10 +404,25 @@ export class MonacoCommentManager {
     modifiedEditor.changeViewZones((accessor) => {
       for (const zone of [...this.viewZoneRoots.values(), ...this.annotationZoneRoots.values()]) {
         accessor.removeZone(zone.zoneId);
-        zone.root.unmount();
       }
     });
+    for (const zone of [...this.viewZoneRoots.values(), ...this.annotationZoneRoots.values()]) {
+      zone.root.unmount();
+    }
     this.viewZoneRoots.clear();
     this.annotationZoneRoots.clear();
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stopComments();
+    this.stopAnnotations();
+    this.modelContentDisposable.dispose();
+    this.modelChangeDisposable.dispose();
+    this.hoverMoveDisposable?.dispose();
+    this.hoverLeaveDisposable?.dispose();
+    this.clearModelWidgets();
+    this.comments = [];
   }
 }

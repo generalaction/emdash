@@ -11,7 +11,7 @@ import type {
   PromptEditorRef,
 } from '@emdash/ui/react/components';
 import { Button, toast } from '@emdash/ui/react/primitives';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, MessageSquare } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -24,6 +24,10 @@ import type {
   ChatCommands,
   ChatView,
 } from '@core/features/conversations/api/browser/chat/chat-transcript';
+import {
+  diffCommentsMention,
+  hasDiffCommentsMention,
+} from '@core/features/conversations/api/browser/chat/diff-comments-mention';
 import { useProviderSettings } from '@core/features/conversations/api/browser/provider-preferences';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import {
@@ -42,6 +46,7 @@ import {
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getSearchClient } from '@core/features/search/api/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
 // TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
 import {
   asProvisioned,
@@ -64,6 +69,7 @@ import {
   toAcpImageAttachmentMimeType,
   uploadDroppedFile,
 } from './acp-dropped-file';
+import { appendDraftCommentsContext } from './draft-comments-context';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
 import { createTranscriptFileCommands } from './transcript-file-commands';
 
@@ -215,6 +221,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const attachments = store.draftAttachments.map(toComposerAttachment);
   const { value: promptLibrary } = usePromptLibrary();
   const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(store.projectId);
+  const draftComments = getTaskStore(store.projectId, store.taskId)?.get(draftCommentsStoreToken);
 
   // Autofocus when the slot becomes available.
   useEffect(() => {
@@ -256,10 +263,14 @@ const ComposerForStore = observer(function ComposerForStore({
     (value: string) => {
       const promptAttachments = store.draftAttachments;
       if (!value.trim() && promptAttachments.length === 0) return;
-      const hiddenContext = buildHiddenIssueContext(value);
-      store.submitPrompt(value, promptAttachments, hiddenContext);
+      const comments = hasDiffCommentsMention(value) ? (draftComments?.comments ?? []) : [];
+      const hiddenContext = appendDraftCommentsContext(buildHiddenIssueContext(value), comments);
+      // Only consume the comments that were sent; ones added or edited mid-flight stay drafted.
+      store.submitPrompt(value, promptAttachments, hiddenContext, () =>
+        draftComments?.deleteSent(comments)
+      );
     },
-    [store, buildHiddenIssueContext]
+    [store, buildHiddenIssueContext, draftComments]
   );
 
   const handleStop = useCallback(() => {
@@ -415,7 +426,7 @@ const ComposerForStore = observer(function ComposerForStore({
   }, [connectedProviders, isProviderUsable, issueProviderContext.selectedIssueProvider]);
 
   const mentionProvider = useMemo<ContextMentionProvider | undefined>(() => {
-    if (!workspaceId && !linkedIssue && !issueProvider) return undefined;
+    if (!workspaceId && !linkedIssue && !issueProvider && !draftComments) return undefined;
     const wsId = workspaceId;
     return {
       async search(query: string): Promise<MentionItem[]> {
@@ -482,13 +493,30 @@ const ComposerForStore = observer(function ComposerForStore({
           description: file.relativePath,
         }));
 
-        return [...pinnedIssueItems, ...fileItems, ...searchedIssueItems];
+        const draftCommentCount = draftComments?.count ?? 0;
+        const commentItems: MentionItem[] =
+          draftCommentCount > 0 &&
+          diffCommentsMention.name.toLowerCase().includes(query.trim().toLowerCase())
+            ? [
+                {
+                  ...diffCommentsMention,
+                  description:
+                    draftCommentCount === 1
+                      ? '1 pending comment'
+                      : `${draftCommentCount} pending comments`,
+                  icon: <MessageSquare size={13} />,
+                },
+              ]
+            : [];
+
+        return [...commentItems, ...pinnedIssueItems, ...fileItems, ...searchedIssueItems];
       },
     };
   }, [
     workspaceId,
     linkedIssue,
     issueProvider,
+    draftComments,
     store.projectId,
     issueProviderContext.projectPath,
     issueProviderContext.repositoryUrl,
@@ -521,6 +549,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const composerOptions =
     providerOptions ?? selectCachedProviderOptions(settings.catalogs, store.configuredOptions);
   const renderMentionIcon = useCallback(({ id, kind }: { id: string; kind: string }) => {
+    if (id === diffCommentsMention.id) return <MessageSquare size={12} />;
     if (kind !== 'issue') return null;
     const target = parseIssueMentionToken(id);
     if (!target) return null;

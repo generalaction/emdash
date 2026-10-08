@@ -28,7 +28,7 @@ import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api'
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { getDraftCommentTargetKey } from '@core/primitives/line-comments/api';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
+import { MonacoCommentManager } from '../comments/monaco-comment-manager';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 import { diffTabToCommentTarget } from './diff-comment-target';
 import { ImageDiffView } from './image-diff-view';
@@ -78,56 +78,36 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
   const draftComments = taskStore?.get(draftCommentsStoreToken);
   const aiAnnotations = taskStore?.get(aiAnnotationsStoreToken);
 
-  const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
-
-  const commentTarget = diffTabToCommentTarget(tab);
-  const commentTargetKey = getDraftCommentTargetKey(commentTarget);
-  const comments = draftComments?.getCommentsForTarget(commentTargetKey) ?? [];
-  const annotations = aiAnnotations?.getForTarget(commentTargetKey);
-
-  const handleAddComment = useCallback(
-    (lineNumber: number, content: string, lineContent?: string) => {
-      if (!draftComments) return;
-      draftComments.addComment({
-        target: commentTarget,
-        lineNumber,
-        lineContent: lineContent ?? null,
-        content,
+  const bindComments = useCallback(
+    (editor: monaco.editor.IStandaloneDiffEditor | null) => {
+      if (!editor || !draftComments) return;
+      const manager = new MonacoCommentManager(editor, {
+        getComments: () =>
+          draftComments.getCommentsForTarget(getDraftCommentTargetKey(diffTabToCommentTarget(tab))),
+        getAnnotations: () =>
+          aiAnnotations?.getForTarget(getDraftCommentTargetKey(diffTabToCommentTarget(tab))) ?? [],
+        onDismissAnnotation: (id) => {
+          aiAnnotations?.dismiss(getDraftCommentTargetKey(diffTabToCommentTarget(tab)), id);
+        },
+        onAddComment: (lineNumber, content, lineContent) => {
+          draftComments.addComment({
+            target: diffTabToCommentTarget(tab),
+            lineNumber,
+            lineContent: lineContent ?? null,
+            content,
+          });
+        },
+        onEditComment: (id, content) => {
+          draftComments.updateComment(id, content);
+        },
+        onDeleteComment: (id) => {
+          draftComments.deleteComment(id);
+        },
       });
+      return () => manager.dispose();
     },
-    [commentTarget, draftComments]
+    [draftComments, aiAnnotations, tab]
   );
-
-  const handleEditComment = useCallback(
-    (id: string, content: string) => {
-      draftComments?.updateComment(id, content);
-    },
-    [draftComments]
-  );
-
-  const handleDeleteComment = useCallback(
-    (id: string) => {
-      draftComments?.deleteComment(id);
-    },
-    [draftComments]
-  );
-
-  const handleDismissAnnotation = useCallback(
-    (id: string) => {
-      aiAnnotations?.dismiss(commentTargetKey, id);
-    },
-    [aiAnnotations, commentTargetKey]
-  );
-
-  useDiffEditorComments({
-    editor,
-    comments,
-    onAddComment: handleAddComment,
-    onEditComment: handleEditComment,
-    onDeleteComment: handleDeleteComment,
-    annotations,
-    onDismissAnnotation: handleDismissAnnotation,
-  });
 
   const sides = useDiffFacets({
     workspacePath: workspace.path,
@@ -154,7 +134,7 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
           modified={sides.modified}
           filePath={tab.path}
           diffStyle={diffView.diffStyle}
-          onEditorChange={setEditor}
+          ref={bindComments}
         />
       </div>
     </div>

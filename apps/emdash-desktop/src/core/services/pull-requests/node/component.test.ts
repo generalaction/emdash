@@ -5,11 +5,11 @@ import { createController } from '@emdash/wire/rpc';
 import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
 import { createWireWorkerHost, runWireComponentWorker } from '@emdash/wire/worker';
 import { describe, expect, it, vi } from 'vitest';
-import { githubAuthContract } from '../api';
+import { gitPlatformAuthContract } from '../api';
 import { pullRequestsComponent } from './component';
 import { PullRequestsRegistration } from './pull-requests-registration';
 
-const githubAuthController = createController(githubAuthContract, {
+const githubAuthController = createController(gitPlatformAuthContract, {
   resolveAuth: () =>
     err({
       type: 'auth_required',
@@ -29,7 +29,7 @@ describe('pullRequestsComponent', () => {
     );
     const worker = host.create(pullRequestsComponent, {
       executable: 'pull-requests-worker',
-      dependencies: { githubAuth: createController(githubAuthContract, { resolveAuth }) },
+      dependencies: { githubAuth: createController(gitPlatformAuthContract, { resolveAuth }) },
       config: { databasePath: ':memory:', incrementalIntervalMs: 30 },
       shutdownGraceMs: 0,
       supervision: { restart: 'on-failure', schedule: retrySchedules.sequence([0]) },

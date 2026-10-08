@@ -1,21 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
-import {
-  parsePortableRelativePath,
-  ROOT_RELATIVE_PATH,
-  type HostAbsolutePath,
-} from '@emdash/core/primitives/path/api';
-import type { FileTreeModel } from '@emdash/core/runtimes/files/api';
+import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import type { DirectoryEntry } from '@emdash/core/runtimes/files/api';
 import { ok } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
-import { defineContract } from '@emdash/wire/rpc';
-import { cell, expose } from '@emdash/wire/state';
-import { createTestWire } from '@emdash/wire/testing';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { projectsWireContract } from '@core/features/projects/api';
 import {
   ProjectDirectoryPicker,
   type ProjectDirectoryPickerClient,
@@ -25,10 +17,6 @@ const homeRoot: HostAbsolutePath = {
   root: { kind: 'posix' },
   segments: ['home', 'dev'],
 };
-const repoPathResult = parsePortableRelativePath('repo');
-if (!repoPathResult.success) throw new Error(repoPathResult.error.message);
-const repoPath = repoPathResult.data;
-const testContract = defineContract({ directoryTree: projectsWireContract.directoryTree });
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -47,27 +35,18 @@ describe('ProjectDirectoryPicker', () => {
     container.remove();
   });
 
-  it('reveals a remote root once and settles the directory listing', async () => {
-    const treeState = cell<FileTreeModel>(treeModel(false));
-    const reveal = vi.fn(async (context) => {
-      const revision = treeState.set(treeModel(true), {
-        mutationIds: [context.mutationId],
-      });
-      await context.observed('tree', revision);
-      return ok(undefined);
-    });
-    const directoryTree = expose(
-      projectsWireContract.directoryTree,
-      { tree: treeState },
-      {
-        mutations: {
-          expand: async () => ok(undefined),
-          reveal,
-        },
-      }
+  it('lists the browsed remote directory once, folders first', async () => {
+    const listHostDirectory = vi.fn(async () =>
+      ok({
+        entries: [
+          entry('notes.txt', 'file'),
+          entry('repo', 'directory', true),
+          entry('plain', 'directory'),
+        ],
+      })
     );
-    const wire = createTestWire(testContract, { directoryTree });
-    const getProjectsClient = async () => wire.client as unknown as ProjectDirectoryPickerClient;
+    const getProjectsClient = async () =>
+      ({ listHostDirectory }) as unknown as ProjectDirectoryPickerClient;
     const props = {
       strategy: 'ssh' as const,
       connectionId: 'machine-1',
@@ -80,51 +59,51 @@ describe('ProjectDirectoryPicker', () => {
       onSelect: vi.fn(),
     };
 
-    try {
-      await act(async () => root.render(createElement(ProjectDirectoryPicker, props)));
-      await act(async () => {
-        await waitFor(() => container.textContent?.includes('repo') ?? false);
-      });
+    await act(async () => root.render(createElement(ProjectDirectoryPicker, props)));
+    await act(async () => {
+      await waitFor(() => container.textContent?.includes('repo') ?? false);
+    });
 
-      expect(reveal).toHaveBeenCalledOnce();
-      expect(reveal.mock.calls[0]?.[0].input).toEqual({ path: '', depth: 2 });
-      expect(container.textContent).not.toContain('Loading folder');
+    expect(listHostDirectory).toHaveBeenCalledExactlyOnceWith({
+      host: { type: 'ssh', connectionId: 'machine-1' },
+      path: homeRoot,
+    });
+    const text = container.textContent ?? '';
+    expect(text.indexOf('plain')).toBeLessThan(text.indexOf('notes.txt'));
+    expect(text.indexOf('repo')).toBeLessThan(text.indexOf('notes.txt'));
+    expect(text).not.toContain('Loading folder');
 
-      await act(async () => root.render(createElement(ProjectDirectoryPicker, props)));
-      expect(reveal).toHaveBeenCalledOnce();
-    } finally {
-      await wire.dispose();
-      await directoryTree.dispose();
-    }
+    await act(async () => root.render(createElement(ProjectDirectoryPicker, props)));
+    expect(listHostDirectory).toHaveBeenCalledOnce();
+  });
+
+  it('shows why a directory cannot be listed', async () => {
+    const listHostDirectory = vi.fn(async () => ({
+      success: false as const,
+      error: { type: 'permission-denied' as const, path: '/home/dev' },
+    }));
+    const getProjectsClient = async () =>
+      ({ listHostDirectory }) as unknown as ProjectDirectoryPickerClient;
+
+    await act(async () =>
+      root.render(
+        createElement(ProjectDirectoryPicker, {
+          strategy: 'local',
+          homePath: '/home/dev',
+          homePending: false,
+          homeError: null,
+          value: '/home/dev',
+          getProjectsClient,
+          onSelect: vi.fn(),
+        })
+      )
+    );
+    await act(async () => {
+      await waitFor(() => container.textContent?.includes('permission-denied') ?? false);
+    });
   });
 });
 
-function treeModel(revealed: boolean): FileTreeModel {
-  return {
-    root: homeRoot,
-    entries: {
-      '': {
-        path: ROOT_RELATIVE_PATH,
-        name: 'dev',
-        parentPath: null,
-        kind: 'directory',
-        childrenLoaded: revealed,
-        children: revealed ? [repoPath] : [],
-        hasChildren: revealed,
-      },
-      ...(revealed
-        ? {
-            repo: {
-              path: repoPath,
-              name: 'repo',
-              parentPath: ROOT_RELATIVE_PATH,
-              kind: 'directory' as const,
-              childrenLoaded: true,
-              children: [],
-              hasChildren: false,
-            },
-          }
-        : {}),
-    },
-  };
+function entry(name: string, kind: DirectoryEntry['kind'], isRepository = false): DirectoryEntry {
+  return { name, kind, size: 0, mtimeMs: 0, isRepository };
 }

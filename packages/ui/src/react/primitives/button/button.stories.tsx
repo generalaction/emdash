@@ -2,10 +2,17 @@ import { Box } from '@react/primitives/box';
 import { Button, type ButtonVariant } from '@react/primitives/button';
 import { Kbd, KbdGroup } from '@react/primitives/kbd';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
+import { PlusIcon, RefreshCwIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
 
-const buttonVariants: ButtonVariant[] = ['primary', 'destructive', 'secondary', 'ghost', 'link'];
+const buttonVariants: ButtonVariant[] = [
+  'primary',
+  'destructive',
+  'secondary',
+  'ghost',
+  'link',
+  'text',
+];
 
 const meta: Meta<typeof Button> = {
   title: 'Primitives/Button',
@@ -25,6 +32,19 @@ type Story = StoryObj<typeof Button>;
 
 export const Default: Story = {
   args: { children: 'Button', variant: 'primary' },
+};
+
+/** Muted inline action with a foreground-only hover state. */
+export const TextAction: Story = {
+  args: {
+    variant: 'text',
+    children: (
+      <>
+        <RefreshCwIcon size={14} />
+        Refresh
+      </>
+    ),
+  },
 };
 
 /** Public button variants. */
@@ -144,6 +164,7 @@ export const AcrossSurfaces: Story = {
             <Button variant="secondary">Secondary</Button>
             <Button variant="ghost">Ghost</Button>
             <Button variant="link">Link</Button>
+            <Button variant="text">Text</Button>
             <Button icon>
               <SearchIcon />
             </Button>
