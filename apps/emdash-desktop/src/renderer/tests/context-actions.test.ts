@@ -67,6 +67,12 @@ describe('buildIssueContextText', () => {
     expect(text).not.toMatch(/\r|\n/);
   });
 
+  it('identifies YouTrack issues by their ticket number', () => {
+    const text = buildIssueContextText(makeIssue({ provider: 'youtrack', identifier: 'DEMO-16' }));
+
+    expect(text).toContain('Identifier: DEMO-16');
+  });
+
   it('does not truncate long descriptions', () => {
     const longDescription = 'A'.repeat(500);
     const text = buildIssueContextText(makeIssue({ description: longDescription }));

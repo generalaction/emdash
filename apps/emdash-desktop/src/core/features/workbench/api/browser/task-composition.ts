@@ -453,23 +453,6 @@ export class TaskComposition {
 
     this.paneLayout.startPersistence();
     this.editorView.startFiles(workspace.path, workspace.sshConnectionId);
-    this._sessionDisposers.push(
-      reaction(
-        () => {
-          const files = this.editorView.files;
-          if (!files) return '';
-          const expanded = [...this.editorView.expandedPaths].sort().join('\0');
-          const loaded = [...files.loadedPaths].sort().join('\0');
-          const pending = [...files.pendingPaths].sort().join('\0');
-          return `${expanded}::${loaded}::${pending}::${files.nodes.size}`;
-        },
-        () => {
-          const files = this.editorView.files;
-          if (files) files.reconcileVisibleScopes(this.editorView.expandedPaths);
-        },
-        { fireImmediately: true }
-      )
-    );
     this._initializing = false;
   }
 

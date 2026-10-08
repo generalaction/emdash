@@ -142,3 +142,9 @@ content determines presentation readiness; history, config, usage, plan, termina
 metadata must not block displaying it. Optional metadata has safe defaults while loading.
 Older runtimes without version metadata use the legacy synchronization path and cannot provide
 the same missed-update guarantees.
+
+
+## Editor language services
+
+See the [LSP runtime README](../../packages/core/src/runtimes/lsp/README.md) for
+server setup, architecture, editor integration and testing.

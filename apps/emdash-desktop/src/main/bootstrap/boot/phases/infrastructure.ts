@@ -56,7 +56,7 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
   return { ssh, hosts };
 }
 
-async function reconnectIntendedSshConnections(db: AppDb, ssh: SshService): Promise<void> {
+export async function reconnectIntendedSshConnections(db: AppDb, ssh: SshService): Promise<void> {
   try {
     const rows = await db
       .select({ id: sshConnections.id })
@@ -70,7 +70,7 @@ async function reconnectIntendedSshConnections(db: AppDb, ssh: SshService): Prom
         } catch (error) {
           log.warn('Failed to reconnect intended SSH connection', {
             connectionId: id,
-            error: String(error),
+            error,
           });
         }
       })

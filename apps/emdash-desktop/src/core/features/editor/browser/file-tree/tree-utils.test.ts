@@ -1,15 +1,11 @@
-import type { FileEntry } from '@emdash/core/runtimes/files/api';
 import { describe, expect, it } from 'vitest';
 import {
-  buildFileTreeVisibleRows,
   buildNestedVisibleRows,
   makeNode,
   sortFileNodes,
   toRenderableFileNode,
   type NestedFileNode,
-  type RenderableFileNode,
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
-import { portablePath } from '@core/primitives/desktop-runtime/api';
 
 function attach(parent: NestedFileNode, child: NestedFileNode): NestedFileNode {
   parent.children.push(child);
@@ -84,6 +80,16 @@ describe('file tree utils', () => {
       'components',
       'beta.ts',
       'z-file.ts',
+    ]);
+  });
+
+  it('sorts names in the natural order shared with the tree runtime and file tree', () => {
+    const nodes = ['file10.ts', 'File2.ts', 'file1.ts'].map((name) => makeNode(name, 'file'));
+
+    expect(sortFileNodes(nodes).map((node) => node.name)).toEqual([
+      'file1.ts',
+      'File2.ts',
+      'file10.ts',
     ]);
   });
 
@@ -214,8 +220,11 @@ describe('file tree utils', () => {
     expect(rows[0].chain.map((n) => n.path)).toEqual(['a', 'a/b']);
   });
 
-  it('converts portable runtime entries to absolute renderer paths', () => {
-    const node = toRenderableFileNode(coreEntry('src/index.ts', 'file', 'src'), '/repo');
+  it('converts listed children to absolute renderer paths', () => {
+    const node = toRenderableFileNode(
+      { path: 'src/index.ts', name: 'index.ts', entry: { kind: 'file' } },
+      '/repo'
+    );
 
     expect(node).toMatchObject({
       id: 'src/index.ts',
@@ -224,65 +233,25 @@ describe('file tree utils', () => {
       parentPath: '/repo/src',
       name: 'index.ts',
       type: 'file',
+      extension: 'ts',
     });
   });
 
-  it('renders expanded runtime directory children without synthetic preview nodes', () => {
-    const src = toRenderableFileNode(coreEntry('src', 'directory', ''), '/repo');
-    const index = toRenderableFileNode(coreEntry('src/index.ts', 'file', 'src'), '/repo');
-    const childrenById = new Map<string | null, RenderableFileNode[]>([
-      [null, [src]],
-      ['src', [index]],
-    ]);
-
-    const rows = buildFileTreeVisibleRows(
-      [src],
-      new Set(['/repo/src']),
-      childrenById,
-      new Set(['/repo/src'])
-    );
-
-    expect(rows.map((row) => row.node.path)).toEqual(['/repo/src', '/repo/src/index.ts']);
-  });
-
-  it('expands in-root directory symlinks', () => {
-    const link = toRenderableFileNode(
+  it('places top-level children under the workspace and describes broken links', () => {
+    const node = toRenderableFileNode(
       {
-        ...coreEntry('linked', 'symlink', ''),
-        symlinkTarget: '/repo/target',
-        symlinkTargetKind: 'directory',
+        path: 'link',
+        name: 'link',
+        entry: { kind: 'symlink', symlinkTarget: 'gone', symlinkTargetKind: 'missing' },
       },
       '/repo'
     );
-    const nested = toRenderableFileNode(coreEntry('linked/nested', 'directory', 'linked'), '/repo');
-    const childrenById = new Map<string | null, RenderableFileNode[]>([
-      [null, [link]],
-      ['linked', [nested]],
-    ]);
 
-    const rows = buildFileTreeVisibleRows(
-      [link],
-      new Set(['/repo/linked']),
-      childrenById,
-      new Set(['/repo/linked'])
-    );
-
-    expect(rows.map((row) => row.node.path)).toEqual(['/repo/linked', '/repo/linked/nested']);
+    expect(node).toMatchObject({
+      parentId: null,
+      parentPath: '/repo',
+      depth: 0,
+      symlink: { target: 'gone', targetType: 'missing', broken: true },
+    });
   });
 });
-
-function coreEntry(
-  entryPath: string,
-  kind: FileEntry['kind'],
-  parentPath: string | null
-): FileEntry {
-  const name = entryPath.split('/').pop() ?? entryPath;
-  return {
-    path: portablePath(entryPath),
-    name,
-    parentPath: parentPath === null ? null : portablePath(parentPath),
-    kind,
-    childrenLoaded: kind !== 'file',
-    children: [],
-  };
-}

@@ -154,7 +154,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Integrations',
     tab: 'integrations',
     description: 'Connect issue trackers and source control providers.',
-    keywords: ['github', 'gitlab', 'linear', 'jira', 'issues', 'connect'],
+    keywords: ['github', 'gitlab', 'linear', 'jira', 'youtrack', 'issues', 'connect'],
   },
 
   // Connections
@@ -213,6 +213,14 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     tab: 'prompts',
     description: 'Manage reusable prompts for tasks and conversations.',
     keywords: ['prompt library', 'snippets'],
+  },
+
+  {
+    id: 'usage',
+    label: 'Usage',
+    tab: 'usage',
+    description: 'Subscription limits for Codex and Claude Code accounts on all machines.',
+    keywords: ['limits', 'quota', 'subscription', 'account', 'codex', 'claude', 'reset'],
   },
 
   // System

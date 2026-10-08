@@ -47,6 +47,12 @@ The packaging process:
 5. Writes the launcher and manifest, then creates the archive under `dist-artifacts/`.
 6. Writes a sibling `<archive>.sha256` file suitable for `sha256sum -c` verification.
 
+Before assembling an artifact, the packager parses every emitted JavaScript bundle with Acorn.
+It validates imports, re-exports, and `require` calls against the bundled chunks, Node builtins,
+and packaged native dependencies, rejecting computed module targets and direct `.node` binding
+references. Parsing avoids mistaking dependency code-generation strings (such as AJV's) for
+executable imports. Acorn is a build-only dependency and is not included in the archive.
+
 Artifact URLs are immutable. Once an archive has been published for a workspace-server version,
 that version must never be rebuilt with different contents. Any change that affects the packaged
 artifact requires a version bump in `apps/workspace-server/package.json` before publication. The

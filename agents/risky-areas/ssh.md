@@ -40,3 +40,7 @@
   unverified legacy passphrase as absent and silently delete it during a name-only edit.
 - Expand user-relative SSH key paths with the OS home-directory helper, not HOME alone;
   Windows environments may provide USERPROFILE without HOME.
+- `ssh2` is patched (`patches/ssh2@<version>.patch` via `pnpm.patchedDependencies`) to keep
+  OpenSSH certificates from the agent. When bumping `ssh2`, regenerate the patch, or drop it
+  once upstream releases certificate support (mscdex/ssh2#1495), and keep
+  `ssh-agent-certificate.test.ts` passing.

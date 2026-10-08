@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  computeGridDimensions,
   invalidateCellMetricsCache,
   measureDimensions,
   measureTerminalCell,
@@ -33,6 +34,20 @@ describe('measureDimensions', () => {
     });
     expect(measureDimensions(el, 8, 16)).toEqual({ cols: 100, rows: 25 });
     vi.unstubAllGlobals();
+  });
+});
+
+describe('computeGridDimensions', () => {
+  it.each([4, 16])('returns null when width %i leaves no positive available width', (widthPx) => {
+    expect(
+      computeGridDimensions({
+        widthPx,
+        heightPx: 400,
+        cellWidth: 8,
+        cellHeight: 16,
+        paddingPx: 8,
+      })
+    ).toBeNull();
   });
 });
 

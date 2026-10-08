@@ -4,6 +4,7 @@ import {
   pathProfileSchema,
   portableRelativePathSchema,
 } from '#primitives/path/api';
+import { listingEntryKindSchema, symlinkTargetKindSchema } from '#runtimes/files/api/listing/state';
 
 export const homeDirectoryResultSchema = z.object({
   path: hostAbsolutePathSchema,
@@ -22,14 +23,22 @@ export const fromToKeySchema = z.object({
   from: hostAbsolutePathSchema,
   to: hostAbsolutePathSchema,
 });
-export const exclusionPatternsSchema = z.array(z.string()).optional();
-export const treeWatchScopeSchema = z.enum(['recursive', 'children']);
-export const treeKeySchema = rootKeySchema.extend({
-  sessionId: z.string(),
-  exclusions: exclusionPatternsSchema,
-  watchScope: treeWatchScopeSchema.optional(),
-});
+// A folder listing is addressed by its workspace root and the folder's path in
+// it. Every consumer of the same folder shares one listing on the host.
+export const listingKeySchema = rootKeySchema.extend({ path: portableRelativePathSchema });
 export const contentKeySchema = absolutePathKeySchema;
+
+/** One child of a one-shot directory listing, with the metadata a folder browser shows. */
+export const directoryEntrySchema = z.object({
+  name: z.string(),
+  kind: listingEntryKindSchema,
+  symlinkTargetKind: symlinkTargetKindSchema.optional(),
+  size: z.number().int().nonnegative(),
+  mtimeMs: z.number(),
+  /** A folder (or folder link) that directly contains a `.git` entry. */
+  isRepository: z.boolean(),
+});
+export const directoryListResultSchema = z.object({ entries: z.array(directoryEntrySchema) });
 
 export const fileStatSchema = z.object({
   path: portableRelativePathSchema,
@@ -107,9 +116,9 @@ export type PathKey = z.infer<typeof pathKeySchema>;
 export type AbsolutePathKey = z.infer<typeof absolutePathKeySchema>;
 export type FromToKey = z.infer<typeof fromToKeySchema>;
 export type ReadFileKey = z.infer<typeof readFileKeySchema>;
-export type ExclusionPatterns = z.infer<typeof exclusionPatternsSchema>;
-export type TreeWatchScope = z.infer<typeof treeWatchScopeSchema>;
-export type TreeKey = z.infer<typeof treeKeySchema>;
+export type ListingKey = z.infer<typeof listingKeySchema>;
+export type DirectoryEntry = z.infer<typeof directoryEntrySchema>;
+export type DirectoryListResult = z.infer<typeof directoryListResultSchema>;
 export type ContentKey = z.infer<typeof contentKeySchema>;
 export type FileStat = z.infer<typeof fileStatSchema>;
 export type ReadFileOptions = z.infer<typeof readFileOptionsSchema>;

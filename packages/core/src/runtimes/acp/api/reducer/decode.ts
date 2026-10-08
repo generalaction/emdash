@@ -15,6 +15,7 @@
  */
 
 import type { SessionUpdate, ToolCallContent, ToolCallLocation } from '@agentclientprotocol/sdk';
+import { isHiddenContextBlock } from '../models/prompt';
 import type {
   NormalizedDiff,
   NormalizedEvent,
@@ -121,6 +122,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
   switch (update.sessionUpdate) {
     case 'user_message_chunk': {
       if (update.content.type !== 'text' || !update.content.text) return { kind: 'ignored' };
+      if (isHiddenContextBlock(update.content.text)) return { kind: 'ignored' };
       return {
         kind: 'message',
         role: 'user',

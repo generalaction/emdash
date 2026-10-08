@@ -392,7 +392,10 @@ describe('resolveSshConnectConfig', () => {
       })
     );
 
-    expect(readFiles).toEqual([expect.stringContaining('/.ssh/corp_ed25519.pub')]);
+    expect(readFiles).toEqual([
+      expect.stringContaining('/.ssh/corp_ed25519.pub'),
+      expect.stringContaining('/.ssh/corp_ed25519-cert.pub'),
+    ]);
     expect(result.config.agent).toEqual(
       expect.objectContaining({ kind: 'identity-filtered-agent' })
     );

@@ -23,6 +23,7 @@ import type {
   TabContentProps,
 } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
+import { registerLanguageContext } from '../lsp/language-services';
 import { EditorProvider } from './editor-provider';
 import { FileContentPreview } from './file-content-preview';
 import { FileContentRenderer } from './file-content-renderer';
@@ -107,6 +108,8 @@ const FileContent = observer(function FileContent({ host, ctx }: TabContentProps
   );
 });
 
+const languageContexts = new WeakMap<FileTabResource, () => void>();
+
 export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, FileOpenArgs> =
   createTabProvider({
     kind: 'file',
@@ -137,15 +140,27 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
         ref = null;
       }
       const inWorkspace = isWithinWorkspace(taskCtx.workspacePath, path);
-      return new FileTabResource(entry.state, {
+      const releaseLanguage =
+        ref && taskCtx.workspacePath
+          ? registerLanguageContext(
+              ref,
+              hostFileRefFromNativePath(taskCtx.workspacePath, connectionId),
+              { projectId: taskCtx.projectId, taskId: taskCtx.taskId }
+            )
+          : undefined;
+      const resource = new FileTabResource(entry.state, {
         ref,
         handle,
         inWorkspace,
         displayPath: displayPathFor(path, inWorkspace, connectionId),
       });
+      if (releaseLanguage) languageContexts.set(resource, releaseLanguage);
+      return resource;
     },
 
     dispose(_entry: TabEntry<FilePayload>, resource: FileTabResource): void {
+      languageContexts.get(resource)?.();
+      languageContexts.delete(resource);
       resource.dispose();
     },
 

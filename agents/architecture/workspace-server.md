@@ -69,8 +69,8 @@ selected the exact version named by the resolved channel pointer.
 
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
 
-The daemon is the Electron-free equivalent of the desktop runtime host. Every core runtime is a
-required supervised child worker in both socket and stdio modes: ACP, agent config, automations,
+The daemon is the Electron-free equivalent of the desktop runtime host. Core execution runtimes are
+required supervised child workers in both socket and stdio modes: ACP, agent config, automations,
 conversations, file search, files, Git, host settings, resource usage, scripts, terminals, TUI
 agents, and workspace registry. The filesystem watcher is also a worker because it is the shared
 dependency for files, Git, file search, and the workspace registry. The workspace registry depends
@@ -79,6 +79,10 @@ commands and shell setup, and sends strict execution inputs to scripts. Automati
 depends on the workspace registry: automation workspace activation flows through the registry's
 `createWorkspace` and `activateWorkspace` verbs. Server startup fails if any required worker cannot
 become ready; there are no unavailable-domain fallback implementations in the aggregate controller.
+LSP and provider usage are optional in both hosts: each worker starts on its first request and is
+excluded from required runtime readiness. Startup failures reject that domain's calls without blocking
+other runtimes. Later requests can retry failed startup; concurrent requests share one readiness
+attempt, and successful readiness remains cached.
 
 Interactive TUI processes do not expire after an hour of silence. The worker and runtime use
 the `always` lifecycle policy; explicit stop/delete and workspace teardown still release them.

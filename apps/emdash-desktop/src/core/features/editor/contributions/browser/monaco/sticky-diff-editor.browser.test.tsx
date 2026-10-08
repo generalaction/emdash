@@ -2,7 +2,7 @@ import { encodeResourceUri, resourceKeyFromFileRef } from '@emdash/core/primitiv
 import { observable, runInAction } from 'mobx';
 import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-import { act } from 'react';
+import { act, StrictMode, type RefCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
@@ -91,6 +91,62 @@ async function createDiffSides(binder: MonacoFacetBinder, name: string, modified
 
 const longFile = Array.from({ length: 1000 }, (_, i) => `line ${i + 1}`).join('\n');
 
+it.each([false, true])(
+  'rebinds editor refs without recreating the editor (strict: %s)',
+  async (strict) => {
+    const host = document.createElement('div');
+    host.style.cssText = 'width: 800px; height: 400px';
+    document.body.append(host);
+    cleanups.push(() => host.remove());
+    const root = createRoot(host);
+    cleanups.push(async () => {
+      await act(async () => root.unmount());
+    });
+    const attached: monaco.editor.IStandaloneDiffEditor[] = [];
+    const released: monaco.editor.IStandaloneDiffEditor[] = [];
+    const firstRef: RefCallback<monaco.editor.IStandaloneDiffEditor | null> = (editor) => {
+      if (!editor) return;
+      attached.push(editor);
+      return () => {
+        released.push(editor);
+      };
+    };
+    const secondRef: typeof firstRef = (editor) => {
+      if (!editor) return;
+      attached.push(editor);
+      return () => {
+        released.push(editor);
+      };
+    };
+    const render = async (ref: typeof firstRef) => {
+      await act(async () => {
+        const content = (
+          <StickyDiffEditor
+            original={null}
+            modified={null}
+            filePath="test.ts"
+            diffStyle="unified"
+            ref={ref}
+          />
+        );
+        root.render(strict ? <StrictMode>{content}</StrictMode> : content);
+      });
+    };
+    await render(firstRef);
+    const editor = attached.at(-1);
+    expect(editor).toBeDefined();
+    expect(attached.length - released.length).toBe(1);
+    const before = attached.length;
+    await render(secondRef);
+    expect(attached).toHaveLength(before + 1);
+    expect(attached.at(-1)).toBe(editor);
+    expect(released.at(-1)).toBe(editor);
+    expect(attached.length - released.length).toBe(1);
+    await act(async () => root.render(null));
+    expect(released).toHaveLength(attached.length);
+  }
+);
+
 function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true, readOnly = false) {
   const host = document.createElement('div');
   host.style.cssText = 'width: 800px; height: 400px';
@@ -112,7 +168,7 @@ function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true, rea
           diffStyle={diffStyle}
           revealFirstChange={revealFirstChange}
           readOnly={readOnly}
-          onEditorChange={(value) => {
+          ref={(value) => {
             editor = value;
             if (value) {
               const subscription = value.onDidUpdateDiff(() => {
@@ -295,7 +351,7 @@ it.each([true, false])(
           modified={modified}
           filePath="permissions.txt"
           diffStyle="split"
-          onEditorChange={(value) => {
+          ref={(value) => {
             editor = value;
           }}
         />

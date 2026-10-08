@@ -13,10 +13,10 @@ const mocks = vi.hoisted(() => ({
   openIn: vi.fn(),
   openInApps: {
     availability: {
-      finder: true,
-      cursor: true,
-      terminal: true,
-    },
+      finder: 'detected',
+      cursor: 'detected',
+      terminal: 'detected',
+    } as Record<string, string>,
     loading: false,
   },
   toast: Object.assign(vi.fn(), { error: vi.fn() }),
@@ -143,9 +143,9 @@ describe('OpenInMenu', () => {
   beforeEach(() => {
     mocks.openIn.mockResolvedValue({ success: true });
     mocks.openInApps.availability = {
-      finder: true,
-      cursor: true,
-      terminal: true,
+      finder: 'detected',
+      cursor: 'detected',
+      terminal: 'detected',
     };
     mocks.openInApps.loading = false;
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
@@ -179,12 +179,10 @@ describe('OpenInMenu', () => {
 
     expect(mocks.updateOpenIn).toHaveBeenCalledWith({ default: 'cursor' });
     expect(mocks.updateOpenIn).toHaveBeenCalledTimes(1);
-    expect(mocks.openIn).toHaveBeenCalledWith({
-      app: 'cursor',
-      isRemote: false,
-      path: 'C:/repo',
-      sshConnectionId: undefined,
-    });
+    expect(mocks.openIn).toHaveBeenCalledWith(
+      { app: 'cursor', isRemote: false, path: 'C:/repo', sshConnectionId: undefined },
+      { timeoutMs: 75_000 }
+    );
     expect(mocks.openIn).toHaveBeenCalledTimes(1);
   });
 
@@ -210,11 +208,33 @@ describe('OpenInMenu', () => {
     });
   });
 
-  it('disables unavailable dropdown apps after availability loads', async () => {
+  it('keeps Explorer launchable while detection is pending', async () => {
+    mocks.openInApps.loading = true;
     mocks.openInApps.availability = {
-      finder: true,
-      cursor: false,
-      terminal: true,
+      finder: 'detected',
+      cursor: 'checking',
+      terminal: 'checking',
+    };
+    await act(async () => {
+      root.render(React.createElement(OpenInMenu, { path: 'C:/repo' }));
+    });
+    const button = container.querySelector<HTMLButtonElement>('[aria-label="Open in Explorer"]');
+    expect(button?.disabled).toBe(false);
+    await act(async () => {
+      button?.click();
+    });
+    expect(mocks.openIn).toHaveBeenCalledWith(expect.objectContaining({ app: 'finder' }), {
+      timeoutMs: 75_000,
+    });
+    expect(container.querySelector('[data-testid="open-in-option-cursor"]')).toBeNull();
+    expect(container.textContent).not.toContain('Checking');
+  });
+
+  it('omits unavailable dropdown apps after availability loads', async () => {
+    mocks.openInApps.availability = {
+      finder: 'detected',
+      cursor: 'not-detected',
+      terminal: 'detected',
     };
 
     await act(async () => {
@@ -222,7 +242,6 @@ describe('OpenInMenu', () => {
     });
 
     const cursorOption = container.querySelector('[data-testid="open-in-option-cursor"]');
-    expect(cursorOption).not.toBeNull();
-    expect(cursorOption).toHaveProperty('disabled', true);
+    expect(cursorOption).toBeNull();
   });
 });
