@@ -106,6 +106,25 @@ export function removeCell(cells: readonly MultitaskCell[], cell: MultitaskCell)
   return cells.filter((candidate) => cellKey(candidate) !== key);
 }
 
+/** Toggles whether a selected cell is hidden from the workspace but kept in the tab strip. */
+export function toggleMinimizedCell(
+  minimizedCellKeys: readonly string[],
+  cell: MultitaskCell
+): string[] {
+  const key = cellKey(cell);
+  return minimizedCellKeys.includes(key)
+    ? minimizedCellKeys.filter((candidate) => candidate !== key)
+    : [...minimizedCellKeys, key];
+}
+
+/** Completion attention is emitted only for conversations observed running in this view. */
+export function isNewlyCompleted(
+  previous: AgentStatus | undefined,
+  current: AgentStatus
+): boolean {
+  return previous !== undefined && isLiveAgentStatus(previous) && current === 'completed';
+}
+
 export function reorderCells(
   cells: readonly MultitaskCell[],
   fromIndex: number,
@@ -167,4 +186,9 @@ export function chunkIntoRows<T>(items: readonly T[], columns: number): T[][] {
 export function clampColumns(columns: number): number {
   if (!Number.isFinite(columns)) return 2;
   return Math.min(4, Math.max(1, Math.round(columns)));
+}
+
+/** Missing conversations are trustworthy only after every visible project finished hydrating. */
+export function canPruneMissingCells(projectViewKinds: readonly string[]): boolean {
+  return projectViewKinds.length > 0 && projectViewKinds.every((kind) => kind === 'ready');
 }

@@ -2,16 +2,19 @@ import { describe, expect, it } from 'vitest';
 import {
   buildKnownCellKeys,
   buildMultitaskGroups,
+  canPruneMissingCells,
   cellKey,
   chunkIntoRows,
   clampColumns,
   hasCell,
   isLiveAgentStatus,
+  isNewlyCompleted,
   type MultitaskCell,
   type MultitaskProjectInput,
   pruneMissingCells,
   removeCell,
   reorderCells,
+  toggleMinimizedCell,
   toggleCell,
 } from './multitask-model';
 
@@ -155,6 +158,12 @@ describe('reorderCells', () => {
 });
 
 describe('pruneMissingCells', () => {
+  it('waits for project hydration before trusting missing conversations', () => {
+    expect(canPruneMissingCells(['ready', 'hydrating'])).toBe(false);
+    expect(canPruneMissingCells([])).toBe(false);
+    expect(canPruneMissingCells(['ready', 'ready'])).toBe(true);
+  });
+
   it('keeps cells that still exist and drops cells that do not', () => {
     const knownKeys = buildKnownCellKeys(projects);
     const cells: MultitaskCell[] = [
@@ -203,5 +212,27 @@ describe('clampColumns', () => {
 
   it('falls back to 2 for non-finite input', () => {
     expect(clampColumns(Number.NaN)).toBe(2);
+  });
+});
+
+describe('minimized cells', () => {
+  const cell: MultitaskCell = {
+    projectId: 'proj-1',
+    taskId: 'task-1',
+    conversationId: 'conv-1',
+  };
+
+  it('minimizes an open cell and restores a minimized cell', () => {
+    const minimized = toggleMinimizedCell([], cell);
+    expect(minimized).toEqual([cellKey(cell)]);
+    expect(toggleMinimizedCell(minimized, cell)).toEqual([]);
+  });
+
+  it('detects only a live-to-completed transition as newly completed', () => {
+    expect(isNewlyCompleted('working', 'completed')).toBe(true);
+    expect(isNewlyCompleted('awaiting-input', 'completed')).toBe(true);
+    expect(isNewlyCompleted('completed', 'completed')).toBe(false);
+    expect(isNewlyCompleted(undefined, 'completed')).toBe(false);
+    expect(isNewlyCompleted('working', 'error')).toBe(false);
   });
 });

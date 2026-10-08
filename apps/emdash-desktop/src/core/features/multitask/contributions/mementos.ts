@@ -16,8 +16,18 @@ const multitaskLayoutV1Schema = z.object({
   liveOnly: z.boolean(),
 });
 
+const multitaskLayoutV2Schema = multitaskLayoutV1Schema.extend({
+  version: z.literal('2'),
+  minimizedCellKeys: z.array(z.string()),
+});
+
 export const multitaskLayoutSchema = defineVersionedSchema()
   .initial('1', multitaskLayoutV1Schema)
+  .version('2', multitaskLayoutV2Schema, (v1) => ({
+    ...v1,
+    version: '2' as const,
+    minimizedCellKeys: [],
+  }))
   .build();
 
 export type MultitaskLayoutState = typeof multitaskLayoutSchema.Type;
@@ -27,9 +37,10 @@ export const multitaskLayoutMemento = defineMemento({
   subject: appSubject,
   schema: multitaskLayoutSchema,
   default: {
-    version: '1' as const,
+    version: '2' as const,
     cells: [],
     columns: 2,
     liveOnly: true,
+    minimizedCellKeys: [],
   },
 });

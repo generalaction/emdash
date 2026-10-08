@@ -1,11 +1,14 @@
 import { Select } from '@emdash/ui/react/primitives';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { getConversationsForTask } from '@core/features/conversations/api/browser/conversation-selectors';
 import { multitaskLayoutMemento } from '@core/features/multitask/contributions/mementos';
 import { multitaskViewDef } from '@core/features/multitask/contributions/views';
-import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
+import {
+  getProjectManagerStore,
+  projectViewKind,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
@@ -18,13 +21,19 @@ import { MultitaskGrid } from './multitask-grid';
 import {
   buildKnownCellKeys,
   buildMultitaskGroups,
+  canPruneMissingCells,
   clampColumns,
+  cellKey,
+  hasCell,
+  isNewlyCompleted,
   type MultitaskCell,
+  type MultitaskConversationInput,
   type MultitaskProjectInput,
   pruneMissingCells,
   removeCell,
   reorderCells,
   toggleCell,
+  toggleMinimizedCell,
 } from './multitask-model';
 import { MultitaskPicker } from './multitask-picker';
 
@@ -66,28 +75,85 @@ export const MultitaskMainPanel = observer(function MultitaskMainPanel() {
   const { navigate } = useNavigate();
   const isMobile = useMobileViewport();
   const [pickerOpen, setPickerOpen] = useState(true);
+  const [attentionCellKeys, setAttentionCellKeys] = useState<readonly string[]>([]);
+  const previousStatuses = useRef(new Map<string, MultitaskConversationInput['status']>());
   const [layout, setLayout] = useMemento(multitaskLayoutMemento);
 
   const projects = collectMultitaskProjects();
   const groups = buildMultitaskGroups(projects, { liveOnly: layout.liveOnly });
   const knownKeys = buildKnownCellKeys(projects);
+  const canPrune = canPruneMissingCells(
+    [...getProjectManagerStore().projects.values()].map((project) => projectViewKind(project))
+  );
+
+  useEffect(() => {
+    const nextStatuses = new Map<string, MultitaskConversationInput['status']>();
+    for (const project of projects) {
+      for (const task of project.tasks) {
+        for (const conversation of task.conversations) {
+          const key = cellKey({
+            projectId: project.id,
+            taskId: task.id,
+            conversationId: conversation.id,
+          });
+          nextStatuses.set(key, conversation.status);
+          if (isNewlyCompleted(previousStatuses.current.get(key), conversation.status)) {
+            setAttentionCellKeys((current) =>
+              current.includes(key) ? current : [...current, key]
+            );
+          }
+        }
+      }
+    }
+    previousStatuses.current = nextStatuses;
+  }, [projects]);
 
   // Drop selections pointing at a task or conversation that was deleted.
   // Cells that merely stopped being "live" are left alone — only the close
   // button in the grid removes those.
   useEffect(() => {
+    if (!canPrune) return;
     const pruned = pruneMissingCells(layout.cells, knownKeys);
     if (pruned.length !== layout.cells.length) {
       setLayout((current) => ({ ...current, cells: pruned }));
     }
-  }, [knownKeys, layout.cells, setLayout]);
+  }, [canPrune, knownKeys, layout.cells, setLayout]);
 
   const columns = isMobile ? 1 : clampColumns(layout.columns);
 
-  const handleToggleCell = (cell: MultitaskCell) =>
-    setLayout((current) => ({ ...current, cells: toggleCell(current.cells, cell) }));
+  const handleToggleCell = (cell: MultitaskCell) => {
+    const key = cellKey(cell);
+    setAttentionCellKeys((current) => current.filter((candidate) => candidate !== key));
+    setLayout((current) => ({
+      ...current,
+      cells: toggleCell(current.cells, cell),
+      minimizedCellKeys: hasCell(current.cells, cell)
+        ? current.minimizedCellKeys.filter((candidate) => candidate !== key)
+        : current.minimizedCellKeys,
+    }));
+  };
   const handleRemoveCell = (cell: MultitaskCell) =>
-    setLayout((current) => ({ ...current, cells: removeCell(current.cells, cell) }));
+    setLayout((current) => ({
+      ...current,
+      cells: removeCell(current.cells, cell),
+      minimizedCellKeys: current.minimizedCellKeys.filter((key) => key !== cellKey(cell)),
+    }));
+  const handleToggleMinimized = (cell: MultitaskCell) => {
+    const key = cellKey(cell);
+    setAttentionCellKeys((current) => current.filter((candidate) => candidate !== key));
+    setLayout((current) => ({
+      ...current,
+      minimizedCellKeys: toggleMinimizedCell(current.minimizedCellKeys, cell),
+    }));
+  };
+  const handleRestoreCell = (cell: MultitaskCell) => {
+    const key = cellKey(cell);
+    setAttentionCellKeys((current) => current.filter((candidate) => candidate !== key));
+    setLayout((current) => ({
+      ...current,
+      minimizedCellKeys: current.minimizedCellKeys.filter((candidate) => candidate !== key),
+    }));
+  };
   const handleReorder = (fromIndex: number, toIndex: number) =>
     setLayout((current) => ({
       ...current,
@@ -139,9 +205,13 @@ export const MultitaskMainPanel = observer(function MultitaskMainPanel() {
             <MultitaskGrid
               cells={layout.cells}
               columns={columns}
+              minimizedCellKeys={layout.minimizedCellKeys}
+              attentionCellKeys={attentionCellKeys}
               onReorder={handleReorder}
               onRemove={handleRemoveCell}
               onOpen={handleOpenCell}
+              onMinimize={handleToggleMinimized}
+              onRestore={handleRestoreCell}
             />
           </div>
         </div>
