@@ -192,4 +192,74 @@ describe('buildStandardCommand', () => {
     expect(mIdx).toBeGreaterThanOrEqual(0);
     expect(result.args[mIdx + 1]).toBe('gpt-5-codex');
   });
+
+  it('adds dataDirFlag with unique subdirectory per session', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'opencode',
+        autoApprove: false,
+        sessionId: 'ses-abc123',
+        isResuming: false,
+        model: '',
+      },
+      {
+        dataDirFlag: '--data-dir',
+      }
+    );
+
+    expect(result.args).toContain('--data-dir');
+    const idx = result.args.indexOf('--data-dir');
+    expect(result.args[idx + 1]).toBe('$HOME/.local/share/opencode-ses-abc123');
+  });
+
+  it('uses custom dataDirBase when provided', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'opencode',
+        autoApprove: false,
+        sessionId: 'ses-abc123',
+        isResuming: false,
+        model: '',
+      },
+      {
+        dataDirFlag: '--data-dir',
+        dataDirBase: '/custom/path/opencode',
+      }
+    );
+
+    expect(result.args).toContain('--data-dir');
+    const idx = result.args.indexOf('--data-dir');
+    expect(result.args[idx + 1]).toBe('/custom/path/opencode-ses-abc123');
+  });
+
+  it('does not add dataDirFlag when sessionId is missing', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'opencode',
+        autoApprove: false,
+        isResuming: false,
+        model: '',
+      },
+      {
+        dataDirFlag: '--data-dir',
+      }
+    );
+
+    expect(result.args).not.toContain('--data-dir');
+  });
+
+  it('does not add dataDirFlag when dataDirFlag is not specified', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'opencode',
+        autoApprove: false,
+        sessionId: 'ses-abc123',
+        isResuming: false,
+        model: '',
+      },
+      {}
+    );
+
+    expect(result.args).not.toContain('--data-dir');
+  });
 });

@@ -108,6 +108,7 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdOnResumeOnly: true,
         resumeWithoutSessionFlag: '--continue',
         validateSessionId,
+        dataDirFlag: '--data-dir',
       }),
   },
   sessions: { validateSessionId },
