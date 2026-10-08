@@ -689,6 +689,21 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const activeTab = pane.resolvedTabs.find((t) => t.isActive && t.kind === 'acp-chat');
   const store = activeTab ? (activeTab.resource as AcpChatTabResource).store : null;
 
+  if (!store) return null;
+  return <AcpChatPanelBody store={store} />;
+});
+
+// ── AcpChatPanelBody ────────────────────────────────────────────────────────
+//
+// The chat rendering proper, parameterized by an explicit AcpChatStore. Split
+// out of AcpChatPanel so other hosts (e.g. the Multitarea grid) can acquire a
+// store for an arbitrary (projectId, taskId, conversationId) outside of the
+// task pane's tab system and render the same chat UI for it.
+export const AcpChatPanelBody = observer(function AcpChatPanelBody({
+  store,
+}: {
+  store: AcpChatStore;
+}) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ChatView | null>(null);
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
@@ -857,8 +872,6 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       },
     };
   }, [store, handleViewerOpen]);
-
-  if (!store) return null;
 
   const unavailableWithoutTranscript =
     store.loadError?.kind === 'unavailable' && store.messageCount === 0;
