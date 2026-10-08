@@ -184,7 +184,10 @@ function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true, rea
     if (!diff) throw new Error('diff editor missing');
     diff.getContainerDomNode().style.height = '400px';
     diff.layout({ width: 800, height: 400 });
-    await expect.poll(() => updated, { timeout: 3000 }).toBe(true);
+    // Initial diff computation can finish before React publishes the editor ref.
+    await expect
+      .poll(() => updated || diff.getLineChanges() !== null, { timeout: 3000 })
+      .toBe(true);
     return diff;
   };
 }
@@ -192,13 +195,14 @@ function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true, rea
 it('keeps an inspected worktree read-only even when its shared buffer is writable', async () => {
   const binder = new MonacoFacetBinder(async () => monaco);
   runtime.binder = binder;
-  const sides = await createDiffSides(binder, 'inspection', 'subagent changes\n');
+  const content = longFile.replace('line 5', 'subagent changes');
+  const sides = await createDiffSides(binder, 'inspection', content);
   const diff = await mountDiff('split', true, true)(sides);
   const modified = diff.getModifiedEditor();
   expect(modified.getOption(monaco.editor.EditorOption.readOnly)).toBe(true);
   expect(sides.modified.entry.readOnly).toBe(false);
   modified.trigger('keyboard', 'type', { text: 'unexpected edit' });
-  expect(sides.modified.entry.handleFor({ kind: 'buffer' })?.getText()).toBe('subagent changes\n');
+  expect(sides.modified.entry.handleFor({ kind: 'buffer' })?.getText()).toBe(content);
   Object.defineProperty(sides.modified.entry, 'dirty', { value: true });
   vi.mocked(openFileStore.save).mockClear();
   modified.focus();
