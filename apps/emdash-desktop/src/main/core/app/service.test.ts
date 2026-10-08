@@ -276,7 +276,7 @@ describe('AppService.openIn', () => {
           mode: 0o755,
         });
       }
-      mocks.launchEnv = { PATH: `${bin}:/usr/bin:/bin`, TERMINAL: path.join(bin, 'user-terminal') };
+      mocks.launchEnv = { PATH: bin, TERMINAL: path.join(bin, 'user-terminal') };
 
       try {
         await appService.openIn({ app: 'terminal', path: bin });
