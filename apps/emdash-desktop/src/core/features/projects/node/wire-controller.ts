@@ -2,13 +2,7 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import type {
-  Contract,
-  ContractImpl,
-  LeasedLiveModelProvider,
-  LiveModelProvider,
-  LiveSource,
-} from '@emdash/wire/rpc';
+import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, family, query, type Cell, type Family } from '@emdash/wire/state';
 import {
   projectsWireContract,
@@ -19,10 +13,7 @@ import {
 import { projectEvents } from '@core/features/projects/node';
 import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import {
-  forwardLiveModel,
-  forwardModelMutation,
-} from '@core/services/runtime-clients/node/forward-live-model';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
@@ -88,6 +79,10 @@ export function createProjectsWireController(
         const runtime = await acquireHostRuntime(dependencies, host);
         return runtime.files.fs.createDirectory({ path: resolveRelativePath(root, path) });
       },
+      listHostDirectory: async ({ host, path }) => {
+        const runtime = await acquireHostRuntime(dependencies, host);
+        return runtime.files.fs.listDirectory({ path });
+      },
       events: projectEvents,
       projectList,
       attachments,
@@ -95,7 +90,6 @@ export function createProjectsWireController(
         dependencies.projectSettings.getProjectConfigLiveSource(projectId)
       ),
       creation: creation.provider,
-      directoryTree: createDirectoryTreeModelProvider(dependencies),
       create: {
         run: (input, ctx) => runCreateProjectFromRemote(dependencies, creation, input, ctx),
         toError: unknownToProjectCreationError,
@@ -128,48 +122,6 @@ function createProjectListProvider(projectOperations: ReturnType<typeof createPr
     },
     { scope }
   );
-}
-
-function createDirectoryTreeModelProvider(
-  dependencies: ProjectOperationDependencies
-): LiveModelProvider<typeof projectsWireContract.directoryTree> {
-  const contract = projectsWireContract.directoryTree;
-  return {
-    kind: 'liveModelProvider',
-    contract,
-    resolveState: (key, name) =>
-      resolveHostRuntimeSource(dependencies, key, (runtime) =>
-        runtime.files.tree.model
-          .state(
-            {
-              root: key.root,
-              sessionId: key.sessionId,
-              watchScope: 'children',
-            },
-            name
-          )
-          .asLiveSource()
-      ),
-    async runMutation(name, envelope) {
-      const runtimeResult = await dependencies.runtimes.client(hostRefForProjectHost(envelope.key));
-      if (!runtimeResult.success) {
-        return err(runtimeResult.error) as unknown as Awaited<
-          ReturnType<LiveModelProvider<typeof contract>['runMutation']>
-        >;
-      }
-      return forwardModelMutation(
-        runtimeResult.data.files.tree.model,
-        projectsWireContract.directoryTree,
-        name,
-        envelope,
-        {
-          root: envelope.key.root,
-          sessionId: envelope.key.sessionId,
-          watchScope: 'children',
-        }
-      );
-    },
-  };
 }
 
 function createCreationProvider(): CreationProvider {
@@ -226,15 +178,6 @@ async function acquireHostRuntime(
   const runtime = await dependencies.runtimes.client(hostRefForProjectHost(host));
   if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
   return runtime.data;
-}
-
-async function resolveHostRuntimeSource(
-  dependencies: ProjectOperationDependencies,
-  host: ProjectHostParams,
-  source: (runtime: Awaited<ReturnType<typeof acquireHostRuntime>>) => LiveSource
-): Promise<LiveSource> {
-  const runtime = await acquireHostRuntime(dependencies, host);
-  return source(runtime);
 }
 
 function hostRefForProjectHost(host: ProjectHostParams) {

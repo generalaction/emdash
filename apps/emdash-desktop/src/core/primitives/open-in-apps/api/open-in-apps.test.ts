@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidOpenInAppId, OPEN_IN_APPS } from './open-in-apps';
+import { isValidOpenInAppId, OPEN_IN_APPS, type PlatformConfig } from './open-in-apps';
 
 describe('OPEN_IN_APPS', () => {
   it('registers Kaku as an open-in terminal option', () => {
@@ -57,7 +57,7 @@ describe('OPEN_IN_APPS', () => {
   });
 
   it('configures Hyper launch commands for supported desktop platforms', () => {
-    expect(OPEN_IN_APPS.hyper.platforms.darwin?.bundleIds).toContain('co.zeit.hyper');
+    expect(OPEN_IN_APPS.hyper.platforms.darwin?.appNames).toEqual(['Hyper']);
     // Hyper has no cwd flag, so a path argument would be silently ignored; launch
     // plainly and rely on the exec cwd for best-effort directory on linux/win32.
     expect(OPEN_IN_APPS.hyper.platforms.darwin?.openCommands).toEqual(['open -na "Hyper"']);
@@ -93,12 +93,10 @@ describe('OPEN_IN_APPS', () => {
       id: 'rider',
       iconPath: 'rider.svg',
       label: 'Rider',
-      hideIfUnavailable: true,
     });
   });
 
   it('configures Rider launch commands for supported desktop platforms', () => {
-    expect(OPEN_IN_APPS.rider.platforms.darwin?.bundleIds).toContain('com.jetbrains.rider');
     expect(OPEN_IN_APPS.rider.platforms.darwin?.appNames).toContain('JetBrains Rider');
     expect(OPEN_IN_APPS.rider.platforms.darwin?.openCommands).toEqual([
       'open -a "Rider" {{path}}',
@@ -112,5 +110,50 @@ describe('OPEN_IN_APPS', () => {
       'rider {{path}}',
       'rider.sh {{path}}',
     ]);
+  });
+});
+
+// Opens the path with the system default handler, not with the app itself.
+const DEFAULT_HANDLER_FALLBACKS = new Set(['xdg-open']);
+
+function launchTargets(config: PlatformConfig) {
+  const appNames = new Set<string>();
+  const bundleIds = new Set<string>();
+  const checkCommands = new Set<string>();
+  for (const command of config.openCommands ?? []) {
+    for (const [, quoted, bare] of command.matchAll(/\bopen (?:-\w+ )*-n?a (?:"([^"]+)"|(\S+))/g)) {
+      const name = quoted ?? bare!;
+      if (!name.startsWith('$')) appNames.add(name);
+    }
+    for (const [, id] of command.matchAll(/\bopen (?:-\w+ )*-b (\S+)/g)) bundleIds.add(id!);
+    for (const [, cli] of command.matchAll(/command -v (\S+)/g)) checkCommands.add(cli!);
+    if (!/^(open |command -v |\w+=)/.test(command)) {
+      const cli = command.replace(/^start "" /, '').split(' ')[0]!;
+      if (!DEFAULT_HANDLER_FALLBACKS.has(cli)) checkCommands.add(cli);
+    }
+  }
+  return {
+    appNames: [...appNames].sort(),
+    bundleIds: [...bundleIds].sort(),
+    checkCommands: [...checkCommands].sort(),
+  };
+}
+
+// Always-available apps skip detection; URL-scheme apps launch through openUrls.
+const detectedLaunches = Object.values(OPEN_IN_APPS).flatMap((app) =>
+  app.alwaysAvailable
+    ? []
+    : Object.entries(app.platforms)
+        .filter(([, config]) => !config.openUrls)
+        .map(([platform, config]) => ({ name: `${app.id} on ${platform}`, config }))
+);
+
+describe('open-in detection', () => {
+  it.each(detectedLaunches)('checks exactly what $name launches', ({ config }) => {
+    expect({
+      appNames: [...(config.appNames ?? [])].sort(),
+      bundleIds: [...(config.bundleIds ?? [])].sort(),
+      checkCommands: [...(config.checkCommands ?? [])].sort(),
+    }).toEqual(launchTargets(config));
   });
 });

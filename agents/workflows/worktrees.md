@@ -28,7 +28,7 @@
 - the choice is saved with the workspace or automation configuration, so retries and scheduled
   runs retain it when the project preference changes. Older saved configurations use the cached
   base behavior. Existing branches and completed creations are reused without resetting them
-- remote freshness requires workspace-server protocol 11.1; older servers show an upgrade
+- remote freshness requires workspace-server protocol 12.1; older servers show an upgrade
   message when the option is enabled
 - newly created task branches use `git worktree add --no-track`; the selected base ref is a
   starting point, not the branch's upstream

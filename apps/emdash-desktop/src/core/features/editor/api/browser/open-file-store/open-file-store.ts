@@ -1,4 +1,5 @@
 import {
+  decodeResourceUri,
   encodeResourceUri,
   resourceKeyFromFileRef,
   type HostFileRef,
@@ -15,6 +16,7 @@ import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { filesWireContract } from '@core/features/files/api';
 import { getFilesClient } from '@core/features/files/api/browser/client';
 import type { GitRef } from '@core/primitives/git/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import { facetSlotKey, type Facet, type FacetHandle, type FacetHandleBinder } from './facet-handle';
 
 /**
@@ -167,6 +169,13 @@ class OpenFileEntryImpl implements OpenFileEntry {
   }
 }
 
+export interface FileSaveEvent {
+  readonly ref: HostFileRef;
+  readonly text: string;
+}
+
+type SaveListener = (event: FileSaveEvent) => void | Promise<void>;
+
 /**
  * The app-global owner of open-file state (spec §4/§7/§9): one instance per
  * app, keyed by ResourceKey, editor-framework-free. Consumers acquire
@@ -177,6 +186,15 @@ class OpenFileEntryImpl implements OpenFileEntry {
  * through the registered {@link FacetHandleBinder}.
  */
 export class OpenFileStore {
+  private readonly saveListeners = new Set<SaveListener>();
+
+  onDidSave(listener: SaveListener): () => void {
+    this.saveListeners.add(listener);
+    return () => {
+      this.saveListeners.delete(listener);
+    };
+  }
+
   private readonly entries = new Map<ResourceKey, OpenFileEntryImpl>();
   private readonly scope = createScope({ label: 'open-file-store' });
   private readonly clock: Clock;
@@ -356,14 +374,31 @@ export class OpenFileStore {
       if (latest?.kind === 'text') impl.lastDiskEtag = latest.etag;
       impl.baseEtag = impl.lastDiskEtag;
       runInAction(() => {
-        impl.dirty = false;
         impl.conflicted = false;
       });
-      impl.autosaveTimer?.dispose();
-      impl.autosaveTimer = null;
+      this.reconcileDirty(impl);
+      // A completed write only cleans the snapshot it wrote. Keep newer edits recoverable.
       const client = await getEditorClient();
-      await client.clearBuffer({ uri: impl.uri });
+      if (!impl.dirty) {
+        impl.autosaveTimer?.dispose();
+        impl.autosaveTimer = null;
+        await client.clearBuffer({ uri: impl.uri });
+        if (impl.dirty) await client.saveBuffer({ uri: impl.uri, content: handle.getText() });
+      }
       this.maybeScheduleBufferEviction(impl);
+      const decoded = decodeResourceUri(impl.uri);
+      if (decoded.success) {
+        const event = Object.freeze({ ref: decoded.data, text: content });
+        for (const listener of [...this.saveListeners]) {
+          try {
+            void Promise.resolve(listener(event)).catch((error) =>
+              log.warn('File save listener failed', error)
+            );
+          } catch (error) {
+            log.warn('File save listener failed', error);
+          }
+        }
+      }
       return ok(undefined);
     } finally {
       runInAction(() => {
@@ -783,6 +818,10 @@ export class OpenFileStore {
     const bufferHandle = entry.slots.get(BUFFER_SLOT)?.handle;
     if (!bufferHandle) return;
     const matches = bufferHandle.getText() === text;
+    if (entry.saving && !matches) {
+      this.reconcileDirty(entry);
+      return;
+    }
     if (!entry.dirty || matches) {
       if (!matches) this.silentSet(entry, bufferHandle, text);
       entry.baseEtag = entry.lastDiskEtag;

@@ -52,7 +52,7 @@ async function resolveDesktopRuntimeClient(
             runtimeHostUnavailable(
               host,
               'protocol-upgrade-server',
-              'Fetching the latest base requires workspace-server protocol 11.1. Please upgrade the workspace server.'
+              'Fetching the latest base requires workspace-server protocol 12.1. Please upgrade the workspace server.'
             )
           );
         }
@@ -88,11 +88,13 @@ async function resolveDesktopRuntimeClient(
     git: clients.git,
     fileSearch: clients.fileSearch,
     files: clients.files,
+    lsp: clients.lsp,
     acp: clients.acp,
     automations: clients.automations,
     conversations: clients.conversations,
     tuiAgents: clients.tuiAgents,
     agentConfig: clients.agentConfig,
+    providerUsage: clients.providerUsage,
     terminals: clients.terminals,
     workspaceRegistry: clients.workspaceRegistry,
     resourceUsage: clients.resourceUsage,

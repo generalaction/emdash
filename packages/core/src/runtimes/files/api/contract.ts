@@ -10,9 +10,9 @@ import {
   uploadFile,
 } from '@emdash/wire/rpc';
 import { z } from 'zod';
-import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
+import { hostAbsolutePathSchema } from '#primitives/path/api';
 import { fileContentModelSchema } from '#runtimes/files/api/content/state';
-import { fileTreeModelSchema } from '#runtimes/files/api/tree/state';
+import { folderListingSchema } from '#runtimes/files/api/listing/state';
 import { fsErrorSchema } from './errors';
 import {
   absolutePathKeySchema,
@@ -20,16 +20,17 @@ import {
   createDirectoryInputSchema,
   createFileInputSchema,
   deleteInputSchema,
+  directoryListResultSchema,
   fileEnumerationOptionsSchema,
   fileStatSchema,
   fromToKeySchema,
   homeDirectoryResultSchema,
+  listingKeySchema,
   pathBatchSchema,
   pathListSchema,
   readBytesMetaSchema,
   readFileKeySchema,
   readTextResultSchema,
-  treeKeySchema,
   uploadFileInputSchema,
   uploadFileResultSchema,
   writeContentInputSchema,
@@ -41,7 +42,7 @@ export const MAX_FILE_UPLOAD_BYTES = 10 * 1024 * 1024;
 /**
  * The stateless filesystem plane (spec §3.4): reads and writes keyed by a bare
  * host-absolute path. Successful mutations are reflected into affected live
- * tree sessions at ack time (synchronous republish) — the fs watcher covers
+ * folder listings at ack time (synchronous republish) — the fs watcher covers
  * external changes only.
  */
 export const filesContract = defineContract({
@@ -94,37 +95,29 @@ export const filesContract = defineContract({
     move: fallible({ input: fromToKeySchema, data: z.void(), error: fsErrorSchema }),
     copy: fallible({ input: fromToKeySchema, data: z.void(), error: fsErrorSchema }),
     delete: fallible({ input: deleteInputSchema, data: z.void(), error: fsErrorSchema }),
-  }),
-  tree: defineContract({
-    model: liveModel({
-      key: treeKeySchema,
-      states: {
-        tree: liveState({ data: fileTreeModelSchema }),
-      },
-      mutations: {
-        expand: mutation({
-          input: z.object({
-            path: portableRelativePathSchema,
-            depth: z.number().int().min(1).max(2).optional(),
-          }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        reveal: mutation({
-          input: z.object({
-            path: portableRelativePathSchema,
-            depth: z.number().int().min(1).max(2).optional(),
-          }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        refresh: mutation({
-          input: z.void().optional(),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-      },
+    /** One-shot listing with sizes, timestamps and repository detection, for folder browsers. */
+    listDirectory: fallible({
+      input: absolutePathKeySchema,
+      data: directoryListResultSchema,
+      error: fsErrorSchema,
     }),
+  }),
+  // Live listing of one folder in a workspace root. Subscribing to a folder is
+  // what loads it: the host keeps one watched listing per folder for every
+  // subscriber, and drops it shortly after the last one leaves.
+  listing: liveModel({
+    key: listingKeySchema,
+    states: {
+      listing: liveState({ data: folderListingSchema }),
+    },
+    mutations: {
+      /** Rereads this folder and every listed folder beneath it, for when the watcher misses changes. */
+      refresh: mutation({
+        input: z.void().optional(),
+        data: z.void(),
+        error: fsErrorSchema,
+      }),
+    },
   }),
   // Live file content keyed by a bare host-absolute path (spec §3.4). Every
   // session is per-file watched by watching the file's parent directory, so

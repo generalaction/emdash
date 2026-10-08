@@ -1,4 +1,5 @@
 import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -245,6 +246,11 @@ describe('BoundExec', () => {
 function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
+    if (process.platform === 'linux') {
+      // Container PID 1 may retain already-terminated descendants as zombies.
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      if (stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z ')) return false;
+    }
     return true;
   } catch {
     return false;

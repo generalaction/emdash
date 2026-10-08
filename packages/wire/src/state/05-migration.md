@@ -28,8 +28,8 @@ legacy classes are deleted only when nothing constructs them.
 
 Consumer-side patterns that dissolve (outside `packages/wire`):
 
-- `TreeResource`'s lane/resync bookkeeping (~200 lines) → `query` semantics;
-  its model code survives as pure functions
+- The files runtime's per-folder update queue (`RootListings`, which replaced
+  `TreeResource`) → `query` semantics; its listing reconciliation survives as pure functions
   ([03, example 2](./03-composition.md#worked-example-2-file-tree-dynamic-deps-cell--query-join-settle)).
 - `RepositoryResource`'s `ComputedLiveState` quartet + invalidation fan-out →
   `query` family + channel subscriptions

@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
+import { startLspFixture, stopLspFixture } from './tooling/vitest/lsp-browser-commands';
 
 const alias = {
   '@': resolve(__dirname, 'src'),
@@ -125,6 +126,7 @@ export default defineConfig({
                   enabled: true,
                   provider: playwright(),
                   headless: true,
+                  commands: { startLspFixture, stopLspFixture },
                   instances: [{ browser: 'chromium' }],
                 },
                 include: [

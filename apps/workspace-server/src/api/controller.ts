@@ -60,6 +60,10 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
       sendPrompt: (input, meta) =>
         deps.runtimes.acp.sendPrompt(input, { signal: meta.signal, timeoutMs: 0 }),
     },
+    providerUsage: forwardContractImpl(
+      workspaceWireContract.providerUsage,
+      deps.runtimes.providerUsage
+    ),
     agentConfig: forwardContractImpl(workspaceWireContract.agentConfig, deps.runtimes.agentConfig),
     automations: forwardContractImpl(workspaceWireContract.automations, deps.runtimes.automations),
     conversations: forwardContractImpl(
@@ -68,6 +72,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     ),
     fileSearch: forwardContractImpl(workspaceWireContract.fileSearch, deps.runtimes.fileSearch),
     files: forwardContractImpl(workspaceWireContract.files, deps.runtimes.files),
+    lsp: forwardContractImpl(workspaceWireContract.lsp, deps.runtimes.lsp),
     git: forwardContractImpl(workspaceWireContract.git, deps.runtimes.git),
     hostSettings: forwardContractImpl(
       workspaceWireContract.hostSettings,

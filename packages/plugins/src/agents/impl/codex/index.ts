@@ -16,6 +16,7 @@ import { isCodexSessionNotFound } from './acp-errors';
 import { codexAdapter } from './adapter';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
+import { probeCodexUsage } from './usage';
 
 export const plugin = definePlugin(
   {
@@ -26,6 +27,7 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/openai/codex',
   },
   {
+    usageLimits: { kind: 'supported' },
     acp: {
       kind: 'supported',
     },
@@ -144,6 +146,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  usageLimits: { probe: probeCodexUsage },
   acp: {
     buildSpawn: (ctx) => ({
       command: process.execPath,

@@ -23,8 +23,8 @@ describe('filesWireContract', () => {
       'copy',
       'delete',
     ]);
-    expect(Object.keys(filesWireContract.tree.model.mutations)).toEqual(
-      Object.keys(filesContract.tree.model.mutations)
+    expect(Object.keys(filesWireContract.listing.mutations)).toEqual(
+      Object.keys(filesContract.listing.mutations)
     );
     expect(Object.keys(filesWireContract.content.mutations)).toEqual(
       Object.keys(filesContract.content.mutations)
@@ -67,19 +67,16 @@ describe('filesWireContract', () => {
     ).toThrow();
   });
 
-  it('keys the tree by root ResourceUri, sessionId, and exclusions', () => {
-    expect(
-      filesWireContract.tree.model.keySchema.parse({
-        root: rootUri,
-        sessionId: 'session-1',
-        exclusions: ['node_modules'],
-      })
-    ).toEqual({ root: rootUri, sessionId: 'session-1', exclusions: ['node_modules'] });
+  it('keys a folder listing by root ResourceUri and folder path, with no consumer identity', () => {
+    expect(filesWireContract.listing.keySchema.parse({ root: rootUri, path: 'src/lib' })).toEqual({
+      root: rootUri,
+      path: 'src/lib',
+    });
     expect(() =>
-      filesWireContract.tree.model.keySchema.parse({
-        workspaceId: 'workspace-1',
-        sessionId: 'session-1',
-      })
+      filesWireContract.listing.keySchema.parse({ root: rootUri, path: '../outside' })
+    ).toThrow();
+    expect(() =>
+      filesWireContract.listing.keySchema.parse({ workspaceId: 'workspace-1', path: '' })
     ).toThrow();
   });
 });

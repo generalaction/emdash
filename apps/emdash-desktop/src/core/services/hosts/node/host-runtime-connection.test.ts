@@ -91,7 +91,7 @@ describe('HostRuntimeConnection', () => {
   };
 
   it('rejects a fresh-base request before sending it to an older server', async () => {
-    peer.setProtocolVersion('11.0.0');
+    peer.setProtocolVersion('12.0.0');
     await runtime.establish(target, scope.signal);
     await expect(
       runtime.client.workspaceRegistry.createWorktree(worktreeInput)
@@ -116,7 +116,7 @@ describe('HostRuntimeConnection', () => {
   });
 
   it('rejects deployment with fresh-base automation runs on an older server', async () => {
-    peer.setProtocolVersion('11.0.0');
+    peer.setProtocolVersion('12.0.0');
     await runtime.establish(target, scope.signal);
     const deployment: Parameters<typeof runtime.client.automations.deploy>[0] = {
       automationId: 'automation-1',

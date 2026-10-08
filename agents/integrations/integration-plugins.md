@@ -5,6 +5,14 @@ method descriptors, credential schemas, and credential verification. Issue plugi
 `packages/plugins/src/issues/` reference an integration by `integrationId` and own issue
 operations. GitHub follows the same plugin contracts as the other integrations.
 
+## Issue Context During Task Creation
+
+Task creation retrieves details for providers that support issue context before enabling
+creation with the default context setting. Loading and errors are visible; errors offer a
+retry. Changing or clearing the selection discards stale query results. Enrichment preserves
+edited context and a removed issue mention. Turning off the default issue-context setting
+skips this retrieval.
+
 ## Authentication Contract
 
 `capabilities.auth` is a serializable descriptor for connection UI: form fields, OAuth,

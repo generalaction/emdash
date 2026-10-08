@@ -170,6 +170,79 @@ describe('state bridge round trip', () => {
     await recorded.dispose();
     await wire.dispose();
   });
+
+  it('attaches a member again on refresh after its attachment failed', async () => {
+    const key = { id: 'one' };
+    let available = false;
+    const base = cell({ count: 1 });
+    const provider = expose(api.counter, {
+      value: async () => {
+        if (!available) throw new Error('source unavailable');
+        return base;
+      },
+    });
+    const wire = createTestWire(api, { counter: provider });
+    const model = remote(api.counter, wire.client.counter, { lingerMs: 5 });
+    const member = model(key);
+    const recorded = recordSnapshots(member.states.value);
+
+    await waitForValue(() => snapshot(member.states.value).status, 'error');
+    available = true;
+    await member.states.value.refresh();
+    await waitForValue(() => snapshot(member.states.value).value?.count, 1);
+    expect(snapshot(member.states.value).status).toBe('live');
+
+    base.set({ count: 2 });
+    await waitForValue(() => snapshot(member.states.value).value?.count, 2);
+
+    await recorded.dispose();
+    await model.dispose();
+    await wire.dispose();
+    await provider.dispose();
+  });
+
+  it('attaches a member again before a mutation after its attachment failed', async () => {
+    const key = { id: 'one' };
+    let available = false;
+    const base = cell({ count: 0 });
+    const provider = expose(
+      api.counter,
+      {
+        value: async () => {
+          if (!available) throw new Error('source unavailable');
+          return base;
+        },
+      },
+      {
+        mutations: {
+          async increment(context) {
+            const revision = base.update(
+              (previous) => ({ count: previous.count + context.input.by }),
+              { mutationIds: [context.mutationId] }
+            );
+            await context.observed('value', revision);
+            return ok<void>();
+          },
+        },
+      }
+    );
+    const wire = createTestWire(api, { counter: provider });
+    const model = remote(api.counter, wire.client.counter, { lingerMs: 5 });
+    const member = model(key);
+    const recorded = recordSnapshots(member.states.value);
+
+    await waitForValue(() => snapshot(member.states.value).status, 'error');
+    available = true;
+    const invocation = await member.mutations.increment({ by: 2 });
+    expect(invocation.result.success).toBe(true);
+    await invocation.settled;
+    await waitForValue(() => snapshot(member.states.value).value?.count, 2);
+
+    await recorded.dispose();
+    await model.dispose();
+    await wire.dispose();
+    await provider.dispose();
+  });
 });
 
 async function waitForValue<T>(readValue: () => T, expected: T): Promise<void> {

@@ -1,14 +1,16 @@
-import { ROOT_RELATIVE_PATH, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
-import { err, ok } from '@emdash/shared';
+import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import type { GitPathInspection, InspectPathError } from '@emdash/core/runtimes/git/api';
+import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { waitFor } from '@emdash/shared/testing';
-import type { LiveSource } from '@emdash/wire/rpc';
 import { cell, observe, remote, snapshot, whenReady } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { projectsWireContract, type ProjectAttachmentState } from '@core/features/projects/api';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectOperationDependencies } from './controller';
+import { getProjectPathStatus } from './operations/project-path-status';
 import { createProjectsWireController } from './wire-controller';
 
 describe('Projects Wire attachments', () => {
@@ -87,66 +89,82 @@ describe('Projects Wire attachments', () => {
   });
 });
 
-describe('Projects Wire directory tree', () => {
-  it('uses children-scoped watching for both picker state and mutations', async () => {
-    const root: HostAbsolutePath = {
-      root: { kind: 'posix' },
-      segments: ['home', 'dev'],
-    };
-    const source = liveSource({
-      root,
-      entries: {
-        '': {
-          path: '',
-          name: 'dev',
-          parentPath: null,
-          kind: 'directory',
-          childrenLoaded: false,
-          children: [],
+describe('Projects Wire directory listing', () => {
+  it('browses and inspects the selected host even when the same path exists locally', async () => {
+    const root: HostAbsolutePath = { root: { kind: 'posix' }, segments: ['workspace'] };
+    const remoteHost = hostRef('remote', 'ssh-nixos');
+    function hostRuntime(directoryName: string) {
+      return {
+        files: {
+          fs: {
+            listDirectory: vi.fn(async () =>
+              ok({
+                entries: [
+                  {
+                    name: directoryName,
+                    kind: 'directory' as const,
+                    size: 0,
+                    mtimeMs: 0,
+                    isRepository: false,
+                  },
+                ],
+              })
+            ),
+            stat: vi.fn(async () => ok({ type: 'directory' as const })),
+          },
         },
-      },
-    });
-    const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const mutate = vi.fn(async () => err({ type: 'not-found' as const, path: '' }));
-    const client = vi.fn(async () => ok({ files: { tree: { model: { state, mutate } } } }));
-    const controller = createProjectsWireController({
-      runtimes: { client },
-    } as unknown as ProjectOperationDependencies);
-    const key = {
-      type: 'ssh' as const,
-      connectionId: 'ssh-2',
-      root,
-      sessionId: 'picker-1',
-    };
-    const directoryTree = controller.impl.directoryTree;
-    if (directoryTree?.kind !== 'liveModelProvider') {
-      throw new Error('Expected the Projects directory tree provider');
+        git: {
+          inspectPath: vi.fn(
+            async (): Promise<Result<GitPathInspection, InspectPathError>> =>
+              ok({ kind: 'repository' as const, rootPath: root, baseRef: 'main' })
+          ),
+        },
+      };
     }
-
-    await directoryTree.resolveState(key, 'tree');
-    expect(state).toHaveBeenCalledWith(
-      { root, sessionId: 'picker-1', watchScope: 'children' },
-      'tree'
-    );
-
-    await directoryTree.runMutation('reveal', {
-      key,
-      input: { path: ROOT_RELATIVE_PATH, depth: 2 },
-      mutationId: 'reveal-1',
+    const local = hostRuntime('local-folder');
+    const remote = hostRuntime('remote-folder');
+    const client = vi.fn(async (host: HostRef) => {
+      if (host.type === 'local') return ok(local);
+      expect(host).toEqual(remoteHost);
+      return ok(remote);
     });
-    expect(mutate).toHaveBeenCalledWith('reveal', {
-      key: { root, sessionId: 'picker-1', watchScope: 'children' },
-      input: { path: ROOT_RELATIVE_PATH, depth: 2 },
-      mutationId: 'reveal-1',
-    });
+    const dependencies = { runtimes: { client } } as unknown as ProjectOperationDependencies;
+    const controller = createProjectsWireController(dependencies);
+    const wire = createTestWire(projectsWireContract, controller.impl);
+    try {
+      await expect(
+        wire.client.listHostDirectory({
+          host: { type: 'ssh', connectionId: remoteHost.id },
+          path: root,
+        })
+      ).resolves.toMatchObject({
+        success: true,
+        data: { entries: [{ name: 'remote-folder', kind: 'directory' }] },
+      });
+      expect(remote.files.fs.listDirectory).toHaveBeenCalledWith({ path: root });
+      await expect(getProjectPathStatus(dependencies, remoteHost, '/workspace')).resolves.toEqual({
+        isDirectory: true,
+        isGitRepo: true,
+      });
+      expect(remote.files.fs.stat).toHaveBeenCalledOnce();
+      expect(remote.git.inspectPath).toHaveBeenCalledWith({ path: root });
+      expect(local.files.fs.listDirectory).not.toHaveBeenCalled();
+      expect(local.files.fs.stat).not.toHaveBeenCalled();
+      expect(local.git.inspectPath).not.toHaveBeenCalled();
+      expect(client).not.toHaveBeenCalledWith(LOCAL_HOST_REF);
 
-    await controller.dispose();
+      remote.git.inspectPath.mockResolvedValueOnce(
+        err({ type: 'inspect-failed', path: root, message: 'spawn git ENOENT' })
+      );
+      await expect(getProjectPathStatus(dependencies, remoteHost, '/workspace')).resolves.toEqual({
+        isDirectory: true,
+        isGitRepo: false,
+        error: { type: 'inspect-failed', path: '/workspace', message: 'spawn git ENOENT' },
+      });
+      expect(local.git.inspectPath).not.toHaveBeenCalled();
+    } finally {
+      await wire.dispose();
+      await controller.dispose();
+    }
   });
 });
-
-function liveSource(data: unknown): LiveSource {
-  return {
-    snapshot: async () => ({ generation: 1, sequence: 0, timestamp: 0, data }),
-    subscribe: () => () => {},
-  };
-}

@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor';
-import { configureMonacoTypeScript } from './monaco-config';
+import { configureMonacoLanguages } from './monaco-config';
 import { defineMonacoThemes, getMonacoTheme } from './monaco-themes';
 
 let instance: typeof monaco | null = null;
@@ -52,7 +52,7 @@ async function loadMonaco(): Promise<typeof monaco> {
 
 /**
  * Shared Monaco bootstrap — the single entry point for loading Monaco,
- * defining themes, and configuring TypeScript support.
+ * defining themes, and configuring language support.
  *
  * Both EditorProvider (code editor) and StickyDiffEditor (diff editor) use this
  * instead of maintaining separate pools. Bootstrap is idempotent: subsequent
@@ -61,7 +61,7 @@ async function loadMonaco(): Promise<typeof monaco> {
  * access it without importing the bootstrap directly.
  */
 export const monacoBootstrap = {
-  /** Load Monaco once, set up themes and TypeScript. Safe to call multiple times. */
+  /** Load Monaco once, set up themes and languages. Safe to call multiple times. */
   init(): Promise<typeof monaco> {
     if (initPromise) return initPromise;
     initPromise = (async () => {
@@ -70,7 +70,9 @@ export const monacoBootstrap = {
       // oxlint-disable-next-line typescript/no-explicit-any
       (globalThis as any).__monaco = m;
       defineMonacoThemes(m as Parameters<typeof defineMonacoThemes>[0]);
-      configureMonacoTypeScript(m);
+      configureMonacoLanguages(m);
+      const { installLanguageServices } = await import('../lsp/language-services');
+      installLanguageServices(m);
       return m;
     })();
     return initPromise;

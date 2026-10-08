@@ -69,7 +69,7 @@ export class HostRuntimeConnection {
           return Promise.reject(
             new WireError(
               'CONTRACT_MISMATCH',
-              'Fetching the latest base requires workspace-server protocol 11.1. Please upgrade the workspace server.',
+              'Fetching the latest base requires workspace-server protocol 12.1. Please upgrade the workspace server.',
               { delivery: 'not-sent' }
             )
           );

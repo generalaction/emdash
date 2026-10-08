@@ -7,6 +7,7 @@ import { useWorkspaceConfig } from '@core/features/tasks/api/browser/create-task
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { PullRequest } from '@core/services/pull-requests/api';
+import { useLinkedIssueContext } from '../issue-context/use-linked-issue-context';
 import { getIssueTaskName } from './issue-task-name';
 
 export type LinkedType = 'issue' | 'pr' | null;
@@ -24,10 +25,11 @@ export function useCreateTaskState(
   initialLinkedType: LinkedType = null,
   initialWorkspaceId?: string
 ) {
-  const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
+  const { autoGenerateName, createBranchAndWorktree, includeIssueContextByDefault } =
+    useTaskSettings();
 
   const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : initialLinkedType);
-  const [linkedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
+  const [selectedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [prevProjectId, setPrevProjectId] = useState(projectId);
 
@@ -38,6 +40,13 @@ export function useCreateTaskState(
     setLinkedIssueRaw(null);
     setLinkedPRRaw(null);
   }
+
+  const issueContext = useLinkedIssueContext(
+    selectedIssue,
+    projectId,
+    linkedType === 'issue' && includeIssueContextByDefault
+  );
+  const linkedIssue = issueContext.issue;
 
   // Stable random key for the "plain task" name generation — one per modal session.
   const randomKey = useMemo(() => crypto.randomUUID(), []);
@@ -144,13 +153,20 @@ export function useCreateTaskState(
 
   // Issue/PR selection is optional enrichment — not required for creation.
   const isValid =
-    taskName.effectiveTaskName.trim().length > 0 && !taskName.isPending && workspaceConfig.isValid;
+    taskName.effectiveTaskName.trim().length > 0 &&
+    !taskName.isPending &&
+    workspaceConfig.isValid &&
+    !issueContext.isLoading &&
+    !issueContext.error;
 
   return {
     linkedType,
     setLinkedType,
     linkedIssue,
     setLinkedIssue,
+    issueContextPending: issueContext.isLoading,
+    issueContextError: issueContext.error,
+    retryIssueContext: issueContext.retry,
     linkedPR,
     setLinkedPR,
     taskName,

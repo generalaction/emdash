@@ -25,6 +25,6 @@ export interface MdastMention extends Node {
   iconClass?: string;
   /** Optional host icon image URL for the pill icon. */
   iconUrl?: string;
-  /** Tone override — 'command' for slash chips, 'math' for inline math. */
+  /** Tone override — 'command' for slash chips. */
   tone?: string;
 }

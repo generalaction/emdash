@@ -63,6 +63,23 @@ export const Interactive: Story = {
   ),
 };
 
+export const FolderLoadError: Story = {
+  render: () => (
+    <StoryFrame note="A folder that could not be read keeps a visible retry action.">
+      <FileTree
+        rootNodes={[directory('unavailable'), directory('empty')]}
+        childrenById={new Map()}
+        expandedPaths={new Set(['unavailable', 'empty'])}
+        getRowState={(node) =>
+          node.name === 'unavailable'
+            ? { loadError: 'Folder could not be read. Click to retry.' }
+            : undefined
+        }
+      />
+    </StoryFrame>
+  ),
+};
+
 export const DragToMove: Story = {
   render: () => (
     <StoryFrame note="Drag files or folders onto directories. Invalid moves are rejected by the mock dnd spec.">

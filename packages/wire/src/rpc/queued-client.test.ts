@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { z } from 'zod';
 import type { ContractClient } from '../api/client';
 import { defineContract, liveLog, liveModel, liveState, procedure } from '../api/define';
@@ -83,7 +83,8 @@ describe('queuedClient', () => {
 
   it('rejects queued and future calls with the readiness failure', async () => {
     const ready = deferred<ContractClient<typeof contract>>();
-    const queued = queuedClient(contract, () => ready.promise);
+    const getReady = vi.fn(() => ready.promise);
+    const queued = queuedClient(contract, getReady);
     const spawnError = new Error('worker spawn failed');
 
     const pending = queued.increment({ id: 'task' });
@@ -91,6 +92,49 @@ describe('queuedClient', () => {
 
     await expect(pending).rejects.toBe(spawnError);
     await expect(queued.nested.echo('again')).rejects.toBe(spawnError);
+    expect(getReady).toHaveBeenCalledOnce();
+  });
+
+  it('shares readiness attempts and retries a failed attempt when opted in', async () => {
+    const initial = deferred<ContractClient<typeof contract>>();
+    const retry = deferred<ContractClient<typeof contract>>();
+    const getReady = vi.fn(() => retry.promise).mockImplementationOnce(() => initial.promise);
+    const queued = queuedClient(contract, getReady, { retryReadinessOnFailure: true });
+    const state = queued.state.state({ id: 'task' }, 'state');
+    const failure = new Error('worker spawn failed');
+    const failedCalls = Promise.all([
+      expect(queued.nested.echo('first')).rejects.toBe(failure),
+      expect(state.snapshot()).rejects.toBe(failure),
+    ]);
+    expect(getReady).toHaveBeenCalledOnce();
+    initial.reject(failure);
+    await failedCalls;
+    expect(getReady).toHaveBeenCalledOnce();
+
+    const nextEcho = queued.nested.echo('retry');
+    const nextSnapshot = state.snapshot();
+    const wire = createReadyWire();
+    onTestFinished(() => wire.dispose());
+    retry.resolve(wire.client);
+    await Promise.all([
+      expect(nextEcho).resolves.toBe('retry'),
+      expect(nextSnapshot).resolves.toMatchObject({ data: { count: 0 } }),
+    ]);
+    await expect(queued.nested.echo('after recovery')).resolves.toBe('after recovery');
+    expect(getReady).toHaveBeenCalledTimes(2);
+  });
+
+  it('retains successful readiness when a procedure fails', async () => {
+    const wire = createReadyWire();
+    onTestFinished(() => wire.dispose());
+    const failure = new Error('procedure failed');
+    vi.spyOn(wire.client.nested, 'echo').mockRejectedValueOnce(failure);
+    const getReady = vi.fn(async () => wire.client);
+    const queued = queuedClient(contract, getReady, { retryReadinessOnFailure: true });
+
+    await expect(queued.nested.echo('first')).rejects.toBe(failure);
+    await expect(queued.nested.echo('retry')).resolves.toBe('retry');
+    expect(getReady).toHaveBeenCalledOnce();
   });
 
   it('constructs live handles synchronously with canonical topics and defers traffic', async () => {
