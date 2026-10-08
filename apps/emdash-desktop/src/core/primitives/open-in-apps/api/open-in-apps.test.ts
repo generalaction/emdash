@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { isValidOpenInAppId, OPEN_IN_APPS, type PlatformConfig } from './open-in-apps';
 
 describe('OPEN_IN_APPS', () => {
+  it('tries the default Linux terminal before distro-specific fallbacks', () => {
+    expect(OPEN_IN_APPS.terminal.platforms.linux?.openCommands).toEqual([
+      'xdg-terminal-exec --dir={{path}}',
+      '([ -n "$TERMINAL" ] && "$TERMINAL")',
+      'x-terminal-emulator --working-directory={{path}}',
+      'gnome-terminal --working-directory={{path}}',
+      'konsole --workdir {{path}}',
+    ]);
+  });
+
   it('registers Kaku as an open-in terminal option', () => {
     expect(isValidOpenInAppId('kaku')).toBe(true);
     expect(OPEN_IN_APPS.kaku).toMatchObject({
