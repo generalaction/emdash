@@ -1,4 +1,9 @@
-import type { FileEntry, FileEntryKind, SymlinkTargetKind } from '@emdash/core/runtimes/files/api';
+import type {
+  ListingEntry,
+  ListingEntryKind,
+  SymlinkTargetKind,
+} from '@emdash/core/runtimes/files/api';
+import { compareFileNames } from '@emdash/shared/util';
 
 export type FileNodeId = string;
 
@@ -9,13 +14,12 @@ export interface RenderableFileNode {
   parentId: FileNodeId | null;
   parentPath: string | null;
   depth: number;
-  type: FileEntryKind;
+  type: ListingEntryKind;
   symlink?: {
     target: string | null;
     targetType: SymlinkTargetKind;
     broken: boolean;
   };
-  childrenLoaded: boolean;
   isHidden: boolean;
   extension?: string;
 }
@@ -61,21 +65,25 @@ export function makeNode(filePath: string, type: 'file' | 'directory'): NestedFi
   };
 }
 
-export function toRenderableFileNode(entry: FileEntry, workspacePath: string): RenderableFileNode {
-  const absolutePath = joinPath(workspacePath, entry.path);
-  const name = entry.name || absolutePath.split('/').pop() || absolutePath;
+/** A listed child, addressed by its path relative to the workspace root. */
+export interface ListedFile {
+  path: string;
+  name: string;
+  entry: ListingEntry;
+}
+
+export function toRenderableFileNode(child: ListedFile, workspacePath: string): RenderableFileNode {
+  const absolutePath = joinPath(workspacePath, child.path);
+  const slash = child.path.lastIndexOf('/');
+  const parentRelative = slash < 0 ? '' : child.path.slice(0, slash);
+  const { entry, name } = child;
   return {
-    id: entry.path,
+    id: child.path,
     path: absolutePath,
     name,
-    parentId: entry.parentPath === '' || entry.parentPath === null ? null : entry.parentPath,
-    parentPath:
-      entry.parentPath === null
-        ? null
-        : entry.parentPath === ''
-          ? workspacePath
-          : joinPath(workspacePath, entry.parentPath),
-    depth: entry.path.split('/').filter(Boolean).length - 1,
+    parentId: parentRelative === '' ? null : parentRelative,
+    parentPath: parentRelative === '' ? workspacePath : joinPath(workspacePath, parentRelative),
+    depth: child.path.split('/').filter(Boolean).length - 1,
     type: entry.kind,
     symlink:
       entry.kind === 'symlink'
@@ -85,7 +93,6 @@ export function toRenderableFileNode(entry: FileEntry, workspacePath: string): R
             broken: entry.symlinkTargetKind === 'missing',
           }
         : undefined,
-    childrenLoaded: entry.childrenLoaded,
     isHidden: name.startsWith('.'),
     extension: entry.kind === 'file' && name.includes('.') ? name.split('.').pop() : undefined,
   };
@@ -94,7 +101,7 @@ export function toRenderableFileNode(entry: FileEntry, workspacePath: string): R
 export function sortFileNodes<T extends VisibleFileNode>(nodes: readonly T[]): T[] {
   return [...nodes].sort((left, right) => {
     const rank = Number(isExpandableFileTreeNode(right)) - Number(isExpandableFileTreeNode(left));
-    return rank || left.name.localeCompare(right.name);
+    return rank || compareFileNames(left.name, right.name);
   });
 }
 
@@ -123,26 +130,6 @@ export function isChainExpanded<T extends VisibleFileNode>(
   expandedPaths: Set<string>
 ): boolean {
   return chain.some((segment) => expandedPaths.has(segment.path));
-}
-
-export function buildFileTreeVisibleRows(
-  rootNodes: readonly RenderableFileNode[],
-  expandedPaths: Set<string>,
-  childrenById: ChildrenById<RenderableFileNode>,
-  _loadedPaths: ReadonlySet<string>
-): Array<TreeRow<RenderableFileNode>> {
-  const rows: Array<TreeRow<RenderableFileNode>> = [];
-  const walk = (nodes: readonly RenderableFileNode[], renderDepth: number) => {
-    for (const node of nodes) {
-      const chain = [node];
-      rows.push({ node, chain, renderDepth });
-      if (isExpandableFileTreeNode(node) && isChainExpanded(chain, expandedPaths)) {
-        walk(childrenById.get(node.id) ?? [], renderDepth + 1);
-      }
-    }
-  };
-  walk(rootNodes, 0);
-  return rows;
 }
 
 export function buildNestedVisibleRows(

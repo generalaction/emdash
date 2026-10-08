@@ -13,6 +13,7 @@ import { useTheme } from '@core/primitives/theme/browser';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
+import { getLanguageServices } from '../lsp/language-services';
 import { installMonacoFacetBinder } from '../monaco/install-monaco-facet-binder';
 import { monacoBootstrap } from '../monaco/monaco-bootstrap';
 import { addMonacoKeyboardShortcuts, configureMonacoEditor } from '../monaco/monaco-config';
@@ -120,6 +121,7 @@ export const EditorProvider = observer(function EditorProvider({
     configureMonacoEditor(editor);
 
     const cleanupActive = registerActiveCodeEditor(editor);
+    const cleanupLanguage = getLanguageServices()?.bindEditor(editor, { projectId, taskId });
 
     addMonacoKeyboardShortcuts(editor, m, {
       onSave: () => {
@@ -144,6 +146,7 @@ export const EditorProvider = observer(function EditorProvider({
     return () => {
       focusDisposable.dispose();
       cleanupActive();
+      cleanupLanguage?.();
       // Save the active file's view state before disposal. Must run here, not in
       // the attachment autorun's cleanup — that fires after the editor is disposed.
       binder.detach(editor, prevBufUriRef.current);
@@ -198,11 +201,11 @@ export const EditorProvider = observer(function EditorProvider({
 
         const selectionRequest = resource?.selectionRequest;
         if (selectionRequest) {
-          const { lineNumber, startColumn, endColumn } = selectionRequest.selection;
+          const { lineNumber, startColumn, endColumn, endLineNumber } = selectionRequest.selection;
           const selection = {
             startLineNumber: lineNumber,
             startColumn,
-            endLineNumber: lineNumber,
+            endLineNumber: endLineNumber ?? lineNumber,
             endColumn,
           };
           editor.setSelection(selection);

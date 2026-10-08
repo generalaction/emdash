@@ -2,6 +2,7 @@ import { err, type Serializable } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { acpErr } from '#runtimes/acp/api';
+import { wrapHiddenContext } from '#runtimes/acp/api/models/prompt';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import { SessionCell } from '#runtimes/acp/node/session/cell';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
@@ -170,7 +171,7 @@ describe('ACP initial queue persistence', () => {
             [{ type: 'text', text: 'first' }],
             [
               { type: 'text', text: 'second' },
-              { type: 'text', text: 'private context' },
+              { type: 'text', text: wrapHiddenContext('private context') },
             ],
           ]);
           expect(intents.snapshot()[0]?.payload).toMatchObject({

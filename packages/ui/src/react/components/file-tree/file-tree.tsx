@@ -1,5 +1,12 @@
 import { cx } from '@styles/utilities/cx';
-import { ChevronDownIcon, ChevronRightIcon, FileIcon, Link2Icon, Loader2Icon } from 'lucide-react';
+import {
+  AlertCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  FileIcon,
+  Link2Icon,
+  Loader2Icon,
+} from 'lucide-react';
 import * as React from 'react';
 import { resolveFileIconClass } from '../../lib/file-icons';
 import {
@@ -72,6 +79,7 @@ export interface FileTreeDndSpec {
 }
 
 export interface FileTreeRowState {
+  loadError?: string;
   muted?: boolean;
   strikethrough?: boolean;
   tone?: 'success' | 'warning' | 'error' | 'info';
@@ -179,20 +187,9 @@ function FileTreeInner(
   ref: React.ForwardedRef<FileTreeHandle>
 ) {
   const normalizedRootPath = normalizeFileTreePath(rootPath);
-  const allNodes = React.useMemo(
-    () => collectNodes(rootNodes, childrenById),
+  const { nodesByPath, directoryPaths } = React.useMemo(
+    () => indexNodes(rootNodes, childrenById),
     [childrenById, rootNodes]
-  );
-  const nodesByPath = React.useMemo(
-    () => new Map(allNodes.map((node) => [normalizeFileTreePath(node.path), node])),
-    [allNodes]
-  );
-  const directoryPaths = React.useMemo(
-    () =>
-      new Set(
-        allNodes.filter(isExpandableFileTreeNode).map((node) => normalizeFileTreePath(node.path))
-      ),
-    [allNodes]
   );
   const [internalExpandedPaths, setInternalExpandedPaths] = React.useState<ReadonlySet<string>>(
     () => (defaultExpanded === 'all' ? directoryPaths : new Set())
@@ -202,11 +199,12 @@ function FileTreeInner(
   const [dropTargetPath, setDropTargetPath] = React.useState<string | null>(null);
   const [pendingMovePaths, setPendingMovePaths] = React.useState<ReadonlySet<string>>(new Set());
   const hoverExpandTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverExpandPathRef = React.useRef<string | null>(null);
   const treeViewRef = React.useRef<TreeViewHandle>(null);
 
   React.useEffect(() => {
-    if (expandedPaths) return;
-    setInternalExpandedPaths(defaultExpanded === 'all' ? directoryPaths : new Set());
+    if (expandedPaths || defaultExpanded !== 'all') return;
+    setInternalExpandedPaths(directoryPaths);
   }, [defaultExpanded, directoryPaths, expandedPaths]);
 
   React.useEffect(() => () => clearHoverExpandTimer(hoverExpandTimerRef), []);
@@ -232,13 +230,18 @@ function FileTreeInner(
     () =>
       mode === 'flat'
         ? buildFlatRenderableNodes(rootNodes, childrenById, draft)
-        : buildRenderableTreeNodes(rootNodes, childrenById, draft, targetPath, normalizedRootPath),
-    [childrenById, draft, mode, normalizedRootPath, rootNodes, targetPath]
+        : buildRenderableTreeNodes(rootNodes, childrenById, draft, normalizedRootPath),
+    [childrenById, draft, mode, normalizedRootPath, rootNodes]
   );
   const visibleRows = React.useMemo(
-    () => buildVisibleTreeRows(treeNodes, effectiveExpandedPaths, { compactChains }),
+    () =>
+      buildVisibleTreeRows(treeNodes, effectiveExpandedPaths, {
+        compactChains,
+        canCompact: canCompactRow,
+      }),
     [compactChains, effectiveExpandedPaths, treeNodes]
   );
+
   const visibleNodePaths = React.useMemo(
     () =>
       visibleRows.flatMap((row) =>
@@ -307,6 +310,7 @@ function FileTreeInner(
         <TreeView
           ref={treeViewRef}
           nodes={treeNodes}
+          rows={visibleRows}
           expandedIds={effectiveExpandedPaths}
           compactChains={compactChains}
           estimateSize={ROW_HEIGHT}
@@ -325,7 +329,9 @@ function FileTreeInner(
     className: styles.body,
     onDragOver: (event) => handleDragOver(null, event),
     onDragLeave: (event) => {
-      if (event.currentTarget === event.target) setDropTargetPath(null);
+      if (event.currentTarget !== event.target) return;
+      cancelHoverExpand();
+      setDropTargetPath(null);
     },
     onDrop: (event) => handleDrop(null, event),
   };
@@ -383,9 +389,9 @@ function FileTreeInner(
     }
 
     const isExpanded = row.isExpanded;
-    const normalizedPath = normalizeFileTreePath(node.path);
+    const normalizedPath = nodePath(node);
     const isSelected = normalizedSelectedPaths.has(normalizedPath);
-    const isOpened = normalizedOpenedPaths.has(normalizeFileTreePath(node.path));
+    const isOpened = normalizedOpenedPaths.has(normalizedPath);
     const state = getRowState?.(node);
     const contextSelection = isSelected ? selectedNodes : [node];
     const menuItems = getContextMenuItems?.(node, contextSelection) ?? null;
@@ -398,19 +404,38 @@ function FileTreeInner(
         draggable={dnd ? (dnd.canDrag?.(node) ?? true) : undefined}
         data-selected={isSelected || undefined}
         data-opened={!isSelected && isOpened ? true : undefined}
-        data-drop-target={dropTargetPath === normalizeFileTreePath(node.path) || undefined}
+        data-drop-target={dropTargetPath === normalizedPath || undefined}
         data-pending={pendingMovePaths.has(normalizedPath) || undefined}
-        onClick={(event) => handleNodeClick(node, isExpanded, event)}
+        aria-expanded={isExpandableFileTreeNode(node) ? isExpanded : undefined}
+        title={state?.loadError}
+        onClick={(event) => {
+          if (
+            state?.loadError &&
+            isExpanded &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.shiftKey
+          ) {
+            updateSelection(node, event);
+            onRequestExpand?.(node.path);
+            return;
+          }
+          handleNodeClick(node, isExpanded, event, chainNodes(row));
+        }}
         onContextMenu={() => handleNodeContextMenu(node, isSelected)}
         onDoubleClick={() => handleNodeDoubleClick(node)}
         onMouseEnter={() => onRowHover?.(node)}
         onDragStart={(event) => handleDragStart(node, event)}
         onDragOver={(event) => handleDragOver(node, event)}
-        onDragLeave={() => setDropTargetPath(null)}
+        onDragLeave={(event) => {
+          setDropTargetPath(null);
+          const next = event.relatedTarget;
+          if (!(next instanceof Node) || !event.currentTarget.contains(next)) cancelHoverExpand();
+        }}
         onDrop={(event) => handleDrop(node, event)}
         onDragEnd={(event) => {
           dnd?.onDragEnd?.(node, event.dataTransfer, contextSelection);
-          clearHoverExpandTimer(hoverExpandTimerRef);
+          cancelHoverExpand();
           setDragSourcePaths([]);
           setDropTargetPath(null);
         }}
@@ -447,7 +472,12 @@ function FileTreeInner(
             <span className={styles.secondary}>{row.node.data.flatDirectory}</span>
           ) : null}
         </span>
-        {renderDecoration ? (
+        {state?.loadError ? (
+          <span className={styles.decoration} aria-label="Folder load failed. Click to retry.">
+            <AlertCircleIcon size={12} aria-hidden />
+            Retry
+          </span>
+        ) : renderDecoration ? (
           <span className={styles.decoration}>{renderDecoration(node)}</span>
         ) : null}
       </button>
@@ -494,12 +524,13 @@ function FileTreeInner(
   function handleNodeClick(
     node: FileTreeNode,
     isExpanded: boolean,
-    event: React.MouseEvent<HTMLButtonElement>
+    event: React.MouseEvent<HTMLButtonElement>,
+    chain: readonly FileTreeNode[]
   ) {
     updateSelection(node, event);
     if (event.metaKey || event.ctrlKey || event.shiftKey) return;
     if (isExpandableFileTreeNode(node)) {
-      setExpanded(node, !isExpanded);
+      setExpanded(node, !isExpanded, chain);
       return;
     }
     if (isOpenableFileTreeNode(node)) onOpenFile?.(node, { preview: true });
@@ -533,12 +564,20 @@ function FileTreeInner(
     if (isOpenableFileTreeNode(node)) onOpenFile?.(node, { preview: false });
   }
 
-  function setExpanded(node: FileTreeNode, expanded: boolean) {
-    const path = normalizeFileTreePath(node.path);
-    // A compacted row stands for a chain of single-child directories, and it only
-    // renders as expanded once every segment is expanded. Collapsing the deepest
-    // segment is enough to close the row again.
-    const paths = expanded ? [...ancestorPathsFor(path, normalizedRootPath), path] : [path];
+  /**
+   * A compacted row is open while the first folder of its chain is. Opening a row
+   * opens every folder on the way to it; closing it closes every folder in its
+   * chain, so it stays closed even when the chain later grows.
+   */
+  function setExpanded(
+    node: FileTreeNode,
+    expanded: boolean,
+    chain: readonly FileTreeNode[] = [node]
+  ) {
+    const path = nodePath(node);
+    const paths = expanded
+      ? [...ancestorPathsFor(path, normalizedRootPath), path]
+      : chain.map(nodePath);
 
     if (!expandedPaths) {
       setInternalExpandedPaths((current) => {
@@ -553,7 +592,10 @@ function FileTreeInner(
 
     if (!onToggleExpand) return;
     for (const target of paths) {
-      const targetNode = target === path ? node : nodesByPath.get(target);
+      const targetNode =
+        target === path
+          ? node
+          : (chain.find((segment) => nodePath(segment) === target) ?? nodesByPath.get(target));
       if (targetNode) onToggleExpand(targetNode, expanded);
     }
   }
@@ -621,7 +663,10 @@ function FileTreeInner(
     const canDrop = sourcePaths.length
       ? canDropInternal(sourcePaths, target)
       : Boolean(dnd.onDropExternal);
-    if (!canDrop) return;
+    if (!canDrop) {
+      cancelHoverExpand();
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
@@ -639,7 +684,7 @@ function FileTreeInner(
 
     event.preventDefault();
     event.stopPropagation();
-    clearHoverExpandTimer(hoverExpandTimerRef);
+    cancelHoverExpand();
     setDropTargetPath(null);
     setDragSourcePaths([]);
 
@@ -678,11 +723,23 @@ function FileTreeInner(
   }
 
   function scheduleHoverExpand(targetDir: FileTreeNode | null) {
-    clearHoverExpandTimer(hoverExpandTimerRef);
-    if (!targetDir || effectiveExpandedPaths.has(normalizeFileTreePath(targetDir.path))) return;
+    const candidate = targetDir ? nodePath(targetDir) : null;
+    const path = candidate && !effectiveExpandedPaths.has(candidate) ? candidate : null;
+    // dragover repeats while the pointer rests; only a new target restarts the delay.
+    if (path === hoverExpandPathRef.current) return;
+    cancelHoverExpand();
+    if (!targetDir || path === null) return;
+    hoverExpandPathRef.current = path;
     hoverExpandTimerRef.current = setTimeout(() => {
+      hoverExpandTimerRef.current = null;
+      hoverExpandPathRef.current = null;
       setExpanded(targetDir, true);
     }, HOVER_EXPAND_MS);
+  }
+
+  function cancelHoverExpand() {
+    clearHoverExpandTimer(hoverExpandTimerRef);
+    hoverExpandPathRef.current = null;
   }
 }
 
@@ -792,19 +849,26 @@ function buildRenderableTreeNodes(
   rootNodes: readonly FileTreeNode[],
   childrenById: ChildrenById,
   draft: DraftState | null,
-  targetPath: string,
   rootPath: string
 ): TreeNode<RenderableData>[] {
-  const sortedRoots = sortFileNodes(rootNodes);
-  const roots =
-    draft && targetPath === rootPath
-      ? [
-          draftTreeNode(draft),
-          ...sortedRoots.map((node) => toRenderableTreeNode(node, childrenById, draft)),
-        ]
-      : sortedRoots.map((node) => toRenderableTreeNode(node, childrenById, draft));
+  const roots = sortedNodes(rootNodes).map((node) =>
+    toRenderableTreeNode(node, childrenById, draft)
+  );
+  if (draft && draft.parentPath === rootPath) roots.unshift(draftTreeNode(draft));
   return roots;
 }
+
+/**
+ * Tree nodes are rebuilt for every data change, but most subtrees are unchanged.
+ * Sorted child lists are cached per source list and tree nodes per file node, so a
+ * rebuild only sorts and allocates along the paths that actually changed.
+ */
+const sortedNodesCache = new WeakMap<readonly FileTreeNode[], readonly FileTreeNode[]>();
+const leafTreeNodeCache = new WeakMap<FileTreeNode, TreeNode<RenderableData>>();
+const branchTreeNodeCache = new WeakMap<FileTreeNode, TreeNode<RenderableData>>();
+const draftTreeNodeCache = new WeakMap<DraftState, TreeNode<RenderableData>>();
+const nodePathCache = new WeakMap<FileTreeNode, string>();
+const NO_NODES: readonly FileTreeNode[] = [];
 
 function toRenderableTreeNode(
   node: FileTreeNode,
@@ -812,21 +876,55 @@ function toRenderableTreeNode(
   draft: DraftState | null
 ): TreeNode<RenderableData> {
   if (!isExpandableFileTreeNode(node)) {
-    return { id: normalizeFileTreePath(node.path), data: { kind: 'node', node } };
+    let leaf = leafTreeNodeCache.get(node);
+    if (!leaf) {
+      leaf = { id: nodePath(node), data: { kind: 'node', node } };
+      leafTreeNodeCache.set(node, leaf);
+    }
+    return leaf;
   }
 
-  const children = sortFileNodes(childrenById.get(node.id) ?? []).map((child) =>
+  const id = nodePath(node);
+  const children = sortedNodes(childrenById.get(node.id) ?? NO_NODES).map((child) =>
     toRenderableTreeNode(child, childrenById, draft)
   );
-  const normalizedPath = normalizeFileTreePath(node.path);
-  const nextChildren =
-    draft && draft.parentPath === normalizedPath ? [draftTreeNode(draft), ...children] : children;
+  if (draft && draft.parentPath === id) children.unshift(draftTreeNode(draft));
+  const cached = branchTreeNodeCache.get(node);
+  if (cached?.children && sameItems(cached.children, children)) return cached;
+  const branch: TreeNode<RenderableData> = { id, data: { kind: 'node', node }, children };
+  branchTreeNodeCache.set(node, branch);
+  return branch;
+}
 
-  return {
-    id: normalizedPath,
-    data: { kind: 'node', node },
-    children: nextChildren,
-  };
+function sortedNodes(nodes: readonly FileTreeNode[]): readonly FileTreeNode[] {
+  let sorted = sortedNodesCache.get(nodes);
+  if (!sorted) {
+    sorted = sortFileNodes(nodes);
+    sortedNodesCache.set(nodes, sorted);
+  }
+  return sorted;
+}
+
+function nodePath(node: FileTreeNode): string {
+  let normalized = nodePathCache.get(node);
+  if (normalized === undefined) {
+    normalized = normalizeFileTreePath(node.path);
+    nodePathCache.set(node, normalized);
+  }
+  return normalized;
+}
+
+function sameItems<T>(left: readonly T[], right: readonly T[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+function chainNodes(row: TreeRow<RenderableData>): FileTreeNode[] {
+  return row.chain.flatMap((segment) => (segment.data.kind === 'node' ? [segment.data.node] : []));
+}
+
+/** Symlinked folders stay separate rows so a compacted chain never follows a link. */
+function canCompactRow(node: TreeNode<RenderableData>): boolean {
+  return node.data.kind === 'node' && node.data.node.type === 'directory';
 }
 
 function buildFlatRenderableNodes(
@@ -847,23 +945,28 @@ function flatTreeNode(row: FileTreeFlatRow): TreeNode<RenderableData> {
 }
 
 function draftTreeNode(draft: DraftState): TreeNode<RenderableData> {
-  return {
-    id: `__draft__:${draft.kind}:${draft.parentPath}`,
-    data: { kind: 'draft', draft },
-  };
+  let node = draftTreeNodeCache.get(draft);
+  if (!node) {
+    node = { id: `__draft__:${draft.kind}:${draft.parentPath}`, data: { kind: 'draft', draft } };
+    draftTreeNodeCache.set(draft, node);
+  }
+  return node;
 }
 
-function collectNodes(
+function indexNodes(
   rootNodes: readonly FileTreeNode[],
   childrenById: ChildrenById
-): FileTreeNode[] {
-  const nodes: FileTreeNode[] = [];
+): { nodesByPath: Map<string, FileTreeNode>; directoryPaths: ReadonlySet<string> } {
+  const nodesByPath = new Map<string, FileTreeNode>();
+  const directoryPaths = new Set<string>();
   const visit = (node: FileTreeNode) => {
-    nodes.push(node);
-    for (const child of childrenById.get(node.id) ?? []) visit(child);
+    const path = nodePath(node);
+    nodesByPath.set(path, node);
+    if (isExpandableFileTreeNode(node)) directoryPaths.add(path);
+    for (const child of childrenById.get(node.id) ?? NO_NODES) visit(child);
   };
   for (const node of rootNodes) visit(node);
-  return nodes;
+  return { nodesByPath, directoryPaths };
 }
 
 function normalizePathSet(paths: ReadonlySet<string>): ReadonlySet<string> {

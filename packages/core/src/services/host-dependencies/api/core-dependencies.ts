@@ -1,5 +1,6 @@
 import type { HostDependencyDefinition } from '#primitives/host-dependencies/api';
 import { aptInstallCommand } from './apt-commands';
+import { LANGUAGE_SERVER_DEPENDENCIES } from './language-server-dependencies';
 
 const aptInstallOption = (packages: string) => ({
   method: 'apt' as const,
@@ -151,6 +152,7 @@ export const RECOMMENDED_CORE_DEPENDENCIES: HostDependencyDefinition[] = [
   NPM_DEPENDENCY_DESCRIPTOR,
   TMUX_DEPENDENCY_DESCRIPTOR,
   CURL_DEPENDENCY_DESCRIPTOR,
+  ...LANGUAGE_SERVER_DEPENDENCIES,
 ];
 
 export const CORE_DEPENDENCIES: HostDependencyDefinition[] = [

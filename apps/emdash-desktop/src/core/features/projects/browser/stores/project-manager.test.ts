@@ -202,9 +202,6 @@ function createProjectWire() {
   const creationProvider = expose(projectsWireContract.creation, {
     state: () => cell({ phase: 'error' as const, message: 'unused' }),
   });
-  const directoryTreeProvider = expose(projectsWireContract.directoryTree, {
-    tree: () => cell(undefined as never),
-  });
   const attachmentsProvider = expose(projectsWireContract.attachments, {
     state: (key) => {
       mocks.attachmentTrack(key);
@@ -219,6 +216,7 @@ function createProjectWire() {
     getDefaultRepositoriesRoot: vi.fn(),
     ensureDefaultRepositoriesRoot: vi.fn(),
     createHostDirectory: vi.fn(),
+    listHostDirectory: vi.fn(),
     resolveRepositoryDestination: (input: unknown) => mocks.resolveRepositoryDestination(input),
     deleteProject: vi.fn(),
     getProjectSettingsPage: vi.fn(),
@@ -231,7 +229,6 @@ function createProjectWire() {
     attachments: attachmentsProvider,
     projectConfig: projectConfigProvider,
     creation: creationProvider,
-    directoryTree: directoryTreeProvider,
     create: {
       run: async () => ({
         success: false as const,

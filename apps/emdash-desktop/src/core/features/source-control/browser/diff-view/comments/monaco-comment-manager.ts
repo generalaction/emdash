@@ -1,3 +1,4 @@
+import { reaction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -9,6 +10,7 @@ import { CommentWidget } from './comment-widget';
 const COMMENT_ZONE_HEIGHT_PX = 140 + 24;
 
 interface MonacoCommentManagerOptions {
+  getComments: () => DraftComment[];
   onAddComment: (lineNumber: number, content: string, lineContent?: string) => void | Promise<void>;
   onEditComment: (id: string, content: string) => void | Promise<void>;
   onDeleteComment: (id: string) => void | Promise<void>;
@@ -40,6 +42,9 @@ export class MonacoCommentManager {
   private activeInputLine: number | null = null;
 
   private disposed = false;
+  private comments: DraftComment[] = [];
+  private readonly stopComments: () => void;
+  private readonly modelChangeDisposable: monaco.IDisposable;
   private hoverMoveDisposable: monaco.IDisposable | null = null;
   private hoverLeaveDisposable: monaco.IDisposable | null = null;
 
@@ -47,6 +52,18 @@ export class MonacoCommentManager {
     this.editor = editor;
     this.options = options;
     this.setupHoverHandler();
+    this.modelChangeDisposable = editor.getModifiedEditor().onDidChangeModel(() => {
+      this.clearModelWidgets();
+      this.renderComments();
+    });
+    this.stopComments = reaction(
+      options.getComments,
+      (comments) => {
+        this.comments = comments;
+        this.renderComments();
+      },
+      { fireImmediately: true }
+    );
   }
 
   private createGlyphWidget(
@@ -141,10 +158,12 @@ export class MonacoCommentManager {
     this.hoverWidgetHandle = null;
   }
 
-  setComments(comments: DraftComment[]) {
+  private renderComments() {
     if (this.disposed) return;
 
     const modifiedEditor = this.editor.getModifiedEditor();
+    if (!modifiedEditor.getModel()) return;
+    const comments = this.comments;
     const nextById = new Map<string, DraftComment>(
       comments.map((comment) => [comment.id, comment])
     );
@@ -321,17 +340,9 @@ export class MonacoCommentManager {
     }
   }
 
-  dispose() {
-    this.disposed = true;
-
-    this.hoverMoveDisposable?.dispose();
-    this.hoverLeaveDisposable?.dispose();
-
-    if (this.hoverWidgetHandle) {
-      this.removeGlyphWidgetHandle(this.hoverWidgetHandle);
-      this.hoverWidgetHandle = null;
-    }
-
+  private clearModelWidgets() {
+    this.clearHoverWidget();
+    this.hoveredLine = null;
     this.hideInput();
 
     const modifiedEditor = this.editor.getModifiedEditor();
@@ -340,9 +351,20 @@ export class MonacoCommentManager {
     modifiedEditor.changeViewZones((accessor) => {
       for (const zone of this.viewZoneRoots.values()) {
         accessor.removeZone(zone.zoneId);
-        zone.root.unmount();
       }
     });
+    for (const zone of this.viewZoneRoots.values()) zone.root.unmount();
     this.viewZoneRoots.clear();
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stopComments();
+    this.modelChangeDisposable.dispose();
+    this.hoverMoveDisposable?.dispose();
+    this.hoverLeaveDisposable?.dispose();
+    this.clearModelWidgets();
+    this.comments = [];
   }
 }

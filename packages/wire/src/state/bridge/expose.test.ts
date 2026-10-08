@@ -4,7 +4,7 @@ import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
 import { liveModel, liveState, mutation, type LiveModelDef } from '../../api';
-import { cell, derived, family, flushStateTurn, snapshot } from '../core';
+import { cell, derived, family, flushStateTurn, revisionOf, snapshot } from '../core';
 import { query } from '../query';
 import { settleAsync } from '../testing';
 import { expose } from './expose';
@@ -38,6 +38,103 @@ const transcriptContract = liveModel({
 });
 
 describe('state expose bridge', () => {
+  it.each([
+    { resolver: 'sync', warm: false },
+    { resolver: 'sync', warm: true },
+    { resolver: 'async', warm: false },
+    { resolver: 'async', warm: true },
+  ] as const)(
+    'settles an unchanged source revision ($resolver resolver, warm=$warm)',
+    async ({ resolver, warm }) => {
+      const base = cell({ count: 0 });
+      // Source revision numbers need not start at zero when the bridge attaches.
+      for (let count = 1; count <= 8; count += 1) base.set({ count });
+      flushStateTurn();
+      const provider = expose(
+        contract,
+        { value: resolver === 'async' ? async () => base : () => base },
+        {
+          mutations: {
+            async increment(context) {
+              await context.observed('value', revisionOf(base));
+              return ok<void>();
+            },
+          },
+        }
+      );
+      const lease = warm ? provider.acquireState({ id: 'one' }, 'value') : undefined;
+      if (lease) await lease.ready();
+      const result = provider.runMutation('increment', {
+        key: { id: 'one' },
+        input: { by: 0 },
+        mutationId: 'unchanged',
+      });
+      // Observe settlement without waiting for the production 30-second timeout.
+      let completed = false;
+      void result.then(
+        () => {
+          completed = true;
+        },
+        () => {}
+      );
+      try {
+        await settleAsync(30);
+        expect(completed).toBe(true);
+        await expect(result).resolves.toMatchObject({
+          success: true,
+          data: { cursors: [{ cursor: { generation: expect.any(Number), sequence: 0 } }] },
+        });
+        expect(snapshot(base).revision).toBe(8);
+      } finally {
+        await lease?.release();
+        await provider.dispose();
+        await result.catch(() => {});
+      }
+    }
+  );
+
+  it('settles coalesced untagged source updates through an async resolver', async () => {
+    const base = cell({ count: 0 });
+    const provider = expose(
+      contract,
+      { value: async () => base },
+      {
+        mutations: {
+          async increment(context) {
+            const revision = base.set({ count: 1 });
+            base.set({ count: 2 });
+            await context.observed('value', revision);
+            return ok<void>();
+          },
+        },
+      }
+    );
+    const lease = provider.acquireState({ id: 'one' }, 'value');
+    const source = await lease.ready();
+    const result = provider.runMutation('increment', {
+      key: { id: 'one' },
+      input: { by: 1 },
+      mutationId: 'coalesced',
+    });
+    let completed = false;
+    void result.then(
+      () => {
+        completed = true;
+      },
+      () => {}
+    );
+    try {
+      await settleAsync(30);
+      expect(completed).toBe(true);
+      await expect(result).resolves.toMatchObject({ success: true });
+      expect((await source.snapshot()).data).toEqual({ count: 2 });
+    } finally {
+      await lease.release();
+      await provider.dispose();
+      await result.catch(() => {});
+    }
+  });
+
   it('accepts typed live models with mutations without casts', () => {
     expectTypeOf(contract).toMatchTypeOf<LiveModelDef>();
   });

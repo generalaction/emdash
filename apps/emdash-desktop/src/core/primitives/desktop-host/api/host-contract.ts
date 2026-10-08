@@ -2,6 +2,7 @@ import { hostFileRefSchema } from '@emdash/core/primitives/path/api';
 import { defineContract, eventStream, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { TabNavigationDirection } from '@core/primitives/keybindings/api';
+import { appDetectionStatusSchema } from '@core/primitives/open-in-apps/api/app-detection';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 
 /**
@@ -140,7 +141,7 @@ export const desktopHostContract = defineContract({
   }),
   checkInstalledApps: procedure({
     input: z.void(),
-    output: z.record(z.string(), z.boolean()),
+    output: z.record(z.string(), appDetectionStatusSchema),
   }),
   listInstalledFonts: procedure({
     input: z.object({ refresh: z.boolean().optional() }),

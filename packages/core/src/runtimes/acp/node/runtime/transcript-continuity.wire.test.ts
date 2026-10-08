@@ -6,6 +6,7 @@ import { observe, remote, snapshot } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { acpApiContract, type StopReason, type TranscriptTurn } from '#runtimes/acp/api';
+import { wrapHiddenContext } from '#runtimes/acp/api/models/prompt';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import { createAcpController } from '#runtimes/acp/node/api/controller';
 import { AcpRuntime } from './runtime';
@@ -474,7 +475,7 @@ describe('completed history through real runtime and Wire', () => {
       expect.objectContaining({
         prompt: [
           { type: 'text', text: 'visible request' },
-          { type: 'text', text: 'private orchestration instructions' },
+          { type: 'text', text: wrapHiddenContext('private orchestration instructions') },
         ],
       })
     );

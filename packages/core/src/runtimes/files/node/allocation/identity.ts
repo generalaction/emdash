@@ -1,7 +1,6 @@
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '#primitives/exclusion-policy/api';
 import {
   comparisonKeyForAbsolutePath,
   createPathProfile,
@@ -10,29 +9,23 @@ import {
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '#primitives/path/api';
-import type { FsError, TreeKey, TreeWatchScope } from '#runtimes/files/api';
+import type { FsError } from '#runtimes/files/api';
 import { toFsError } from '#runtimes/files/node/api/errors';
 import { normalizeRelativePath } from '#runtimes/files/node/fs/path-policy';
 
 /**
  * How the root's watch is scoped: 'recursive' for workspace roots and
- * 'children' when a consumer only needs direct-child updates, including the
- * directory picker and the synthesized parent root of a bare absolute file.
+ * 'children' when a consumer only needs direct-child updates: the synthesized
+ * parent root of a bare absolute file, or a listed folder the recursive watch
+ * ignores.
  */
-export type RootWatchScope = TreeWatchScope;
+export type RootWatchScope = 'recursive' | 'children';
 
 export type RootIdentity = {
   rootId: string;
   root: HostAbsolutePath;
   rootPath: string;
   watchScope: RootWatchScope;
-};
-
-export type TreeIdentity = {
-  treeId: string;
-  root: RootIdentity;
-  sessionId: string;
-  exclusions: readonly string[];
 };
 
 export type ContentIdentity = {
@@ -77,16 +70,6 @@ export async function resolveAbsoluteFileLocation(
   const root = await resolveDirectoryIdentity(parent, 'children', formatAbsolute(file));
   if (!root.success) return root;
   return ok({ root: root.data, relative: relative.data });
-}
-
-export function treeIdentity(root: RootIdentity, key: TreeKey): TreeIdentity {
-  const exclusions = canonicalExclusionPatterns(key.exclusions ?? DEFAULT_TREE_EXCLUDE);
-  return {
-    treeId: JSON.stringify([root.rootId, key.sessionId, exclusions]),
-    root,
-    sessionId: key.sessionId,
-    exclusions,
-  };
 }
 
 export function contentIdentity(

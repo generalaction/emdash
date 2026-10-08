@@ -28,11 +28,15 @@ import { createRoot } from 'react-dom/client';
 import { beforeAll, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { conversationsContract } from '@core/features/conversations/api';
+import { chatMentionProvider } from '@core/features/conversations/api/browser/chat/chat-mention-provider';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
+import { diffCommentsMention } from '@core/features/conversations/api/browser/chat/diff-comments-mention';
 import { emptyProviderSettings } from '@core/features/conversations/api/provider-settings';
 import type { ProviderSettingsSnapshot } from '@core/features/conversations/api/provider-settings';
 import { AcpChatPanel } from '@core/features/conversations/browser/acp/acp-chat-panel';
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
+import type { AcpLiveSession } from '@core/features/conversations/browser/acp/acp-live-session';
+import { DraftCommentsStore } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import { openModal } from '@core/manifests/browser/modal-api';
 import type { AgentMetadata } from '@core/primitives/agents/api';
 import { availableHistory, transcriptSnapshot } from './acp-transcript-fixtures';
@@ -44,6 +48,7 @@ const fixture = vi.hoisted(() => ({
   providerId: 'codex',
   savedOptions: {} as Record<string, string | boolean>,
   settings: undefined as ProviderSettingsSnapshot | undefined,
+  draftComments: undefined as DraftCommentsStore | undefined,
   agents: [] as Array<
     Pick<AgentMetadata, 'id' | 'name'> & {
       capabilities: Pick<AgentMetadata['capabilities'], 'auth'>;
@@ -137,7 +142,7 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
 }));
 vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   asProvisioned: () => undefined,
-  getTaskStore: () => undefined,
+  getTaskStore: () => (fixture.draftComments ? { get: () => fixture.draftComments } : undefined),
   getRegisteredTaskData: () => undefined,
 }));
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
@@ -470,6 +475,112 @@ it('keeps a rail with 64 markers inside a constrained panel and above the compos
     await expect.element(first).toHaveAttribute('aria-current', 'step');
   } finally {
     await h.dispose();
+  }
+});
+
+it('attaches diff comments only through the mention menu and preserves unsent drafts', async () => {
+  await page.viewport(1100, 800);
+  fixture.restored = false;
+  installChatUiRuntime(chatUi);
+  const context = chatUi.createChatContext({ mentionProvider: chatMentionProvider });
+  fixture.context = context;
+  const drafts = new DraftCommentsStore('task-1');
+  fixture.draftComments = drafts;
+  const target = { kind: 'working-tree', group: 'disk', path: 'src/app.ts' } as const;
+  const firstId = drafts.addComment({ target, lineNumber: 2, content: 'Rename this variable' });
+  const sendPrompt = vi.fn<AcpLiveSession['sendPrompt']>(async () => ok({ queued: false }));
+  const store = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+  fixture.store = store;
+  runInAction(() => {
+    store.historyLoading = false;
+    // Only the live session boundary is stubbed; the composer and submission path are real.
+    store.session = {
+      usable: true,
+      sessionState: {
+        current: () => ({ canSubmit: true, pendingPermissions: [], queuedPrompts: [] }),
+      },
+      config: { current: () => ({ availableCommands: [] }) },
+      usage: { current: () => null },
+      mcpServers: { current: () => [] },
+      sendPrompt,
+      dispose: () => {},
+    } as unknown as AcpLiveSession;
+  });
+  const parent = document.createElement('div');
+  parent.style.cssText = 'width:1000px;height:700px;position:relative;font-family:system-ui';
+  parent.className = 'emlight';
+  document.body.append(parent);
+  const root = createRoot(parent);
+  const selectComments = async (query: string, count: number) => {
+    await act(async () => {
+      store.composerModel.clear();
+      store.composerModel.focus();
+      await userEvent.keyboard(`@${query}`);
+    });
+    const item = page.getByRole('option', { name: /Diff comments/ });
+    await expect.element(item).toBeVisible();
+    await expect.element(item).toHaveTextContent(`${count} pending comment`);
+    await act(async () => item.click());
+    expect(store.draftText).toContain(`@${diffCommentsMention.id}`);
+    expect(parent.querySelector(`[data-mention-id="${diffCommentsMention.id}"]`)).not.toBeNull();
+  };
+  const send = () => act(async () => page.getByRole('button', { name: 'Send message' }).click());
+  try {
+    await act(async () => root.render(<AcpChatPanel />));
+    expect(parent.textContent).not.toContain('diff comment will be attached');
+    await selectComments('', 1);
+    await act(async () => page.getByRole('button', { name: 'Remove @Diff comments' }).click());
+    expect(store.draftText).not.toContain(`@${diffCommentsMention.id}`);
+    expect(drafts.count).toBe(1);
+
+    await act(async () => store.setDraftText('Explain these changes'));
+    await send();
+    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledTimes(1));
+    expect(sendPrompt.mock.calls[0]?.[0].hiddenContext).toBeUndefined();
+    expect(drafts.count).toBe(1);
+
+    await selectComments('comments', 1);
+    sendPrompt.mockResolvedValueOnce({ success: false, error: 'Connection failed' });
+    await send();
+    await vi.waitFor(() => expect(store.draftText).toContain(`@${diffCommentsMention.id}`));
+    expect(sendPrompt.mock.calls[1]?.[0].hiddenContext).toContain('Rename this variable');
+    expect(drafts.count).toBe(1);
+
+    const acceptance = deferred<void>();
+    sendPrompt.mockImplementationOnce(async () => {
+      await acceptance.promise;
+      return ok({ queued: false });
+    });
+    await send();
+    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      drafts.updateComment(firstId, 'Edited after send');
+      drafts.addComment({ target, lineNumber: 3, content: 'Added after send' });
+      acceptance.resolve();
+    });
+    expect(sendPrompt.mock.calls[2]?.[0].hiddenContext).toContain('Rename this variable');
+    expect(sendPrompt.mock.calls[2]?.[0].hiddenContext).not.toContain('Edited after send');
+    expect(drafts.count).toBe(2);
+
+    await selectComments('diff', 2);
+    await send();
+    await vi.waitFor(() => expect(drafts.count).toBe(0));
+    expect(sendPrompt.mock.calls[3]?.[0].hiddenContext).toContain('Edited after send');
+    expect(sendPrompt.mock.calls[3]?.[0].hiddenContext).toContain('Added after send');
+    await act(async () => {
+      store.composerModel.focus();
+      await userEvent.keyboard('@');
+    });
+    await expect
+      .element(page.getByRole('option', { name: /Diff comments/ }))
+      .not.toBeInTheDocument();
+  } finally {
+    await act(async () => root.unmount());
+    store.dispose();
+    context.dispose();
+    drafts.dispose();
+    fixture.draftComments = undefined;
+    parent.remove();
   }
 });
 

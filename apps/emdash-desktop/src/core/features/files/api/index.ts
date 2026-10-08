@@ -3,7 +3,6 @@ export {
   filesWireContract,
   type FilesContentKey,
   type FilesContentModel,
-  type FilesTreeKey,
-  type FilesTreeModel,
+  type FilesListingKey,
   type FilesWireContract,
 } from './contract';
