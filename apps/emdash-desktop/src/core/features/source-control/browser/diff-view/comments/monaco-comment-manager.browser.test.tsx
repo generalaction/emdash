@@ -191,7 +191,16 @@ it('reanchors observable explanations and restores them after a model swap', asy
     ]);
   });
   await expect.poll(() => mounted.renderedComments()).toEqual(['Explains the changed line']);
-  await act(async () => mounted.editor.getModifiedEditor().getModel()!.setValue('replacement\n'));
+  await act(async () => {
+    const updated = new Promise<void>((resolve) => {
+      const subscription = mounted.editor.onDidUpdateDiff(() => {
+        subscription.dispose();
+        resolve();
+      });
+    });
+    mounted.editor.getModifiedEditor().getModel()!.setValue('replacement\n');
+    await updated;
+  });
   await expect.poll(() => mounted.renderedComments()).toEqual([]);
   await mounted.attachModels();
   await expect.poll(() => mounted.renderedComments()).toEqual(['Explains the changed line']);
