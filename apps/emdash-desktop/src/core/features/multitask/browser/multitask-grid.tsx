@@ -49,6 +49,7 @@ export function MultitaskGrid({
   const minimized = new Set(minimizedCellKeys);
   const visibleCells = cells.filter((cell) => !minimized.has(cellKey(cell)));
   const ids = visibleCells.map((cell) => cellKey(cell));
+  const rowCount = Math.max(1, Math.ceil(visibleCells.length / columns));
 
   if (cells.length === 0) {
     return (
@@ -91,10 +92,10 @@ export function MultitaskGrid({
               visibleCells.map((cell) => (
                 <div
                   key={cellKey(cell)}
-                  className="min-h-64 min-w-72 shrink-0 resize overflow-auto"
+                  className="min-h-0 min-w-72 shrink-0 resize overflow-auto"
                   style={{
                     width: `calc((100% - ${(columns - 1) * 8}px) / ${columns})`,
-                    height: visibleCells.length <= columns ? '100%' : '28rem',
+                    height: `calc((100% - ${(rowCount - 1) * 8}px) / ${rowCount})`,
                   }}
                 >
                   <MultitaskGridCell
