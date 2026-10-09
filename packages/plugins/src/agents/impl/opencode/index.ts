@@ -58,8 +58,9 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'global',
-      // session.status busy/retry → start, idle → stop (custom providers like
-      // Unbar/MiniMax); session.execution.* kept as a secondary V2 path.
+      // session.status busy/retry → start, successful idle → stop (custom providers
+      // like Unbar/MiniMax); errors and interruptions survive later idle events.
+      // session.execution.* is also supported for V2.
       // Declaring start suppresses Enter→working when the plugin is installed.
       supportedEvents: ['notification', 'start', 'stop', 'session'],
     },
