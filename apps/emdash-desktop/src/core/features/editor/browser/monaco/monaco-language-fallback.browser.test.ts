@@ -70,7 +70,7 @@ it.each(['typescript', 'javascript'])(
       uri: model.uri,
       range: { startLineNumber: 1, startColumn: 7 },
     });
-    expect(await service.references(model, position)).toHaveLength(2);
+    expect(await service.references(model, position, { includeDeclaration: true })).toHaveLength(2);
   }
 );
 
@@ -83,6 +83,39 @@ it('keeps the existing TypeScript syntax-only diagnostic policy', async () => {
   ).toBe(true);
 });
 
+it.each(['typescript', 'javascript'])(
+  'excludes %s declarations while retaining reads and assignments',
+  async (language) => {
+    const { service, model } = await fixture(language, 'let answer = 42;\nanswer = 43;\nanswer;');
+    for (const position of [
+      { lineNumber: 1, column: 7 },
+      { lineNumber: 3, column: 3 },
+    ]) {
+      expect(await service.references(model, position, { includeDeclaration: true })).toHaveLength(
+        3
+      );
+      expect(
+        await service.references(model, position, { includeDeclaration: false })
+      ).toMatchObject([
+        { uri: model.uri, range: { startLineNumber: 2 } },
+        { uri: model.uri, range: { startLineNumber: 3 } },
+      ]);
+    }
+  }
+);
+
+it.each([
+  ['scss', '$color: red;\n.example { color: $color; }', 22],
+  ['less', '@color: red;\n.example { color: @color; }', 22],
+] as const)('excludes %s variable declarations from references', async (language, text, column) => {
+  const { service, model } = await fixture(language, text);
+  const position = { lineNumber: 2, column };
+  expect(await service.references(model, position, { includeDeclaration: true })).toHaveLength(2);
+  expect(await service.references(model, position, { includeDeclaration: false })).toMatchObject([
+    { uri: model.uri, range: { startLineNumber: 2 } },
+  ]);
+});
+
 it.each(['css', 'scss', 'less'])(
   'preserves %s hover, references and validation',
   async (language) => {
@@ -90,7 +123,9 @@ it.each(['css', 'scss', 'less'])(
     expect(JSON.stringify(await service.hover(model, { lineNumber: 1, column: 13 }))).toContain(
       'color'
     );
-    expect(await service.references(model, { lineNumber: 1, column: 3 })).not.toBeNull();
+    expect(
+      await service.references(model, { lineNumber: 1, column: 3 }, { includeDeclaration: true })
+    ).not.toBeNull();
     model.setValue('.example { color: }');
     expect((await service.diagnostics(model)).length).toBeGreaterThan(0);
   }
@@ -113,6 +148,8 @@ it('returns no local service for languages Monaco does not supply', async () => 
   const { service, model } = await fixture('python', 'answer = 42');
   expect(await service.hover(model, { lineNumber: 1, column: 3 })).toBeNull();
   expect(await service.definition(model, { lineNumber: 1, column: 3 })).toBeNull();
-  expect(await service.references(model, { lineNumber: 1, column: 3 })).toBeNull();
+  expect(
+    await service.references(model, { lineNumber: 1, column: 3 }, { includeDeclaration: true })
+  ).toBeNull();
   expect(await service.diagnostics(model)).toEqual([]);
 });

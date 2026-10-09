@@ -561,6 +561,9 @@ it('falls back to local hover, definitions, references and syntax diagnostics wh
   expect(
     await f.services.references(f.model, position, { includeDeclaration: true }, token)
   ).toHaveLength(2);
+  expect(
+    await f.services.references(f.model, position, { includeDeclaration: false }, token)
+  ).toMatchObject([{ uri: f.model.uri, range: { startLineNumber: 2 } }]);
   f.model.setValue('const broken = ;');
   await expect
     .poll(() => monaco.editor.getModelMarkers({ resource: f.model.uri }).length)

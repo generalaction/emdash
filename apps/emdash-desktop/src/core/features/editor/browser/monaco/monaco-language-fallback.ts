@@ -110,23 +110,38 @@ export class MonacoLanguageFallback {
 
   async references(
     model: Model,
-    position: Monaco.IPosition
+    position: Monaco.IPosition,
+    context: Monaco.languages.ReferenceContext
   ): Promise<Monaco.languages.Location[] | null> {
+    let locations: Monaco.languages.Location[] | null;
     if (isTypeScript(model)) {
       const worker = await this.typescriptWorker(model);
       const result: ReferenceEntry[] | undefined = await worker.getReferencesAtPosition(
         model.uri.toString(),
         model.getOffsetAt(position)
       );
-      return this.typescriptLocations(result, worker);
-    }
-    if (!isStylesheet(model)) return null;
-    const worker = await this.protocolWorker(model);
-    return (await worker.findReferences(model.uri.toString(), toProtocolPosition(position))).map(
-      (item) => ({
+      locations = await this.typescriptLocations(result, worker);
+    } else {
+      if (!isStylesheet(model)) return null;
+      const worker = await this.protocolWorker(model);
+      locations = (
+        await worker.findReferences(model.uri.toString(), toProtocolPosition(position))
+      ).map((item) => ({
         uri: this.monaco.Uri.parse(item.uri),
         range: toMonacoRange(item.range),
-      })
+      }));
+    }
+    if (!locations || context.includeDeclaration) return locations;
+    // Monaco's workers include declarations but expose no declaration flag on references.
+    // Match definition locations rather than write access, which also includes assignments.
+    const declarations = await this.definition(model, position);
+    return locations.filter(
+      (location) =>
+        !declarations?.some(
+          (declaration) =>
+            declaration.uri.toString() === location.uri.toString() &&
+            this.monaco.Range.containsRange(declaration.range, location.range)
+        )
     );
   }
 

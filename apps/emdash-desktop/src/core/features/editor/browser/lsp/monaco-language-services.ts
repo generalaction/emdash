@@ -224,7 +224,7 @@ export class MonacoLanguageServices {
       position,
       token,
       (binding, position, signal) => binding.references(position, context, signal),
-      () => this.local.references(model, position)
+      () => this.local.references(model, position, context)
     );
   }
 
