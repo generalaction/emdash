@@ -2,8 +2,8 @@
 
 Buffers use the host LSP runtime for hover, definition, type definition, references
 and diagnostics, according to each server's capabilities. Install or select the
-server in the host's machine dependencies, then use the language-service status
-button in the file toolbar to restart. These are optional tools: opening a Python
+server in the host's machine dependencies, then right-click a file tab and choose
+**Language services…** for status and restart. These are optional tools: opening a Python
 file starts Pyright, not the Go or TypeScript servers. Nothing is downloaded when
 a file is opened. The executable must be on the host containing the worktree;
 a local installation does not provide language services for SSH files.
@@ -48,6 +48,7 @@ Fallback analyzes loaded models and bundled declarations, not the project's file
 or full configuration. It restores basic hover, definition/reference navigation and
 validation where Monaco supports them; type-definition navigation still requires host
 LSP. Rust, Go and other languages without Monaco services still need their host server.
+The language-services dialog explains basic support and offers host-server retry.
 
 The Monaco adapter owns provider selection and model lifetimes. Local worker access
 and diagnostic arbitration are separate editor modules, with no host or Wire
