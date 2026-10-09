@@ -10,6 +10,7 @@ const GLOBAL_HOOK_PROVIDERS = [
   'codex',
   'commandcode',
   'copilot',
+  'cursor',
   'devin',
   'droid',
   'goose',
