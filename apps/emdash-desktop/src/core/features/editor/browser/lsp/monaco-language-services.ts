@@ -6,6 +6,7 @@ import {
   type LspLocation,
   type LspQuery,
 } from '@emdash/core/runtimes/lsp/api';
+import { waitWithSignal } from '@emdash/shared/scheduling';
 import type * as Monaco from 'monaco-editor';
 import { log } from '@core/primitives/logging/browser/logger';
 import { decodeFacetUri, encodeFacetUri } from '../../api/browser/facet-binder/facet-uri';
@@ -18,6 +19,9 @@ import {
   LanguageServiceError,
   type LanguageClient,
 } from '../../api/browser/lsp/language-session-client';
+import { toMonacoRange, toProtocolPosition } from '../monaco/language-coordinates';
+import { ModelDiagnostics } from '../monaco/model-diagnostics';
+import { MonacoLanguageFallback, fallbackLanguageIds } from '../monaco/monaco-language-fallback';
 
 type NavigationContext = { projectId: string; taskId: string };
 type Context = { ref: HostFileRef; root: HostFileRef; navigation: NavigationContext; refs: number };
@@ -27,7 +31,6 @@ type TrackedModel = {
   binding: LanguageDocumentBinding;
   change: Monaco.IDisposable;
 };
-const OWNER = 'emdash-lsp';
 
 /** Only adapts Monaco models, providers, diagnostics and navigation to language services. */
 export class MonacoLanguageServices {
@@ -36,6 +39,8 @@ export class MonacoLanguageServices {
   private readonly models = new Map<string, TrackedModel>();
   private readonly subscriptions: Monaco.IDisposable[] = [];
   private readonly languages: LanguageServiceClient;
+  private readonly local: MonacoLanguageFallback;
+  private readonly diagnostics: ModelDiagnostics;
   private disposed = false;
 
   constructor(
@@ -51,6 +56,8 @@ export class MonacoLanguageServices {
       ): boolean | Promise<boolean>;
     }
   ) {
+    this.local = new MonacoLanguageFallback(monaco);
+    this.diagnostics = new ModelDiagnostics(monaco, this.local, (error) => this.report(error));
     this.languages = new LanguageServiceClient({
       ...options,
       onError: (error) => this.report(error),
@@ -60,7 +67,9 @@ export class MonacoLanguageServices {
         server.languages.map((language) => toMonacoLanguageId(language.languageId))
       )
     );
-    const selector = [...languages].map((language) => ({ language, scheme: 'emdash-buffer' }));
+    const selector = [...new Set([...fallbackLanguageIds, ...languages])].map((language) => ({
+      language,
+    }));
     this.subscriptions.push(
       monaco.editor.onDidCreateModel((model) => this.track(model)),
       monaco.editor.onWillDisposeModel((model) => this.untrack(model)),
@@ -107,6 +116,7 @@ export class MonacoLanguageServices {
         },
       })
     );
+    for (const model of monaco.editor.getModels()) this.track(model);
   }
 
   /** Navigation belongs to the source pane, even when another task shares its buffer. */
@@ -134,7 +144,13 @@ export class MonacoLanguageServices {
   }
 
   status(ref: HostFileRef) {
-    return this.languages.status(ref);
+    const status = this.languages.status(ref);
+    if (!status) return undefined;
+    const model = this.models.get(encodeFacetUri(ref, { kind: 'buffer' }))?.model;
+    return {
+      ...status,
+      fallbackAvailable: model ? fallbackLanguageIds.includes(model.getLanguageId()) : false,
+    };
   }
 
   async restartServer(ref: HostFileRef): Promise<void> {
@@ -158,15 +174,21 @@ export class MonacoLanguageServices {
     position: Monaco.IPosition,
     token: Monaco.CancellationToken
   ): Promise<Monaco.languages.Hover | null> {
-    return this.query(model, position, token, async (binding, position, signal) => {
-      const value = await binding.hover(position, signal);
-      return value
-        ? {
-            contents: [{ value: value.contents, isTrusted: false }],
-            range: value.range && toMonacoRange(value.range),
-          }
-        : null;
-    });
+    return this.query(
+      model,
+      position,
+      token,
+      async (binding, position, signal) => {
+        const value = await binding.hover(position, signal);
+        return value
+          ? {
+              contents: [{ value: value.contents, isTrusted: false }],
+              range: value.range && toMonacoRange(value.range),
+            }
+          : null;
+      },
+      () => this.local.hover(model, position)
+    );
   }
 
   definition(
@@ -174,8 +196,12 @@ export class MonacoLanguageServices {
     position: Monaco.IPosition,
     token: Monaco.CancellationToken
   ) {
-    return this.locations(model, position, token, (binding, position, signal) =>
-      binding.definition(position, signal)
+    return this.locations(
+      model,
+      position,
+      token,
+      (binding, position, signal) => binding.definition(position, signal),
+      () => this.local.definition(model, position)
     );
   }
   typeDefinition(
@@ -193,13 +219,19 @@ export class MonacoLanguageServices {
     context: Monaco.languages.ReferenceContext,
     token: Monaco.CancellationToken
   ) {
-    return this.locations(model, position, token, (binding, position, signal) =>
-      binding.references(position, context, signal)
+    return this.locations(
+      model,
+      position,
+      token,
+      (binding, position, signal) => binding.references(position, context, signal),
+      () => this.local.references(model, position)
     );
   }
 
   async dispose(): Promise<void> {
     this.disposed = true;
+    this.diagnostics.dispose();
+    this.local.dispose();
     for (const subscription of this.subscriptions) subscription.dispose();
     for (const { change } of this.models.values()) change.dispose();
     this.models.clear();
@@ -219,10 +251,9 @@ export class MonacoLanguageServices {
       getText: () => model.getValue(),
       onDiagnostics: (diagnostics) => {
         if (model.isDisposed()) return;
-        this.monaco.editor.setModelMarkers(
+        this.diagnostics.publish(
           model,
-          OWNER,
-          diagnostics.map((diagnostic) => ({
+          diagnostics?.map((diagnostic) => ({
             ...toMonacoRange(diagnostic.range),
             message: diagnostic.message,
             source: diagnostic.source,
@@ -264,20 +295,42 @@ export class MonacoLanguageServices {
       binding: LanguageDocumentBinding,
       position: LspQuery['position'],
       signal: AbortSignal
-    ) => Promise<LspLocation[] | null>
+    ) => Promise<LspLocation[] | null>,
+    fallback?: () => Promise<Monaco.languages.Location[] | null>
   ): Promise<Monaco.languages.Location[] | null> {
-    return this.query(model, position, token, async (binding, position, signal) => {
-      const host = this.models.get(model.uri.toString())?.context.ref.host;
-      if (!host) return null;
-      return (
-        (await request(binding, position, signal))?.map((location) => ({
-          uri: this.monaco.Uri.parse(
-            encodeFacetUri(hostFileRef(host, location.path), { kind: 'buffer' })
-          ),
-          range: toMonacoRange(location.range),
-        })) ?? null
-      );
-    });
+    return this.query(
+      model,
+      position,
+      token,
+      async (binding, position, signal) => {
+        const host = this.models.get(model.uri.toString())?.context.ref.host;
+        if (!host) return null;
+        return (
+          (await request(binding, position, signal))?.map((location) => ({
+            uri: this.monaco.Uri.parse(
+              encodeFacetUri(hostFileRef(host, location.path), { kind: 'buffer' })
+            ),
+            range: toMonacoRange(location.range),
+          })) ?? null
+        );
+      },
+      fallback &&
+        (async () => {
+          const locations = await fallback();
+          const source = decodeFacetUri(model.uri.toString());
+          if (!source.success) return locations;
+          return (
+            locations?.filter((location) => {
+              const target = decodeFacetUri(location.uri.toString());
+              return (
+                !target.success ||
+                (hostRefEquals(source.data.ref.host, target.data.ref.host) &&
+                  source.data.facet.kind === target.data.facet.kind)
+              );
+            }) ?? null
+          );
+        })
+    );
   }
 
   private async query<T>(
@@ -288,11 +341,10 @@ export class MonacoLanguageServices {
       binding: LanguageDocumentBinding,
       position: LspQuery['position'],
       signal: AbortSignal
-    ) => Promise<T>
+    ) => Promise<T>,
+    fallback: () => Promise<T | null> = async () => null
   ): Promise<T | null> {
     if (token.isCancellationRequested || model.isDisposed() || this.disposed) return null;
-    const tracked = this.models.get(model.uri.toString());
-    if (!tracked) return null;
     const version = model.getVersionId();
     const language = model.getLanguageId();
     const abort = new AbortController();
@@ -305,21 +357,29 @@ export class MonacoLanguageServices {
       model.getVersionId() === version &&
       model.getLanguageId() === language;
     try {
-      const result = await request(
-        tracked.binding,
-        { line: position.lineNumber - 1, character: position.column - 1 },
-        abort.signal
-      );
-      return current() ? result : null;
+      const tracked = this.models.get(model.uri.toString());
+      if (tracked) {
+        try {
+          const result = await request(tracked.binding, toProtocolPosition(position), abort.signal);
+          return current() ? result : null;
+        } catch (error) {
+          if (!current()) return null;
+          if (
+            !(
+              error instanceof LanguageServiceError &&
+              (error.type === 'session-unavailable' || error.type === 'unsupported')
+            )
+          ) {
+            this.report(error);
+            return null;
+          }
+        }
+      }
+      const connection = tracked?.binding.status.connection;
+      const result = await waitWithSignal(fallback(), abort.signal);
+      return current() && tracked?.binding.status.connection === connection ? result : null;
     } catch (error) {
-      if (
-        current() &&
-        !(
-          error instanceof LanguageServiceError &&
-          (error.type === 'session-unavailable' || error.type === 'unsupported')
-        )
-      )
-        this.report(error);
+      if (current()) this.report(error);
       return null;
     } finally {
       cancellation.dispose();
@@ -331,13 +391,4 @@ export class MonacoLanguageServices {
     if (this.options.onError) this.options.onError(error);
     else log.warn('Language service request failed', error);
   }
-}
-
-function toMonacoRange(range: LspLocation['range']): Monaco.IRange {
-  return {
-    startLineNumber: range.start.line + 1,
-    startColumn: range.start.character + 1,
-    endLineNumber: range.end.line + 1,
-    endColumn: range.end.character + 1,
-  };
 }

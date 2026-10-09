@@ -137,7 +137,20 @@ function fixture(
 }
 
 describe('Monaco language services', () => {
-  it('keeps completion and formatting enabled while host LSP owns hover, navigation and diagnostics', () => {
+  it('keeps completion and formatting enabled while the editor routes overlapping providers', () => {
+    for (const defaults of [
+      monaco.typescript.typescriptDefaults,
+      monaco.typescript.javascriptDefaults,
+    ]) {
+      expect(defaults.modeConfiguration).toMatchObject({
+        hovers: false,
+        definitions: false,
+        references: false,
+        diagnostics: false,
+        completionItems: true,
+        documentRangeFormattingEdits: true,
+      });
+    }
     for (const defaults of [
       monaco.css.cssDefaults,
       monaco.css.scssDefaults,
@@ -156,19 +169,6 @@ describe('Monaco language services', () => {
       definitions: false,
       references: false,
     });
-    for (const defaults of [
-      monaco.typescript.typescriptDefaults,
-      monaco.typescript.javascriptDefaults,
-    ]) {
-      expect(defaults.modeConfiguration).toMatchObject({
-        hovers: false,
-        definitions: false,
-        references: false,
-        diagnostics: false,
-        completionItems: true,
-        documentRangeFormattingEdits: true,
-      });
-    }
   });
   it('registers selectors using Monaco IDs, including shell and JSONC', () => {
     const register = vi.spyOn(monaco.languages, 'registerHoverProvider');
@@ -176,11 +176,11 @@ describe('Monaco language services', () => {
     const selectors = register.mock.calls.at(-1)?.[0];
     expect(selectors).toEqual(
       expect.arrayContaining([
-        { language: 'shell', scheme: 'emdash-buffer' },
-        { language: 'json', scheme: 'emdash-buffer' },
-        { language: 'python', scheme: 'emdash-buffer' },
-        { language: 'go', scheme: 'emdash-buffer' },
-        { language: 'rust', scheme: 'emdash-buffer' },
+        { language: 'shell' },
+        { language: 'json' },
+        { language: 'python' },
+        { language: 'go' },
+        { language: 'rust' },
       ])
     );
     expect(f.model.getLanguageId()).toBe('typescript');
@@ -550,20 +550,22 @@ it('forwards reference context without claiming a query failure is a server fail
   });
 });
 
-it('returns no language results when the host is offline', async () => {
+it('falls back to local hover, definitions, references and syntax diagnostics when the host is offline', async () => {
   const f = fixture(true);
   f.model.setValue('const localValue = 42;\nlocalValue;');
   await expect.poll(() => f.services.status(f.ref)?.connection.kind).toBe('disconnected');
   const position = { lineNumber: 2, column: 3 };
-  expect(await f.services.hover(f.model, position, token)).toBeNull();
-  expect(await f.services.definition(f.model, position, token)).toBeNull();
-  expect(await f.services.typeDefinition(f.model, position, token)).toBeNull();
+  expect(JSON.stringify(await f.services.hover(f.model, position, token))).toContain('localValue');
+  const definitions = await f.services.definition(f.model, position, token);
+  expect(definitions?.[0]).toMatchObject({ uri: f.model.uri, range: { startLineNumber: 1 } });
   expect(
     await f.services.references(f.model, position, { includeDeclaration: true }, token)
-  ).toBeNull();
-  expect(monaco.editor.getModelMarkers({ resource: f.model.uri })).toEqual([]);
+  ).toHaveLength(2);
+  f.model.setValue('const broken = ;');
+  await expect
+    .poll(() => monaco.editor.getModelMarkers({ resource: f.model.uri }).length)
+    .toBeGreaterThan(0);
   expect(f.hover).not.toHaveBeenCalled();
-  expect(f.onError).not.toHaveBeenCalled();
 });
 
 it('keeps local and remote availability independent and switches back after recovery', async () => {
@@ -572,7 +574,9 @@ it('keeps local and remote availability independent and switches back after reco
   remote.model.setValue('const remoteValue = 42;\nremoteValue;');
   await expect.poll(() => remote.services.status(remote.ref)?.connection.kind).toBe('disconnected');
   const position = { lineNumber: 2, column: 3 };
-  expect(await remote.services.hover(remote.model, position, token)).toBeNull();
+  expect(JSON.stringify(await remote.services.hover(remote.model, position, token))).toContain(
+    'remoteValue'
+  );
   expect(
     (await local.services.hover(local.model, { lineNumber: 1, column: 8 }, token))?.contents
   ).toEqual([{ value: '**string**', isTrusted: false }]);
@@ -583,7 +587,7 @@ it('keeps local and remote availability independent and switches back after reco
 });
 
 it.each(['starting', 'failed'] as const)(
-  'returns no language results while the server is %s',
+  'uses local services while the server is %s',
   async (phase) => {
     const f = fixture();
     f.model.setValue('const localValue = 42;\nlocalValue;');
@@ -597,19 +601,14 @@ it.each(['starting', 'failed'] as const)(
     await expect
       .poll(() => f.services.status(f.ref)?.connection)
       .toMatchObject({ kind: 'connected', server: { phase } });
-    const position = { lineNumber: 2, column: 3 };
-    expect(await f.services.hover(f.model, position, token)).toBeNull();
-    expect(await f.services.definition(f.model, position, token)).toBeNull();
-    expect(await f.services.typeDefinition(f.model, position, token)).toBeNull();
     expect(
-      await f.services.references(f.model, position, { includeDeclaration: true }, token)
-    ).toBeNull();
+      JSON.stringify(await f.services.hover(f.model, { lineNumber: 2, column: 3 }, token))
+    ).toContain('localValue');
     expect(f.hover).not.toHaveBeenCalled();
-    expect(f.onError).not.toHaveBeenCalled();
   }
 );
 
-it('returns no result for unsupported capabilities and preserves empty host answers', async () => {
+it('falls back for unsupported capabilities and preserves successful empty host answers', async () => {
   const f = fixture();
   f.model.setValue('const localValue = 42;\nlocalValue;');
   const position = { lineNumber: 2, column: 3 };
@@ -620,7 +619,7 @@ it('returns no result for unsupported capabilities and preserves empty host answ
     diagnostics: [],
   };
   f.state.set({ ...ready, capabilities: { ...ready.capabilities, hover: false } });
-  expect(await f.services.hover(f.model, position, token)).toBeNull();
+  expect(JSON.stringify(await f.services.hover(f.model, position, token))).toContain('localValue');
   expect(f.hover).not.toHaveBeenCalled();
   expect(
     await f.services.references(f.model, position, { includeDeclaration: true }, token)
@@ -634,7 +633,7 @@ it('returns no result for unsupported capabilities and preserves empty host answ
   expect(f.onError).not.toHaveBeenCalled();
 });
 
-it('returns no language results for snapshots without opening them on a host', async () => {
+it('uses local queries for snapshots without opening them on a host', async () => {
   const f = fixture();
   const model = monaco.editor.createModel(
     'const diskValue = 42;\ndiskValue;',
@@ -642,6 +641,109 @@ it('returns no language results for snapshots without opening them on a host', a
     monaco.Uri.parse(encodeFacetUri(f.ref, { kind: 'disk' }))
   );
   cleanup.push(() => model.dispose());
-  expect(await f.services.hover(model, { lineNumber: 2, column: 3 }, token)).toBeNull();
+  expect(
+    JSON.stringify(await f.services.hover(model, { lineNumber: 2, column: 3 }, token))
+  ).toContain('diskValue');
   expect(f.hover).not.toHaveBeenCalled();
+});
+import { MonacoLanguageFallback } from '../monaco/monaco-language-fallback';
+it('cancels a pending local fallback without waiting for the worker response', async () => {
+  const f = fixture(true);
+  await expect.poll(() => f.services.status(f.ref)?.connection.kind).toBe('disconnected');
+  const pending = deferred<monaco.languages.Hover | null>();
+  const fallback = vi
+    .spyOn(MonacoLanguageFallback.prototype, 'hover')
+    .mockReturnValueOnce(pending.promise);
+  const cancellation = new monaco.CancellationTokenSource();
+  cleanup.push(
+    () => fallback.mockRestore(),
+    () => cancellation.dispose()
+  );
+  const request = f.services.hover(f.model, { lineNumber: 1, column: 8 }, cancellation.token);
+  await expect.poll(() => fallback.mock.calls.length).toBe(1);
+  cancellation.cancel();
+  expect(await request).toBeNull();
+  pending.resolve({ contents: [{ value: 'late local' }] });
+  expect(f.onError).not.toHaveBeenCalled();
+});
+
+it('discards a pending fallback answer when the host recovers', async () => {
+  const f = fixture(true);
+  await expect.poll(() => f.services.status(f.ref)?.connection.kind).toBe('disconnected');
+  const pending = deferred<monaco.languages.Hover | null>();
+  const fallback = vi
+    .spyOn(MonacoLanguageFallback.prototype, 'hover')
+    .mockReturnValueOnce(pending.promise);
+  cleanup.push(() => fallback.mockRestore());
+  const request = f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
+  await expect.poll(() => fallback.mock.calls.length).toBe(1);
+  await f.services.restartServer(f.ref);
+  await expect
+    .poll(() => f.services.status(f.ref)?.connection)
+    .toMatchObject({
+      kind: 'connected',
+      server: { phase: 'ready' },
+    });
+  pending.resolve({ contents: [{ value: 'obsolete fallback' }] });
+  expect(await request).toBeNull();
+  expect((await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token))?.contents).toEqual([
+    { value: '**string**', isTrusted: false },
+  ]);
+});
+
+it('keeps host diagnostic ownership after edits until the server becomes unavailable', async () => {
+  const f = fixture();
+  await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
+  const fallback = vi.spyOn(MonacoLanguageFallback.prototype, 'diagnostics');
+  cleanup.push(() => fallback.mockRestore());
+  f.model.setValue('const broken = ;');
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(fallback).not.toHaveBeenCalled();
+  expect(monaco.editor.getModelMarkers({ resource: f.model.uri })).toEqual([]);
+  f.state.set({
+    phase: 'failed',
+    generation: 'one',
+    capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+    error: 'server stopped',
+    diagnostics: [],
+  });
+  await expect
+    .poll(() => monaco.editor.getModelMarkers({ resource: f.model.uri }).length)
+    .toBeGreaterThan(0);
+});
+
+it('does not claim fallback support for Python', async () => {
+  const f = fixture(true);
+  const ref = file('/workspace/script.py');
+  cleanup.push(
+    f.services.registerContext(ref, file('/workspace'), { projectId: 'project', taskId: 'task' })
+  );
+  const model = monaco.editor.createModel(
+    'value = 42',
+    'python',
+    monaco.Uri.parse(encodeFacetUri(ref, { kind: 'buffer' }))
+  );
+  cleanup.push(() => model.dispose());
+  expect(f.services.status(f.ref)?.fallbackAvailable).toBe(true);
+  expect(f.services.status(ref)?.fallbackAvailable).toBe(false);
+});
+
+it('filters other hosts and snapshot facets out of fallback navigation', async () => {
+  const f = fixture(true);
+  await expect.poll(() => f.services.status(f.ref)?.connection.kind).toBe('disconnected');
+  const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 };
+  const fallback = vi.spyOn(MonacoLanguageFallback.prototype, 'definition').mockResolvedValueOnce([
+    { uri: f.model.uri, range },
+    {
+      uri: monaco.Uri.parse(
+        encodeFacetUri(file('/workspace/a.ts', hostRef('remote', 'other')), { kind: 'buffer' })
+      ),
+      range,
+    },
+    { uri: monaco.Uri.parse(encodeFacetUri(f.ref, { kind: 'disk' })), range },
+  ]);
+  cleanup.push(() => fallback.mockRestore());
+  expect(await f.services.definition(f.model, { lineNumber: 1, column: 8 }, token)).toEqual([
+    { uri: f.model.uri, range },
+  ]);
 });
