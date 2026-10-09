@@ -144,9 +144,8 @@ running (doctor reports it). See
   stable/canary apps using the production
   packaging rules, then checks hover, definitions and diagnostics without global tools.
   Release builds run the same verifier against the full finished app when its architecture
-  matches the build host. Dedicated CI jobs exercise both channels on Linux and Windows,
-  including URI/path comparisons across drive-letter casing and URI escaping. Failures
-  report the probe phase, underlying error, and recent diagnostic URIs and codes.
+  matches the build host. Failures report the probe phase, underlying error, and recent
+  diagnostic URIs and codes.
   It can also verify an existing app via
   `node --experimental-strip-types scripts/release/verify-language-servers.ts --executable
   <binary> --resources <resources-directory>` from the app directory.
