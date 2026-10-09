@@ -4,6 +4,7 @@ import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import { formatAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import type { LspSessionKey } from '../api/schemas';
 import { languageServers } from '../api/server-catalog';
+import { bundledLanguageServer, unpackedPath } from './bundled-language-servers';
 import { pythonSettings } from './python-settings';
 import type { ResolvedLanguageServer } from './runtime';
 
@@ -32,13 +33,22 @@ const servers: Readonly<Record<string, HostServerProfile>> = {
           'typescript/lib/tsserver.js'
         );
       } catch (error) {
-        if (!(error instanceof Error && 'code' in error && error.code === 'MODULE_NOT_FOUND'))
+        if (
+          !(
+            error instanceof Error &&
+            'code' in error &&
+            (error.code === 'MODULE_NOT_FOUND' || error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED')
+          )
+        )
           throw error;
       }
+      // Projects without a compatible tsserver use the one shipped with the app.
+      compiler ??= createRequire(import.meta.url).resolve('typescript/lib/tsserver.js');
       return {
         initializationOptions: {
           hostInfo: 'Emdash',
-          ...(compiler ? { tsserver: { path: compiler } } : {}),
+          disableAutomaticTypingAcquisition: true,
+          tsserver: { path: unpackedPath(compiler) },
         },
         settings: { formattingOptions: { tabSize: 2, insertSpaces: true } },
       };
@@ -104,6 +114,20 @@ export async function resolveLanguageServer(
 ): Promise<ResolvedLanguageServer> {
   const definition = getServerProfile(key.serverId);
   const resolved = await dependencies.resolve(definition.dependencyId);
+  // A user's explicit selection wins. Automatic discovery uses the pinned bundled server;
+  // a stale/invalid selection must remain visible rather than silently changing toolchains.
+  if (
+    (resolved.success && resolved.data.source.kind === 'auto') ||
+    (!resolved.success && resolved.error.type === 'missing')
+  ) {
+    const bundled = await bundledLanguageServer(key.serverId, env);
+    if (bundled) {
+      return {
+        ...bundled,
+        ...(await definition.configure?.(key.root, env)),
+      };
+    }
+  }
   if (!resolved.success)
     throw new Error(
       `${languageServers.find((server) => server.id === key.serverId)?.name ?? key.serverId} language server is unavailable on this host. Install or select it in machine dependencies, then restart language services.`

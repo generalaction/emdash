@@ -1,5 +1,8 @@
-import { dirname } from 'node:path';
+import { mkdir, mkdtemp, rm, writeFile, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getFileMatchers } from 'app-builder-lib/out/fileMatcher';
 import { LinuxTargetHelper } from 'app-builder-lib/out/targets/LinuxTargetHelper';
 import { AppInfo, LinuxPackager, Packager } from 'electron-builder';
 import { describe, expect, it } from 'vitest';
@@ -66,3 +69,47 @@ describe('createReleaseBuildConfig', () => {
     expect(canaryConfig).toEqual(original);
   });
 });
+
+it.each([stableConfig, canaryConfig])('unpacks TypeScript and Pyright runtime assets', (config) => {
+  expect(config.extraResources).toEqual(
+    expect.arrayContaining([
+      {
+        from: 'node_modules/typescript/lib',
+        to: 'app.asar.unpacked/node_modules/typescript/lib',
+        filter: ['*.d.ts'],
+      },
+    ])
+  );
+  expect(config.asarUnpack).toEqual(
+    expect.arrayContaining([
+      'node_modules/typescript/**',
+      'node_modules/typescript-language-server/**',
+      'node_modules/pyright/**',
+    ])
+  );
+});
+
+it.each([stableConfig, canaryConfig])(
+  'preserves TypeScript standard libraries using resource filters',
+  async (config) => {
+    const root = await mkdtemp(join(tmpdir(), 'emdash-lsp-assets-'));
+    try {
+      const lib = join(root, 'node_modules/typescript/lib/lib.d.ts');
+      await mkdir(dirname(lib), { recursive: true });
+      await writeFile(lib, 'declare const example: string;');
+      const matchers = getFileMatchers(config, 'extraResources', join(root, 'resources'), {
+        defaultSrc: root,
+        macroExpander: (value) => value,
+        customBuildOptions: {},
+        globalOutDir: join(root, 'out'),
+      });
+      const matcher = matchers?.find((m) =>
+        m.to.endsWith('app.asar.unpacked/node_modules/typescript/lib')
+      );
+      expect(matcher).toBeDefined();
+      expect(matcher?.createFilter()(lib, await stat(lib))).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+);

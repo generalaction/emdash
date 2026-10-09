@@ -15,6 +15,7 @@ import {
 import { createReleaseBuildConfig } from './lib/build-config.ts';
 import { GITHUB_OWNER, GITHUB_REPO, requireEnv } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
+import { verifyLanguageServerAssets } from './lib/language-servers.ts';
 import { fail, info, step, warn } from './lib/log.ts';
 import { releaseHasOwnership } from './lib/release-ownership.ts';
 import { resolveReleaseVersion } from './lib/version.ts';
@@ -105,6 +106,8 @@ exec(`pnpm --filter @emdash/emdash-desktop deploy --legacy --prod ${deployDir}`,
   cwd: workspaceRoot,
   echo: true,
 });
+
+verifyLanguageServerAssets(deployDir);
 
 step('Copying built assets into deployment directory');
 cpSync('out', join(deployDir, 'out'), { recursive: true });

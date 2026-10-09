@@ -552,6 +552,17 @@ async function assembleArtifact(options: {
     );
   }
   await cp(runtimeNodeModules, join(artifactDirectory, 'node_modules'), { recursive: true });
+  // Servers and their standard libraries must be present without a global install.
+  await stat(join(artifactDirectory, 'node_modules/typescript-language-server/lib/cli.mjs'));
+  const compilerLib = join(artifactDirectory, 'node_modules/typescript/lib');
+  await stat(join(compilerLib, 'tsserver.js'));
+  await stat(join(compilerLib, '_tsserver.js'));
+  await stat(join(compilerLib, 'typescript.js'));
+  await stat(join(compilerLib, 'lib.d.ts'));
+  await stat(join(artifactDirectory, 'node_modules/pyright/langserver.index.js'));
+  await stat(
+    join(artifactDirectory, 'node_modules/pyright/dist/typeshed-fallback/stdlib/builtins.pyi')
+  );
 
   for (const bundleName of bundleNames) {
     await copyFile(join(appDirectory, 'dist', bundleName), join(distDirectory, bundleName));

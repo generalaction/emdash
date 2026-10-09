@@ -194,3 +194,10 @@ hosts.
 
 See `docker-remote.md` for the bare SSH container used to exercise installation and socket
 forwarding with these artifacts.
+
+The runtime-dependency manifest also pins TypeScript 6, `typescript-language-server`
+and Pyright. These JavaScript servers run with the artifact's Node executable,
+without a global language-server or Node installation. Include TypeScript's
+standard-library declarations and Pyright's type stubs as runtime data. Project
+Python/Rust/Go toolchains remain host-owned. Keep server versions in sync with
+desktop and Core production dependencies.
