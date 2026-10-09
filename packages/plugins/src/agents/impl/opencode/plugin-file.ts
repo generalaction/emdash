@@ -2,6 +2,10 @@
 export const OPENCODE_PLUGIN_CONTENT = `\
 /* global fetch, process */
 
+// Keep terminal outcomes until the next start: OpenCode can emit both idle
+// events after an error, interruption, or successful execution.
+const settledSessions = new Set();
+
 export const EmdashNotifications = async () => ({ event: handleOpenCodeEvent });
 
 export default {
@@ -32,11 +36,11 @@ async function handleOpenCodeEvent({ event }) {
   if (!port || !token || !ptyId) return;
 
   const sessionId = getOpenCodeSessionId(event);
+  const payload = toEmdashPayload(event, sessionId ?? ptyId);
   if (sessionId) {
     await postToEmdash({ port, token, ptyId, type: 'session', body: { sessionId } });
   }
 
-  const payload = toEmdashPayload(event);
   if (!payload) return;
 
   await postToEmdash({ port, token, ptyId, type: payload.type, body: payload.body });
@@ -78,37 +82,27 @@ function isOpenCodeSessionId(value) {
   return typeof value === 'string' && value.trim().startsWith('ses');
 }
 
-function toEmdashPayload(event) {
-  if (event.type === 'session.execution.started') {
+function sessionStatusType(event) {
+  const status = event.properties?.status ?? event.data?.status;
+  return typeof status?.type === 'string' ? status.type : undefined;
+}
+
+function toEmdashPayload(event, sessionId) {
+  if (event.type === 'session.deleted') {
+    settledSessions.delete(sessionId);
+    return undefined;
+  }
+
+  // Prefer session.status — reliable for custom OpenAI-compatible providers
+  // (Unbar/MiniMax/etc.) where session.execution.* may never fire.
+  const status = event.type === 'session.status' ? sessionStatusType(event) : undefined;
+  if (status === 'busy' || status === 'retry' || event.type === 'session.execution.started') {
+    settledSessions.delete(sessionId);
     return { type: 'start', body: { title: 'OpenCode' } };
   }
 
-  if (event.type === 'session.execution.succeeded') {
-    return { type: 'stop', body: { title: 'OpenCode' } };
-  }
-
-  if (event.type === 'session.execution.interrupted') {
-    return {
-      type: 'notification',
-      body: {
-        title: 'OpenCode',
-        message: 'OpenCode execution was interrupted.',
-      },
-    };
-  }
-
-  if (event.type === 'session.idle') {
-    return {
-      type: 'notification',
-      body: {
-        notification_type: 'idle_prompt',
-        title: 'OpenCode',
-        message: 'OpenCode is ready for input.',
-      },
-    };
-  }
-
   if (event.type === 'session.error' || event.type === 'session.execution.failed') {
+    settledSessions.add(sessionId);
     return {
       type: 'error',
       body: {
@@ -116,6 +110,23 @@ function toEmdashPayload(event) {
         message: getErrorMessage(event.properties?.error ?? event.data?.error),
       },
     };
+  }
+
+  if (
+    status === 'idle' ||
+    event.type === 'session.idle' ||
+    event.type === 'session.execution.succeeded' ||
+    event.type === 'session.execution.interrupted'
+  ) {
+    if (settledSessions.has(sessionId)) return undefined;
+    settledSessions.add(sessionId);
+    if (event.type === 'session.execution.interrupted') {
+      return {
+        type: 'notification',
+        body: { title: 'OpenCode', message: 'OpenCode execution was interrupted.' },
+      };
+    }
+    return { type: 'stop', body: { title: 'OpenCode' } };
   }
 
   return undefined;

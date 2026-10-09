@@ -114,6 +114,9 @@ you select an OrcaRouter model from the OpenCode model picker.
   prompt delivery. Their TUI opens without an initial prompt, and automation flows exclude them
   unless they also support ACP.
 - `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into the conversation SQLite/cache state, while `src/services/notifications/` turns deliverable agent events into the persisted notification feed, batched sound delivery, and Electron OS notifications over the desktop Wire contract.
+- OpenCode's TUI plugin remembers terminal events per provider session until work starts again.
+  Errors remain errors and interruptions return to idle; subsequent `session.status` idle,
+  `session.idle`, or execution completion events do not emit another completion notification.
 - Qwen Code hooks use the documented Qwen settings schema in `$QWEN_HOME/settings.json` (falling back to `~/.qwen/settings.json`). Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
 - Antigravity CLI installs lifecycle hooks in `~/.gemini/config/plugins/emdash/` to report
   working and completion status while preserving existing user hooks.

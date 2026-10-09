@@ -62,6 +62,30 @@ describe('TuiAgentStates', () => {
     expect(peek(agentStates.states.list)['conv-2']).toBeUndefined();
   });
 
+  it('keeps Enter→working when start hooks are declared but not active', () => {
+    const { tracker, agentStates } = createTracker();
+    const provider = {
+      hooks: {
+        kind: 'config' as const,
+        scope: 'global' as const,
+        supportedEvents: ['start' as const],
+      },
+    };
+
+    tracker.markInputSubmitted('conv-1', provider, '\r', false);
+    expect(peek(agentStates.states.list)['conv-1']).toMatchObject({
+      status: 'working',
+      source: 'input',
+    });
+
+    tracker.markInitialPromptSubmitted('conv-2', 'cursor', provider, 'hello', false);
+    expect(peek(agentStates.states.list)['conv-2']).toMatchObject({
+      status: 'working',
+      source: 'input',
+      providerId: 'cursor',
+    });
+  });
+
   it('publishes valid provider session ids through the sessions model', () => {
     const { tracker, sessions, onSessionIdChanged } = createTracker();
     produceCell(sessions.states.list, (draft) => {
@@ -139,5 +163,27 @@ describe('TuiAgentStates', () => {
     });
 
     expect(onSessionIdChanged).not.toHaveBeenCalled();
+  });
+
+  it('does not restore input-inferred working status across session resume', () => {
+    const { tracker, agentStates } = createTracker();
+
+    tracker.restore({
+      conversationId: 'conv-1',
+      providerId: 'cursor',
+      status: 'working',
+      source: 'input',
+      updatedAt: 1,
+    });
+    expect(peek(agentStates.states.list)['conv-1']?.status).toBe('idle');
+
+    tracker.restore({
+      conversationId: 'conv-2',
+      providerId: 'cursor',
+      status: 'working',
+      source: 'hook',
+      updatedAt: 1,
+    });
+    expect(peek(agentStates.states.list)['conv-2']?.status).toBe('working');
   });
 });
