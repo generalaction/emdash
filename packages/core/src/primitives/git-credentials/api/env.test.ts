@@ -66,7 +66,10 @@ function runGitCredential(action: string, env: Record<string, string>, input: st
 const gitCredentialInput = 'protocol=https\nhost=github.com\n\n';
 
 function helperEnvForPort(port: number): Record<string, string> {
-  return applyGitCredentialsToEnv({}, { ...helperSpec, channel: { ...channel, port } });
+  return applyGitCredentialsToEnv(
+    {},
+    { mode: 'effective-account', channel: { ...channel, port }, hosts: ['github.com'] }
+  );
 }
 
 function gitConfigPairs(env: Record<string, string>): [string, string][] {
