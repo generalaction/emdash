@@ -7,8 +7,12 @@ export function createIntegrationsWireController(): Controller {
   return createController(integrationsContract, {
     listProviders: () => integrationOperations.listProviders(),
     listAccounts: () => integrationOperations.listAccounts(),
-    connect: ({ integrationId, credentials, accountId, displayName }) =>
-      integrationOperations.connect(integrationId, credentials, { accountId, displayName }),
+    connect: ({ integrationId, credentials, accountId, displayName, authMethodId }) =>
+      integrationOperations.connect(integrationId, credentials, {
+        accountId,
+        displayName,
+        authMethodId,
+      }),
     disconnect: ({ integrationId, accountId }) =>
       integrationOperations.disconnect(integrationId, accountId),
     setDefaultAccount: ({ integrationId, accountId }) =>

@@ -1,7 +1,8 @@
 import { Button, Dialog, Input } from '@emdash/ui/react/primitives';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, KeyRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { IntegrationProviderDescriptor } from '@core/features/integrations/api/contract';
+import { IntegrationAuthMethodPicker } from '@core/features/integrations/contributions/browser/integration-auth-method-picker';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import {
   getIntegrationAuthUi,
@@ -91,12 +92,12 @@ function IntegrationSetupForm({
   onClose: () => void;
 }) {
   const methods = formMethods(metadata);
-  const [selectedMethodId, setSelectedMethodId] = useState(() =>
-    methods[0] ? formMethodId(methods[0], 0) : ''
+  const [selectedMethodId, setSelectedMethodId] = useState<string | null>(() =>
+    methods.length === 1 ? formMethodId(methods[0], 0) : null
   );
-  const method =
-    methods.find((candidate, index) => formMethodId(candidate, index) === selectedMethodId) ??
-    methods[0];
+  const method = methods.find(
+    (candidate, index) => formMethodId(candidate, index) === selectedMethodId
+  );
   const [accountName, setAccountName] = useState(displayName ?? '');
   const needsAccountName = metadata.auth.accountLabelRequired === true;
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -110,8 +111,6 @@ function IntegrationSetupForm({
       method.fields.every((field) => !field.required || values[field.id]?.trim()),
     [method, values, needsAccountName, accountName]
   );
-
-  if (!method) return null;
 
   const updateField = (id: string, value: string) => {
     setValues((current) => ({ ...current, [id]: value }));
@@ -131,45 +130,41 @@ function IntegrationSetupForm({
     );
   };
 
+  if (methods.length === 0) return null;
+
+  if (!method) {
+    return (
+      <IntegrationAuthMethodPicker
+        methods={methods.map((candidate, index) => ({
+          id: formMethodId(candidate, index),
+          icon: KeyRound,
+          title: candidate.label ?? `Method ${index + 1}`,
+          description: candidate.help,
+          onSelect: () => updateMethod(formMethodId(candidate, index)),
+        }))}
+        onClose={onClose}
+      />
+    );
+  }
+
   return (
     <SetupFormShell
       providerId={integration}
-      getInput={() => {
-        const input = Object.fromEntries(
-          method.fields.map((field) => [field.id, values[field.id]?.trim() ?? ''])
-        );
-        return methods.length > 1 && method.id ? { ...input, authMethod: method.id } : input;
-      }}
+      getInput={() =>
+        Object.fromEntries(method.fields.map((field) => [field.id, values[field.id]?.trim() ?? '']))
+      }
       getConnectionOptions={() => ({
         accountId,
+        ...(method.id ? { authMethodId: method.id } : {}),
         ...(needsAccountName ? { displayName: accountName.trim() } : {}),
       })}
       reconnect={accountId !== undefined}
       canSubmit={canSubmit}
       onSuccess={onSuccess}
       onClose={onClose}
+      onBack={methods.length > 1 ? () => setSelectedMethodId(null) : undefined}
     >
       <div className="grid gap-3">
-        {methods.length > 1 ? (
-          <div className="grid gap-1.5">
-            <label htmlFor="integration-auth-method" className="text-xs text-foreground-muted">
-              Authentication method
-            </label>
-            <select
-              id="integration-auth-method"
-              aria-label="Authentication method"
-              value={selectedMethodId}
-              onChange={(event) => updateMethod(event.target.value)}
-              className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-            >
-              {methods.map((candidate, index) => (
-                <option key={formMethodId(candidate, index)} value={formMethodId(candidate, index)}>
-                  {candidate.label ?? `Method ${index + 1}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
         {needsAccountName ? (
           <div className="grid gap-1.5">
             <Input
@@ -189,6 +184,7 @@ function IntegrationSetupForm({
           <div key={field.id} className="grid gap-1.5">
             <Input
               id={`integration-field-${field.id}`}
+              aria-label={field.label}
               type={field.secret ? 'password' : 'text'}
               placeholder={`${field.placeholder ?? field.label}${field.required ? ' *' : ''}`}
               value={values[field.id] ?? ''}

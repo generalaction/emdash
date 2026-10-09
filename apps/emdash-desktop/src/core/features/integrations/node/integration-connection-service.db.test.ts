@@ -74,6 +74,41 @@ describe('IntegrationConnectionService account identity', () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
+  it('passes a selected method separately and persists only the plugin output', async () => {
+    const supplied = { siteUrl: 'https://example.atlassian.net', accessToken: 'oauth-token' };
+    const canonical = { ...supplied, authMethod: 'bearer', cloudId: 'cloud-1' };
+    verify.mockResolvedValue({
+      connected: true,
+      account: { id: 'account-1', host: 'example.atlassian.net' },
+      credentials: canonical,
+    });
+    const result = await service.connect('jira', supplied, { authMethodId: 'bearer' });
+    if (!result.success) throw new Error(result.error);
+
+    expect(verify).toHaveBeenCalledWith(
+      expect.objectContaining({ log: expect.anything() }),
+      supplied,
+      'bearer'
+    );
+    expect((await credentials.getAccount('jira', result.accountId))?.credentials).toEqual(
+      canonical
+    );
+  });
+
+  it.each([undefined, 'unknown'])(
+    'rejects an ambiguous or invalid method selection: %s',
+    async (authMethodId) => {
+      const result = await service.connect(
+        'jira',
+        { accessToken: 'oauth-token' },
+        { authMethodId }
+      );
+      expect(result).toEqual({ success: false, error: 'Select a valid authentication method.' });
+      expect(verify).not.toHaveBeenCalled();
+      expect(accountsChanged).not.toHaveBeenCalled();
+    }
+  );
+
   it('does not publish a connection before credential persistence succeeds', async () => {
     vi.spyOn(credentials, 'upsertAccount').mockRejectedValueOnce(
       new Error('Secret store unavailable')
