@@ -393,6 +393,7 @@ export async function bootServices(
     sessions: taskSessionManager,
     workspacePlacement,
     runtimes,
+    getTaskSettings: () => appSettingsService.get('tasks'),
     lifecycleParticipants,
     sessionLaunchContexts,
     createConversationProvider,

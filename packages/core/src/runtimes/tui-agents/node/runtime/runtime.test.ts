@@ -24,7 +24,12 @@ import {
   mapContainer,
   type LeakCheckContainer,
 } from '#services/session-lifecycle/node/testing';
-import type { PromptSpillResult } from './prompt-spill';
+import {
+  buildPromptPointerMessage,
+  MAX_INLINE_PROMPT_CHARS,
+  spillLargePrompt,
+  type PromptSpillResult,
+} from './prompt-spill';
 import { TuiAgentsRuntime } from './runtime';
 
 function createRuntime(
@@ -35,6 +40,7 @@ function createRuntime(
     intents?: ReturnType<typeof createMemorySessionIntentStore>;
     conversationReports?: ConversationLifecycleReporter;
     hooks?: ResolvedTuiProvider['hooks'];
+    prompt?: ResolvedTuiProvider['prompt'];
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
     platform?: NodeJS.Platform;
@@ -48,7 +54,7 @@ function createRuntime(
   const hooks = options.hooks ?? { kind: 'none' as const };
   const provider: ResolvedTuiProvider = {
     name: 'Test Agent',
-    prompt: { kind: 'argv' },
+    prompt: options.prompt ?? { kind: 'argv' },
     hooks,
     buildCommand: () => ({ command: 'agent', args: ['run'], env: {} }),
   };
@@ -112,6 +118,260 @@ function startInput(overrides: Partial<TuiAgentStartInput> = {}): TuiAgentStartI
 }
 
 describe('TuiAgentsRuntime', () => {
+  it.each(['linux', 'darwin', 'win32'] as const)(
+    'delivers naming instructions using %s environment references and persists hook feedback',
+    async (platform) => {
+      const intents = createMemorySessionIntentStore();
+      const { runtime, spawner, agentHost } = createRuntime({
+        platform,
+        intents,
+        hooks: { kind: 'config', scope: 'global', supportedEvents: ['stop'] },
+      });
+      const input = startInput({ nameTaskWithAgent: true });
+      try {
+        await expect(runtime.startSession(input)).resolves.toEqual(ok({ outcome: 'started' }));
+        const prompt = vi.mocked(agentHost.buildPromptCommand).mock.calls[0]?.[1].initialPrompt;
+        const env = spawner.specs[0]!.env;
+        expect(prompt).toContain('hello\n\nBefore starting work');
+        expect(prompt).toContain('at most five words');
+        expect(prompt).toContain('x-emdash-event-type');
+        expect(prompt).toContain('task-name');
+        expect(prompt).toContain('EMDASH_HOOK_PORT');
+        expect(prompt).toContain('EMDASH_HOOK_TOKEN');
+        expect(prompt).toContain('EMDASH_PTY_ID');
+        expect(prompt).not.toContain(env.EMDASH_HOOK_TOKEN);
+        expect(prompt).not.toContain(`127.0.0.1:${env.EMDASH_HOOK_PORT}`);
+        expect(prompt).not.toContain(input.conversationId);
+        if (platform === 'win32') {
+          expect(prompt).toContain('Invoke-RestMethod -Method Post -TimeoutSec 10');
+          expect(prompt).toContain('$env:EMDASH_HOOK_TOKEN');
+          expect(prompt).toContain("name = 'NAME'");
+          expect(prompt).toContain('ConvertTo-Json');
+        } else {
+          expect(prompt).toContain('curl --fail --silent --show-error --max-time 10');
+          expect(prompt).toContain('$EMDASH_HOOK_TOKEN');
+          expect(prompt).toContain('{"name":"NAME"}');
+        }
+        expect(input.initialPrompt).toBe('hello');
+        expect(runtime['configs'].get(input.conversationId)?.input.initialPrompt).toBe('hello');
+
+        const previous = peek(runtime.agentStatesLiveModel.get(undefined)!.states.list)[
+          input.conversationId
+        ];
+        const response = await fetch(`http://127.0.0.1:${env.EMDASH_HOOK_PORT}/hook`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(5_000),
+          headers: {
+            'Content-Type': 'application/json',
+            'x-emdash-token': env.EMDASH_HOOK_TOKEN!,
+            'x-emdash-pty-id': env.EMDASH_PTY_ID!,
+            'x-emdash-event-type': 'task-name',
+          },
+          body: JSON.stringify({ name: 'Fix login' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          peek(runtime.agentStatesLiveModel.get(undefined)!.states.list)[input.conversationId]
+        ).toMatchObject({ ...previous, taskName: 'Fix login', updatedAt: expect.any(Number) });
+        await vi.waitFor(() => {
+          expect(intents.snapshot()[0]?.payload).toMatchObject({
+            nameTaskWithAgent: true,
+            lastAgentState: { taskName: 'Fix login' },
+          });
+        });
+        expect(intents.snapshot()[0]?.payload).not.toHaveProperty('initialPrompt');
+      } finally {
+        await runtime.dispose();
+      }
+    }
+  );
+
+  it.each([undefined, '', ' \t\n'])(
+    'defers naming until the first real user work request when initialPrompt=%j',
+    async (initialPrompt) => {
+      const { runtime, spawner, agentHost } = createRuntime({
+        hooks: { kind: 'config', scope: 'global', supportedEvents: ['stop'] },
+      });
+      const input = startInput({ nameTaskWithAgent: true, initialPrompt });
+      try {
+        await expect(runtime.startSession(input)).resolves.toEqual(ok({ outcome: 'started' }));
+        const prompt = vi.mocked(agentHost.buildPromptCommand).mock.calls[0]?.[1].initialPrompt;
+        const env = spawner.specs[0]!.env;
+        expect(prompt).toContain('wait for the first real user work request');
+        expect(prompt).toContain('name the task from that request before beginning it');
+        expect(prompt).toContain('Do not invent a generic name or start unrelated work');
+        expect(prompt).toContain(
+          'If naming is unavailable or blocked, continue the user’s work without renaming; ' +
+            'do not retry or request extra permissions for naming.'
+        );
+        expect(prompt).toContain('EMDASH_HOOK_TOKEN');
+        expect(prompt).toContain('EMDASH_PTY_ID');
+        expect(prompt).not.toContain(env.EMDASH_HOOK_TOKEN);
+        expect(prompt).not.toContain(`127.0.0.1:${env.EMDASH_HOOK_PORT}`);
+        expect(prompt).not.toContain(input.conversationId);
+        expect(input.initialPrompt).toBe(initialPrompt);
+        expect(runtime['configs'].get(input.conversationId)?.input.initialPrompt).toBe(
+          initialPrompt
+        );
+      } finally {
+        await runtime.dispose();
+      }
+    }
+  );
+
+  it.each([MAX_INLINE_PROMPT_CHARS - 100, MAX_INLINE_PROMPT_CHARS + 100])(
+    'spills a naming-enabled %i-character prompt while retaining its task context',
+    async (length) => {
+      const directory = '/host/tmp/emdash-tui-naming';
+      const filePath = `${directory}/task-context.md`;
+      const writeContextFile = vi.fn(async () => undefined);
+      const removeTempDir = vi.fn(async () => undefined);
+      const spillPrompt = vi.fn((prompt: string) =>
+        spillLargePrompt(prompt, {
+          createTempDir: async () => directory,
+          writeContextFile,
+          removeTempDir,
+        })
+      );
+      const { runtime, agentHost } = createRuntime({
+        spillPrompt,
+        hooks: { kind: 'config', scope: 'global', supportedEvents: ['stop'] },
+      });
+      const input = startInput({ nameTaskWithAgent: true, initialPrompt: 'x'.repeat(length) });
+      try {
+        await expect(runtime.startSession(input)).resolves.toEqual(ok({ outcome: 'started' }));
+
+        expect(spillPrompt).toHaveBeenCalledTimes(2);
+        const firstPrepared = await spillPrompt.mock.results[0]!.value;
+        const augmentedPrompt = spillPrompt.mock.calls[1]![0];
+        const delivered = vi.mocked(agentHost.buildPromptCommand).mock.calls[0]?.[1].initialPrompt;
+        expect(augmentedPrompt).toContain('Before starting work');
+        expect(augmentedPrompt.startsWith(firstPrepared.prompt)).toBe(true);
+        expect(delivered!.length).toBeLessThanOrEqual(MAX_INLINE_PROMPT_CHARS);
+        if (length < MAX_INLINE_PROMPT_CHARS) {
+          expect(writeContextFile).toHaveBeenCalledExactlyOnceWith(filePath, augmentedPrompt);
+          expect(delivered).toBe(buildPromptPointerMessage(filePath));
+        } else {
+          expect(writeContextFile).toHaveBeenCalledExactlyOnceWith(filePath, input.initialPrompt);
+          expect(delivered).toBe(augmentedPrompt);
+        }
+        expect(removeTempDir).not.toHaveBeenCalled();
+        expect(runtime['configs'].get(input.conversationId)?.input.initialPrompt).toBe(
+          firstPrepared.prompt
+        );
+        expect(input.initialPrompt).toBe('x'.repeat(length));
+      } finally {
+        await runtime.dispose();
+      }
+      expect(removeTempDir).toHaveBeenCalledExactlyOnceWith(directory);
+    }
+  );
+
+  it.each([
+    { label: 'flag absent', input: { nameTaskWithAgent: undefined }, hooksSupported: true },
+    { label: 'flag disabled', input: { nameTaskWithAgent: false }, hooksSupported: true },
+    { label: 'hooks unsupported', input: {}, hooksSupported: false },
+    {
+      label: 'hooks unsupported with blank prompt',
+      input: { initialPrompt: ' \t\n' },
+      hooksSupported: false,
+    },
+    { label: 'hook endpoint unavailable', input: {}, hooksSupported: true, endpointFails: true },
+  ])('keeps the startup prompt unchanged when $label', async (testCase) => {
+    const { runtime, agentHost } = createRuntime({
+      hooks: testCase.hooksSupported
+        ? { kind: 'config', scope: 'global', supportedEvents: ['stop'] }
+        : { kind: 'none' },
+    });
+    if ('endpointFails' in testCase && testCase.endpointFails) {
+      vi.spyOn(runtime['hookServer'], 'ensureStarted').mockRejectedValue(new Error('unavailable'));
+    }
+    const input = startInput({ nameTaskWithAgent: true, ...testCase.input });
+    try {
+      await expect(runtime.startSession(input)).resolves.toEqual(ok({ outcome: 'started' }));
+      expect(agentHost.buildPromptCommand).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({ initialPrompt: input.initialPrompt })
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('starts a pty-only provider unchanged when hooks and naming are enabled', async () => {
+    const { runtime, spawner, agentHost } = createRuntime({
+      prompt: { kind: 'pty-only' },
+      hooks: { kind: 'config', scope: 'global', supportedEvents: ['stop'] },
+      args: ['run'],
+    });
+    try {
+      await expect(
+        runtime.startSession(startInput({ nameTaskWithAgent: true, initialPrompt: undefined }))
+      ).resolves.toEqual(ok({ outcome: 'started' }));
+
+      expect(agentHost.buildPromptCommand).toHaveBeenCalledExactlyOnceWith(
+        'test',
+        expect.objectContaining({ isResuming: false, initialPrompt: undefined })
+      );
+      expect(spawner.specs).toHaveLength(1);
+      expect(spawner.specs[0]).toMatchObject({
+        invocation: { kind: 'argv', executable: 'agent', argv: ['run'] },
+        env: { EMDASH_HOOK_TOKEN: expect.any(String) },
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it.each([null, 'provider-session'])(
+    'does not request naming on resume or its fresh fallback with sessionId=%s',
+    async (sessionId) => {
+      const { runtime, spawner, agentHost } = createRuntime({
+        hooks: { kind: 'config', scope: 'global', supportedEvents: ['stop'] },
+      });
+      try {
+        await runtime.resumeSession(startInput({ nameTaskWithAgent: true, sessionId }));
+        expect(agentHost.buildPromptCommand).toHaveBeenNthCalledWith(
+          1,
+          'test',
+          expect.objectContaining({ initialPrompt: sessionId ? undefined : 'hello' })
+        );
+        if (sessionId) {
+          spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+          await vi.waitFor(() => expect(spawner.specs).toHaveLength(2));
+          expect(agentHost.buildPromptCommand).toHaveBeenLastCalledWith(
+            'test',
+            expect.objectContaining({ initialPrompt: 'hello' })
+          );
+        }
+      } finally {
+        await runtime.dispose();
+      }
+    }
+  );
+
+  it('does not request naming again on an automatic fresh respawn', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { runtime, spawner, agentHost } = createRuntime({
+      hooks: { kind: 'config', scope: 'global', supportedEvents: ['stop'] },
+    });
+    try {
+      await runtime.startSession(startInput({ nameTaskWithAgent: true }));
+      spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawner.specs).toHaveLength(2);
+      expect(agentHost.buildPromptCommand).toHaveBeenLastCalledWith(
+        'test',
+        expect.objectContaining({ isResuming: false, initialPrompt: 'hello' })
+      );
+    } finally {
+      await runtime.dispose();
+      vi.useRealTimers();
+    }
+  });
+
   it.each(['fresh', 'resume'] as const)(
     'recovers a %s launch using the session id captured after switching sessions',
     async (mode) => {

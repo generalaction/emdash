@@ -7,7 +7,7 @@ import type { PullRequest } from '@core/services/pull-requests/api';
 import { buildFinalPrompt } from './initial-conversation-text';
 import type { LinkedType } from './use-create-task-state';
 
-function buildInitialQueue(state: InitialConversationState) {
+function buildInitialQueue(state: InitialConversationState, autoNameWithAgent: boolean) {
   const text = state.prompt.trim();
   if (!text) return undefined;
 
@@ -22,6 +22,12 @@ function buildInitialQueue(state: InitialConversationState) {
     if (context?.trim()) hiddenContextParts.push(context.trim());
   }
 
+  if (autoNameWithAgent) {
+    hiddenContextParts.push(
+      'Use a concise conversation title describing this work in no more than five words.'
+    );
+  }
+
   const hiddenContext = hiddenContextParts.join('\n\n').trim();
   return [
     {
@@ -32,7 +38,8 @@ function buildInitialQueue(state: InitialConversationState) {
 }
 
 export function buildInitialConversation(
-  state: InitialConversationState
+  state: InitialConversationState,
+  autoNameWithAgent = false
 ): NonNullable<TaskConfig['initialConversation']> | undefined {
   const { provider } = state;
   if (!provider) return undefined;
@@ -43,7 +50,7 @@ export function buildInitialConversation(
     provider,
     title: nextDefaultConversationTitle(provider, []),
     ...(type === 'acp'
-      ? { initialQueue: buildInitialQueue(state) }
+      ? { initialQueue: buildInitialQueue(state, autoNameWithAgent) }
       : state.initialPromptSupported
         ? { initialPrompt: buildFinalPrompt(state.issueContext, state.prompt) }
         : {}),

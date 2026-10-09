@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   cacheSignal: vi.fn(async () => {}),
   loadActiveIds: vi.fn(async (_host: HostRef) => [] as string[]),
   resetToIdle: vi.fn(async () => {}),
+  nameTask: vi.fn(async (_conversationId: string, _title: string) => {}),
 }));
 
 vi.mock('./agent-status-service', () => ({
@@ -40,6 +41,23 @@ vi.mock('@main/lib/logger', () => ({ log: { warn: vi.fn() } }));
 describe('TuiAgentStatusBridge', () => {
   beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockClear();
+  });
+
+  it('delivers an explicit task name without treating notification titles as task names', async () => {
+    const runtime = createRuntime({
+      initial: { ...state('initial', 'working'), title: 'Permission required' },
+    });
+    const fixture = createBridge(new Map([[formatHostRef(LOCAL_HOST_REF), runtime]]));
+    await fixture.bridge.attachHost(LOCAL_HOST_REF);
+    expect(mocks.nameTask).not.toHaveBeenCalled();
+
+    runtime.agentStates.model.states.list.set({
+      initial: { ...state('initial', 'working'), taskName: 'Fix login timeout' },
+    });
+    await vi.waitFor(() =>
+      expect(mocks.nameTask).toHaveBeenCalledWith('initial', 'Fix login timeout')
+    );
+    await fixture.dispose();
   });
 
   it('attaches per host, caches bootstrap state, and drops detached host state', async () => {
@@ -126,6 +144,7 @@ function createBridge(runtimes: Map<string, ReturnType<typeof createRuntime>>) {
       };
     },
     loadActiveConversationIds: mocks.loadActiveIds,
+    nameTaskFromConversation: mocks.nameTask,
   });
   return {
     bridge,

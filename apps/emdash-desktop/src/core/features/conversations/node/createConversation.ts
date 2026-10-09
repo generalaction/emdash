@@ -4,8 +4,9 @@ import {
   type HostRef,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { conversationWireEvents } from '@core/features/conversations/api/node';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import {
@@ -32,7 +33,8 @@ import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
 import { launchTuiConversation } from './launch-tui-conversation';
 
-type ConversationCreateDb = Pick<AppDb, 'delete' | 'insert' | 'select' | 'update'>;
+type ConversationCreateDb = Pick<AppDb, 'delete' | 'insert' | 'select' | 'update' | 'transaction'>;
+const creationMutex = new KeyedMutex();
 
 export type CompensationRunner = <T>(options: {
   action: () => Promise<T>;
@@ -45,6 +47,16 @@ export type ConversationWorkspaceIdentityResolver = Readonly<{
 }>;
 
 export async function createConversation(
+  params: CreateConversationParams,
+  dependencies: Parameters<typeof createConversationUnlocked>[1]
+): Promise<Conversation> {
+  // Creation and its compensation must finish before another conversation claims the first name.
+  return creationMutex.runExclusive(params.taskId, () =>
+    createConversationUnlocked(params, dependencies)
+  );
+}
+
+async function createConversationUnlocked(
   params: CreateConversationParams,
   dependencies: {
     db: ConversationCreateDb;
@@ -65,7 +77,10 @@ export async function createConversation(
     .limit(1);
 
   const [taskRow] = await database
-    .select({ workspaceId: tasks.workspaceId })
+    .select({
+      workspaceId: tasks.workspaceId,
+      autoNameConversationId: tasks.autoNameConversationId,
+    })
     .from(tasks)
     .where(eq(tasks.id, params.taskId))
     .limit(1);
@@ -88,6 +103,7 @@ export async function createConversation(
   }
 
   const conversationType = params.type ?? 'pty';
+  const bindTaskName = !existingConversation && taskRow?.autoNameConversationId === '';
 
   const initialQueue = params.initialQueue?.filter((prompt) => prompt.text.trim());
   const configObj: ConversationConfig =
@@ -133,24 +149,43 @@ export async function createConversation(
   const isRemote = identity.host.type === 'remote';
   let row: typeof conversations.$inferSelect;
   try {
-    row = registry.register({
-      id,
-      projectId: params.projectId,
-      taskId: params.taskId,
-      title: params.title,
-      provider: params.provider,
-      config,
-      // Null means this conversation has not successfully spawned yet. PTY placeholder
-      // ids and ACP/native provider ids are written only after their session exists.
-      providerSessionId: null,
-      isInitialConversation: params.isInitialConversation ?? false,
-      type: conversationType,
-      lastSessionActivityAt: new Date().toISOString(),
-      cwd: identity.path,
-      workspacePath: identity.path,
-      idRegime: conversationIdRegimeFor(conversationType),
-      location: isRemote ? 'remote' : 'local',
-      sshConnectionId: isRemote ? identity.host.id : null,
+    row = database.transaction((tx) => {
+      const registeredRow = registry.register(
+        {
+          id,
+          projectId: params.projectId,
+          taskId: params.taskId,
+          title: params.title,
+          provider: params.provider,
+          config,
+          // Null means this conversation has not successfully spawned yet. PTY placeholder
+          // ids and ACP/native provider ids are written only after their session exists.
+          providerSessionId: null,
+          isInitialConversation: params.isInitialConversation ?? false,
+          type: conversationType,
+          lastSessionActivityAt: new Date().toISOString(),
+          cwd: identity.path,
+          workspacePath: identity.path,
+          idRegime: conversationIdRegimeFor(conversationType),
+          location: isRemote ? 'remote' : 'local',
+          sshConnectionId: isRemote ? identity.host.id : null,
+        },
+        tx
+      );
+      if (bindTaskName) {
+        tx.update(tasks)
+          .set({ autoNameConversationId: id })
+          .where(
+            and(
+              eq(tasks.id, params.taskId),
+              eq(tasks.projectId, params.projectId),
+              eq(tasks.autoNameConversationId, ''),
+              isNull(tasks.deletedAt)
+            )
+          )
+          .run();
+      }
+      return registeredRow;
     });
   } catch (error) {
     await compensateHostRecord();
@@ -176,8 +211,16 @@ export async function createConversation(
           taskSessions: dependencies.taskSessions,
         }),
       compensate: async () => {
-        registry.untrack([row.id], new Date().toISOString());
-        registry.purge([row.id]);
+        database.transaction((tx) => {
+          registry.untrack([row.id], new Date().toISOString(), tx);
+          registry.purge([row.id], tx);
+          if (bindTaskName) {
+            tx.update(tasks)
+              .set({ autoNameConversationId: '' })
+              .where(and(eq(tasks.id, params.taskId), eq(tasks.autoNameConversationId, id)))
+              .run();
+          }
+        });
         await compensateHostRecord();
       },
       onCompensationError: (error) => {

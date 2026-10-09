@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   cacheSignal: vi.fn(async () => {}),
   loadActiveIds: vi.fn(async (_host: HostRef) => [] as string[]),
   resetToIdle: vi.fn(async () => {}),
+  nameTask: vi.fn(async (_conversationId: string, _title: string) => {}),
 }));
 
 vi.mock('@main/core/agent-status/agent-status-service', () => ({
@@ -34,6 +35,38 @@ vi.mock('@main/lib/logger', () => ({ log: { warn: vi.fn() } }));
 describe('AcpAgentStatusBridge', () => {
   beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockClear();
+  });
+
+  it('delivers initial and changed provider titles through the task naming seam', async () => {
+    const runtime = createRuntime({
+      initial: { ...summary('initial', 'working'), title: 'Fix login timeout' },
+    });
+    const fixture = createBridge(new Map([[formatHostRef(LOCAL_HOST_REF), runtime]]));
+    await fixture.bridge.attachHost(LOCAL_HOST_REF);
+    expect(mocks.nameTask).toHaveBeenCalledWith('initial', 'Fix login timeout');
+
+    runtime.host.model.states.list.set({
+      initial: { ...summary('initial', 'ready'), title: 'Fix login timeout' },
+    });
+    await Promise.resolve();
+    expect(mocks.nameTask).toHaveBeenCalledTimes(1);
+    await fixture.dispose();
+  });
+
+  it('waits for a work title instead of naming from session creation metadata', async () => {
+    const runtime = createRuntime({
+      initial: { ...summary('initial', 'ready'), lastStopReason: null, title: 'New session' },
+    });
+    const fixture = createBridge(new Map([[formatHostRef(LOCAL_HOST_REF), runtime]]));
+    await fixture.bridge.attachHost(LOCAL_HOST_REF);
+    expect(mocks.nameTask).not.toHaveBeenCalled();
+    runtime.host.model.states.list.set({
+      initial: { ...summary('initial', 'working'), title: 'Fix login timeout' },
+    });
+    await vi.waitFor(() =>
+      expect(mocks.nameTask).toHaveBeenCalledWith('initial', 'Fix login timeout')
+    );
+    await fixture.dispose();
   });
 
   it('attaches per host, caches bootstrap state, and sweeps only that host', async () => {
@@ -129,6 +162,7 @@ function createBridge(runtimes: Map<string, ReturnType<typeof createRuntime>>) {
     },
     loadActiveConversationIds: mocks.loadActiveIds,
     renameConversation: vi.fn(async () => {}),
+    nameTaskFromConversation: mocks.nameTask,
   });
   return {
     bridge,

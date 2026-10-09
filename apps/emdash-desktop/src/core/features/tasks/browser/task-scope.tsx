@@ -2,6 +2,7 @@ import { toast } from '@emdash/ui/react/primitives';
 import { useLayoutEffect, type ReactNode } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
 import type { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
+import { getAcpTabStore } from '@core/features/conversations/api/browser/chat/acp-tab-store';
 import {
   runGitFetch,
   runGitPublishCurrentBranch,
@@ -57,6 +58,13 @@ function activeBrowser(params: TaskScopeParams) {
   };
 }
 
+function activeChat(params: TaskScopeParams) {
+  const tab = getTaskComposition(params.projectId, params.taskId)?.activePane?.resolvedTabs.find(
+    (candidate) => candidate.isActive && candidate.kind === 'acp-chat'
+  );
+  return getAcpTabStore(tab?.resource);
+}
+
 async function createConversation(params: TaskScopeParams, target?: 'right'): Promise<void> {
   const outcome = await openModal('createConversationModal', params);
   if (!outcome.success) return;
@@ -71,6 +79,15 @@ async function createConversation(params: TaskScopeParams, target?: 'right'): Pr
 }
 
 const taskScopeImplementation = {
+  'task.nameWithAgent': (params) => ({
+    availability: () =>
+      taskAvailability(
+        params,
+        () => Boolean(activeChat(params)?.liveActionsEnabled),
+        'Open a connected Chat UI conversation'
+      ),
+    execute: () => activeChat(params)?.submitPrompt('/rename-task'),
+  }),
   'task.newConversation': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {

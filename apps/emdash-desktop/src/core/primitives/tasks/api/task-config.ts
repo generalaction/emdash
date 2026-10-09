@@ -11,6 +11,7 @@ const initialQueuePromptSchema = z.object({
 const v1Schema = z.object({
   version: z.literal('1'),
   name: z.string(),
+  autoNameWithAgent: z.boolean().optional(),
   linkedIssue: linkedIssue.asNested().optional(),
   initialConversation: z
     .object({

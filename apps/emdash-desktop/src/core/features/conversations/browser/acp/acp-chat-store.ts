@@ -27,6 +27,10 @@ import {
 import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
 import {
+  isTaskNamingCommand,
+  withTaskNamingCommands,
+} from '@core/features/conversations/api/browser/chat/task-naming-commands';
+import {
   getConversationsClient,
   type ConversationsClient,
 } from '@core/features/conversations/api/browser/client';
@@ -39,6 +43,7 @@ import {
 import { conversationSubject } from '@core/features/conversations/contributions/subject';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
+import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import {
@@ -256,12 +261,7 @@ export class AcpChatStore {
   }
 
   get commands(): CommandItem[] {
-    return (this.session?.config.current().availableCommands ?? []).map((command) => ({
-      id: command.name,
-      name: command.name,
-      description: command.description,
-      behavior: 'insert',
-    }));
+    return withTaskNamingCommands(this.session?.config.current().availableCommands ?? []);
   }
 
   get mcpServers(): SessionMcpServer[] {
@@ -422,6 +422,18 @@ export class AcpChatStore {
       this.loadError?.kind === 'session_not_found'
     )
       return;
+    if (isTaskNamingCommand(text, this.session?.config.current().availableCommands ?? [])) {
+      if (!this.liveActionsEnabled) return;
+      if (attachments.length > 0 || this.draftAttachments.length > 0) {
+        this._toastError(
+          'Failed to name task',
+          new Error('Remove attachments before requesting a task name.')
+        );
+        return;
+      }
+      void this._requestTaskName(text, ++this._submissionSequence);
+      return;
+    }
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     const submissionSequence = ++this._submissionSequence;
     const promptId = crypto.randomUUID();
@@ -764,6 +776,34 @@ export class AcpChatStore {
 
   private _queuedPromptModels(): QueuedPrompt[] {
     return this.session?.sessionState.current().queuedPrompts ?? [];
+  }
+
+  private async _requestTaskName(text: string, submissionSequence: number): Promise<void> {
+    try {
+      const client = await getTasksWireClient();
+      if (this._disposed || !this.liveActionsEnabled) return;
+      const result = await client.requestTaskName({
+        projectId: this.projectId,
+        taskId: this.taskId,
+        conversationId: this.conversationId,
+      });
+      if (this._disposed) return;
+      if (!result.success) {
+        this._toastError('Failed to name task', new Error(result.error.message));
+        return;
+      }
+      runInAction(() => {
+        if (
+          submissionSequence !== this._submissionSequence ||
+          this.draftText !== text ||
+          this.draftAttachments.length > 0
+        )
+          return;
+        this.composerModel.clear();
+      });
+    } catch (error) {
+      if (!this._disposed) this._toastError('Failed to name task', error);
+    }
   }
 
   private async _submitPrompt(

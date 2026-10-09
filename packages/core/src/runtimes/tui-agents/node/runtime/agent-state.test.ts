@@ -1,5 +1,6 @@
 import { peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
+import type { TuiAgentState } from '#runtimes/tui-agents/api';
 import {
   createTuiAgentStatesLiveModel,
   createTuiAgentStatesListModel,
@@ -27,6 +28,84 @@ function createTracker() {
 }
 
 describe('TuiAgentStates', () => {
+  it.each(['idle', 'working', 'awaiting-input', 'error', 'completed'] as const)(
+    'publishes a task name without changing existing %s state fields',
+    (status) => {
+      const { tracker, agentStates, onAgentStateChanged } = createTracker();
+      const previous: TuiAgentState = {
+        conversationId: 'conv-1',
+        providerId: 'codex',
+        status,
+        source: 'hook',
+        notificationType: 'permission_prompt',
+        title: 'Permission required',
+        message: 'Approve command',
+        lastAssistantMessage: 'I need permission',
+        updatedAt: 500,
+      };
+      tracker.restore(previous);
+
+      tracker.setTaskName('conv-1', 'Fix login');
+
+      const expected = { ...previous, taskName: 'Fix login', updatedAt: 1_000 };
+      expect(peek(agentStates.states.list)['conv-1']).toEqual(expected);
+      expect(onAgentStateChanged).toHaveBeenCalledExactlyOnceWith('conv-1', expected);
+    }
+  );
+
+  it('creates neutral naming state before the first provider status event', () => {
+    const { tracker, agentStates, onAgentStateChanged } = createTracker();
+
+    tracker.setTaskName('conv-1', 'Fix login');
+
+    const expected = {
+      conversationId: 'conv-1',
+      status: 'idle',
+      taskName: 'Fix login',
+      updatedAt: 1_000,
+    };
+    expect(peek(agentStates.states.list)['conv-1']).toEqual(expected);
+    expect(onAgentStateChanged).toHaveBeenCalledExactlyOnceWith('conv-1', expected);
+  });
+
+  it('preserves taskName through hook, input, and idle status updates', () => {
+    const { tracker, agentStates } = createTracker();
+    tracker.setTaskName('conv-1', 'Fix login');
+
+    tracker.applyCanonicalEvent('conv-1', 'codex', {
+      kind: 'status',
+      type: 'stop',
+      lastAssistantMessage: 'Done',
+    });
+    expect(peek(agentStates.states.list)['conv-1']).toMatchObject({
+      taskName: 'Fix login',
+      status: 'completed',
+      lastAssistantMessage: 'Done',
+    });
+
+    tracker.markInputSubmitted('conv-1', { hooks: { kind: 'none' } }, '\r');
+    expect(peek(agentStates.states.list)['conv-1']).toMatchObject({
+      taskName: 'Fix login',
+      status: 'working',
+      source: 'input',
+    });
+
+    tracker.resetToIdle('conv-1');
+    expect(peek(agentStates.states.list)['conv-1']).toMatchObject({
+      taskName: 'Fix login',
+      status: 'idle',
+    });
+  });
+
+  it('does not publish the same task name twice', () => {
+    const { tracker, onAgentStateChanged } = createTracker();
+
+    tracker.setTaskName('conv-1', 'Fix login');
+    tracker.setTaskName('conv-1', 'Fix login');
+
+    expect(onAgentStateChanged).toHaveBeenCalledTimes(1);
+  });
+
   it('maps canonical status hook events to agent state', () => {
     const { tracker, agentStates } = createTracker();
 

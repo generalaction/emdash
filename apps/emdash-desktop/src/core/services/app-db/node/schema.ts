@@ -159,6 +159,8 @@ export const tasks = sqliteTable(
       .references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     status: text('status').notNull(),
+    /** Null: ineligible; empty: awaiting the first conversation; id: allowed to name once. */
+    autoNameConversationId: text('auto_name_conversation_id'),
     sourceBranch: text('source_branch').$type<StoredBranch>(), // @deprecated — moved to workspaces.config (git.fromBranch)
     taskBranch: text('task_branch'), // @deprecated — use workspaces.config for provisioned branch identity
     linkedIssue: versionedJsonColumn(linkedIssue)('linked_issue'),

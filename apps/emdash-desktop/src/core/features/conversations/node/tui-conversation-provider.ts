@@ -13,6 +13,7 @@ import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { tasks } from '@core/services/app-db/node/schema';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 const DEFAULT_COLS = 80;
@@ -41,7 +42,7 @@ export type TuiConversationProviderOptions = {
 export type TuiConversationProviderDependencies = {
   db: AppDb;
   getProviderConfig(providerId: string): Promise<ProviderCustomConfig | undefined>;
-  getTaskSettings(): Promise<{ autoTrustWorktrees: boolean }>;
+  getTaskSettings(): Promise<{ autoTrustWorktrees: boolean; autoNameWithAgent?: boolean }>;
   getTerminalColorEnv(): Promise<Record<string, string>>;
   /**
    * Per-session git credential behavior from the project's "agent git
@@ -132,9 +133,7 @@ export class TuiConversationProvider implements ConversationProvider {
     const [providerConfig, taskSettings, colorEnv, launchContext, gitCredentials] =
       await Promise.all([
         this.dependencies.getProviderConfig(conversation.providerId),
-        conversation.autoApprove === true
-          ? Promise.resolve(undefined)
-          : this.dependencies.getTaskSettings(),
+        this.dependencies.getTaskSettings(),
         this.dependencies.getTerminalColorEnv(),
         this.launchContextSource.resolve(),
         this.dependencies.resolveSessionGitCredentials({
@@ -153,6 +152,11 @@ export class TuiConversationProvider implements ConversationProvider {
       ...launchContext.data.env,
     };
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversation.id);
+    const [task] = await this.dependencies.db
+      .select({ autoNameConversationId: tasks.autoNameConversationId })
+      .from(tasks)
+      .where(eq(tasks.id, this.taskId))
+      .limit(1);
 
     return {
       conversationId: conversation.id,
@@ -164,6 +168,11 @@ export class TuiConversationProvider implements ConversationProvider {
       chosenSessionId: agentSession.isResuming ? null : agentSession.sessionId,
       model: conversation.model ?? null,
       initialPrompt: effectiveInitialPrompt,
+      nameTaskWithAgent:
+        mode === 'start' &&
+        !agentSession.isResuming &&
+        taskSettings?.autoNameWithAgent === true &&
+        task?.autoNameConversationId === conversation.id,
       autoApprove: conversation.autoApprove ?? false,
       trustWorkspace,
       extraArgs: parseExtraArgs(providerConfig?.extraArgs),

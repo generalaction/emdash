@@ -150,6 +150,7 @@ export class TuiAgentsRuntime {
       getProvider: (providerId) => this.deps.agentHost.resolveTuiProvider(providerId),
       applyCanonicalEvent: (conversationId, providerId, event) =>
         this.agentStates.applyCanonicalEvent(conversationId, providerId, event),
+      applyTaskName: (conversationId, name) => this.agentStates.setTaskName(conversationId, name),
       logger: deps.logger,
     });
     this.hookServer = new TuiHookServer((raw) => this.hookPipeline.handle(raw), deps.logger);
@@ -310,7 +311,8 @@ export class TuiAgentsRuntime {
       const result = await this.spawnInto(
         this.sessionFor(input.conversationId),
         config,
-        generation
+        generation,
+        input.nameTaskWithAgent === true
       );
       if (!result.success) {
         await this.cleanupPromptSpill(input.conversationId);
@@ -465,7 +467,8 @@ export class TuiAgentsRuntime {
   private async spawnInto(
     session: TuiAgentSession,
     config: TuiSessionConfig,
-    generation: number
+    generation: number,
+    nameTaskWithAgent = false
   ): Promise<Result<void, TuiStartError>> {
     const providerResult = this.resolveProvider(config.input.providerId);
     if (!providerResult.success) return err(providerResult.error);
@@ -495,10 +498,28 @@ export class TuiAgentsRuntime {
       startedAt,
     });
 
+    let hookEnv: Record<string, string> | undefined;
+    let initialPrompt = isResuming ? undefined : config.input.initialPrompt;
+    if (
+      nameTaskWithAgent &&
+      (provider.prompt.kind === 'argv' || provider.prompt.kind === 'stdin-pipe')
+    ) {
+      hookEnv = await this.prepareHookEnv(config.input, provider);
+      if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
+        return this.cancelledSpawn(config.input.conversationId);
+      }
+      if (Object.keys(hookEnv).length > 0) {
+        initialPrompt =
+          (initialPrompt ?? '') + taskNamingInstruction(this.deps.platform ?? process.platform);
+        const prepared = await this.preparePromptInput({ ...config.input, initialPrompt });
+        initialPrompt = prepared.initialPrompt;
+      }
+    }
+
     const commandResult = await this.deps.agentHost.buildPromptCommand(config.input.providerId, {
       extraArgs: config.input.extraArgs,
       autoApprove: config.input.autoApprove ?? false,
-      initialPrompt: isResuming ? undefined : config.input.initialPrompt,
+      initialPrompt,
       sessionId: config.input.conversationId,
       providerSessionId: config.input.sessionId ?? undefined,
       isResuming,
@@ -519,7 +540,7 @@ export class TuiAgentsRuntime {
         workspacePath: config.input.cwd,
       });
     }
-    const hookEnv = await this.prepareHookEnv(config.input, provider);
+    hookEnv ??= await this.prepareHookEnv(config.input, provider);
     if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
       return this.cancelledSpawn(config.input.conversationId);
     }
@@ -681,7 +702,6 @@ export class TuiAgentsRuntime {
 
   private async preparePromptInput(input: TuiAgentStartInput): Promise<TuiAgentStartInput> {
     if (!input.initialPrompt) return input;
-    await this.cleanupPromptSpill(input.conversationId);
     const spill = await (
       this.deps.spillPrompt ??
       ((prompt) =>
@@ -694,7 +714,21 @@ export class TuiAgentsRuntime {
             }),
         }))
     )(input.initialPrompt);
-    if (spill.spilled) this.promptSpills.set(input.conversationId, spill);
+    if (spill.spilled) {
+      // The new prompt may reference an earlier spill; retain both until session cleanup.
+      const previous = this.promptSpills.get(input.conversationId);
+      this.promptSpills.set(
+        input.conversationId,
+        previous
+          ? {
+              ...spill,
+              cleanup: async () => {
+                await Promise.all([spill.cleanup(), previous.cleanup()]);
+              },
+            }
+          : spill
+      );
+    }
     return spill.prompt === input.initialPrompt ? input : { ...input, initialPrompt: spill.prompt };
   }
 
@@ -1052,6 +1086,34 @@ export class TuiAgentsRuntime {
     const identity = decodeLegacyTmuxSessionName(tmuxSessionName);
     return this.normalizePlatformInput(identity ? { ...current, tmux: { identity } } : current);
   }
+}
+
+function taskNamingInstruction(platform: NodeJS.Platform): string {
+  const command =
+    platform === 'win32'
+      ? 'Invoke-RestMethod -Method Post -TimeoutSec 10 ' +
+        '-Uri ("http://127.0.0.1:" + $env:EMDASH_HOOK_PORT + "/hook") ' +
+        '-Headers @{ "x-emdash-token" = $env:EMDASH_HOOK_TOKEN; ' +
+        '"x-emdash-pty-id" = $env:EMDASH_PTY_ID; "x-emdash-event-type" = "task-name" } ' +
+        '-ContentType "application/json; charset=utf-8" ' +
+        "-Body (@{ name = 'NAME' } | ConvertTo-Json -Compress)"
+      : 'curl --fail --silent --show-error --max-time 10 -X POST ' +
+        '-H "Content-Type: application/json" -H "x-emdash-token: $EMDASH_HOOK_TOKEN" ' +
+        '-H "x-emdash-pty-id: $EMDASH_PTY_ID" -H "x-emdash-event-type: task-name" ' +
+        '--data-binary \'{"name":"NAME"}\' "http://127.0.0.1:$EMDASH_HOOK_PORT/hook"';
+  return (
+    '\n\nBefore starting work, name the current task in at most five words ' +
+    '(count spaces and hyphens as word separators), using no more than 256 characters. ' +
+    'If no user work request exists yet, wait for the first real user work request and ' +
+    'name the task from that request before beginning it. Do not invent a generic name ' +
+    'or start unrelated work. ' +
+    'Submit the name using the existing authenticated hook route with the command below. ' +
+    'If naming is unavailable or blocked, continue the user’s work without renaming; ' +
+    'do not retry or request extra permissions for naming. ' +
+    'Replace NAME with your chosen name, escaping it for JSON and the shell; keep the ' +
+    'environment variable references and do not print their values.\n' +
+    `Run in ${platform === 'win32' ? 'PowerShell' : 'a POSIX shell'}:\n${command}`
+  );
 }
 
 function workspaceLabel(path: string): string {

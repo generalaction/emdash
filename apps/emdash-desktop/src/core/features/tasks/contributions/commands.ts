@@ -1,6 +1,14 @@
 import { defineCommand } from '@core/primitives/commands/api';
 import { keybinding } from '@core/primitives/keybindings/api';
 
+export const nameTaskWithAgentCommand = defineCommand({
+  id: 'task.nameWithAgent',
+  title: 'Name Task with Conversation AI',
+  description: 'Ask the active conversation AI for a fresh task name of up to five words',
+  category: 'Tasks',
+  icon: 'sparkles',
+});
+
 export const newConversationCommand = defineCommand({
   id: 'task.newConversation',
   title: 'New Conversation',
@@ -234,6 +242,7 @@ export const deleteSelectedTasksCommand = defineCommand({
 });
 
 export const TASK_COMMAND_DEFS = [
+  nameTaskWithAgentCommand,
   newConversationCommand,
   newConversationSplitRightCommand,
   sidebarChangesCommand,

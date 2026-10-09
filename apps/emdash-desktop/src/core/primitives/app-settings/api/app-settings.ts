@@ -24,6 +24,7 @@ export type NotificationSettings = {
 
 export type TaskSettings = {
   autoGenerateName: boolean;
+  autoNameWithAgent: boolean;
   autoTrustWorktrees: boolean;
   createBranchAndWorktree: boolean;
   deleteBranchByDefault: boolean;

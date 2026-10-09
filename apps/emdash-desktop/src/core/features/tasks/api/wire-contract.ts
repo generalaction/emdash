@@ -22,6 +22,7 @@ import {
   type TaskListData,
   type TaskStatsData,
 } from '@core/primitives/tasks/api';
+import { agentTaskNameErrorSchema } from '@core/primitives/tasks/api/tasks';
 import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
 
 export const deleteTaskInputSchema = z.object({
@@ -38,6 +39,15 @@ const taskIdInputSchema = z.object({
 export const tasksDomain = 'tasks' as const;
 
 export const tasksWireContract = defineContract({
+  requestTaskName: fallible({
+    input: z.object({
+      projectId: z.string().min(1),
+      taskId: z.string().min(1),
+      conversationId: z.string().min(1),
+    }),
+    data: z.void(),
+    error: agentTaskNameErrorSchema,
+  }),
   createTask: procedure({
     input: z.custom<CreateTaskParams>(),
     output: z.custom<Result<CreateTaskSuccess, CreateTaskError>>(),

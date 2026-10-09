@@ -49,6 +49,14 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Automatically suggests a task name when creating a new task.',
   },
   {
+    id: 'name-tasks-with-conversation-ai',
+    label: 'Name tasks with conversation AI',
+    tab: 'general',
+    description:
+      'Replace generated placeholders with a short name from the first conversation. Names you enter or link to issues stay unchanged.',
+    keywords: ['auto name', 'automatic naming', 'rename', 'agent', 'title', 'random'],
+  },
+  {
     id: 'auto-trust-worktree-directories',
     label: 'Auto-trust worktree directories',
     tab: 'general',
