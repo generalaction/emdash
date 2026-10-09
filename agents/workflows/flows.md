@@ -144,7 +144,9 @@ running (doctor reports it). See
   stable/canary apps using the production
   packaging rules, then checks hover, definitions and diagnostics without global tools.
   Release builds run the same verifier against the full finished app when its architecture
-  matches the build host. It can also verify an existing app via
+  matches the build host. Failures report the probe phase, underlying error, and recent
+  diagnostic URIs and codes.
+  It can also verify an existing app via
   `node --experimental-strip-types scripts/release/verify-language-servers.ts --executable
   <binary> --resources <resources-directory>` from the app directory.
 - Linux packaging keeps `extraMetadata.desktopName` aligned with the installed

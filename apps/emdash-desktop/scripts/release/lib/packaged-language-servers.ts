@@ -109,6 +109,10 @@ export async function verifyPackagedLanguageServers(app: PackagedLanguageServerA
     await checkServer('python', python, pythonStubs);
 
     async function checkServer(language: 'typescript' | 'python', entry: string, library: string) {
+      const probePath = join(root, language === 'typescript' ? 'smoke.ts' : 'smoke.py');
+      const uri = pathToFileURL(probePath).href;
+      let phase = 'initialization';
+      let recentDiagnostics = '';
       const child = spawn(app.executable, [entry, '--stdio'], {
         cwd: root,
         env,
@@ -138,7 +142,15 @@ export async function verifyPackagedLanguageServers(app: PackagedLanguageServerA
       try {
         await waitWithSignal(exercise(), signal);
       } catch (error) {
-        throw new Error(`Packaged ${language} smoke check failed.\n${stderr}`, { cause: error });
+        throw new Error(
+          [
+            `Packaged ${language} smoke check failed during ${phase}: ${String(error)}`,
+            `Expected document: ${uri}`,
+            `Recent diagnostics: ${recentDiagnostics || '(none)'}`,
+            `Server stderr: ${stderr || '(empty)'}`,
+          ].join('\n'),
+          { cause: error }
+        );
       } finally {
         connection.dispose();
         await terminator.terminate();
@@ -162,13 +174,29 @@ export async function verifyPackagedLanguageServers(app: PackagedLanguageServerA
               }
             : {}),
         });
+        phase = 'opening document';
         await connection.sendNotification(InitializedNotification.type, {});
-        const uri = pathToFileURL(
-          join(root, language === 'typescript' ? 'smoke.ts' : 'smoke.py')
-        ).href;
         const diagnostics = new Promise<Diagnostic[]>((resolve) => {
           connection.onNotification(PublishDiagnosticsNotification.type, (params) => {
-            if (params.uri === uri && params.diagnostics.length) resolve(params.diagnostics);
+            recentDiagnostics = (
+              recentDiagnostics +
+              JSON.stringify({
+                uri: params.uri,
+                codes: params.diagnostics.map(({ code }) => code),
+              }) +
+              '\n'
+            ).slice(-8_000);
+            try {
+              // Servers may escape the URI or change Windows drive-letter casing.
+              // Compare native paths without requiring the unsaved probe to exist on disk.
+              if (
+                relative(probePath, fileURLToPath(params.uri)) === '' &&
+                params.diagnostics.length
+              )
+                resolve(params.diagnostics);
+            } catch (error) {
+              lifetime.abort(error);
+            }
           });
         });
         const text =
@@ -185,8 +213,10 @@ export async function verifyPackagedLanguageServers(app: PackagedLanguageServerA
               ? { line: 0, character: text.indexOf('.map') + 2 }
               : { line: 1, character: 25 },
         };
+        phase = 'hover';
         const hover = await connection.sendRequest(HoverRequest.type, query);
         assert(hover, `${language} standard-library hover was empty`);
+        phase = 'definition';
         const definition = await connection.sendRequest(DefinitionRequest.type, query);
         const locations = Array.isArray(definition) ? definition : definition ? [definition] : [];
         assert(
@@ -194,12 +224,18 @@ export async function verifyPackagedLanguageServers(app: PackagedLanguageServerA
             const target = fileURLToPath(
               'targetUri' in location ? location.targetUri : location.uri
             );
+            const fromLibrary = relative(library, target);
             return language === 'typescript'
-              ? relative(library, target) === ''
-              : target.startsWith(`${library}${sep}`) && target.endsWith('.pyi');
+              ? fromLibrary === ''
+              : fromLibrary !== '' &&
+                  !isAbsolute(fromLibrary) &&
+                  fromLibrary !== '..' &&
+                  !fromLibrary.startsWith(`..${sep}`) &&
+                  target.endsWith('.pyi');
           }),
           `${language} definition did not resolve into the packaged standard library: ${JSON.stringify(definition)}`
         );
+        phase = 'diagnostics';
         const reported = await diagnostics;
         assert.equal(reported.length, 1, JSON.stringify(reported));
         assert.equal(
@@ -207,6 +243,7 @@ export async function verifyPackagedLanguageServers(app: PackagedLanguageServerA
           language === 'typescript' ? 2322 : 'reportAssignmentType',
           JSON.stringify(reported)
         );
+        phase = 'shutdown';
         await connection.sendRequest(ShutdownRequest.type);
         await connection.sendNotification(ExitNotification.type);
       }
