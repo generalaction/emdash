@@ -10,6 +10,7 @@ const credentialsByProvider: Record<string, IntegrationCredentials> = {
   github: { accessToken: 'test-token', apiBaseUrl: 'https://api.github.com' },
   gitlab: { instanceUrl: 'https://example.com/gitlab', apiToken: 'test-token' },
   jira: {
+    authMethod: 'basic',
     siteUrl: 'https://example.atlassian.net',
     email: 'ada@example.com',
     apiToken: 'test-token',

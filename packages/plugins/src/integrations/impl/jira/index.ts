@@ -55,13 +55,13 @@ const plugin = defineIntegrationPlugin(
             },
             {
               id: 'accessToken',
-              label: 'Bearer token',
+              label: 'OAuth 2.0 access token',
               secret: true,
               required: true,
-              placeholder: 'Jira bearer token',
+              placeholder: 'Jira OAuth 2.0 access token',
             },
           ],
-          help: 'Use a Jira OAuth 2.0 access token or another scoped bearer token.',
+          help: 'Use an OAuth 2.0 access token for Jira Cloud. Atlassian API tokens are not supported by this method.',
         },
       ],
     },
@@ -72,8 +72,8 @@ const plugin = defineIntegrationPlugin(
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
     credentialsSchema: jiraCredentialsSchema,
-    async verify(_host, credentials): Promise<VerifyResult> {
-      const result = await verifyJiraCredentials(credentials);
+    async verify(_host, credentials, methodId): Promise<VerifyResult> {
+      const result = await verifyJiraCredentials(credentials, methodId);
       if (!result.success)
         return {
           connected: false,

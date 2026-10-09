@@ -13,8 +13,8 @@ const authFieldSchema = z.object({
 
 const formMethodSchema = z.object({
   kind: z.literal('form'),
-  id: z.string().optional(),
-  label: z.string().optional(),
+  id: z.string().trim().min(1).optional(),
+  label: z.string().trim().min(1).optional(),
   fields: z.array(authFieldSchema).min(1),
   help: z.string().optional(),
   helpUrl: z.string().optional(),
@@ -43,10 +43,35 @@ const authMethodSchema = z.discriminatedUnion('kind', [
   cliImportMethodSchema,
 ]);
 
-const authDescriptorSchema = z.object({
-  methods: z.array(authMethodSchema).min(1),
-  accountLabelRequired: z.boolean().optional(),
-});
+const authDescriptorSchema = z
+  .object({
+    methods: z.array(authMethodSchema).min(1),
+    accountLabelRequired: z.boolean().optional(),
+  })
+  .superRefine(({ methods }, ctx) => {
+    const forms = methods.filter((method) => method.kind === 'form');
+    if (forms.length < 2) return;
+
+    const ids = new Set<string>();
+    methods.forEach((method, index) => {
+      if (method.kind !== 'form') return;
+      if (!method.id || ids.has(method.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Multiple form methods require unique, nonempty IDs.',
+          path: ['methods', index, 'id'],
+        });
+      }
+      if (method.id) ids.add(method.id);
+      if (!method.label) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Multiple form methods require labels.',
+          path: ['methods', index, 'label'],
+        });
+      }
+    });
+  });
 
 export type IntegrationAuthField = z.infer<typeof authFieldSchema>;
 export type IntegrationAuthMethod = z.infer<typeof authMethodSchema>;
@@ -72,7 +97,11 @@ export type VerifyResult =
 
 export type IIntegrationAuthBehavior = {
   credentialsSchema: z.ZodType<IntegrationCredentials>;
-  verify(host: IntegrationHostContext, credentials: IntegrationCredentials): Promise<VerifyResult>;
+  verify(
+    host: IntegrationHostContext,
+    credentials: IntegrationCredentials,
+    methodId?: string
+  ): Promise<VerifyResult>;
 };
 
 export const integrationAuthCapability = definePluginCapability<IIntegrationAuthBehavior>()(

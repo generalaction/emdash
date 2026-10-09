@@ -8,39 +8,30 @@ const jiraSiteUrlSchema = credentialString('Jira site URL is required.')
   .transform((value) => value.replace(/\/+$/, ''));
 
 const basicJiraCredentialsSchema = z.object({
-  authMethod: z.literal('basic'),
+  authMethod: z.string().trim().pipe(z.literal('basic')).default('basic'),
   siteUrl: jiraSiteUrlSchema,
   email: credentialString('Jira email is required.'),
   apiToken: credentialString('Jira API token is required.'),
 });
 
-const bearerJiraCredentialsSchema = z.object({
-  authMethod: z.literal('bearer'),
+const bearerJiraConnectionInputSchema = z.object({
+  authMethod: z.string().trim().pipe(z.literal('bearer')),
   siteUrl: jiraSiteUrlSchema,
-  accessToken: credentialString('Jira bearer token is required.'),
-  // OAuth 2.0 requests are made through Atlassian's resource gateway. This is
-  // resolved from siteUrl during verification and retained for later use.
-  cloudId: z.string().trim().min(1).optional(),
+  accessToken: credentialString('Jira OAuth 2.0 access token is required.'),
 });
 
-// Credentials stored before authMethod was introduced remain valid Basic Auth.
-const legacyBasicJiraCredentialsSchema = z
-  .object({
-    siteUrl: jiraSiteUrlSchema,
-    email: credentialString('Jira email is required.'),
-    apiToken: credentialString('Jira API token is required.'),
-  })
-  .passthrough()
-  .refine((value) => value.authMethod === undefined, {
-    message: 'Jira authentication method is invalid.',
-    path: ['authMethod'],
-  })
-  .transform(({ siteUrl, email, apiToken }) => ({ siteUrl, email, apiToken }));
+export const jiraConnectionInputSchema = z.union([
+  basicJiraCredentialsSchema,
+  bearerJiraConnectionInputSchema,
+]);
+
+const bearerJiraCredentialsSchema = bearerJiraConnectionInputSchema.extend({
+  cloudId: z.string().trim().min(1),
+});
 
 export const jiraCredentialsSchema = z.union([
   basicJiraCredentialsSchema,
   bearerJiraCredentialsSchema,
-  legacyBasicJiraCredentialsSchema,
 ]);
 
 export type JiraCredentials = z.infer<typeof jiraCredentialsSchema>;
