@@ -1,6 +1,7 @@
+import type * as ChildProcess from 'node:child_process';
 import type { ExecFileOptions } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
@@ -259,6 +260,35 @@ describe('AppService.openIn', () => {
       expect(mocks.execFile.mock.calls.filter(([file]) => file === '/usr/bin/mdfind')).toHaveLength(
         1
       );
+    }
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'opens the default Linux terminal through the shell fallback chain',
+    async () => {
+      setPlatform('linux');
+      const { exec } = await vi.importActual<typeof ChildProcess>('node:child_process');
+      mocks.exec.mockImplementation(exec);
+      const bin = await realpath(await mkdtemp(path.join(os.tmpdir(), 'emdash-open-in-terminal-')));
+      const launched = path.join(bin, 'launched.log');
+      for (const name of ['xdg-terminal-exec', 'user-terminal']) {
+        await writeFile(path.join(bin, name), `#!/bin/sh\necho "${name} $*" >> "${launched}"\n`, {
+          mode: 0o755,
+        });
+      }
+      mocks.launchEnv = { PATH: bin, TERMINAL: path.join(bin, 'user-terminal') };
+
+      try {
+        await appService.openIn({ app: 'terminal', path: bin });
+        expect(await readFile(launched, 'utf8')).toBe(`xdg-terminal-exec --dir=${bin}\n`);
+
+        await rm(launched);
+        await rm(path.join(bin, 'xdg-terminal-exec'));
+        await appService.openIn({ app: 'terminal', path: bin });
+        expect(await readFile(launched, 'utf8')).toBe('user-terminal \n');
+      } finally {
+        await rm(bin, { recursive: true, force: true });
+      }
     }
   );
 

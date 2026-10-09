@@ -216,7 +216,11 @@ const _OPEN_IN_APPS = {
         openCommands: ['wt -d {{path}}', 'start cmd /K "cd /d {{path_raw}}"'],
       },
       linux: {
+        // Prefer the user's default terminal (XDG default-terminal launcher, then $TERMINAL,
+        // which opens in the exec cwd) before the distro-specific fallbacks.
         openCommands: [
+          'xdg-terminal-exec --dir={{path}}',
+          '([ -n "$TERMINAL" ] && "$TERMINAL")',
           'x-terminal-emulator --working-directory={{path}}',
           'gnome-terminal --working-directory={{path}}',
           'konsole --workdir {{path}}',
