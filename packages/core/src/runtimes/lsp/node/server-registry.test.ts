@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
@@ -50,7 +51,7 @@ describe('language server resolution', () => {
           command: dependencyId,
           path: executable,
           realpath: executable,
-          source: { kind: 'auto' as const },
+          source: { kind: 'path' as const, path: executable },
         })
       ),
     };
@@ -58,6 +59,37 @@ describe('language server resolution', () => {
     const launch = await resolveLanguageServer({ ...key, serverId }, resolver, env);
     expect(launch).toMatchObject({ command: executable, args, env });
     expect(resolver.resolve.mock.calls).toEqual([[dependencyId]]);
+  });
+  it.each(['typescript', 'python'])('uses bundled %s when PATH is empty', async (serverId) => {
+    const launch = await resolveLanguageServer(
+      { ...key, serverId },
+      {
+        resolve: async (id) => err({ type: 'missing', id }),
+      },
+      { PATH: '' }
+    );
+    expect(launch.env.PATH).toBe('');
+    expect(launch.args).toContain('--stdio');
+    expect(launch.command).not.toBe('typescript-language-server');
+    expect(launch.command).toBe(process.execPath);
+    if (serverId === 'typescript') {
+      expect(launch.args[0]).toMatch(/typescript-language-server[/\\]lib[/\\]cli.mjs$/);
+      expect(launch.initializationOptions).toMatchObject({
+        disableAutomaticTypingAcquisition: true,
+        tsserver: { path: expect.stringMatching(/typescript[/\\]lib[/\\]tsserver.js$/) },
+      });
+    }
+  });
+  it('does not hide a broken explicit selection with a bundled server', async () => {
+    await expect(
+      resolveLanguageServer(
+        key,
+        {
+          resolve: async (id) => err({ type: 'stale-selection', id, path: '/missing/tool' }),
+        },
+        {}
+      )
+    ).rejects.toThrow(/select.*dependencies/);
   });
   it('rejects unknown IDs before executable lookup', async () => {
     const resolver = { resolve: vi.fn() };
@@ -78,7 +110,27 @@ describe('language server resolution', () => {
       if (!parsed.success) throw new Error('invalid root');
       const config = await getServerProfile('typescript').configure?.(parsed.data, {});
       expect(config?.initializationOptions).toMatchObject({
-        tsserver: { path: path.join(lib, 'tsserver.js') },
+        tsserver: { path: await realpath(path.join(lib, 'tsserver.js')) },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it('uses bundled TS6 when the workspace package does not expose tsserver', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-compiler-fallback-'));
+    try {
+      const compiler = path.join(root, 'node_modules/typescript');
+      await mkdir(compiler, { recursive: true });
+      await writeFile(
+        path.join(compiler, 'package.json'),
+        JSON.stringify({ name: 'typescript', exports: { '.': './index.js' } })
+      );
+      const parsed = parseNativeAbsolute(root);
+      if (!parsed.success) throw new Error('invalid root');
+      const config = await getServerProfile('typescript').configure?.(parsed.data, {});
+      expect(config?.initializationOptions).toMatchObject({
+        disableAutomaticTypingAcquisition: true,
+        tsserver: { path: createRequire(import.meta.url).resolve('typescript/lib/tsserver.js') },
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -92,7 +144,7 @@ describe('language server resolution', () => {
           command: 'typescript-language-server',
           path: '/tools with spaces/typescript-language-server',
           realpath: '/tools with spaces/lib/cli.mjs',
-          source: { kind: 'auto' as const },
+          source: { kind: 'cli' as const, command: 'typescript-language-server' },
         })
       ),
     };
@@ -109,6 +161,8 @@ describe('language server resolution', () => {
         err({ type: 'missing' as const, id: 'typescript-language-server' })
       ),
     };
-    await expect(resolveLanguageServer(key, resolver, {})).rejects.toThrow(/host.*dependencies/i);
+    await expect(resolveLanguageServer({ ...key, serverId: 'rust' }, resolver, {})).rejects.toThrow(
+      /host.*dependencies/i
+    );
   });
 });

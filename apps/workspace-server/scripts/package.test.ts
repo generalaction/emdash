@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import corePackage from '../../../packages/core/package.json';
+import desktopPackage from '../../emdash-desktop/package.json';
+import serverPackage from '../package.json';
+import runtimePackage from '../runtime-deps/package.json';
 import {
   artifactArchiveName,
   artifactChecksumContents,
@@ -18,6 +22,16 @@ import {
   ripgrepDistributionName,
   ripgrepDistributionUrl,
 } from './package-helpers';
+
+it.each(['typescript', 'typescript-language-server', 'pyright'] as const)(
+  'pins the same %s on desktop and remote hosts',
+  (name) => {
+    const version = corePackage.dependencies[name];
+    expect(desktopPackage.dependencies[name]).toBe(version);
+    expect(serverPackage.dependencies[name]).toBe(version);
+    expect(runtimePackage.dependencies[name]).toBe(version);
+  }
+);
 
 describe('workspace-server package helpers', () => {
   it('parses and deduplicates supported targets', () => {

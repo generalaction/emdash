@@ -1,6 +1,6 @@
 /**
  * Monaco syntax, completion and formatting configuration.
- * Host language servers provide hover, navigation and diagnostics for buffers.
+ * The editor routes hover, navigation and diagnostics between host and local workers.
  */
 import type * as monaco from 'monaco-editor';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -13,7 +13,7 @@ const DIAGNOSTICS_OPTIONS: monaco.typescript.DiagnosticsOptions = {
 };
 
 /**
- * Configure Monaco services; host LSP exclusively owns hover, navigation and diagnostics.
+ * Configure syntax services; overlapping providers are registered by the editor router.
  * @param monacoInstance - Monaco namespace
  */
 export function configureMonacoLanguages(monacoInstance: typeof monaco): void {

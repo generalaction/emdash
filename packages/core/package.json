@@ -409,8 +409,11 @@
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.2",
     "minimatch": "^10.2.5",
+    "pyright": "1.1.414",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",
+    "typescript": "6.0.3",
+    "typescript-language-server": "6.0.1",
     "vscode-languageserver-protocol": "3.17.5",
     "zod": "^4.4.3"
   },
@@ -422,11 +425,8 @@
     "bash-language-server": "5.8.1",
     "drizzle-kit": "^0.31.10",
     "node-pty": "1.1.0",
-    "pyright": "1.1.414",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
-    "typescript": "6.0.3",
-    "typescript-language-server": "6.0.1",
     "vitest": "^4.1.0",
     "vscode-langservers-extracted": "4.10.0",
     "yaml-language-server": "1.24.0"

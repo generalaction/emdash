@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { peek, remote } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
@@ -49,19 +49,25 @@ async function fixture(filename: string, text: string, files: Record<string, str
   const scope = createScope();
   cleanups.push(() => scope.dispose());
   const resolve = vi.fn(async (id: string) =>
-    ok({
-      id,
-      command: id,
-      path: executables[id] ?? id,
-      realpath: executables[id] ?? id,
-      source: { kind: 'auto' as const },
-    })
+    selected.server.id === 'typescript' || selected.server.id === 'python'
+      ? err({ type: 'missing' as const, id })
+      : ok({
+          id,
+          command: id,
+          path: executables[id] ?? id,
+          realpath: executables[id] ?? id,
+          source: { kind: 'auto' as const },
+        })
   );
   const runtime = new LspRuntime({
     scope,
     lingerMs: 0,
     resolveServer: async (key) => {
-      const launch = await resolveLanguageServer(key, { resolve }, process.env);
+      const launch = await resolveLanguageServer(
+        key,
+        { resolve },
+        { ...process.env, ...(['typescript', 'python'].includes(key.serverId) ? { PATH: '' } : {}) }
+      );
       // npm fixtures are invoked with this test's Node, including on Windows.
       return Object.values(executables).includes(launch.command)
         ? { ...launch, command: process.execPath, args: [launch.command, ...launch.args] }
@@ -124,6 +130,15 @@ const codeFixtures: {
   types: boolean;
   declarationLine: number;
 }[] = [
+  {
+    language: 'TypeScript 6 (bundled, empty PATH)',
+    filename: 'main.ts',
+    text: 'class Model {}\nfunction answer(): Model { return new Model(); }\nconst item = answer();\nconst value = item;\n',
+    files: { 'tsconfig.json': '{"compilerOptions":{"strict":true}}' },
+    native: false,
+    types: true,
+    declarationLine: 1,
+  },
   {
     language: 'Bash',
     filename: 'main.sh',
@@ -233,6 +248,36 @@ describe('installed language servers through production profiles and Wire', () =
       60_000
     );
   }
+
+  it('bundled TypeScript 6 publishes diagnostics and clears them after unsaved edits', async () => {
+    const text = 'const answer: number = "wrong";';
+    const f = await fixture('main.ts', text, {
+      'tsconfig.json': '{"compilerOptions":{"strict":true}}',
+    });
+    await expect
+      .poll(() => JSON.stringify(peek(f.state)?.diagnostics), { timeout: 15_000 })
+      .toContain('not assignable');
+    const updated = 'const answer: number = 42;';
+    expect(
+      await f.wire.client.applyDocumentEdit({
+        session: f.session,
+        change: {
+          path: f.document.path,
+          baseVersion: 1,
+          version: 2,
+          edit: { start: 0, deleteCount: text.length, text: updated },
+        },
+      })
+    ).toEqual(ok(undefined));
+    await expect
+      .poll(
+        () =>
+          peek(f.state)?.diagnostics.find((d) => absoluteEquals(d.path, f.document.path))
+            ?.diagnostics,
+        { timeout: 15_000 }
+      )
+      .toEqual([]);
+  }, 25_000);
 
   it.each([
     {

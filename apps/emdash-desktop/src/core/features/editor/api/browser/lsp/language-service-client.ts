@@ -29,7 +29,7 @@ export interface LanguageDocumentSource {
   workspaceRoot: HostFileRef;
   getVersion(): number;
   getText(): string;
-  onDiagnostics(diagnostics: Diagnostics): void;
+  onDiagnostics(diagnostics: Diagnostics | undefined): void;
 }
 export interface LanguageDocumentStatus {
   serverName: string;
@@ -107,7 +107,10 @@ export class LanguageServiceClient {
       },
       changed: () => {
         if (record.lifetime.signal.aborted) return;
-        source.onDiagnostics([]);
+        const connection = record.state.get().connection;
+        source.onDiagnostics(
+          connection.kind === 'connected' && connection.server.phase === 'ready' ? [] : undefined
+        );
         record.session?.documents.changed();
       },
       documentSaved: async (text) => {
@@ -150,7 +153,7 @@ export class LanguageServiceClient {
     this.disposed = true;
     for (const record of this.documents.values()) {
       record.lifetime.abort();
-      record.source.onDiagnostics([]);
+      record.source.onDiagnostics(undefined);
     }
     runInAction(() => this.documents.clear());
     await Promise.all([...this.sessions.values()].map((session) => session.dispose()));
@@ -225,7 +228,9 @@ export class LanguageServiceClient {
     record.source.onDiagnostics(
       entry && (entry.version === undefined || entry.version === record.source.getVersion())
         ? entry.diagnostics
-        : []
+        : server?.phase === 'ready'
+          ? []
+          : undefined
     );
   }
 
@@ -233,7 +238,7 @@ export class LanguageServiceClient {
     if (record.lifetime.signal.aborted) return;
     record.lifetime.abort();
     runInAction(() => this.documents.delete(encodeResourceUri(record.source.ref)));
-    record.source.onDiagnostics([]);
+    record.source.onDiagnostics(undefined);
     const { session, sessionId } = record;
     if (!session || !sessionId) return;
     try {

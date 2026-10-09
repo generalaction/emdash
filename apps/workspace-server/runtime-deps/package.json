@@ -7,6 +7,9 @@
   "dependencies": {
     "@parcel/watcher": "2.5.6",
     "better-sqlite3": "12.10.0",
-    "node-pty": "1.1.0"
+    "node-pty": "1.1.0",
+    "pyright": "1.1.414",
+    "typescript": "6.0.3",
+    "typescript-language-server": "6.0.1"
   }
 }
