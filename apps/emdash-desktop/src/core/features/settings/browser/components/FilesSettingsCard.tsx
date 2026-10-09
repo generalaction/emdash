@@ -1,12 +1,19 @@
 import { normalizeExclusionPatterns } from '@emdash/core/primitives/exclusion-policy/api';
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { SeparatedList, Textarea } from '@emdash/ui/react/primitives';
+import { Select, SeparatedList, Textarea } from '@emdash/ui/react/primitives';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
-import type { FilesSettings } from '@core/primitives/app-settings/api';
+import type { AutoSaveMode, FilesSettings } from '@core/primitives/app-settings/api';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
+import { SettingRow } from './SettingRow';
 
-type ExclusionField = keyof FilesSettings;
+type ExclusionField = 'treeExclude' | 'searchExclude' | 'watcherExclude';
+
+const AUTO_SAVE_LABELS: Record<AutoSaveMode, string> = {
+  off: 'Off',
+  afterDelay: 'After a short delay',
+  onFocusChange: 'When focus changes',
+};
 
 type ExclusionListEditorProps = {
   title: string;
@@ -34,6 +41,7 @@ const FilesSettingsCard: React.FC = () => {
     treeExclude: [],
     searchExclude: [],
     watcherExclude: [],
+    autoSave: 'off',
   };
 
   const commitField = (field: ExclusionField, value: string[]) => {
@@ -43,6 +51,36 @@ const FilesSettingsCard: React.FC = () => {
   return (
     <SettingsCard>
       <SeparatedList gap="1rem" direction="column">
+        <SettingRow
+          title="Auto-save"
+          description="Save editor changes to disk automatically, for local and remote files. Auto-save never overwrites a file that changed on disk."
+          control={
+            <>
+              <ResetToDefaultButton
+                visible={isFieldOverridden('autoSave')}
+                defaultLabel="off"
+                onReset={() => resetField('autoSave')}
+                disabled={loading || saving}
+              />
+              <Select.Root
+                value={current.autoSave}
+                disabled={loading}
+                onValueChange={(next) => update({ autoSave: next as AutoSaveMode })}
+              >
+                <Select.Trigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
+                  <Select.Value>{AUTO_SAVE_LABELS[current.autoSave]}</Select.Value>
+                </Select.Trigger>
+                <Select.Content className="min-w-max">
+                  {Object.entries(AUTO_SAVE_LABELS).map(([mode, label]) => (
+                    <Select.Item key={mode} value={mode}>
+                      {label}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            </>
+          }
+        />
         <ExclusionListEditor
           title="File tree exclusions"
           description="Hide matching files or folders from the editor file tree."

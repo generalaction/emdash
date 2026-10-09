@@ -125,6 +125,8 @@ async function bootstrap() {
 
   void prefetchAppSettingsKey('interface');
   void prefetchAppSettingsKey('browser');
+  // Read synchronously by the open-file store's auto-save.
+  void prefetchAppSettingsKey('files');
 
   for (const contribution of featureViewRuntimes) registerViewRuntime(contribution);
   assertViewRuntimesComplete(viewCatalog);

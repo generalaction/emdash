@@ -1,8 +1,12 @@
-import { autorun } from 'mobx';
+import { autorun, untracked } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
+import {
+  openFileStore,
+  type OpenFileEntry,
+} from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
@@ -91,6 +95,8 @@ export const EditorProvider = observer(function EditorProvider({
   // Tracks the previously-attached buffer facet URI so the binder can save
   // view state before switching models.
   const prevBufUriRef = useRef<string | undefined>(undefined);
+  // The open-file entry whose buffer is attached, for focus-change auto-save.
+  const attachedEntryRef = useRef<OpenFileEntry | undefined>(undefined);
 
   // ---------------------------------------------------------------------------
   // Theme sync — update editor theme when app theme changes.
@@ -137,6 +143,10 @@ export const EditorProvider = observer(function EditorProvider({
       taskView.setFocusedRegion('main');
       paneLayout.setActiveGroup(paneId);
     });
+    const blurDisposable = editor.onDidBlurEditorWidget(() => {
+      const entry = attachedEntryRef.current;
+      if (entry) openFileStore.saveOnFocusChange(entry);
+    });
 
     if (hostRef.current) {
       hostRef.current.appendChild(container);
@@ -145,6 +155,7 @@ export const EditorProvider = observer(function EditorProvider({
 
     return () => {
       focusDisposable.dispose();
+      blurDisposable.dispose();
       cleanupActive();
       cleanupLanguage?.();
       // Save the active file's view state before disposal. Must run here, not in
@@ -187,6 +198,13 @@ export const EditorProvider = observer(function EditorProvider({
         // autorun re-fires exactly when attachability changes.
         const handle = resource?.ref ? resource.entry?.handleFor(BUFFER) : undefined; // reactive
         const newBufUri = resource?.ref && handle ? encodeFacetUri(resource.ref, BUFFER) : null;
+
+        // Switching files without leaving the editor still counts as a focus change.
+        const previousEntry = attachedEntryRef.current;
+        attachedEntryRef.current = newBufUri ? resource?.entry : undefined;
+        if (previousEntry && previousEntry !== attachedEntryRef.current) {
+          untracked(() => openFileStore.saveOnFocusChange(previousEntry));
+        }
 
         if (!newBufUri) {
           // detach saves the file's view state, so the scroll position survives
@@ -242,12 +260,16 @@ export const EditorProvider = observer(function EditorProvider({
         const filePath = editorView.pendingConflictPath; // reactive
         if (!filePath) return;
         if (!editorView.openFilePaths.includes(filePath)) return;
-        void (async () => {
-          const outcome = await openConflictModal({ filePath });
-          if (outcome.success) {
-            void editorView.resolveConflict(outcome.data);
-          }
-        })();
+        // Opening a modal reads and writes the modal stack. Tracked, that re-runs
+        // this autorun and stacks a new dialog on every run.
+        untracked(() => {
+          void (async () => {
+            const outcome = await openConflictModal({ filePath });
+            if (outcome.success) {
+              void editorView.resolveConflict(outcome.data);
+            }
+          })();
+        });
       }),
     // oxlint-disable-next-line react/exhaustive-deps
     []

@@ -19,7 +19,7 @@ vi.mock('@core/features/editor/browser/monaco/monaco-bootstrap', () => ({
   monacoBootstrap: { getMonaco: () => monaco, setTheme: vi.fn() },
 }));
 vi.mock('@core/features/editor/api/browser/open-file-store/open-file-store', () => ({
-  openFileStore: { save: vi.fn() },
+  openFileStore: { save: vi.fn(), saveOnFocusChange: vi.fn() },
 }));
 vi.mock('@core/manifests/browser/modal-api', () => ({ openModal: vi.fn() }));
 vi.mock('@core/primitives/theme/browser', () => ({
@@ -65,6 +65,7 @@ async function createDiffSides(binder: MonacoFacetBinder, name: string, modified
     dirty: false,
     conflicted: false,
     saving: false,
+    saveFailed: false,
     readOnly: false,
     handleFor: (facet) => (facet.kind === 'git' ? originalHandle : modifiedHandle),
     gitStatus: () => ({ kind: 'ready' }),
@@ -281,6 +282,7 @@ it.each([true, false])(
       dirty: false,
       conflicted: false,
       saving: false,
+      saveFailed: false,
       get readOnly() {
         return permissions.readOnly;
       },

@@ -12,6 +12,7 @@ describe('filesSettingsContribution', () => {
       treeExclude: [...DEFAULT_TREE_EXCLUDE],
       searchExclude: [...DEFAULT_SEARCH_EXCLUDE],
       watcherExclude: [...DEFAULT_WATCHER_EXCLUDE],
+      autoSave: 'off',
     });
   });
 
@@ -26,6 +27,14 @@ describe('filesSettingsContribution', () => {
       treeExclude: ['.git'],
       searchExclude: ['node_modules'],
       watcherExclude: ['**/node_modules/**'],
+      autoSave: 'off',
     });
+  });
+
+  it('accepts the auto-save modes and rejects anything else', () => {
+    const parse = (autoSave: unknown) =>
+      filesSettingsContribution.schema.safeParse({ autoSave }).success;
+    expect(['off', 'afterDelay', 'onFocusChange'].map(parse)).toEqual([true, true, true]);
+    expect(parse('onWindowChange')).toBe(false);
   });
 });
