@@ -143,6 +143,7 @@
     "vite": "^6.4.1",
     "vitest": "^4.1.0",
     "vitest-browser-react": "^2.1.0",
+    "vscode-languageserver-protocol": "3.17.5",
     "yaml": "^2.9.0"
   },
   "engines": {

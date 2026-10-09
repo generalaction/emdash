@@ -72,3 +72,26 @@ jobs:
 
       - name: Run affected ${{ matrix.name }}
         run: pnpm nx affected -t ${{ matrix.target }}
+
+  packaged-language-servers:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install Electron system libraries for the packaged-app checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libnss3 libgbm1 libasound2
+      - run: pnpm exec nx build @emdash/core
+      - name: Build and exercise both channels' packaged language servers
+        working-directory: apps/emdash-desktop
+        env:
+          EMDASH_TEST_PACKAGED_LSP: '1'
+        run: pnpm exec vitest run --project scripts scripts/release/lib/packaged-language-servers.test.ts

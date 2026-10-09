@@ -140,6 +140,17 @@ Release validation rejects missing assets or accidental resolution outside the
 production deployment. The repository's native-preview compiler remains a
 development build tool and is not a bundled language server.
 
+After Electron finishes packaging, native-architecture release builds also launch
+both servers using the finished app's executable with an empty PATH and isolated
+home. The check follows definitions into the shipped TypeScript declarations and
+Pyright stubs and verifies type diagnostics. Cross-compiled apps need the same check
+on a matching host via `scripts/release/verify-language-servers.ts --executable <binary>
+--resources <resources-directory>`. It does not modify the app or launch its UI.
+The dedicated CI packaging job exercises stable and canary Electron packages and
+verifies that removing standard-library assets makes the check fail.
+The probe reuses the existing MIT-licensed LSP protocol client as a direct desktop
+development dependency instead of implementing a second JSON-RPC transport.
+
 Bash, YAML and `vscode-langservers-extracted` remain development-only integration
 fixtures. The extracted web-server package brings TypeScript 4.9.5 transitively;
 it is not shipped as our TypeScript server or as a production dependency. Monaco
