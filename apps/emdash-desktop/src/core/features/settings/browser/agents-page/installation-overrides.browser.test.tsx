@@ -5,9 +5,22 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { page } from 'vitest/browser';
 import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import { InstallSection } from '@core/features/settings/contributions/browser/agents-page/InstallSection';
+import type { InstallOption } from '@core/primitives/agents/api';
 
 const hooks = vi.hoisted(() => ({ useAgentInstallationStatus: vi.fn() }));
 vi.mock('@core/features/agents/api/browser/use-agent-installation-statuses', () => hooks);
+
+const platformInstallOptions: InstallOption[] = [
+  {
+    method: 'homebrew',
+    command: 'brew install --cask test-agent',
+    recommended: true,
+  },
+  {
+    method: 'npm',
+    command: 'npm install -g test-agent',
+  },
+];
 
 beforeAll(() => {
   (
@@ -79,13 +92,18 @@ describe('installation override settings', () => {
   async function render({
     installDocs,
     compact,
-  }: { installDocs?: string | null; compact?: boolean } = {}) {
+    installOptions = [],
+  }: {
+    installDocs?: string | null;
+    compact?: boolean;
+    installOptions?: InstallOption[];
+  } = {}) {
     await act(async () =>
       root.render(
         <InstallSection
           agentId="claude"
           agentPayload={undefined}
-          installOptions={[]}
+          installOptions={installOptions}
           installDocs={installDocs}
           compact={compact}
         />
@@ -175,5 +193,31 @@ describe('installation override settings', () => {
     await render();
 
     expect(host.querySelector('a')).toBeNull();
+  });
+
+  it('shows all platform-appropriate install options on the initial install flow', async () => {
+    vm.status = 'missing';
+    vm.used = { kind: 'auto' };
+    vm.installations = [];
+
+    await render({ installOptions: platformInstallOptions });
+
+    await expect.element(page.getByText('brew install --cask test-agent')).toBeVisible();
+    await expect.element(page.getByText('npm install -g test-agent')).toBeVisible();
+  });
+
+  it('keeps an explicitly selected install source scoped to that method', async () => {
+    vm.status = 'missing';
+    vm.used = { kind: 'auto' };
+    vm.installations = [];
+
+    await render({ installOptions: platformInstallOptions });
+
+    await page.getByRole('button', { name: 'Installation options' }).click();
+    await page.getByRole('menuitem', { name: 'Change source' }).click();
+    await page.getByRole('menuitem', { name: /^npm/ }).click();
+
+    await expect.element(page.getByText('npm install -g test-agent')).toBeVisible();
+    expect(host.textContent).not.toContain('brew install --cask test-agent');
   });
 });
