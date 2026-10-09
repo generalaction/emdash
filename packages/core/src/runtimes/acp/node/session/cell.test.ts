@@ -1,10 +1,12 @@
 import type { PermissionOptionKind } from '@agentclientprotocol/sdk';
 import { isOk } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent } from '#runtimes/acp/node/acp-test-support';
 import { SessionCell } from './cell';
-function makePendingCell(agent = new FakeAcpAgent()) {
+import type { SessionCellDeps } from './cell-deps';
+function makePendingCell(agent = new FakeAcpAgent(), deps: Partial<SessionCellDeps> = {}) {
   const cell = new SessionCell({
     conversationId: 'conv-1',
     providerId: 'claude',
@@ -12,8 +14,17 @@ function makePendingCell(agent = new FakeAcpAgent()) {
     agent,
     resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     logger: noopLogger,
+    ...deps,
   });
   return { cell, agent };
+}
+function dispatchInitialPrompts(cell: SessionCell, prompts: readonly string[]) {
+  const prepared = cell.prepareActivation(
+    prompts.map((text) => ({ text })),
+    false
+  );
+  if (!prepared.success) throw new Error('Expected the activation to prepare');
+  prepared.data();
 }
 function makeCell(agent = new FakeAcpAgent()) {
   const result = makePendingCell(agent);
@@ -131,6 +142,53 @@ describe('SessionCell prompts', () => {
       sessionId: 'session-1',
       prompt: [{ type: 'text', text: 'queued' }],
     });
+  });
+});
+describe('SessionCell provider results after disposal', () => {
+  it('ignores a detached prompt result after disposal without starting the queue', async () => {
+    const turn = deferred<{ stopReason: 'cancelled' }>();
+    const onTranscriptChanged = vi.fn();
+    const { cell, agent } = makePendingCell(new FakeAcpAgent(), {
+      callbacks: { onTranscriptChanged },
+    });
+    agent.prompt.mockReturnValueOnce(turn.promise);
+    dispatchInitialPrompts(cell, ['first', 'second']);
+    await vi.waitFor(() => expect(agent.prompt).toHaveBeenCalledOnce());
+    cell.dispose();
+    onTranscriptChanged.mockClear();
+
+    turn.resolve({ stopReason: 'cancelled' });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(agent.prompt).toHaveBeenCalledOnce();
+    expect(onTranscriptChanged).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed detached settlement once', async () => {
+    const turn = deferred<{ stopReason: 'end_turn' }>();
+    const observerError = new Error('projection failed');
+    const onTranscriptChanged = vi.fn();
+    const logger = { ...noopLogger, error: vi.fn() };
+    const { cell, agent } = makePendingCell(new FakeAcpAgent(), {
+      logger,
+      callbacks: { onTranscriptChanged },
+    });
+    agent.prompt.mockReturnValueOnce(turn.promise);
+    dispatchInitialPrompts(cell, ['first']);
+    await vi.waitFor(() => expect(agent.prompt).toHaveBeenCalledOnce());
+    onTranscriptChanged.mockReset().mockImplementation(() => {
+      throw observerError;
+    });
+
+    turn.resolve({ stopReason: 'end_turn' });
+    await vi.waitFor(() => expect(logger.error).toHaveBeenCalledOnce());
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ error: observerError })
+    );
+    expect(onTranscriptChanged).toHaveBeenCalledOnce();
+    cell.dispose();
   });
 });
 describe('SessionCell permissions', () => {
