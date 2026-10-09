@@ -238,7 +238,7 @@ describe('LSP runtime over Wire', () => {
     expect(JSON.stringify(await wire.client.hover(query))).toContain('42');
     await wire.client.restartServer(session);
     expect(JSON.stringify(await wire.client.hover(query))).toContain('42');
-  });
+  }, 20_000); // Starts and indexes a real TypeScript server twice, including on slower CI hosts.
   it('requires a live session lease and releases its process after the last detach', async () => {
     const { runtime, wire, session, document } = await fixture();
     expect(await wire.client.setDocumentSnapshot({ session, document })).toMatchObject({
