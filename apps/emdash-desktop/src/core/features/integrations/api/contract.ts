@@ -28,6 +28,7 @@ type DisconnectResult = { success: boolean; error?: string };
 export type IntegrationConnectOptions = {
   accountId?: string;
   displayName?: string;
+  authMethodId?: string;
 };
 
 export const integrationsDomain = 'integrations' as const;
@@ -47,6 +48,7 @@ export const integrationsContract = defineContract({
       credentials: z.custom<IntegrationCredentials>(),
       accountId: z.string().min(1).optional(),
       displayName: z.string().trim().min(1).optional(),
+      authMethodId: z.string().trim().min(1).optional(),
     }),
     output: z.custom<ConnectResult>(),
   }),

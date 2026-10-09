@@ -1,7 +1,8 @@
 import { Button, Dialog, Input } from '@emdash/ui/react/primitives';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, KeyRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { IntegrationProviderDescriptor } from '@core/features/integrations/api/contract';
+import { IntegrationAuthMethodPicker } from '@core/features/integrations/contributions/browser/integration-auth-method-picker';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import {
   getIntegrationAuthUi,
@@ -67,8 +68,12 @@ export const integrationSetupModal = defineModal<void>()({
   size: 'md',
 });
 
-function formMethod(metadata: IntegrationProviderDescriptor | undefined) {
-  return metadata?.auth.methods.find((method) => method.kind === 'form');
+function formMethods(metadata: IntegrationProviderDescriptor | undefined) {
+  return metadata?.auth.methods.filter((method) => method.kind === 'form') ?? [];
+}
+
+function formMethodId(method: ReturnType<typeof formMethods>[number], index: number) {
+  return method.id ?? `form-${index}`;
 }
 
 function IntegrationSetupForm({
@@ -86,7 +91,13 @@ function IntegrationSetupForm({
   onSuccess: () => void;
   onClose: () => void;
 }) {
-  const method = formMethod(metadata);
+  const methods = formMethods(metadata);
+  const [selectedMethodId, setSelectedMethodId] = useState<string | null>(() =>
+    methods.length === 1 ? formMethodId(methods[0], 0) : null
+  );
+  const method = methods.find(
+    (candidate, index) => formMethodId(candidate, index) === selectedMethodId
+  );
   const [accountName, setAccountName] = useState(displayName ?? '');
   const needsAccountName = metadata.auth.accountLabelRequired === true;
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -101,11 +112,40 @@ function IntegrationSetupForm({
     [method, values, needsAccountName, accountName]
   );
 
-  if (!method) return null;
-
   const updateField = (id: string, value: string) => {
     setValues((current) => ({ ...current, [id]: value }));
   };
+
+  const updateMethod = (id: string) => {
+    const nextMethod = methods.find((candidate, index) => formMethodId(candidate, index) === id);
+    if (!nextMethod) return;
+    setSelectedMethodId(id);
+    setValues((current) =>
+      Object.fromEntries(
+        nextMethod.fields.map((field) => [
+          field.id,
+          current[field.id]?.trim() || field.defaultValue || '',
+        ])
+      )
+    );
+  };
+
+  if (methods.length === 0) return null;
+
+  if (!method) {
+    return (
+      <IntegrationAuthMethodPicker
+        methods={methods.map((candidate, index) => ({
+          id: formMethodId(candidate, index),
+          icon: KeyRound,
+          title: candidate.label ?? `Method ${index + 1}`,
+          description: candidate.help,
+          onSelect: () => updateMethod(formMethodId(candidate, index)),
+        }))}
+        onClose={onClose}
+      />
+    );
+  }
 
   return (
     <SetupFormShell
@@ -115,12 +155,14 @@ function IntegrationSetupForm({
       }
       getConnectionOptions={() => ({
         accountId,
+        ...(method.id ? { authMethodId: method.id } : {}),
         ...(needsAccountName ? { displayName: accountName.trim() } : {}),
       })}
       reconnect={accountId !== undefined}
       canSubmit={canSubmit}
       onSuccess={onSuccess}
       onClose={onClose}
+      onBack={methods.length > 1 ? () => setSelectedMethodId(null) : undefined}
     >
       <div className="grid gap-3">
         {needsAccountName ? (
@@ -142,6 +184,7 @@ function IntegrationSetupForm({
           <div key={field.id} className="grid gap-1.5">
             <Input
               id={`integration-field-${field.id}`}
+              aria-label={field.label}
               type={field.secret ? 'password' : 'text'}
               placeholder={`${field.placeholder ?? field.label}${field.required ? ' *' : ''}`}
               value={values[field.id] ?? ''}

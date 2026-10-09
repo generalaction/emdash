@@ -40,7 +40,22 @@ export class IntegrationConnectionService implements IntegrationConnections {
     const plugin = integrationPluginRegistry.get(integrationId);
     if (!plugin) return { success: false, error: `Unknown integration: ${integrationId}` };
 
-    const result = await plugin.behavior.auth?.verify({ log: this.logger }, credentials);
+    const methods = plugin.capabilities.auth.methods.filter((method) => method.kind === 'form');
+    const method =
+      options.authMethodId === undefined
+        ? methods.length === 1
+          ? methods[0]
+          : undefined
+        : methods.find((candidate) => candidate.id === options.authMethodId);
+    if (!method && (options.authMethodId !== undefined || methods.length > 1)) {
+      return { success: false, error: 'Select a valid authentication method.' };
+    }
+
+    const result = await plugin.behavior.auth?.verify(
+      { log: this.logger },
+      credentials,
+      method?.id
+    );
     if (!result?.connected) {
       return {
         success: false,

@@ -1,13 +1,5 @@
-import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
-import {
-  AlertCircle,
-  ArrowRight,
-  Github,
-  KeyRound,
-  Loader2,
-  type LucideIcon,
-  Terminal,
-} from 'lucide-react';
+import { useToast } from '@emdash/ui/react/primitives';
+import { Github, KeyRound, Terminal } from 'lucide-react';
 import { useState } from 'react';
 import {
   useAccountLinkProvider,
@@ -19,8 +11,11 @@ import {
   useImportGitHubCliAccounts,
 } from '@core/features/github/api/browser/use-github-auth';
 import type { IntegrationAuthUiProps } from '@core/features/integrations/api/browser/integration-auth-ui';
+import {
+  IntegrationAuthMethodPicker,
+  type IntegrationAuthMethodOption,
+} from '@core/features/integrations/contributions/browser/integration-auth-method-picker';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { cn } from '@core/primitives/styling/browser/cn';
 
 type MethodError = {
   method: 'oauth' | 'cli' | 'device_flow';
@@ -42,7 +37,6 @@ export function GitHubIntegrationAuth({ metadata, onSuccess, onClose }: Integrat
   const isSignedIn = session?.isSignedIn === true;
   const hasAccount = session?.hasAccount === true;
   const deviceFlowLoading = deviceFlowMutation.isPending;
-  const anyLoading = oauthLoading || cliLoading || deviceFlowLoading;
   const oauthContent = getOAuthContent({ isSignedIn, hasAccount });
   const hasMethod = (kind: string) => metadata.auth.methods.some((method) => method.kind === kind);
   const showDeviceFlowMethod = !hasAccount && hasMethod('oauth-device');
@@ -133,109 +127,46 @@ export function GitHubIntegrationAuth({ metadata, onSuccess, onClose }: Integrat
     });
   };
 
-  return (
-    <>
-      <Dialog.Body className="gap-3">
-        {hasMethod('oauth') ? (
-          <ConnectMethodCard
-            icon={Github}
-            title={oauthContent.title}
-            description={oauthContent.description}
-            label={oauthContent.buttonLabel}
-            loadingLabel={oauthContent.loadingLabel}
-            loading={oauthLoading}
-            disabled={anyLoading}
-            onClick={() => void connectOAuth()}
-            error={error?.method === 'oauth' ? error.message : undefined}
-          />
-        ) : null}
+  const methods: IntegrationAuthMethodOption[] = [];
+  if (hasMethod('oauth')) {
+    methods.push({
+      id: 'oauth',
+      icon: Github,
+      title: oauthContent.title,
+      description: oauthContent.description,
+      label: oauthContent.buttonLabel,
+      loadingLabel: oauthContent.loadingLabel,
+      loading: oauthLoading,
+      onSelect: () => void connectOAuth(),
+      error: error?.method === 'oauth' ? error.message : undefined,
+    });
+  }
+  if (hasMethod('cli-import')) {
+    methods.push({
+      id: 'cli',
+      icon: Terminal,
+      title: 'Import from GitHub CLI',
+      description: 'Use accounts already authenticated with GitHub CLI',
+      loadingLabel: 'Checking GitHub CLI accounts',
+      loading: cliLoading,
+      onSelect: () => void refreshCliAuth(),
+      error: error?.method === 'cli' ? error.message : undefined,
+    });
+  }
+  if (showDeviceFlowMethod) {
+    methods.push({
+      id: 'device_flow',
+      icon: KeyRound,
+      title: 'Use device flow',
+      description: 'Connect GitHub on this device with a one-time code',
+      loadingLabel: 'Opening device flow',
+      loading: deviceFlowLoading,
+      onSelect: connectDeviceFlow,
+      error: error?.method === 'device_flow' ? error.message : undefined,
+    });
+  }
 
-        {hasMethod('cli-import') ? (
-          <ConnectMethodCard
-            icon={Terminal}
-            title="Import from GitHub CLI"
-            description="Use accounts already authenticated with GitHub CLI"
-            label="Import from GitHub CLI"
-            loadingLabel="Checking GitHub CLI accounts"
-            loading={cliLoading}
-            disabled={anyLoading}
-            onClick={() => void refreshCliAuth()}
-            error={error?.method === 'cli' ? error.message : undefined}
-          />
-        ) : null}
-
-        {showDeviceFlowMethod && (
-          <ConnectMethodCard
-            icon={KeyRound}
-            title="Use device flow"
-            description="Connect GitHub on this device with a one-time code"
-            label="Use device flow"
-            loadingLabel="Opening device flow"
-            loading={deviceFlowLoading}
-            disabled={anyLoading}
-            onClick={connectDeviceFlow}
-            error={error?.method === 'device_flow' ? error.message : undefined}
-          />
-        )}
-      </Dialog.Body>
-      <Dialog.Footer>
-        <Button variant="secondary" onClick={onClose} disabled={anyLoading}>
-          Cancel
-        </Button>
-      </Dialog.Footer>
-    </>
-  );
-}
-
-function ConnectMethodCard({
-  icon: Icon,
-  title,
-  description,
-  label,
-  loadingLabel,
-  loading,
-  disabled,
-  onClick,
-  error,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  label: string;
-  loadingLabel: string;
-  loading: boolean;
-  disabled: boolean;
-  onClick: () => void;
-  error?: string;
-}) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={loading ? loadingLabel : label}
-        className={cn(
-          'group flex w-full items-center gap-3 p-3 text-left transition-colors',
-          'hover:bg-background-2',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-          'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent'
-        )}
-      >
-        <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium text-foreground">{title}</h3>
-          <p className="text-muted-foreground mt-0.5 text-xs">{description}</p>
-        </div>
-        {loading ? (
-          <Loader2 className="text-muted-foreground h-4 w-4 shrink-0 animate-spin" />
-        ) : (
-          <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
-        )}
-      </button>
-      {error && <InlineError message={error} className="mx-3 mt-2 mb-3" />}
-    </div>
-  );
+  return <IntegrationAuthMethodPicker methods={methods} onClose={onClose} />;
 }
 
 function getOAuthContent({ isSignedIn, hasAccount }: { isSignedIn: boolean; hasAccount: boolean }) {
@@ -263,18 +194,4 @@ function getOAuthContent({ isSignedIn, hasAccount }: { isSignedIn: boolean; hasA
     buttonLabel: 'Continue',
     loadingLabel: 'Continuing...',
   };
-}
-
-function InlineError({ message, className }: { message: string; className?: string }) {
-  return (
-    <div
-      className={cn(
-        'bg-destructive/10 text-destructive flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs',
-        className
-      )}
-    >
-      <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
-      <span>{message}</span>
-    </div>
-  );
 }
