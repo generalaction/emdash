@@ -75,8 +75,9 @@ describe('GitHub connect-and-resume', () => {
   };
 
   beforeEach(() => {
-    accountHooks.signIn.mockClear();
-    githubHooks.deviceFlowAuth.mockClear();
+    vi.clearAllMocks();
+    accountHooks.session = { isSignedIn: false, hasAccount: false };
+    githubHooks.importCliAccounts.mockResolvedValue({ success: true, importedAccountIds: [] });
     controller = {
       complete: vi.fn<(result: unknown) => void>(),
       dismiss: vi.fn<() => void>(),
@@ -139,6 +140,70 @@ describe('GitHub connect-and-resume', () => {
     await act(async () => methodButton('Continue').click());
 
     expect(accountHooks.signIn).toHaveBeenCalledWith('github');
+    expect(controller.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables every method and Cancel while authentication is pending', async () => {
+    let finishSignIn!: () => void;
+    accountHooks.signIn.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishSignIn = () =>
+            resolve({
+              success: true,
+              providerAccount: { login: 'dkonopka' },
+              providerAccountStatus: 'created',
+            });
+        })
+    );
+    await renderConnectModal();
+    await act(async () => methodButton('Continue').click());
+
+    const pending = methodButton('Continuing...');
+    expect(pending.disabled).toBe(true);
+    expect(pending.getAttribute('aria-busy')).toBe('true');
+    expect(methodButton('Import from GitHub CLI').disabled).toBe(true);
+    expect(methodButton('Use device flow').disabled).toBe(true);
+    const cancel = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Cancel'
+    );
+    expect(cancel?.disabled).toBe(true);
+
+    await act(async () => {
+      methodButton('Import from GitHub CLI').click();
+      cancel?.click();
+    });
+    expect(githubHooks.importCliAccounts).not.toHaveBeenCalled();
+    expect(controller.dismiss).not.toHaveBeenCalled();
+    await act(async () => finishSignIn());
+    expect(methodButton('Continue').disabled).toBe(false);
+    expect(cancel?.disabled).toBe(false);
+    expect(controller.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows method errors and lets the user try another method', async () => {
+    await renderConnectModal();
+    await act(async () => methodButton('Import from GitHub CLI').click());
+
+    const error = document.querySelector('[role="alert"]');
+    expect(error?.textContent).toContain('No GitHub CLI session found. Run gh auth login first.');
+    expect(methodButton('Import from GitHub CLI').getAttribute('aria-describedby')).toBe(error?.id);
+    expect(methodButton('Import from GitHub CLI').disabled).toBe(false);
+    expect(controller.complete).not.toHaveBeenCalled();
+
+    await act(async () => methodButton('Continue').click());
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(accountHooks.signIn).toHaveBeenCalledWith('github');
+    expect(controller.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers account linking for signed-in users and hides device flow', async () => {
+    accountHooks.session = { isSignedIn: true, hasAccount: true };
+    await renderConnectModal();
+    expect(document.querySelector('button[aria-label="Use device flow"]')).toBeNull();
+    await act(async () => methodButton('Link').click());
+    expect(accountHooks.linkProvider).toHaveBeenCalledWith('github');
+    expect(accountHooks.signIn).not.toHaveBeenCalled();
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
