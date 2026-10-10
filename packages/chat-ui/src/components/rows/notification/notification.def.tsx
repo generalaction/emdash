@@ -47,7 +47,9 @@ export const notificationUnitDef = defineUnit<Notification, Record<string, never
         style={{ color: vars.fgMuted }}
       >
         <div class={srOnly}>{[props.data.title, props.data.text].filter(Boolean).join('\n\n')}</div>
-        <Show when={stack()}>{(node) => <BlockStackView node={node()} />}</Show>
+        <div aria-hidden="true">
+          <Show when={stack()}>{(node) => <BlockStackView node={node()} />}</Show>
+        </div>
       </div>
     );
   },

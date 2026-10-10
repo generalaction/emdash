@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { page } from 'vitest/browser';
 import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';
 import type { TranscriptTurn } from '@/model';
@@ -70,6 +71,26 @@ function visibleNotice(host: HTMLElement) {
 }
 
 describe('background notification presentation', () => {
+  it.each([320, 800])(
+    'exposes notification text once to assistive technology at width %s',
+    async (width) => {
+      const h = mount(
+        [turn('12 events delivered. Re-arm the monitor to continue watching.', 'Monitor expired')],
+        width
+      );
+      await paint();
+      const visible = visibleNotice(h.host);
+      expect(visible.text).toContain('Monitor expired');
+      expect(visible.text).toContain('12 events delivered.');
+      await expect.element(page.getByRole('note', { name: 'Background notification' }))
+        .toMatchAriaInlineSnapshot(`
+      - note "Background notification":
+        - /children: deep-equal
+        - text: Monitor expired 12 events delivered. Re-arm the monitor to continue watching.
+    `);
+    }
+  );
+
   it.each([320, 800])(
     'paints the reported event with measured layout at width %s',
     async (width) => {
