@@ -71,9 +71,20 @@ export async function executeCreateWorktree(
     if (!safe.success) {
       return { status: 'failed', stage: 'inspect', message: safe.error.message };
     }
-    existing = (await listWorktreePaths(exec)).has(
-      nativePathIdentityKey(await canonicalOrResolved(execution.worktreePath))
+    const targetPathKey = nativePathIdentityKey(await canonicalOrResolved(execution.worktreePath));
+    let worktrees = await listWorktrees(exec);
+    const staleConflicts = worktrees.filter(
+      (worktree) =>
+        worktree.prunable &&
+        (worktree.pathKey === targetPathKey || worktree.branch === `refs/heads/${execution.branch}`)
     );
+    for (const worktree of staleConflicts) {
+      // One --force removes a missing worktree's admin record but still refuses a
+      // locked record. Unrelated stale records remain visible to reconciliation.
+      await exec.exec(['worktree', 'remove', '--force', worktree.path]);
+    }
+    if (staleConflicts.length > 0) worktrees = await listWorktrees(exec);
+    existing = worktrees.some((worktree) => worktree.pathKey === targetPathKey);
     if (existing) {
       const current = (
         await execution.git
@@ -257,13 +268,41 @@ async function rollback(
 }
 
 async function listWorktreePaths(exec: BoundExec): Promise<Set<string>> {
+  return new Set((await listWorktrees(exec)).map((worktree) => worktree.pathKey));
+}
+
+type WorktreeListing = {
+  path: string;
+  pathKey: string;
+  branch: string | null;
+  prunable: boolean;
+};
+
+async function listWorktrees(exec: BoundExec): Promise<WorktreeListing[]> {
   const result = await exec.exec(['worktree', 'list', '--porcelain']);
-  const paths = new Set<string>();
+  const raw: Array<Omit<WorktreeListing, 'pathKey'>> = [];
+  let current: Omit<WorktreeListing, 'pathKey'> | null = null;
   for (const line of result.stdout.split('\n')) {
-    if (!line.startsWith('worktree ')) continue;
-    paths.add(nativePathIdentityKey(await canonicalOrResolved(line.slice('worktree '.length))));
+    if (line.startsWith('worktree ')) {
+      if (current) raw.push(current);
+      current = {
+        path: line.slice('worktree '.length),
+        branch: null,
+        prunable: false,
+      };
+    } else if (current && line.startsWith('branch ')) {
+      current.branch = line.slice('branch '.length);
+    } else if (current && (line === 'prunable' || line.startsWith('prunable '))) {
+      current.prunable = true;
+    }
   }
-  return paths;
+  if (current) raw.push(current);
+  return await Promise.all(
+    raw.map(async (worktree) => ({
+      ...worktree,
+      pathKey: nativePathIdentityKey(await canonicalOrResolved(worktree.path)),
+    }))
+  );
 }
 
 async function branchExists(exec: BoundExec, branch: string): Promise<boolean> {
