@@ -59,11 +59,22 @@ export type StandardCommandSpec = {
    * Supports both '--flag value' and '--flag=value' forms via appendFlagValue.
    */
   modelFlag?: string;
+  /**
+   * CLI flag for data directory, e.g. '--data-dir'. When set and ctx.sessionId is present,
+   * a unique data directory path is constructed and passed. This prevents SQLite locking
+   * when multiple concurrent sessions share the same database.
+   */
+  dataDirFlag?: string;
+  /**
+   * Base directory for data directories. Defaults to the default opencode data dir
+   * (~/.local/share/opencode). The sessionId will be appended to create a unique subdirectory.
+   */
+  dataDirBase?: string;
 };
 
 /**
  * Build a standard AgentCommand from a CommandContext, applying the spec's flag patterns.
- * Handles: defaultArgs, resume/session flags, auto-approve, and prompt delivery.
+ * Handles: defaultArgs, resume/session flags, auto-approve, prompt delivery, and data dir.
  */
 export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandSpec): AgentCommand {
   const args: string[] = [];
@@ -118,6 +129,13 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
     }
   }
 
+  // Data directory — use unique subdirectory per session to avoid SQLite locking
+  if (spec.dataDirFlag && ctx.sessionId) {
+    const base = spec.dataDirBase ?? defaultDataDirBase();
+    const dataDir = `${base}-${ctx.sessionId}`;
+    appendFlagValue(args, spec.dataDirFlag, dataDir);
+  }
+
   // Auto-approve
   const skipAutoApprove = spec.omitAutoApproveOnResume && ctx.isResuming;
   if (ctx.autoApprove && spec.autoApproveFlag && !skipAutoApprove) {
@@ -157,6 +175,14 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
   }
 
   return command;
+}
+
+function defaultDataDirBase(): string {
+  // Default opencode data directory: ~/.local/share/opencode
+  // We can't use os.homedir() here because this runs in the main process
+  // and we want to avoid Node dependencies in this helper.
+  // The actual path will be resolved by the shell/environment.
+  return '$HOME/.local/share/opencode';
 }
 
 function splitFlag(flag: string): string[] {
