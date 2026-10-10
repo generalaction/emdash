@@ -115,10 +115,10 @@ export default defineConfig({
               // slice-isolation tests colocated with core slices as
               // *.browser.test.{ts,tsx}.
               extends: true as const,
-              // Prebundle before mounting query-backed React forms. A late JSX
-              // optimization reload can otherwise split their provider contexts.
+              // Prebundle before mounting query-backed forms and MobX store integrations.
+              // A late optimization reload can otherwise split their React contexts.
               optimizeDeps: {
-                include: ['react/jsx-dev-runtime', '@tanstack/react-query'],
+                include: ['react/jsx-dev-runtime', '@tanstack/react-query', 'mobx-react-lite'],
               },
               test: {
                 name: 'browser',

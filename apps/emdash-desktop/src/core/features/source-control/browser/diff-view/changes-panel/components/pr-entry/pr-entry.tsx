@@ -1,15 +1,10 @@
 import { ToggleGroup, toast } from '@emdash/ui/react/primitives';
-import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/components/pr-merge-line';
-import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
-import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
-import { PrUrlCopyButton } from '@root/src/core/services/pull-requests/browser/components/pr-url-copy-button';
 import { PrCheckoutDriftLine } from './checkout-drift-line';
 import { PrChecksList } from './checks-list';
 import { CommitRangeCommitsList } from './commits-list';
@@ -17,6 +12,7 @@ import { PrFilesList } from './files-list';
 import { type MergeAction } from './merge-footer';
 import { MergeFooter } from './merge-footer';
 import { computeMergeUiState } from './merge-ui-state';
+import { PullRequestLinks } from './pull-request-links';
 import { commitRangeForPullRequest } from './use-commits';
 
 export type MergeMode = 'merge' | 'squash' | 'rebase';
@@ -118,27 +114,13 @@ export const PullRequestEntry = observer(function PullRequestEntry({
   }));
 
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
-      <div className="flex w-full flex-col gap-2 p-2.5">
-        <div className="group/header flex items-center justify-between gap-2">
-          <button
-            className="group relative flex min-w-0 flex-1 items-center gap-2"
-            onClick={() => openExternal(pr.url)}
-          >
-            <StatusIcon className="size-4" pr={pr} />
-            <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>
-            <div className="transition-opacity duration-200 group-hover:opacity-0">
-              <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-            </div>
-            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-              <ExternalLink className="size-3.5 text-foreground-muted" />
-            </span>
-          </button>
-          <PrUrlCopyButton
-            url={pr.url}
-            className="opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100"
-          />
-        </div>
+    <div className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-border')}>
+      <div className="flex max-h-[50%] min-h-0 w-full shrink-0 flex-col gap-2 overflow-y-auto p-2.5">
+        <PullRequestLinks
+          pullRequests={prStore.pullRequests.map((associatedPr) =>
+            associatedPr.url === pr.url ? pr : associatedPr
+          )}
+        />
         <PrMergeLine pr={pr} />
         <PrCheckoutDriftLine
           drift={prStore.checkoutDrift}
@@ -146,7 +128,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({
           isUpdating={isUpdatingCheckout}
         />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col px-2.5">
+      <div className="flex min-h-8 flex-1 flex-col px-2.5">
         <ToggleGroup.Root
           value={[tab]}
           className="flex w-full"
