@@ -10,15 +10,16 @@ import type { NormalizedEvent } from '@emdash/core/runtimes/acp/api';
  * first-class `parentToolCallId` field so downstream consumers never need to
  * know about `claudeCode`.
  *
- * Returns the original update object unchanged when:
- * - The update is not a `tool_call` or `tool_update`.
- * - The vendor field is absent or not a string.
+ * Provider-injected task envelopes become subagent updates when they carry an
+ * explicit known status and tool identity, or passive notifications otherwise.
+ * Unrecognized content remains a message for the renderer's literal fallback.
  */
 export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate): NormalizedEvent {
   if (update.kind === 'message' && update.role === 'user') {
+    if (update.promptId || update.attachments?.length) return update;
     const text = update.text.trim();
-    if (isLocalCommandChunk(text)) return { kind: 'ignored' };
-    const notification = parseTaskNotification(text);
+    const fields = parseTaskFields(text);
+    const notification = fields ? taskUpdate(fields) : null;
     if (notification) {
       return {
         kind: 'subagent_update',
@@ -29,6 +30,24 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
         outputFile: notification.outputFile,
       };
     }
+    if (fields) {
+      return {
+        kind: 'notification',
+        title: fields.summary || 'Background task update',
+        text: [
+          fields.event,
+          fields.status ? `Status: ${fields.status}` : undefined,
+          fields.note,
+          fields.result,
+          fields['output-file'] ? `Output: ${fields['output-file']}` : undefined,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+      };
+    }
+    // Incomplete/unknown envelopes stay visible as literal message content.
+    if (text.startsWith('<task-notification>')) return update;
+    if (isLocalCommandChunk(text)) return { kind: 'ignored' };
     return update;
   }
 
@@ -216,27 +235,52 @@ function isLocalCommandChunk(text: string): boolean {
 }
 
 export function parseTaskNotification(text: string): TaskNotification | null {
-  if (!text.trimStart().startsWith('<task-notification>')) return null;
-  const taskId = getTag(text, 'task-id');
-  const toolUseId = getTag(text, 'tool-use-id');
-  if (!taskId || !toolUseId) return null;
+  const fields = parseTaskFields(text);
+  return fields ? taskUpdate(fields) : null;
+}
+
+type TaskFields = Partial<
+  Record<
+    'task-id' | 'tool-use-id' | 'status' | 'summary' | 'event' | 'note' | 'result' | 'output-file',
+    string
+  >
+>;
+
+/** Only consume a complete, standalone envelope whose fields we understand. */
+function parseTaskFields(text: string): TaskFields | null {
+  const body = /^<task-notification>([\s\S]*)<\/task-notification>$/.exec(text.trim())?.[1];
+  if (body === undefined) return null;
+  const fields: TaskFields = {};
+  const pattern =
+    /<(task-id|tool-use-id|status|summary|event|note|result|output-file)>([\s\S]*?)<\/\1>/g;
+  let end = 0;
+  for (const match of body.matchAll(pattern)) {
+    const key = match[1] as keyof TaskFields;
+    if (body.slice(end, match.index).trim() || fields[key] !== undefined) return null;
+    fields[key] = match[2].trim();
+    end = match.index + match[0].length;
+  }
+  if (body.slice(end).trim() || !fields['task-id']) return null;
+  if (!fields.summary && !fields.event && !fields.note && !fields.result && !fields.status)
+    return null;
+  return fields;
+}
+
+function taskUpdate(fields: TaskFields): TaskNotification | null {
+  const taskId = fields['task-id'];
+  const toolUseId = fields['tool-use-id'];
+  const status = toNotificationStatus(fields.status);
+  if (!taskId || !toolUseId || !status || fields.event !== undefined) return null;
   return {
     taskId,
     toolUseId,
-    status: toNotificationStatus(getTag(text, 'status')),
-    ...(getTag(text, 'output-file') ? { outputFile: getTag(text, 'output-file')! } : {}),
-    ...(getTag(text, 'summary') ? { summary: getTag(text, 'summary')! } : {}),
+    status,
+    ...(fields['output-file'] ? { outputFile: fields['output-file'] } : {}),
+    ...(fields.summary ? { summary: fields.summary } : {}),
   };
 }
 
-function getTag(text: string, tag: string): string | null {
-  const match = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(text);
-  return match?.[1]?.trim() ?? null;
-}
-
-function toNotificationStatus(
-  status: string | null
-): 'pending' | 'in_progress' | 'completed' | 'failed' {
+function toNotificationStatus(status: string | undefined): TaskNotification['status'] | null {
   switch (status) {
     case 'completed':
       return 'completed';
@@ -244,7 +288,9 @@ function toNotificationStatus(
       return 'failed';
     case 'pending':
       return 'pending';
-    default:
+    case 'in_progress':
       return 'in_progress';
+    default:
+      return null;
   }
 }

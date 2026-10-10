@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { stopReasonSchema } from '#runtimes/acp/api/models/stop-reason';
-import { transcriptMessageSchema } from './messages';
+import { transcriptMessageSchema, transcriptNotificationSchema } from './messages';
 import { transcriptThinkingSchema } from './thinking';
 import { toolNodeSchema } from './tool-calls';
 
 export const transcriptItemSchema = z.union([
   transcriptMessageSchema,
+  transcriptNotificationSchema,
   transcriptThinkingSchema,
   toolNodeSchema,
 ]);

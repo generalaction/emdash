@@ -358,6 +358,22 @@ function reduceInput(s: ParserState, input: ReducerInput, deps: ReducerDeps): Pa
         : decodeSessionUpdate(input.update);
 
   switch (event.kind) {
+    case 'notification': {
+      const { active, committed } = s.transcript;
+      const owner = active ??
+        committed.at(-1) ?? {
+          id: makeTurnId(deps.conversationId, 0),
+          seq: 0,
+          initiator: 'agent' as const,
+          items: [],
+        };
+      const turn = { ...owner, items: foldItem(owner.items, event, owner.id, input.at) };
+      const transcript = active
+        ? { committed, active: turn }
+        : { committed: [...committed.slice(0, -1), turn], active: null };
+      assertTranscriptInvariants(transcript);
+      return { ...s, transcript };
+    }
     case 'config': {
       const options = event.options.flatMap((option) => {
         const parsed = providerConfigOptionSchema.safeParse(option);

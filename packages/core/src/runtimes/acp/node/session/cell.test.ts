@@ -22,6 +22,87 @@ function makeCell(agent = new FakeAcpAgent()) {
   return result;
 }
 describe('SessionCell prompts', () => {
+  it('publishes idle notifications without generation, agent activity, or blocking prompts', async () => {
+    const { cell, agent } = makeCell();
+    agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+    try {
+      cell.push({ kind: 'notification', title: 'Monitor expired', text: '12 events delivered' });
+      expect(cell.history().active).toBeNull();
+      expect(cell.history().committed[0].items[0].kind).toBe('notification');
+      expect(cell.sessionState).toMatchObject({
+        agentTurnActive: false,
+        isGenerating: false,
+        backgroundAgentCount: 0,
+      });
+      expect(cell.sessionState.transcript?.historyRevision).toBe(1);
+      expect(await cell.prompt({ text: 'Next request' })).toEqual({
+        success: true,
+        data: { queued: false },
+      });
+      expect(agent.prompt).toHaveBeenCalledOnce();
+    } finally {
+      cell.dispose();
+    }
+  });
+
+  it('keeps a pending prompt active when a monitor notification arrives', async () => {
+    const { cell, agent } = makeCell();
+    let finish!: (result: { stopReason: 'end_turn' }) => void;
+    agent.prompt = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    try {
+      const pending = cell.prompt({ text: 'Still working' });
+      await vi.waitFor(() => expect(agent.prompt).toHaveBeenCalledOnce());
+      const turnId = cell.history().active?.id;
+      cell.push({ kind: 'notification', title: 'Monitor expired', text: '12 events delivered' });
+      expect(cell.history().active?.id).toBe(turnId);
+      expect(cell.history().committed).toEqual([]);
+      expect(cell.sessionState.isGenerating).toBe(true);
+      finish({ stopReason: 'end_turn' });
+      await pending;
+      expect(cell.history().committed[0].items.map((item) => item.kind)).toEqual([
+        'message',
+        'notification',
+      ]);
+      expect(cell.sessionState.isGenerating).toBe(false);
+    } finally {
+      cell.dispose();
+    }
+  });
+
+  it('replays notifications without setting foreground activity', () => {
+    const { cell } = makePendingCell();
+    try {
+      cell.beginReplay();
+      cell.push({ kind: 'notification', title: 'Monitor event', text: 'Historical event' });
+      cell.endReplay();
+      cell.applySessionLoaded();
+      expect(cell.history().active).toBeNull();
+      expect(cell.history().committed[0].items[0].kind).toBe('notification');
+      expect(cell.sessionState).toMatchObject({
+        agentTurnActive: false,
+        isGenerating: false,
+        backgroundAgentCount: 0,
+      });
+    } finally {
+      cell.dispose();
+    }
+  });
+
+  it('rejects notifications outside a usable session just like other transcript events', () => {
+    const { cell } = makePendingCell();
+    try {
+      cell.push({ kind: 'notification', title: 'Stale event', text: 'Do not reopen' });
+      expect(cell.history()).toEqual({ committed: [], active: null });
+    } finally {
+      cell.dispose();
+    }
+  });
+
   it.each([false, true])(
     'defers prepared prompt dispatch until commit (resumed=%s)',
     async (resumed) => {

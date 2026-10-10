@@ -592,6 +592,10 @@ export function foldItem(
 ): TranscriptItem[] {
   const flatItems = flattenItems(items);
   switch (event.kind) {
+    case 'notification': {
+      const seq = nextSeq(flatItems);
+      return [...items, { ...event, id: `${turnId}:notification:${seq}`, seq }];
+    }
     case 'message': {
       const id = event.itemId;
       const base = flatItems;
@@ -793,6 +797,7 @@ export function finalizeItems(items: TranscriptItem[], at: number): TranscriptIt
 
   return items.map((item): TranscriptItem => {
     switch (item.kind) {
+      case 'notification':
       case 'message':
         return item;
       case 'thinking':
