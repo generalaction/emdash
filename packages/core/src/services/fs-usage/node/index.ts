@@ -30,6 +30,8 @@ type ScanState = {
   root: string;
   displayPath: string;
   artifactRoots: string[];
+  excludedPaths: Set<string>;
+  signal?: AbortSignal;
   entries: EntryUsage[];
   errors: PathUsageError[];
 };
@@ -37,10 +39,12 @@ type ScanState = {
 export async function measureAbsolutePathUsage(
   absolutePath: string,
   displayPath: string,
-  options: { artifactRoots?: string[] } = {}
+  options: { artifactRoots?: string[]; excludePaths?: string[]; signal?: AbortSignal } = {}
 ): Promise<PathUsage> {
   const root = path.resolve(absolutePath);
+  options.signal?.throwIfAborted();
   const rootStats = await lstat(root);
+  options.signal?.throwIfAborted();
 
   if (!rootStats.isDirectory()) {
     const bytes = diskBytes(rootStats);
@@ -59,6 +63,8 @@ export async function measureAbsolutePathUsage(
     root,
     displayPath,
     artifactRoots: normalizeArtifactRoots(options.artifactRoots ?? []),
+    excludedPaths: new Set((options.excludePaths ?? []).map((excluded) => path.resolve(excluded))),
+    signal: options.signal,
     entries: [],
     errors: [],
   };
@@ -72,14 +78,18 @@ export async function measureAbsolutePathUsage(
 }
 
 async function scanPath(state: ScanState, currentPath: string): Promise<void> {
+  state.signal?.throwIfAborted();
+  if (state.excludedPaths.has(currentPath)) return;
   const relative = displayRelativePath(state, currentPath);
   let stats: Stats;
   try {
     stats = await lstat(currentPath);
   } catch (error) {
+    state.signal?.throwIfAborted();
     state.errors.push({ path: relative, message: errorMessage(error) });
     return;
   }
+  state.signal?.throwIfAborted();
 
   const isDirectory = stats.isDirectory();
   state.entries.push({
@@ -96,9 +106,11 @@ async function scanPath(state: ScanState, currentPath: string): Promise<void> {
   try {
     children = await readdir(currentPath, { withFileTypes: true });
   } catch (error) {
+    state.signal?.throwIfAborted();
     state.errors.push({ path: relative, message: errorMessage(error) });
     return;
   }
+  state.signal?.throwIfAborted();
   for (const child of children) {
     await scanPath(state, path.join(currentPath, child.name));
   }
