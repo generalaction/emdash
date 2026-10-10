@@ -38,6 +38,11 @@ export type NormalizedToolStatus = 'pending' | 'in_progress' | 'completed' | 'fa
 export type NormalizedEvent =
   | { kind: 'mcp_startup_failure'; server: string; error: string }
   | {
+      kind: 'notification';
+      title: string;
+      text: string;
+    }
+  | {
       kind: 'message';
       promptId?: string;
       role: 'user' | 'assistant';

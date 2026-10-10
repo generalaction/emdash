@@ -15,3 +15,12 @@ export const transcriptMessageSchema = z.object({
   attachments: z.array(attachmentMetadataSchema).optional(),
 });
 export type TranscriptMessage = z.infer<typeof transcriptMessageSchema>;
+
+/** Durable provider notices do not carry a conversational role or tool status. */
+export const transcriptNotificationSchema = z.object({
+  kind: z.literal('notification'),
+  id: z.string(),
+  seq: z.number().int(),
+  title: z.string(),
+  text: z.string(),
+});

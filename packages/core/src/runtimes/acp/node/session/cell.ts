@@ -670,6 +670,7 @@ export class SessionCell {
 
   private isTranscriptEvent(event: NormalizedEvent): boolean {
     switch (event.kind) {
+      case 'notification':
       case 'message':
       case 'thinking':
       case 'tool_call':

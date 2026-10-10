@@ -34,6 +34,13 @@ requests set `awaiting-input`, including requests already present on first obser
 Resolving the final request restores `working` if generation continues and the session is
 not cancelling. The task and conversation indicators consume this projected status.
 
+Provider-injected transcript notifications are normalized by the provider plugin, not by the
+Markdown renderer. Claude monitor envelopes become passive `notification` items; they do not open
+user turns, settle foreground work, or mark an idle session as generating. Task envelopes with a
+tool identity and an explicit known status continue to update subagent state. Missing or unknown
+statuses must not default to running. Incomplete or unrecognized envelopes remain readable message
+text: chat-ui renders HTML/XML nodes literally instead of dropping them or executing markup.
+
 Shipped hook integrations install into user-global provider configuration, never into a task
 worktree. The provider behavior resolves its root from the same allowlisted environment passed to
 the CLI, including provider-specific home overrides and XDG/APPDATA conventions. Paths returned by
