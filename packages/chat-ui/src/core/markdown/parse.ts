@@ -104,6 +104,7 @@ function phrasingsToRuns(
     const node = rawNode as PhrasingContent;
 
     switch (node.type) {
+      case 'html':
       case 'text': {
         // Split on literal newlines (soft breaks inside a paragraph) and emit
         // an InlineBreak between each segment so layoutProse can force a new line.
@@ -201,7 +202,7 @@ function phrasingsToRuns(
       }
 
       default:
-        // Ignore unknown inline node types (html, footnote references, …)
+        // Ignore unknown inline node types (footnote references, …)
         break;
     }
   }
@@ -248,6 +249,17 @@ function blockToBlocks(
   const blocks: Block[] = [];
 
   switch (node.type) {
+    case 'html': {
+      blocks.push({
+        kind: 'prose',
+        id: nextId(),
+        variant: inQuote ? 'quote' : 'body',
+        runs: phrasingsToRuns([node]),
+        depth,
+      } satisfies ProseBlock);
+      break;
+    }
+
     case 'paragraph': {
       const parent = node as Parent;
       const runs = phrasingsToRuns(parent.children as PhrasingContent[]);
