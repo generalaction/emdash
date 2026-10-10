@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createServer, type Server } from 'node:net';
 import { devNull, tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,11 +11,66 @@ import {
 
 const channel = { port: 45678, nonce: 'channel-nonce-1234' };
 
+async function listenOnLoopback(server: Server): Promise<number> {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('expected TCP address');
+  return address.port;
+}
+
+async function closeServer(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))
+  );
+}
+
+async function unusedLoopbackPort(): Promise<number> {
+  const server = createServer();
+  const port = await listenOnLoopback(server);
+  await closeServer(server);
+  return port;
+}
+
 const helperSpec: GitCredentialsSessionSpec = {
   mode: 'effective-account',
   channel,
   hosts: ['github.com'],
 };
+
+function credentialEnv(env: Record<string, string>): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...env,
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: devNull,
+    GIT_TERMINAL_PROMPT: '0',
+    NO_PROXY: '127.0.0.1,localhost',
+    no_proxy: '127.0.0.1,localhost',
+  };
+}
+
+function runGitCredential(action: string, env: Record<string, string>, input: string) {
+  return spawnSync('git', ['credential', action], {
+    input,
+    encoding: 'utf8',
+    env: credentialEnv(env),
+  });
+}
+
+const gitCredentialInput = 'protocol=https\nhost=github.com\n\n';
+
+function helperEnvForPort(port: number): Record<string, string> {
+  return applyGitCredentialsToEnv(
+    {},
+    { mode: 'effective-account', channel: { ...channel, port }, hosts: ['github.com'] }
+  );
+}
 
 function gitConfigPairs(env: Record<string, string>): [string, string][] {
   const output = execFileSync('git', ['config', '--null', '--list'], {
@@ -89,6 +145,15 @@ describe('applyGitCredentialsToEnv', () => {
     it('does not touch askpass behavior', () => {
       const env = applyGitCredentialsToEnv({ GIT_ASKPASS: '/usr/bin/x' }, helperSpec);
       expect(env.GIT_ASKPASS).toBe('/usr/bin/x');
+    });
+
+    it('reports a failed credential proxy request instead of swallowing its failure', async () => {
+      const port = await unusedLoopbackPort();
+      const result = runGitCredential('fill', helperEnvForPort(port), gitCredentialInput);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(
+        'emdash: credential proxy request failed at 127.0.0.1:' + port
+      );
     });
   });
 
