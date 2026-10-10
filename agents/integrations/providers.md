@@ -82,6 +82,12 @@ OpenAI, Anthropic, Google, DeepSeek, Qwen, and more through one API key (`sk-orc
 resolves `orcarouter/*` models through its models.dev catalog, so setting `ORCAROUTER_API_KEY` lets
 you select an OrcaRouter model from the OpenCode model picker.
 
+[Tsubasa](https://tsubasa.sh/docs) uses `TSUBASA_API_KEY`. Set that variable in the
+host environment and configure the agent CLI to use `https://api.tsubasa.sh/v1`
+with `tsubasa-pro` or `tsubasa-fast` through its OpenAI-compatible Chat Completions
+configuration. Emdash forwards the key to the spawned agent; endpoint and model
+selection remain part of that agent's configuration.
+
 ## Provider Runtime Notes
 
 - Host dependencies are resolved by the host-scoped `HostDependencies` Wire component.
