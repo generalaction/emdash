@@ -1,3 +1,4 @@
+import type { ChatState, UserMessageNavigation } from '@emdash/chat-ui';
 import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type { AttachmentRef } from '@emdash/core/services/attachments/api';
 import { ChatComposer, ImageViewerDialog, MermaidViewerDialog } from '@emdash/ui/react/components';
@@ -69,6 +70,7 @@ import {
   toAcpImageAttachmentMimeType,
   uploadDroppedFile,
 } from './acp-dropped-file';
+import { AcpMessageNavigator } from './acp-message-navigator';
 import { appendDraftCommentsContext } from './draft-comments-context';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
 import { createTranscriptFileCommands } from './transcript-file-commands';
@@ -701,6 +703,10 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   // True while the scroll viewport is at the tail. Defaults to true so the
   // button does not flash on mount before the first frame fires.
   const [atBottom, setAtBottom] = useState(true);
+  const [userNavigation, setUserNavigation] = useState<{
+    model: ChatState;
+    navigation: UserMessageNavigation;
+  } | null>(null);
 
   const handleReady = useCallback((view: ChatView) => {
     viewRef.current = view;
@@ -870,6 +876,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       (store.loadError !== null && store.loadError.kind !== 'unavailable') ||
       unavailableWithoutTranscript);
   const showHero = showComposer && store.isEmpty && store.loadError === null;
+  const navigation = userNavigation?.model === store.chatState ? userNavigation.navigation : null;
+  const showNavigator =
+    showComposer && !!navigation && (navigation.items.length > 1 || store.hasOlderHistory);
 
   return (
     <div ref={rootRef} className="surface-paper relative h-full overflow-hidden bg-(--em-surface)">
@@ -884,8 +893,23 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         onReady={handleReady}
         commands={transcriptCommands}
         onAtBottomChange={setAtBottom}
-        style={{ position: 'absolute', inset: 0 }}
+        onUserMessageNavigationChange={(next) =>
+          setUserNavigation({ model: store.chatState, navigation: next })
+        }
+        style={{ position: 'absolute', inset: 0, left: showNavigator ? 36 : 0 }}
       />
+
+      {showNavigator && (
+        <AcpMessageNavigator
+          key={`navigation:${store.conversationId}`}
+          navigation={navigation}
+          hasOlderHistory={store.hasOlderHistory}
+          loading={store.olderHistoryLoading}
+          error={store.olderHistoryError}
+          onLoadOlder={() => void store.loadOlderHistory()}
+          onNavigate={(id) => viewRef.current?.scrollToItem(id, { align: 'start' })}
+        />
+      )}
 
       {/* Authentication errors own the content area so sign-in remains accessible even after
           attachment. Otherwise, show the composer as soon as history is known. */}

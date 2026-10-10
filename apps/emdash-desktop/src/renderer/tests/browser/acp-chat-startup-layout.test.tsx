@@ -156,6 +156,328 @@ vi.mock('@core/features/conversations/browser/acp/transcript-file-commands', () 
   createTranscriptFileCommands: () => ({}),
 }));
 
+function navigationTurn(id: string, seq: number, text: string): TranscriptTurn {
+  return {
+    id: `turn-${id}`,
+    seq,
+    initiator: 'user',
+    items: [
+      {
+        kind: 'message',
+        id,
+        seq: 0,
+        role: 'user',
+        text,
+        ...(text.trim() === '' && {
+          attachments: [{ id: `${id}-image`, name: 'screenshot.png', mimeType: 'image/png' }],
+        }),
+      },
+      {
+        kind: 'message',
+        id: `${id}-reply`,
+        seq: 1,
+        role: 'assistant',
+        text: Array.from({ length: 8 }, (_, i) => `Response ${id}, paragraph ${i}.`).join('\n\n'),
+      },
+    ],
+  };
+}
+
+async function mountMessageNavigation({
+  count = 12,
+  width = 1000,
+  height = 700,
+}: { count?: number; width?: number; height?: number } = {}) {
+  await page.viewport(1100, 800);
+  fixture.restored = false;
+  let view: chatUi.ChatView | undefined;
+  installChatUiRuntime({
+    ...chatUi,
+    createChatView(options) {
+      view = chatUi.createChatView(options);
+      return view;
+    },
+  });
+  const context = chatUi.createChatContext();
+  fixture.context = context;
+  const previousClient = fixture.client;
+  fixture.client = {
+    attachments: {
+      download: async () => ({
+        success: false,
+        error: { type: 'attachment-not-found', message: 'Preview is unavailable' },
+      }),
+    },
+  };
+  const a = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+  const b = new AcpChatStore('navigation-b', 'project-1', 'task-1');
+  const empty = new AcpChatStore('navigation-empty', 'project-1', 'task-1');
+  const promptsA = ['  First\n\trequest   A  ', 'x'.repeat(120), '\n\t', 'Fourth request A'];
+  const turnsA = Array.from({ length: count }, (_, i) =>
+    navigationTurn(`a-${i}`, i, promptsA[i] ?? `Request A ${i + 1}`)
+  );
+  const turnsB = Array.from({ length: 3 }, (_, i) =>
+    navigationTurn(`b-${i}`, i, `Request B ${i + 1}`)
+  );
+  a.chatState.transcript.history.seed(turnsA);
+  b.chatState.transcript.history.seed(turnsB);
+  runInAction(() => {
+    for (const store of [a, b, empty]) {
+      store.historyKnown = true;
+      store.historyLoading = false;
+    }
+    a.messageCount = turnsA.length * 2;
+    b.messageCount = turnsB.length * 2;
+  });
+  const active = observable.box<AcpChatStore | null>(a, { deep: false });
+  fixture.pane = {
+    get resolvedTabs() {
+      const store = active.get();
+      return store ? [{ isActive: true, kind: 'acp-chat', resource: { store } }] : [];
+    },
+  };
+  const parent = document.createElement('div');
+  parent.style.cssText = `width:${width}px;height:${height}px;position:relative;font-family:system-ui`;
+  parent.className = 'emlight';
+  const css = document.createElement('style');
+  css.textContent =
+    '.relative {position:relative}.absolute {position:absolute}.h-full {height:100%}.overflow-hidden {overflow:hidden}.inset-0 {inset:0}';
+  document.head.append(css);
+  document.body.append(parent);
+  const root = createRoot(parent);
+  const harness = {
+    a,
+    b,
+    empty,
+    parent,
+    get view() {
+      return view!;
+    },
+    rail: () => page.getByRole('navigation', { name: 'User messages' }),
+    marker: (name: string) => page.getByRole('button', { name, exact: true }),
+    scroll: () => parent.querySelector<HTMLElement>('[data-chat-scroll]')!,
+    async switchTo(store: AcpChatStore | null) {
+      await act(async () => runInAction(() => active.set(store)));
+    },
+    async dispose() {
+      await act(async () => root.unmount());
+      for (const store of [a, b, empty]) store.dispose();
+      fixture.pane = undefined;
+      fixture.client = previousClient;
+      context.dispose();
+      parent.remove();
+      css.remove();
+      installChatUiRuntime(chatUi);
+    },
+  };
+  try {
+    await act(async () => root.render(<AcpChatPanel />));
+    await vi.waitFor(() =>
+      expect(parent.querySelector('nav[aria-label="User messages"]')).not.toBeNull()
+    );
+    await act(
+      async () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        )
+    );
+    await act(async () => harness.view.scrollToBottom());
+    return harness;
+  } catch (error) {
+    await harness.dispose();
+    throw error;
+  }
+}
+
+it('labels loaded prompt markers accessibly and jumps to a virtualized prompt on click', async () => {
+  const h = await mountMessageNavigation();
+  const first = h.marker('Go to message 1: First request A');
+  const last = h.marker('Go to message 12: Request A 12');
+  const scrollToItem = vi.spyOn(h.view, 'scrollToItem');
+  try {
+    expect(h.rail().getByRole('button').elements()).toHaveLength(12);
+    await expect.element(h.marker(`Go to message 2: ${'x'.repeat(100)}`)).toBeVisible();
+    await expect.element(h.marker('Go to message 3: Attachment')).toBeVisible();
+    await expect.element(last).toHaveAttribute('aria-current', 'step');
+    const beforeScroll = h.scroll().scrollTop;
+    expect(beforeScroll).toBeGreaterThan(1000);
+    expect(h.parent.querySelector('[data-chat-canvas] [data-user-card="a-0"]')).toBeNull();
+
+    await act(async () => first.click());
+    expect(scrollToItem).toHaveBeenLastCalledWith('a-0', { align: 'start' });
+    await expect.element(first).toHaveAttribute('aria-current', 'step');
+    await expect.element(last).not.toHaveAttribute('aria-current');
+    await vi.waitFor(() =>
+      expect(h.parent.querySelector('[data-chat-canvas] [data-user-card="a-0"]')).not.toBeNull()
+    );
+    expect(h.scroll().scrollTop).toBeLessThan(beforeScroll);
+    const card = h.parent.querySelector<HTMLElement>('[data-chat-canvas] [data-user-card="a-0"]')!;
+    expect(card.getBoundingClientRect().top - h.scroll().getBoundingClientRect().top).toBeLessThan(
+      100
+    );
+  } finally {
+    scrollToItem.mockRestore();
+    await h.dispose();
+  }
+});
+
+it('uses one rail tab stop, previews focused markers, and activates them with Enter and Space', async () => {
+  const h = await mountMessageNavigation();
+  const first = h.marker('Go to message 1: First request A');
+  const second = h.marker(`Go to message 2: ${'x'.repeat(100)}`);
+  const fourth = h.marker('Go to message 4: Fourth request A');
+  const last = h.marker('Go to message 12: Request A 12');
+  const scrollToItem = vi.spyOn(h.view, 'scrollToItem');
+  const tabStops = () =>
+    Array.from(h.rail().element().querySelectorAll('button')).filter(
+      (button) => button.tabIndex === 0
+    );
+  try {
+    await expect.element(last).toHaveAttribute('aria-current', 'step');
+    expect(tabStops()).toEqual([last.element()]);
+    await act(async () => {
+      (last.element() as HTMLElement).focus();
+    });
+    await expect.element(last).toHaveFocus();
+    await act(async () => userEvent.keyboard('{Home}'));
+    await expect.element(first).toHaveFocus();
+    await expect.element(page.getByText('Message 1 of 12', { exact: true })).toBeVisible();
+    await expect.element(page.getByText('First request A', { exact: true })).toBeVisible();
+    await expect.element(last).toHaveAttribute('aria-current', 'step');
+    expect(scrollToItem).not.toHaveBeenCalled();
+    expect(tabStops()).toEqual([first.element()]);
+
+    await act(async () => userEvent.keyboard('{ArrowDown}'));
+    await expect.element(second).toHaveFocus();
+    await act(async () => userEvent.keyboard('{ArrowUp}'));
+    await expect.element(first).toHaveFocus();
+    await act(async () => userEvent.keyboard('{Enter}'));
+    expect(scrollToItem).toHaveBeenLastCalledWith('a-0', { align: 'start' });
+    await expect.element(first).toHaveAttribute('aria-current', 'step');
+    await act(async () => userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}'));
+    await expect.element(fourth).toHaveFocus();
+    await expect.element(first).toHaveAttribute('aria-current', 'step');
+    await act(async () => userEvent.keyboard(' '));
+    expect(scrollToItem).toHaveBeenLastCalledWith('a-3', { align: 'start' });
+    await expect.element(fourth).toHaveAttribute('aria-current', 'step');
+
+    await act(async () => userEvent.keyboard('{End}'));
+    await expect.element(last).toHaveFocus();
+    await act(async () => userEvent.keyboard('{ArrowDown}'));
+    await expect.element(last).toHaveFocus();
+    await act(async () => userEvent.keyboard('{Home}{ArrowUp}'));
+    await expect.element(first).toHaveFocus();
+    expect(tabStops()).toEqual([first.element()]);
+    await act(async () => userEvent.keyboard('{Tab}'));
+    expect(h.rail().element().contains(document.activeElement)).toBe(false);
+  } finally {
+    scrollToItem.mockRestore();
+    await h.dispose();
+  }
+});
+
+it('switches conversation labels and current markers without retaining another conversations prompts', async () => {
+  const h = await mountMessageNavigation();
+  const firstA = h.marker('Go to message 1: First request A');
+  const firstB = h.marker('Go to message 1: Request B 1');
+  const lastB = h.marker('Go to message 3: Request B 3');
+  try {
+    await act(async () => firstA.click());
+    await expect.element(firstA).toHaveAttribute('aria-current', 'step');
+    await h.switchTo(h.b);
+    await expect.element(lastB).toHaveAttribute('aria-current', 'step');
+    expect(h.rail().getByRole('button').elements()).toHaveLength(3);
+    expect(h.rail().element().textContent).not.toContain('First request A');
+    await expect.element(firstA).not.toBeInTheDocument();
+    await act(async () => firstB.click());
+    await expect.element(firstB).toHaveAttribute('aria-current', 'step');
+
+    h.a.chatState.session.setPendingPrompt({ id: 'a-pending', text: 'Inactive A request' });
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+    expect(h.rail().getByRole('button').elements()).toHaveLength(3);
+    await expect.element(firstB).toHaveAttribute('aria-current', 'step');
+    await expect
+      .element(page.getByRole('button', { name: /Inactive A request/ }))
+      .not.toBeInTheDocument();
+
+    await h.switchTo(h.a);
+    await expect.element(firstA).toHaveAttribute('aria-current', 'step');
+    await expect.element(h.marker('Go to message 13: Inactive A request')).toBeInTheDocument();
+    await expect.element(firstB).not.toBeInTheDocument();
+    await h.switchTo(h.empty);
+    await expect.element(h.rail()).not.toBeInTheDocument();
+    await h.switchTo(h.b);
+    await expect.element(firstB).toHaveAttribute('aria-current', 'step');
+    expect(h.rail().getByRole('button').elements()).toHaveLength(3);
+    await h.switchTo(null);
+    await expect.element(h.rail()).not.toBeInTheDocument();
+  } finally {
+    await h.dispose();
+  }
+});
+
+it('keeps a rail with 64 markers inside a constrained panel and above the composer', async () => {
+  const h = await mountMessageNavigation({ count: 64, width: 640, height: 420 });
+  const current = h.marker('Go to message 64: Request A 64');
+  try {
+    await expect.element(current).toHaveAttribute('aria-current', 'step');
+    expect(h.rail().getByRole('button').elements().length).toBeLessThanOrEqual(30);
+    await vi.waitFor(() => {
+      const nav = h.rail().element();
+      const viewport = nav.querySelector<HTMLElement>('.scroll-fade__viewport')!;
+      const navBounds = nav.getBoundingClientRect();
+      const viewportBounds = viewport.getBoundingClientRect();
+      const panelBounds = h.parent.getBoundingClientRect();
+      const composerBounds = h.view.composerSlot!.getBoundingClientRect();
+      const currentBounds = current.element().getBoundingClientRect();
+      expect(navBounds.height).toBeGreaterThan(0);
+      expect(navBounds.top).toBeGreaterThanOrEqual(panelBounds.top);
+      expect(navBounds.bottom).toBeLessThanOrEqual(composerBounds.top + 1);
+      expect(navBounds.left).toBeGreaterThanOrEqual(panelBounds.left);
+      expect(navBounds.right).toBeLessThanOrEqual(panelBounds.right);
+      expect(viewportBounds.top).toBeGreaterThanOrEqual(navBounds.top - 1);
+      expect(viewportBounds.bottom).toBeLessThanOrEqual(navBounds.bottom + 1);
+      expect(viewport.clientHeight).toBeGreaterThan(0);
+      expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
+      expect(getComputedStyle(viewport).overflowY).toMatch(/auto|scroll/);
+      expect(currentBounds.top).toBeGreaterThanOrEqual(viewportBounds.top - 1);
+      expect(currentBounds.bottom).toBeLessThanOrEqual(viewportBounds.bottom + 1);
+
+      // Offscreen marker geometry may extend beyond the rail; browser hit testing must clip it.
+      for (const marker of h.rail().getByRole('button').elements()) {
+        const bounds = marker.getBoundingClientRect();
+        const x = (bounds.left + bounds.right) / 2;
+        const y = (bounds.top + bounds.bottom) / 2;
+        if (y >= navBounds.top && y <= navBounds.bottom) continue;
+        expect(document.elementFromPoint(x, y)?.closest('button')).not.toBe(marker);
+      }
+    });
+
+    await act(async () => {
+      (current.element() as HTMLElement).focus();
+    });
+    await act(async () => userEvent.keyboard('{Home}'));
+    const first = h.marker('Go to message 1: First request A');
+    await expect.element(first).toHaveFocus();
+    await vi.waitFor(() => {
+      const viewportBounds = h
+        .rail()
+        .element()
+        .querySelector('.scroll-fade__viewport')!
+        .getBoundingClientRect();
+      const firstBounds = first.element().getBoundingClientRect();
+      expect(firstBounds.top).toBeGreaterThanOrEqual(viewportBounds.top - 1);
+      expect(firstBounds.bottom).toBeLessThanOrEqual(viewportBounds.bottom + 1);
+    });
+    await act(async () => userEvent.keyboard('{Enter}'));
+    await expect.element(first).toHaveAttribute('aria-current', 'step');
+  } finally {
+    await h.dispose();
+  }
+});
+
 it('attaches diff comments only through the mention menu and preserves unsent drafts', async () => {
   await page.viewport(1100, 800);
   fixture.restored = false;
