@@ -51,6 +51,7 @@ export type IntegrationAccountsFormState = Partial<Record<string, StoredIntegrat
 
 export type GitIdentityFormState = {
   defaultBranch: GitBranchRef | null;
+  fetchLatestBase?: boolean;
   baseRemote: string;
   pushRemote: string;
   agentGitCredentials: AgentGitCredentialsSetting;
@@ -134,6 +135,7 @@ export function gitIdentityToForm(
 ): GitIdentityFormState {
   return {
     defaultBranch: storedDefaultBranchToBranchRef(domain.stored.defaultBranch, remotes),
+    fetchLatestBase: domain.stored.fetchLatestBase ?? false,
     baseRemote: domain.stored.baseRemote ?? '',
     pushRemote: domain.stored.pushRemote ?? '',
     agentGitCredentials: domain.stored.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS,
@@ -233,6 +235,9 @@ export function gitIdentityToPatch(
     stored.defaultBranch = form.defaultBranch
       ? branchRefToStoredDefaultBranch(form.defaultBranch)
       : null;
+  }
+  if (isTouched(touchedFields, 'gitIdentity.fetchLatestBase')) {
+    stored.fetchLatestBase = form.fetchLatestBase ? true : null;
   }
   if (isTouched(touchedFields, 'gitIdentity.baseRemote')) {
     stored.baseRemote = blankToUndefined(form.baseRemote) ?? null;

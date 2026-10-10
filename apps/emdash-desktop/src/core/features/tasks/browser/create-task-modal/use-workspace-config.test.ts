@@ -30,9 +30,19 @@ vi.mock('@core/features/source-control/api/browser/stores/source-control-selecto
 }));
 // The real module transitively imports monaco, which cannot load in the node project.
 // Mirror the registry-backed resolved file-handling domain consumed by the preview.
-const projectConfigMock = vi.hoisted(() => ({ preservePatterns: ['.env'] as string[] }));
+const projectConfigMock = vi.hoisted(() => ({
+  preservePatterns: ['.env'] as string[],
+  fetchLatestBase: false,
+  loaded: true,
+  error: undefined as string | undefined,
+  loading: false,
+}));
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectSettingsStore: () => ({
+    pageData: { error: projectConfigMock.error, loading: projectConfigMock.loading },
+    durableDomains: projectConfigMock.loaded
+      ? { gitIdentity: { stored: { fetchLatestBase: projectConfigMock.fetchLatestBase } } }
+      : null,
     domains: {
       fileHandling: {
         resolved: {
@@ -100,14 +110,16 @@ function Probe({
   isUnborn = false,
   hasRepository = true,
   pr = null,
+  projectId = 'project-1',
 }: {
   initial: Parameters<typeof useWorkspaceConfig>[0]['initial'];
   isUnborn?: boolean;
   hasRepository?: boolean;
   pr?: Parameters<typeof useWorkspaceConfig>[0]['pr'];
+  projectId?: string;
 }) {
   latestState = useWorkspaceConfig({
-    projectId: 'project-1',
+    projectId,
     defaultBranch: { type: 'local', branch: 'main' },
     isUnborn,
     hasRepository,
@@ -117,7 +129,7 @@ function Probe({
     taskName: 'Generated task branch',
     linkedIssue: null,
     createBranchAndWorktreeDefault: true,
-    resetKey: 'project-1',
+    resetKey: projectId,
     initial,
   });
   return null;
@@ -133,6 +145,10 @@ describe('useWorkspaceConfig branch selection', () => {
     branchNameMock.current = 'generated-task-branch';
     workspaceOptionsMock.current = [];
     projectConfigMock.preservePatterns = ['.env'];
+    projectConfigMock.fetchLatestBase = false;
+    projectConfigMock.loaded = true;
+    projectConfigMock.error = undefined;
+    projectConfigMock.loading = false;
     repositoryStoreMock.current = {
       baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
       pushRemote: { name: 'fork', url: 'https://github.com/me/repo.git' },
@@ -158,6 +174,7 @@ describe('useWorkspaceConfig branch selection', () => {
       isUnborn?: boolean;
       hasRepository?: boolean;
       pr?: Parameters<typeof useWorkspaceConfig>[0]['pr'];
+      projectId?: string;
     } = {}
   ) {
     await act(async () => {
@@ -239,8 +256,109 @@ describe('useWorkspaceConfig branch selection', () => {
       kind: 'create-branch',
       branchName: 'generated-task-branch',
       fromBranch: { type: 'local', branch: 'release/v2' },
+      fetchLatestBase: false,
       pushBranch: false,
     });
+  });
+
+  const remoteBase = {
+    type: 'remote' as const,
+    branch: 'main',
+    remote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+  };
+
+  it('inherits the project preference and previews the blocking fetch', async () => {
+    projectConfigMock.fetchLatestBase = true;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.fetchLatestBase).toBe(true);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: true });
+    expect(latestState?.setupSteps[0]?.id).toBe('fetch-remote-base');
+    act(() => latestState?.setFetchLatestBase(false));
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
+    expect(latestState?.setupSteps.some((step) => step.id === 'fetch-remote-base')).toBe(false);
+  });
+
+  it('restores an explicit false choice even when the project preference is enabled', async () => {
+    projectConfigMock.fetchLatestBase = true;
+    await renderProbe({
+      fetchLatestBase: false,
+      branchSelection: { branchOverride: remoteBase },
+    });
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
+  });
+
+  it('disables fetching for local bases and restores the choice for remote bases', async () => {
+    projectConfigMock.fetchLatestBase = true;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    act(() => latestState?.branchSelection.setSelectedBranch({ type: 'local', branch: 'main' }));
+    expect(latestState?.canFetchLatestBase).toBe(false);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
+    act(() => latestState?.branchSelection.setSelectedBranch(remoteBase));
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: true });
+  });
+
+  it('clears a creation override when changing projects', async () => {
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    act(() => latestState?.setFetchLatestBase(true));
+    await renderProbe(undefined, { projectId: 'project-2' });
+    act(() => latestState?.branchSelection.setSelectedBranch(remoteBase));
+    expect(latestState?.fetchLatestBase).toBe(false);
+  });
+
+  it('uses the new project preference after changing a saved configuration’s project', async () => {
+    projectConfigMock.fetchLatestBase = true;
+    const initial = { fetchLatestBase: false, branchSelection: { branchOverride: remoteBase } };
+    await renderProbe(initial);
+    expect(latestState?.fetchLatestBase).toBe(false);
+    await renderProbe(initial, { projectId: 'project-2' });
+    act(() => latestState?.branchSelection.setSelectedBranch(remoteBase));
+    expect(latestState?.fetchLatestBase).toBe(true);
+  });
+
+  it('waits for the project preference before allowing a new branch creation', async () => {
+    projectConfigMock.loaded = false;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.isValid).toBe(false);
+    projectConfigMock.loaded = true;
+    projectConfigMock.fetchLatestBase = true;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.fetchLatestBase).toBe(true);
+  });
+
+  it('allows local-base creation even when project defaults cannot load', async () => {
+    projectConfigMock.loaded = false;
+    projectConfigMock.error = 'Failed to load project settings';
+    await renderProbe(undefined);
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.canFetchLatestBase).toBe(false);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
+  });
+
+  it('allows cached remote-base creation after a defaults-load failure and exposes the fallback', async () => {
+    projectConfigMock.loaded = false;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.isValid).toBe(false);
+    projectConfigMock.error = 'Failed to load project settings';
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.fetchLatestBaseSettingsUnavailable).toBe(true);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
+    act(() => latestState?.setFetchLatestBase(true));
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: true });
+  });
+
+  it('waits for a settings retry despite the retained error, unless the user chooses an override', async () => {
+    projectConfigMock.loaded = false;
+    projectConfigMock.error = 'Failed to load project settings';
+    projectConfigMock.loading = true;
+    await renderProbe({ branchSelection: { branchOverride: remoteBase } });
+    expect(latestState?.fetchLatestBaseSettingsUnavailable).toBe(false);
+    expect(latestState?.isValid).toBe(false);
+    act(() => latestState?.setFetchLatestBase(false));
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig.git).toMatchObject({ fetchLatestBase: false });
   });
 
   it('defaults unborn repositories to the repository root workspace', async () => {

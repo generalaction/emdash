@@ -279,6 +279,19 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         />
       </ProvenanceField>
 
+      <Field.Root>
+        <Field.Label>Fetch latest base before creation</Field.Label>
+        <Field.Description className="text-foreground-muted">
+          Fetch the selected remote base before creating task or automation branches. Creation stops
+          if the fetch fails.
+        </Field.Description>
+        <Switch
+          checked={gitIdentityForm.fetchLatestBase ?? false}
+          onCheckedChange={(checked) => updateGitIdentity('fetchLatestBase', checked)}
+          aria-label="Fetch latest base before creation"
+        />
+      </Field.Root>
+
       <Separator />
 
       <ProvenanceField

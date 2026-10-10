@@ -27,24 +27,39 @@ export const automationGitBranchRefSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-export const automationWorktreeConfigSchema = z.object({
-  kind: z.literal('worktree'),
-  repository: hostFileRefSchema,
-  worktreePoolPath: hostAbsolutePathSchema,
-  baseRemote: nonBlankStringSchema,
-  preservePatterns: z.array(nonBlankStringSchema),
-  git: z.discriminatedUnion('kind', [
-    z.object({
-      kind: z.literal('create-branch'),
-      fromBranch: automationGitBranchRefSchema,
-      pushRemote: nonBlankStringSchema.nullable(),
-    }),
-    z.object({
-      kind: z.literal('use-branch'),
-      branchName: nonBlankStringSchema,
-    }),
-  ]),
-});
+export const automationWorktreeConfigSchema = z
+  .object({
+    kind: z.literal('worktree'),
+    repository: hostFileRefSchema,
+    worktreePoolPath: hostAbsolutePathSchema,
+    baseRemote: nonBlankStringSchema,
+    preservePatterns: z.array(nonBlankStringSchema),
+    git: z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.literal('create-branch'),
+        fromBranch: automationGitBranchRefSchema,
+        fetchLatestBase: z.boolean().optional(),
+        pushRemote: nonBlankStringSchema.nullable(),
+      }),
+      z.object({
+        kind: z.literal('use-branch'),
+        branchName: nonBlankStringSchema,
+      }),
+    ]),
+  })
+  .superRefine((config, ctx) => {
+    if (
+      config.git.kind === 'create-branch' &&
+      config.git.fetchLatestBase &&
+      config.git.fromBranch.type !== 'remote'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['git', 'fetchLatestBase'],
+        message: 'Fetching the latest base requires a remote base branch',
+      });
+    }
+  });
 
 export const automationDirectoryConfigSchema = z.object({
   kind: z.literal('directory'),

@@ -3,7 +3,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LOCAL_HOST_REF } from '#primitives/host/api';
 import { hostFileRef, parseAbsolute } from '#primitives/path/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- exercises the port against the registry verb contract it provisions through (operation-log retirement §5)
@@ -17,6 +17,8 @@ import {
   type WorkspaceRecord,
   type WorkspaceRecords,
 } from '#runtimes/workspace-registry/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- exercises the registry forwarding hop used by automation workers
+import { forwardWorkspaceRegistry } from '#runtimes/workspace-registry/node';
 import type {
   WorkspaceCreationAdmissionContract,
   WorkspaceCreationRefusal,
@@ -207,6 +209,57 @@ describe('createWorkspacePortFromDependency', () => {
       expect(result.success).toBe(true);
     } finally {
       await wire.dispose();
+    }
+  });
+
+  it('carries the saved base freshness choice to the registry', async () => {
+    const wire = registryWire();
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
+    try {
+      await port.provision({
+        workspace: {
+          ...worktreeConfig,
+          git: { ...worktreeConfig.git, fetchLatestBase: true },
+        },
+        generatedName: 'emdash-fresh',
+        runId: 'run-fresh',
+        signal: new AbortController().signal,
+      });
+      expect(wire.calls.createWorktree[0]).toMatchObject({
+        fetchLatestBase: true,
+        baseRef: 'origin/main',
+      });
+    } finally {
+      await wire.dispose();
+    }
+  });
+
+  it('preserves the freshness deadline across the automation worker dependency bridge', async () => {
+    const downstream = registryWire();
+    const createWorktree = vi.fn(downstream.client.createWorktree);
+    const bridge = createTestWire(
+      workspaceRegistryContract,
+      forwardWorkspaceRegistry({ ...downstream.client, createWorktree })
+    );
+    const port = createWorkspacePortFromDependency(bridge.client, admissionStub().client);
+    try {
+      const result = await port.provision({
+        workspace: {
+          ...worktreeConfig,
+          git: { ...worktreeConfig.git, fetchLatestBase: true },
+        },
+        generatedName: 'emdash-fresh',
+        runId: 'run-forwarded',
+        signal: new AbortController().signal,
+      });
+      expect(result.success).toBe(true);
+      expect(createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ fetchLatestBase: true }),
+        expect.objectContaining({ timeoutMs: 120_000 })
+      );
+    } finally {
+      await bridge.dispose();
+      await downstream.dispose();
     }
   });
 

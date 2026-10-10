@@ -1,4 +1,4 @@
-export { createWorkspaceRegistryController } from './api/controller';
+export { createWorkspaceRegistryController, forwardWorkspaceRegistry } from './api/controller';
 export { workspaceRegistryComponent, workspaceRegistryComponentConfigSchema } from './component';
 export {
   canonicalizeWorkspacePath,

@@ -81,15 +81,19 @@ export function createWorkspaceRegistryWireController(
       withRegistry<WorkspaceRecord, CreateWorktreeError | WorkspaceClaimError>(
         host,
         async (registry) => {
-          const result = await registry.createWorktree({
-            workspaceId: mintId(),
-            repositoryId: spec.repositoryId,
-            branch: spec.branch,
-            baseRef: spec.baseRef,
-            path: spec.path,
-            preservePatterns: spec.preservePatterns ?? [],
-            ...(spec.publish !== undefined && { publish: spec.publish }),
-          });
+          const result = await registry.createWorktree(
+            {
+              workspaceId: mintId(),
+              repositoryId: spec.repositoryId,
+              branch: spec.branch,
+              baseRef: spec.baseRef,
+              ...(spec.fetchLatestBase !== undefined && { fetchLatestBase: spec.fetchLatestBase }),
+              path: spec.path,
+              preservePatterns: spec.preservePatterns ?? [],
+              ...(spec.publish !== undefined && { publish: spec.publish }),
+            },
+            ...(spec.fetchLatestBase ? ([{ timeoutMs: 120_000 }] as const) : [])
+          );
           if (result.success) {
             const claimed = claimMirrorRow(options.db, host, result.data, config);
             if (!claimed.success) return claimed;

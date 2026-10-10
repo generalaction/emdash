@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { deferred } from '@emdash/shared/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeCreateWorktree } from './create-worktree';
 import { createRegistryGitContext } from './git-context';
 
@@ -85,6 +86,225 @@ describe('executeCreateWorktree resolve-base', () => {
 
     expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
     expect(stages).toEqual(['inspect', 'resolve-base', 'add-worktree', 'verify']);
+  });
+
+  it.each([undefined, false, true])(
+    'creates from the selected remote base with fetchLatestBase=%s',
+    async (fetchLatestBase) => {
+      const seed = await makeRepo(root, 'seed');
+      const remotePath = path.join(root, 'company.git');
+      git(root, 'init', '--bare', remotePath);
+      git(seed, 'push', remotePath, 'HEAD:refs/heads/feature/base');
+      const cachedOid = git(seed, 'rev-parse', 'HEAD');
+      const repoPath = await makeRepo(root, 'repo');
+      git(repoPath, 'remote', 'add', 'company', remotePath);
+      git(
+        repoPath,
+        'fetch',
+        'company',
+        'refs/heads/feature/base:refs/remotes/company/feature/base',
+        '--no-write-fetch-head'
+      );
+      await fs.writeFile(path.join(seed, 'latest.txt'), 'latest\n');
+      git(seed, 'add', '.');
+      git(seed, 'commit', '-m', 'remote advance');
+      git(seed, 'tag', 'latest-tag');
+      git(
+        seed,
+        'push',
+        remotePath,
+        'HEAD:refs/heads/feature/base',
+        'HEAD:refs/heads/other',
+        'latest-tag'
+      );
+      const latestOid = git(seed, 'rev-parse', 'HEAD');
+      const sourceOid = git(repoPath, 'rev-parse', 'HEAD');
+      await fs.writeFile(path.join(repoPath, 'README.md'), 'local uncommitted edit\n');
+      const worktreePath = path.join(root, 'fresh-wt');
+      const stages: string[] = [];
+      const fetchTimeouts: (number | undefined)[] = [];
+      const recordingGit = {
+        ...gitContext,
+        exec: (...params: Parameters<typeof gitContext.exec>) => {
+          const bound = gitContext.exec(...params);
+          return {
+            ...bound,
+            exec: async (...args: Parameters<typeof bound.exec>) => {
+              if (args[0][0] === 'fetch') fetchTimeouts.push(args[1]?.timeoutMs);
+              const result = await bound.exec(...args);
+              if (
+                fetchLatestBase &&
+                args[0][0] === 'rev-parse' &&
+                args[0].includes('refs/remotes/company/feature/base^{commit}')
+              ) {
+                // Simulate another fetch moving the tracking ref after we resolve its commit.
+                git(repoPath, 'update-ref', 'refs/remotes/company/feature/base', cachedOid);
+              }
+              return result;
+            },
+          };
+        },
+      };
+
+      const result = await executeCreateWorktree({
+        git: recordingGit,
+        repositoryPath: repoPath,
+        worktreePath,
+        branch: 'feature/task',
+        baseRef: 'company/feature/base',
+        fetchLatestBase,
+        onStage: (stage) => stages.push(stage),
+      });
+
+      expect(result.status).toBe('succeeded');
+      expect(git(worktreePath, 'rev-parse', 'HEAD')).toBe(fetchLatestBase ? latestOid : cachedOid);
+      expect(stages.includes('fetch-base')).toBe(fetchLatestBase === true);
+      expect(fetchTimeouts).toEqual(fetchLatestBase ? [60_000] : []);
+      expect(git(repoPath, 'rev-parse', 'HEAD')).toBe(sourceOid);
+      expect(await fs.readFile(path.join(repoPath, 'README.md'), 'utf8')).toBe(
+        'local uncommitted edit\n'
+      );
+      expect(git(repoPath, 'for-each-ref', 'refs/remotes', '--format=%(refname)')).toBe(
+        'refs/remotes/company/feature/base'
+      );
+      expect(git(repoPath, 'tag')).toBe('');
+      await expect(fs.access(path.join(repoPath, '.git', 'FETCH_HEAD'))).rejects.toThrow();
+    },
+    15_000
+  );
+
+  it.each(['unreachable', 'deleted'] as const)(
+    'blocks creation when the cached remote base is %s',
+    async (state) => {
+      const repoPath = await makeRepo(root, 'repo');
+      const remotePath = path.join(root, 'origin.git');
+      if (state === 'deleted') git(root, 'init', '--bare', remotePath);
+      git(repoPath, 'remote', 'add', 'origin', remotePath);
+      git(repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+      const worktreePath = path.join(root, 'failed-fetch-wt');
+      const stages: string[] = [];
+
+      const result = await executeCreateWorktree({
+        git: gitContext,
+        repositoryPath: repoPath,
+        worktreePath,
+        branch: 'feature/failed-fetch',
+        baseRef: 'origin/main',
+        fetchLatestBase: true,
+        onStage: (stage) => stages.push(stage),
+      });
+
+      expect(result).toMatchObject({ status: 'failed', stage: 'resolve-base' });
+      expect(stages).toContain('fetch-base');
+      expect(stages).not.toContain('add-worktree');
+      expect(git(repoPath, 'branch', '--list', 'feature/failed-fetch')).toBe('');
+      await expect(fs.access(worktreePath)).rejects.toThrow();
+    }
+  );
+
+  it('rejects enabled fetching from a local base', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'local-fetch-wt'),
+      branch: 'feature/invalid',
+      baseRef: 'main',
+      fetchLatestBase: true,
+      onStage: () => undefined,
+    });
+    expect(result).toMatchObject({
+      status: 'failed',
+      message: 'Select a remote base branch to fetch its latest commit',
+    });
+  });
+
+  it('shares one fetch deadline across slow ref-lock retries and aborts provisioning', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    git(repoPath, 'remote', 'add', 'origin', path.join(root, 'missing.git'));
+    git(repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    const worktreePath = path.join(root, 'deadline-wt');
+    const started = deferred<void>();
+    const fetchSignals: AbortSignal[] = [];
+    const stages: string[] = [];
+    const slowGit = {
+      ...gitContext,
+      exec: (...params: Parameters<typeof gitContext.exec>) => {
+        const bound = gitContext.exec(...params);
+        return {
+          ...bound,
+          exec: (...args: Parameters<typeof bound.exec>) => {
+            if (args[0][0] !== 'fetch') return bound.exec(...args);
+            const signal = args[1]?.signal;
+            if (!signal) throw new Error('Fetch must carry its shared deadline signal');
+            fetchSignals.push(signal);
+            started.resolve();
+            return new Promise<Awaited<ReturnType<typeof bound.exec>>>((_resolve, reject) => {
+              const timer = setTimeout(() => {
+                signal.removeEventListener('abort', abort);
+                reject(new Error('could not lock ref refs/remotes/origin/main'));
+              }, 40_000);
+              const abort = () => {
+                clearTimeout(timer);
+                reject(signal.reason);
+              };
+              signal.addEventListener('abort', abort, { once: true });
+            });
+          },
+        };
+      },
+    };
+    vi.useFakeTimers();
+    try {
+      const pending = executeCreateWorktree({
+        git: slowGit,
+        repositoryPath: repoPath,
+        worktreePath,
+        branch: 'feature/deadline',
+        baseRef: 'origin/main',
+        fetchLatestBase: true,
+        onStage: (stage) => stages.push(stage),
+      });
+      await started.promise;
+      await vi.advanceTimersByTimeAsync(40_050);
+      expect(fetchSignals).toHaveLength(2);
+      expect(fetchSignals[1]).toBe(fetchSignals[0]);
+      await vi.advanceTimersByTimeAsync(19_950);
+      await expect(pending).resolves.toMatchObject({
+        status: 'failed',
+        stage: 'resolve-base',
+        message: 'Operation timed out after 60000ms',
+      });
+      expect(fetchSignals[0]?.aborted).toBe(true);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(fetchSignals).toHaveLength(2);
+      expect(stages).not.toContain('add-worktree');
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(git(repoPath, 'branch', '--list', 'feature/deadline')).toBe('');
+    await expect(fs.access(worktreePath)).rejects.toThrow();
+  });
+
+  it('reuses an existing branch without fetching an enabled base', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    git(repoPath, 'branch', 'feature/existing');
+    git(repoPath, 'remote', 'add', 'origin', path.join(root, 'missing.git'));
+    const oid = git(repoPath, 'rev-parse', 'feature/existing');
+    const worktreePath = path.join(root, 'existing-branch-wt');
+    const stages: string[] = [];
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath,
+      branch: 'feature/existing',
+      baseRef: 'origin/main',
+      fetchLatestBase: true,
+      onStage: (stage) => stages.push(stage),
+    });
+    expect(result).toMatchObject({ status: 'succeeded', createdBranch: false });
+    expect(stages).not.toContain('fetch-base');
+    expect(git(worktreePath, 'rev-parse', 'HEAD')).toBe(oid);
   });
 
   it('fetches only the missing remote-shaped base ref — no tags, no other branches', async () => {

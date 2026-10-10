@@ -106,6 +106,7 @@ class ProcessBoundExec implements BoundExec {
     sink: StdoutSink
   ): Promise<{ stderr: string }> {
     const env = await resolveEnv(this.env);
+    options.signal?.throwIfAborted();
     return new Promise((resolve, reject) => {
       const composedEnv = composeEnv(env, options.env);
       const plan = planExecutableLaunch({

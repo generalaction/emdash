@@ -12,6 +12,7 @@ export type WorktreeGitPlan = {
   branch: string;
   /** Omitted when `gitSetup.fetchBranch` materializes the branch instead. */
   baseRef?: string;
+  fetchLatestBase?: boolean;
   /** Explicit background publication target; absent when publication is disabled. */
   publish?: { remote: string };
   /** Present only for PR-sourced configs; absent plans need no host-side git setup. */
@@ -51,12 +52,16 @@ export function compileWorktreeGitPlan(
 ): WorktreeGitPlan {
   switch (git.kind) {
     case 'create-branch':
+      if (git.fetchLatestBase && git.fromBranch.type !== 'remote') {
+        throw new Error('Fetching the latest base requires a remote base branch');
+      }
       return {
         branch: git.branchName,
         baseRef:
           git.fromBranch.type === 'remote'
             ? `${git.fromBranch.remote.name}/${git.fromBranch.branch}`
             : git.fromBranch.branch,
+        ...(git.fetchLatestBase !== undefined ? { fetchLatestBase: git.fetchLatestBase } : {}),
         ...compilePublishTarget(git.pushBranch, context.pushRemote),
       };
     case 'use-branch':
