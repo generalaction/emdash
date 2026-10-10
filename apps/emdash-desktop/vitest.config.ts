@@ -48,6 +48,7 @@ export default defineConfig({
             'src/main/db/tests/migrations/**',
             'src/main/db/legacy-port/**/*.test.ts',
             'src/main/core/**/*.db.test.ts',
+            'src/main/gateway/**/*.db.test.ts',
           ],
         },
       },

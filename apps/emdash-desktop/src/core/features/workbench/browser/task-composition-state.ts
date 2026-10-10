@@ -9,9 +9,11 @@ import type { MementoLayoutStorage } from '@core/primitives/mementos/browser';
 
 export function sanitizeDiffSelection(
   value: TaskDiffSelectionState,
-  validPaths: ReadonlySet<string>
+  validPaths: ReadonlySet<string>,
+  workspaceId?: string
 ): TaskDiffSelectionState {
   const activeFile = value.activeFile;
+  if (activeFile?.workspaceId && activeFile.workspaceId !== workspaceId) return value;
   if (!activeFile || activeFile.group === 'git' || activeFile.group === 'pr') return value;
   if (
     (activeFile.group === 'disk' || activeFile.group === 'staged') &&
@@ -28,7 +30,8 @@ export function sanitizeDiffSelection(
  */
 export function resolvePaneLayoutFilePaths(
   value: TaskPaneLayoutState,
-  workspacePath: string
+  workspacePath: string,
+  workspaceId?: string
 ): TaskPaneLayoutState {
   return {
     ...value,
@@ -36,16 +39,23 @@ export function resolvePaneLayoutFilePaths(
       ...group,
       tabManager: {
         ...group.tabManager,
-        tabs: group.tabManager.tabs.map((tab) => resolveTabDescriptorPath(tab, workspacePath)),
+        tabs: group.tabManager.tabs.map((tab) =>
+          resolveTabDescriptorPath(tab, workspacePath, workspaceId)
+        ),
       },
     })),
   };
 }
 
-function resolveTabDescriptorPath(tab: TabDescriptor, workspacePath: string): TabDescriptor {
+function resolveTabDescriptorPath(
+  tab: TabDescriptor,
+  workspacePath: string,
+  workspaceId?: string
+): TabDescriptor {
   if (tab.kind === 'file') {
     return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
   }
+  if (tab.kind === 'diff' && !tab.workspaceId && workspaceId) return { ...tab, workspaceId };
   return tab;
 }
 

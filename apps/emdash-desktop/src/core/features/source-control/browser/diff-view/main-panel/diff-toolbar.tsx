@@ -1,7 +1,6 @@
 import { MicroLabel, ToggleGroup } from '@emdash/ui/react/primitives';
 import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 
 interface DiffToolbarProps {
@@ -9,7 +8,7 @@ interface DiffToolbarProps {
 }
 
 export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarProps) {
-  const diffView = useTaskComposition().diffView;
+  const diffView = tab.diffView;
   const diffStyle = diffView?.diffStyle;
   const canPreview = tab.renderer.kind === 'text' && tab.renderer.previewKind !== undefined;
 
@@ -27,6 +26,13 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
     <div className="flex h-[41px] items-center justify-between gap-2 border-b border-border bg-(--em-surface) px-2">
       <div className="flex items-center gap-3">
         {diffSourceLabel && <MicroLabel>{diffSourceLabel}</MicroLabel>}
+        <span
+          className="max-w-64 truncate text-xs text-foreground-muted"
+          title={tab.workspace?.path}
+        >
+          {tab.workspace?.path.split(/[/\\]/).pop()}
+          {tab.readOnly && ' · Read-only'}
+        </span>
       </div>
       <div className="flex items-center gap-2">
         {canPreview && (

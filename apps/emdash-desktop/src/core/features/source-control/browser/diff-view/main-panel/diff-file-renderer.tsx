@@ -14,13 +14,7 @@ import { HtmlContentRenderer } from '@core/features/editor/contributions/browser
 import { readImageFile } from '@core/features/files/api/browser/file-content';
 import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
-import {
-  useTaskComposition,
-  useWorkspace,
-  useWorkspaceId,
-} from '@core/features/workbench/api/browser/task-composition-context';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
@@ -45,8 +39,27 @@ interface DiffFileRendererProps {
  * Mirrors the FileRenderer pattern for file tabs.
  */
 export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: DiffFileRendererProps) {
-  const { projectId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
+  if (tab.unavailable) {
+    return (
+      <div
+        role="status"
+        className="flex h-full items-center justify-center text-sm text-foreground-muted"
+      >
+        This worktree is no longer available.
+      </div>
+    );
+  }
+  if (!tab.workspace) {
+    return (
+      <div
+        role="status"
+        className="flex h-full items-center justify-center text-sm text-foreground-muted"
+      >
+        Loading worktree…
+      </div>
+    );
+  }
+  const workspaceId = tab.workspaceId;
 
   switch (tab.renderer.kind) {
     case 'text':
@@ -56,8 +69,9 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
       return (
         <ImageDiffView
           key={`${workspaceId}:${tab.diffGroup}:${tab.path}`}
-          projectId={projectId}
+          projectId={tab.diffView?.projectId ?? ''}
           workspaceId={workspaceId}
+          workspace={tab.workspace}
           activeFile={activeFile}
         />
       );
@@ -73,10 +87,13 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
 
 /** Owns text diff facet leases, preview rendering, and draft comment wiring. */
 const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRendererProps) {
-  const { projectId, taskId } = useTaskViewContext();
-  const workspace = useWorkspace();
-  const diffView = useTaskComposition().diffView;
-  const draftComments = getTaskStore(projectId, taskId)?.get(draftCommentsStoreToken);
+  const workspace = tab.workspace;
+  const diffView = tab.diffView;
+  const draftComments = tab.readOnly
+    ? undefined
+    : diffView
+      ? getTaskStore(diffView.projectId, diffView.taskId)?.get(draftCommentsStoreToken)
+      : undefined;
 
   const bindComments = useCallback(
     (editor: monaco.editor.IStandaloneDiffEditor | null) => {
@@ -105,15 +122,15 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
   );
 
   const sides = useDiffFacets({
-    workspacePath: workspace.path,
-    sshConnectionId: workspace.sshConnectionId,
+    workspacePath: workspace?.path ?? '',
+    sshConnectionId: workspace?.sshConnectionId,
     filePath: tab.path,
     group: tab.diffGroup,
     originalRef: tab.originalRef,
     modifiedRef: tab.modifiedRef,
   });
 
-  if (!diffView) return null;
+  if (!diffView || !workspace) return null;
 
   if (tab.viewMode === 'preview' && tab.renderer.kind === 'text' && tab.renderer.previewKind) {
     return (
@@ -129,6 +146,7 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
           modified={sides.modified}
           filePath={tab.path}
           diffStyle={diffView.diffStyle}
+          readOnly={tab.readOnly}
           ref={bindComments}
         />
       </div>
@@ -148,8 +166,8 @@ const DiffContentPreview = observer(function DiffContentPreview({
   side,
   previewKind,
 }: DiffContentPreviewProps) {
-  const workspace = useWorkspace();
-  const workspacePath = workspace.path;
+  const workspace = tab.workspace;
+  const workspacePath = workspace?.path ?? '';
   const containingFilePath = resolveWorkspacePath(workspacePath, tab.path);
   const { pane } = usePaneContext();
 
@@ -163,12 +181,14 @@ const DiffContentPreview = observer(function DiffContentPreview({
   }, [handle]);
 
   const openWorkspaceLink = (href: string): boolean => {
+    // Handle local links without opening an editable foreign file.
     const target = resolveWorkspaceResourcePath({
       workspacePath,
       containingFilePath,
       resourcePath: href,
     });
     if (!target) return false;
+    if (tab.readOnly) return true;
     pane.open('file', { path: target }, { preview: false });
     return true;
   };
@@ -194,7 +214,15 @@ const DiffContentPreview = observer(function DiffContentPreview({
   const content = handle.getText();
 
   if (previewKind === 'html') {
-    return <HtmlContentRenderer filePath={containingFilePath} rawContent={content} />;
+    return (
+      <HtmlContentRenderer
+        filePath={containingFilePath}
+        rawContent={content}
+        workspacePath={workspacePath}
+        sshConnectionId={workspace?.sshConnectionId}
+        readOnly={tab.readOnly}
+      />
+    );
   }
 
   const resolveImage = async (src: string): Promise<string | null> => {
@@ -205,7 +233,7 @@ const DiffContentPreview = observer(function DiffContentPreview({
     });
     if (!imagePath) return null;
     const result = await readImageFile(
-      hostFileRefFromNativePath(imagePath, workspace.sshConnectionId)
+      hostFileRefFromNativePath(imagePath, workspace?.sshConnectionId)
     );
     return result.success && !result.data.truncated ? result.data.dataUrl : null;
   };
@@ -282,6 +310,7 @@ function diffTabToCommentTarget(tab: DiffTabResource): DraftCommentTarget {
 
 function tabToActiveFile(tab: DiffTabResource): ActiveFile {
   return {
+    workspaceId: tab.workspaceId,
     path: tab.path,
     type: tab.diffGroup === 'disk' ? 'disk' : 'git',
     group: tab.diffGroup,

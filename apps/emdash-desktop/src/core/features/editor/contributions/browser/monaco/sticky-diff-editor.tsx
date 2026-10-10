@@ -32,6 +32,8 @@ export interface StickyDiffEditorProps {
   /** Checkout-relative path, used by the save-conflict dialog. */
   filePath: string;
   diffStyle: 'unified' | 'split';
+  /** Inspection can forbid writes without changing a shared file entry's permissions. */
+  readOnly?: boolean;
   /** Jump to the first change when no viewport was saved; disabled for stacked diffs. */
   revealFirstChange?: boolean;
   /** Called whenever the content height changes, for auto-sizing parent containers. */
@@ -98,6 +100,7 @@ export function StickyDiffEditor({
   modified,
   filePath,
   diffStyle,
+  readOnly = false,
   revealFirstChange = true,
   onHeightChange,
   ref,
@@ -108,6 +111,8 @@ export function StickyDiffEditor({
   modifiedRef.current = modified;
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
 
   // URI pair of the models currently attached to the editor. The unmount save
   // must key by this, not the side props: the props can already point at a new
@@ -148,6 +153,7 @@ export function StickyDiffEditor({
 
     const modifiedEditor = editor.getModifiedEditor();
     modifiedEditor.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => {
+      if (readOnlyRef.current) return;
       const side = modifiedRef.current;
       if (side?.kind !== 'facet' || side.facet.kind !== 'buffer') return;
       void saveDiffBuffer(side.entry, filePathRef.current);
@@ -234,6 +240,7 @@ export function StickyDiffEditor({
       if (!origModel || !modModel) return;
 
       const editable =
+        !readOnly &&
         modified.kind === 'facet' &&
         modified.facet.kind === 'buffer' &&
         !modified.entry.readOnly &&
@@ -283,7 +290,7 @@ export function StickyDiffEditor({
     };
     // editorBox is a stable ref created once; only side-identity changes recreate the autorun.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [originalKey, modifiedKey, revealFirstChange]);
+  }, [originalKey, modifiedKey, revealFirstChange, readOnly]);
 
   return <div ref={mountRef} className="h-full" />;
 }
