@@ -13,6 +13,12 @@ monorepo installed.
 Darwin artifacts must be built on a matching Darwin host. Linux artifacts are built with Docker
 Buildx, so either Linux architecture can be produced from a supported Docker host.
 
+`install.sh` selects the artifact from `uname`: glibc Linux hosts map to `linux-x64` or
+`linux-arm64`, and Apple silicon Macs map to `darwin-arm64`. Intel Macs and musl-based Linux
+distributions are rejected with exit code 40 because no artifact exists for them. The script
+depends only on tools each platform ships, so a macOS remote needs nothing beyond `curl`, BSD
+`tar`, and `shasum`.
+
 ## Build an Artifact
 
 Run the packaging command from `apps/workspace-server/` and provide one or more targets:
