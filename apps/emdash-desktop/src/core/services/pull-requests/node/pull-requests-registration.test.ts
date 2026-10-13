@@ -354,7 +354,7 @@ describe('PullRequestsRegistration', () => {
 
       await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
         err({
-          type: 'github_disabled',
+          type: 'integration_disabled',
           host: 'github.com',
           message: 'GitHub API is disabled for this project.',
         })

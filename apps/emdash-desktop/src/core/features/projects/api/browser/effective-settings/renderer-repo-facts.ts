@@ -1,3 +1,4 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import {
   branchNameOnRemote,
   shortName,
@@ -6,7 +7,6 @@ import {
   type GitRemoteHead,
 } from '@emdash/core/runtimes/git/api';
 import type { RepoFacts, RepoRemoteFacts } from '@core/primitives/project-settings/api';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
 
 /**
  * Maps the synced repository live model (`GitRepositoryStore` data) to the

@@ -1,5 +1,5 @@
-import { parseRepositoryRef } from '@core/primitives/repository/api';
-import type { PullRequest } from './schemas';
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 
 export function normalizeRepositoryUrl(repositoryUrl: string): string | null {
   return parseRepositoryRef(repositoryUrl)?.repositoryUrl ?? null;

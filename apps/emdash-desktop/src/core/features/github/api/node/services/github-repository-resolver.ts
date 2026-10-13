@@ -1,9 +1,9 @@
-import { err, ok, type Result } from '@emdash/shared';
 import {
   parseRepositoryRef,
   type RepositoryRef,
   type RepositoryRefParseError,
-} from '@core/primitives/repository/api';
+} from '@emdash/core/primitives/repository/api';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   githubHostService,
   type GitHubHostProbeError,

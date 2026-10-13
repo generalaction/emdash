@@ -1,30 +1,36 @@
-import type { GitHubAuthError, PullRequestError } from '../../../../api';
-import { isAbortError, isNetworkError, type PullRequestOperationErrorType } from '../../errors';
+import { isAbortError, isNetworkError } from '../../helpers/errors';
+import type { PullRequestAuthError, PullRequestError } from '../../schemas';
+import type { PullRequestOperationErrorType } from '../../types';
 
-export function mapGitHubAuthError(error: GitHubAuthError): PullRequestError {
+const integrationId = 'github';
+
+function authRequiredHint(host: string): string {
+  return host === 'github.com'
+    ? 'Connect GitHub from account settings.'
+    : `Run: gh auth login --hostname ${host}`;
+}
+
+export function mapGitHubAuthError(error: PullRequestAuthError): PullRequestError {
   switch (error.type) {
     case 'auth_required':
-      return error.host === 'github.com'
-        ? {
-            type: 'github_auth_required',
-            host: error.host,
-            hint: error.hint ?? 'Connect GitHub from account settings.',
-          }
-        : {
-            type: 'ghes_auth_required',
-            host: error.host,
-            hint: error.hint ?? `Run: gh auth login --hostname ${error.host}`,
-          };
+      return {
+        type: 'auth_required',
+        integrationId,
+        host: error.host,
+        hint: error.hint ?? authRequiredHint(error.host),
+      };
     case 'account_not_found':
       return {
-        type: 'github_account_not_found',
+        type: 'account_not_found',
+        integrationId,
         host: error.host,
         accountId: error.accountId,
         message: error.message,
       };
     case 'account_host_mismatch':
       return {
-        type: 'github_account_host_mismatch',
+        type: 'account_host_mismatch',
+        integrationId,
         host: error.host,
         accountId: error.accountId,
         accountHost: error.accountHost,
@@ -32,7 +38,8 @@ export function mapGitHubAuthError(error: GitHubAuthError): PullRequestError {
       };
     case 'token_missing':
       return {
-        type: 'github_token_missing',
+        type: 'token_missing',
+        integrationId,
         host: error.host,
         accountId: error.accountId,
         message: error.message,
@@ -40,12 +47,12 @@ export function mapGitHubAuthError(error: GitHubAuthError): PullRequestError {
     // Fail closed (spec: github-git-settings §8): an unresolvable identity skips
     // the operation with a surfaced status — never a fallback identity.
     case 'account_unresolvable':
-      return { type: 'github_account_not_found', message: error.message };
+      return { type: 'account_not_found', integrationId, message: error.message };
     // Explicit "no account" is intent, not an error (§7 reporting matrix); the
     // renderer shows the quiet disabled state, this status only records that
     // the sync did not run.
-    case 'github_disabled':
-      return { type: 'github_disabled', message: error.message };
+    case 'integration_disabled':
+      return { type: 'integration_disabled', integrationId, message: error.message };
   }
 }
 
@@ -60,17 +67,11 @@ export function mapApiError(
   const status = readStatus(error);
   const message = error instanceof Error ? error.message : fallback;
   if (status === 401) {
-    return host === 'github.com'
-      ? { type: 'github_auth_required', host, hint: 'Connect GitHub from account settings.' }
-      : {
-          type: 'ghes_auth_required',
-          host,
-          hint: `Run: gh auth login --hostname ${host}`,
-        };
+    return { type: 'auth_required', integrationId, host, hint: authRequiredHint(host) };
   }
   if (status === 404) {
     return {
-      type: 'github_not_found_or_no_access',
+      type: 'not_found_or_no_access',
       host,
       message: nameWithOwner
         ? `Repository ${nameWithOwner} was not found or is not accessible`
@@ -82,7 +83,7 @@ export function mapApiError(
     if (resetAt) {
       const resetTimestamp = Number(resetAt);
       return {
-        type: 'github_rate_limited',
+        type: 'rate_limited',
         host,
         message,
         resetAt: Number.isFinite(resetTimestamp)
@@ -91,8 +92,8 @@ export function mapApiError(
       };
     }
     const ssoUrl = readHeader(error, 'x-github-sso')?.match(/url=([^;,\s]+)/)?.[1];
-    if (ssoUrl) return { type: 'github_sso_required', host, message, ssoUrl };
-    return { type: 'github_forbidden', host, message };
+    if (ssoUrl) return { type: 'sso_required', integrationId, host, message, ssoUrl };
+    return { type: 'forbidden', host, message };
   }
   if (isNetworkError(error)) return { type: 'host_unreachable', host, reason: message };
   return { type: operationType, message: message || fallback };

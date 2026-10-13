@@ -131,7 +131,8 @@ describe('pullRequestsComponent', () => {
     await expect(client.registerRepository({ repositoryUrl })).resolves.toEqual(ok());
     await expect(client.refreshRepository({ repositoryUrl, policy: 'force' })).resolves.toEqual(
       err({
-        type: 'github_auth_required',
+        type: 'auth_required',
+        integrationId: 'github',
         host: 'github.com',
         hint: 'Connect GitHub',
       })

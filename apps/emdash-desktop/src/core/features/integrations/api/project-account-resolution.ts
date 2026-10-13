@@ -1,3 +1,4 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import {
   resolveEffectiveGitSettings,
   type RepoFacts,
@@ -11,7 +12,6 @@ import {
   type ProviderAccountResolutionSnapshot,
 } from '@core/primitives/project-settings/api/resolve-provider-account';
 import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
 
 /** Account selection explicitly names the operation's repository context. */
 export type ProjectAccountRepository = { kind: 'project' } | { kind: 'url'; url: string };

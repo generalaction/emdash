@@ -1,3 +1,4 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import {
   Alert,
@@ -31,7 +32,6 @@ import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { log } from '@core/primitives/logging/browser/logger';
 import { defineModal } from '@core/primitives/modals/react';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { pullRequestErrorMessage } from '@core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { resolveInitialBaseBranch } from './base-branch';

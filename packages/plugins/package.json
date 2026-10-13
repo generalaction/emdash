@@ -32,6 +32,26 @@
       "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
       "default": "./dist/issues.mjs"
+    },
+    "./pull-requests": {
+      "development": "./src/pull-requests/index.ts",
+      "types": "./dist/pull-requests.d.mts",
+      "default": "./dist/pull-requests.mjs"
+    },
+    "./pull-requests/github": {
+      "development": "./src/pull-requests/impl/github/client.ts",
+      "types": "./dist/pull-requests/github.d.mts",
+      "default": "./dist/pull-requests/github.mjs"
+    },
+    "./pull-requests/schemas": {
+      "development": "./src/pull-requests/schemas.ts",
+      "types": "./dist/pull-requests/schemas.d.mts",
+      "default": "./dist/pull-requests/schemas.mjs"
+    },
+    "./pull-requests/types": {
+      "development": "./src/pull-requests/types.ts",
+      "types": "./dist/pull-requests/types.d.mts",
+      "default": "./dist/pull-requests/types.mjs"
     }
   },
   "scripts": {

@@ -1,3 +1,4 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { ListPopoverCard } from '@emdash/ui/react/components';
 import { Button, Combobox, Select } from '@emdash/ui/react/primitives';
 import { remote, type RemoteModel } from '@emdash/wire/state';
@@ -9,6 +10,8 @@ import { providerAccountReportingState } from '@core/features/integrations/api/a
 import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
 import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
 import { ProviderAccountStateEmpty } from '@core/features/integrations/contributions/browser/account-state';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
+import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -16,7 +19,6 @@ import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-mo
 import {
   pullRequestErrorMessage,
   pullRequestsContract,
-  type PullRequest,
 } from '@root/src/core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@root/src/core/services/pull-requests/api/client';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
@@ -85,6 +87,7 @@ export const PrSelector = observer(function PrSelector({
   renderPlaceholder,
 }: PrSelectorProps) {
   const openIntegrationSetup = useOpenModal('integrationSetupModal');
+  const { integrationById } = useIntegrationsContext();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query.trim(), 200);
@@ -139,25 +142,31 @@ export const PrSelector = observer(function PrSelector({
   const listError = listResult && !listResult.success ? listResult.error : null;
   const error = syncError ?? listError;
   const errorMessage = error ? pullRequestErrorMessage(error) : null;
-  const isGitHubAuthError =
-    error?.type === 'github_auth_required' ||
-    error?.type === 'ghes_auth_required' ||
-    error?.type === 'github_account_not_found' ||
-    error?.type === 'github_account_host_mismatch' ||
-    error?.type === 'github_token_missing' ||
-    error?.type === 'github_sso_required';
-  const githubAuthDescription =
-    error?.type === 'github_account_not_found'
-      ? 'The selected GitHub account is no longer connected. Reconnect GitHub to show pull requests for this repository.'
-      : 'Emdash needs a connected GitHub account before it can show pull requests for this repository.';
-  const connectGitHubButton = (
+  const authError =
+    error?.type === 'auth_required' ||
+    error?.type === 'account_not_found' ||
+    error?.type === 'account_host_mismatch' ||
+    error?.type === 'token_missing' ||
+    error?.type === 'sso_required'
+      ? error
+      : null;
+  const authIntegrationName = authError
+    ? (integrationById[authError.integrationId]?.name ?? authError.integrationId)
+    : '';
+  const authDescription =
+    error?.type === 'account_not_found'
+      ? `The selected ${authIntegrationName} account is no longer connected. Reconnect ${authIntegrationName} to show pull requests for this repository.`
+      : `Emdash needs a connected ${authIntegrationName} account before it can show pull requests for this repository.`;
+  const connectButton = (
     <Button
       type="button"
       variant="secondary"
       size="xs"
-      onClick={() => void openIntegrationSetup({ integration: 'github' })}
+      onClick={() =>
+        authError && void openIntegrationSetup({ integration: authError.integrationId })
+      }
     >
-      Connect GitHub
+      Connect {authIntegrationName}
     </Button>
   );
 
@@ -250,16 +259,21 @@ export const PrSelector = observer(function PrSelector({
                 providerName="GitHub"
                 icon={<Github className="size-4 text-foreground-muted" />}
               />
-            ) : isGitHubAuthError ? (
+            ) : authError ? (
               <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
                 <span className="flex size-8 items-center justify-center rounded-full bg-background-2">
-                  <Github className="size-4 text-foreground-muted" />
+                  <IntegrationIcon
+                    provider={authError.integrationId}
+                    className="size-4 text-foreground-muted"
+                  />
                 </span>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">Connect GitHub to load PRs</p>
-                  <p className="max-w-64 text-xs text-foreground-muted">{githubAuthDescription}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    Connect {authIntegrationName} to load PRs
+                  </p>
+                  <p className="max-w-64 text-xs text-foreground-muted">{authDescription}</p>
                 </div>
-                {connectGitHubButton}
+                {connectButton}
               </div>
             ) : (
               <span className={cn(errorMessage && 'text-foreground-error')}>
@@ -289,7 +303,7 @@ export const PrSelector = observer(function PrSelector({
               >
                 {errorMessage}
               </span>
-              {isGitHubAuthError && connectGitHubButton}
+              {authError && connectButton}
             </ListPopoverCard>
           )}
         </Combobox.Content>

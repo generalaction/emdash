@@ -55,6 +55,11 @@
       "types": "./dist/primitives-git-credentials-api.d.mts",
       "default": "./dist/primitives-git-credentials-api.mjs"
     },
+    "./primitives/repository/api": {
+      "development": "./src/primitives/repository/api/index.ts",
+      "types": "./dist/primitives-repository-api.d.mts",
+      "default": "./dist/primitives-repository-api.mjs"
+    },
     "./primitives/exclusion-policy/api": {
       "development": "./src/primitives/exclusion-policy/api/index.ts",
       "types": "./dist/primitives-exclusion-policy-api.d.mts",

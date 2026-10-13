@@ -1,4 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { useMemo, useState } from 'react';
 import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
@@ -9,7 +10,6 @@ import { describeWorktreeGitPlan } from '@core/primitives/workspaces/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
 import type { WorktreeSetupStep } from '@core/primitives/workspaces/api';
-import type { PullRequest } from '@core/services/pull-requests/api';
 import {
   useBranchName,
   type BranchNameState,

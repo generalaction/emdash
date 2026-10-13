@@ -16,11 +16,12 @@ describe('pull requests GitHub auth controller', () => {
       controller.call('resolveAuth', { repositoryUrl: 'https://ghe.example.com/acme/repo' })
     ).resolves.toEqual(
       ok({
-        provider: 'github',
-        token: 'enterprise-token',
-        host: 'ghe.example.com',
-        apiBaseUrl: 'https://ghe.example.com/github/api/v3',
+        integrationId: 'github',
         accountId: 'ghe.example.com:42',
+        credentials: {
+          accessToken: 'enterprise-token',
+          apiBaseUrl: 'https://ghe.example.com/github/api/v3',
+        },
       })
     );
   });
@@ -38,11 +39,9 @@ describe('pull requests GitHub auth controller', () => {
       })
     ).resolves.toEqual(
       ok({
-        provider: 'github',
-        token: 'secret-token',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
+        integrationId: 'github',
         accountId: 'account-1',
+        credentials: { accessToken: 'secret-token', apiBaseUrl: 'https://api.github.com' },
       })
     );
     expect(resolveSyncIdentity).toHaveBeenCalledWith('https://GitHub.COM/emdash/emdash');

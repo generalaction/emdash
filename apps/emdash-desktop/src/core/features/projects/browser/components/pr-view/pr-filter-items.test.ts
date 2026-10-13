@@ -1,5 +1,5 @@
+import type { PullRequestUser } from '@emdash/plugins/pull-requests/schemas';
 import { describe, expect, it } from 'vitest';
-import type { PullRequestUser } from '@core/services/pull-requests/api';
 import { usersWithLoginFirst } from './pr-filter-items';
 
 function user(userName: string): PullRequestUser {

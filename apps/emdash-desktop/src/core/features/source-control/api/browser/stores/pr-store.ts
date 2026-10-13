@@ -1,6 +1,7 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
 import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import type { PullRequest, PullRequestMergeOptions } from '@emdash/plugins/pull-requests/schemas';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { remote } from '@emdash/wire/state';
 import { comparer, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
@@ -28,8 +29,6 @@ import {
   pullRequestErrorMessage,
   selectCurrentPr,
   type PrCheckoutDrift,
-  type PullRequest,
-  type PullRequestMergeOptions,
 } from '@core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { pullRequestsContract } from '@core/services/pull-requests/api/contract';

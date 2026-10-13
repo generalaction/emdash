@@ -1,3 +1,4 @@
+import { isGitHubDotComHost } from '@emdash/core/primitives/repository/api';
 import { menuItemBase } from '@emdash/ui/styles/recipes/menu-item';
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -10,7 +11,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { useArrowKeyNavigation } from '@core/primitives/react-hooks/browser/use-arrow-key-navigation';
-import { isGitHubDotComHost } from '@core/primitives/repository/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 
 interface TaskAction {

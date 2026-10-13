@@ -1,11 +1,11 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import {
   PrSelector,
   SelectedPrValue,
 } from '@core/features/tasks/browser/components/pr-selector/pr-selector';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import type { PullRequest } from '@core/services/pull-requests/api';
 
 interface PrComboboxFieldProps {
   value: PullRequest | null;

@@ -1,4 +1,5 @@
-import { getPrNumber, isForkPr, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
+import { getPrNumber, isForkPr } from '@root/src/core/services/pull-requests/api';
 import { prCheckoutSourceRef } from './pr-source-refs';
 
 /** The updateWorktree verb's git half: instruction-as-input, desktop-compiled. */

@@ -1,3 +1,4 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createController } from '@emdash/wire/rpc';
 import { cell, expose, snapshot } from '@emdash/wire/state';
@@ -6,7 +7,7 @@ import { observable, reaction, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { pullRequestsContract } from '@core/services/pull-requests/api/contract';
-import type { PullRequest, PullRequestDetails } from '@core/services/pull-requests/api/schemas';
+import type { PullRequestDetails } from '@core/services/pull-requests/api/schemas';
 import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-store';
 import type { GitRepositoryStore } from './git-repository-store';
 import { PrStore } from './pr-store';

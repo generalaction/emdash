@@ -1,8 +1,8 @@
+import { normalizeRepositoryHost } from '@emdash/core/primitives/repository/api';
 import type { IntegrationConnections } from '@core/features/integrations/api/node/integration-accounts';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { GitHubUser } from '@core/primitives/github/api';
-import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import { connectGitHubAccount } from './github-auth-connection';
 
 type GitHubIdentityClient = {

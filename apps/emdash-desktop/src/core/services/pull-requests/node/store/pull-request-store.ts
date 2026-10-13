@@ -1,14 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { SqliteConnection, StoreHandle } from '@emdash/core/primitives/sqlite-store/api';
 import type {
-  ListPullRequestsInput,
   PullRequest,
   PullRequestCheck,
   PullRequestComment,
-  PullRequestFilterOptions,
   PullRequestLabel,
   PullRequestUser,
-} from '../../api';
+} from '@emdash/plugins/pull-requests/schemas';
+import type { ListPullRequestsInput, PullRequestFilterOptions } from '../../api';
 
 export type SyncCursorKind = 'full' | 'incremental';
 

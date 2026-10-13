@@ -1,4 +1,5 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { splitNameWithOwner } from '@emdash/core/primitives/repository/api';
 import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
@@ -35,7 +36,6 @@ import {
 import type { StoredIntegrationAccounts } from '@core/primitives/project-settings/api/project-settings';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import type { ProviderAccountRef } from '@core/primitives/provider-accounts/api/provider-account-summary';
-import { splitNameWithOwner } from '@core/primitives/repository/api';
 import type { ScopedStoreContribution } from '@core/primitives/scoped-stores/browser';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';

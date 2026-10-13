@@ -1,4 +1,4 @@
-import { normalizeRepositoryHost } from '@core/primitives/repository/api';
+import { normalizeRepositoryHost } from '@emdash/core/primitives/repository/api';
 import type { Resolved } from './effective-settings';
 import type { StoredIntegrationAccount } from './project-settings';
 

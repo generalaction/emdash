@@ -1,9 +1,9 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
 import type { InitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import { extractIssueMentionTargets } from '@core/primitives/issues/api';
 import type { TaskConfig } from '@core/primitives/tasks/api';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
-import type { PullRequest } from '@core/services/pull-requests/api';
 import { buildFinalPrompt } from './initial-conversation-text';
 import type { LinkedType } from './use-create-task-state';
 

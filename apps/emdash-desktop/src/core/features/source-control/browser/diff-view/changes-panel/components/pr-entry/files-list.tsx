@@ -1,11 +1,12 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { observer } from 'mobx-react-lite';
 import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
-import { getPrNumber, type PullRequest } from '@core/services/pull-requests/api';
+import { getPrNumber } from '@core/services/pull-requests/api';
 import { activeDiffEntry } from '../../../pane-selectors';
 import { useChangesViewMode } from '../../hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from '../../hooks/use-prefetch-diff-models';

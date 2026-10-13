@@ -1,3 +1,4 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import type {
   GitRefsState,
   GitRemotesState,
@@ -9,7 +10,6 @@ import { log } from '@emdash/shared/logger';
 import { observe, remote, type Snapshot } from '@emdash/wire/state';
 import type { RepoFactsSource } from '@core/features/projects/api/node/settings/effective-settings';
 import type { RepoFacts, RepoRemoteFacts } from '@core/primitives/project-settings/api';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
 import type { GitRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 /**

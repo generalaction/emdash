@@ -1,9 +1,6 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import type { WorkspaceObservedPrFacts } from '@core/primitives/tasks/api';
-import {
-  normalizeRepositoryUrl,
-  recognizePullRequestUrl,
-  type PullRequest,
-} from '@core/services/pull-requests/api';
+import { normalizeRepositoryUrl, recognizePullRequestUrl } from '@core/services/pull-requests/api';
 
 export type PrHeadIdentity = {
   repositoryUrl: string;

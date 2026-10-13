@@ -1,15 +1,66 @@
 import type { Result } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
+import type { IntegrationCredentials } from '../integrations/host';
 import type {
+  PullRequest,
+  PullRequestAuthError,
   PullRequestCheck,
   PullRequestComment,
   PullRequestError,
   PullRequestFile,
   PullRequestMergeOptions,
-} from '../../../api';
-import type { Observed, PullRequestMetadata, PullRequestPage } from '../observation';
+} from './schemas';
+
+/** Provider data observed by a request batch, timestamped before its first request. */
+export type Observed<T> = { data: T; fetchedAt: number };
+export type PullRequestMetadata = Omit<
+  PullRequest,
+  'checks' | 'checksFetchedAt' | 'metadataFetchedAt'
+>;
+export type PullRequestPage = {
+  prs: PullRequestMetadata[];
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  totalCount?: number;
+};
+
+export type PullRequestOperationErrorType =
+  | 'sync_failed'
+  | 'refresh_failed'
+  | 'checks_failed'
+  | 'comments_failed'
+  | 'create_failed'
+  | 'merge_failed'
+  | 'mark_ready_failed'
+  | 'files_failed';
+
+/**
+ * The account and credential record the host resolved for one repository.
+ * `credentials` is the integration's stored record; plugins narrow it with
+ * their integration's `credentialsSchema`.
+ */
+export type PullRequestCredentials = {
+  accountId?: string;
+  credentials: IntegrationCredentials;
+};
+
+/**
+ * Host services for a pull-request client. Credentials are resolved per
+ * repository on every request because one client serves every repository of
+ * its integration, possibly across several accounts; account changes apply on
+ * the next call.
+ */
+export type PullRequestHostContext = {
+  log: Logger;
+  scope: Scope;
+  resolveCredentials(
+    repositoryUrl: string,
+    signal: AbortSignal
+  ): Promise<Result<PullRequestCredentials, PullRequestAuthError>>;
+};
 
 /** One authenticated repository context for a single git hosting platform. */
-export interface GitPlatformPullRequestRepository {
+export interface PullRequestRepositoryClient {
   readonly identity: string;
   readonly repositoryUrl: string;
   fetchOpenPage(
@@ -40,11 +91,11 @@ export interface GitPlatformPullRequestRepository {
 }
 
 /** A single git hosting platform's PR/MR I/O: fetches and mutates, never store or scheduler policy. */
-export interface GitPlatformProvider {
+export interface PullRequestClient {
   openRepository(
     repositoryUrl: string,
     signal: AbortSignal
-  ): Promise<Result<GitPlatformPullRequestRepository, PullRequestError>>;
+  ): Promise<Result<PullRequestRepositoryClient, PullRequestError>>;
   createPullRequest(
     input: {
       repositoryUrl: string;
