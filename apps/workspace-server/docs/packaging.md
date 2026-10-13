@@ -39,6 +39,15 @@ Darwin verification extracts the archive into a temporary directory and runs the
 `start`, `status`, and `stop` commands with an isolated socket. Linux verification runs the same
 sequence in `debian:bookworm-slim`, where no host Node.js installation is available.
 
+The macOS installer tests also run on an Apple silicon runner in the package-check workflow.
+They use stock macOS tools and real Node in fixture archives to verify fresh installation,
+replacement of an existing `current` symlink, repeat installation, rollback, and checksum-failure
+recovery. Run them locally on an Apple silicon Mac with:
+
+```bash
+pnpm exec vitest run scripts/install.test.ts scripts/install.macos.test.ts
+```
+
 The packaging process:
 
 1. Bundles the server and its ten workers with all pure-JavaScript dependencies emitted into the
