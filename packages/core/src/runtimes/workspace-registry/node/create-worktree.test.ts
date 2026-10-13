@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeCreateWorktree } from './create-worktree';
 import { createRegistryGitContext } from './git-context';
 
@@ -189,6 +189,43 @@ describe('executeCreateWorktree stale worktree records', () => {
 
     expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
     expect(git(replacementPath, 'branch', '--show-current')).toBe('feature/stale-branch');
+  });
+
+  it('retries a transient lock while removing a stale worktree record', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreePath = path.join(root, 'stale-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/retry', worktreePath, 'main');
+    await fs.rm(worktreePath, { recursive: true });
+    const context = createRegistryGitContext();
+    const originalExec = context.exec.bind(context);
+    let removals = 0;
+    vi.spyOn(context, 'exec').mockImplementation((cwd, options) => {
+      const exec = originalExec(cwd, options);
+      const originalRun = exec.exec.bind(exec);
+      vi.spyOn(exec, 'exec').mockImplementation(async (args, execOptions) => {
+        if (args[0] === 'worktree' && args[1] === 'remove') {
+          removals += 1;
+          if (removals === 1) {
+            throw new Error(`fatal: Unable to create '${repoPath}/.git/index.lock': File exists`);
+          }
+        }
+        return originalRun(args, execOptions);
+      });
+      return exec;
+    });
+
+    const result = await executeCreateWorktree({
+      git: context,
+      repositoryPath: repoPath,
+      worktreePath,
+      branch: 'feature/retry',
+      baseRef: 'main',
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(removals).toBe(2);
+    expect(git(worktreePath, 'branch', '--show-current')).toBe('feature/retry');
   });
 
   it('does not reuse a branch whose missing worktree is locked', async () => {

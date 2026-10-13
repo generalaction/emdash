@@ -81,7 +81,7 @@ export async function executeCreateWorktree(
     for (const worktree of staleConflicts) {
       // One --force removes a missing worktree's admin record but still refuses a
       // locked record. Unrelated stale records remain visible to reconciliation.
-      await exec.exec(['worktree', 'remove', '--force', worktree.path]);
+      await retryTransientLock(() => exec.exec(['worktree', 'remove', '--force', worktree.path]));
     }
     if (staleConflicts.length > 0) worktrees = await listWorktrees(exec);
     existing = worktrees.some((worktree) => worktree.pathKey === targetPathKey);
