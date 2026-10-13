@@ -11,6 +11,7 @@ on:
       - 'packages/wire/**'
       - '.nvmrc'
       - 'pnpm-lock.yaml'
+      - '.github/workflows/workspace-server-package-check.yml'
   push:
     branches: [main]
     paths:
@@ -21,6 +22,7 @@ on:
       - 'packages/wire/**'
       - '.nvmrc'
       - 'pnpm-lock.yaml'
+      - '.github/workflows/workspace-server-package-check.yml'
   workflow_dispatch:
 
 permissions:
@@ -60,3 +62,26 @@ jobs:
       - name: Build and verify Linux x64 package
         working-directory: apps/workspace-server
         run: pnpm run package --target linux-x64 --verify
+
+  install-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Verify installer with native Apple silicon macOS tools
+        working-directory: apps/workspace-server
+        run: |
+          test "$(uname -m)" = arm64
+          pnpm exec vitest run scripts/install.test.ts scripts/install.macos.test.ts

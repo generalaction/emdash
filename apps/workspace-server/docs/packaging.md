@@ -13,6 +13,12 @@ monorepo installed.
 Darwin artifacts must be built on a matching Darwin host. Linux artifacts are built with Docker
 Buildx, so either Linux architecture can be produced from a supported Docker host.
 
+`install.sh` selects the artifact from `uname`: glibc Linux hosts map to `linux-x64` or
+`linux-arm64`, and Apple silicon Macs map to `darwin-arm64`. Intel Macs and musl-based Linux
+distributions are rejected with exit code 40 because no artifact exists for them. The script
+depends only on tools each platform ships, so a macOS remote needs nothing beyond `curl`, BSD
+`tar`, and `shasum`.
+
 ## Build an Artifact
 
 Run the packaging command from `apps/workspace-server/` and provide one or more targets:
@@ -32,6 +38,15 @@ pnpm run package --target linux-x64 --verify
 Darwin verification extracts the archive into a temporary directory and runs the daemon's
 `start`, `status`, and `stop` commands with an isolated socket. Linux verification runs the same
 sequence in `debian:bookworm-slim`, where no host Node.js installation is available.
+
+The macOS installer tests also run on an Apple silicon runner in the package-check workflow.
+They use stock macOS tools and real Node in fixture archives to verify fresh installation,
+replacement of an existing `current` symlink, repeat installation, rollback, and checksum-failure
+recovery. Run them locally on an Apple silicon Mac with:
+
+```bash
+pnpm exec vitest run scripts/install.test.ts scripts/install.macos.test.ts
+```
 
 The packaging process:
 
