@@ -121,7 +121,7 @@ replace_current_link() {
   if [ "$os" = darwin ]; then
     [ -x "$version_dir/node" ] || fail 42 "artifact runtime is missing"
     "$version_dir/node" \
-      -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' \
+      --input-type=module -e 'import { renameSync } from "node:fs"; renameSync(process.argv[1], process.argv[2]);' \
       "$next_link" "$current_link"
   else
     mv -Tf -- "$next_link" "$current_link"

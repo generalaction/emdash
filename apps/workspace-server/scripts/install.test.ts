@@ -83,9 +83,7 @@ describe('workspace-server install.sh', () => {
       expect(await readlink(resolve(root, 'current'))).toBe(`versions/${fixture.version}`);
       expect(await readLog(fixture.logs.tar)).not.toContain('--warning=no-unknown-keyword');
       expect(await readLog(fixture.logs.checksum)).toEqual(['shasum -a 256 -c -']);
-      expect(await readLog(fixture.logs.node)).toEqual([
-        `${resolve(root, 'versions', fixture.version, 'node')} rename ${resolve(root, 'current')}`,
-      ]);
+      expect(await readLog(fixture.logs.node)).toEqual(['--input-type=module', '-e']);
       expect(await readLog(fixture.logs.mv)).not.toContainEqual(expect.stringContaining('-T'));
 
       const second = spawnSync('sh', fixture.args, { env: fixture.env });
@@ -207,11 +205,8 @@ chmod +x "$destination/bin/emdash-workspace-server"
 cat > "$destination/node" <<'NODE'
 #!/bin/sh
 set -eu
-# Mimics the artifact's Node runtime handling the rename one-liner.
-[ "$1" = -e ] || exit 2
-printf '%s rename %s\\n' "$0" "$4" >> "$NODE_LOG"
-rm -f -- "$4"
-/bin/mv "$3" "$4"
+printf '%s\\n' "$1" "$2" >> "$NODE_LOG"
+exec "$TEST_NODE" "$@"
 NODE
 chmod +x "$destination/node"`
     ),
@@ -243,6 +238,7 @@ fi`
     TAR_LOG: logs.tar,
     MV_LOG: logs.mv,
     NODE_LOG: logs.node,
+    TEST_NODE: process.execPath,
     HOME: home,
     PATH: `${bin}:${process.env['PATH'] ?? ''}`,
   };
