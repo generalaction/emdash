@@ -1,3 +1,4 @@
+import { GitHubPullRequestClient } from '@emdash/plugins/pull-requests/github';
 import { ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
@@ -153,28 +154,29 @@ async function harness() {
   const auth = {
     resolveAuth: async () =>
       ok({
-        provider: 'github',
+        integrationId: 'github',
         accountId: 'account',
-        token: 'test',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
+        credentials: { accessToken: 'test', apiBaseUrl: 'https://api.github.com' },
       }),
   } as unknown as ContractClient<GitPlatformAuthContract>;
   // Use the real engine, database, service, controller and Wire subscription.
   const engine = new PullRequestEngine({
     scope,
     logger,
-    githubAuth: auth,
-    retrySchedule: retrySchedules.fixed(0, 0),
-    createOctokit: () =>
-      ({
-        graphql,
-        paginate,
-        rest: {
-          issues: { listComments },
-          pulls: { listReviews: vi.fn(), listReviewComments: vi.fn() },
-        },
-      }) as unknown as Octokit,
+    auth,
+    createClient: (_integrationId, host) =>
+      new GitHubPullRequestClient(host, {
+        retrySchedule: retrySchedules.fixed(0, 0),
+        createOctokit: () =>
+          ({
+            graphql,
+            paginate,
+            rest: {
+              issues: { listComments },
+              pulls: { listReviews: vi.fn(), listReviewComments: vi.fn() },
+            },
+          }) as unknown as Octokit,
+      }),
   });
   let service!: PullRequestService;
   const definition = defineWireComponent({

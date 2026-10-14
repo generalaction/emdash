@@ -1,12 +1,12 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { PullRequestAuthError } from '@emdash/plugins/pull-requests/schemas';
 import { err, type Result } from '@emdash/shared';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
-import type { GitHubAuthError } from '@core/services/pull-requests/api';
 
 export type PullRequestSyncIdentity = { accountId: string };
 
 export type PullRequestSyncIdentityResolver = (
   repositoryUrl: string
-) => Promise<Result<PullRequestSyncIdentity, GitHubAuthError>>;
+) => Promise<Result<PullRequestSyncIdentity, PullRequestAuthError>>;
 
 let boundResolver: PullRequestSyncIdentityResolver | undefined;
 
@@ -25,7 +25,7 @@ export function bindPullRequestSyncIdentityResolver(
 
 export async function resolvePullRequestSyncIdentity(
   repositoryUrl: string
-): Promise<Result<PullRequestSyncIdentity, GitHubAuthError>> {
+): Promise<Result<PullRequestSyncIdentity, PullRequestAuthError>> {
   if (!boundResolver) {
     return err({
       type: 'account_unresolvable',

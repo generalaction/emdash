@@ -1,13 +1,14 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { PullRequestAuthError } from '@emdash/plugins/pull-requests/schemas';
 import { err, ok, type Result } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/rpc';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
-import { gitPlatformAuthContract, type GitHubAuthError } from '@core/services/pull-requests/api';
+import { gitPlatformAuthContract } from '@core/services/pull-requests/api';
 import type { PullRequestSyncIdentityResolver } from './sync-identity';
 
 type ReadGitHubCredentials = (
   accountId: string,
   expectedHost: string
-) => Promise<Result<{ accessToken: string; apiBaseUrl: string }, GitHubAuthError>>;
+) => Promise<Result<{ accessToken: string; apiBaseUrl: string }, PullRequestAuthError>>;
 
 /**
  * Desktop-side answer to the worker's per-sync identity request (spec:
@@ -35,11 +36,12 @@ export function createPullRequestsGitHubAuthController(
       const credentials = await readCredentials(identity.data.accountId, repository.host);
       if (!credentials.success) return credentials;
       return ok({
-        provider: 'github',
-        token: credentials.data.accessToken,
-        host: repository.host,
-        apiBaseUrl: credentials.data.apiBaseUrl,
+        integrationId: 'github',
         accountId: identity.data.accountId,
+        credentials: {
+          accessToken: credentials.data.accessToken,
+          apiBaseUrl: credentials.data.apiBaseUrl,
+        },
       });
     },
   });

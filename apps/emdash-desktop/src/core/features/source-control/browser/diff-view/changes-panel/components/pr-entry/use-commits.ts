@@ -1,10 +1,10 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import {
   checkoutSelector,
   getSourceControlClient,
 } from '@core/features/source-control/api/browser/client';
 import { commitRef } from '@core/primitives/git/api';
-import type { PullRequest } from '@core/services/pull-requests/api';
 
 const PAGE_SIZE = 50;
 

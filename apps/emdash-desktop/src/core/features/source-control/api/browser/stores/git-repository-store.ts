@@ -1,3 +1,4 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import {
   localBranchRefSchema,
   remoteBranchRefSchema,
@@ -36,7 +37,6 @@ import {
   type StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
 import type { ProviderRepository } from '@core/primitives/repository/api';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../..';
 

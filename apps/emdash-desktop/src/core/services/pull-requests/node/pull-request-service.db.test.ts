@@ -1,3 +1,8 @@
+import type { PullRequest, PullRequestError } from '@emdash/plugins/pull-requests/schemas';
+import type {
+  PullRequestPage,
+  PullRequestRepositoryClient,
+} from '@emdash/plugins/pull-requests/types';
 import { err, ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { requestPriorities } from '@emdash/shared/requests';
@@ -5,10 +10,8 @@ import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { snapshot } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitPlatformAuthContract, PullRequest, PullRequestError } from '../api';
+import type { GitPlatformAuthContract } from '../api';
 import type { PullRequestEngine } from './engine';
-import type { PullRequestPage } from './engine/observation';
-import type { GitPlatformPullRequestRepository } from './engine/providers/git-platform-provider';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
 
@@ -34,28 +37,28 @@ async function harness(maxSyncCount = 300) {
   const context = {
     identity: 'github.com:account-1',
     repositoryUrl,
-    fetchOpenPage: vi.fn<GitPlatformPullRequestRepository['fetchOpenPage']>(
+    fetchOpenPage: vi.fn<PullRequestRepositoryClient['fetchOpenPage']>(
       async (_cursor: string | null, _signal: AbortSignal, _priority?: number) => observed(page())
     ),
-    fetchHistoryPage: vi.fn<GitPlatformPullRequestRepository['fetchHistoryPage']>(
+    fetchHistoryPage: vi.fn<PullRequestRepositoryClient['fetchHistoryPage']>(
       async (_cursor: string | null, _signal: AbortSignal, _priority?: number) => observed(page())
     ),
-    fetchPullRequest: vi.fn<GitPlatformPullRequestRepository['fetchPullRequest']>(
+    fetchPullRequest: vi.fn<PullRequestRepositoryClient['fetchPullRequest']>(
       async (number: number, _signal: AbortSignal, _priority?: number) =>
         observed(
           pullRequestFixture({ identifier: `#${number}`, url: `${repositoryUrl}/pull/${number}` })
         )
     ),
-    fetchChecks: vi.fn<GitPlatformPullRequestRepository['fetchChecks']>(
+    fetchChecks: vi.fn<PullRequestRepositoryClient['fetchChecks']>(
       async (_number: number, _signal: AbortSignal) => observed({ headRefOid: 'head', checks: [] })
     ),
-    fetchComments: vi.fn<GitPlatformPullRequestRepository['fetchComments']>(
+    fetchComments: vi.fn<PullRequestRepositoryClient['fetchComments']>(
       async (_number: number, _signal: AbortSignal) => observed([])
     ),
   };
   const engine = {
     openRepository: vi.fn<PullRequestEngine['openRepository']>(async () =>
-      ok(context as GitPlatformPullRequestRepository)
+      ok(context as PullRequestRepositoryClient)
     ),
     createPullRequest: vi.fn(async () => ok({ url: `${repositoryUrl}/pull/42`, number: 42 })),
     mergePullRequest: vi.fn(async () => ok({ sha: 'abc', merged: true })),
@@ -150,8 +153,28 @@ describe('PullRequestService ownership', () => {
   );
 
   it.each([
-    { type: 'github_account_not_found', message: 'Selected account disconnected' },
-    { type: 'github_disabled', message: 'GitHub disabled' },
+    {
+      type: 'account_not_found',
+      integrationId: 'github',
+      message: 'Selected account disconnected',
+    },
+    { type: 'integration_disabled', integrationId: 'github', message: 'GitHub disabled' },
+    { type: 'auth_required', integrationId: 'github', host: 'github.com', hint: 'Reconnect' },
+    {
+      type: 'account_host_mismatch',
+      integrationId: 'github',
+      message: 'Account belongs to another host',
+      accountId: 'account-1',
+      accountHost: 'ghe.example.com',
+      host: 'github.com',
+    },
+    {
+      type: 'token_missing',
+      integrationId: 'github',
+      message: 'Token missing',
+      accountId: 'account-1',
+      host: 'github.com',
+    },
   ] satisfies PullRequestError[])(
     'rejects a late old-account response after $type',
     async (error) => {
@@ -208,7 +231,7 @@ describe('PullRequestService ownership', () => {
     const pending = h.service.refreshRepository({ repositoryUrl, policy: 'force' });
     await vi.waitFor(() => expect(finish).toBeDefined());
     h.engine.openRepository.mockResolvedValueOnce(
-      err({ type: 'github_disabled', message: 'Disabled' })
+      err({ type: 'integration_disabled', integrationId: 'github', message: 'Disabled' })
     );
     await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'force' });
     finish();
@@ -223,7 +246,11 @@ describe('PullRequestService ownership', () => {
       await new Promise<void>((resolve) => {
         finish = resolve;
       });
-      return err({ type: 'github_disabled', message: 'Old rejection' });
+      return err({
+        type: 'integration_disabled',
+        integrationId: 'github',
+        message: 'Old rejection',
+      });
     });
     const pending = h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'force' });
     await vi.waitFor(() => expect(finish).toBeDefined());
@@ -711,10 +738,8 @@ function fakeGitHubAuth(): ContractClient<GitPlatformAuthContract> {
   return {
     resolveAuth: async () =>
       ok({
-        provider: 'github',
-        token: 'test-token',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
+        integrationId: 'github',
+        credentials: { accessToken: 'test-token', apiBaseUrl: 'https://api.github.com' },
       }),
   };
 }

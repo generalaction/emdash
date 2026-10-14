@@ -1,8 +1,9 @@
-# Integration And Issue Plugins
+# Integration, Issue, And Pull-Request Plugins
 
 Integration plugins in `packages/plugins/src/integrations/` own service metadata, auth
 method descriptors, credential schemas, and credential verification. Issue plugins in
 `packages/plugins/src/issues/` reference an integration by `integrationId` and own issue
+operations. Pull-request plugins in `packages/plugins/src/pull-requests/` do the same for PR/MR
 operations. GitHub follows the same plugin contracts as the other integrations.
 
 ## Issue Context During Task Creation
@@ -172,3 +173,23 @@ New project registration accepts an `initialIntegrationAccounts` map and commits
 the same desktop transaction as the Project and Repository association. A settings-write
 failure rolls back registration and surfaces as a creation failure; there is no separate
 best-effort renderer save that can lose the intended account pin.
+
+## Pull-Request Plugins
+
+A pull-request plugin's behavior is a stateful factory, `createClient(host)`, returning a
+`PullRequestClient`. Unlike stateless issue behaviors, a client owns its platform's request lanes
+and rate model, so the pull-requests worker creates one per integration and reuses it. Canonical
+PR schemas and types live in `@emdash/plugins/pull-requests/schemas` and
+`@emdash/plugins/pull-requests/types`; the app imports them from there.
+
+Clients run in the pull-requests worker, not main. `PullRequestHostContext.resolveCredentials`
+calls `gitPlatformAuthContract.resolveAuth` per repository; the desktop resolves the account and
+returns `{ integrationId, accountId, credentials }`, where `credentials` is the integration's
+stored record. The client narrows it with its integration's credential reader and fails closed on
+a malformed record. `PullRequestEngine` picks the client from `pullRequestsPluginRegistry` by
+`integrationId` and refuses credentials resolved for a different integration.
+
+PR errors are provider-agnostic (`auth_required`, `account_not_found`, `rate_limited`, and so on).
+Variants that call for user action on an account carry the `integrationId` to reconnect; the
+sync skips without retrying on identity failures, and the PR selector opens that integration's
+setup.

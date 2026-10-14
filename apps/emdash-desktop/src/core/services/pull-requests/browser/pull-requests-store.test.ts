@@ -1,3 +1,4 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { createController, WireError, type ContractClient } from '@emdash/wire/rpc';
@@ -5,12 +6,7 @@ import { cell, expose, type Cell } from '@emdash/wire/state';
 import { defineWireComponent } from '@emdash/wire/worker';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import {
-  pullRequestsContract,
-  type PullRequest,
-  type PullRequestsContract,
-  type SyncState,
-} from '../api';
+import { pullRequestsContract, type PullRequestsContract, type SyncState } from '../api';
 import { createPullRequestListView } from './pull-request-list-view';
 import { PullRequestsStore } from './pull-requests-store';
 

@@ -1,4 +1,4 @@
-import type { PullRequestUser } from '@core/services/pull-requests/api';
+import type { PullRequestUser } from '@emdash/plugins/pull-requests/schemas';
 
 export type UserItem = { value: string; label: string; avatarUrl?: string };
 

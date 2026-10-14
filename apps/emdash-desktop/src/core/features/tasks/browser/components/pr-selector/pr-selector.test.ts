@@ -1,9 +1,10 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequest, SyncState } from '@core/services/pull-requests/api';
+import type { SyncState } from '@core/services/pull-requests/api';
 import { PrSelector } from './pr-selector';
 
 (
@@ -16,6 +17,25 @@ const mocks = vi.hoisted(() => ({
   useProjectAccount: vi.fn(),
   useAccounts: vi.fn(),
   syncState: vi.fn(),
+  openIntegrationSetup: vi.fn(),
+}));
+
+vi.mock('@core/features/integrations/contributions/browser/integrations-provider', () => ({
+  useIntegrationsContext: () => ({
+    integrationById: { 'github-enterprise': { id: 'github-enterprise', name: 'Acme GitHub' } },
+  }),
+}));
+
+vi.mock('@core/features/integrations/contributions/browser/integration-icon', async () => {
+  const React = await import('react');
+  return {
+    IntegrationIcon: ({ provider }: { provider: string }) =>
+      React.createElement('span', { 'data-testid': `integration-icon-${provider}` }),
+  };
+});
+
+vi.mock('@core/manifests/browser/modal-api', () => ({
+  useOpenModal: () => mocks.openIntegrationSetup,
 }));
 
 vi.mock('@core/primitives/wire/browser/use-remote-model-state', () => ({
@@ -362,7 +382,7 @@ describe('PrSelector', () => {
       phase: 'error',
       kind: null,
       error: {
-        type: 'github_not_found_or_no_access',
+        type: 'not_found_or_no_access',
         host: 'github.com',
         message:
           'acme/repo on github.com was not found, or the selected GitHub account does not have access.',
@@ -427,6 +447,40 @@ describe('PrSelector', () => {
     expect(container.querySelector('[data-slot="list-popover-card"]')).not.toBeNull();
     expect(container.querySelector('[data-status="destructive"]')).not.toBeNull();
     expect(container.textContent).not.toContain('No open pull requests');
+  });
+
+  it('opens setup for the integration named by an auth error', async () => {
+    mocks.syncState.mockReturnValue({
+      phase: 'error',
+      kind: null,
+      error: {
+        type: 'auth_required',
+        integrationId: 'github-enterprise',
+        host: 'ghe.example.com',
+        hint: 'Run: gh auth login --hostname ghe.example.com',
+      },
+    });
+    mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [] } });
+
+    await renderSelector();
+
+    const connect = await vi.waitFor(() => {
+      const button = [...container.querySelectorAll('button')].find(
+        (candidate) => candidate.textContent === 'Connect Acme GitHub'
+      );
+      expect(button).toBeDefined();
+      return button!;
+    });
+    await act(async () => {
+      connect.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(mocks.openIntegrationSetup).toHaveBeenCalledWith({ integration: 'github-enterprise' });
+    expect(container.textContent).toContain('Connect Acme GitHub to load PRs');
+    expect(container.textContent).not.toContain('Connect GitHub');
+    expect(
+      container.querySelector('[data-testid="integration-icon-github-enterprise"]')
+    ).not.toBeNull();
   });
 
   function renderSelector() {

@@ -1,7 +1,13 @@
-import { ok } from '@emdash/shared';
+import { GitHubPullRequestClient } from '@emdash/plugins/pull-requests/github';
+import type {
+  PullRequestClient,
+  PullRequestHostContext,
+} from '@emdash/plugins/pull-requests/types';
+import { err, ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
+import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GitPlatformAuthContract } from '../../api';
 import { PullRequestEngine, type PullRequestEngineOptions } from './pull-request-engine';
@@ -13,20 +19,30 @@ afterEach(async () => {
   await Promise.all(scopes.splice(0).map(async (scope) => await scope.dispose()));
 });
 
-function createEngine(options: Omit<PullRequestEngineOptions, 'scope'>): PullRequestEngine {
+function createEngine({
+  githubAuth,
+  logger,
+  createOctokit,
+}: Pick<PullRequestEngineOptions, 'logger'> & {
+  githubAuth: PullRequestEngineOptions['auth'];
+  createOctokit: (options: { token: string; baseUrl: string }) => Octokit;
+}): PullRequestEngine {
   const scope = createScope({ label: 'pull-request-engine-test' });
   scopes.push(scope);
-  return new PullRequestEngine({ ...options, scope });
+  return new PullRequestEngine({
+    auth: githubAuth,
+    logger,
+    scope,
+    createClient: (_integrationId, host) => new GitHubPullRequestClient(host, { createOctokit }),
+  });
 }
 
 function fakeGitHubAuth(): ContractClient<GitPlatformAuthContract> {
   return {
     resolveAuth: async () =>
       ok({
-        provider: 'github',
-        token: 'test-token',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
+        integrationId: 'github',
+        credentials: { accessToken: 'test-token', apiBaseUrl: 'https://api.github.com' },
       }),
   };
 }
@@ -36,9 +52,9 @@ function fakeOctokit(graphql: (...args: never[]) => Promise<unknown>) {
 }
 
 // Assertions on GitHub-specific Octokit shapes live in
-// providers/github/github-provider.test.ts. These smoke tests only confirm the
+// @emdash/plugins pull-requests/impl/github/client.test.ts. These smoke tests only confirm the
 // engine forwards each public method to its underlying provider unchanged.
-describe('PullRequestEngine (delegates to GitPlatformProvider)', () => {
+describe('PullRequestEngine (delegates to the pull-requests plugin client)', () => {
   it('forwards openRepository and its fetch* methods through to the provider', async () => {
     const graphql = vi.fn(async () => ({
       repository: {
@@ -150,6 +166,116 @@ describe('PullRequestEngine (delegates to GitPlatformProvider)', () => {
     expect(result).toMatchObject({
       success: true,
       data: [{ filename: 'a.ts', status: 'modified' }],
+    });
+  });
+});
+
+describe('PullRequestEngine (client dispatch)', () => {
+  function fakeClient(): PullRequestClient {
+    return {
+      openRepository: vi.fn(async () => err({ type: 'sync_failed' as const, message: 'unused' })),
+      createPullRequest: vi.fn(),
+      mergePullRequest: vi.fn(),
+      markReadyForReview: vi.fn(async () => ok(undefined)),
+      getPullRequestFiles: vi.fn(async () => ok([])),
+    };
+  }
+
+  function createDispatchEngine(
+    options: Partial<Omit<PullRequestEngineOptions, 'scope' | 'logger'>>
+  ): PullRequestEngine {
+    const scope = createScope({ label: 'pull-request-engine-dispatch-test' });
+    scopes.push(scope);
+    return new PullRequestEngine({
+      auth: fakeGitHubAuth(),
+      logger: createStubLogger().logger,
+      scope,
+      ...options,
+    });
+  }
+
+  it('creates one client per integration and reuses it across repositories', async () => {
+    const client = fakeClient();
+    const createClient = vi.fn(() => client);
+    const engine = createDispatchEngine({ createClient });
+    const signal = new AbortController().signal;
+
+    await engine.getPullRequestFiles(repositoryUrl, 1, signal);
+    await engine.markReadyForReview('https://github.com/emdash/other', 2, signal);
+
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(createClient).toHaveBeenCalledWith('github', expect.anything());
+    expect(client.getPullRequestFiles).toHaveBeenCalledWith(repositoryUrl, 1, signal);
+    expect(client.markReadyForReview).toHaveBeenCalledWith(
+      'https://github.com/emdash/other',
+      2,
+      signal
+    );
+  });
+
+  it('fails without a request when the integration has no pull-requests plugin', async () => {
+    const engine = createDispatchEngine({ createClient: () => null });
+
+    expect(
+      await engine.getPullRequestFiles(repositoryUrl, 1, new AbortController().signal)
+    ).toEqual({
+      success: false,
+      error: {
+        type: 'unsupported_provider',
+        host: 'github.com',
+        reason: 'github has no pull-request support.',
+      },
+    });
+  });
+
+  it('refuses credentials resolved for a different integration', async () => {
+    let host: PullRequestHostContext | undefined;
+    const engine = createDispatchEngine({
+      auth: {
+        resolveAuth: async () =>
+          ok({ integrationId: 'gitlab', accountId: 'account-1', credentials: { token: 't' } }),
+      },
+      createClient: (_integrationId, context) => {
+        host = context;
+        return fakeClient();
+      },
+    });
+    await engine.getPullRequestFiles(repositoryUrl, 1, new AbortController().signal);
+
+    expect(await host?.resolveCredentials(repositoryUrl, new AbortController().signal)).toEqual({
+      success: false,
+      error: {
+        type: 'account_unresolvable',
+        host: 'github.com',
+        message: 'Repository is connected through gitlab, not github.',
+      },
+    });
+  });
+
+  it('passes the resolved account and credential record to the client', async () => {
+    let host: PullRequestHostContext | undefined;
+    const engine = createDispatchEngine({
+      auth: {
+        resolveAuth: async () =>
+          ok({
+            integrationId: 'github',
+            accountId: 'account-1',
+            credentials: { accessToken: 'token', apiBaseUrl: 'https://api.github.com' },
+          }),
+      },
+      createClient: (_integrationId, context) => {
+        host = context;
+        return fakeClient();
+      },
+    });
+    await engine.getPullRequestFiles(repositoryUrl, 1, new AbortController().signal);
+
+    expect(await host?.resolveCredentials(repositoryUrl, new AbortController().signal)).toEqual({
+      success: true,
+      data: {
+        accountId: 'account-1',
+        credentials: { accessToken: 'token', apiBaseUrl: 'https://api.github.com' },
+      },
     });
   });
 });

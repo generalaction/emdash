@@ -1,4 +1,5 @@
 import type { RuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import z from 'zod';
 import type { AutomationRunStatus } from '@core/primitives/automations/api/automation-run-status';
 import type { Conversation } from '@core/primitives/conversations/api';
@@ -11,7 +12,6 @@ import type {
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { TaskConfig } from '@core/primitives/tasks/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 
 // ---------------------------------------------------------------------------
 // Workspace intent types — stored on the task row as JSON in `workspace_intent`

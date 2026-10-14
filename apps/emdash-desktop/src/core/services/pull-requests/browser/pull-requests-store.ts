@@ -1,3 +1,7 @@
+import type {
+  PullRequestError,
+  PullRequestMergeOptions,
+} from '@emdash/plugins/pull-requests/schemas';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type RemoteModel } from '@emdash/wire/state';
@@ -6,9 +10,7 @@ import {
   normalizeRepositoryUrl,
   pullRequestsContract,
   type CreatePullRequestInput,
-  type PullRequestError,
   type PullRequestFilterOptions,
-  type PullRequestMergeOptions,
   type PullRequestsContract,
   type SyncState,
 } from '../api';

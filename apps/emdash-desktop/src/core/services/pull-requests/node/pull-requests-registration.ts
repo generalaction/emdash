@@ -1,8 +1,9 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { PullRequestAuthError } from '@emdash/plugins/pull-requests/schemas';
 import { err, ok, type Result } from '@emdash/shared';
 import { KeyedMutex, type Disposable } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
-import type { GitHubAuthError, PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
+import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { PullRequestSyncIdentity } from './sync-identity';
 
 type PullRequestsRegistrationClient = Pick<
@@ -166,7 +167,7 @@ export class PullRequestsRegistration implements Disposable {
    */
   async resolveSyncIdentity(
     repositoryUrl: string
-  ): Promise<Result<PullRequestSyncIdentity, GitHubAuthError>> {
+  ): Promise<Result<PullRequestSyncIdentity, PullRequestAuthError>> {
     const host = parseRepositoryRef(repositoryUrl)?.host ?? 'unknown';
     const projectIds = [...this.projectRepositoryUrls.entries()]
       .filter(([, urls]) => urls.includes(repositoryUrl))
@@ -260,7 +261,7 @@ export class PullRequestsRegistration implements Disposable {
 function mapProjectAccountError(
   host: string,
   failure: { type?: string; message: string } | undefined
-): GitHubAuthError {
+): PullRequestAuthError {
   switch (failure?.type) {
     case 'unconfigured':
       return {
@@ -270,7 +271,7 @@ function mapProjectAccountError(
         hint: 'Connect a GitHub account from settings.',
       };
     case 'disabled':
-      return { type: 'github_disabled', host, message: failure.message };
+      return { type: 'integration_disabled', host, message: failure.message };
     default:
       return {
         type: 'account_unresolvable',

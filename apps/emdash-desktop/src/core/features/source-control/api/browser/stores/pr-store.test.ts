@@ -1,8 +1,8 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { createManualClock } from '@emdash/shared/testing';
 import { observable } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
-import type { PullRequest } from '@core/services/pull-requests/api';
 import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-store';
 import type { GitRepositoryStore } from './git-repository-store';
 import { PrStore } from './pr-store';

@@ -1,3 +1,4 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import type { IntegrationCredentials } from '@emdash/plugins/integrations';
 import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
@@ -24,7 +25,6 @@ import {
   resolveProviderAccount,
 } from '@core/primitives/project-settings/api';
 import { providerAccountHostMatching } from '@core/primitives/project-settings/api/resolve-provider-account';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { getProviderAccountService } from '@core/services/provider-accounts/node/provider-account-service';
 import { getIntegrationAccountStore } from '../../node/integration-account-store-instance';
 import { getIntegrationConnectionService } from '../../node/integration-connection-service';

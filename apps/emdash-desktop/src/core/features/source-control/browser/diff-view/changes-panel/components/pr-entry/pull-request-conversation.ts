@@ -1,4 +1,4 @@
-import type { PullRequest, PullRequestComment } from '@core/services/pull-requests/api';
+import type { PullRequest, PullRequestComment } from '@emdash/plugins/pull-requests/schemas';
 
 export type PullRequestDescriptionItem = {
   id: string;

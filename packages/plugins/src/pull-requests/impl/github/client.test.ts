@@ -1,5 +1,6 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import {
   requestPriorities,
   type CreateRequestSchedulerOptions,
@@ -9,11 +10,15 @@ import {
 } from '@emdash/shared/requests';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { createStubLogger } from '@emdash/shared/testing';
-import type { ContractClient } from '@emdash/wire/rpc';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitPlatformAuthContract } from '../../../../api';
-import { GitHubProvider, type GitHubProviderOptions } from './github-provider';
+import type { PullRequestAuthError } from '../../schemas';
+import type { PullRequestCredentials } from '../../types';
+import { GitHubPullRequestClient, type GitHubPullRequestClientOptions } from './client';
+
+type FakeAuth = {
+  resolveAuth: () => Promise<Result<PullRequestCredentials, PullRequestAuthError>>;
+};
 
 const scopes: Scope[] = [];
 const repositoryUrl = 'https://github.com/emdash/emdash';
@@ -21,7 +26,7 @@ afterEach(async () => {
   await Promise.all(scopes.splice(0).map(async (scope) => await scope.dispose()));
   vi.useRealTimers();
 });
-async function repository(provider: GitHubProvider) {
+async function repository(provider: GitHubPullRequestClient) {
   const result = await provider.openRepository(repositoryUrl, new AbortController().signal);
   if (!result.success) throw new Error(result.error.type);
   return result.data;
@@ -61,8 +66,8 @@ describe('GitHub pull request provider (without persistence)', () => {
     expect(graphql).toHaveBeenCalledTimes(1);
   });
   it.each([
-    ['account_unresolvable', 'github_account_not_found'],
-    ['github_disabled', 'github_disabled'],
+    ['account_unresolvable', 'account_not_found'],
+    ['integration_disabled', 'integration_disabled'],
   ])('surfaces %s before making requests', async (authType, expectedType) => {
     const graphql = vi.fn();
     const { logger } = createStubLogger();
@@ -70,7 +75,7 @@ describe('GitHub pull request provider (without persistence)', () => {
       githubAuth: {
         resolveAuth: async () =>
           err({ type: authType, host: 'github.com', message: 'Account unavailable' }),
-      } as ContractClient<GitPlatformAuthContract>,
+      } as FakeAuth,
       logger,
       createOctokit: () => fakeOctokit(graphql),
     });
@@ -78,9 +83,60 @@ describe('GitHub pull request provider (without persistence)', () => {
       await provider.openRepository(repositoryUrl, new AbortController().signal)
     ).toMatchObject({
       success: false,
-      error: { type: expectedType, message: 'Account unavailable' },
+      error: { type: expectedType, integrationId: 'github', message: 'Account unavailable' },
     });
     expect(graphql).not.toHaveBeenCalled();
+  });
+  it('fails closed on a stored credential record that is not a GitHub credential', async () => {
+    const graphql = vi.fn();
+    const createOctokit = vi.fn(() => fakeOctokit(graphql));
+    const { logger } = createStubLogger();
+    const provider = createProvider({
+      githubAuth: {
+        resolveAuth: async () => ok({ accountId: 'account-1', credentials: { token: 'raw' } }),
+      },
+      logger,
+      createOctokit,
+    });
+    expect(
+      await provider.openRepository(repositoryUrl, new AbortController().signal)
+    ).toMatchObject({
+      success: false,
+      error: {
+        type: 'token_missing',
+        integrationId: 'github',
+        accountId: 'account-1',
+        host: 'github.com',
+      },
+    });
+    expect(createOctokit).not.toHaveBeenCalled();
+  });
+  it('passes the stored API base URL to Octokit', async () => {
+    const createOctokit = vi.fn(() => fakeOctokit(vi.fn()));
+    const { logger } = createStubLogger();
+    const provider = createProvider({
+      githubAuth: {
+        resolveAuth: async () =>
+          ok({
+            accountId: 'account-1',
+            credentials: {
+              accessToken: 'enterprise-token',
+              apiBaseUrl: 'https://ghe.example.com/api/v3',
+            },
+          }),
+      },
+      logger,
+      createOctokit,
+    });
+    const result = await provider.openRepository(
+      'https://ghe.example.com/acme/repo',
+      new AbortController().signal
+    );
+    expect(result.success).toBe(true);
+    expect(createOctokit).toHaveBeenCalledWith({
+      token: 'enterprise-token',
+      baseUrl: 'https://ghe.example.com/api/v3',
+    });
   });
   it('does not mutate shared provider responses while completing nested pagination', async () => {
     const node = {
@@ -164,7 +220,7 @@ describe('GitHub pull request provider (without persistence)', () => {
       await (await repository(provider)).fetchPullRequest(42, new AbortController().signal)
     ).toMatchObject({
       success: false,
-      error: { type: 'github_not_found_or_no_access' },
+      error: { type: 'not_found_or_no_access' },
     });
   });
   it('does not return an observation after cancellation', async () => {
@@ -419,10 +475,20 @@ describe('GitHub pull request provider (without persistence)', () => {
   });
 });
 
-function createProvider(options: Omit<GitHubProviderOptions, 'scope'>): GitHubProvider {
+function createProvider({
+  githubAuth,
+  logger,
+  ...options
+}: GitHubPullRequestClientOptions & {
+  githubAuth: FakeAuth;
+  logger: Logger;
+}): GitHubPullRequestClient {
   const scope = createScope({ label: 'github-provider-test' });
   scopes.push(scope);
-  return new GitHubProvider({ ...options, scope });
+  return new GitHubPullRequestClient(
+    { log: logger, scope, resolveCredentials: async () => await githubAuth.resolveAuth() },
+    options
+  );
 }
 
 function immediateScheduler(requests: ScheduledRequest<unknown>[]): RequestScheduler {
@@ -446,15 +512,12 @@ function fakeRateGate(): RateGate {
   };
 }
 
-function fakeGitHubAuth(accountId?: string): ContractClient<GitPlatformAuthContract> {
+function fakeGitHubAuth(accountId?: string): FakeAuth {
   return {
     resolveAuth: async () =>
       ok({
-        provider: 'github',
-        token: 'test-token',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
         accountId,
+        credentials: { accessToken: 'test-token', apiBaseUrl: 'https://api.github.com' },
       }),
   };
 }

@@ -1,4 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
@@ -6,7 +7,6 @@ import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/
 import { useWorkspaceConfig } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import type { PullRequest } from '@core/services/pull-requests/api';
 import { useLinkedIssueContext } from '../issue-context/use-linked-issue-context';
 import { getIssueTaskName } from './issue-task-name';
 

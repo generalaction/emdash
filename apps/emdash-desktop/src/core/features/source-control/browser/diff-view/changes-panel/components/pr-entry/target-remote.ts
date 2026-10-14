@@ -1,5 +1,5 @@
+import { parseRepositoryRef, type RepositoryRef } from '@emdash/core/primitives/repository/api';
 import type { GitRemote } from '@emdash/core/runtimes/git/api';
-import { parseRepositoryRef, type RepositoryRef } from '@core/primitives/repository/api';
 
 export type TargetRemote = {
   remote: GitRemote;

@@ -6,6 +6,7 @@ import {
   GIT_CREDENTIAL_HELPER_URL_PATH,
   type GitCredentialChannel,
 } from '@emdash/core/primitives/git-credentials/api';
+import { normalizeRepositoryHost } from '@emdash/core/primitives/repository/api';
 import type { Logger } from '@emdash/shared/logger';
 import type {
   GitCredentialChannelServer,
@@ -14,7 +15,6 @@ import type {
 import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
 import type { ProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/project-integration-account-resolver';
 import { isGitHubAccountSummary, type GitHubAccountSummary } from '@core/primitives/github/api';
-import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 
 /**
  * Loopback credential server behind the emdash git credential helper

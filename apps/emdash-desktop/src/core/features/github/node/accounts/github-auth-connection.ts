@@ -1,3 +1,4 @@
+import { normalizeRepositoryHost } from '@emdash/core/primitives/repository/api';
 import type { IntegrationConnections } from '@core/features/integrations/api/node/integration-accounts';
 import {
   isGitHubAccountSummary,
@@ -5,7 +6,6 @@ import {
   type GitHubCredentialSource,
 } from '@core/primitives/github/api/github';
 import { type ProviderAccountIdentity } from '@core/primitives/provider-accounts/api';
-import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import { githubApiBaseUrlForHost } from '../../api/node/services/github-api-base-url';
 
 export const GITHUB_PROVIDER_ID = 'github';

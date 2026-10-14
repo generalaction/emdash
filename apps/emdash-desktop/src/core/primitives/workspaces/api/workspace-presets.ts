@@ -1,5 +1,5 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import type { GitBranchRef } from '@core/primitives/git/api';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 
 // ---------------------------------------------------------------------------
 // Preset IDs

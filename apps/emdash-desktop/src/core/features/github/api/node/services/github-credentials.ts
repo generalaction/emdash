@@ -1,10 +1,10 @@
+import { normalizeRepositoryHost } from '@emdash/core/primitives/repository/api';
 import {
   gitHubCredentialsSchema,
   type GitHubCredentials,
 } from '@emdash/plugins/integrations/github';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IntegrationAccountReader } from '@core/features/integrations/api/node/integration-accounts';
-import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type { ProviderAccountStore } from '@core/services/provider-accounts/api/provider-account-store';
 import {
   githubApiAccountHostMismatch,

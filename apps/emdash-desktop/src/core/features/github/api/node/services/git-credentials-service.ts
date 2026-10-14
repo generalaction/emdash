@@ -3,6 +3,10 @@ import type {
   GitCredentialsSessionSpec,
 } from '@emdash/core/primitives/git-credentials/api';
 import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import {
+  normalizeRepositoryHost,
+  parseRepositoryRef,
+} from '@emdash/core/primitives/repository/api';
 import type { GitOperationCredentials } from '@emdash/core/runtimes/git/api';
 import type { Logger } from '@emdash/shared/logger';
 import type { ProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/project-integration-account-resolver';
@@ -13,7 +17,6 @@ import {
 } from '@core/primitives/project-settings/api';
 import { providerAccountHostMatching } from '@core/primitives/project-settings/api/resolve-provider-account';
 import type { ProviderAccountRef } from '@core/primitives/provider-accounts/api/provider-account-summary';
-import { normalizeRepositoryHost, parseRepositoryRef } from '@core/primitives/repository/api';
 
 /**
  * Policy seam for the emdash git credential helper

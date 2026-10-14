@@ -1,6 +1,5 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
 import {
   createRequestScheduler,
   requestPriorities,
@@ -11,11 +10,10 @@ import {
   type RequestScheduler,
 } from '@emdash/shared/requests';
 import { retry, retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
-import type { ContractClient } from '@emdash/wire/rpc';
 import { Octokit } from '@octokit/rest';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
+import { readGitHubCredentials } from '../../../integrations/impl/github/client';
+import { isNetworkError } from '../../helpers/errors';
 import type {
-  GitPlatformAuthContract,
   PullRequest,
   PullRequestCheck,
   PullRequestComment,
@@ -23,14 +21,17 @@ import type {
   PullRequestFile,
   PullRequestMergeOptions,
   PullRequestUser,
-} from '../../../../api';
-import { isNetworkError, type PullRequestOperationErrorType } from '../../errors';
-import type { Observed, PullRequestMetadata, PullRequestPage } from '../../observation';
+} from '../../schemas';
 import type {
-  GitPlatformProvider,
-  GitPlatformPullRequestRepository,
-} from '../git-platform-provider';
-import { mapApiError, mapGitHubAuthError } from './github-provider-errors';
+  Observed,
+  PullRequestClient,
+  PullRequestHostContext,
+  PullRequestMetadata,
+  PullRequestOperationErrorType,
+  PullRequestPage,
+  PullRequestRepositoryClient,
+} from '../../types';
+import { mapApiError, mapGitHubAuthError } from './errors';
 import {
   GET_PR_BY_NUMBER_QUERY,
   GET_PR_CHECK_RUNS_BY_URL_QUERY,
@@ -52,10 +53,8 @@ const defaultRetrySchedule = retrySchedules.jitter(
   })
 );
 
-export type GitHubProviderOptions = {
-  githubAuth: ContractClient<GitPlatformAuthContract>;
-  scope: Scope;
-  logger: Logger;
+/** Test seams; production clients use the defaults. */
+export type GitHubPullRequestClientOptions = {
   createOctokit?: (options: { token: string; baseUrl: string }) => Octokit;
   createScheduler?: (options: CreateRequestSchedulerOptions) => RequestScheduler;
   createRateGate?: (resource: GitHubRateResource) => RateGate;
@@ -178,15 +177,18 @@ type OpenPrResponse = {
 };
 
 /** GitHub transport adapter: authenticated observations and mutations, never cache policy. */
-export class GitHubProvider implements GitPlatformProvider {
+export class GitHubPullRequestClient implements PullRequestClient {
   private readonly requestLanes = new Map<string, RequestLane>();
 
-  constructor(private readonly options: GitHubProviderOptions) {}
+  constructor(
+    private readonly host: PullRequestHostContext,
+    private readonly options: GitHubPullRequestClientOptions = {}
+  ) {}
 
   async openRepository(
     repositoryUrl: string,
     signal: AbortSignal
-  ): Promise<Result<GitPlatformPullRequestRepository, PullRequestError>> {
+  ): Promise<Result<PullRequestRepositoryClient, PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
     try {
@@ -295,7 +297,7 @@ export class GitHubProvider implements GitPlatformProvider {
       const rawNode = response.repository.pullRequest;
       if (!rawNode)
         return err({
-          type: 'github_not_found_or_no_access',
+          type: 'not_found_or_no_access',
           host: repository.host,
           message: `Pull request #${number} was not found`,
         });
@@ -822,25 +824,34 @@ export class GitHubProvider implements GitPlatformProvider {
     // Identity is a per-request runtime parameter (spec: github-git-settings §8):
     // the desktop resolves "as whom" through the blessed resolver on every call,
     // so account changes apply on the very next sync with no event plumbing.
-    const auth = await this.options.githubAuth.resolveAuth(
-      { repositoryUrl: repository.repositoryUrl },
-      { signal }
-    );
+    const auth = await this.host.resolveCredentials(repository.repositoryUrl, signal);
     if (!auth.success) return err(mapGitHubAuthError(auth.error));
+    const credentials = readGitHubCredentials(auth.data.credentials);
+    if (!credentials.success) {
+      return err(
+        mapGitHubAuthError({
+          type: 'token_missing',
+          host: repository.host,
+          accountId: auth.data.accountId ?? '',
+          message: credentials.error.message,
+        })
+      );
+    }
+    const { accessToken, apiBaseUrl } = credentials.data;
     const lane = this.getRequestLane(repository.host, auth.data.accountId);
     const octokit =
       this.options.createOctokit?.({
-        token: auth.data.token,
-        baseUrl: auth.data.apiBaseUrl,
+        token: accessToken,
+        baseUrl: apiBaseUrl,
       }) ??
       new Octokit({
-        auth: auth.data.token,
-        baseUrl: auth.data.apiBaseUrl,
+        auth: accessToken,
+        baseUrl: apiBaseUrl,
         log: {
-          debug: () => this.options.logger.debug('Octokit request'),
-          info: () => this.options.logger.debug('Octokit request completed'),
-          warn: () => this.options.logger.warn('Octokit request warning'),
-          error: () => this.options.logger.warn('Octokit request failed'),
+          debug: () => this.host.log.debug('Octokit request'),
+          info: () => this.host.log.debug('Octokit request completed'),
+          warn: () => this.host.log.warn('Octokit request warning'),
+          error: () => this.host.log.warn('Octokit request failed'),
         },
       });
     this.observeOctokitRateLimits(octokit, lane);
@@ -886,7 +897,7 @@ export class GitHubProvider implements GitPlatformProvider {
       rest: this.createRateGate('rest'),
     };
     const scheduler = (this.options.createScheduler ?? createRequestScheduler)({
-      scope: this.options.scope,
+      scope: this.host.scope,
       maxConcurrency: DEFAULT_REQUEST_CONCURRENCY,
       label: `github:${host}:${accountId ?? 'default'}`,
     });
@@ -913,7 +924,7 @@ export class GitHubProvider implements GitPlatformProvider {
       const resource = rateResourceForRequest(options);
       await lane.gates[resource].acquire(
         resource === 'graphql' ? 0 : 1,
-        options.request?.signal ?? this.options.scope.signal
+        options.request?.signal ?? this.host.scope.signal
       );
     });
     hook.after('request', (response, options) => {

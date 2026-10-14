@@ -1,7 +1,10 @@
+import {
+  isGitHubDotComHost,
+  normalizeRepositoryHost,
+} from '@emdash/core/primitives/repository/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { Octokit } from '@octokit/rest';
-import { isGitHubDotComHost, normalizeRepositoryHost } from '@core/primitives/repository/api';
 
 const POSITIVE_TTL_MS = 15 * 60 * 1000;
 const NEGATIVE_TTL_MS = 2 * 60 * 1000;

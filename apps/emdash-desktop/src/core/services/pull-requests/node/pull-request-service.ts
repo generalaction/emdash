@@ -1,3 +1,14 @@
+import type {
+  PullRequest,
+  PullRequestError,
+  PullRequestFile,
+  PullRequestMergeOptions,
+} from '@emdash/plugins/pull-requests/schemas';
+import type {
+  Observed,
+  PullRequestMetadata,
+  PullRequestRepositoryClient,
+} from '@emdash/plugins/pull-requests/types';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Run, Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
@@ -19,19 +30,13 @@ import {
   type GitPlatformAuthContract,
   type ListPullRequestsInput,
   type ListPullRequestsResult,
-  type PullRequest,
-  type PullRequestError,
-  type PullRequestFile,
   type PullRequestFilterOptions,
-  type PullRequestMergeOptions,
   type SyncState,
   type PullRequestDetails,
   type RefreshRepositoryInput,
   type RefreshPullRequestInput,
 } from '../api';
 import { PullRequestEngine } from './engine';
-import type { Observed, PullRequestMetadata } from './engine/observation';
-import type { GitPlatformPullRequestRepository } from './engine/providers/git-platform-provider';
 import type { PullRequestStore } from './store';
 
 type SyncResult = Result<void, PullRequestError>;
@@ -43,7 +48,7 @@ const DEFAULT_MAX_SYNC_COUNT = 300;
 const DEFAULT_ARCHIVE_AGE_MONTHS = 6;
 
 type RepositoryRead = {
-  repository: GitPlatformPullRequestRepository;
+  repository: PullRequestRepositoryClient;
   sequence: number;
   generation: number;
 };
@@ -100,7 +105,7 @@ export class PullRequestService {
     this.engine =
       options.engine ??
       new PullRequestEngine({
-        githubAuth: options.githubAuth,
+        auth: options.githubAuth,
         scope: options.scope,
         logger: options.logger,
       });
@@ -1011,12 +1016,11 @@ function idleSyncState(): SyncState {
 /** A rejected effective identity fences old reads; a transient network/provider error does not. */
 function isAccessRejection(error: PullRequestError): boolean {
   return (
-    error.type === 'github_disabled' ||
-    error.type === 'github_account_not_found' ||
-    error.type === 'github_account_host_mismatch' ||
-    error.type === 'github_token_missing' ||
-    error.type === 'github_auth_required' ||
-    error.type === 'ghes_auth_required'
+    error.type === 'integration_disabled' ||
+    error.type === 'account_not_found' ||
+    error.type === 'account_host_mismatch' ||
+    error.type === 'token_missing' ||
+    error.type === 'auth_required'
   );
 }
 

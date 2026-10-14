@@ -1,3 +1,4 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { ToggleGroup, toast } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -5,7 +6,7 @@ import { useState } from 'react';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { getPrNumber } from '@root/src/core/services/pull-requests/api';
 import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';

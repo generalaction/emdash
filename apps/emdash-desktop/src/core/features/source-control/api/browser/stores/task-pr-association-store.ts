@@ -1,6 +1,7 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { makeAutoObservable, observable } from 'mobx';
-import type { PrCheckoutDrift, PullRequest } from '@core/services/pull-requests/api';
+import type { PrCheckoutDrift } from '@core/services/pull-requests/api';
 
 export type TaskPrAssociationState =
   | { readonly kind: 'unknown' }

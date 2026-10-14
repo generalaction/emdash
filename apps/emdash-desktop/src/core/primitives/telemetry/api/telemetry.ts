@@ -1,4 +1,5 @@
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
+import type { PullRequestMergeStrategy } from '@emdash/plugins/pull-requests/schemas';
 import type { SpawnPurpose } from '@emdash/shared/perf';
 import type {
   AutomationRunStatus,
@@ -6,7 +7,6 @@ import type {
 } from '@core/primitives/automations/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
-import type { PullRequestMergeStrategy } from '@root/src/core/services/pull-requests/api';
 
 type EmptyProps = Record<string, never>;
 
