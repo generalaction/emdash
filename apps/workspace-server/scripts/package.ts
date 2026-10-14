@@ -469,7 +469,17 @@ async function installDarwinRuntimeDependencies(
       },
     }
   );
-  return join(stagingDirectory, 'node_modules');
+  const nodeModules = join(stagingDirectory, 'node_modules');
+  // Upstream node-pty tarballs ship the macOS spawn-helper prebuild without the executable bit;
+  // without it every PTY spawn fails with "posix_spawnp failed".
+  const spawnHelper = join(
+    nodeModules,
+    'node-pty/prebuilds',
+    `darwin-${process.arch}`,
+    'spawn-helper'
+  );
+  await chmod(spawnHelper, 0o755);
+  return nodeModules;
 }
 
 async function buildLinuxRuntimeDependencies(
@@ -628,6 +638,11 @@ async function verifyLocalArtifact(extractedArtifact: string): Promise<void> {
       '--quiet',
       'bundled-ripgrep-smoke',
       searchDirectory,
+    ]);
+    await runCommand(join(extractedArtifact, 'node'), [
+      '-e',
+      `require(${JSON.stringify(join(extractedArtifact, 'node_modules/node-pty'))})` +
+        `.spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode));`,
     ]);
     await runCommand(launcherPath, ['start', ...lifecycleArgs]);
     await runCommand(launcherPath, ['status', ...lifecycleArgs]);
