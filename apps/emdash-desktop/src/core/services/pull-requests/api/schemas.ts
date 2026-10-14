@@ -1,12 +1,12 @@
 import {
   pullRequestCommentSchema,
-  pullRequestErrorSchema,
   pullRequestLabelSchema,
   pullRequestMergeOptionsSchema,
   pullRequestSchema,
   pullRequestUserSchema,
 } from '@emdash/plugins/pull-requests/schemas';
 import { z } from 'zod';
+import { pullRequestErrorSchema } from './errors';
 
 export const pullRequestStatusFilterSchema = z.enum([
   'open',

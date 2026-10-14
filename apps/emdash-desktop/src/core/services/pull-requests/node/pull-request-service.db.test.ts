@@ -1,4 +1,4 @@
-import type { PullRequest, PullRequestError } from '@emdash/plugins/pull-requests/schemas';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import type {
   PullRequestPage,
   PullRequestRepositoryClient,
@@ -11,6 +11,7 @@ import type { ContractClient } from '@emdash/wire/rpc';
 import { snapshot } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GitPlatformAuthContract } from '../api';
+import type { PullRequestError } from '../api/errors';
 import type { PullRequestEngine } from './engine';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';

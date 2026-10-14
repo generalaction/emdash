@@ -1,6 +1,5 @@
 import type {
   PullRequest,
-  PullRequestError,
   PullRequestFile,
   PullRequestMergeOptions,
 } from '@emdash/plugins/pull-requests/schemas';
@@ -36,6 +35,7 @@ import {
   type RefreshRepositoryInput,
   type RefreshPullRequestInput,
 } from '../api';
+import type { PullRequestError } from '../api/errors';
 import { PullRequestEngine } from './engine';
 import type { PullRequestStore } from './store';
 

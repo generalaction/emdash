@@ -1,7 +1,6 @@
 import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import { pullRequestsPluginRegistry } from '@emdash/plugins/pull-requests';
 import type {
-  PullRequestError,
   PullRequestFile,
   PullRequestMergeOptions,
 } from '@emdash/plugins/pull-requests/schemas';
@@ -15,6 +14,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import type { ContractClient } from '@emdash/wire/rpc';
 import type { GitPlatformAuthContract } from '../../api';
+import type { PullRequestError } from '../../api/errors';
 
 export type PullRequestEngineOptions = {
   auth: ContractClient<GitPlatformAuthContract>;

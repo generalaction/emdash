@@ -190,6 +190,9 @@ a malformed record. `PullRequestEngine` picks the client from `pullRequestsPlugi
 `integrationId` and refuses credentials resolved for a different integration.
 
 PR errors are provider-agnostic (`auth_required`, `account_not_found`, `rate_limited`, and so on).
+The plugin error schema covers provider operations and credential failures. The desktop
+pull-requests service composes it with its own cache, repository-registration, and dispatch
+errors in `api/errors.ts`; desktop contracts and consumers use that composed schema and type.
 Variants that call for user action on an account carry the `integrationId` to reconnect; the
 sync skips without retrying on identity failures, and the PR selector opens that integration's
 setup.

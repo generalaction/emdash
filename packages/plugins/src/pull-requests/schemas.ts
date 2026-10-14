@@ -107,12 +107,11 @@ export const pullRequestMergeOptionsSchema = z.object({
   bypassRequirements: z.boolean().optional(),
 });
 
+/** Provider operations and credential failures; host/service errors belong to the host. */
 export const pullRequestErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('invalid_repository'), input: z.string() }),
-  z.object({ type: z.literal('remote_not_ready'), status: z.string() }),
   z.object({ type: z.literal('cross_host_pr'), baseHost: z.string(), headHost: z.string() }),
   z.object({ type: z.literal('host_unreachable'), host: z.string(), reason: z.string() }),
-  z.object({ type: z.literal('unsupported_provider'), host: z.string(), reason: z.string() }),
   /** `integrationId` names the integration whose account must be connected or fixed. */
   z.object({
     type: z.literal('auth_required'),
@@ -166,9 +165,6 @@ export const pullRequestErrorSchema = z.discriminatedUnion('type', [
     resetAt: z.string().optional(),
   }),
   z.object({ type: z.literal('forbidden'), host: z.string(), message: z.string() }),
-  z.object({ type: z.literal('list_failed'), message: z.string() }),
-  z.object({ type: z.literal('filter_options_failed'), message: z.string() }),
-  z.object({ type: z.literal('task_pull_requests_failed'), message: z.string() }),
   z.object({ type: z.literal('sync_failed'), message: z.string() }),
   z.object({ type: z.literal('refresh_failed'), message: z.string() }),
   z.object({ type: z.literal('checks_failed'), message: z.string() }),
@@ -177,7 +173,6 @@ export const pullRequestErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('merge_failed'), message: z.string() }),
   z.object({ type: z.literal('mark_ready_failed'), message: z.string() }),
   z.object({ type: z.literal('files_failed'), message: z.string() }),
-  z.object({ type: z.literal('repository_not_registered'), repositoryUrl: z.string() }),
 ]);
 
 export const pullRequestAuthErrorSchema = z.discriminatedUnion('type', [
