@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
+import type { ClipboardSource } from '@core/primitives/desktop-host/api/host-contract';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 import {
   ackShutdownFlush,
@@ -11,6 +12,7 @@ import {
 import {
   cleanupExpiredDroppedBlobs,
   persistClipboardImagePath,
+  readClipboardForPaste,
   persistDroppedBlobBytes,
 } from '@main/core/app/persist-terminal-attachment';
 import { submitFeedbackToRelay, type FeedbackAttachment } from '@main/core/app/submit-feedback';
@@ -83,6 +85,19 @@ export const appOperations = {
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  clipboardReadPaste: async ({ source }: { source: ClipboardSource }) => {
+    try {
+      return { success: true as const, content: await readClipboardForPaste(source) };
+    } catch (error) {
+      log.error('app:clipboardReadPaste failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   },
   persistDroppedBlob: async (args: { bytes: Uint8Array; name?: string; mimeType?: string }) => {

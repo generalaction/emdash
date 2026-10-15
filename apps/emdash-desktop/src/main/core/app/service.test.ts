@@ -487,24 +487,36 @@ describe('AppService.showTerminalContextMenu', () => {
     vi.clearAllMocks();
   });
 
-  it('copies the exact selected terminal text without trimming whitespace', () => {
+  function menuItem(label: string) {
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0];
+    return template?.find((item) => item.label === label);
+  }
+
+  function click(label: string) {
+    menuItem(label)?.click?.({} as Electron.MenuItem, undefined as never, undefined as never);
+  }
+
+  it('asks the renderer to copy its selection snapshot instead of writing directly', () => {
     appService.showTerminalContextMenu({
       requestId: 'request-1',
       selectionText: '  indented value\n',
+      linkText: 'https://example.com',
       x: 10,
       y: 20,
     });
 
-    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0];
-    const copyItem = template?.find((item) => item.label === 'Copy');
+    expect(menuItem('Copy')?.enabled).toBe(true);
+    click('Copy');
+    click('Copy Link');
 
-    expect(copyItem?.enabled).toBe(true);
-    copyItem?.click?.({} as Electron.MenuItem, undefined as never, undefined as never);
-
-    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('  indented value\n');
+    expect(mocks.clipboardWriteText).not.toHaveBeenCalled();
+    expect(mocks.eventEmit.mock.calls).toEqual([
+      [{ type: 'terminal-context-menu-action', requestId: 'request-1', action: 'copy' }],
+      [{ type: 'terminal-context-menu-action', requestId: 'request-1', action: 'copy-link' }],
+    ]);
   });
 
-  it('allows copying whitespace-only selections', () => {
+  it('enables copying whitespace-only selections', () => {
     appService.showTerminalContextMenu({
       requestId: 'request-1',
       selectionText: '   ',
@@ -512,12 +524,6 @@ describe('AppService.showTerminalContextMenu', () => {
       y: 20,
     });
 
-    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0];
-    const copyItem = template?.find((item) => item.label === 'Copy');
-
-    expect(copyItem?.enabled).toBe(true);
-    copyItem?.click?.({} as Electron.MenuItem, undefined as never, undefined as never);
-
-    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('   ');
+    expect(menuItem('Copy')?.enabled).toBe(true);
   });
 });

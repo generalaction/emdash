@@ -151,8 +151,7 @@ export class AgentAuthManager {
   sendLoginInput(providerId: string, data: string): Result<void, AgentConfigAuthError> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     const session = this.currentLogin(providerId);
-    if (!session) return noLogin(providerId);
-    session.pty.write(data);
+    if (!session?.pty.write(data)) return noLogin(providerId);
     return ok();
   }
 

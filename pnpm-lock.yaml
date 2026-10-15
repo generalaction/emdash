@@ -207,7 +207,7 @@ importers:
         specifier: ^0.12.0
         version: 0.12.0
       '@xterm/xterm':
-        specifier: ^6.0.0
+        specifier: 6.0.0
         version: 6.0.0
       clsx:
         specifier: ^2.1.1

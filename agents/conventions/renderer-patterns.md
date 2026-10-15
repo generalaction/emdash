@@ -122,6 +122,7 @@ The PTY frontend is owned by the terminals slice:
 - `contributions/browser/pty/pty-pane.tsx` — terminal pane component
 - `browser/pty/pty-input-buffer.ts`, `browser/pty/pty-keybindings.ts`,
   `browser/pty/pty-clipboard.ts` — input handling
+- `browser/pty/terminal-paste.ts` — clipboard paste policy and the terminal input queue
 
 **Rules:**
 - Historical output comes from the main-process ring buffer; do not add renderer-side buffering
@@ -129,6 +130,76 @@ The PTY frontend is owned by the terminals slice:
   `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
 - Agent conversation panes set `PtyPane`'s `inputContext="agent"` to preserve native Alt+arrow
   sequences. The default shell context maps macOS Option+arrows to shell editing controls.
+
+### Terminal clipboard
+
+Clipboard text reaches the PTY through `terminal.paste()`, never `sendInput()`. Programmatic
+prompt injection (`prompt-injection.ts`, the context bar) is a separate path with its own framing.
+
+- **One owner per gesture.** Application-owned gestures prevent the browser default and
+  snapshot through the desktop host's `clipboardReadPaste`, in clipboard order: Windows
+  Ctrl+V and Ctrl+Shift+V, Linux Ctrl+Shift+V and the context menu read CLIPBOARD; a Linux
+  middle click reads PRIMARY (its prevented `mouseup` stops Chromium's own selection paste),
+  unless the program tracks the mouse and Shift does not force selection. Browser-owned gestures (macOS Cmd+V, Edit ▸ Paste,
+  Shift+Insert) arrive as DOM `paste` events carrying CLIPBOARD as it was at the gesture.
+  `PtyPane` consumes them before xterm and uses that payload, unless an app copy has not
+  reached the clipboard yet; then it snapshots CLIPBOARD again behind that copy. Do not add
+  timestamp deduplication; two deliberate pastes both commit.
+- **Copy dependency.** A CLIPBOARD snapshot taken while app copies are pending captures their
+  receipts. If one failed, the paste stops with a toast rather than pasting the clipboard the
+  copy was meant to replace; later copies do not affect it, and a paste made after the failure
+  settles reads the unchanged clipboard. PRIMARY reads never depend on CLIPBOARD copies.
+- **One conversion.** `prepareTerminalPasteText` shows C0 controls other than HT/LF/CR as
+  Unicode control pictures (ESC becomes U+241B, as in upstream xterm.js), DEL as U+2421, and
+  each C1 control as U+241B plus its ESC Fe byte (U+009B becomes `␛[`). xterm then turns
+  LF/CRLF into CR and frames the text only when the destination enabled mode 2004 and
+  `ignoreBracketedPasteMode` is off. Nothing is trimmed, appended or force-framed.
+- **Current mode.** A commit waits for xterm to parse the output received before it (the
+  `write('', callback)` barrier) and reads the mode only then, so a mode change still in
+  flight, including in replayed output, applies to the paste.
+- **Unframed destinations.** Without mode 2004, line breaks and tabs act as Enter and Tab, so
+  the pane asks before sending them as keystrokes, then rereads the mode. Cancelling sends
+  nothing and leaves the clipboard unchanged. The pane cannot see a destination's own limits:
+  a canonical-mode reader is still bound by the kernel line limit, and a ConPTY build that
+  does not pass mode 2004 through makes every multiline paste ask.
+- **Priority.** For a DOM payload: image files referenced on disk attach, otherwise plain text
+  wins over HTML and bitmap renditions, otherwise image data attaches. The native snapshot is
+  text if the source has any, else its image persisted to a file; it does not expose file
+  references, so copied files paste through DOM events (Cmd+V, Edit ▸ Paste) or drag and drop,
+  and a DOM paste made while a copy is pending is read as that snapshot.
+  Attachment injection keeps its own bracketed framing and `track: false`.
+- **Ordering.** `TerminalInputQueue` (one per terminal input lifetime) orders pastes and all
+  other input. A paste is queued when its gesture happens and its content, including a native
+  image snapshot, is acquired then; its commit (parse barrier, confirmation, upload, send)
+  runs after earlier work. Input typed meanwhile (keys, IME, mouse) waits behind it until the
+  runtime answers that paste's write (one wait per paste, none per key): it is sent if the
+  paste arrived, and discarded with a toast if it did not (cancelled, declined, rejected,
+  failed or unconfirmed), since an Enter typed to follow a paste must not submit without it.
+  With nothing queued, input is sent at once.
+- **Terminal replies.** xterm's answers to queries in the output (DA, DSR/CPR, DECRQSS,
+  window and colour reports) and focus reports go out at once, untracked, even while a paste
+  is pending, and are never discarded. `terminal-replies.ts` identifies them by origin: parser
+  hooks on exactly the queries xterm 6 answers mark the reply emitted during that parse, and
+  physical keys (`onKey`) never count as replies, even when shaped like one (Ctrl+F3 sends
+  CSI 1;5R). The app pins `@xterm/xterm` to the reviewed release and a test compares it with
+  `REVIEWED_XTERM_VERSION`; an upgrade must recheck the hook list.
+- **Lifetime.** A paste is bound to the pane state that received it (terminal, session,
+  workspace, read-only) and to the terminal's disposal. If either ends, acquisition, parse
+  waits and confirmation stop and the paste is cancelled with a toast. Replacing the terminal,
+  unmounting or changing read-only state closes the input queue, discarding held input.
+- **Delivery.** Pastes over `MAX_TERMINAL_PASTE_BYTES` are rejected whole. Text and attachment
+  paths the runtime did not confirm are reported and never resent, since a prefix may have
+  arrived; prepared attachments stay managed. The terminal is refocused after its answer only
+  if the pane is still current. The PTY reports a write to an exited session as not accepted.
+- **Copy.** Copy snapshots xterm's selection model. Ctrl+C and Cmd+C copy only with a
+  selection (otherwise Ctrl+C interrupts); Edit ▸ Copy's DOM `copy` event is consumed before
+  xterm's own listener. These, the context menu's Copy and Copy Link, and desktop clipboard
+  reads and image snapshots all run in one sequence in `host-client.ts`, so a paste after a
+  copy reads the copied text and an older copy cannot overwrite a newer one; write failures
+  are shown.
+- **Submitted input.** `SubmittedInputBuffer` treats line breaks inside a bracketed paste as
+  text and is fed in send order, so a framed multiline paste is not an Enter press and is
+  recorded as one message.
 
 ## React Query Context Pattern
 

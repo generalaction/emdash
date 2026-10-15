@@ -613,10 +613,10 @@ function createTuiAgentsConnector(
     },
     sendInput(data: string) {
       const sentGeneration = generation();
-      if (sentGeneration === undefined) return;
-      void client()
+      if (sentGeneration === undefined) return Promise.resolve(false);
+      return client()
         .then(async (runtime) => {
-          if (generation() !== sentGeneration) return;
+          if (generation() !== sentGeneration) return false;
           const result = await runtime.tui.sendInput({ conversationId, data });
           if (!result.success) {
             log.warn('ConversationManagerStore: TUI input failed', {
@@ -624,12 +624,14 @@ function createTuiAgentsConnector(
               error: result.error,
             });
           }
+          return result.success;
         })
         .catch((error) => {
           log.warn('ConversationManagerStore: failed to send TUI input', {
             conversationId,
             error,
           });
+          return false;
         });
     },
     resize(cols: number, rows: number) {

@@ -398,15 +398,17 @@ function createScriptsConnector(workspaceId: string, script: ScriptType): Fronte
       };
     },
     sendInput(data: string) {
-      void client()
+      return client()
         .then(async (runtime) => {
           const result = await runtime.sendInput({ workspaceId, script, data });
           if (!result.success) {
             log.warn('lifecycle-scripts: input failed', { script, error: result.error });
           }
+          return result.success;
         })
         .catch((error) => {
           log.warn('lifecycle-scripts: failed to send input', { script, error });
+          return false;
         });
     },
     resize(cols: number, rows: number) {

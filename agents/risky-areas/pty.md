@@ -25,6 +25,9 @@
   existing renderer behavior. Let xterm own write buffering and scheduling.
 - output parsing: consuming a DA query must preserve its introducer's effect on
   an interrupted escape sequence or string; test display and replies against xterm
+- input acceptance: `PtySession.write` returns false once the process exited or the session
+  was disposed, and runtimes report that input as not delivered. Never replay input whose
+  write was unconfirmed; a prefix may have reached the process
 - provider-specific resume/session behavior
 - env passthrough safety
 

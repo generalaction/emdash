@@ -323,10 +323,10 @@ function createTerminalsConnector(
     },
     sendInput(data: string) {
       const sentGeneration = generation();
-      if (sentGeneration === undefined) return;
-      void Promise.all([runtime(), key()])
+      if (sentGeneration === undefined) return Promise.resolve(false);
+      return Promise.all([runtime(), key()])
         .then(async ([terminalsRuntime, terminalKey]) => {
-          if (generation() !== sentGeneration) return;
+          if (generation() !== sentGeneration) return false;
           const result = await terminalsRuntime.sendInput({ ...terminalKey, data });
           if (!result.success) {
             log.warn('TerminalManagerStore: terminal input failed', {
@@ -334,9 +334,11 @@ function createTerminalsConnector(
               error: result.error,
             });
           }
+          return result.success;
         })
         .catch((error) => {
           log.warn('TerminalManagerStore: failed to send terminal input', { error });
+          return false;
         });
     },
     resize(cols: number, rows: number) {

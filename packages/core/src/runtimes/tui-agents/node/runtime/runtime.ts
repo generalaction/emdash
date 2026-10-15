@@ -405,8 +405,7 @@ export class TuiAgentsRuntime {
 
   sendInput(conversationId: string, data: string): Result<void, TuiInputError> {
     const active = this.sessions.get(conversationId);
-    if (!active?.pty) return err({ type: 'not-found', conversationId });
-    active.pty.write(data);
+    if (!active?.pty?.write(data)) return err({ type: 'not-found', conversationId });
     this.lifecycle.recordInput(conversationId);
     this.agentStates.markInputSubmitted(
       conversationId,

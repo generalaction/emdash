@@ -9,6 +9,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
+import type { TerminalContextMenuAction } from '@core/primitives/desktop-host/api/host-contract';
 import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
@@ -61,7 +62,7 @@ type RemoteTerminalLaunchAttempt = {
 type TerminalContextMenuEvent = {
   type: 'terminal-context-menu-action';
   requestId: string;
-  action: 'paste' | 'select-all' | 'clear';
+  action: TerminalContextMenuAction;
 };
 
 type WorkspaceRuntimeAcquirer = ReturnType<typeof createDesktopWorkspaceRuntimeAcquirer>;
@@ -229,7 +230,9 @@ class AppService implements Disposable {
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
-    const emitAction = (action: 'paste' | 'select-all' | 'clear') => {
+    // Copies run in the renderer with the snapshot it sent, ordered with its other clipboard
+    // operations; the menu only enables them.
+    const emitAction = (action: TerminalContextMenuAction) => {
       this.emitHostEvent({
         type: 'terminal-context-menu-action',
         requestId: args.requestId,
@@ -241,13 +244,13 @@ class AppService implements Disposable {
         label: 'Copy',
         accelerator: 'CmdOrCtrl+C',
         enabled: hasSelection,
-        click: () => clipboard.writeText(selectionText),
+        click: () => emitAction('copy'),
       },
       ...(hasLink
         ? [
             {
               label: 'Copy Link',
-              click: () => clipboard.writeText(linkText),
+              click: () => emitAction('copy-link'),
             },
           ]
         : []),

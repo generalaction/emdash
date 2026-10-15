@@ -39,6 +39,34 @@ describe('PtyRegistry', () => {
     expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
   });
 
+  it('rejects input once the retained session has exited or been disposed', async () => {
+    const spawner = new FakePtySpawner();
+    const registry = new PtyRegistry(spawner);
+
+    await registry.create('review', spec);
+    expect(registry.write('review', 'typed')).toBe(true);
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+
+    expect(registry.get('review')?.exited).toBe(true);
+    expect(registry.getLog('review')).not.toBeNull();
+    expect(registry.write('review', 'lost paste')).toBe(false);
+    registry.dispose('review');
+    expect(registry.write('review', 'after dispose')).toBe(false);
+    expect(spawner.processes[0]!.writes).toEqual(['typed']);
+  });
+
+  it('surfaces a failing process write instead of reporting it accepted', async () => {
+    const spawner = new FakePtySpawner();
+    const registry = new PtyRegistry(spawner);
+
+    await registry.create('review', spec);
+    vi.spyOn(spawner.processes[0]!, 'write').mockImplementation(() => {
+      throw new Error('EIO');
+    });
+
+    expect(() => registry.write('review', 'paste')).toThrow('EIO');
+  });
+
   it('tracks exit status and notifies registry changes', async () => {
     const spawner = new FakePtySpawner();
     const onSessionChanged = vi.fn();

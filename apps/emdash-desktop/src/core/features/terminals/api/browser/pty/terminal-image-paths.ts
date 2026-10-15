@@ -54,10 +54,6 @@ export function extractClipboardImageFiles(clipboardData: DataTransfer | null): 
   return imageFiles;
 }
 
-export function isNearDuplicatePaste(recentPasteAt: number, now = Date.now()): boolean {
-  return recentPasteAt > 0 && now >= recentPasteAt && now - recentPasteAt < 250;
-}
-
 export function clipboardDataMayContainImage(clipboardData: DataTransfer | null): boolean {
   if (!clipboardData) return false;
   if (extractClipboardImageFiles(clipboardData).length > 0) return true;

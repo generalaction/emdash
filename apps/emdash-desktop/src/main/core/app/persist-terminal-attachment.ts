@@ -5,6 +5,10 @@ import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promise
 import { basename, extname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, clipboard, nativeImage } from 'electron';
+import type {
+  ClipboardPasteContent,
+  ClipboardSource,
+} from '@core/primitives/desktop-host/api/host-contract';
 import type { TerminalFileSources } from '@core/services/attachments/node/prepare-terminal-files';
 
 export const MAX_DROPPED_BLOB_BYTES = 50 * 1024 * 1024;
@@ -208,6 +212,27 @@ export async function cleanupExpiredDroppedBlobs(now = Date.now()): Promise<void
       await rm(path, { force: true });
     })
   );
+}
+
+/**
+ * Snapshots the clipboard, or the Linux primary selection, for one paste. Text and image are
+ * read in the same synchronous step, so a later clipboard change cannot mix into this paste;
+ * an image-only clipboard is persisted now and attached when the paste commits.
+ */
+export async function readClipboardForPaste(
+  source: ClipboardSource = 'clipboard',
+  system: Pick<Electron.Clipboard, 'readText' | 'readImage'> = clipboard
+): Promise<ClipboardPasteContent> {
+  const text = system.readText(source);
+  if (text) return { kind: 'text', text };
+  const png = system.readImage(source).toPNG();
+  if (png.byteLength === 0) return { kind: 'empty' };
+  const path = await persistDroppedBlobBytes({
+    bytes: new Uint8Array(png),
+    name: 'paste.png',
+    mimeType: 'image/png',
+  });
+  return { kind: 'image', path };
 }
 
 export async function persistClipboardImagePath(): Promise<string | null> {

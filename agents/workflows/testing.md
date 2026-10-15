@@ -66,6 +66,13 @@ can use the Nx cache.
   from `@emdash/core`, a workspace that declares the dependency. Vitest omits the
   Playwright-backed `browser` projects (app and chat-ui) when it detects CI until
   browser provisioning is proven stable there.
+- The `native-paste` jobs in the same workflow run only the terminal paste regressions on
+  Linux, macOS and Windows, when paste-related paths change or on `workflow_dispatch`
+  (`native_only: true` skips the routine jobs for that manual run): exact
+  bytes received through a native PTY, the renderer paste browser tests, and
+  `apps/emdash-desktop/tooling/native-clipboard/run.mjs`, which bundles the production
+  clipboard snapshot into an Electron check of the system clipboard. That check writes the
+  real clipboard; run it locally only on a private display.
 - The full suite (including `browser` projects) is still expected locally before merging.
 
 ## Focused Validation

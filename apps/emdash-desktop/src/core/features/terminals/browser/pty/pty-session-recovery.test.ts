@@ -14,7 +14,7 @@ vi.mock('../../api/browser/pty/pty', () => ({
     ) {}
     connect = vi.fn(async () => {});
     sendInput(data: string) {
-      this.connector.sendInput?.(data);
+      return this.connector.sendInput?.(data);
     }
     dispose() {}
   },
@@ -85,7 +85,7 @@ describe('retained terminal attachment recovery', () => {
   it('drops offline input, rehydrates the backend, and retains the displayed terminal', async () => {
     let usable = true;
     const prepare = vi.fn(async () => {});
-    const sendInput = vi.fn();
+    const sendInput = vi.fn(async () => true);
     const session = new PtySession(
       'terminal',
       prepare,
@@ -96,15 +96,15 @@ describe('retained terminal attachment recovery', () => {
     );
     await session.connect();
     const display = session.pty;
-    display?.sendInput('before');
+    await expect(display?.sendInput('before')).resolves.toBe(true);
     usable = false;
-    display?.sendInput('must-not-replay');
+    await expect(display?.sendInput('must-not-replay')).resolves.toBe(false);
     usable = true;
     await session.refreshAttachment();
     expect(session.pty).toBe(display);
     expect(prepare).toHaveBeenCalledTimes(2);
     expect(sendInput.mock.calls).toEqual([['before']]);
-    display?.sendInput('after');
+    await expect(display?.sendInput('after')).resolves.toBe(true);
     expect(sendInput.mock.calls).toEqual([['before'], ['after']]);
     session.dispose();
   });

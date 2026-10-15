@@ -415,6 +415,22 @@ describe('TuiAgentsRuntime', () => {
     }
   });
 
+  it('reports input to an exited agent session as not delivered', async () => {
+    const { runtime, spawner } = createRuntime();
+    try {
+      await runtime.startSession(startInput());
+      expect(runtime.sendInput('conversation-1', 'before').success).toBe(true);
+      spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+      expect(runtime.sendInput('conversation-1', 'lost paste')).toMatchObject({
+        success: false,
+        error: { type: 'not-found' },
+      });
+      expect(spawner.processes[0]!.writes).toEqual(['before']);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it.each([false, true])('answers terminal probes on the host only with tmux=%s', async (tmux) => {
     const { runtime, spawner } = createRuntime();
     const replies = '\x1b[?1;2c\x1b[>0;276;0c\x1bP>|XTerm(380)\x1b\\';

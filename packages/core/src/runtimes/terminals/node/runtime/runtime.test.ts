@@ -530,6 +530,25 @@ describe('TerminalsRuntime', () => {
     await scope.dispose();
   });
 
+  it('reports input to an exited terminal as not delivered', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals-exited-input' });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
+    const key = { workspace: testWorkspace(), id: 'terminal-1' };
+    try {
+      await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+      expect(runtime.sendInput(key, 'before').success).toBe(true);
+      spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+      expect(runtime.sendInput(key, 'lost paste')).toMatchObject({
+        success: false,
+        error: { type: 'not-found' },
+      });
+      expect(spawner.processes[0]!.writes).toEqual(['before']);
+    } finally {
+      await scope.dispose();
+    }
+  });
+
   it.each([false, true])('answers terminal probes on the host only with tmux=%s', async (tmux) => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals-probe-replies' });

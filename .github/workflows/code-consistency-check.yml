@@ -4,10 +4,16 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      native_only:
+        description: Run only the native paste jobs
+        type: boolean
+        default: false
 
 jobs:
   checks:
     name: ${{ matrix.name }}
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.native_only }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -73,7 +79,117 @@ jobs:
       - name: Run affected ${{ matrix.name }}
         run: pnpm nx affected -t ${{ matrix.target }}
 
+  # Clipboard, keyboard and PTY behavior differ by OS, while the checks above run on Linux
+  # without the browser test project. These jobs run only the terminal paste regressions on
+  # each desktop platform, when paste-related paths change or on manual dispatch.
+  native-paste-scope:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect paste-related changes
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo run=true >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Write the full list before matching: grep -q on a pipe could stop reading early
+          # and fail git with SIGPIPE under pipefail.
+          changed="$RUNNER_TEMP/changed-paths.txt"
+          git diff --name-only "$BASE_SHA" HEAD > "$changed"
+          if grep -qE '^(\.github/workflows/code-consistency-check\.yml|apps/emdash-desktop/src/core/features/terminals/|apps/emdash-desktop/src/core/primitives/desktop-host/|apps/emdash-desktop/src/main/core/app/|apps/emdash-desktop/src/renderer/tests/browser/terminal-|apps/emdash-desktop/tooling/native-clipboard/|packages/core/src/services/pty/|packages/core/src/runtimes/(terminals|tui-agents)/|pnpm-lock\.yaml)' "$changed"; then
+            echo run=true >> "$GITHUB_OUTPUT"
+          else
+            echo run=false >> "$GITHUB_OUTPUT"
+          fi
+
+  native-paste:
+    name: native-paste (${{ matrix.os }})
+    needs: native-paste-scope
+    if: needs.native-paste-scope.outputs.run == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      npm_config_msvs_version: '2022'
+      GYP_MSVS_VERSION: '2022'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build node-pty and download Electron
+        run: |
+          pnpm --filter @emdash/core rebuild node-pty
+          pnpm --filter @emdash/emdash-desktop rebuild electron
+
+      - name: Build workspace packages
+        run: >-
+          pnpm exec nx run-many -t build -p @emdash/shared @emdash/wire @emdash/theme
+          @emdash/ui @emdash/core @emdash/plugins @emdash/chat-ui
+
+      - name: Install display and Electron libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libgbm1 libasound2
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+
+      - name: PTY paste bytes
+        run: >-
+          pnpm --dir packages/core exec vitest run
+          src/services/pty/api/node/node-pty-paste.integration.test.ts
+
+      - name: Renderer paste routes
+        env:
+          # The app's Vitest config omits the browser project when CI is set.
+          CI: ''
+        run: >-
+          pnpm --dir apps/emdash-desktop exec vitest run --project browser
+          src/renderer/tests/browser/terminal-paste.test.tsx
+          src/renderer/tests/browser/terminal-paste-macos.test.tsx
+          src/renderer/tests/browser/terminal-attachments.test.tsx
+
+      - name: System clipboard
+        working-directory: apps/emdash-desktop
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a node tooling/native-clipboard/run.mjs
+          else
+            node tooling/native-clipboard/run.mjs
+          fi
+
   packaged-language-servers:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.native_only }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4

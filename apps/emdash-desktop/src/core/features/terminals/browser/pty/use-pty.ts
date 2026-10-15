@@ -1,3 +1,4 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
@@ -7,7 +8,11 @@ import { measureDimensions } from '@core/features/terminals/api/browser/pty/pty-
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
 import { getCellMetrics } from '@core/features/terminals/api/browser/pty/xterm-cell-metrics';
 import { usePaneSizingContext } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import type { ClipboardSource } from '@core/primitives/desktop-host/api/host-contract';
+import {
+  copyTextToClipboard,
+  getHostClient,
+} from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import type { AppSettings } from '@core/services/settings/api';
@@ -24,16 +29,31 @@ import {
   shouldPasteToTerminal,
 } from './pty-keybindings';
 import { getTerminalContextLink } from './terminal-context-link';
+import { TerminalInputQueue } from './terminal-paste';
+import { createTerminalReplyClassifier } from './terminal-replies';
 
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
+const IS_LINUX_PLATFORM = typeof navigator !== 'undefined' && /Linux/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
 function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
   if (!selection) return '';
   if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
   return selection.text;
+}
+
+// Keys held behind a paste that was not sent are not sent either; say so instead of
+// dropping them silently.
+function createInputQueue(): TerminalInputQueue {
+  return new TerminalInputQueue((count) => {
+    toast('Typed input not sent', {
+      description: `${count === 1 ? 'A key' : `${count} keys`} typed after a paste that was not sent ${
+        count === 1 ? 'was' : 'were'
+      } discarded.`,
+    });
+  });
 }
 
 function createContextMenuRequestId(): string {
@@ -62,13 +82,29 @@ export interface UsePtyOptions {
 export interface UseTerminalReturn {
   focus: () => void;
   setTheme: (theme: SessionTheme) => void;
+  /** Sends input in order behind any queued paste. */
   sendInput: (data: string, options?: { track?: boolean }) => void;
+  /** Queues a paste; input sent after this call is delivered after the paste. */
+  queuePaste: TerminalInputQueue['paste'];
+  /**
+   * Pastes prepared clipboard text through xterm, which normalizes line breaks and applies
+   * the negotiated bracketed-paste framing, then sends the result once. Only for a queued
+   * paste's commit; resolves false when the terminal did not confirm it.
+   */
+  pasteText: (text: string) => Promise<boolean>;
+  /** Sends input immediately. Only for a queued paste's commit. */
+  deliverInput: (data: string, options?: { track?: boolean }) => Promise<boolean>;
 }
 
-export type PasteFromClipboardHandler = (helpers: {
-  focus: UseTerminalReturn['focus'];
-  sendInput: UseTerminalReturn['sendInput'];
-}) => void;
+export type TerminalPasteHelpers = Pick<
+  UseTerminalReturn,
+  'focus' | 'queuePaste' | 'pasteText' | 'deliverInput'
+>;
+
+export type PasteFromClipboardHandler = (
+  helpers: TerminalPasteHelpers,
+  source: ClipboardSource
+) => void;
 
 /**
  * React hook that manages a full xterm.js terminal instance attached to
@@ -138,17 +174,25 @@ export function usePty(
   // Core xterm.js reference, kept alive across renders.
   const termRef = useRef<Terminal | null>(null);
 
-  // First-message capture state.
-  const firstMessageSentRef = useRef(false);
-  const inputBufferRef = useRef('');
-
-  // Tracks submitted user input while filtering terminal control traffic.
+  // Tracks submitted user input while filtering terminal control traffic and pasted frames.
   const submittedInputBufferRef = useRef(new SubmittedInputBuffer());
+  const firstMessageSentRef = useRef(false);
+  // Orders typed input behind pastes that are still acquiring or committing. One queue per
+  // terminal input lifetime: replacing the terminal or its read-only state closes it.
+  const inputQueueRef = useRef<TerminalInputQueue | null>(null);
+  inputQueueRef.current ??= createInputQueue();
+  // Collects the transport results of input emitted by the current terminal.paste() call.
+  const pasteDeliveriesRef = useRef<Promise<boolean>[] | null>(null);
 
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
   const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
-  const contextMenuRequestIdRef = useRef<string | null>(null);
+  // The open context menu's request and the text it offers to copy, captured when it opened.
+  const contextMenuRequestRef = useRef<{
+    id: string;
+    selectionText: string;
+    linkText: string | null;
+  } | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -222,27 +266,80 @@ export function usePty(
     termRef.current?.focus();
   }, [containerRef]);
 
-  const copySelectionToClipboard = useCallback(() => {
-    const selection =
-      termRef.current?.getSelection() || getRecentSelection(lastSelectionRef.current);
-    if (selection) {
-      navigator.clipboard.writeText(selection).catch(() => {});
-    }
+  // Copies go through the desktop clipboard sequence, so they land in gesture order.
+  const copyText = useCallback((text: string) => {
+    if (!text) return;
+    void copyTextToClipboard(text)
+      .then((result) => {
+        if (!result.success) throw new Error(result.error ?? 'Clipboard write failed');
+      })
+      .catch((error) => {
+        log.warn('useTerminal: failed to copy terminal text', { error });
+        toast.error('Copy failed', {
+          description: 'The terminal text could not be copied to the clipboard.',
+        });
+      });
   }, []);
 
-  const sendInput = useCallback(
-    (data: string, options?: { track?: boolean }) => {
-      if (readOnlyRef.current) return;
+  const copySelectionToClipboard = useCallback(() => {
+    // Snapshot xterm's selection model now: it joins soft-wrapped rows and keeps real breaks.
+    copyText(termRef.current?.getSelection() || getRecentSelection(lastSelectionRef.current));
+  }, [copyText]);
+
+  // Submitted-input tracking runs here, in the order input is actually sent.
+  const deliverInput = useCallback(
+    (data: string, options?: { track?: boolean }): Promise<boolean> => {
+      if (readOnlyRef.current) return Promise.resolve(false);
       const shouldTrack = options?.track ?? true;
       if (shouldTrack) {
         const submittedMessages = submittedInputBufferRef.current.feed(data);
         for (const message of submittedMessages) {
+          if (!firstMessageSentRef.current && onFirstMessageRef.current) {
+            firstMessageSentRef.current = true;
+            onFirstMessageRef.current(message);
+          }
           if (isRealTaskInput(message)) {
             onEnterPressRef.current?.(message);
           }
         }
       }
-      pty.sendInput(data);
+      const delivered = pty.sendInput(data);
+      pasteDeliveriesRef.current?.push(delivered);
+      return delivered;
+    },
+    [pty]
+  );
+
+  const sendInput = useCallback(
+    (data: string, options?: { track?: boolean }) => {
+      inputQueueRef.current?.send(() => void deliverInput(data, options));
+    },
+    [deliverInput]
+  );
+
+  const queuePaste = useCallback<TerminalInputQueue['paste']>(
+    (content, commit, onError, onCancel) =>
+      inputQueueRef.current?.paste(content, commit, onError, onCancel),
+    []
+  );
+
+  const closeInputLifetime = useCallback(() => {
+    inputQueueRef.current?.close();
+    inputQueueRef.current = createInputQueue();
+  }, []);
+
+  const pasteText = useCallback(
+    (text: string) => {
+      const deliveries: Promise<boolean>[] = [];
+      pasteDeliveriesRef.current = deliveries;
+      try {
+        // xterm emits the converted paste through onData synchronously.
+        pty.terminal.paste(text);
+      } finally {
+        pasteDeliveriesRef.current = null;
+      }
+      if (deliveries.length === 0) return Promise.resolve(false);
+      return Promise.all(deliveries).then((results) => results.every(Boolean));
     },
     [pty]
   );
@@ -251,25 +348,18 @@ export function usePty(
     pty.terminal.options.disableStdin = readOnly;
     return () => {
       pty.terminal.options.disableStdin = false;
+      closeInputLifetime();
     };
-  }, [pty, readOnly]);
+  }, [pty, readOnly, closeInputLifetime]);
 
-  const pasteFromClipboard = useCallback(() => {
-    const customPasteFromClipboard = onPasteFromClipboardRef.current;
-    if (customPasteFromClipboard) {
-      customPasteFromClipboard({ focus, sendInput });
-      return;
-    }
-
-    void (async () => {
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text) sendInput(text);
-      } catch {
-        // Clipboard read denied or unavailable.
-      }
-    })();
-  }, [focus, sendInput]);
+  // Application-owned paste gestures (shortcuts, context menu, Linux middle click) go to the
+  // pane's clipboard pipeline; a read-only pane provides none, so they paste nothing.
+  const pasteFromClipboard = useCallback(
+    (source: ClipboardSource = 'clipboard') => {
+      onPasteFromClipboardRef.current?.({ focus, queuePaste, pasteText, deliverInput }, source);
+    },
+    [focus, queuePaste, pasteText, deliverInput]
+  );
 
   // ─── Main effect: mount terminal once per sessionId ────────────────────────
 
@@ -365,7 +455,7 @@ export function usePty(
             { intermediates: '$', final: 'p' },
             (params: (number | number[])[]) => {
               const mode = (params[0] as number) ?? 0;
-              sendInput(`\x1b[${mode};0$y`, { track: false });
+              void deliverInput(`\x1b[${mode};0$y`, { track: false });
               return true;
             }
           );
@@ -373,7 +463,7 @@ export function usePty(
             { prefix: '?', intermediates: '$', final: 'p' },
             (params: (number | number[])[]) => {
               const mode = (params[0] as number) ?? 0;
-              sendInput(`\x1b[?${mode};0$y`, { track: false });
+              void deliverInput(`\x1b[?${mode};0$y`, { track: false });
               return true;
             }
           );
@@ -475,23 +565,17 @@ export function usePty(
       });
 
       // ── Handle terminal input ──────────────────────────────────────────────
+      const replies = createTerminalReplyClassifier(terminal);
+      cleanups.push(() => replies.dispose());
       const handleTerminalInput = (data: string) => {
         onActivityRef.current?.();
 
         if (!data) return;
-
-        // First-message capture
-        if (!firstMessageSentRef.current && onFirstMessageRef.current) {
-          inputBufferRef.current += data;
-          const newlineIndex = inputBufferRef.current.indexOf('\r');
-          if (newlineIndex !== -1) {
-            const message = inputBufferRef.current.slice(0, newlineIndex);
-            onFirstMessageRef.current(message);
-            firstMessageSentRef.current = true;
-          }
-        }
-
-        sendInput(data);
+        // A queued paste's own terminal.paste() output is the commit being delivered.
+        if (pasteDeliveriesRef.current) void deliverInput(data);
+        // Replies answer the program now; they are never held behind a paste or tracked.
+        else if (replies.isReply(data)) void deliverInput(data, { track: false });
+        else sendInput(data);
       };
 
       const inputDisposable = terminal.onData((data) => handleTerminalInput(data));
@@ -519,6 +603,34 @@ export function usePty(
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
       });
 
+      // ── Native copy (Edit > Copy) ──────────────────────────────────────────
+      // Runs before xterm's own copy listener so the selection is written once, through the
+      // same ordered clipboard sequence as shortcut and context-menu copies.
+      const handleCopy = (event: ClipboardEvent) => {
+        if (!terminal.hasSelection()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        copyText(terminal.getSelection());
+      };
+      frontendPty.ownedContainer.addEventListener('copy', handleCopy, true);
+      cleanups.push(() => frontendPty.ownedContainer.removeEventListener('copy', handleCopy, true));
+
+      // ── Linux primary selection (middle click) ─────────────────────────────
+      // Application-owned like the paste shortcuts: preventing the middle-button mouseup
+      // stops Chromium's own selection paste, and the pane reads PRIMARY in clipboard order.
+      // A program tracking the mouse receives the click instead, unless Shift forces
+      // selection (xterm then does not report it).
+      const handlePrimaryPaste = (event: MouseEvent) => {
+        if (!IS_LINUX_PLATFORM || event.button !== 1) return;
+        if (terminal.modes.mouseTrackingMode !== 'none' && !event.shiftKey) return;
+        event.preventDefault();
+        pasteFromClipboard('selection');
+      };
+      frontendPty.ownedContainer.addEventListener('mouseup', handlePrimaryPaste, true);
+      cleanups.push(() =>
+        frontendPty.ownedContainer.removeEventListener('mouseup', handlePrimaryPaste, true)
+      );
+
       // ── Native context menu ────────────────────────────────────────────────
       const handleContextMenuMouseDown = (event: MouseEvent) => {
         if (event.button !== 2) return;
@@ -530,10 +642,10 @@ export function usePty(
         event.stopPropagation();
 
         const requestId = createContextMenuRequestId();
-        contextMenuRequestIdRef.current = requestId;
         const selectionText =
           terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
         const linkText = getTerminalContextLink(terminal, event);
+        contextMenuRequestRef.current = { id: requestId, selectionText, linkText };
         void getHostClient().then((client) =>
           client.showTerminalContextMenu({
             requestId,
@@ -549,15 +661,15 @@ export function usePty(
       void getHostClient().then(async (client) => {
         const unsubscribe = await client.events.subscribe(undefined, {
           onEvent: (event) => {
-            if (
-              event.type !== 'terminal-context-menu-action' ||
-              event.requestId !== contextMenuRequestIdRef.current
-            ) {
+            const request = contextMenuRequestRef.current;
+            if (event.type !== 'terminal-context-menu-action' || event.requestId !== request?.id) {
               return;
             }
-            contextMenuRequestIdRef.current = null;
+            contextMenuRequestRef.current = null;
 
-            if (event.action === 'paste') pasteFromClipboard();
+            if (event.action === 'copy') copyText(request.selectionText);
+            else if (event.action === 'copy-link') copyText(request.linkText?.trim() ?? '');
+            else if (event.action === 'paste') pasteFromClipboard();
             else if (event.action === 'select-all') terminal.selectAll();
             else if (event.action === 'clear') frontendPty.clear();
           },
@@ -571,7 +683,7 @@ export function usePty(
       cleanups.push(() => {
         disposedContextMenu = true;
         offTerminalContextMenuAction?.();
-        contextMenuRequestIdRef.current = null;
+        contextMenuRequestRef.current = null;
         frontendPty.ownedContainer.removeEventListener(
           'mousedown',
           handleContextMenuMouseDown,
@@ -656,8 +768,8 @@ export function usePty(
       }
       termRef.current = null;
       firstMessageSentRef.current = false;
-      inputBufferRef.current = '';
       submittedInputBufferRef.current = new SubmittedInputBuffer();
+      closeInputLifetime();
     };
     // oxlint-disable-next-line react/exhaustive-deps
   }, [sessionId, pty]); // Re-run only when the session changes
@@ -667,5 +779,5 @@ export function usePty(
     applyTheme(theme);
   }, [theme, applyTheme]);
 
-  return { focus, setTheme, sendInput };
+  return { focus, setTheme, sendInput, queuePaste, pasteText, deliverInput };
 }

@@ -1,4 +1,4 @@
-import { ContextMenu } from '@emdash/ui/react/primitives';
+import { ContextMenu, toast } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
@@ -57,6 +57,15 @@ export const ContextBar = observer(function ContextBar({
   const hasVisibleContextBar = Boolean(draftComments && hasConversation && actions.length > 0);
   const popoverActions = canApplyContext ? actions : [];
 
+  // Waits for each write: an Enter must not overtake its prompt, and a prompt the session
+  // did not accept must not consume the drafts it carried.
+  const sendToActiveSession = async (data: string) => {
+    await activeSession?.connect();
+    if (!(await activeSession?.pty?.sendInput(data))) {
+      throw new Error('The conversation did not accept the input.');
+    }
+  };
+
   const handleApplyAction = async (
     text: string,
     action: ContextAction,
@@ -64,23 +73,24 @@ export const ContextBar = observer(function ContextBar({
   ) => {
     if (!activeSessionId || !text) return;
 
-    await pastePromptInjection({
-      providerId: activeConversationStore?.data.providerId,
-      text,
-      forceBracketedPaste: true,
-      sendInput: async (data) => {
-        await activeSession?.connect();
-        activeSession?.pty?.sendInput(data);
-      },
-    });
+    try {
+      await pastePromptInjection({
+        providerId: activeConversationStore?.data.providerId,
+        text,
+        forceBracketedPaste: true,
+        sendInput: sendToActiveSession,
+      });
 
-    if (action.kind === 'draft-comments') {
-      draftComments?.consumeAll();
-    }
+      if (action.kind === 'draft-comments') {
+        draftComments?.consumeAll();
+      }
 
-    if (opts?.andSend) {
-      await activeSession?.connect();
-      activeSession?.pty?.sendInput('\r');
+      if (opts?.andSend) await sendToActiveSession('\r');
+    } catch (error) {
+      toast.error('Context not sent', {
+        description: error instanceof Error ? error.message : String(error),
+      });
+      return;
     }
 
     activeSession?.pty?.terminal.focus();

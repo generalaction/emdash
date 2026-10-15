@@ -27,6 +27,14 @@ describe('prompt injection', () => {
     expect(sendInput).toHaveBeenCalledWith('\x1b[200~Line one\nLine two\x1b[201~');
   });
 
+  it('rejects when the session does not accept the prompt, so callers stop before Enter', async () => {
+    const sendInput = vi.fn().mockRejectedValue(new Error('not accepted'));
+
+    await expect(
+      pastePromptInjection({ providerId: 'codex', text: 'Review this', sendInput })
+    ).rejects.toThrow('not accepted');
+  });
+
   it('can force bracketed paste for single-line file drops', () => {
     expect(
       buildPromptInjectionPayload({

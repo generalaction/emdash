@@ -60,10 +60,24 @@ export type DesktopHostEvent =
   | {
       type: 'terminal-context-menu-action';
       requestId: string;
-      action: 'paste' | 'select-all' | 'clear';
+      action: TerminalContextMenuAction;
     };
 
+export type TerminalContextMenuAction = 'copy' | 'copy-link' | 'paste' | 'select-all' | 'clear';
+
+/** The system clipboard, or the Linux primary selection. */
+export type ClipboardSource = 'clipboard' | 'selection';
+
+/** One snapshot of the system clipboard for a paste; an image is persisted to a file. */
+export type ClipboardPasteContent =
+  | { kind: 'text'; text: string }
+  | { kind: 'image'; path: string }
+  | { kind: 'empty' };
+
 type ActionResult = { success: boolean; error?: string };
+type ClipboardPasteResult =
+  | { success: true; content: ClipboardPasteContent }
+  | { success: false; error: string };
 type RequiredPathResult = { success: true; path: string } | { success: false; error: string };
 type NullablePathResult =
   | { success: true; path: string | null }
@@ -90,6 +104,11 @@ export const desktopHostContract = defineContract({
   clipboardWriteText: procedure({
     input: z.object({ text: z.string() }),
     output: z.custom<ActionResult>(),
+  }),
+  /** Snapshots the clipboard or, on Linux, the primary selection for a paste. */
+  clipboardReadPaste: procedure({
+    input: z.object({ source: z.enum(['clipboard', 'selection']) }),
+    output: z.custom<ClipboardPasteResult>(),
   }),
   persistDroppedBlob: procedure({
     input: z.object({

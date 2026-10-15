@@ -232,4 +232,40 @@ describe('TerminalInputBuffer', () => {
 
     expect(submitted).toEqual(['hello']);
   });
+
+  it('treats line breaks inside a bracketed paste as text until Enter', () => {
+    const buffer = new SubmittedInputBuffer();
+
+    expect(buffer.feed('fix: \x1b[200~first line\rsecond\r\nthird\x1b[201~')).toEqual([]);
+    expect(buffer.feed('\r')).toEqual(['fix: first line\nsecond\nthird']);
+  });
+
+  it('keeps paste state when the frame markers are split across input chunks', () => {
+    const input = 'say \x1b[200~a\r\x1b[Db\x1b[201~!\r';
+    for (let split = 1; split < input.length; split++) {
+      const buffer = new SubmittedInputBuffer();
+      const submitted = [...buffer.feed(input.slice(0, split)), ...buffer.feed(input.slice(split))];
+      expect(submitted, `split at ${split}`).toEqual(['say a\nb!']);
+    }
+  });
+
+  it('submits each line of an unframed paste, as the destination receives it', () => {
+    const buffer = new SubmittedInputBuffer();
+
+    expect(buffer.feed('first\rsecond\r')).toEqual(['first', 'second']);
+  });
+});
+
+describe('first message from framed pastes', () => {
+  it('captures the whole framed paste once it is confirmed', () => {
+    const onCapture = vi.fn();
+    const buffer = new TerminalInputBuffer(onCapture);
+
+    buffer.feed('\x1b[200~Implement the parser\rand its tests\x1b[201~');
+    buffer.confirmSubmit();
+    expect(onCapture).not.toHaveBeenCalled();
+    buffer.feed('\r');
+    buffer.confirmSubmit();
+    expect(onCapture).toHaveBeenCalledWith('Implement the parser\nand its tests');
+  });
 });

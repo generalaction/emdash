@@ -51,11 +51,9 @@ export class PtyRegistry {
     return this.sessions.get(key)?.output ?? null;
   }
 
+  /** False when no live process accepted the input, including a retained exited session. */
   write(key: string, data: string): boolean {
-    const session = this.sessions.get(key);
-    if (!session) return false;
-    session.write(data);
-    return true;
+    return this.sessions.get(key)?.write(data) ?? false;
   }
 
   resize(key: string, cols: number, rows: number): boolean {

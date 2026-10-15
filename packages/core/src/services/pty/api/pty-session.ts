@@ -58,9 +58,11 @@ export class PtySession {
     return this.exitInfo !== null;
   }
 
-  write(data: string): void {
-    if (this.disposed || this.exited) return;
+  /** False once the process exited or the session was disposed; a failing write throws. */
+  write(data: string): boolean {
+    if (this.disposed || this.exited) return false;
     this.process.write(data);
+    return true;
   }
 
   resize(cols: number, rows: number): void {

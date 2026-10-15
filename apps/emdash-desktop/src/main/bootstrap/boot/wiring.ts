@@ -82,6 +82,7 @@ export function createDesktopWireOptions(
       openPath: ({ ref }) => appOperations.openPath(ref),
       showWorkspaceItemInFolder: (input) => appOperations.showWorkspaceItemInFolder(input),
       clipboardWriteText: ({ text }) => appOperations.clipboardWriteText(text),
+      clipboardReadPaste: (input) => appOperations.clipboardReadPaste(input),
       persistDroppedBlob: (input) => appOperations.persistDroppedBlob(input),
       persistClipboardImage: () => appOperations.persistClipboardImage(),
       showTerminalContextMenu: (input) => appOperations.showTerminalContextMenu(input),

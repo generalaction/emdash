@@ -42,6 +42,9 @@ function isCsiFinalByte(ch: string): boolean {
 class AnsiDecoder {
   private mode: SanitizerMode = 'normal';
   private csiBuffer = '';
+  // Inside a bracketed paste (CSI 200~ … CSI 201~) line breaks are pasted text, not Enter.
+  private inPaste = false;
+  private pastedCr = false;
 
   private readCount(payload: string): number {
     const raw = payload.split(';', 1)[0] ?? '';
@@ -50,7 +53,17 @@ class AnsiDecoder {
     return value;
   }
 
+  private decodePastedChar(ch: string): InputAction[] {
+    const afterCr = this.pastedCr;
+    this.pastedCr = ch === '\r';
+    if (ch === '\n' && afterCr) return [];
+    if (ch === '\r' || ch === '\n') return [{ type: 'insert', text: '\n' }];
+    if (ch === '\t' || ch.charCodeAt(0) >= 32) return [{ type: 'insert', text: ch }];
+    return [];
+  }
+
   private decodePlainChar(ch: string): InputAction[] {
+    if (this.inPaste) return this.decodePastedChar(ch);
     if (ch === '\r' || ch === '\n') return [{ type: 'submit' }];
     if (ch === '\x7f' || ch === '\b') return [{ type: 'backspace' }];
     if (ch === '\x04') return [{ type: 'delete' }];
@@ -64,6 +77,13 @@ class AnsiDecoder {
   }
 
   private decodeCsi(payload: string, finalByte: string): InputAction[] {
+    if (finalByte === '~' && (payload === '200' || payload === '201')) {
+      this.inPaste = payload === '200';
+      this.pastedCr = false;
+      return [];
+    }
+    if (this.inPaste) return [];
+
     if (finalByte === 'u') {
       const codepoint = Number.parseInt(payload.split(';', 1)[0] ?? '', 10);
       if (codepoint === 8 || codepoint === 127) return [{ type: 'backspace' }];
@@ -90,6 +110,7 @@ class AnsiDecoder {
   }
 
   private decodeSs3(finalByte: string): InputAction[] {
+    if (this.inPaste) return [];
     if (finalByte === 'D') return [{ type: 'move-left', count: 1 }];
     if (finalByte === 'C') return [{ type: 'move-right', count: 1 }];
     if (finalByte === 'H') return [{ type: 'move-home' }];

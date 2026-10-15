@@ -36,7 +36,8 @@ export interface SessionTheme {
 
 export type FrontendPtyConnector = {
   connect(terminal: Terminal): Promise<() => void> | (() => void);
-  sendInput?(data: string): void;
+  /** Resolves false when the runtime did not confirm the write; input is never replayed. */
+  sendInput?(data: string): Promise<boolean>;
   resize?(cols: number, rows: number): void;
 };
 
@@ -96,6 +97,9 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
+  private readonly disposal = new AbortController();
+  /** Aborted by dispose(); work bound to this terminal stops waiting on it. */
+  readonly disposed: AbortSignal = this.disposal.signal;
 
   constructor(
     readonly sessionId: string,
@@ -214,8 +218,8 @@ export class FrontendPty {
     this.offData = await this.connector.connect(this.terminal);
   }
 
-  sendInput(data: string): void {
-    this.connector.sendInput?.(data);
+  sendInput(data: string): Promise<boolean> {
+    return this.connector.sendInput?.(data) ?? Promise.resolve(false);
   }
 
   resizeBackend(cols: number, rows: number): void {
@@ -265,6 +269,7 @@ export class FrontendPty {
    * removes the owned container from the DOM.
    */
   dispose(): void {
+    this.disposal.abort();
     FrontendPty.all.delete(this);
     FrontendPty.bySession.delete(this.sessionId);
     this.offData?.();

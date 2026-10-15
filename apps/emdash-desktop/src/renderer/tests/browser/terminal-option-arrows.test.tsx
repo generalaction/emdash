@@ -69,7 +69,10 @@ describe('macOS Option arrows through PtyPane and real xterm', () => {
     input = [];
     pty = new FrontendPty('option-arrows', undefined, undefined, undefined, {
       connect: () => () => {},
-      sendInput: (data) => input.push(data),
+      sendInput: async (data) => {
+        input.push(data);
+        return true;
+      },
     });
     host = document.createElement('div');
     document.body.appendChild(host);
