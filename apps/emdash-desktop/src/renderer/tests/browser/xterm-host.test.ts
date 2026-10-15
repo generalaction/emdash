@@ -120,4 +120,33 @@ describe('FrontendPty xterm host', () => {
     expect(dims?.css.cell.width).toBeGreaterThan(0);
     expect(dims?.css.cell.height).toBeGreaterThan(0);
   });
+
+  it('does not repaint a terminal disposed before its mount frame', async () => {
+    const { FrontendPty } = await getPtyModule();
+    const frontendPty = new FrontendPty(
+      'disposed-after-mount',
+      undefined,
+      undefined,
+      undefined,
+      noopConnector()
+    );
+    const target = document.createElement('div');
+    target.style.cssText = 'width: 800px; height: 400px';
+    document.body.appendChild(target);
+    const errors: unknown[] = [];
+    const recordError = (event: ErrorEvent) => errors.push(event.error);
+    window.addEventListener('error', recordError);
+    try {
+      // The resize queues a viewport sync and mount() queues a repaint for the next frame.
+      frontendPty.mount(target, { cols: 100, rows: 30 });
+      frontendPty.dispose();
+      for (let frame = 0; frame < 3; frame++) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      expect(errors).toEqual([]);
+    } finally {
+      window.removeEventListener('error', recordError);
+      target.remove();
+    }
+  });
 });

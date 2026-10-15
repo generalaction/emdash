@@ -98,6 +98,7 @@ export class FrontendPty {
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
   private readonly disposal = new AbortController();
+  private repaintFrame: number | null = null;
   /** Aborted by dispose(); work bound to this terminal stops waiting on it. */
   readonly disposed: AbortSignal = this.disposal.signal;
 
@@ -239,13 +240,13 @@ export class FrontendPty {
       this.terminal.resize(targetDims.cols, targetDims.rows);
     }
     mountTarget.appendChild(this.ownedContainer);
-    // Force a repaint after reparenting in the DOM.
-    const t = this.terminal;
-    requestAnimationFrame(() => {
-      try {
-        if ((t as unknown as { _isDisposed?: boolean })._isDisposed) return;
-        t.refresh(0, t.rows - 1);
-      } catch {}
+    // Force a repaint after reparenting in the DOM. dispose() cancels it: refreshing a disposed
+    // xterm schedules a render that reads its released renderer.
+    if (this.repaintFrame !== null) cancelAnimationFrame(this.repaintFrame);
+    this.repaintFrame = requestAnimationFrame(() => {
+      this.repaintFrame = null;
+      if (this.disposed.aborted) return;
+      this.terminal.refresh(0, this.terminal.rows - 1);
     });
   }
 
@@ -270,6 +271,8 @@ export class FrontendPty {
    */
   dispose(): void {
     this.disposal.abort();
+    if (this.repaintFrame !== null) cancelAnimationFrame(this.repaintFrame);
+    this.repaintFrame = null;
     FrontendPty.all.delete(this);
     FrontendPty.bySession.delete(this.sessionId);
     this.offData?.();

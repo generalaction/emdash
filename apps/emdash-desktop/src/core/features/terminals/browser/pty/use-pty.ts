@@ -420,6 +420,12 @@ export function usePty(
       measureAndResize();
 
       // ── Load settings ──────────────────────────────────────────────────────
+      // Settings belong to this mount: if they arrive after it ended or the terminal was
+      // disposed, applying them would resize a parked or released terminal.
+      let mounted = true;
+      cleanups.push(() => {
+        mounted = false;
+      });
       let customFontFamily = '';
       void getAppSettingsClient()
         .then(async (client) => {
@@ -429,6 +435,7 @@ export function usePty(
           return settings;
         })
         .then((terminalSettings) => {
+          if (!mounted || frontendPty.disposed.aborted) return;
           if (terminalSettings?.fontFamily) {
             customFontFamily = terminalSettings.fontFamily.trim();
             if (customFontFamily) {

@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PtySession } from '#services/pty/api';
 import { NodePtySpawner } from './node-pty-spawner';
@@ -19,38 +21,55 @@ const END = '\x1b[201~';
 // Payloads never contain C0 controls other than HT/CR, so EOT can delimit the capture.
 const DONE = '\x04';
 
+// The probe writes what it receives as it arrives, so a slow or stalled transport leaves
+// evidence of how far it got.
 const PROBE = `
 const fs = require('node:fs');
-const chunks = [];
+const out = fs.openSync(process.argv[2], 'w');
 process.stdin.setRawMode(true);
 process.stdin.on('data', (chunk) => {
   const done = chunk.indexOf(0x04);
-  chunks.push(done === -1 ? chunk : chunk.subarray(0, done));
+  fs.writeSync(out, done === -1 ? chunk : chunk.subarray(0, done));
   if (done === -1) return;
-  fs.writeFileSync(process.argv[2], Buffer.concat(chunks));
+  fs.closeSync(out);
   process.exit(0);
 });
 process.stdout.write('\\x1b[?2004hPROBE_READY');
 `;
 
-// Test deadlines only: a broken transport fails its case instead of hanging the suite.
+// Test deadlines only. Delivery must keep making progress: no new bytes for STALL_MS means
+// the transport stalled or lost the rest. Windows ConPTY moves paste input at tens of
+// kilobytes per second, so a whole case gets its own, larger bound.
 const READY_DEADLINE_MS = 15_000;
-const EXIT_DEADLINE_MS = 30_000;
+const STALL_MS = 10_000;
+const CASE_DEADLINE_MS = 180_000;
+const EXIT_AFTER_KILL_MS = 10_000;
 
-// After one case misses a deadline the remaining cases fail at once with the same cause.
-let transportFailure: Error | null = null;
+const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 function deadline<T>(promise: Promise<T>, ms: number, describe: () => string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        transportFailure = new Error(`${describe()} after ${ms} ms`);
-        reject(transportFailure);
-      }, ms);
+      timer = setTimeout(() => reject(new Error(`${describe()} after ${ms} ms`)), ms);
     }),
   ]).finally(() => clearTimeout(timer));
+}
+
+async function fileSize(path: string): Promise<number> {
+  return stat(path).then(
+    (info) => info.size,
+    () => 0
+  );
+}
+
+function firstDifference(received: Buffer, expected: Buffer): number | null {
+  const length = Math.min(received.byteLength, expected.byteLength);
+  for (let offset = 0; offset < length; offset++) {
+    if (received[offset] !== expected[offset]) return offset;
+  }
+  return received.byteLength === expected.byteLength ? null : length;
 }
 
 function lines(length: number): string {
@@ -97,26 +116,45 @@ const cases: [name: string, writes: string[]][] = [
 describe('clipboard paste bytes through a native PTY', () => {
   let dir: string;
   let probe: string;
+  // Probes that were still running EXIT_AFTER_KILL_MS after their case killed them.
+  const survivors: string[] = [];
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'emdash-pty-paste-'));
     probe = join(dir, 'probe.cjs');
     await writeFile(probe, PROBE);
+    if (process.platform === 'darwin') {
+      // node-pty spawns through spawn-helper next to its native module; its npm tarball
+      // ships the macOS prebuild without the executable bit, which the desktop postinstall
+      // restores. Without it every spawn fails with "posix_spawnp failed".
+      const require = createRequire(import.meta.url);
+      const lib = dirname(require.resolve('node-pty'));
+      const { loadNativeModule } = require('node-pty/lib/utils') as {
+        loadNativeModule(name: string): { dir: string };
+      };
+      const helper = resolve(lib, loadNativeModule('pty').dir, 'spawn-helper');
+      await expect(access(helper, constants.X_OK), `${helper} is executable`).resolves.toBe(
+        undefined
+      );
+    }
   });
 
   afterAll(async () => {
-    await rm(dir, { recursive: true, force: true });
+    // Retries cover Windows releasing file handles shortly after a probe exits.
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    expect(survivors, 'probes still running after their case killed them').toEqual([]);
   });
 
-  async function receive(writes: string[], index: number): Promise<Buffer> {
-    if (transportFailure) throw transportFailure;
+  async function receive(name: string, writes: string[], index: number): Promise<Buffer> {
     const out = join(dir, `received-${index}.bin`);
+    const expected = Buffer.from(writes.join(''), 'utf8');
     const env = Object.fromEntries(
       Object.entries(process.env).filter((entry): entry is [string, string] => !!entry[1])
     );
     const spec = {
       invocation: { kind: 'argv' as const, executable: process.execPath, argv: [probe, out] },
-      cwd: dir,
+      // Not the case directory: a live child's working directory cannot be removed on Windows.
+      cwd: tmpdir(),
       env,
       cols: 120,
       rows: 40,
@@ -124,9 +162,9 @@ describe('clipboard paste bytes through a native PTY', () => {
     const pty = await new NodePtySpawner().spawn(spec);
     let output = '';
     let exited: (code: number | null) => void = () => {};
-    const exit = new Promise<number | null>((resolve) => (exited = resolve));
+    const exit = new Promise<number | null>((done) => (exited = done));
     let ready: () => void = () => {};
-    const isReady = new Promise<void>((resolve) => (ready = resolve));
+    const isReady = new Promise<void>((done) => (ready = done));
     const session = new PtySession(`paste-${index}`, spec, pty, {
       onData: (chunk) => {
         output += chunk;
@@ -135,30 +173,76 @@ describe('clipboard paste bytes through a native PTY', () => {
       onExit: (info) => exited(info.exitCode),
     });
     const tail = () => JSON.stringify(output.slice(-200));
+    let started = Date.now();
+    let progressedAt = started;
+    const progress = async (problem: string) => {
+      const received = await readFile(out).catch(() => Buffer.alloc(0));
+      const active = progressedAt - started;
+      const difference = firstDifference(received, expected);
+      return (
+        `${problem}: received ${received.byteLength} of ${expected.byteLength} bytes, the ` +
+        `last after ${active} ms (${Math.round((received.byteLength * 1000) / Math.max(active, 1))} ` +
+        `B/s), waited ${Date.now() - started} ms; first difference at ${difference ?? 'none'}; ` +
+        `sha256 ${sha256(received)}; terminal output ${tail()}`
+      );
+    };
     try {
       // Raw mode must be active before input arrives, or the line discipline edits it.
       await deadline(isReady, READY_DEADLINE_MS, () => `probe not ready; output ${tail()}`);
+      started = Date.now();
+      progressedAt = started;
       for (const data of writes) expect(session.write(data)).toBe(true);
       expect(session.write(DONE)).toBe(true);
-      const code = await deadline(exit, EXIT_DEADLINE_MS, () => `probe did not exit; ${tail()}`);
-      expect(code).toBe(0);
-      return await readFile(out);
+
+      let size = 0;
+      const exitCode = exit.then((code) => ({ code }));
+      for (;;) {
+        const settled = await Promise.race([exitCode, sleep(250).then(() => null)]);
+        if (settled) {
+          expect(settled.code, await progress('probe exit')).toBe(0);
+          break;
+        }
+        const now = Date.now();
+        const current = await fileSize(out);
+        if (current > size) {
+          size = current;
+          progressedAt = now;
+        }
+        if (now - progressedAt > STALL_MS) throw new Error(await progress('delivery stalled'));
+        if (now - started > CASE_DEADLINE_MS) throw new Error(await progress('delivery too slow'));
+      }
+      const received = await readFile(out);
+      const ms = Date.now() - started;
+      console.log(
+        `[pty paste] ${name}: ${received.byteLength} bytes in ${ms} ms on ${process.platform}`
+      );
+      return received;
     } finally {
-      // Kills the probe if a deadline fired, so no child outlives its case.
+      // Kill the probe if it is still running and wait for it to exit; one that does not is
+      // reported when the suite ends.
       session.dispose();
+      const stopped = await Promise.race([
+        exit.then(() => true),
+        sleep(EXIT_AFTER_KILL_MS).then(() => false),
+      ]);
+      if (!stopped) {
+        survivors.push(
+          `${name} (pid ${pty.getPid?.()}) still running ${EXIT_AFTER_KILL_MS} ms after kill`
+        );
+      }
     }
   }
 
   it.each(cases.map(([name, writes], index) => ({ name, writes, index })))(
     'delivers $name byte for byte',
-    async ({ writes, index }) => {
-      const received = await receive(writes, index);
+    async ({ name, writes, index }) => {
+      const received = await receive(name, writes, index);
       const expected = Buffer.from(writes.join(''), 'utf8');
       expect(received.byteLength).toBe(expected.byteLength);
       expect(sha256(received)).toBe(sha256(expected));
       expect(received.equals(expected)).toBe(true);
     },
-    EXIT_DEADLINE_MS + READY_DEADLINE_MS + 10_000
+    READY_DEADLINE_MS + CASE_DEADLINE_MS + EXIT_AFTER_KILL_MS + 10_000
   );
 });
 

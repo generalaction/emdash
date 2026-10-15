@@ -105,7 +105,7 @@ jobs:
           # and fail git with SIGPIPE under pipefail.
           changed="$RUNNER_TEMP/changed-paths.txt"
           git diff --name-only "$BASE_SHA" HEAD > "$changed"
-          if grep -qE '^(\.github/workflows/code-consistency-check\.yml|apps/emdash-desktop/src/core/features/terminals/|apps/emdash-desktop/src/core/primitives/desktop-host/|apps/emdash-desktop/src/main/core/app/|apps/emdash-desktop/src/renderer/tests/browser/terminal-|apps/emdash-desktop/tooling/native-clipboard/|packages/core/src/services/pty/|packages/core/src/runtimes/(terminals|tui-agents)/|pnpm-lock\.yaml)' "$changed"; then
+          if grep -qE '^(\.github/workflows/code-consistency-check\.yml|apps/emdash-desktop/src/core/features/terminals/|apps/emdash-desktop/src/core/primitives/desktop-host/|apps/emdash-desktop/src/main/core/app/|apps/emdash-desktop/src/renderer/tests/browser/(terminal-|xterm-host\.test\.ts)|apps/emdash-desktop/tooling/native-clipboard/|packages/core/src/services/pty/|packages/core/src/runtimes/(terminals|tui-agents)/|pnpm-lock\.yaml)' "$changed"; then
             echo run=true >> "$GITHUB_OUTPUT"
           else
             echo run=false >> "$GITHUB_OUTPUT"
@@ -150,6 +150,12 @@ jobs:
           pnpm --filter @emdash/core rebuild node-pty
           pnpm --filter @emdash/emdash-desktop rebuild electron
 
+      - name: Run the desktop postinstall
+        # --ignore-scripts skipped it. Among other setup it restores the executable bit that
+        # node-pty's tarball drops from the macOS spawn-helper prebuild; without it every PTY
+        # spawn fails with "posix_spawnp failed". CI makes it skip the Electron rebuild.
+        run: pnpm --filter @emdash/emdash-desktop run postinstall
+
       - name: Build workspace packages
         run: >-
           pnpm exec nx run-many -t build -p @emdash/shared @emdash/wire @emdash/theme
@@ -169,7 +175,9 @@ jobs:
           pnpm --dir packages/core exec vitest run
           src/services/pty/api/node/node-pty-paste.integration.test.ts
 
+      # The later checks still run after a failure, so one run reports every platform defect.
       - name: Renderer paste routes
+        if: ${{ !cancelled() }}
         env:
           # The app's Vitest config omits the browser project when CI is set.
           CI: ''
@@ -178,8 +186,10 @@ jobs:
           src/renderer/tests/browser/terminal-paste.test.tsx
           src/renderer/tests/browser/terminal-paste-macos.test.tsx
           src/renderer/tests/browser/terminal-attachments.test.tsx
+          src/renderer/tests/browser/xterm-host.test.ts
 
       - name: System clipboard
+        if: ${{ !cancelled() }}
         working-directory: apps/emdash-desktop
         run: |
           if [ "$RUNNER_OS" = Linux ]; then

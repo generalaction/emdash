@@ -48,8 +48,9 @@ const host = vi.hoisted(() => {
   };
 });
 
+const settingsGet = vi.hoisted(() => vi.fn(async () => ({}) as Record<string, unknown>));
 vi.mock('@core/services/settings/api/client', () => ({
-  getAppSettingsClient: async () => ({ get: async () => ({}) }),
+  getAppSettingsClient: async () => ({ get: settingsGet }),
 }));
 vi.mock('@core/primitives/wire/browser/connection', () => ({
   domainClient: async (domain: string) => {
@@ -1036,6 +1037,49 @@ describe('terminal clipboard paste through PtyPane and real xterm (Windows short
         expect(inputOf(pty)).toEqual(['\x1b[I', '\x1b[O', '\x1b[I', framed('PASTE')])
       );
     });
+  });
+
+  describe('terminal settings', () => {
+    const lateSettings = { fontSize: 22, fontFamily: 'Late Mono', macOptionIsMeta: true };
+
+    it('applies terminal settings that arrive while the terminal is mounted', async () => {
+      const settings = held<Record<string, unknown>>({});
+      settingsGet.mockReturnValueOnce(settings.promise);
+      const pty = createPty('mounted-settings');
+      await render({ pty });
+      settings.resolve(lateSettings);
+      await vi.waitFor(() => expect(pty.terminal.options.fontSize).toBe(22));
+      expect(pty.terminal.options.macOptionIsMeta).toBe(true);
+    });
+
+    it.each(['disposal', 'task replacement'] as const)(
+      'ignores terminal settings that arrive after %s',
+      async (change) => {
+        const settings = held<Record<string, unknown>>({});
+        settingsGet.mockReturnValueOnce(settings.promise);
+        const pty = createPty('late-settings');
+        await render({ pty });
+        const { fontSize, fontFamily } = pty.terminal.options;
+        const errors: unknown[] = [];
+        const recordError = (event: ErrorEvent) => errors.push(event.error);
+        window.addEventListener('error', recordError);
+        try {
+          if (change === 'disposal') pty.dispose();
+          else await render({ pty: createPty('next-task'), conversationId: 'next' });
+          settings.resolve(lateSettings);
+          await flush();
+          for (let frame = 0; frame < 3; frame++) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+          expect(pty.terminal.options.fontSize).toBe(fontSize);
+          expect(pty.terminal.options.fontFamily).toBe(fontFamily);
+          expect(pty.terminal.options.macOptionIsMeta).toBe(false);
+          expect(errors).toEqual([]);
+        } finally {
+          window.removeEventListener('error', recordError);
+        }
+      }
+    );
   });
 
   describe('destination lifetime', () => {
