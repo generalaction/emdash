@@ -2,11 +2,21 @@ import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import type { PullRequestAuthError } from '@emdash/plugins/pull-requests/schemas';
 import { err, type Result } from '@emdash/shared';
 
-export type PullRequestSyncIdentity = { accountId: string };
+export type PullRequestSyncIdentity = { integrationId: string; accountId: string };
 
 export type PullRequestSyncIdentityResolver = (
-  repositoryUrl: string
+  repositoryUrl: string,
+  integrationId: string
 ) => Promise<Result<PullRequestSyncIdentity, PullRequestAuthError>>;
+
+export type PullRequestIntegrationResolution = Result<
+  { integrationId: string },
+  { type: 'unsupported_provider' | 'host_unreachable'; host: string; reason: string }
+>;
+
+export type PullRequestIntegrationResolver = (
+  repositoryUrl: string
+) => Promise<PullRequestIntegrationResolution>;
 
 let boundResolver: PullRequestSyncIdentityResolver | undefined;
 
@@ -24,7 +34,8 @@ export function bindPullRequestSyncIdentityResolver(
 }
 
 export async function resolvePullRequestSyncIdentity(
-  repositoryUrl: string
+  repositoryUrl: string,
+  integrationId: string
 ): Promise<Result<PullRequestSyncIdentity, PullRequestAuthError>> {
   if (!boundResolver) {
     return err({
@@ -33,5 +44,24 @@ export async function resolvePullRequestSyncIdentity(
       message: 'GitHub identity resolution is not available yet; the desktop is still starting.',
     });
   }
-  return await boundResolver(repositoryUrl);
+  return await boundResolver(repositoryUrl, integrationId);
+}
+
+let boundIntegrationResolver: PullRequestIntegrationResolver | undefined;
+
+export function bindPullRequestIntegrationResolver(resolver: PullRequestIntegrationResolver): void {
+  boundIntegrationResolver = resolver;
+}
+
+export async function resolvePullRequestIntegration(
+  repositoryUrl: string
+): Promise<PullRequestIntegrationResolution> {
+  if (!boundIntegrationResolver) {
+    return err({
+      type: 'unsupported_provider',
+      host: parseRepositoryRef(repositoryUrl)?.host ?? 'unknown',
+      reason: 'Repository routing is not available yet; the desktop is still starting.',
+    });
+  }
+  return await boundIntegrationResolver(repositoryUrl);
 }

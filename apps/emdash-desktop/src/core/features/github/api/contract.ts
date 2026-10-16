@@ -5,7 +5,6 @@ import type {
   GitHubEvent,
   GitHubImportCliAccountsResponse,
   GitHubOwner,
-  GitHubRepo,
 } from '@core/primitives/github/api';
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -31,10 +30,6 @@ export const githubContract = defineContract({
     output: z.custom<GitHubImportCliAccountsResponse>(),
   }),
   authCancel: procedure({ input: voidInput, output: z.custom<ActionResult>() }),
-  getRepositories: procedure({
-    input: z.object({ accountId: z.string().optional() }),
-    output: z.array(z.custom<GitHubRepo>()),
-  }),
   getOwners: procedure({
     input: z.object({ accountId: z.string().optional() }),
     output: z.custom<OwnersResult>(),

@@ -1,48 +1,53 @@
 import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { IntegrationCredentials } from '@emdash/plugins/integrations';
 import type { PullRequestAuthError } from '@emdash/plugins/pull-requests/schemas';
 import { err, ok, type Result } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { gitPlatformAuthContract } from '@core/services/pull-requests/api';
-import type { PullRequestSyncIdentityResolver } from './sync-identity';
+import type {
+  PullRequestIntegrationResolver,
+  PullRequestSyncIdentityResolver,
+} from './sync-identity';
 
-type ReadGitHubCredentials = (
+type ReadIntegrationCredentials = (
+  integrationId: string,
   accountId: string,
   expectedHost: string
-) => Promise<Result<{ accessToken: string; apiBaseUrl: string }, PullRequestAuthError>>;
+) => Promise<Result<IntegrationCredentials, PullRequestAuthError>>;
 
 /**
- * Desktop-side answer to the worker's per-sync identity request (spec:
- * github-git-settings §8): resolve *as whom* through the blessed resolver for
- * the repository, then fetch that account's token. Identity failures pass
- * through fail-closed — the worker skips the sync instead of running as a
- * different account.
+ * Desktop-side answers to the worker (spec: github-git-settings §8): which
+ * integration serves a repository, and *as whom* to sync it. Identity failures
+ * pass through fail-closed — the worker skips the sync instead of running as
+ * a different account.
  */
-export function createPullRequestsGitHubAuthController(
-  readCredentials: ReadGitHubCredentials,
-  resolveSyncIdentity: PullRequestSyncIdentityResolver
-): Controller {
+export function createPullRequestsAuthController(dependencies: {
+  resolveIntegration: PullRequestIntegrationResolver;
+  resolveSyncIdentity: PullRequestSyncIdentityResolver;
+  readCredentials: ReadIntegrationCredentials;
+}): Controller {
   return createController(gitPlatformAuthContract, {
-    resolveAuth: async (input) => {
-      const repository = parseRepositoryRef(input.repositoryUrl);
+    resolveIntegration: async ({ repositoryUrl }) =>
+      await dependencies.resolveIntegration(repositoryUrl),
+    resolveAuth: async ({ repositoryUrl, integrationId: routedIntegrationId }) => {
+      const repository = parseRepositoryRef(repositoryUrl);
       if (!repository) {
         return err({
           type: 'account_unresolvable',
           host: 'unknown',
-          message: `Unrecognized repository URL: ${input.repositoryUrl}`,
+          message: `Unrecognized repository URL: ${repositoryUrl}`,
         });
       }
-      const identity = await resolveSyncIdentity(input.repositoryUrl);
+      const identity = await dependencies.resolveSyncIdentity(repositoryUrl, routedIntegrationId);
       if (!identity.success) return identity;
-      const credentials = await readCredentials(identity.data.accountId, repository.host);
+      const { integrationId, accountId } = identity.data;
+      const credentials = await dependencies.readCredentials(
+        integrationId,
+        accountId,
+        repository.host
+      );
       if (!credentials.success) return credentials;
-      return ok({
-        integrationId: 'github',
-        accountId: identity.data.accountId,
-        credentials: {
-          accessToken: credentials.data.accessToken,
-          apiBaseUrl: credentials.data.apiBaseUrl,
-        },
-      });
+      return ok({ integrationId, accountId, credentials: credentials.data });
     },
   });
 }

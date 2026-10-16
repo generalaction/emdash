@@ -5,7 +5,7 @@ import {
   type HostRef,
 } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
-import { err, ok } from '@emdash/shared';
+import { pullRequestsPluginRegistry } from '@emdash/plugins/pull-requests';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { peek } from '@emdash/wire/state';
 import { app, powerMonitor } from 'electron';
@@ -29,7 +29,6 @@ import {
   type GitCredentialsService,
 } from '@core/features/github/api/node/services/git-credentials-service';
 import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
-import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
 import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
 import { githubEvents } from '@core/features/github/node/event-host';
@@ -75,6 +74,12 @@ import {
 import { createProjectAttachmentAdapter } from '@core/features/projects/node/project-attachment-adapter';
 import { createProjectAttachmentManager } from '@core/features/projects/node/project-attachment-manager';
 import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/migrations/app-worktree-root';
+import {
+  pullRequestRepositoryUrls,
+  resolvePullRequestAccount,
+  resolvePullRequestIntegration,
+} from '@core/features/repository/api/node/pull-request-routing';
+import { repositoryRouter } from '@core/features/repository/api/node/repository-router';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
@@ -108,7 +113,10 @@ import {
   setProviderAccountService,
 } from '@core/services/provider-accounts/node/provider-account-service';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
-import { bindPullRequestSyncIdentityResolver } from '@core/services/pull-requests/node/sync-identity';
+import {
+  bindPullRequestIntegrationResolver,
+  bindPullRequestSyncIdentityResolver,
+} from '@core/services/pull-requests/node/sync-identity';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 import {
   createReconcileSweepTriggers,
@@ -586,47 +594,28 @@ export async function bootServices(
           .state(attached.data.repository, 'remotes')
           .snapshot()
       ).data.remotes;
-      const resolved = await Promise.all(
-        remotes.map(async (remote) => await githubRepositoryResolver.resolve(remote.url))
+      return await pullRequestRepositoryUrls(
+        (url) => repositoryRouter.route(url),
+        remotes.map((remote) => remote.url),
+        (integrationId) => pullRequestsPluginRegistry.get(integrationId) !== undefined
       );
-      return [
-        ...new Set(
-          resolved.flatMap((repository) =>
-            repository.success ? [repository.data.repositoryUrl] : []
-          )
-        ),
-      ];
     },
-    // Translates resolver provenance into the registration's structural
-    // contract so per-sync identity fails closed with an honest status
-    // (spec: github-git-settings §7/§8).
-    resolveProjectAuthContext: async (projectId) => {
-      const account = await resolveProjectIntegrationAccount(projectId, 'github', {
-        kind: 'project',
-      });
-      if (account.value !== null) return ok({ accountId: account.value.accountId });
-      switch (account.provenance.kind) {
-        case 'set':
-          return err({ type: 'disabled', message: 'GitHub is disabled for this project.' });
-        case 'unresolvable':
-        case 'broken-setting':
-          return err({
-            type: 'account_selection_failed',
-            message: 'The selected GitHub account is no longer connected.',
-          });
-        default:
-          return err({
-            type: 'unconfigured',
-            message: 'No GitHub account is configured for this project.',
-          });
-      }
-    },
+    resolveProjectAuthContext: async (projectId, integrationId) =>
+      await resolvePullRequestAccount(
+        resolveProjectIntegrationAccount,
+        projectId,
+        integrationId,
+        integrationPluginRegistry.get(integrationId)?.metadata.name ?? integrationId
+      ),
   });
   // Answers the PR worker's per-sync "as whom" requests through the blessed
   // resolver (spec: github-git-settings §8); before this binding, identity
   // requests fail closed and the worker skips the sync.
-  bindPullRequestSyncIdentityResolver((repositoryUrl) =>
-    pullRequestsRegistration.resolveSyncIdentity(repositoryUrl)
+  bindPullRequestSyncIdentityResolver((repositoryUrl, integrationId) =>
+    pullRequestsRegistration.resolveSyncIdentity(repositoryUrl, integrationId)
+  );
+  bindPullRequestIntegrationResolver((repositoryUrl) =>
+    resolvePullRequestIntegration((url) => repositoryRouter.route(url), repositoryUrl)
   );
   const githubRepositories = createGitHubRepositoryService({
     listAccounts: () => providerAccounts.listAccounts('github'),

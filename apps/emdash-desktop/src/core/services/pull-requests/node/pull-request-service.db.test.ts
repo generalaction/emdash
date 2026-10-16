@@ -737,6 +737,7 @@ function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
 
 function fakeGitHubAuth(): ContractClient<GitPlatformAuthContract> {
   return {
+    resolveIntegration: async () => ok({ integrationId: 'github' }),
     resolveAuth: async () =>
       ok({
         integrationId: 'github',

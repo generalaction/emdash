@@ -11,7 +11,6 @@ export function createGithubWireController(
     auth: () => githubOperations.auth(),
     importCliAccounts: () => githubOperations.importCliAccounts(),
     authCancel: () => githubOperations.authCancel(),
-    getRepositories: ({ accountId }) => githubOperations.getRepositories(accountId),
     getOwners: ({ accountId }) => githubOperations.getOwners(accountId),
     createRepository: (input) => githubOperations.createRepository(input),
     deleteRepository: (input) => githubOperations.deleteRepository(input),

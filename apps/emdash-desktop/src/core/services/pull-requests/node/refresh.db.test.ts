@@ -152,6 +152,7 @@ async function harness() {
   });
   const { logger } = createStubLogger();
   const auth = {
+    resolveIntegration: async () => ok({ integrationId: 'github' }),
     resolveAuth: async () =>
       ok({
         integrationId: 'github',
