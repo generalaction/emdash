@@ -2,6 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { buildAllowlistedAgentEnv, getWindowsEnvKey, mergeAgentEnvLayers } from './index';
 
 describe('buildAllowlistedAgentEnv', () => {
+  it.each(['posix', 'windows'] as const)(
+    'forwards the Tsubasa key without allowing arbitrary Tsubasa variables on %s',
+    (platform) => {
+      const key = platform === 'windows' ? 'tsubasa_api_key' : 'TSUBASA_API_KEY';
+      const env = buildAllowlistedAgentEnv(
+        { [key]: 'tsubasa-test-key', TSUBASA_INTERNAL_TOKEN: 'excluded' },
+        { platform }
+      );
+
+      expect(env.TSUBASA_API_KEY).toBe('tsubasa-test-key');
+      expect(env).not.toHaveProperty('tsubasa_api_key');
+      expect(env).not.toHaveProperty('TSUBASA_INTERNAL_TOKEN');
+    }
+  );
+
+  it('does not forward a mis-cased or empty Tsubasa key on POSIX', () => {
+    const env = buildAllowlistedAgentEnv(
+      { tsubasa_api_key: 'excluded', TSUBASA_API_KEY: '' },
+      { platform: 'posix' }
+    );
+
+    expect(env).not.toHaveProperty('TSUBASA_API_KEY');
+    expect(env).not.toHaveProperty('tsubasa_api_key');
+  });
+
   it('reads the full allowlist case-insensitively and emits canonical Windows names', () => {
     const env = buildAllowlistedAgentEnv(
       {
