@@ -41,6 +41,7 @@ function workspaceInitialFromConfig(
     return {
       mode: 'new-worktree',
       presetId: 'new-worktree',
+      fetchLatestBase: git.fetchLatestBase ?? false,
       branchSelection: {
         createBranchAndWorktree: true,
         branchOverride: git.fromBranch,

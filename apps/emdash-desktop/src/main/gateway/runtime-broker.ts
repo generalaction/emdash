@@ -26,14 +26,16 @@ export function createDesktopRuntimeBroker(
   hosts: Hosts
 ): RuntimeBroker {
   return new RuntimeBroker({
-    resolve: (host) => resolveDesktopRuntimeClient(host, clients, hosts),
+    resolve: (host, options) =>
+      resolveDesktopRuntimeClient(host, clients, hosts, options?.minimumProtocolMinor),
   });
 }
 
 async function resolveDesktopRuntimeClient(
   host: HostRef,
   clients: DesktopRuntimeClients,
-  hosts: Hosts
+  hosts: Hosts,
+  minimumProtocolMinor?: number
 ): Promise<Result<RuntimeClientSource, RuntimeResolveError>> {
   if (!hostRefEquals(host, LOCAL_HOST_REF)) {
     const connectionId = sshConnectionIdOf(host);
@@ -42,6 +44,18 @@ async function resolveDesktopRuntimeClient(
         const current = hosts.get(host);
         if (!current) return err(runtimeHostNotConfigured(host, 'Host is not managed'));
         const connection = await current.runtime.client({ waitForReady: false });
+        if (
+          minimumProtocolMinor !== undefined &&
+          (connection.currentHandshake?.()?.agreedMinor ?? 0) < minimumProtocolMinor
+        ) {
+          return err(
+            runtimeHostUnavailable(
+              host,
+              'protocol-upgrade-server',
+              'Fetching the latest base requires workspace-server protocol 12.1. Please upgrade the workspace server.'
+            )
+          );
+        }
         return ok(
           connection.connection
             ? { client: connection.client, connection: connection.connection }

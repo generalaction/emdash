@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ManualClock } from '@emdash/shared/testing';
+import { setSpawnObserver } from '@emdash/shared/perf';
+import { deferred, ManualClock } from '@emdash/shared/testing';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
@@ -15,6 +16,33 @@ import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runt
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { createWorkspaceRegistryController } from './api/controller';
 import { createRegistryGitContext } from './git-context';
+
+it('never spawns a Git command cancelled while waiting for a budget slot', async () => {
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'ws-gitctx-cancel-'));
+  const context = createRegistryGitContext({ capacity: 1, headroom: 0 });
+  const release = deferred<void>();
+  const controller = new AbortController();
+  const reason = new Error('Fetch deadline expired');
+  const spawns: string[] = [];
+  setSpawnObserver((_purpose, command) => spawns.push(command ?? 'unknown'));
+  const held = context.schedule.run({ tier: 'creation' }, () => release.promise);
+  try {
+    const pending = context
+      .exec(cwd, { tier: 'creation' })
+      .exec(['fetch', 'origin'], { signal: controller.signal });
+    const rejected = expect(pending).rejects.toBe(reason);
+    controller.abort(reason);
+    release.resolve();
+    await held;
+    await rejected;
+    expect(spawns).toEqual([]);
+  } finally {
+    release.resolve();
+    await held;
+    setSpawnObserver(null);
+    await fs.rm(cwd, { recursive: true, force: true });
+  }
+});
 
 // Composition of the injected git budget with the runtime (spec:
 // registry-runtime-carveout, git context): the runtime owns its RegistryGitContext,

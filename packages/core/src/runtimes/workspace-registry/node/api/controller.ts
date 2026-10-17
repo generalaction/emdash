@@ -1,7 +1,28 @@
 import { ok } from '@emdash/shared';
-import { createController, type Controller } from '@emdash/wire/rpc';
+import {
+  createController,
+  forwardContractImpl,
+  type ContractClient,
+  type ContractImpl,
+  type Controller,
+} from '@emdash/wire/rpc';
 import { workspaceRegistryContract } from '../../api/contract';
 import type { WorkspaceRegistryRuntime } from '../runtime';
+
+/** Carry the creation deadline through each worker or server forwarding hop. */
+export function forwardWorkspaceRegistry(
+  client: ContractClient<typeof workspaceRegistryContract>,
+  contract: typeof workspaceRegistryContract = workspaceRegistryContract
+): ContractImpl<typeof workspaceRegistryContract> {
+  return {
+    ...forwardContractImpl(contract, client),
+    createWorktree: (input, meta) =>
+      client.createWorktree(input, {
+        ...meta,
+        ...(input.fetchLatestBase && { timeoutMs: 120_000 }),
+      }),
+  };
+}
 
 export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRuntime): Controller {
   return createController(workspaceRegistryContract, {

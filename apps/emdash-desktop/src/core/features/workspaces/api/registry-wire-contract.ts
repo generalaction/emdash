@@ -77,6 +77,7 @@ export const workspaceRegistryWireContract = defineContract({
       repositoryId: z.string().min(1),
       branch: z.string().min(1),
       baseRef: z.string().min(1),
+      fetchLatestBase: z.boolean().optional(),
       path: z.string().min(1),
       preservePatterns: z.array(z.string()).optional(),
       publish: z.object({ remote: z.string().min(1) }).optional(),

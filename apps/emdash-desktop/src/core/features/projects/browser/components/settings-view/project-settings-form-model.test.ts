@@ -107,6 +107,20 @@ function domains(): ProjectSettingsDomains {
 }
 
 describe('project settings form model', () => {
+  it('loads the base freshness preference and patches only an explicit edit', () => {
+    const snapshot = domains();
+    snapshot.gitIdentity.stored.fetchLatestBase = true;
+    const form = projectSettingsDomainsToForm(snapshot, [origin]);
+    expect(form.gitIdentity.fetchLatestBase).toBe(true);
+    expect(
+      formToProjectSettingsDomainPatch(form, new Set(['gitIdentity.fetchLatestBase']))
+    ).toEqual({ gitIdentity: { stored: { fetchLatestBase: true } } });
+    form.gitIdentity.fetchLatestBase = false;
+    expect(
+      formToProjectSettingsDomainPatch(form, new Set(['gitIdentity.fetchLatestBase']))
+    ).toEqual({ gitIdentity: { stored: { fetchLatestBase: null } } });
+  });
+
   it('patches only the provider edited while preserving other live account choices', () => {
     const form = projectSettingsDomainsToForm(domains(), [origin]);
     form.integrationAccounts = {

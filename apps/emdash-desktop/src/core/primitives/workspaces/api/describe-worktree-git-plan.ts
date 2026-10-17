@@ -6,11 +6,16 @@ import { LIFECYCLE_STEP_TITLES } from './lifecycle-step-titles';
  * The lifecycle steps a compiled plan can promise up front — a subset of the registry
  * pipeline's step ids, so the modal's "what will happen" and the Activity badge's
  * "what is happening" speak one vocabulary. Runtime-conditional steps the plan cannot
- * see (fetch-remote-base, fetch-refs, scripts) are never promised here.
+ * see (conditional base fetches, fetch-refs, scripts) are never promised here.
  */
 export type WorktreeSetupStepId = Extract<
   WorkspaceLifecycleStepInfo['id'],
-  'fetch-branch' | 'create-worktree' | 'configure-branch' | 'copy-artifacts' | 'push-branch'
+  | 'fetch-branch'
+  | 'fetch-remote-base'
+  | 'create-worktree'
+  | 'configure-branch'
+  | 'copy-artifacts'
+  | 'push-branch'
 >;
 
 export type WorktreeSetupStep = {
@@ -38,6 +43,10 @@ export function describeWorktreeGitPlan(
 ): WorktreeSetupStep[] {
   const steps: WorktreeSetupStep[] = [];
   const { fetchBranch, upstream, breadcrumb } = plan.gitSetup ?? {};
+
+  if (plan.fetchLatestBase) {
+    steps.push(step('fetch-remote-base', `Fetch the latest commit from ${plan.baseRef}`));
+  }
 
   if (fetchBranch) {
     steps.push(

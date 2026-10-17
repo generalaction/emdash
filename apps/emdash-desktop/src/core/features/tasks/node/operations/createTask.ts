@@ -244,6 +244,7 @@ export async function prepareCreateTask(
       workspaceId,
       branch: gitPlan.branch,
       ...(gitPlan.baseRef !== undefined && { baseRef: gitPlan.baseRef }),
+      ...(gitPlan.fetchLatestBase !== undefined && { fetchLatestBase: gitPlan.fetchLatestBase }),
       path: workspacePath,
       preservePatterns: compiled.preservePatterns,
       ...(gitPlan.publish !== undefined && { publish: gitPlan.publish }),
@@ -422,6 +423,12 @@ export async function createTask(
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const prepared = await prepareCreateTask(db, projects, placement, params);
   if (!prepared.success) return prepared;
+  if (prepared.data.registryCreate?.fetchLatestBase) {
+    const supported = await runtimes.client(prepared.data.host, { minimumProtocolMinor: 1 });
+    if (!supported.success) {
+      return err({ type: 'provision-failed', message: supported.error.message });
+    }
+  }
 
   // Host-first ordering (spec §6.2): the index is authoritative for conversation
   // existence, so the record must exist — dangling — before the desktop transaction

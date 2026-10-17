@@ -1041,6 +1041,12 @@ describe('workspace registry contract', () => {
       success: true,
       data: { lastCreateOutcome: { status: 'succeeded' } },
     });
+    await expect(
+      wire.client.createWorktree({ ...input, fetchLatestBase: false })
+    ).resolves.toMatchObject({ success: true });
+    await expect(
+      wire.client.createWorktree({ ...input, fetchLatestBase: true })
+    ).resolves.toMatchObject({ success: false, error: { type: 'immutable-field-mismatch' } });
 
     // The transient condition clears; one manual retry pushes the branch.
     const originPath = path.join(root, 'origin.git');

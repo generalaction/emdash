@@ -20,7 +20,8 @@ export type RuntimeSession = Result<HostRuntimesClient, RuntimeResolveError>;
 export type RuntimeSessionResolution = Result<RuntimeClientSource, RuntimeResolveError>;
 
 export type RuntimeSessionResolver = (
-  host: HostRef
+  host: HostRef,
+  options?: { minimumProtocolMinor?: number }
 ) => RuntimeSessionResolution | Promise<RuntimeSessionResolution>;
 
 export type RuntimeBrokerOptions = Readonly<{
@@ -35,11 +36,16 @@ export class RuntimeBroker {
 
   constructor(private readonly options: RuntimeBrokerOptions) {}
 
-  async client(host: HostRef): Promise<RuntimeSession> {
+  async client(
+    host: HostRef,
+    options?: { minimumProtocolMinor?: number }
+  ): Promise<RuntimeSession> {
     const key = formatHostRef(host);
     const rebindEpoch = this.rebindEpochs.get(key) ?? 0;
     const identityEpoch = this.identityEpochs.get(key) ?? 0;
-    const resolved = await this.options.resolve(host);
+    const resolved = options
+      ? await this.options.resolve(host, options)
+      : await this.options.resolve(host);
     if ((this.identityEpochs.get(key) ?? 0) !== identityEpoch) {
       return err(runtimeHostIdentityLost(host, 'Host identity changed during runtime resolution'));
     }

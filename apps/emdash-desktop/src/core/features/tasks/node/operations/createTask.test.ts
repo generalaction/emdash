@@ -237,6 +237,59 @@ describe('createTask', () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects unsupported freshness before creating any task or host conversation', async () => {
+    const { captured } = setupTransactionMock();
+    const client = vi.fn<Parameters<typeof createTaskOperation>[3]['client']>(
+      async (host, options) =>
+        options?.minimumProtocolMinor
+          ? {
+              success: false,
+              error: {
+                type: 'host-unavailable',
+                host,
+                reason: 'protocol-upgrade-server',
+                message: 'Please upgrade the workspace server.',
+              },
+            }
+          : (runtimes as Parameters<typeof createTaskOperation>[3]).client(host)
+    );
+    const result = await createTaskOperation(db, projects, placement, { client }, creations, {
+      id: 'task-1',
+      projectId: 'project-1',
+      taskConfig: {
+        version: '1',
+        name: 'Fresh task',
+        initialConversation: {
+          id: 'conv-1',
+          provider: 'claude-code',
+          type: 'acp',
+          title: 'First conversation',
+          initialQueue: [{ text: 'Review changes' }],
+        },
+      },
+      workspaceConfig: {
+        version: '2',
+        workspace: { kind: 'new-worktree' },
+        git: {
+          kind: 'create-branch',
+          branchName: 'feature/fresh',
+          fetchLatestBase: true,
+          fromBranch: {
+            type: 'remote',
+            branch: 'main',
+            remote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+          },
+        },
+      },
+    });
+    expect(result).toMatchObject({ success: false, error: { type: 'provision-failed' } });
+    expect(client).toHaveBeenCalledWith(expect.anything(), { minimumProtocolMinor: 1 });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
+    expect(hostConversations.create).not.toHaveBeenCalled();
+    expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
+  });
+
   describe('tombstone-aware creation admission (ADR 0006)', () => {
     it('refuses a repository-instance target carrying a pending tombstone', async () => {
       mocks.findWorkspaceTombstoneConflict.mockReturnValue({
@@ -634,7 +687,7 @@ describe('createTask', () => {
       );
     });
 
-    it('compiles a remote fromBranch into a remote-qualified baseRef', async () => {
+    it('passes the saved freshness choice and bounded deadline for a remote base', async () => {
       const { captured } = setupTransactionMock();
 
       await createTask(db, projects, hostIsReachable, {
@@ -646,6 +699,7 @@ describe('createTask', () => {
           git: {
             kind: 'create-branch',
             branchName: 'feature/remote',
+            fetchLatestBase: true,
             fromBranch: {
               type: 'remote',
               branch: 'main',
@@ -658,8 +712,10 @@ describe('createTask', () => {
 
       await settleCreation((captured[1] as Record<string, unknown>).id);
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
-        expect.objectContaining({ baseRef: 'origin/main' })
+        expect.objectContaining({ baseRef: 'origin/main', fetchLatestBase: true }),
+        { timeoutMs: 120_000 }
       );
+      expect(captured[1]).toMatchObject({ config: { git: { fetchLatestBase: true } } });
     });
 
     it('sets location=remote and type=project-ssh for SSH projects', async () => {

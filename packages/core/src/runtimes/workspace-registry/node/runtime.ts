@@ -757,6 +757,7 @@ export class WorkspaceRegistryRuntime {
         worktreePath: path.resolve(input.path),
         branch: input.branch,
         baseRef: input.baseRef ?? null,
+        fetchLatestBase: input.fetchLatestBase,
         gitSetup: input.gitSetup,
         onStage: (stage) => {
           stageStarts.push({ stage, at: Date.now() });
@@ -1123,6 +1124,7 @@ export class WorkspaceRegistryRuntime {
         spec !== null &&
         spec.branch === input.branch &&
         spec.baseRef === (input.baseRef ?? null) &&
+        (spec.fetchLatestBase ?? false) === (input.fetchLatestBase ?? false) &&
         sameGitSetup(spec.gitSetup, input.gitSetup) &&
         this.store.pathsEqual(existing.path, path.resolve(input.path)) &&
         existing.parentId === input.repositoryId;
@@ -1171,6 +1173,7 @@ export class WorkspaceRegistryRuntime {
         branch: input.branch,
         baseRef: input.baseRef ?? null,
         requestedPath: input.path,
+        ...(input.fetchLatestBase !== undefined ? { fetchLatestBase: input.fetchLatestBase } : {}),
         ...(input.gitSetup !== undefined ? { gitSetup: input.gitSetup } : {}),
       },
       lastCreateOutcome: { status: 'started', at: now },
