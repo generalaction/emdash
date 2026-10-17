@@ -1,3 +1,4 @@
+import { AiAnnotationsStore } from '@core/features/source-control/api/browser/diff-view/stores/ai-annotations-store';
 import { DraftCommentsStore } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import { TaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-pr-association-store';
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
@@ -9,6 +10,9 @@ import {
 
 export const draftCommentsStoreToken = scopedStoreToken<DraftCommentsStore>(
   'source-control.draft-comments'
+);
+export const aiAnnotationsStoreToken = scopedStoreToken<AiAnnotationsStore>(
+  'source-control.ai-annotations'
 );
 export const taskPrAssociationStoreToken = scopedStoreToken<TaskPrAssociationStore>(
   'source-control.task-pr-association'
@@ -28,5 +32,10 @@ export const sourceControlTaskStoreContributions: readonly ScopedStoreContributi
       token: draftCommentsStoreToken,
       create: ({ taskId }) => new DraftCommentsStore(taskId),
       dispose: (store) => store.dispose(),
+    }),
+    contributeScopedStore({
+      token: aiAnnotationsStoreToken,
+      create: () => new AiAnnotationsStore(),
+      dispose: (store) => store.clear(),
     }),
   ];
