@@ -71,9 +71,11 @@ export async function executeCreateWorktree(
     if (!safe.success) {
       return { status: 'failed', stage: 'inspect', message: safe.error.message };
     }
-    existing = (await listWorktreePaths(exec)).has(
-      nativePathIdentityKey(await canonicalOrResolved(execution.worktreePath))
-    );
+    const targetKey = nativePathIdentityKey(await canonicalOrResolved(execution.worktreePath));
+    // A worktree directory deleted out-of-band leaves its registration behind, and
+    // `worktree add` then refuses the path or branch until someone runs a prune.
+    await clearStaleRegistrations(exec, targetKey, execution.branch);
+    existing = (await listWorktreePaths(exec)).has(targetKey);
     if (existing) {
       const current = (
         await execution.git
@@ -256,14 +258,65 @@ async function rollback(
   }
 }
 
-async function listWorktreePaths(exec: BoundExec): Promise<Set<string>> {
+type WorktreeRegistration = {
+  /** Path exactly as git reports it; what `worktree remove` expects back. */
+  rawPath: string;
+  key: string;
+  branch: string | null;
+  prunable: boolean;
+  locked: boolean;
+};
+
+async function listWorktrees(exec: BoundExec): Promise<WorktreeRegistration[]> {
   const result = await exec.exec(['worktree', 'list', '--porcelain']);
-  const paths = new Set<string>();
+  const entries: WorktreeRegistration[] = [];
+  let current: WorktreeRegistration | undefined;
   for (const line of result.stdout.split('\n')) {
-    if (!line.startsWith('worktree ')) continue;
-    paths.add(nativePathIdentityKey(await canonicalOrResolved(line.slice('worktree '.length))));
+    if (line.startsWith('worktree ')) {
+      const rawPath = line.slice('worktree '.length);
+      current = {
+        rawPath,
+        key: nativePathIdentityKey(await canonicalOrResolved(rawPath)),
+        branch: null,
+        prunable: false,
+        locked: false,
+      };
+      entries.push(current);
+    } else if (!current) {
+      continue;
+    } else if (line.startsWith('branch refs/heads/')) {
+      current.branch = line.slice('branch refs/heads/'.length);
+    } else if (line === 'prunable' || line.startsWith('prunable ')) {
+      current.prunable = true;
+    } else if (line === 'locked' || line.startsWith('locked ')) {
+      current.locked = true;
+    }
   }
-  return paths;
+  return entries;
+}
+
+async function listWorktreePaths(exec: BoundExec): Promise<Set<string>> {
+  return new Set((await listWorktrees(exec)).map((entry) => entry.key));
+}
+
+/**
+ * Clears registrations whose directory no longer exists when they would block this
+ * creation (same path, or holding the branch). Scoped to those entries rather than a
+ * repository-wide `worktree prune`, so unrelated worktrees — e.g. on an unmounted
+ * drive — are left alone; locked entries are never touched.
+ */
+async function clearStaleRegistrations(
+  exec: BoundExec,
+  targetKey: string,
+  branch: string
+): Promise<void> {
+  const stale = (await listWorktrees(exec)).filter(
+    (entry) =>
+      entry.prunable && !entry.locked && (entry.key === targetKey || entry.branch === branch)
+  );
+  for (const entry of stale) {
+    await exec.exec(['worktree', 'remove', '--force', entry.rawPath]);
+  }
 }
 
 async function branchExists(exec: BoundExec, branch: string): Promise<boolean> {

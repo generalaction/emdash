@@ -291,3 +291,85 @@ describe('executeCreateWorktree gitSetup', () => {
     await expect(fs.access(path.join(root, 'locked-wt'))).rejects.toThrow();
   });
 });
+
+describe('executeCreateWorktree stale registrations', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-create-stale-')));
+  });
+
+  afterEach(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  function registeredPaths(repoPath: string): string[] {
+    return git(repoPath, 'worktree', 'list', '--porcelain')
+      .split('\n')
+      .filter((line) => line.startsWith('worktree '))
+      .map((line) => line.slice('worktree '.length));
+  }
+
+  it('recreates a worktree at a path whose directory was deleted out-of-band', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreePath = path.join(root, 'wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/x', worktreePath);
+    await fs.rm(worktreePath, { recursive: true, force: true });
+
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath,
+      branch: 'feature/x',
+      baseRef: 'main',
+      onStage: () => {},
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(git(worktreePath, 'branch', '--show-current')).toBe('feature/x');
+  });
+
+  it('frees a branch still held by a deleted worktree at another path', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const oldPath = path.join(root, 'old-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/y', oldPath);
+    await fs.rm(oldPath, { recursive: true, force: true });
+
+    const newPath = path.join(root, 'new-wt');
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath: newPath,
+      branch: 'feature/y',
+      baseRef: 'main',
+      onStage: () => {},
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded' });
+    expect(registeredPaths(repoPath)).not.toContain(oldPath);
+    expect(git(newPath, 'branch', '--show-current')).toBe('feature/y');
+  });
+
+  it('leaves unrelated and locked stale registrations untouched', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const unrelated = path.join(root, 'unrelated-wt');
+    const locked = path.join(root, 'locked-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'other', unrelated);
+    git(repoPath, 'worktree', 'add', '-b', 'feature/z', locked);
+    git(repoPath, 'worktree', 'lock', locked);
+    await fs.rm(unrelated, { recursive: true, force: true });
+    await fs.rm(locked, { recursive: true, force: true });
+
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'fresh-wt'),
+      branch: 'feature/fresh',
+      baseRef: 'main',
+      onStage: () => {},
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded' });
+    expect(registeredPaths(repoPath)).toEqual(expect.arrayContaining([unrelated, locked]));
+  });
+});
