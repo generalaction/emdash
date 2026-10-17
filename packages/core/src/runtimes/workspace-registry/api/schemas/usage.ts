@@ -6,6 +6,7 @@ import { z } from 'zod';
  */
 export const measureUsageInputSchema = z.object({
   workspaceId: z.string().min(1),
+  excludeWorkspaceIds: z.array(z.string().min(1)).optional(),
 });
 export type MeasureUsageInput = z.infer<typeof measureUsageInputSchema>;
 

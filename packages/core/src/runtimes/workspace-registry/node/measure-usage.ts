@@ -14,6 +14,7 @@ export type MeasureWorkspaceUsageError = Exclude<
 export type MeasureWorkspaceUsageOptions = {
   /** Absolute native path, as stored on the registry record. */
   workspacePath: string;
+  excludePaths?: string[];
   signal?: AbortSignal;
   createGitExec?: GitExecFactory;
 };
@@ -31,6 +32,8 @@ export async function measureWorkspaceUsage(
   try {
     const measured = await measureAbsolutePathUsage(options.workspacePath, '', {
       artifactRoots: artifactRoots.data,
+      excludePaths: options.excludePaths,
+      signal: options.signal,
     });
     return ok({
       totalBytes: measured.exclusiveDiskBytes,

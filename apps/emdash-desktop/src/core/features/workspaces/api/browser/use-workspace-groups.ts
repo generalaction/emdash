@@ -58,13 +58,13 @@ export function useProjectWorkspaceUsage(
 ) {
   return useQuery({
     queryKey: [PROJECT_WORKSPACE_USAGE_QUERY_KEY, projectId, paths],
-    queryFn: async (): Promise<MeasureProjectWorkspacesResult> => {
+    queryFn: async ({ signal }): Promise<MeasureProjectWorkspacesResult> => {
       if (!projectId) return { scannedAt: new Date().toISOString(), projectId: '', results: [] };
       const client = await getProjectWorkspacesClient();
-      return await client.measureProjectWorkspaces({
-        projectId,
-        paths: Array.from(paths),
-      });
+      return await client.measureProjectWorkspaces(
+        { projectId, paths: Array.from(paths) },
+        { signal }
+      );
     },
     enabled: enabled && !!projectId && paths.length > 0,
     refetchOnWindowFocus: false,
