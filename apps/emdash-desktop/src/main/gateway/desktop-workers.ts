@@ -74,14 +74,18 @@ import { app } from 'electron';
 import { createAutomationCreationAdmissionController } from '@core/features/automations/node/creation-admission';
 import { automationRuntimePaths } from '@core/features/automations/node/runtime-paths';
 import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
+import { createIntegrationCredentialReader } from '@core/features/integrations/api/node/integration-credential-reader';
 import { getIntegrationAccountStore } from '@core/features/integrations/node/integration-account-store-instance';
 import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import { mementosWireContract, type MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
 import { pullRequestsContract, type PullRequestsContract } from '@core/services/pull-requests/api';
 import { pullRequestsComponent } from '@core/services/pull-requests/node';
-import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
-import { resolvePullRequestSyncIdentity } from '@core/services/pull-requests/node/sync-identity';
+import { createPullRequestsAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
+import {
+  resolvePullRequestIntegration,
+  resolvePullRequestSyncIdentity,
+} from '@core/services/pull-requests/node/sync-identity';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
@@ -313,16 +317,20 @@ function startDesktopWorkersWithHost(
     dependencies: {
       // Identity is resolved per request through the seam bound during services
       // boot (spec: github-git-settings §8); until then requests fail closed.
-      githubAuth: createPullRequestsGitHubAuthController(
-        createGitHubCredentialReader(
-          {
-            getAccount: (providerId, accountId) =>
+      githubAuth: createPullRequestsAuthController({
+        resolveIntegration: resolvePullRequestIntegration,
+        resolveSyncIdentity: resolvePullRequestSyncIdentity,
+        readCredentials: (() => {
+          const accounts = {
+            getAccount: (providerId: string, accountId?: string) =>
               getIntegrationAccountStore().getAccount(providerId, accountId),
-          },
-          providerAccountRegistry
-        ),
-        resolvePullRequestSyncIdentity
-      ),
+          };
+          const readGitHub = createGitHubCredentialReader(accounts, providerAccountRegistry);
+          return createIntegrationCredentialReader(accounts, providerAccountRegistry, {
+            github: async (_integrationId, accountId, host) => await readGitHub(accountId, host),
+          });
+        })(),
+      }),
     },
     config: {
       databasePath: join(app.getPath('userData'), 'pull-requests.db'),

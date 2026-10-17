@@ -34,7 +34,10 @@ type PullRequestsRegistrationOptions = {
   onResume(handler: () => void): () => void;
   subscribeToProjectRemotes(projectId: string, handler: () => void): (() => void) | undefined;
   resolveProjectRepositoryUrls(projectId: string): Promise<string[]>;
-  resolveProjectAuthContext(projectId: string): Promise<ProjectAccountResolution>;
+  resolveProjectAuthContext(
+    projectId: string,
+    integrationId: string
+  ): Promise<ProjectAccountResolution>;
 };
 
 /**
@@ -166,7 +169,8 @@ export class PullRequestsRegistration implements Disposable {
    * identity.
    */
   async resolveSyncIdentity(
-    repositoryUrl: string
+    repositoryUrl: string,
+    integrationId: string
   ): Promise<Result<PullRequestSyncIdentity, PullRequestAuthError>> {
     const host = parseRepositoryRef(repositoryUrl)?.host ?? 'unknown';
     const projectIds = [...this.projectRepositoryUrls.entries()]
@@ -181,11 +185,13 @@ export class PullRequestsRegistration implements Disposable {
     }
     let failure: { type?: string; message: string } | undefined;
     for (const projectId of projectIds) {
-      const resolved = await this.options.resolveProjectAuthContext(projectId);
+      const resolved = await this.options.resolveProjectAuthContext(projectId, integrationId);
       if (resolved.success) {
         // The blessed resolver returns an account on success; treat a missing
         // id defensively as "keep looking" rather than an implicit default.
-        if (resolved.data.accountId) return ok({ accountId: resolved.data.accountId });
+        if (resolved.data.accountId) {
+          return ok({ integrationId, accountId: resolved.data.accountId });
+        }
         continue;
       }
       failure ??= resolved.error;

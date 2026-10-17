@@ -19,6 +19,7 @@ const mainConfig = {
     'pull-requests/github': 'src/pull-requests/impl/github/client.ts',
     'pull-requests/schemas': 'src/pull-requests/schemas.ts',
     'pull-requests/types': 'src/pull-requests/types.ts',
+    repository: 'src/repository/index.ts',
   },
   format: ['esm'],
   dts: true,

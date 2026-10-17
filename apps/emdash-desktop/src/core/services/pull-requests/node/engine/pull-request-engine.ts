@@ -42,7 +42,7 @@ export class PullRequestEngine {
     repositoryUrl: string,
     signal: AbortSignal
   ): Promise<Result<PullRequestRepositoryClient, PullRequestError>> {
-    const client = this.clientFor(repositoryUrl);
+    const client = await this.clientFor(repositoryUrl, signal);
     if (!client.success) return client;
     return await client.data.openRepository(repositoryUrl, signal);
   }
@@ -59,7 +59,7 @@ export class PullRequestEngine {
     },
     signal: AbortSignal
   ): Promise<Result<{ url: string; number: number }, PullRequestError>> {
-    const client = this.clientFor(input.repositoryUrl);
+    const client = await this.clientFor(input.repositoryUrl, signal);
     if (!client.success) return client;
     return await client.data.createPullRequest(input, signal);
   }
@@ -70,7 +70,7 @@ export class PullRequestEngine {
     options: PullRequestMergeOptions,
     signal: AbortSignal
   ): Promise<Result<{ sha: string | null; merged: boolean }, PullRequestError>> {
-    const client = this.clientFor(repositoryUrl);
+    const client = await this.clientFor(repositoryUrl, signal);
     if (!client.success) return client;
     return await client.data.mergePullRequest(repositoryUrl, number, options, signal);
   }
@@ -80,7 +80,7 @@ export class PullRequestEngine {
     number: number,
     signal: AbortSignal
   ): Promise<Result<void, PullRequestError>> {
-    const client = this.clientFor(repositoryUrl);
+    const client = await this.clientFor(repositoryUrl, signal);
     if (!client.success) return client;
     return await client.data.markReadyForReview(repositoryUrl, number, signal);
   }
@@ -90,13 +90,18 @@ export class PullRequestEngine {
     number: number,
     signal: AbortSignal
   ): Promise<Result<PullRequestFile[], PullRequestError>> {
-    const client = this.clientFor(repositoryUrl);
+    const client = await this.clientFor(repositoryUrl, signal);
     if (!client.success) return client;
     return await client.data.getPullRequestFiles(repositoryUrl, number, signal);
   }
 
-  private clientFor(repositoryUrl: string): Result<PullRequestClient, PullRequestError> {
-    const integrationId = 'github';
+  private async clientFor(
+    repositoryUrl: string,
+    signal: AbortSignal
+  ): Promise<Result<PullRequestClient, PullRequestError>> {
+    const resolved = await this.options.auth.resolveIntegration({ repositoryUrl }, { signal });
+    if (!resolved.success) return resolved;
+    const { integrationId } = resolved.data;
     let client = this.clients.get(integrationId);
     if (client === undefined) {
       client = (this.options.createClient ?? createRegistryClient)(
@@ -120,7 +125,10 @@ export class PullRequestEngine {
       log: this.options.logger,
       scope: this.options.scope,
       resolveCredentials: async (repositoryUrl, signal) => {
-        const auth = await this.options.auth.resolveAuth({ repositoryUrl }, { signal });
+        const auth = await this.options.auth.resolveAuth(
+          { repositoryUrl, integrationId },
+          { signal }
+        );
         if (!auth.success) return auth;
         // Fail closed: never hand one integration's credentials to another's client.
         if (auth.data.integrationId !== integrationId) {

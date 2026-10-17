@@ -63,12 +63,6 @@ export function createGithubOperations(dependencies: {
 
     // -- Repositories --------------------------------------------------------
 
-    getRepositories: (accountId?: string) =>
-      Result.tryAsync(() => repoService.listRepositories({ accountId })).unwrapOrElse((error) => {
-        logger.error('Failed to get repositories', { error });
-        return [];
-      }),
-
     getOwners: (
       accountId?: string
     ): Promise<

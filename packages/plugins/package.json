@@ -52,6 +52,11 @@
       "development": "./src/pull-requests/types.ts",
       "types": "./dist/pull-requests/types.d.mts",
       "default": "./dist/pull-requests/types.mjs"
+    },
+    "./repository": {
+      "development": "./src/repository/index.ts",
+      "types": "./dist/repository.d.mts",
+      "default": "./dist/repository.mjs"
     }
   },
   "scripts": {

@@ -39,6 +39,7 @@ function createEngine({
 
 function fakeGitHubAuth(): ContractClient<GitPlatformAuthContract> {
   return {
+    resolveIntegration: async () => ok({ integrationId: 'github' }),
     resolveAuth: async () =>
       ok({
         integrationId: 'github',
@@ -213,6 +214,64 @@ describe('PullRequestEngine (client dispatch)', () => {
     );
   });
 
+  it('dispatches each repository to the client of the integration it routes to', async () => {
+    const clients = { github: fakeClient(), gitlab: fakeClient() };
+    const createClient = vi.fn((integrationId: string) =>
+      integrationId === 'github' || integrationId === 'gitlab' ? clients[integrationId] : null
+    );
+    const engine = createDispatchEngine({
+      auth: {
+        ...fakeGitHubAuth(),
+        resolveIntegration: async ({ repositoryUrl: url }) =>
+          ok({ integrationId: url.includes('gitlab.com') ? 'gitlab' : 'github' }),
+      },
+      createClient,
+    });
+    const signal = new AbortController().signal;
+
+    await engine.getPullRequestFiles(repositoryUrl, 1, signal);
+    await engine.getPullRequestFiles('https://gitlab.com/group/sub/project', 2, signal);
+
+    expect(createClient).toHaveBeenCalledTimes(2);
+    expect(clients.github.getPullRequestFiles).toHaveBeenCalledWith(repositoryUrl, 1, signal);
+    expect(clients.gitlab.getPullRequestFiles).toHaveBeenCalledWith(
+      'https://gitlab.com/group/sub/project',
+      2,
+      signal
+    );
+  });
+
+  it('fails without creating a client when the repository routes to no integration', async () => {
+    const createClient = vi.fn(() => fakeClient());
+    const engine = createDispatchEngine({
+      auth: {
+        ...fakeGitHubAuth(),
+        resolveIntegration: async () =>
+          err({
+            type: 'unsupported_provider' as const,
+            host: 'git.example.com',
+            reason: 'No connected integration handles git.example.com.',
+          }),
+      },
+      createClient,
+    });
+
+    expect(
+      await engine.getPullRequestFiles(
+        'https://git.example.com/acme/repo',
+        1,
+        new AbortController().signal
+      )
+    ).toEqual(
+      err({
+        type: 'unsupported_provider',
+        host: 'git.example.com',
+        reason: 'No connected integration handles git.example.com.',
+      })
+    );
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
   it('fails without a request when the integration has no pull-requests plugin', async () => {
     const engine = createDispatchEngine({ createClient: () => null });
 
@@ -232,6 +291,7 @@ describe('PullRequestEngine (client dispatch)', () => {
     let host: PullRequestHostContext | undefined;
     const engine = createDispatchEngine({
       auth: {
+        resolveIntegration: async () => ok({ integrationId: 'github' }),
         resolveAuth: async () =>
           ok({ integrationId: 'gitlab', accountId: 'account-1', credentials: { token: 't' } }),
       },
@@ -254,14 +314,17 @@ describe('PullRequestEngine (client dispatch)', () => {
 
   it('passes the resolved account and credential record to the client', async () => {
     let host: PullRequestHostContext | undefined;
+    const resolveAuth = vi.fn(async (_input: { repositoryUrl: string; integrationId: string }) =>
+      ok({
+        integrationId: 'github',
+        accountId: 'account-1',
+        credentials: { accessToken: 'token', apiBaseUrl: 'https://api.github.com' },
+      })
+    );
     const engine = createDispatchEngine({
       auth: {
-        resolveAuth: async () =>
-          ok({
-            integrationId: 'github',
-            accountId: 'account-1',
-            credentials: { accessToken: 'token', apiBaseUrl: 'https://api.github.com' },
-          }),
+        resolveIntegration: async () => ok({ integrationId: 'github' }),
+        resolveAuth: async (input) => await resolveAuth(input),
       },
       createClient: (_integrationId, context) => {
         host = context;
@@ -277,5 +340,6 @@ describe('PullRequestEngine (client dispatch)', () => {
         credentials: { accessToken: 'token', apiBaseUrl: 'https://api.github.com' },
       },
     });
+    expect(resolveAuth).toHaveBeenCalledWith({ repositoryUrl, integrationId: 'github' });
   });
 });

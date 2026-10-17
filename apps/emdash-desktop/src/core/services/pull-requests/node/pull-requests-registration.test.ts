@@ -172,8 +172,8 @@ describe('PullRequestsRegistration', () => {
       const reopening = registration.onProjectOpened('project');
       try {
         await vi.waitFor(async () => {
-          await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
-            ok({ accountId: 'account-1' })
+          await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
+            ok({ integrationId: 'github', accountId: 'account-1' })
           );
         });
         expect(events).toEqual(['register', 'stop started']);
@@ -233,8 +233,8 @@ describe('PullRequestsRegistration', () => {
     const reopening = registration.onProjectOpened('project');
     try {
       await vi.waitFor(async () => {
-        await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
-          ok({ accountId: 'account-1' })
+        await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
+          ok({ integrationId: 'github', accountId: 'account-1' })
         );
       });
     } finally {
@@ -296,14 +296,14 @@ describe('PullRequestsRegistration', () => {
       const registration = createRegistration(createClient());
       await registration.onProjectOpened('project-1');
 
-      await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
-        ok({ accountId: 'account-1' })
+      await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
+        ok({ integrationId: 'github', accountId: 'account-1' })
       );
 
       // An account change is visible on the very next request — no event plumbing.
       mocks.resolveAuth.mockResolvedValue(ok({ accountId: 'account-2' }));
-      await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
-        ok({ accountId: 'account-2' })
+      await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
+        ok({ integrationId: 'github', accountId: 'account-2' })
       );
     });
 
@@ -311,7 +311,7 @@ describe('PullRequestsRegistration', () => {
       const registration = createRegistration(createClient());
 
       await expect(
-        registration.resolveSyncIdentity('https://github.com/acme/unknown')
+        registration.resolveSyncIdentity('https://github.com/acme/unknown', 'github')
       ).resolves.toEqual(
         err({
           type: 'account_unresolvable',
@@ -334,7 +334,7 @@ describe('PullRequestsRegistration', () => {
       const registration = createRegistration(createClient());
       await registration.onProjectOpened('project-1');
 
-      await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
+      await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
         err({
           type: 'account_unresolvable',
           host: 'github.com',
@@ -352,7 +352,7 @@ describe('PullRequestsRegistration', () => {
       const registration = createRegistration(createClient());
       await registration.onProjectOpened('project-1');
 
-      await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
+      await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
         err({
           type: 'integration_disabled',
           host: 'github.com',
@@ -370,7 +370,7 @@ describe('PullRequestsRegistration', () => {
       const registration = createRegistration(createClient());
       await registration.onProjectOpened('project-1');
 
-      await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
+      await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
         err({
           type: 'auth_required',
           host: 'github.com',
@@ -391,8 +391,8 @@ describe('PullRequestsRegistration', () => {
         .mockResolvedValueOnce(err({ type: 'account_selection_failed', message: 'Broken pin.' }))
         .mockResolvedValueOnce(ok({ accountId: 'account-2' }));
 
-      await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
-        ok({ accountId: 'account-2' })
+      await expect(registration.resolveSyncIdentity(repositoryUrl, 'github')).resolves.toEqual(
+        ok({ integrationId: 'github', accountId: 'account-2' })
       );
     });
   });

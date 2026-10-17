@@ -50,6 +50,7 @@ vi.mock('@core/features/integrations/node/integration-account-store-instance', (
   getIntegrationAccountStore: vi.fn(),
 }));
 vi.mock('@core/services/pull-requests/node/sync-identity', () => ({
+  resolvePullRequestIntegration: vi.fn(),
   resolvePullRequestSyncIdentity: vi.fn(),
 }));
 vi.mock('./worker-paths', () => ({ desktopWorkerPath: (name: string) => `/tmp/${name}.mjs` }));

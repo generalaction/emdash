@@ -1,10 +1,12 @@
-# Integration, Issue, And Pull-Request Plugins
+# Integration, Issue, Pull-Request, And Repository Plugins
 
 Integration plugins in `packages/plugins/src/integrations/` own service metadata, auth
 method descriptors, credential schemas, and credential verification. Issue plugins in
 `packages/plugins/src/issues/` reference an integration by `integrationId` and own issue
 operations. Pull-request plugins in `packages/plugins/src/pull-requests/` do the same for PR/MR
-operations. GitHub follows the same plugin contracts as the other integrations.
+operations. Repository plugins in `packages/plugins/src/repository/` own hosted-repository
+operations and host detection. GitHub follows the same plugin contracts as the other
+integrations.
 
 ## Issue Context During Task Creation
 
@@ -162,6 +164,10 @@ removed account from missing credentials. Repository operations read hosts from 
 metadata, never from the account ID. Octokit construction and PR-worker auth use the
 stored `apiBaseUrl`; Git's credential sink extracts the token from the same credentials.
 
+GitHub's hosted-repository Wire procedures (`getOwners`, `createRepository`, `deleteRepository`)
+select an account this way and call the GitHub repository plugin. Project creation, Add Remote,
+and the owner picker offer GitHub only.
+
 Repository creation carries the selected provider/account reference into the clone job.
 Local HTTPS clone credential channels bind to that exact account, including when it was
 initially inferred; later default changes never switch an in-flight clone's identity.
@@ -183,11 +189,15 @@ PR schemas and types live in `@emdash/plugins/pull-requests/schemas` and
 `@emdash/plugins/pull-requests/types`; the app imports them from there.
 
 Clients run in the pull-requests worker, not main. `PullRequestHostContext.resolveCredentials`
-calls `gitPlatformAuthContract.resolveAuth` per repository; the desktop resolves the account and
-returns `{ integrationId, accountId, credentials }`, where `credentials` is the integration's
+calls `gitPlatformAuthContract.resolveAuth` per repository with the client's `integrationId`; the
+desktop resolves the project's account for that integration and returns
+`{ integrationId, accountId, credentials }`, where `credentials` is the integration's
 stored record. The client narrows it with its integration's credential reader and fails closed on
-a malformed record. `PullRequestEngine` picks the client from `pullRequestsPluginRegistry` by
-`integrationId` and refuses credentials resolved for a different integration.
+a malformed record. `PullRequestEngine` asks the desktop which integration serves a repository
+(`gitPlatformAuthContract.resolveIntegration`, answered by the repository router), picks that
+integration's client from `pullRequestsPluginRegistry`, and refuses credentials resolved for a
+different integration. The desktop registers a remote for PR sync only when it routes to an
+integration with a pull-requests plugin.
 
 PR errors are provider-agnostic (`auth_required`, `account_not_found`, `rate_limited`, and so on).
 The plugin error schema covers provider operations and credential failures. The desktop
@@ -196,3 +206,53 @@ errors in `api/errors.ts`; desktop contracts and consumers use that composed sch
 Variants that call for user action on an account carry the `integrationId` to reconnect; the
 sync skips without retrying on identity failures, and the PR selector opens that integration's
 setup.
+
+## Repository Plugins
+
+A repository plugin implements hosted-repository operations for one integration. The contract
+is `IRepositoryBehavior` in `packages/plugins/src/repository/capabilities/repository.ts`; data
+and error types are in `types.ts` beside it.
+
+- `listOwners`, `createRepository`, and `deleteRepository` are required. They are stateless and
+  receive `ConnectedIntegrationHostContext`; the desktop selects the account before calling.
+  `deleteRepository` is used to roll back a repository created for a project whose creation
+  then failed.
+- Failures are `IntegrationError`. The `message` is shown to the user.
+- `probeHost(host, hostname)` is optional. It makes an unauthenticated request to `hostname`
+  and answers whether the host runs this integration's platform: success, `unsupported_host`
+  (the host answered and is not this platform), or `host_unreachable` / `host_error` (no
+  answer, so no verdict).
+- The descriptor's `knownHosts` lists hostnames that always belong to this integration, such as
+  a hosted service's public domain.
+
+## Remote Routing
+
+`RepositoryRouter` (`core/features/repository/api/node/repository-router.ts`) decides which
+integration handles a git remote. Only integrations with a registered repository plugin are
+candidates. There is no default integration. A remote that cannot be parsed fails as
+`invalid_remote`. The router then takes the remote's host and stops at the first step that
+decides it:
+
+1. **Declared hosts.** If the host is in a plugin's `knownHosts`, that integration handles it.
+   No account lookup, no HTTP request.
+2. **Connected accounts.** The router reads the local account inventory for each candidate. No
+   HTTP request.
+   - Accounts on the host under two or more integrations fail as `ambiguous_host`.
+   - Accounts under one integration make it the only candidate. Without `probeHost`, it
+     handles the host. With `probeHost`, its probe must accept the host; its result is handled
+     as in step 3.
+3. **Probes.** Each candidate plugin that implements `probeHost` probes the host, one HTTP
+   request per plugin. Plugins without `probeHost` are skipped.
+   - One acceptance: that integration handles the host.
+   - Two or more acceptances: `ambiguous_host`.
+   - No acceptance and any probe without a verdict: `host_unreachable` or `host_error`.
+   - Every probe answered `unsupported_host`: `no_integration_for_host`.
+
+Probe results are cached in memory per integration and host: 15 minutes after an acceptance,
+2 minutes after anything else. Concurrent probes of the same host share one request.
+
+`ProviderRepositoryService.resolveProject`, pull-request sync registration, and the pull-request
+worker's `resolveIntegration` call the router; `pull-request-routing.ts` beside it holds the
+pull-request mappings. `ProviderRepository.provider` is the routed `integrationId`, and its
+`pullRequests` and `issues` capabilities report whether that integration registers those plugin
+kinds.
