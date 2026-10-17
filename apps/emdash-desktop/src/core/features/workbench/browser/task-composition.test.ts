@@ -11,7 +11,7 @@ describe('task composition diff selection hydration', () => {
     expect(
       sanitizeDiffSelection(
         {
-          version: '1',
+          version: '2',
           activeFile: {
             path: portablePath('src/index.ts'),
             type: 'disk',
@@ -28,7 +28,7 @@ describe('task composition diff selection hydration', () => {
     expect(
       sanitizeDiffSelection(
         {
-          version: '1',
+          version: '2',
           activeFile: {
             path: portablePath('deleted.ts'),
             type: 'disk',
@@ -45,7 +45,7 @@ describe('task composition diff selection hydration', () => {
     for (const group of ['git', 'pr'] as const) {
       const result = sanitizeDiffSelection(
         {
-          version: '1',
+          version: '2',
           activeFile: {
             path: portablePath('src/index.ts'),
             type: 'git',
@@ -64,7 +64,7 @@ describe('task pane layout path hydration', () => {
   it('keeps file tabs absolute and diff tabs checkout-relative', () => {
     const result = resolvePaneLayoutFilePaths(
       {
-        version: '2',
+        version: '3',
         groups: [
           {
             groupId: 'default',

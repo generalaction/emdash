@@ -50,6 +50,8 @@ const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 // show (with retry) instead of leaving the store in a permanent loading state.
 const CHECKOUT_MODEL_STARTUP_TIMEOUT_MS = 30_000;
 const MAX_UNTRACKED_STAT_BYTES = 2 * 1024 * 1024;
+// Image query keys must stay fresh when an inspected checkout store is recreated.
+let nextStatusRevision = 0;
 type CheckoutModel = typeof sourceControlContract.checkout.model;
 type CheckoutRemote = RemoteModel<CheckoutModel>;
 type CheckoutRemoteMember = ReturnType<CheckoutRemote>;
@@ -492,12 +494,12 @@ export class GitCheckoutStore {
           waitForCheckoutModel(model, scope, {
             setStatus: (status) => {
               this.statusData = status;
-              this.revision += 1;
+              this.revision = ++nextStatusRevision;
               void this.refreshDiffMetadata(changesMetadata);
             },
             setHead: (head) => {
               this.headData = head;
-              this.revision += 1;
+              this.revision = ++nextStatusRevision;
             },
           }),
         { timeoutMs: CHECKOUT_MODEL_STARTUP_TIMEOUT_MS }

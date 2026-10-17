@@ -4,10 +4,9 @@ import {
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import { gitRepositoryStoreToken } from '@core/features/source-control/contributions/browser/project-stores';
-import {
-  diffTabManagerStoreToken,
-  gitCheckoutStoreToken,
-} from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { diffTabManagerStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import type { DiffTabManager } from '../../../browser/diff-view/stores/diff-tab-manager';
 import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-store';
@@ -22,6 +21,9 @@ export function getGitCheckoutStore(workspaceId: string): GitCheckoutStore | und
   return workspaceRegistry.get(workspaceId)?.get(gitCheckoutStoreToken);
 }
 
-export function getDiffTabManagerStore(workspaceId: string): DiffTabManager | undefined {
-  return workspaceRegistry.get(workspaceId)?.get(diffTabManagerStoreToken);
+export function getDiffTabManagerStore(
+  projectId: string,
+  taskId: string
+): DiffTabManager | undefined {
+  return getTaskStore(projectId, taskId)?.get(diffTabManagerStoreToken);
 }

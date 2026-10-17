@@ -37,6 +37,8 @@ export type ProjectWorkspaceRow = {
   kind: 'root' | 'workspace' | 'candidate';
   projectId: string;
   workspaceId: string | null;
+  /** Repository identity for discovered and task-linked worktrees. */
+  parentId?: string | null;
   path: string;
   branch?: string;
   tasks: ProjectWorkspaceTask[];

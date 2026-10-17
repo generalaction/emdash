@@ -166,6 +166,7 @@ const gitObjectRefSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const taskActiveFileSchema = z.object({
+  workspaceId: z.string().min(1).optional(),
   path: gitFilePathSchema,
   type: z.enum(['disk', 'git']),
   group: z.enum(['disk', 'staged', 'git', 'pr']),
@@ -186,8 +187,14 @@ const taskDiffSelectionV1Schema = z.object({
   activeFile: taskActiveFileSchema.optional(),
 });
 
+const taskDiffSelectionV2Schema = taskDiffSelectionV1Schema.extend({
+  version: z.literal('2'),
+  selectedWorkspaceId: z.string().min(1).optional(),
+});
+
 export const taskDiffSelectionSchema = defineVersionedSchema()
   .initial('1', taskDiffSelectionV1Schema)
+  .version('2', taskDiffSelectionV2Schema, (v1) => ({ ...v1, version: '2' as const }))
   .build();
 export type TaskDiffSelectionState = typeof taskDiffSelectionSchema.Type;
 
@@ -196,7 +203,7 @@ export const taskDiffSelectionMemento = defineMemento({
   subject: taskSubject,
   schema: taskDiffSelectionSchema,
   default: {
-    version: '1' as const,
+    version: '2' as const,
   },
 });
 
@@ -260,6 +267,7 @@ export const tabDescriptorSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('diff'),
     tabId: z.string(),
+    workspaceId: z.string().min(1).optional(),
     path: gitFilePathSchema,
     diffGroup: z.enum(['disk', 'staged', 'git', 'pr']),
     originalRef: gitObjectRefSchema,
@@ -307,6 +315,8 @@ const taskPaneLayoutV2Schema = z.object({
   ...taskPaneLayoutSnapshotSchema.shape,
 });
 
+const taskPaneLayoutV3Schema = taskPaneLayoutV2Schema.extend({ version: z.literal('3') });
+
 export const taskPaneLayoutSchema = defineVersionedSchema()
   .initial('1', taskPaneLayoutV1Schema)
   // Old paneSizes are abandoned, not migrated (spec: one-time layout reset).
@@ -314,6 +324,7 @@ export const taskPaneLayoutSchema = defineVersionedSchema()
     ...v1,
     version: '2' as const,
   }))
+  .version('3', taskPaneLayoutV3Schema, (v2) => ({ ...v2, version: '3' as const }))
   .build();
 export type TaskPaneLayoutState = typeof taskPaneLayoutSchema.Type;
 
@@ -322,7 +333,7 @@ export const taskPaneLayoutMemento = defineMemento({
   subject: taskSubject,
   schema: taskPaneLayoutSchema,
   default: {
-    version: '2' as const,
+    version: '3' as const,
     groups: [
       {
         groupId: 'default',
