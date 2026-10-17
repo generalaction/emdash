@@ -342,6 +342,9 @@ pnpm run test
 - MCP server config handling lives in `src/core/features/mcp/node/` (wire controller and
   registration utils), canonical types in `src/core/primitives/mcp/api/`, and UI in
   `src/core/features/mcp/browser/`.
+- Emdash's own MCP server (tools that create and manage tasks) lives in
+  `src/core/features/mcp/node/server/` and is started from
+  `src/main/bootstrap/boot/phases/background.ts`.
 - Skills types and validation live in Core primitives; skills UI and service code live in
   `src/core/features/skills/browser/` and `src/core/features/skills/node/`.
 - Team-owned runtime settings live in each workspace's `.emdash.json`:
@@ -373,8 +376,8 @@ pnpm run test
   established. Legacy schemas and readers stay migration-only; destination markers make imports
   idempotent and retryable.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
-  `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`,
-  `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
+  `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`, `EMDASH_MCP_SERVER`,
+  `EMDASH_MCP_PORT`, `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
 - App-internal path aliases are defined in `tsconfig.json` (`@/*`, `@core/*`, `@renderer/*`,
