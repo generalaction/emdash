@@ -2,7 +2,12 @@ import { isGitHubDotComHost } from '@emdash/core/primitives/repository/api';
 import { menuItemBase } from '@emdash/ui/styles/recipes/menu-item';
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import {
+  issueTerms,
+  preferredIssueProvider,
+} from '@core/features/integrations/api/browser/integration-display';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
+import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectAvailabilityUiContribution as projectAvailabilityUi } from '@core/features/projects/contributions/browser/project-availability-ui';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
@@ -29,11 +34,23 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
 }) {
   const openTaskModal = useOpenModal('taskModal');
   const { navigate } = useNavigate();
-  const { hasAnyIssueIntegration } = useConnectedIssueProviders();
   const repositoryStore = getGitRepositoryStore(projectId);
+  const repositoryProvider = repositoryStore?.providerRepository?.provider;
+  const { connectedProviders, hasAnyIssueIntegration } = useConnectedIssueProviders({
+    projectId,
+    repositoryUrl: repositoryStore?.canonicalRepositoryUrl ?? undefined,
+    repositoryProvider,
+  });
+  const issueProvider = preferredIssueProvider(
+    getProjectViewStore(projectId)?.selectedIssueProvider ?? null,
+    connectedProviders,
+    repositoryProvider
+  );
+  const issueName = issueTerms(issueProvider ?? repositoryProvider);
   const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
   const supportsGhesIssues = Boolean(
     repositoryStore?.issueRepositoryUrl &&
+    repositoryStore.providerRepository?.provider === 'github' &&
     repositoryStore.providerRepository?.host &&
     !isGitHubDotComHost(repositoryStore.providerRepository.host)
   );
@@ -55,10 +72,10 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       onActivate: () => void openTaskModal({ projectId, strategy: 'from-branch' }),
     },
     {
-      label: 'Create from Issue',
+      label: `Create from ${issueName.title}`,
       description: hasAnyIntegration
-        ? 'Link and create a task from an issue'
-        : 'Configure issue integrations',
+        ? `Link and create a task from ${issueName.article} ${issueName.singular}`
+        : 'Configure integrations',
       icon: CircleDot,
       disabled: !!createDisabledReason,
       disabledReason: createDisabledReason,

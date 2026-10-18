@@ -117,8 +117,12 @@ export const AddProjectModal = observer(function AddProjectModal({
   const defaultPath = defaultRepositoriesRootQuery.data ?? '';
 
   const githubAccountsQuery = useAccounts('github', isGitHubAccountSummary);
+  const gitlabAccountsQuery = useAccounts('gitlab');
+  const [repositoryProvider, setRepositoryProvider] = useState<'github' | 'gitlab'>('github');
   const githubAccounts = githubAccountsQuery.data;
+  const gitlabAccounts = gitlabAccountsQuery.data;
   const [githubAccountOverride, setGithubAccountOverride] = useState<string | undefined>(undefined);
+  const [gitlabAccountOverride, setGitlabAccountOverride] = useState<string | undefined>(undefined);
   const githubAccountSelect = useMemo(
     () => createRequiredProviderAccountSelectState(githubAccountOverride, githubAccounts ?? []),
     [githubAccountOverride, githubAccounts]
@@ -129,11 +133,24 @@ export const AddProjectModal = observer(function AddProjectModal({
   );
   const selectedGitHubAccountId = githubAccountSelect.selectedAccountId;
   const defaultGitHubAccountId = defaultGitHubAccountSelect.selectedAccountId;
+  const gitlabAccountSelect = useMemo(
+    () => createRequiredProviderAccountSelectState(gitlabAccountOverride, gitlabAccounts ?? []),
+    [gitlabAccountOverride, gitlabAccounts]
+  );
+  const defaultGitlabAccountSelect = useMemo(
+    () => createRequiredProviderAccountSelectState(undefined, gitlabAccounts ?? []),
+    [gitlabAccounts]
+  );
+  const repositoryAccountSelect =
+    repositoryProvider === 'github' ? githubAccountSelect : gitlabAccountSelect;
+  const defaultRepositoryAccountSelect =
+    repositoryProvider === 'github' ? defaultGitHubAccountSelect : defaultGitlabAccountSelect;
 
   const pickState = usePickMode();
   const createRepositoryState = useCreateRepositoryMode(
     defaultPath,
-    mode === 'create' ? selectedGitHubAccountId : null
+    repositoryProvider,
+    mode === 'create' ? repositoryAccountSelect.selectedAccountId : null
   );
   const cloneState = useCloneMode(defaultPath);
   const generatedProjectName = useMemo(() => {
@@ -182,7 +199,9 @@ export const AddProjectModal = observer(function AddProjectModal({
     (strategy === 'local' || !!selectedConnectionId) &&
     !isCheckingPickPathStatus &&
     !pickPathInspectionError &&
-    (mode !== 'create' || !githubAccountsQuery.isPending) &&
+    (mode !== 'create' ||
+      (!(repositoryProvider === 'github' ? githubAccountsQuery : gitlabAccountsQuery).isPending &&
+        !!repositoryAccountSelect.selectedAccountId)) &&
     (mode !== 'pick' ||
       !requiresGitInitialization ||
       !pickState.initGitRepository ||
@@ -221,7 +240,10 @@ export const AddProjectModal = observer(function AddProjectModal({
           repositoryName: createRepositoryState.repositoryName,
           repositoryOwner: createRepositoryState.repositoryOwner?.value ?? '',
           repositoryVisibility: createRepositoryState.repositoryVisibility,
-          githubAccountId: selectedGitHubAccountId ?? undefined,
+          repositoryProvider,
+          repositoryAccountId: repositoryAccountSelect.selectedAccountId ?? undefined,
+          githubAccountId:
+            repositoryProvider === 'github' ? (selectedGitHubAccountId ?? undefined) : undefined,
         };
         break;
       case 'clone':
@@ -358,11 +380,19 @@ export const AddProjectModal = observer(function AddProjectModal({
               connectionId={selectedConnectionId}
               state={createRepositoryState}
               getProjectsClient={getProjectsClient}
-              accounts={githubAccountSelect.accounts}
-              selectedAccount={githubAccountSelect.selectedAccount}
-              defaultAccount={defaultGitHubAccountSelect.selectedAccount}
-              onAccountChange={setGithubAccountOverride}
-              onConnectGithub={() => void openIntegrationSetup({ integration: 'github' })}
+              accounts={repositoryAccountSelect.accounts}
+              selectedAccount={repositoryAccountSelect.selectedAccount}
+              defaultAccount={defaultRepositoryAccountSelect.selectedAccount}
+              onAccountChange={
+                repositoryProvider === 'github'
+                  ? setGithubAccountOverride
+                  : setGitlabAccountOverride
+              }
+              provider={repositoryProvider}
+              onProviderChange={setRepositoryProvider}
+              onConnectProvider={() =>
+                void openIntegrationSetup({ integration: repositoryProvider })
+              }
               ensureDefaultRoot={
                 defaultRepositoriesRootQuery.data !== undefined &&
                 createRepositoryState.path === defaultRepositoriesRootQuery.data

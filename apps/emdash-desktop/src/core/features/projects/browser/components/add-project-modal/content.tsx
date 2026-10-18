@@ -1,10 +1,11 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
-import { Github } from 'lucide-react';
+import { Github, Gitlab } from 'lucide-react';
 import { useId } from 'react';
 import { ProviderIdentityStrip } from '@core/features/integrations/contributions/browser/provider-identity-strip';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import { repositoryNameError } from '@core/features/repository/api/browser/repository-name';
 import type { Resolved } from '@core/primitives/project-settings/api';
+import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api';
 import { type Strategy } from './add-project-modal';
 import { DirectoryField } from './local-directory-selector';
 import { type CloneModeState, type CreateRepositoryModeState, type PickModeState } from './modes';
@@ -80,27 +81,28 @@ export function CreateRepositoryPanel({
   selectedAccount,
   defaultAccount,
   onAccountChange,
-  onConnectGithub,
+  onConnectProvider,
+  provider,
+  onProviderChange,
   ensureDefaultRoot,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: CreateRepositoryModeState;
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
-  accounts: GitHubAccountSummary[];
-  selectedAccount: GitHubAccountSummary | null;
-  /** The default-account inference the strip shows when nothing is chosen. */
-  defaultAccount: GitHubAccountSummary | null;
+  accounts: ProviderAccountSummary[];
+  selectedAccount: ProviderAccountSummary | null;
+  defaultAccount: ProviderAccountSummary | null;
   onAccountChange: (accountId: string) => void;
-  onConnectGithub: () => void;
+  onConnectProvider: () => void;
+  provider: 'github' | 'gitlab';
+  onProviderChange: (provider: 'github' | 'gitlab') => void;
   ensureDefaultRoot: boolean;
 }) {
   const repositoryNameId = useId();
+  const nameError = repositoryNameError(provider, state.repositoryName);
 
-  // No project exists yet, so the strip previews the same inference the
-  // resolver would make (the default account) instead of resolver output;
-  // there is no per-project setting to remember into.
-  const resolvedAccount: Resolved<GitHubAccountSummary | null> = {
+  const resolvedAccount: Resolved<ProviderAccountSummary | null> = {
     value: defaultAccount,
     provenance: { kind: 'inferred', from: 'default account' },
   };
@@ -111,6 +113,21 @@ export function CreateRepositoryPanel({
 
   return (
     <div className="flex flex-col gap-6">
+      <Field.Root>
+        <Field.Label>Provider</Field.Label>
+        <Select.Root
+          value={provider}
+          onValueChange={(value) => onProviderChange(value as 'github' | 'gitlab')}
+        >
+          <Select.Trigger appearance="input" className="w-full" aria-label="Repository provider">
+            {provider === 'github' ? 'GitHub' : 'GitLab'}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="github">GitHub</Select.Item>
+            <Select.Item value="gitlab">GitLab</Select.Item>
+          </Select.Content>
+        </Select.Root>
+      </Field.Root>
       <Field.Group>
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,3fr)] items-end gap-2">
           <Field.Root className="min-w-0">
@@ -122,6 +139,7 @@ export function CreateRepositoryPanel({
               selectedAccount={selectedAccount}
               onOwnerChange={state.handleOwnerChange}
               onAccountChange={onAccountChange}
+              provider={provider}
             />
           </Field.Root>
           <span className="pb-2 text-sm text-foreground-muted">/</span>
@@ -132,11 +150,23 @@ export function CreateRepositoryPanel({
               autoFocus
               placeholder="Enter a repository name"
               value={state.repositoryName}
+              aria-invalid={!!nameError}
+              aria-describedby={nameError ? `${repositoryNameId}-error` : undefined}
               onChange={(e) => state.handleRepositoryNameChange(e.target.value)}
             />
           </Field.Root>
         </div>
+        {nameError && (
+          <p id={`${repositoryNameId}-error`} role="alert" className="text-destructive text-xs">
+            {nameError}
+          </p>
+        )}
       </Field.Group>
+      {state.repositoryOwnersErrorMessage && (
+        <p role="alert" className="text-destructive text-xs">
+          {state.repositoryOwnersErrorMessage}
+        </p>
+      )}
       <Separator className="w-full" />
       <SettingsRow
         label="Choose visibility"
@@ -175,12 +205,18 @@ export function CreateRepositoryPanel({
         </Field.Root>
       </Field.Group>
       <ProviderIdentityStrip
-        providerName="GitHub"
-        providerIcon={<Github className="size-4 text-foreground-muted" />}
+        providerName={provider === 'github' ? 'GitHub' : 'GitLab'}
+        providerIcon={
+          provider === 'github' ? (
+            <Github className="size-4 text-foreground-muted" />
+          ) : (
+            <Gitlab className="size-4 text-foreground-muted" />
+          )
+        }
         actionLabel="Creating as"
         emptyState={{
-          connect: 'Connect a GitHub account to continue.',
-          unavailable: 'Choose a GitHub account to continue.',
+          connect: `Connect a ${provider === 'github' ? 'GitHub' : 'GitLab'} account to continue.`,
+          unavailable: `Choose a ${provider === 'github' ? 'GitHub' : 'GitLab'} account to continue.`,
           noMatch: 'No connected account matches this repository.',
         }}
         resolved={resolvedAccount}
@@ -189,7 +225,7 @@ export function CreateRepositoryPanel({
         persistence="action-only"
         accountRequired
         onSelect={(account) => onAccountChange(account.accountId)}
-        onConnect={onConnectGithub}
+        onConnect={onConnectProvider}
       />
     </div>
   );

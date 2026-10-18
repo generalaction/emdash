@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { Resolved } from '@core/primitives/project-settings/api';
+import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api';
 import { GitCredentialServer } from './git-credential-server';
 
 const SECRET_TOKEN = 'ghp_SECRET_TOKEN_MATERIAL_do_not_leak';
@@ -21,8 +22,8 @@ const account: GitHubAccountSummary = {
 
 function makeHarness(
   options: {
-    resolution?: Resolved<GitHubAccountSummary | null>;
-    accounts?: GitHubAccountSummary[];
+    resolution?: Resolved<ProviderAccountSummary | null>;
+    accounts?: ProviderAccountSummary[];
     credentialsResult?: Awaited<ReturnType<ReadGitHubCredentials>>;
   } = {}
 ) {
@@ -41,6 +42,9 @@ function makeHarness(
       options.credentialsResult ??
       ok({ accessToken: SECRET_TOKEN, apiBaseUrl: 'https://api.github.com' })
   );
+  const readIntegrationCredentials = vi.fn(async () =>
+    ok({ instanceUrl: 'https://gitlab.example.com', apiToken: SECRET_TOKEN })
+  );
   const server = new GitCredentialServer({
     resolveProjectIntegrationAccount: async () => ({
       ...(options.resolution ?? { value: account, provenance: { kind: 'set' as const } }),
@@ -49,9 +53,10 @@ function makeHarness(
     }),
     listAccounts: async () => options.accounts ?? [account],
     readCredentials,
+    readIntegrationCredentials,
     logger,
   });
-  return { server, logLines, readCredentials };
+  return { server, logLines, readCredentials, readIntegrationCredentials };
 }
 
 async function requestCredential(
@@ -153,6 +158,86 @@ describe('GitCredentialServer', () => {
     expect(match.status).toBe(200);
     const mismatch = await requestCredential(channel, 'protocol=https\nhost=ghe.example\n');
     expect(mismatch.status).toBe(404);
+  });
+
+  it('answers a GitLab clone session only for its selected account and host', async () => {
+    const gitlabAccount: ProviderAccountSummary = {
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      displayName: '@user',
+      host: 'gitlab.example.com',
+      login: 'user',
+      isDefault: true,
+    };
+    const { server, readIntegrationCredentials } = track(
+      makeHarness({ accounts: [gitlabAccount] })
+    );
+    const channel = await server.mintSession({
+      kind: 'account',
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      host: 'gitlab.example.com',
+    });
+    const response = await requestCredential(channel, 'protocol=https\nhost=gitlab.example.com\n');
+    expect(response).toEqual({ status: 200, text: `username=user\npassword=${SECRET_TOKEN}\n` });
+    expect(readIntegrationCredentials).toHaveBeenCalledWith(
+      'gitlab',
+      'gitlab-1',
+      'gitlab.example.com'
+    );
+    expect((await requestCredential(channel, 'protocol=https\nhost=evil.example\n')).status).toBe(
+      404
+    );
+  });
+
+  it('answers a GitLab project session with its current account', async () => {
+    const gitlabAccount: ProviderAccountSummary = {
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      displayName: '@user',
+      host: 'gitlab.example.com',
+      login: 'user',
+      isDefault: true,
+    };
+    const { server, readIntegrationCredentials } = track(
+      makeHarness({
+        accounts: [gitlabAccount],
+        resolution: { value: gitlabAccount, provenance: { kind: 'set' } },
+      })
+    );
+    const channel = await server.mintSession({
+      kind: 'project',
+      projectId: 'project-1',
+      providerId: 'gitlab',
+    });
+    const response = await requestCredential(channel, 'protocol=https\nhost=gitlab.example.com\n');
+    expect(response.status).toBe(200);
+    expect(readIntegrationCredentials).toHaveBeenCalledWith(
+      'gitlab',
+      'gitlab-1',
+      'gitlab.example.com'
+    );
+  });
+
+  it('rejects a GitLab token when its instance URL differs from the clone host', async () => {
+    const gitlabAccount: ProviderAccountSummary = {
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      displayName: '@user',
+      host: 'other.example.com',
+      login: 'user',
+      isDefault: true,
+    };
+    const { server } = track(makeHarness({ accounts: [gitlabAccount] }));
+    const channel = await server.mintSession({
+      kind: 'account',
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      host: 'other.example.com',
+    });
+    expect(
+      (await requestCredential(channel, 'protocol=https\nhost=other.example.com\n')).status
+    ).toBe(404);
   });
 
   it('never writes token material to its logs', async () => {

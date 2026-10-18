@@ -24,6 +24,7 @@ import { ProjectContext } from '@core/features/projects/browser/stores/project-c
 import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { getRepositoryClient } from '@core/features/repository/api/client';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
@@ -502,14 +503,26 @@ export class ProjectManagerStore {
         }
 
         case 'create': {
-          const repoResult = await (
-            await getGithubClient()
-          ).createRepository({
-            name: data.repositoryName,
-            owner: data.repositoryOwner,
-            isPrivate: data.repositoryVisibility === 'private',
-            accountId: data.githubAccountId ?? undefined,
-          });
+          const provider = data.repositoryProvider ?? 'github';
+          const accountId = data.repositoryAccountId ?? data.githubAccountId;
+          const repoResult =
+            provider === 'gitlab'
+              ? await (
+                  await getRepositoryClient()
+                ).gitLabCreate({
+                  name: data.repositoryName,
+                  owner: data.repositoryOwner,
+                  isPrivate: data.repositoryVisibility === 'private',
+                  accountId: accountId ?? '',
+                })
+              : await (
+                  await getGithubClient()
+                ).createRepository({
+                  name: data.repositoryName,
+                  owner: data.repositoryOwner,
+                  isPrivate: data.repositoryVisibility === 'private',
+                  accountId: accountId ?? undefined,
+                });
           if (!repoResult.success) {
             result = err({
               type: 'repository-create-failed',
@@ -525,14 +538,15 @@ export class ProjectManagerStore {
             break;
           }
 
-          const projectResult = await this._cloneAndCreateGitHubProject({
+          const projectResult = await this._cloneAndCreateHostedProject({
             projectType,
             projectId,
             targetPath,
             name: data.name,
             cloneUrl: repoResult.cloneUrl,
             repositoryNameWithOwner: repoResult.nameWithOwner,
-            githubAccountId: data.githubAccountId,
+            provider,
+            accountId,
           });
           if (!projectResult.success) {
             result = err(projectResult.error);
@@ -690,27 +704,37 @@ export class ProjectManagerStore {
     void this._projectCreationJobs.get(projectId)?.cancel();
   }
 
-  private async _rollbackCreatedGitHubRepository(
+  private async _rollbackCreatedHostedRepository(
     nameWithOwner: string,
-    githubAccountId?: string
+    provider: 'github' | 'gitlab',
+    accountId?: string
   ): Promise<void> {
     try {
       const { owner, repo } = splitNameWithOwner(nameWithOwner);
-      const result = await (
-        await getGithubClient()
-      ).deleteRepository({
-        owner,
-        name: repo,
-        accountId: githubAccountId ?? undefined,
-      });
+      const result =
+        provider === 'gitlab'
+          ? await (
+              await getRepositoryClient()
+            ).gitLabDelete({
+              owner,
+              name: repo,
+              accountId: accountId ?? '',
+            })
+          : await (
+              await getGithubClient()
+            ).deleteRepository({
+              owner,
+              name: repo,
+              accountId: accountId ?? undefined,
+            });
       if (!result.success) {
-        log.error('Failed to delete GitHub repository after project creation failure', {
+        log.error('Failed to delete repository after project creation failure', {
           nameWithOwner,
           error: result.error,
         });
       }
     } catch (error) {
-      log.error('Failed to delete GitHub repository after project creation failure', {
+      log.error('Failed to delete repository after project creation failure', {
         nameWithOwner,
         error,
       });
@@ -763,14 +787,15 @@ export class ProjectManagerStore {
     }
   }
 
-  private async _cloneAndCreateGitHubProject(opts: {
+  private async _cloneAndCreateHostedProject(opts: {
     projectType: ProjectType;
     projectId: string;
     targetPath: string;
     name: string;
     cloneUrl: string;
     repositoryNameWithOwner: string;
-    githubAccountId?: string;
+    provider: 'github' | 'gitlab';
+    accountId?: string;
   }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
     let result: Result<LocalProject | SshProject, ProjectCreationError>;
     try {
@@ -781,28 +806,30 @@ export class ProjectManagerStore {
             ? { type: 'ssh', connectionId: opts.projectType.connectionId }
             : { type: 'local' },
         mode: 'create',
-        account: opts.githubAccountId
-          ? { providerId: 'github', accountId: opts.githubAccountId }
+        account: opts.accountId
+          ? { providerId: opts.provider, accountId: opts.accountId }
           : undefined,
-        initialIntegrationAccounts: opts.githubAccountId
-          ? { github: { kind: 'account', accountId: opts.githubAccountId } }
+        initialIntegrationAccounts: opts.accountId
+          ? { [opts.provider]: { kind: 'account', accountId: opts.accountId } }
           : undefined,
         repositoryUrl: opts.cloneUrl,
         targetPath: opts.targetPath,
         name: opts.name,
       });
     } catch (error) {
-      await this._rollbackCreatedGitHubRepository(
+      await this._rollbackCreatedHostedRepository(
         opts.repositoryNameWithOwner,
-        opts.githubAccountId
+        opts.provider,
+        opts.accountId
       );
       throw error;
     }
 
     if (!result.success) {
-      await this._rollbackCreatedGitHubRepository(
+      await this._rollbackCreatedHostedRepository(
         opts.repositoryNameWithOwner,
-        opts.githubAccountId
+        opts.provider,
+        opts.accountId
       );
     }
     return result;

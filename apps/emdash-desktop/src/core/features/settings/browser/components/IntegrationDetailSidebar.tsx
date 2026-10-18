@@ -44,7 +44,9 @@ export function IntegrationDetailSidebar({
                   <div className="flex flex-wrap items-center gap-1">
                     {integration.features.map((feature) => (
                       <CapabilityBadge key={feature}>
-                        {ISSUE_FEATURE_LABELS[feature] ?? feature}
+                        {integration.id === 'gitlab' && feature === 'issues'
+                          ? 'Work Items'
+                          : (ISSUE_FEATURE_LABELS[feature] ?? feature)}
                       </CapabilityBadge>
                     ))}
                   </div>

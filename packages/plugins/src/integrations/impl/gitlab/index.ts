@@ -8,7 +8,7 @@ const plugin = defineIntegrationPlugin(
   {
     id: 'gitlab',
     name: 'GitLab',
-    description: 'Work on GitLab issues',
+    description: 'Work on GitLab work items',
     websiteUrl: 'https://gitlab.com',
   },
   {
@@ -32,7 +32,7 @@ const plugin = defineIntegrationPlugin(
               placeholder: 'Personal access token',
             },
           ],
-          help: 'Create a personal access token with read_api scope in GitLab settings.',
+          help: 'Create a personal access token with api scope in GitLab settings.',
         },
       ],
     },
