@@ -98,6 +98,7 @@ export type PresetOverrides = {
   fromBranch?: GitBranchRef;
   /** Whether to push the branch to remote after creation. */
   pushBranch?: boolean;
+  fetchLatestBase?: boolean;
   /** Task-specific branch created on top of the PR head (pr-new-branch). */
   taskBranch?: string;
   /** When false, checkout fromBranch in a new worktree instead of creating a new branch (new-worktree preset). Defaults to true. */

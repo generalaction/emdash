@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { runWithTimeout } from '@emdash/shared/scheduling';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceGitSetup } from '../api/schemas';
@@ -16,6 +17,7 @@ export type CreateWorktreeExecution = {
   branch: string;
   /** Null when gitSetup.fetchBranch materializes the branch instead. */
   baseRef: string | null;
+  fetchLatestBase?: boolean;
   /** Structured branch setup (spec: pr-workspace-model provisioning). */
   gitSetup?: WorkspaceGitSetup;
   /** Overlay feeder: called as each stage begins. */
@@ -36,7 +38,7 @@ export type CreateWorktreeExecutionResult =
  * The foreground createWorktree stage pipeline (ADR 0005): inspect → resolve-base →
  * add-worktree → verify. This is everything an agent needs to start working — tracked
  * files checked out and functional git. Artifact cloning, branch pushing, and ref
- * freshening are background steps owned by the runtime, never awaited here. Failures
+ * freshening are background steps unless a fresh base is explicitly requested. Failures
  * return stage-tagged results for the durable outcome; rollback of artifacts created in
  * this attempt is best-effort — irremovable debris is left for auto-adoption to surface.
  */
@@ -51,6 +53,7 @@ export async function executeCreateWorktree(
   let existing = false;
   let createdWorktree = false;
   let createdBranch = false;
+  let resolvedBaseRef = execution.baseRef;
 
   const fail = async (stage: string, error: unknown): Promise<CreateWorktreeExecutionResult> => {
     await rollback(exec, execution, { createdWorktree, createdBranch });
@@ -119,27 +122,50 @@ export async function executeCreateWorktree(
       }
     }
 
-    // Stale-is-fine: creation never fetches when the base ref resolves locally. Only an
-    // unresolvable remote-shaped ref triggers a targeted single-ref fetch — no --all,
-    // no --prune, no tags. Failure surfaces git's own error; no emdash timeout or retry.
+    // Cached bases keep creation offline unless freshness was explicitly requested.
     if (execution.baseRef !== null) {
       const baseRef = execution.baseRef;
       execution.onStage('resolve-base');
       try {
-        if (!(await branchExists(exec, execution.branch)) && !(await refResolves(exec, baseRef))) {
+        if (
+          !(await branchExists(exec, execution.branch)) &&
+          (execution.fetchLatestBase || !(await refResolves(exec, baseRef)))
+        ) {
           const remoteRef = await parseRemoteRef(exec, baseRef);
+          if (execution.fetchLatestBase && !remoteRef) {
+            throw new Error('Select a remote base branch to fetch its latest commit');
+          }
           if (remoteRef) {
             execution.onStage('fetch-base');
             // Hygiene (spec: git concurrency model): no FETCH_HEAD write, no auto
             // maintenance kicked off on the creation path.
-            await exec.exec([
-              'fetch',
-              remoteRef.remote,
-              `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
-              '--no-tags',
-              '--no-write-fetch-head',
-              '--no-auto-maintenance',
-            ]);
+            await runWithTimeout(
+              (signal) =>
+                retryTransientLock(() => {
+                  signal.throwIfAborted();
+                  return exec.exec(
+                    [
+                      'fetch',
+                      remoteRef.remote,
+                      `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
+                      '--no-tags',
+                      '--no-write-fetch-head',
+                      '--no-auto-maintenance',
+                    ],
+                    { timeoutMs: 60_000, signal }
+                  );
+                }),
+              { timeoutMs: 60_000 }
+            );
+            if (execution.fetchLatestBase) {
+              resolvedBaseRef = (
+                await exec.exec([
+                  'rev-parse',
+                  '--verify',
+                  `refs/remotes/${remoteRef.remote}/${remoteRef.branch}^{commit}`,
+                ])
+              ).stdout.trim();
+            }
           }
           // Non-remote-shaped unresolvable refs fall through: add-worktree fails with
           // git's own "invalid reference" error, exactly as it would have after a fetch.
@@ -158,7 +184,7 @@ export async function executeCreateWorktree(
           exec.exec(['worktree', 'add', execution.worktreePath, execution.branch])
         );
       } else if (execution.baseRef !== null) {
-        const baseRef = execution.baseRef;
+        const baseRef = resolvedBaseRef ?? execution.baseRef;
         await retryTransientLock(() =>
           exec.exec([
             'worktree',

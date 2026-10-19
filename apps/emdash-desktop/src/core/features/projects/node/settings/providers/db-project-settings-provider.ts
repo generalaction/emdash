@@ -273,6 +273,7 @@ export abstract class DbProjectSettingsProvider
     const { stored } = await this.readSettingsRow();
     return {
       ...(stored.defaultBranch !== undefined ? { defaultBranch: stored.defaultBranch } : {}),
+      ...(stored.fetchLatestBase !== undefined ? { fetchLatestBase: stored.fetchLatestBase } : {}),
       ...(stored.baseRemote !== undefined ? { baseRemote: stored.baseRemote } : {}),
       ...(stored.pushRemote !== undefined ? { pushRemote: stored.pushRemote } : {}),
       ...(stored.agentGitCredentials !== undefined

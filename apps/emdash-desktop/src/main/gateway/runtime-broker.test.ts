@@ -6,6 +6,32 @@ import { WorkspaceServerProvisionError } from '@core/services/hosts/node/workspa
 import { createDesktopRuntimeBroker } from './runtime-broker';
 
 describe('desktop runtime broker remote sessions', () => {
+  it('checks negotiated support when creation requires a protocol minor', async () => {
+    const hosts = {
+      get: () => ({
+        runtime: {
+          client: async () => ({
+            client: {} as HostRuntimesClient,
+            currentHandshake: () => ({ agreedMinor: 0 }),
+          }),
+        },
+      }),
+    } as unknown as Hosts;
+    const broker = createDesktopRuntimeBroker({} as never, hosts);
+    await expect(
+      broker.client(hostRef('remote', 'ssh-1'), { minimumProtocolMinor: 1 })
+    ).resolves.toMatchObject({
+      success: false,
+      error: {
+        reason: 'protocol-upgrade-server',
+        message: expect.stringContaining('Please upgrade'),
+      },
+    });
+    await expect(broker.client(hostRef('remote', 'ssh-1'))).resolves.toMatchObject({
+      success: true,
+    });
+  });
+
   it('routes remote client resolution through the host service', async () => {
     const runtimeClient = { files: { getHomeDir: vi.fn() } } as unknown as HostRuntimesClient;
     const client = vi.fn(async () => ({ client: runtimeClient }));

@@ -80,6 +80,78 @@ describe('HostRuntimeConnection', () => {
     await expect(client.health(undefined)).resolves.toMatchObject({ status: 'ok' });
   });
 
+  const worktreeInput = {
+    workspaceId: 'fresh-worktree',
+    repositoryId: 'repository',
+    branch: 'feature/task',
+    baseRef: 'origin/main',
+    path: '/worktrees/fresh',
+    preservePatterns: [],
+    fetchLatestBase: true,
+  };
+
+  it('rejects a fresh-base request before sending it to an older server', async () => {
+    peer.setProtocolVersion('12.0.0');
+    await runtime.establish(target, scope.signal);
+    await expect(
+      runtime.client.workspaceRegistry.createWorktree(worktreeInput)
+    ).rejects.toMatchObject({
+      code: 'CONTRACT_MISMATCH',
+      delivery: 'not-sent',
+      message: expect.stringContaining('Please upgrade'),
+    });
+    await expect(
+      runtime.client.workspaceRegistry.createWorktree({ ...worktreeInput, fetchLatestBase: false })
+    ).rejects.toMatchObject({ code: 'UNKNOWN_PROCEDURE' });
+  });
+
+  it('sends a fresh-base request when the negotiated server minor supports it', async () => {
+    await runtime.establish(target, scope.signal);
+    // The peer only implements connection probes; reaching it proves the version gate passed.
+    await expect(
+      runtime.client.workspaceRegistry.createWorktree(worktreeInput)
+    ).rejects.toMatchObject({
+      code: 'UNKNOWN_PROCEDURE',
+    });
+  });
+
+  it('rejects deployment with fresh-base automation runs on an older server', async () => {
+    peer.setProtocolVersion('12.0.0');
+    await runtime.establish(target, scope.signal);
+    const deployment: Parameters<typeof runtime.client.automations.deploy>[0] = {
+      automationId: 'automation-1',
+      enabled: true,
+      revision: 1,
+      name: 'Review changes',
+      schedule: { expr: '0 9 * * *', tz: 'UTC' },
+      agent: { type: 'acp', start: { providerId: 'claude', initialQueue: [{ text: 'Review' }] } },
+      workspace: {
+        kind: 'worktree',
+        repository: {
+          host: { type: 'local', id: 'local' },
+          path: { root: { kind: 'posix' }, segments: ['repo'] },
+        },
+        worktreePoolPath: { root: { kind: 'posix' }, segments: ['worktrees'] },
+        baseRemote: 'origin',
+        preservePatterns: [],
+        git: {
+          kind: 'create-branch',
+          fromBranch: {
+            type: 'remote',
+            branch: 'main',
+            remote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+          },
+          pushRemote: null,
+          fetchLatestBase: true,
+        },
+      },
+    };
+    await expect(runtime.client.automations.deploy(deployment)).rejects.toMatchObject({
+      code: 'CONTRACT_MISMATCH',
+      delivery: 'not-sent',
+    });
+  });
+
   it.each(['open', 'initialize'] as const)(
     'bounds %s and disposes late resources without retrying',
     async (phase) => {

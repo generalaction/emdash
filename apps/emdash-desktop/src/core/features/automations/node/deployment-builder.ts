@@ -103,6 +103,9 @@ async function buildAutomationDeploymentOnce(
         git: {
           kind: 'create-branch',
           fromBranch: taskWorkspace.git.fromBranch,
+          ...(taskWorkspace.git.fetchLatestBase !== undefined
+            ? { fetchLatestBase: taskWorkspace.git.fetchLatestBase }
+            : {}),
           pushRemote: taskWorkspace.git.pushBranch ? settings.pushRemote : null,
         },
       };

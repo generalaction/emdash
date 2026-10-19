@@ -1,11 +1,38 @@
 import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setSpawnObserver } from '@emdash/shared/perf';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { createBoundExec, ExecError } from './index';
 
 describe('BoundExec', () => {
+  it('does not spawn when cancelled while resolving its environment', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-pre-spawn-'));
+    const environment = deferred<NodeJS.ProcessEnv>();
+    const controller = new AbortController();
+    const reason = new Error('Fetch deadline expired');
+    const spawns: string[] = [];
+    setSpawnObserver((_purpose, command) => spawns.push(command ?? 'unknown'));
+    try {
+      const pending = createBoundExec({
+        file: process.execPath,
+        cwd,
+        env: () => environment.promise,
+      }).exec(['-e', 'console.log("unexpected subprocess")'], { signal: controller.signal });
+      const rejected = expect(pending).rejects.toBe(reason);
+      controller.abort(reason);
+      environment.resolve(process.env);
+      await rejected;
+      expect(spawns).toEqual([]);
+    } finally {
+      setSpawnObserver(null);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('runs a configured executable from a fixed cwd', async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-'));
     const result = await createBoundExec({ file: process.execPath, cwd }).exec([
@@ -219,6 +246,11 @@ describe('BoundExec', () => {
 function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
+    if (process.platform === 'linux') {
+      // Container PID 1 may retain already-terminated descendants as zombies.
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      if (stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z ')) return false;
+    }
     return true;
   } catch {
     return false;

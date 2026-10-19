@@ -14,6 +14,9 @@ function workspaceGitForRun(runtimeRun: AutomationRun): WorkspaceConfig['git'] {
     kind: 'create-branch',
     branchName: runtimeRun.branchName ?? runtimeRun.generatedName,
     fromBranch: workspace.git.fromBranch,
+    ...(workspace.git.fetchLatestBase !== undefined
+      ? { fetchLatestBase: workspace.git.fetchLatestBase }
+      : {}),
     pushBranch: workspace.git.pushRemote !== null,
   };
 }

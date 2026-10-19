@@ -215,8 +215,8 @@ async function reprovisionWorkspace(
   try {
     const client = await getWorkspacesWireClient();
     const result = removeFirst
-      ? await client.removeAndReprovision({ workspaceId })
-      : await client.reprovision({ workspaceId });
+      ? await client.removeAndReprovision({ workspaceId }, { timeoutMs: 120_000 })
+      : await client.reprovision({ workspaceId }, { timeoutMs: 120_000 });
     if (!result.success) throw new Error(result.error.message);
     await getTaskManagerStore(projectId)?.provisionTask(taskId);
   } catch (error) {
