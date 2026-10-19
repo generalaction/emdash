@@ -1,5 +1,6 @@
 import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
+import { DirectoryField } from '@react/primitives/directory-field';
 import { Popover } from '@react/primitives/popover';
 import { Surface } from '@react/primitives/surface/surface';
 import { Text } from '@react/primitives/typography/Text';
@@ -46,6 +47,28 @@ export const ExpandingCollapsing: Story = {
             </Box>
           </AnimatedHeight>
         </Surface>
+      </Box>
+    );
+  },
+};
+
+export const LongDirectoryPath: Story = {
+  render: function LongDirectoryPathStory() {
+    const [longPath, setLongPath] = useState(false);
+    return (
+      <Box display="flex" flexDirection="column" gap="3" style={{ width: '22rem' }}>
+        <Button size="sm" variant="secondary" onClick={() => setLongPath((value) => !value)}>
+          {longPath ? 'Show short path' : 'Show long path'}
+        </Button>
+        <AnimatedHeight>
+          <DirectoryField
+            path={
+              longPath
+                ? `/Users/developer/${'deeply-nested-directory/'.repeat(12)}emdash`
+                : '/Users/developer/emdash'
+            }
+          />
+        </AnimatedHeight>
       </Box>
     );
   },
