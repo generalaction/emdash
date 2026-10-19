@@ -64,15 +64,19 @@ export async function listOwners(
     const owners: RepositoryOwner[] = [
       { login: user.username, type: 'User', avatarUrl: user.avatar_url },
     ];
-    const [developers, maintainers] = await Promise.all([
+    const [developers, maintainers, groupOwners] = await Promise.all([
       client.data.Groups.all({ minAccessLevel: AccessLevel.DEVELOPER }),
       client.data.Groups.all({ minAccessLevel: AccessLevel.MAINTAINER }),
+      client.data.Groups.all({ minAccessLevel: AccessLevel.OWNER }),
     ]);
     const maintainerIds = new Set(maintainers.map((group) => group.id));
+    const ownerIds = new Set(groupOwners.map((group) => group.id));
     for (const group of developers) {
       const level = group.project_creation_level;
       if (
-        (level === 'developer' || (level === 'maintainer' && maintainerIds.has(group.id))) &&
+        (level === 'developer' ||
+          (level === 'maintainer' && maintainerIds.has(group.id)) ||
+          (level === 'owner' && ownerIds.has(group.id))) &&
         group.full_path
       ) {
         owners.push({

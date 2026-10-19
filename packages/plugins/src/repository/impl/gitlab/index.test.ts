@@ -81,7 +81,7 @@ describe('GitLab repository plugin', () => {
         },
       ],
     });
-    expect(gitlab.Groups.all).toHaveBeenCalledTimes(2);
+    expect(gitlab.Groups.all).toHaveBeenCalledTimes(3);
   });
 
   it('reports group listing failures instead of hiding available owners', async () => {
@@ -93,6 +93,28 @@ describe('GitLab repository plugin', () => {
       error: { type: 'auth_failed', message: 'Access denied to groups' },
     });
   });
+
+  it.each([
+    { role: 'Developer', accessLevel: 30, canCreate: false },
+    { role: 'Maintainer', accessLevel: 40, canCreate: false },
+    { role: 'Owner', accessLevel: 50, canCreate: true },
+  ])(
+    'lists Owner-only groups for $role according to their access',
+    async ({ accessLevel, canCreate }) => {
+      gitlab.Groups.all.mockImplementation(({ minAccessLevel }: { minAccessLevel: number }) =>
+        Promise.resolve(
+          minAccessLevel <= accessLevel
+            ? [{ id: 14, full_path: 'acme/owners-only', project_creation_level: 'owner' }]
+            : []
+        )
+      );
+
+      const result = await listOwners(connected);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.some((owner) => owner.login === 'acme/owners-only')).toBe(canCreate);
+    }
+  );
 
   it('creates in the user namespace', async () => {
     await expect(
