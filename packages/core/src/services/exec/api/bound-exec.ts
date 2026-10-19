@@ -8,6 +8,7 @@ import {
   toChildProcessLaunch,
   type FileExists,
 } from '#primitives/exec/node';
+import { withSafeGitDirectoryEnv } from '#primitives/git/api';
 import {
   ExecError,
   type BoundExec,
@@ -76,12 +77,17 @@ class ProcessBoundExec implements BoundExec {
     options: ExecSpawnOptions = {}
   ): Promise<ChildProcessWithoutNullStreams> {
     const env = await resolveEnv(this.env);
-    const composedEnv = composeEnv(env, options.env);
+    let composedEnv = composeEnv(env, options.env);
+    const targetCwd = options.cwd ?? this.cwd;
+    if (isGitCommand(this.file)) {
+      const targetPaths = extractGitTargetPaths(targetCwd, args);
+      composedEnv = withSafeGitDirectoryEnv(composedEnv ?? {}, targetPaths, this.platform);
+    }
     const plan = planExecutableLaunch({
       platform: this.platform,
       command: this.file,
       args,
-      cwd: options.cwd ?? this.cwd,
+      cwd: targetCwd,
       env: composedEnv,
       fileExists: this.fileExists,
     });
@@ -108,12 +114,17 @@ class ProcessBoundExec implements BoundExec {
   ): Promise<{ stderr: string }> {
     const env = await resolveEnv(this.env);
     return new Promise((resolve, reject) => {
-      const composedEnv = composeEnv(env, options.env);
+      let composedEnv = composeEnv(env, options.env);
+      const targetCwd = options.cwd ?? this.cwd;
+      if (isGitCommand(this.file)) {
+        const targetPaths = extractGitTargetPaths(targetCwd, args);
+        composedEnv = withSafeGitDirectoryEnv(composedEnv ?? {}, targetPaths, this.platform);
+      }
       const plan = planExecutableLaunch({
         platform: this.platform,
         command: this.file,
         args,
-        cwd: options.cwd ?? this.cwd,
+        cwd: targetCwd,
         env: composedEnv,
         fileExists: this.fileExists,
       });
@@ -263,4 +274,26 @@ function composeEnv(
   if (!base && !overlay) return undefined;
   if (!base) return { ...process.env, ...overlay };
   return overlay ? { ...base, ...overlay } : base;
+}
+
+function isGitCommand(file: string): boolean {
+  return /(?:^|[/\\])git(?:\.exe)?$/i.test(file);
+}
+
+function extractGitTargetPaths(cwd: string, args: string[]): string[] {
+  const paths: string[] = [cwd];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if ((arg === '-C' || arg === '--git-dir' || arg === '--work-tree') && i + 1 < args.length) {
+      paths.push(args[i + 1]);
+      i += 1;
+    } else if (arg.startsWith('-C') && arg.length > 2) {
+      paths.push(arg.slice(2));
+    } else if (arg.startsWith('--git-dir=')) {
+      paths.push(arg.slice('--git-dir='.length));
+    } else if (arg.startsWith('--work-tree=')) {
+      paths.push(arg.slice('--work-tree='.length));
+    }
+  }
+  return paths;
 }

@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { EnvSource } from '#primitives/exec/api';
-import { isGitDiscoveryMiss, withSafeGitDirectoryEnv } from '#primitives/git/api';
+import { isGitDiscoveryMiss } from '#primitives/git/api';
 import { createBoundExec, ExecError } from '#services/exec/api';
 
 /** What the host found at a canonical directory path (kind is host-detected, ADR 0005). */
@@ -103,14 +103,14 @@ export async function inspectWorkspacePath(
 }
 
 function nonInteractiveEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return withSafeGitDirectoryEnv({
+  return {
     ...base,
     LC_ALL: 'C',
     LANG: 'C',
     LANGUAGE: 'C',
     GIT_TERMINAL_PROMPT: '0',
     GIT_ASKPASS: '',
-  });
+  };
 }
 
 async function realpathSafe(target: string): Promise<string> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isGitDiscoveryMiss, withSafeGitDirectoryEnv } from './index';
+import { isGitDiscoveryMiss, isWslPath, withSafeGitDirectoryEnv } from './index';
 
 describe('Git discovery diagnostics', () => {
   it.each([
@@ -25,29 +25,126 @@ describe('Git discovery diagnostics', () => {
   });
 });
 
+describe('isWslPath', () => {
+  it('identifies WSL UNC roots', () => {
+    expect(isWslPath('\\\\wsl.localhost\\Ubuntu\\home\\user\\repo')).toBe(true);
+    expect(isWslPath('\\\\wsl$\\Ubuntu\\home\\user\\repo')).toBe(true);
+    expect(isWslPath('//wsl.localhost/Ubuntu/home/user/repo')).toBe(true);
+    expect(isWslPath('//wsl$/Ubuntu/home/user/repo')).toBe(true);
+  });
+
+  it('rejects non-WSL paths', () => {
+    expect(isWslPath('C:\\Users\\Alice\\repo')).toBe(false);
+    expect(isWslPath('C:/Users/Alice/repo')).toBe(false);
+    expect(isWslPath('\\\\other-server\\share\\repo')).toBe(false);
+    expect(isWslPath('/home/user/repo')).toBe(false);
+    expect(isWslPath('')).toBe(false);
+  });
+});
+
 describe('withSafeGitDirectoryEnv', () => {
-  it('injects safe.directory wildcard on Windows platforms', () => {
+  const wslPath = '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo';
+
+  it('injects safe.directory for intended WSL path on Windows', () => {
     const input = { PATH: 'C:\\Windows' };
-    const result = withSafeGitDirectoryEnv(input, 'win32');
+    const result = withSafeGitDirectoryEnv(input, wslPath, 'win32');
     expect(result).toEqual({
       PATH: 'C:\\Windows',
-      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_COUNT: '2',
       GIT_CONFIG_KEY_0: 'safe.directory',
-      GIT_CONFIG_VALUE_0: '*',
+      GIT_CONFIG_VALUE_0: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      GIT_CONFIG_KEY_1: 'safe.directory',
+      GIT_CONFIG_VALUE_1: '//wsl.localhost/Ubuntu/home/user/repo',
     });
+  });
+
+  it('does not inject safe.directory for non-WSL paths on Windows', () => {
+    const input = { PATH: 'C:\\Windows' };
+    expect(withSafeGitDirectoryEnv(input, 'C:\\Users\\Mallory\\repo', 'win32')).toEqual(input);
   });
 
   it('preserves existing env without modifying on non-Windows platforms', () => {
     const input = { PATH: '/usr/bin' };
-    expect(withSafeGitDirectoryEnv(input, 'linux')).toEqual(input);
-    expect(withSafeGitDirectoryEnv(input, 'darwin')).toEqual(input);
+    expect(withSafeGitDirectoryEnv(input, wslPath, 'linux')).toEqual(input);
+    expect(withSafeGitDirectoryEnv(input, wslPath, 'darwin')).toEqual(input);
   });
 
-  it('does not overwrite existing GIT_CONFIG_COUNT or GIT_CONFIG_PARAMETERS on Windows', () => {
-    const withCount = { GIT_CONFIG_COUNT: '2', GIT_CONFIG_KEY_0: 'foo.bar' };
-    expect(withSafeGitDirectoryEnv(withCount, 'win32')).toEqual(withCount);
+  it('composes cleanly with existing credential settings without overwriting them', () => {
+    const withCredentials = {
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'credential.https://github.com.helper',
+      GIT_CONFIG_VALUE_0: '',
+      GIT_CONFIG_KEY_1: 'credential.https://github.com.helper',
+      GIT_CONFIG_VALUE_1: '!echo helper',
+    };
+    const result = withSafeGitDirectoryEnv(withCredentials, wslPath, 'win32');
+    expect(result).toEqual({
+      ...withCredentials,
+      GIT_CONFIG_COUNT: '4',
+      GIT_CONFIG_KEY_2: 'safe.directory',
+      GIT_CONFIG_VALUE_2: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      GIT_CONFIG_KEY_3: 'safe.directory',
+      GIT_CONFIG_VALUE_3: '//wsl.localhost/Ubuntu/home/user/repo',
+    });
+  });
 
-    const withParams = { GIT_CONFIG_PARAMETERS: "'safe.directory=/repo'" };
-    expect(withSafeGitDirectoryEnv(withParams, 'win32')).toEqual(withParams);
+  it('does not duplicate existing safe.directory entries', () => {
+    const alreadyConfigured = {
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'safe.directory',
+      GIT_CONFIG_VALUE_0: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      GIT_CONFIG_KEY_1: 'safe.directory',
+      GIT_CONFIG_VALUE_1: '//wsl.localhost/Ubuntu/home/user/repo',
+    };
+    expect(withSafeGitDirectoryEnv(alreadyConfigured, wslPath, 'win32')).toEqual(alreadyConfigured);
+  });
+
+  it('handles multiple paths and only injects for WSL paths', () => {
+    const input = { PATH: 'C:\\Windows' };
+    const result = withSafeGitDirectoryEnv(
+      input,
+      ['C:\\Users\\Mallory\\repo', wslPath, undefined],
+      'win32'
+    );
+    expect(result).toEqual({
+      PATH: 'C:\\Windows',
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'safe.directory',
+      GIT_CONFIG_VALUE_0: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      GIT_CONFIG_KEY_1: 'safe.directory',
+      GIT_CONFIG_VALUE_1: '//wsl.localhost/Ubuntu/home/user/repo',
+    });
+  });
+
+  it('trusts enclosing repository root when path points to .git', () => {
+    const input = { PATH: 'C:\\Windows' };
+    const gitDirPath = '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo\\.git';
+    const result = withSafeGitDirectoryEnv(input, gitDirPath, 'win32');
+    expect(result).toEqual({
+      PATH: 'C:\\Windows',
+      GIT_CONFIG_COUNT: '4',
+      GIT_CONFIG_KEY_0: 'safe.directory',
+      GIT_CONFIG_VALUE_0: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo\\.git',
+      GIT_CONFIG_KEY_1: 'safe.directory',
+      GIT_CONFIG_VALUE_1: '//wsl.localhost/Ubuntu/home/user/repo/.git',
+      GIT_CONFIG_KEY_2: 'safe.directory',
+      GIT_CONFIG_VALUE_2: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      GIT_CONFIG_KEY_3: 'safe.directory',
+      GIT_CONFIG_VALUE_3: '//wsl.localhost/Ubuntu/home/user/repo',
+    });
+  });
+
+  it('honors existing wildcard safe.directory without adding redundant entries', () => {
+    const withWildcard = {
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'safe.directory',
+      GIT_CONFIG_VALUE_0: '*',
+    };
+    expect(withSafeGitDirectoryEnv(withWildcard, wslPath, 'win32')).toEqual(withWildcard);
+  });
+
+  it('returns untouched env when targetPath is omitted', () => {
+    const input = { PATH: 'C:\\Windows' };
+    expect(withSafeGitDirectoryEnv(input, undefined, 'win32')).toEqual(input);
   });
 });
