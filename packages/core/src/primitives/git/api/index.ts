@@ -15,3 +15,26 @@ export function isGitDiscoveryMiss(failure: { exitCode: number | null; stderr: s
     )
   );
 }
+
+/**
+ * Augments an execution environment for Git commands so that cross-boundary
+ * repositories (such as WSL UNC shares `\\wsl.localhost\...` accessed on Windows)
+ * are not rejected by Git's safe.directory ownership check (dubious ownership).
+ *
+ * Only applied on Windows (`win32`) where ownership checks against WSL Linux UIDs
+ * fail by default, unless explicit GIT_CONFIG overrides are already present.
+ */
+export function withSafeGitDirectoryEnv(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform
+): NodeJS.ProcessEnv {
+  if (platform !== 'win32' || env.GIT_CONFIG_PARAMETERS || env.GIT_CONFIG_COUNT) {
+    return env;
+  }
+  return {
+    ...env,
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'safe.directory',
+    GIT_CONFIG_VALUE_0: '*',
+  };
+}

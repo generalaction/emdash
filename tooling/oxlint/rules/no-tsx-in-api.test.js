@@ -89,6 +89,7 @@ function runOxlint(config, file) {
     const child = spawn('pnpm', ['exec', 'oxlint', '--config', config, file], {
       cwd: repoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
     });
     let output = '';
     child.stdout.on('data', (chunk) => {

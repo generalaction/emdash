@@ -1,4 +1,5 @@
 import type { EnvSource } from '#primitives/exec/api';
+import { withSafeGitDirectoryEnv } from '#primitives/git/api';
 import { createBoundExec, type BoundExec, type ExecOptions } from '#services/exec/api';
 import {
   GitSchedule,
@@ -85,7 +86,7 @@ function createRegistryGitExec(
 }
 
 function registryGitEnv(base: NodeJS.ProcessEnv, probe: boolean): NodeJS.ProcessEnv {
-  return {
+  return withSafeGitDirectoryEnv({
     ...base,
     LC_ALL: 'C',
     LANG: 'C',
@@ -93,5 +94,5 @@ function registryGitEnv(base: NodeJS.ProcessEnv, probe: boolean): NodeJS.Process
     GIT_TERMINAL_PROMPT: '0',
     GIT_ASKPASS: '',
     ...(probe ? { GIT_OPTIONAL_LOCKS: '0' } : {}),
-  };
+  });
 }

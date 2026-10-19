@@ -1,3 +1,4 @@
+import { withSafeGitDirectoryEnv } from '#primitives/git/api';
 import { createBoundExec, type BoundExec } from '#services/exec/api';
 
 export type GitExecFactory = (cwd: string) => BoundExec;
@@ -12,7 +13,7 @@ export function createNonInteractiveGitExec(cwd: string): BoundExec {
   return createBoundExec({
     file: 'git',
     cwd,
-    env: {
+    env: withSafeGitDirectoryEnv({
       ...process.env,
       LC_ALL: 'C',
       LANG: 'C',
@@ -22,7 +23,7 @@ export function createNonInteractiveGitExec(cwd: string): BoundExec {
       GIT_ASKPASS: '',
       SSH_ASKPASS: '',
       ...(process.env.GIT_SSH_COMMAND ? {} : { GIT_SSH_COMMAND: 'ssh -o BatchMode=yes' }),
-    },
+    }),
   });
 }
 

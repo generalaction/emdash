@@ -92,6 +92,7 @@ class ProcessBoundExec implements BoundExec {
       env: composedEnv,
       signal: options.signal,
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
       windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
   }
@@ -121,6 +122,7 @@ class ProcessBoundExec implements BoundExec {
         cwd: plan.cwd,
         env: composedEnv,
         detached: this.platform !== 'win32',
+        windowsHide: true,
         windowsVerbatimArguments: launch.windowsVerbatimArguments,
       };
       recordSpawn(classifySpawnPurpose(this.file, args), launch.executable);

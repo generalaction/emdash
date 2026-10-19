@@ -1,3 +1,5 @@
+import { withSafeGitDirectoryEnv } from '#primitives/git/api';
+
 export const NON_INTERACTIVE_GIT_ENV = {
   GIT_ASKPASS: '',
   GIT_TERMINAL_PROMPT: '0',
@@ -11,11 +13,11 @@ export const NON_INTERACTIVE_GIT_ENV = {
  * force the C locale so parsed git output is stable across user locales.
  */
 export function gitRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return {
+  return withSafeGitDirectoryEnv({
     ...env,
     ...NON_INTERACTIVE_GIT_ENV,
     LC_ALL: 'C',
     LANG: 'C',
     LANGUAGE: 'C',
-  };
+  });
 }
