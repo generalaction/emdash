@@ -281,13 +281,25 @@ describe('project account persistence in GitHub actions', () => {
   );
 
   it('keeps Add Remote selection local unless remembering was requested', async () => {
+    mocks.createRepository.mockResolvedValueOnce({
+      success: true,
+      repoUrl: 'https://github.com/acme/repo.git',
+    });
     await render('remote');
     await chooseWork();
     expect(mocks.save).not.toHaveBeenCalled();
     await act(async () => button('Create & Publish').click());
     expect(mocks.createRepository).toHaveBeenCalledWith(
-      expect.objectContaining({ accountId: 'work' })
+      expect.objectContaining({ accountId: 'work', initializeWithReadme: false })
     );
+    expect(repository.fetchRemote).toHaveBeenCalledWith({
+      providerId: 'github',
+      accountId: 'work',
+    });
+    expect(checkout.publishCurrentBranch).toHaveBeenCalledWith({
+      providerId: 'github',
+      accountId: 'work',
+    });
   });
 
   it('creates a GitLab remote with the selected account and nested group', async () => {
@@ -309,13 +321,21 @@ describe('project account persistence in GitHub actions', () => {
       owner: 'parent/nested',
       isPrivate: true,
       accountId: 'gitlab-work',
+      initializeWithReadme: false,
     });
     expect(mocks.createRepository).not.toHaveBeenCalled();
     expect(repository.addRemote).toHaveBeenCalledWith(
       'origin',
       'https://gitlab.com/parent/nested/repo.git'
     );
-    expect(checkout.publishCurrentBranch).toHaveBeenCalled();
+    expect(repository.fetchRemote).toHaveBeenCalledWith({
+      providerId: 'gitlab',
+      accountId: 'gitlab-work',
+    });
+    expect(checkout.publishCurrentBranch).toHaveBeenCalledWith({
+      providerId: 'gitlab',
+      accountId: 'gitlab-work',
+    });
   });
 
   it('retains Add Remote action credentials when remembering the account fails', async () => {

@@ -60,11 +60,27 @@ describe('GitLab repository service', () => {
       owner: 'parent/nested',
       name: 'repo',
       visibility: 'private',
+      initializeWithReadme: undefined,
     });
     expect(mocks.deleteRepository).toHaveBeenCalledWith(expect.anything(), {
       owner: 'parent/nested',
       name: 'repo',
     });
+  });
+
+  it('forwards empty repository creation', async () => {
+    const service = createGitLabRepositoryService({ listAccounts, readCredentials });
+    await service.createRepository({
+      accountId: 'selected',
+      owner: 'parent/nested',
+      name: 'repo',
+      isPrivate: true,
+      initializeWithReadme: false,
+    });
+    expect(mocks.createRepository).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ initializeWithReadme: false })
+    );
   });
 
   it('fails closed when the selected account is removed or its credentials cannot be read', async () => {

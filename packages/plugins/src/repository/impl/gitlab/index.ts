@@ -106,7 +106,7 @@ export async function createRepository(
       description: opts.description,
       visibility: opts.visibility,
       namespaceId,
-      initializeWithReadme: true,
+      initializeWithReadme: opts.initializeWithReadme ?? true,
     });
     return ok({
       repositoryUrl: project.web_url,

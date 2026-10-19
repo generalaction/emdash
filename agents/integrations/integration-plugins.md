@@ -233,6 +233,9 @@ creation resolves that owner's namespace ID before calling GitLab, and deletion 
 Create Repository lists GitLab user and group owners for the selected account. It clones the
 created project over HTTPS with the selected account's token. GitLab-facing UI calls issues
 "work items".
+Add Remote creates an empty GitHub or GitLab repository before publishing the current branch.
+The selected account is used for creation, fetch, and publish in that action. Create Repository
+initializes a README before cloning.
 GitLab continues to use the issues plugin and GitLab Issues API. The current GitLab issues plugin
 lists and searches work items. Work-item writes and GitLab merge-request operations are not yet
 implemented in Emdash.

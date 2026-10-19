@@ -38,11 +38,13 @@ export function createGitLabRepositoryService(deps: {
       owner: string;
       name: string;
       isPrivate: boolean;
+      initializeWithReadme?: boolean;
     }) {
       return behavior.createRepository(await host(input.accountId), {
         owner: input.owner,
         name: input.name,
         visibility: input.isPrivate ? 'private' : 'public',
+        initializeWithReadme: input.initializeWithReadme,
       });
     },
     async deleteRepository(input: { accountId: string; owner: string; name: string }) {

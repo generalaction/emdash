@@ -139,6 +139,18 @@ describe('GitLab repository plugin', () => {
     );
   });
 
+  it('creates an empty repository for publishing an existing branch', async () => {
+    await createRepository(connected, {
+      owner: 'acme/platform',
+      name: 'new',
+      visibility: 'private',
+      initializeWithReadme: false,
+    });
+    expect(gitlab.Projects.create).toHaveBeenCalledWith(
+      expect.objectContaining({ namespaceId: 10, initializeWithReadme: false })
+    );
+  });
+
   it('deletes by the full nested path', async () => {
     await expect(
       deleteRepository(connected, { owner: 'acme/platform', name: 'old' })

@@ -87,6 +87,7 @@ export function createGithubOperations(dependencies: {
       isPrivate?: boolean;
       visibility?: 'public' | 'private';
       accountId?: string | null;
+      initializeWithReadme?: boolean;
     }): Promise<
       | {
           success: true;
@@ -113,6 +114,7 @@ export function createGithubOperations(dependencies: {
           owner: params.owner,
           description: params.description,
           isPrivate,
+          initializeWithReadme: params.initializeWithReadme,
           authContext: { accountId: params.accountId ?? undefined },
         });
         return {

@@ -29,6 +29,7 @@ export const repositoryContract = defineContract({
       owner: z.string().min(1),
       name: z.string().min(1),
       isPrivate: z.boolean(),
+      initializeWithReadme: z.boolean().optional(),
     }),
     output: z.custom<
       { success: true; cloneUrl: string; nameWithOwner: string } | { success: false; error: string }

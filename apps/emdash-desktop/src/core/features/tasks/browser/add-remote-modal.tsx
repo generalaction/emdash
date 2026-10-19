@@ -29,7 +29,10 @@ import { useModalController, useOpenModal } from '@core/manifests/browser/modal-
 import { DEFAULT_REMOTE_NAME } from '@core/primitives/git/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api';
+import type {
+  ProviderAccountRef,
+  ProviderAccountSummary,
+} from '@core/primitives/provider-accounts/api';
 
 export type AddRemoteModalArgs = {
   projectId: string;
@@ -131,6 +134,8 @@ export const AddRemoteModal = observer(function AddRemoteModal({
     setError(null);
 
     try {
+      const credentialAccount: ProviderAccountRef | undefined =
+        tab === 'create' && accountId ? { providerId: provider, accountId } : undefined;
       if (tab === 'create') {
         if (!accountId) return;
         if (!owner) {
@@ -147,6 +152,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
                 owner: owner.value,
                 isPrivate: visibility === 'private',
                 accountId,
+                initializeWithReadme: false,
               })
             : await (
                 await getGithubClient()
@@ -155,6 +161,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
                 owner: owner.value,
                 isPrivate: visibility === 'private',
                 accountId,
+                initializeWithReadme: false,
               });
 
         if (!result.success) {
@@ -191,14 +198,14 @@ export const AddRemoteModal = observer(function AddRemoteModal({
       }
 
       if (!repositoryStore) throw new Error('Git repository is unavailable');
-      const fetchResult = await repositoryStore.fetchRemote();
+      const fetchResult = await repositoryStore.fetchRemote(credentialAccount);
       if (!fetchResult.success) {
         setError(toErrorMessage(fetchResult.error, 'Failed to fetch remote'));
         return;
       }
 
       if (!checkoutStore) throw new Error('Git checkout is unavailable');
-      const publishResult = await checkoutStore.publishCurrentBranch();
+      const publishResult = await checkoutStore.publishCurrentBranch(credentialAccount);
       if (!publishResult.success) {
         if (publishResult.error.type === 'rejected') {
           repositoryStore?.refreshLocal();

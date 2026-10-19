@@ -27,6 +27,7 @@ import {
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import type { ProviderAccountRef } from '@core/primitives/provider-accounts/api';
 import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { sourceControlContract } from '../api';
 import {
@@ -310,7 +311,7 @@ function job<Def extends LiveJobEndpointDef>(
 
 async function runRepositoryJob<
   Def extends LiveJobEndpointDef,
-  Input extends { projectId: string },
+  Input extends { projectId: string; credentialAccount?: ProviderAccountRef },
 >(
   options: CreateSourceControlWireControllerOptions,
   definition: Def,
@@ -318,9 +319,9 @@ async function runRepositoryJob<
   context: LiveJobContext<JobProgress<Def>>,
   handle: (git: HostRuntimesClient['git']) => LiveJobClientHandle<Def>
 ): Promise<Result<JobResult<Def>, JobError<Def> | ProjectAttachmentError>> {
-  const { projectId, ...rest } = input;
+  const { projectId, credentialAccount, ...rest } = input;
   return withAttachedProject(options.projects, projectId, (project) =>
-    withOperationCredentials(options, project, (credentials) =>
+    withOperationCredentials(options, project, credentialAccount, (credentials) =>
       runUpstreamJob(
         definition,
         handle(project.git),
@@ -337,7 +338,7 @@ async function runRepositoryJob<
 
 async function runCheckoutJob<
   Def extends LiveJobEndpointDef,
-  Input extends { workspaceId: string },
+  Input extends { workspaceId: string; credentialAccount?: ProviderAccountRef },
 >(
   options: CreateSourceControlWireControllerOptions,
   definition: Def,
@@ -345,12 +346,12 @@ async function runCheckoutJob<
   context: LiveJobContext<JobProgress<Def>>,
   handle: (git: HostRuntimesClient['git']) => LiveJobClientHandle<Def>
 ): Promise<Result<JobResult<Def>, JobError<Def> | RuntimeResolveError>> {
-  const { workspaceId, ...rest } = input;
+  const { workspaceId, credentialAccount, ...rest } = input;
   return withIdentityRuntime(
     options.runtimes,
     options.workspaceIdentity.resolve(workspaceId),
     (client, identity) =>
-      withOperationCredentials(options, identity, (credentials) =>
+      withOperationCredentials(options, identity, credentialAccount, (credentials) =>
         runUpstreamJob(
           definition,
           handle(client.git),
@@ -373,11 +374,13 @@ async function runCheckoutJob<
 async function withOperationCredentials<T>(
   options: CreateSourceControlWireControllerOptions,
   identity: Pick<WorkspaceIdentity, 'projectId' | 'host'>,
+  account: ProviderAccountRef | undefined,
   work: (credentials: GitOperationCredentialsLease['credentials'] | undefined) => Promise<T>
 ): Promise<T> {
   const lease = await options.mintOperationCredentials({
     projectId: identity.projectId,
     host: identity.host,
+    ...(account ? { account } : {}),
   });
   try {
     return await work(lease?.credentials);

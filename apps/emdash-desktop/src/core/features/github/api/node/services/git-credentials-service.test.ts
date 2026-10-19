@@ -147,6 +147,36 @@ describe('mintOperationCredentials', () => {
       noAccount.service.mintOperationCredentials({ projectId: 'p1', host: LOCAL_HOST_REF })
     ).resolves.toBeUndefined();
   });
+
+  it('leases the selected account instead of the project account', async () => {
+    const selected = { ...account, accountId: 'selected-work', isDefault: false };
+    const { service, mintSession, revokeSession } = makeService({ accounts: [account, selected] });
+    const lease = await service.mintOperationCredentials({
+      projectId: 'p1',
+      host: LOCAL_HOST_REF,
+      account: { providerId: 'github', accountId: 'selected-work' },
+    });
+    expect(mintSession).toHaveBeenCalledWith({
+      kind: 'account',
+      providerId: 'github',
+      accountId: 'selected-work',
+      host: 'github.com',
+    });
+    lease?.release();
+    expect(revokeSession).toHaveBeenCalledWith('nonce-1');
+  });
+
+  it('rejects a removed selected account without minting credentials', async () => {
+    const { service, mintSession } = makeService();
+    await expect(
+      service.mintOperationCredentials({
+        projectId: 'p1',
+        host: LOCAL_HOST_REF,
+        account: { providerId: 'github', accountId: 'removed' },
+      })
+    ).rejects.toThrow('selected Git account is unavailable');
+    expect(mintSession).not.toHaveBeenCalled();
+  });
 });
 
 describe('mintCloneCredentials', () => {

@@ -137,7 +137,29 @@ describe('GitHub repository service', () => {
       name: 'new',
       description: undefined,
       visibility: 'private',
+      initializeWithReadme: undefined,
     });
+  });
+
+  it('forwards empty repository creation', async () => {
+    behavior.createRepository.mockResolvedValue(
+      ok({
+        repositoryUrl: 'https://github.com/acme/new',
+        cloneUrl: 'https://github.com/acme/new.git',
+        nameWithOwner: 'acme/new',
+        defaultBranch: 'main',
+      })
+    );
+    await repoService.createRepository({
+      name: 'new',
+      owner: 'acme',
+      isPrivate: true,
+      initializeWithReadme: false,
+    });
+    expect(behavior.createRepository).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ initializeWithReadme: false })
+    );
   });
 
   it('deletes through the plugin', async () => {

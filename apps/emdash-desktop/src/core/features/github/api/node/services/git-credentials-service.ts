@@ -61,6 +61,7 @@ export type GitCredentialsService = {
   mintOperationCredentials(params: {
     projectId: string;
     host: HostRef;
+    account?: ProviderAccountRef;
   }): Promise<GitOperationCredentialsLease | undefined>;
   /** Operation-scoped credentials for cloning an HTTPS URL (no project yet). */
   mintCloneCredentials(params: {
@@ -115,6 +116,30 @@ export function createGitCredentialsService(
     };
   };
 
+  const mintAccountLease = async (
+    account: ProviderAccountRef
+  ): Promise<GitOperationCredentialsLease> => {
+    if (account.providerId !== 'github' && account.providerId !== 'gitlab') {
+      throw new Error(`Managed Git credentials are not supported for ${account.providerId}.`);
+    }
+    const selected = (await deps.listAccounts(account.providerId)).find(
+      (candidate) =>
+        candidate.providerId === account.providerId && candidate.accountId === account.accountId
+    );
+    if (!selected?.host) throw new Error('The selected Git account is unavailable.');
+    const accountHost = normalizeRepositoryHost(selected.host);
+    const channel = await deps.channels.mintSession({
+      kind: 'account',
+      providerId: account.providerId,
+      accountId: account.accountId,
+      host: accountHost,
+    });
+    return {
+      credentials: { port: channel.port, nonce: channel.nonce, host: accountHost },
+      release: () => deps.channels.revokeSession(channel.nonce),
+    };
+  };
+
   return {
     async resolveSessionSpec({ projectId, host }) {
       const setting = await deps.getAgentGitCredentialsSetting(projectId);
@@ -136,8 +161,9 @@ export function createGitCredentialsService(
       };
     },
 
-    async mintOperationCredentials({ projectId, host }) {
+    async mintOperationCredentials({ projectId, host, account: selectedAccount }) {
       if (!isLocalHostRef(host)) return undefined;
+      if (selectedAccount) return mintAccountLease(selectedAccount);
       const account = await resolveEffectiveAccount(projectId);
       if (!account) return undefined;
       return mintProjectLease(

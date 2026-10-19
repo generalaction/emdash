@@ -184,6 +184,22 @@ describe('GitCheckoutStore', () => {
     store.dispose();
   });
 
+  it('passes an action-selected account to the publish job', async () => {
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+    await store.publishCurrentBranch({ providerId: 'gitlab', accountId: 'selected' });
+    expect(mocks.pushRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        remote: 'origin',
+        credentialAccount: { providerId: 'gitlab', accountId: 'selected' },
+      }),
+      expect.anything()
+    );
+    store.dispose();
+  });
+
   it('refuses publish when the repository has no push remote', async () => {
     mocks.getGitRepositoryStore.mockReturnValue({ pushRemote: null });
     const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');

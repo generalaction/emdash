@@ -36,6 +36,7 @@ import {
   type RepoFacts,
   type StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
+import type { ProviderAccountRef } from '@core/primitives/provider-accounts/api';
 import type { ProviderRepository } from '@core/primitives/repository/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../..';
@@ -376,7 +377,7 @@ export class GitRepositoryStore {
     return branch ? toBranchRef(branch) : undefined;
   }
 
-  async fetchRemote() {
+  async fetchRemote(credentialAccount?: ProviderAccountRef) {
     const baseRemote = this.baseRemote;
     if (baseRemote === null) {
       return err({ type: 'no_remote' as const, message: 'This repository has no git remotes.' });
@@ -385,6 +386,7 @@ export class GitRepositoryStore {
     return runDesktopLiveJob(sourceControlContract.repository.fetch, client.repository.fetch, {
       ...repositorySelector(this.projectId),
       remote: baseRemote.name,
+      credentialAccount,
     });
   }
 
