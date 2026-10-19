@@ -61,6 +61,45 @@ describe('RepositoryRouter', () => {
     expect(probe).not.toHaveBeenCalled();
   });
 
+  it.each(['git@gitlab.com:group/sub/project.git', 'https://gitlab.com/group/sub/project.git'])(
+    'routes a GitLab remote with nested groups: %s',
+    async (remote) => {
+      expect(
+        await router([
+          plugin('github', { knownHosts: ['github.com'] }),
+          plugin('gitlab', { knownHosts: ['gitlab.com'] }),
+        ]).route(remote)
+      ).toMatchObject({
+        success: true,
+        data: {
+          integrationId: 'gitlab',
+          repository: {
+            host: 'gitlab.com',
+            owner: 'group/sub',
+            nameWithOwner: 'group/sub/project',
+          },
+        },
+      });
+      expect(listAccounts).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    'git@gitlab.example.com:acme/platform/project.git',
+    'https://gitlab.example.com/acme/platform/project.git',
+  ])('routes a self-hosted GitLab remote with a connected account: %s', async (remote) => {
+    accounts.set('gitlab', [{ host: 'gitlab.example.com' }]);
+    expect(
+      await router([
+        plugin('github', { knownHosts: ['github.com'] }),
+        plugin('gitlab', { knownHosts: ['gitlab.com'] }),
+      ]).route(remote)
+    ).toMatchObject({
+      success: true,
+      data: { integrationId: 'gitlab', repository: { owner: 'acme/platform' } },
+    });
+  });
+
   it('routes to the integration with a connected account on the host, keeping nested groups', async () => {
     accounts.set('gitlab', [{ host: 'gitlab.com' }]);
     const result = await router([
@@ -114,9 +153,10 @@ describe('RepositoryRouter', () => {
       err({ type: 'unsupported_host' as const, host: hostname, message: 'not GitHub' })
     );
     expect(
-      await router([plugin('github', { knownHosts: ['github.com'], probe })]).route(
-        'https://git.example.com/acme/repo'
-      )
+      await router([
+        plugin('github', { knownHosts: ['github.com'], probe }),
+        plugin('gitlab', { knownHosts: ['gitlab.com'] }),
+      ]).route('https://git.example.com/acme/repo')
     ).toEqual(err({ type: 'no_integration_for_host', host: 'git.example.com' }));
   });
 

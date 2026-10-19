@@ -30,9 +30,11 @@ const mocks = vi.hoisted(() => ({
   attachmentTrack: vi.fn(),
   hostAvailabilityTrack: vi.fn(),
   createGithubRepository: vi.fn(),
+  createGitlabRepository: vi.fn(),
   createLiveJobReplicaCache: vi.fn(),
   createProject: vi.fn(),
   deleteGithubRepository: vi.fn(),
+  deleteGitlabRepository: vi.fn(),
   inspectProjectPath: vi.fn(),
   logError: vi.fn(),
   projectWireCreate: vi.fn(),
@@ -91,6 +93,13 @@ vi.mock('@core/features/github/api/browser/client', () => ({
   getGithubClient: async () => ({
     createRepository: mocks.createGithubRepository,
     deleteRepository: mocks.deleteGithubRepository,
+  }),
+}));
+
+vi.mock('@core/features/repository/api/client', () => ({
+  getRepositoryClient: async () => ({
+    gitLabCreate: mocks.createGitlabRepository,
+    gitLabDelete: mocks.deleteGitlabRepository,
   }),
 }));
 
@@ -356,6 +365,13 @@ describe('ProjectManagerStore project creation', () => {
       nameWithOwner: 'acme/project',
     });
     mocks.deleteGithubRepository.mockResolvedValue({ success: true });
+    mocks.createGitlabRepository.mockResolvedValue({
+      success: true,
+      repositoryUrl: 'https://gitlab.com/parent/nested/project',
+      cloneUrl: 'https://gitlab.com/parent/nested/project.git',
+      nameWithOwner: 'parent/nested/project',
+    });
+    mocks.deleteGitlabRepository.mockResolvedValue({ success: true });
     mocks.updateProjectSettings.mockResolvedValue({
       success: true,
       data: { githubAccountId: 'github.com:42' },
@@ -1321,6 +1337,68 @@ describe('ProjectManagerStore project creation', () => {
         expect.objectContaining({ accountId: 'github.com:42' })
       )
     );
+  });
+
+  it('creates a GitLab repository in a nested group and pins the selected account', async () => {
+    const store = new ProjectManagerStore();
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'create',
+        name: 'Project',
+        path: '/parent',
+        repositoryName: 'project',
+        repositoryOwner: 'parent/nested',
+        repositoryVisibility: 'private',
+        repositoryProvider: 'gitlab',
+        repositoryAccountId: 'gitlab-selected',
+      },
+      { id: 'gitlab-project' }
+    );
+    if (result.kind === 'creating') await result.completion;
+
+    expect(mocks.createGitlabRepository).toHaveBeenCalledWith({
+      accountId: 'gitlab-selected',
+      owner: 'parent/nested',
+      name: 'project',
+      isPrivate: true,
+    });
+    expect(mocks.projectWireCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryUrl: 'https://gitlab.com/parent/nested/project.git',
+        account: { providerId: 'gitlab', accountId: 'gitlab-selected' },
+        initialIntegrationAccounts: {
+          gitlab: { kind: 'account', accountId: 'gitlab-selected' },
+        },
+      })
+    );
+    expect(mocks.createGithubRepository).not.toHaveBeenCalled();
+  });
+
+  it('rolls back a GitLab repository with the selected account when cloning fails', async () => {
+    mocks.projectWireResult = Promise.reject(new LiveJobFailedError('clone failed'));
+    const store = new ProjectManagerStore();
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'create',
+        name: 'Project',
+        path: '/parent',
+        repositoryName: 'project',
+        repositoryOwner: 'parent/nested',
+        repositoryVisibility: 'private',
+        repositoryProvider: 'gitlab',
+        repositoryAccountId: 'gitlab-selected',
+      },
+      { id: 'gitlab-project' }
+    );
+    if (result.kind === 'creating') await result.completion;
+    expect(mocks.deleteGitlabRepository).toHaveBeenCalledWith({
+      accountId: 'gitlab-selected',
+      owner: 'parent/nested',
+      name: 'project',
+    });
+    expect(mocks.deleteGithubRepository).not.toHaveBeenCalled();
   });
 
   it('clones a newly created repository from the API-provided clone URL', async () => {

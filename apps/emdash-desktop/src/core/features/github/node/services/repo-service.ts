@@ -21,6 +21,7 @@ export interface GitHubRepositoryService {
     description?: string;
     owner: string;
     isPrivate: boolean;
+    initializeWithReadme?: boolean;
     authContext?: GitHubRepositoryAccountContext;
   }): Promise<{ url: string; cloneUrl: string; defaultBranch: string; nameWithOwner: string }>;
   deleteRepository(
@@ -82,6 +83,7 @@ export function createGitHubRepositoryService(deps: {
           name: params.name,
           description: params.description,
           visibility: params.isPrivate ? 'private' : 'public',
+          initializeWithReadme: params.initializeWithReadme,
         })
       );
       return {

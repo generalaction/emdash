@@ -13,8 +13,10 @@ import type {
   GitCredentialSessionTarget,
 } from '@core/features/github/api/node/services/git-credentials-service';
 import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
+import type { ReadIntegrationCredentials } from '@core/features/integrations/api/node/integration-credential-reader';
 import type { ProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/project-integration-account-resolver';
-import { isGitHubAccountSummary, type GitHubAccountSummary } from '@core/primitives/github/api';
+import { isGitHubAccountSummary } from '@core/primitives/github/api';
+import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api';
 
 /**
  * Loopback credential server behind the emdash git credential helper
@@ -29,8 +31,9 @@ import { isGitHubAccountSummary, type GitHubAccountSummary } from '@core/primiti
 
 export type GitCredentialServerDeps = {
   resolveProjectIntegrationAccount: ProjectIntegrationAccountResolver;
-  listAccounts(): Promise<GitHubAccountSummary[]>;
+  listAccounts(providerId?: 'github' | 'gitlab'): Promise<ProviderAccountSummary[]>;
   readCredentials: ReadGitHubCredentials;
+  readIntegrationCredentials?: ReadIntegrationCredentials;
   logger: Logger;
 };
 
@@ -139,7 +142,8 @@ export class GitCredentialServer implements GitCredentialChannelServer {
       return;
     }
 
-    const account = await this.resolveAccount(target, requestHost);
+    const providerId = target.providerId ?? 'github';
+    const account = await this.resolveAccount(target, requestHost, providerId);
     if (!account) {
       this.deps.logger.info('GitCredentialServer: no credential for request', {
         targetKind: target.kind,
@@ -151,8 +155,11 @@ export class GitCredentialServer implements GitCredentialChannelServer {
     }
 
     // Read only the selected account; removal or an endpoint mismatch fails closed.
-    const credentials = await this.deps.readCredentials(account.accountId, requestHost);
-    if (!credentials.success) {
+    const credentials =
+      providerId === 'github'
+        ? await this.deps.readCredentials(account.accountId, requestHost)
+        : await this.deps.readIntegrationCredentials?.('gitlab', account.accountId, requestHost);
+    if (!credentials?.success) {
       this.deps.logger.warn('GitCredentialServer: token resolution failed closed', {
         targetKind: target.kind,
         host: requestHost,
@@ -163,34 +170,62 @@ export class GitCredentialServer implements GitCredentialChannelServer {
       return;
     }
 
+    const credential = credentials.data;
+    const token =
+      providerId === 'github' && 'accessToken' in credential
+        ? credential.accessToken
+        : providerId === 'gitlab' && 'apiToken' in credential
+          ? credential.apiToken
+          : null;
+    if (typeof token !== 'string' || !token) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    if (providerId === 'gitlab') {
+      const instanceUrl = 'instanceUrl' in credential ? credential.instanceUrl : null;
+      if (
+        typeof instanceUrl !== 'string' ||
+        normalizeRepositoryHost(new URL(instanceUrl).host) !== requestHost
+      ) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+    }
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(
       serializeGitCredentialResponse({
-        username: account.login,
-        password: credentials.data.accessToken,
+        username: account.login || 'oauth2',
+        password: token,
       })
     );
   }
 
   private async resolveAccount(
     target: GitCredentialSessionTarget,
-    requestHost: string
-  ): Promise<GitHubAccountSummary | null> {
+    requestHost: string,
+    providerId: 'github' | 'gitlab'
+  ): Promise<ProviderAccountSummary | null> {
     if (target.kind === 'account') {
       if (normalizeRepositoryHost(target.host) !== requestHost) return null;
-      const account = (await this.deps.listAccounts()).find(
-        (candidate) => candidate.accountId === target.accountId
+      const account = (await this.deps.listAccounts(providerId)).find(
+        (candidate) =>
+          candidate.accountId === target.accountId && candidate.providerId === providerId
       );
-      return account && normalizeRepositoryHost(account.host) === requestHost ? account : null;
+      return account && account.host && normalizeRepositoryHost(account.host) === requestHost
+        ? account
+        : null;
     }
 
     const resolution = await this.deps.resolveProjectIntegrationAccount(
       target.projectId,
-      'github',
+      providerId,
       { kind: 'project' }
     );
     const account = resolution.value;
-    if (!account || !isGitHubAccountSummary(account)) return null;
+    if (!account || account.providerId !== providerId || !account.host) return null;
+    if (providerId === 'github' && !isGitHubAccountSummary(account)) return null;
     // The helper config is scoped to the account's host; still verify, since
     // the session env could be replayed against other hosts.
     if (normalizeRepositoryHost(account.host) !== requestHost) return null;

@@ -41,6 +41,7 @@ import { githubIdentityClient } from '@core/features/github/node/services/github
 import { LegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store';
 import { clearOctokitCache } from '@core/features/github/node/services/octokit-cache';
 import { createGitHubRepositoryService } from '@core/features/github/node/services/repo-service';
+import { createIntegrationCredentialReader } from '@core/features/integrations/api/node/integration-credential-reader';
 import { createProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/project-integration-account-resolver';
 import { integrationsEvents } from '@core/features/integrations/node/event-host';
 import { IntegrationAccountStore } from '@core/features/integrations/node/integration-account-store';
@@ -80,6 +81,7 @@ import {
   resolvePullRequestIntegration,
 } from '@core/features/repository/api/node/pull-request-routing';
 import { repositoryRouter } from '@core/features/repository/api/node/repository-router';
+import { createGitLabRepositoryService } from '@core/features/repository/node/gitlab-repository-service';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
@@ -100,7 +102,6 @@ import type { TaskProviderOpts } from '@core/features/workspaces/api/node/worksp
 import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node/sweep/workspace-deletion-sweep';
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
-import { isGitHubAccountSummary } from '@core/primitives/github/api';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
@@ -176,6 +177,7 @@ export type ServicesBundle = {
     legacyTokenImport: GitHubLegacyTokenImportStep;
     repositories: ReturnType<typeof createGitHubRepositoryService>;
   };
+  readonly gitlabRepositories: ReturnType<typeof createGitLabRepositoryService>;
   readonly gitCredentials: GitCredentialsService;
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
   readonly hostIsReachable: HostReachabilityProbe;
@@ -543,11 +545,13 @@ export async function bootServices(
   // terminals/source-control controllers and TUI sessions.
   const gitCredentialServer = new GitCredentialServer({
     resolveProjectIntegrationAccount,
-    listAccounts: async () =>
-      (await listProviderAccountSummaries(providerAccountRegistry, 'github')).filter(
-        isGitHubAccountSummary
-      ),
+    listAccounts: (providerId = 'github') =>
+      listProviderAccountSummaries(providerAccountRegistry, providerId),
     readCredentials: readGitHubCredentials,
+    readIntegrationCredentials: createIntegrationCredentialReader(
+      integrationAccountStore,
+      providerAccountRegistry
+    ),
     logger: log,
   });
   appScope.add(() => {
@@ -559,10 +563,8 @@ export async function bootServices(
       return settings.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
     },
     resolveProjectIntegrationAccount,
-    listAccounts: async () =>
-      (await listProviderAccountSummaries(providerAccountRegistry, 'github')).filter(
-        isGitHubAccountSummary
-      ),
+    listAccounts: (providerId = 'github') =>
+      listProviderAccountSummaries(providerAccountRegistry, providerId),
     channels: gitCredentialServer,
     logger: log,
   });
@@ -620,6 +622,13 @@ export async function bootServices(
   const githubRepositories = createGitHubRepositoryService({
     listAccounts: () => providerAccounts.listAccounts('github'),
     readCredentials: readGitHubCredentials,
+  });
+  const gitlabRepositories = createGitLabRepositoryService({
+    listAccounts: () => providerAccounts.listAccounts('gitlab'),
+    readCredentials: createIntegrationCredentialReader(
+      integrationAccountStore,
+      providerAccountRegistry
+    ),
   });
   const githubAuthPlugin = integrationPluginRegistry.get('github');
   const githubDeviceMethod = githubAuthPlugin?.capabilities.auth.methods.find(
@@ -840,6 +849,7 @@ export async function bootServices(
     account: accountService,
     automations: automationsService,
     github: githubServices,
+    gitlabRepositories,
     gitCredentials,
     hostIsReachable,
     hostAttachments,

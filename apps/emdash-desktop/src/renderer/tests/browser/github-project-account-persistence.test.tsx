@@ -4,6 +4,7 @@ import { Dialog } from '@emdash/ui/react/primitives';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import { CreatePrModal } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/create-pr-modal';
 import { AddRemoteModal } from '@core/features/tasks/browser/add-remote-modal';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   savedAccountId: 'personal',
   createPullRequest: vi.fn(),
   createRepository: vi.fn(),
+  createGitlabRepository: vi.fn(),
 }));
 
 function account(accountId: string): GitHubAccountSummary {
@@ -31,6 +33,14 @@ function account(accountId: string): GitHubAccountSummary {
 }
 const personal = account('personal');
 const work = account('work');
+const gitlabAccount = {
+  providerId: 'gitlab',
+  accountId: 'gitlab-work',
+  displayName: '@gitlab-work',
+  host: 'gitlab.com',
+  login: 'gitlab-work',
+  isDefault: true,
+};
 const repositoryUrl = 'https://github.com/acme/repo';
 const remote = { name: 'origin', url: repositoryUrl };
 const baseBranch = { type: 'remote', branch: 'main', remote };
@@ -44,17 +54,26 @@ const repository = {
     baseRemote: { value: 'origin', provenance: { kind: 'inferred', from: 'origin remote' } },
     pushRemote: { value: 'origin', provenance: { kind: 'inferred', from: 'base remote' } },
   },
+  addRemote: vi.fn(),
+  fetchRemote: vi.fn(),
+  refreshLocal: vi.fn(),
+  refreshRemote: vi.fn(),
 };
-const checkout = { isPublished: true, aheadCount: 0 };
+const checkout = { isPublished: true, aheadCount: 0, publishCurrentBranch: vi.fn() };
 
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectSettingsStore: () => (mocks.settingsAvailable ? { save: mocks.save } : undefined),
 }));
 vi.mock('@core/features/integrations/api/browser/use-project-account', () => ({
-  useProjectAccount: () => ({ value: personal, provenance: { kind: 'set' } }),
+  useProjectAccount: (_projectId: string, providerId: string) => ({
+    value: providerId === 'gitlab' ? gitlabAccount : personal,
+    provenance: { kind: 'set' },
+  }),
 }));
 vi.mock('@core/features/integrations/api/browser/use-provider-accounts', () => ({
-  useAccounts: () => ({ data: [personal, work] }),
+  useAccounts: (providerId: string) => ({
+    data: providerId === 'gitlab' ? [gitlabAccount] : [personal, work],
+  }),
 }));
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
   getGitRepositoryStore: () => repository,
@@ -68,6 +87,26 @@ vi.mock('@core/services/pull-requests/api/client', () => ({
 }));
 vi.mock('@core/features/github/api/browser/client', () => ({
   getGithubClient: async () => ({ createRepository: mocks.createRepository }),
+}));
+vi.mock('@core/features/repository/api/client', () => ({
+  getRepositoryClient: async () => ({ gitLabCreate: mocks.createGitlabRepository }),
+}));
+vi.mock('@core/features/repository/api/browser/use-repository-owner-select', () => ({
+  useRepositoryOwnerSelect: (providerId: string) => ({
+    owners: [
+      {
+        value: providerId === 'gitlab' ? 'parent/nested' : 'acme',
+        label: providerId === 'gitlab' ? 'parent/nested' : 'acme',
+      },
+    ],
+    owner: {
+      value: providerId === 'gitlab' ? 'parent/nested' : 'acme',
+      label: providerId === 'gitlab' ? 'parent/nested' : 'acme',
+    },
+    isLoading: false,
+    errorMessage: null,
+    handleOwnerChange: vi.fn(),
+  }),
 }));
 vi.mock('@core/features/github/api/browser/useGithubRepositoryOwners', () => ({
   useGitHubRepositoryOwnerSelect: () => ({
@@ -114,6 +153,13 @@ describe('project account persistence in GitHub actions', () => {
       success: false,
       error: 'Repository fixture stopped',
     });
+    mocks.createGitlabRepository.mockResolvedValue({
+      success: false,
+      error: 'Repository fixture stopped',
+    });
+    repository.addRemote.mockResolvedValue({ success: true });
+    repository.fetchRemote.mockResolvedValue({ success: true });
+    checkout.publishCurrentBranch.mockResolvedValue({ success: true });
     controller = {
       complete: vi.fn(),
       dismiss: vi.fn(),
@@ -235,13 +281,61 @@ describe('project account persistence in GitHub actions', () => {
   );
 
   it('keeps Add Remote selection local unless remembering was requested', async () => {
+    mocks.createRepository.mockResolvedValueOnce({
+      success: true,
+      repoUrl: 'https://github.com/acme/repo.git',
+    });
     await render('remote');
     await chooseWork();
     expect(mocks.save).not.toHaveBeenCalled();
     await act(async () => button('Create & Publish').click());
     expect(mocks.createRepository).toHaveBeenCalledWith(
-      expect.objectContaining({ accountId: 'work' })
+      expect.objectContaining({ accountId: 'work', initializeWithReadme: false })
     );
+    expect(repository.fetchRemote).toHaveBeenCalledWith({
+      providerId: 'github',
+      accountId: 'work',
+    });
+    expect(checkout.publishCurrentBranch).toHaveBeenCalledWith({
+      providerId: 'github',
+      accountId: 'work',
+    });
+  });
+
+  it('creates a GitLab remote with the selected account and nested group', async () => {
+    mocks.createGitlabRepository.mockResolvedValueOnce({
+      success: true,
+      cloneUrl: 'https://gitlab.com/parent/nested/repo.git',
+      nameWithOwner: 'parent/nested/repo',
+    });
+    await render('remote');
+    const providerTrigger = document.querySelector<HTMLElement>(
+      '[aria-label="Repository provider"]'
+    );
+    expect(providerTrigger).not.toBeNull();
+    await act(async () => providerTrigger!.click());
+    await act(async () => page.getByRole('option', { name: 'GitLab' }).click());
+    await act(async () => button('Create & Publish').click());
+    expect(mocks.createGitlabRepository).toHaveBeenCalledWith({
+      name: 'repo',
+      owner: 'parent/nested',
+      isPrivate: true,
+      accountId: 'gitlab-work',
+      initializeWithReadme: false,
+    });
+    expect(mocks.createRepository).not.toHaveBeenCalled();
+    expect(repository.addRemote).toHaveBeenCalledWith(
+      'origin',
+      'https://gitlab.com/parent/nested/repo.git'
+    );
+    expect(repository.fetchRemote).toHaveBeenCalledWith({
+      providerId: 'gitlab',
+      accountId: 'gitlab-work',
+    });
+    expect(checkout.publishCurrentBranch).toHaveBeenCalledWith({
+      providerId: 'gitlab',
+      accountId: 'gitlab-work',
+    });
   });
 
   it('retains Add Remote action credentials when remembering the account fails', async () => {

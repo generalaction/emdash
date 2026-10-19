@@ -1,4 +1,7 @@
-import { getIntegrationName } from '@core/features/integrations/api/browser/integration-display';
+import {
+  getIntegrationName,
+  issueTerms,
+} from '@core/features/integrations/api/browser/integration-display';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import {
   IssueSelector,
@@ -21,21 +24,22 @@ interface IssueComboboxFieldProps {
 
 function ModalPlaceholder({ issueProvider }: IssueSelectorTriggerContext) {
   const { integrationById } = useIntegrationsContext();
+  const entityName = issueTerms(issueProvider);
   const issueProviderName = issueProvider
     ? getIntegrationName(integrationById, issueProvider)
-    : 'issue';
+    : null;
 
   return (
     <span className="flex h-14 w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
       <span className="inline-flex max-w-full min-w-0 items-center gap-1 whitespace-nowrap">
-        <span className="shrink-0">Select a</span>
+        <span className="shrink-0">Select {issueProvider ? 'a' : entityName.article}</span>
         {issueProvider && (
           <>
             <ProviderLogo provider={issueProvider} className="size-3.5 shrink-0 opacity-40" />
             <span className="truncate">{issueProviderName}</span>
           </>
         )}
-        <span className="shrink-0">issue</span>
+        <span className="shrink-0">{entityName.singular}</span>
       </span>
     </span>
   );

@@ -1,4 +1,5 @@
 import { provider as github } from './impl/github';
+import { provider as gitlab } from './impl/gitlab';
 import type { RepositoryPluginProvider } from './plugin';
 
 /** Keyed by `integrationId` — at most one repository plugin per integration. */
@@ -13,6 +14,6 @@ export const repositoryPluginRegistry = {
   ids: () => [...plugins.keys()],
 };
 
-for (const provider of [github]) {
+for (const provider of [github, gitlab]) {
   repositoryPluginRegistry.register(provider);
 }

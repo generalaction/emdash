@@ -75,6 +75,7 @@ export function createDesktopWireOptions(
       deviceFlowService: github.deviceFlow,
       repositoryService: github.repositories,
     },
+    gitlabRepositories: services.gitlabRepositories,
     gitCredentials: services.gitCredentials,
     hostAvailability: runtimes.hostAvailability,
     hostOperations: {

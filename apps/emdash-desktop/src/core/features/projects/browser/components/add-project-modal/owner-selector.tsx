@@ -1,5 +1,5 @@
 import { Combobox, TriggerButton } from '@emdash/ui/react/primitives';
-import { GithubIcon } from 'lucide-react';
+import { GithubIcon, GitlabIcon } from 'lucide-react';
 import { useState } from 'react';
 import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api/provider-account-summary';
 import { ProviderAccountSelect } from '@core/primitives/provider-accounts/browser/account-select';
@@ -17,6 +17,7 @@ export function OwnerSelector({
   selectedAccount,
   onOwnerChange,
   onAccountChange,
+  provider,
 }: {
   owners: OwnerOption[];
   owner: OwnerOption | null;
@@ -24,6 +25,7 @@ export function OwnerSelector({
   selectedAccount: ProviderAccountSummary | null;
   onOwnerChange: (owner: OwnerOption) => void;
   onAccountChange: (accountId: string) => void;
+  provider: 'github' | 'gitlab';
 }) {
   const [open, setOpen] = useState(false);
 
@@ -62,11 +64,17 @@ export function OwnerSelector({
           <span className="text-xs text-foreground-muted">Choose</span>
           <div className="min-w-0" onKeyDown={(event) => event.stopPropagation()}>
             <ProviderAccountSelect
-              providerName="GitHub"
+              providerName={provider === 'github' ? 'GitHub' : 'GitLab'}
               accounts={accounts}
               selectedAccount={selectedAccount}
               onAccountChange={onAccountChange}
-              fallbackIcon={<GithubIcon className="size-full text-foreground-muted" />}
+              fallbackIcon={
+                provider === 'github' ? (
+                  <GithubIcon className="size-full text-foreground-muted" />
+                ) : (
+                  <GitlabIcon className="size-full text-foreground-muted" />
+                )
+              }
             />
           </div>
         </div>
@@ -82,8 +90,10 @@ export function OwnerSelector({
                     alt={item.label}
                     className="size-4 shrink-0 rounded-full"
                   />
-                ) : (
+                ) : provider === 'github' ? (
                   <GithubIcon className="size-4 shrink-0 text-foreground-muted" />
+                ) : (
+                  <GitlabIcon className="size-4 shrink-0 text-foreground-muted" />
                 )}
                 <span className="min-w-0 truncate">{item.label}</span>
               </span>

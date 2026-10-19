@@ -165,11 +165,11 @@ metadata, never from the account ID. Octokit construction and PR-worker auth use
 stored `apiBaseUrl`; Git's credential sink extracts the token from the same credentials.
 
 GitHub's hosted-repository Wire procedures (`getOwners`, `createRepository`, `deleteRepository`)
-select an account this way and call the GitHub repository plugin. Project creation, Add Remote,
-and the owner picker offer GitHub only.
+select an account this way and call the GitHub repository plugin. Create Repository and Add Remote
+offer GitHub and GitLab.
 
 Repository creation carries the selected provider/account reference into the clone job.
-Local HTTPS clone credential channels bind to that exact account, including when it was
+Local HTTPS clone credential channels bind to that exact GitHub or GitLab account, including when it was
 initially inferred; later default changes never switch an in-flight clone's identity.
 Removal or a host mismatch fails closed. Project-session channels continue to resolve
 the current project choice for each request. Remote-host and SSH clones retain native
@@ -224,6 +224,75 @@ and error types are in `types.ts` beside it.
   answer, so no verdict).
 - The descriptor's `knownHosts` lists hostnames that always belong to this integration, such as
   a hosted service's public domain.
+
+GitLab declares `gitlab.com` and has no host probe. A self-hosted GitLab remote routes through a
+connected account for its host. GitLab owner listings include the user's namespace and groups where
+their role permits project creation; existing nested groups use their full path as the owner. Emdash
+creates projects in those groups but does not create subgroups. Repository
+creation resolves that owner's namespace ID before calling GitLab, and deletion uses the full path.
+Create Repository lists GitLab user and group owners for the selected account. It clones the
+created project over HTTPS with the selected account's token. GitLab-facing UI calls issues
+"work items".
+Add Remote creates an empty GitHub or GitLab repository before publishing the current branch.
+The selected account is used for creation, fetch, and publish in that action. Create Repository
+initializes a README before cloning.
+GitLab continues to use the issues plugin and GitLab Issues API. The current GitLab issues plugin
+lists and searches work items. Work-item writes and GitLab merge-request operations are not yet
+implemented in Emdash.
+
+### GitLab token permissions
+
+For a legacy **personal access token**, these are the minimum scopes for each operation. Emdash
+verifies a connection with `GET /user`, so a token used only for Git over HTTPS also needs
+`read_user` to connect in Emdash.
+
+| Operation | Minimum personal-token scopes |
+| --- | --- |
+| Clone or pull a repository over HTTPS | `read_user` + `read_repository` |
+| Push a repository over HTTPS | `read_user` + `write_repository` (`write_repository` includes read access) |
+| Read work items or merge requests through the API | `read_api` |
+| Create or update work items or merge requests through the API | `api` |
+| Create or delete a GitLab project (repository) | `api` |
+
+For a personal access token, `api` alone covers every operation in this table, including Git over
+HTTPS read and write. GitLab's `api` scope grants Git-over-HTTP access to **personal** tokens;
+group and project access tokens do not receive that Git access from `api`. For read-only API and
+Git access, use `read_api` + `read_repository`. Project and group roles still control which
+resources the token owner can change.
+
+Fine-grained personal access tokens use resource permissions rather than the scopes above. Grant
+permissions on the target project or a containing group, except where the endpoint is under the
+user boundary:
+
+| Operation | Fine-grained resource permissions |
+| --- | --- |
+| Connect the account | User: Read (`GET /user`) |
+| Clone or pull over HTTPS | Code: Download (project) |
+| Push over HTTPS | Code: Push (project); add Code: Download for clone/pull |
+| Read work items | Project: Read and Work Item: Read (project) |
+| Create or update work items | Work Item: Create or Update (project); add Read to retrieve them |
+| Read merge requests | Merge Request: Read (project) |
+| Create or update merge requests | Merge Request: Create or Update (project); add Read to retrieve them |
+| Create a project in a nested group | Project: Create (user), Group: Read (user and target group), and Code: Download (containing group) for Emdash's follow-up clone |
+| Delete a project | Project: Delete (project) |
+
+Emdash also reads User: Read for owner identity, Project: Read when resolving a repository for
+work items, and Namespace: Read (user) if GitLab does not return the user's namespace ID. Merge,
+approval, and deletion of merge requests need the separate Merge Request: Merge, Approve, and
+Delete permissions. Deleting work items needs Work Item: Delete. For the listed read, create,
+update, push, and project-delete operations together, grant User: Read; Group: Read (user and
+target group); Project: Create (user), Read and Delete (project); Code: Download and Push;
+Work Item: Read, Create, and Update; and Merge Request: Read, Create, and Update. Add
+Namespace: Read (user) for the user-namespace fallback. A group boundary covers its projects,
+including a newly created project. Emdash has not run a live fine-grained-token test.
+
+GitLab documents [legacy token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/),
+[fine-grained REST permissions](https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens_rest/),
+and [fine-grained Git permissions](https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens_other/).
+The opt-in `packages/plugins/src/repository/impl/gitlab/live.test.ts` checks owner listing,
+repository creation, and deletion against GitLab. Set `EMDASH_GITLAB_LIVE_TEST=1`,
+`EMDASH_GITLAB_URL`, `EMDASH_GITLAB_TOKEN` (`api` scope), and `EMDASH_GITLAB_OWNER` (username or full
+group path) to run it.
 
 ## Remote Routing
 

@@ -20,4 +20,10 @@ describe('repository plugin registry', () => {
       'github.com',
     ]);
   });
+
+  it('registers GitLab as the owner of gitlab.com without a host probe', () => {
+    const gitlab = repositoryPluginRegistry.get('gitlab');
+    expect(gitlab?.capabilities.repository.knownHosts).toEqual(['gitlab.com']);
+    expect(gitlab?.behavior.repository?.probeHost).toBeUndefined();
+  });
 });

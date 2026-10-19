@@ -35,7 +35,7 @@ export async function listIssues(
     return ok(issues.map((issue) => toIssueData(issue, project.data.projectName)));
   } catch (error) {
     host.log.warn('GitLab listIssues failed', { error });
-    return err(toIntegrationError(error, 'GitLab', 'Unable to fetch GitLab issues.'));
+    return err(toIntegrationError(error, 'GitLab', 'Unable to fetch GitLab work items.'));
   }
 }
 
@@ -68,7 +68,7 @@ export async function searchIssues(
     return ok(issues.map((issue) => toIssueData(issue, project.data.projectName)));
   } catch (error) {
     host.log.warn('GitLab searchIssues failed', { error });
-    return err(toIntegrationError(error, 'GitLab', 'Unable to search GitLab issues.'));
+    return err(toIntegrationError(error, 'GitLab', 'Unable to search GitLab work items.'));
   }
 }
 

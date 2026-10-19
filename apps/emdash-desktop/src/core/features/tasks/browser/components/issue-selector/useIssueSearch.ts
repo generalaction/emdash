@@ -1,15 +1,20 @@
 import { useCallback, useMemo, useState } from 'react';
+import { preferredIssueProvider } from '@core/features/integrations/api/browser/integration-display';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import { useIssues } from '@core/features/integrations/api/browser/use-issues';
 import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
 export function useIssueSearch(repositoryUrl: string, projectPath = '', projectId?: string) {
+  const repositoryProvider = projectId
+    ? getGitRepositoryStore(projectId)?.providerRepository?.provider
+    : undefined;
   const context = useMemo(
-    () => ({ projectId, projectPath, repositoryUrl }),
-    [projectId, projectPath, repositoryUrl]
+    () => ({ projectId, projectPath, repositoryUrl, repositoryProvider }),
+    [projectId, projectPath, repositoryUrl, repositoryProvider]
   );
 
   const {
@@ -40,12 +45,8 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   );
 
   const issueProvider = useMemo(() => {
-    if (selectedIssueProvider && isProviderUsable(selectedIssueProvider)) {
-      return selectedIssueProvider;
-    }
-
-    return connectedProviders[0] ?? null;
-  }, [connectedProviders, isProviderUsable, selectedIssueProvider]);
+    return preferredIssueProvider(selectedIssueProvider, connectedProviders, repositoryProvider);
+  }, [connectedProviders, repositoryProvider, selectedIssueProvider]);
 
   const issuesHook = useIssues(issueProvider, {
     projectId,

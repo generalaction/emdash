@@ -42,6 +42,7 @@ export const githubContract = defineContract({
       isPrivate: z.boolean().optional(),
       visibility: z.enum(['public', 'private']).optional(),
       accountId: z.string().nullable().optional(),
+      initializeWithReadme: z.boolean().optional(),
     }),
     output: z.custom<CreateRepositoryResult>(),
   }),

@@ -7,6 +7,7 @@ interface LinkedEntitySectionProps {
   state: CreateTaskState;
   hasAnyIssueIntegration: boolean;
   hasPrSupport: boolean;
+  issueLabel: string;
   projectId?: string;
   repositoryUrl?: string;
   projectPath?: string;
@@ -16,6 +17,7 @@ export function LinkedEntitySection({
   state,
   hasAnyIssueIntegration,
   hasPrSupport,
+  issueLabel,
   projectId,
   repositoryUrl,
   projectPath,
@@ -34,7 +36,7 @@ export function LinkedEntitySection({
           }}
         >
           <ToggleGroup.Item className="text-xs" value="issue" disabled={!hasAnyIssueIntegration}>
-            Issue
+            {issueLabel}
           </ToggleGroup.Item>
           <ToggleGroup.Item className="text-xs" value="pr" disabled={!hasPrSupport}>
             Pull Request

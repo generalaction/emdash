@@ -18,6 +18,53 @@ afterEach(() => {
 });
 
 describe('project issue provider availability', () => {
+  it.each([
+    ['github only', { github: [{ accountId: 'gh', isDefault: true, host: 'github.com' }] }, []],
+    [
+      'wrong GitLab host',
+      { gitlab: [{ accountId: 'gl', isDefault: true, host: 'other.example.com' }] },
+      [],
+    ],
+    [
+      'matching GitLab host',
+      { gitlab: [{ accountId: 'gl', isDefault: true, host: 'gitlab.example.com' }] },
+      ['gitlab'],
+    ],
+  ])('uses repository-compatible accounts: %s', async (_case, accounts, expected) => {
+    mocks.context.mockReturnValue({
+      integrations: [
+        { id: 'github', features: ['issues'], issueCapabilities: { requiresRepositoryUrl: true } },
+        { id: 'gitlab', features: ['issues'], issueCapabilities: { requiresRepositoryUrl: true } },
+      ],
+      integrationAccounts: accounts,
+      isLoadingAccounts: false,
+    });
+    mocks.settings.mockReturnValue({
+      durableDomains: { integrationAccounts: { stored: {} } },
+    });
+    const dom = new JSDOM('<html><body><div id="root"></div></body></html>');
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.stubGlobal('window', dom.window);
+    vi.stubGlobal('document', dom.window.document);
+    const container = dom.window.document.getElementById('root')!;
+    const root = createRoot(container);
+    function Probe() {
+      const result = useConnectedIssueProviders({
+        projectId: 'project',
+        repositoryUrl: 'git@gitlab.example.com:group/sub/project.git',
+        repositoryProvider: 'gitlab',
+      });
+      return React.createElement('span', {}, result.connectedProviders.join(','));
+    }
+    try {
+      await act(async () => root.render(React.createElement(Probe)));
+      expect(container.textContent).toBe(expected.join(','));
+    } finally {
+      await act(async () => root.unmount());
+      dom.window.close();
+    }
+  });
+
   it.each([true, false])(
     'excludes an explicitly disabled provider even with saved accounts (configured=%s)',
     async (configured) => {

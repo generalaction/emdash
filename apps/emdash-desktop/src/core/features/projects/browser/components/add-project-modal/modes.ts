@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useGitHubRepositoryOwnerSelect } from '@core/features/github/api/browser/useGithubRepositoryOwners';
+import { repositoryNameError } from '@core/features/repository/api/browser/repository-name';
+import { useRepositoryOwnerSelect } from '@core/features/repository/api/browser/use-repository-owner-select';
 
 export function usePickMode() {
   const [path, setPath] = useState('');
@@ -25,7 +26,11 @@ export type PickModeState = ReturnType<typeof usePickMode>;
 export type CreateRepositoryModeState = ReturnType<typeof useCreateRepositoryMode>;
 export type CloneModeState = ReturnType<typeof useCloneMode>;
 
-export function useCreateRepositoryMode(defaultPath: string, githubAccountId: string | null) {
+export function useCreateRepositoryMode(
+  defaultPath: string,
+  provider: 'github' | 'gitlab',
+  accountId: string | null
+) {
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryVisibility, setRepositoryVisibility] = useState<'public' | 'private'>('private');
   const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);
@@ -35,13 +40,17 @@ export function useCreateRepositoryMode(defaultPath: string, githubAccountId: st
     owner: repositoryOwner,
     errorMessage: repositoryOwnersErrorMessage,
     handleOwnerChange,
-  } = useGitHubRepositoryOwnerSelect(githubAccountId);
+  } = useRepositoryOwnerSelect(provider, accountId);
 
   const handleRepositoryNameChange = (newRepositoryName: string) => {
     setRepositoryName(newRepositoryName);
   };
 
-  const isValid = repositoryName.trim().length > 0 && !!repositoryOwner && path.trim().length > 0;
+  const isValid =
+    repositoryName.trim().length > 0 &&
+    !repositoryNameError(provider, repositoryName) &&
+    !!repositoryOwner &&
+    path.trim().length > 0;
 
   return {
     repositoryName,
