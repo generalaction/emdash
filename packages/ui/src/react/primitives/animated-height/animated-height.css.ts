@@ -11,6 +11,7 @@ import { HEIGHT_TRANSITION_DURATION_MS } from './constants';
 export const root = style({
   display: 'grid',
   gridTemplateRows: '1fr',
+  gridTemplateColumns: 'minmax(0, 1fr)',
   // Content must keep its natural height (not stretch to the row) so the
   // ResizeObserver keeps measuring the real content size while the row is
   // pinned to the previous height during a transition.
