@@ -36,4 +36,8 @@
   exactly once per spawn, never as an ambient fallback or immutable worker config
 - do not weaken quoting or spawn behavior casually
 - validate both direct spawn and shell-wrapped spawn cases when changing PTY startup logic
+- tmux must wrap the same resolved invocation as a direct PTY, with the task's explicit
+  environment (including absent and empty variables). Never rely on the shared server's
+  inherited task environment or change its global environment to launch a task. Preserve
+  tmux's terminal metadata, and keep credential values out of generated pane commands.
 - confirm renderer event flow if hook/plugin payload or agent status behavior changes

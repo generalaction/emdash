@@ -86,13 +86,19 @@ describe('resolveTmuxSession', () => {
 
 describe('buildTmuxShellLine', () => {
   it('uses exact targets and POSIX quoting', () => {
-    const line = buildTmuxShellLine('workspace-$12', 'printf "$HOME"', 'project:task:leaf');
+    const line = buildTmuxShellLine(
+      'workspace-$12',
+      { command: '/bin/sh', args: ['-c', 'printf "$HOME"'] },
+      { HOME: '/home/user', TOKEN: 'synthetic-secret' },
+      'project:task:leaf'
+    );
 
     expect(line).toContain('has-session -t');
     expect(line).toContain('attach-session -t');
     expect(line).toContain('new-session -d -s');
     expect(line).toContain('=workspace-$12');
     expect(line).not.toContain('"workspace-$12"');
+    expect(line).not.toContain('synthetic-secret');
   });
 
   it.skipIf(!TMUX_AVAILABLE)(
@@ -108,7 +114,10 @@ describe('buildTmuxShellLine', () => {
       try {
         const created = await resolveTmuxSession(ctx, { identity, label: 'Fix login' });
         await shell
-          .exec(['-c', buildTmuxShellLine(created.name, 'sleep 30', identity)])
+          .exec([
+            '-c',
+            buildTmuxShellLine(created.name, { command: 'sleep', args: ['30'] }, env, identity),
+          ])
           .catch(() => {});
 
         await expect(
@@ -130,7 +139,12 @@ describe('buildTmuxShellLine', () => {
           '#{pane_pid}',
         ]);
         const legacy = await resolveTmuxSession(ctx, { identity, label: 'Fix login' });
-        await shell.exec(['-c', buildTmuxShellLine(legacy.name, 'exit 99')]).catch(() => {});
+        await shell
+          .exec([
+            '-c',
+            buildTmuxShellLine(legacy.name, { command: '/bin/sh', args: ['-c', 'exit 99'] }, env),
+          ])
+          .catch(() => {});
         const after = await tmux.exec([
           'display-message',
           '-p',
@@ -153,7 +167,15 @@ describe('buildTmuxShellLine', () => {
           label: 'prefix',
         });
         await shell
-          .exec(['-c', buildTmuxShellLine(missingExact.name, 'sleep 30', prefixIdentity)])
+          .exec([
+            '-c',
+            buildTmuxShellLine(
+              missingExact.name,
+              { command: 'sleep', args: ['30'] },
+              env,
+              prefixIdentity
+            ),
+          ])
           .catch(() => {});
         const exactSessions = await tmux.exec(['list-sessions', '-F', '#{session_name}']);
         expect(exactSessions.stdout.trim().split('\n').sort()).toEqual(
