@@ -232,6 +232,8 @@ function createLoginTerminal(): Terminal {
     linkHandler: {
       activate: (event, text) => {
         if (!isPrimaryMouseButton(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
         confirmOpenExternalLink(text);
       },
     },
@@ -241,6 +243,7 @@ function createLoginTerminal(): Terminal {
     new WebLinksAddon((event, uri) => {
       if (!isPrimaryMouseButton(event)) return;
       event.preventDefault();
+      event.stopPropagation();
       confirmOpenExternalLink(uri);
     })
   );

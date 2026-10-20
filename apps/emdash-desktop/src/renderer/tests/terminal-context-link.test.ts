@@ -78,4 +78,15 @@ describe('terminal context link detection', () => {
 
     expect(getTerminalLinkAtBufferCell(buffer, 1, 9)).toBe('/tmp/output/report.md');
   });
+
+  it('resolves a URL split across a hard line break', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('Investigate KAI-1044 (https://'),
+      new MockBufferLine('linear.app/kairoslive/issue/KAI-1044)'),
+    ]);
+    const url = 'https://linear.app/kairoslive/issue/KAI-1044';
+
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 23)).toBe(url);
+    expect(getTerminalLinkAtBufferCell(buffer, 2, 1)).toBe(url);
+  });
 });

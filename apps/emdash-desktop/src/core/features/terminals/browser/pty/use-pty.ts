@@ -24,6 +24,7 @@ import {
   shouldPasteToTerminal,
 } from './pty-keybindings';
 import { getTerminalContextLink } from './terminal-context-link';
+import { copyableTerminalSelection } from './url-link-detection';
 
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -226,7 +227,7 @@ export function usePty(
     const selection =
       termRef.current?.getSelection() || getRecentSelection(lastSelectionRef.current);
     if (selection) {
-      navigator.clipboard.writeText(selection).catch(() => {});
+      navigator.clipboard.writeText(copyableTerminalSelection(selection)).catch(() => {});
     }
   }, []);
 
@@ -531,9 +532,10 @@ export function usePty(
 
         const requestId = createContextMenuRequestId();
         contextMenuRequestIdRef.current = requestId;
-        const selectionText =
-          terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
-        const linkText = getTerminalContextLink(terminal, event);
+        const selectionText = copyableTerminalSelection(
+          terminal.getSelection() || getRecentSelection(lastSelectionRef.current)
+        );
+        const linkText = frontendPty.getHoveredOscLink() ?? getTerminalContextLink(terminal, event);
         void getHostClient().then((client) =>
           client.showTerminalContextMenu({
             requestId,

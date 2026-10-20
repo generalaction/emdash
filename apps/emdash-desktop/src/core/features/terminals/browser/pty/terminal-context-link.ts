@@ -1,6 +1,7 @@
 import type { ILink, Terminal } from '@xterm/xterm';
 import { getCellMetrics } from '@core/features/terminals/api/browser/pty/xterm-cell-metrics';
 import { findFileLinks, type BufferLike } from './file-link-detection';
+import { findUrlLinks } from './url-link-detection';
 
 const URL_PATTERN = /https?:\/\/[^\s"'<>`]+/gi;
 
@@ -49,7 +50,14 @@ export function getTerminalLinkAtBufferCell(
   );
   if (fileLink) return fileLink.text;
 
-  const lineWithColumns = getLineTextWithColumns(buffer.getLine(bufferLineNumber - 1));
+  const line = buffer.getLine(bufferLineNumber - 1);
+  const lineText = line?.translateToString(true) ?? '';
+  const urlLink = findUrlLinks(buffer, bufferLineNumber).find((link) =>
+    rangeContainsColumn(link.range, bufferLineNumber, column)
+  );
+  if (urlLink && !lineText.includes(urlLink.text)) return urlLink.text;
+
+  const lineWithColumns = getLineTextWithColumns(line);
   if (!lineWithColumns.text) return null;
   for (const match of lineWithColumns.text.matchAll(URL_PATTERN)) {
     const text = trimLinkText(match[0]);
@@ -57,7 +65,10 @@ export function getTerminalLinkAtBufferCell(
     const endOffset = startOffset + text.length - 1;
     const start = lineWithColumns.columnForOffset(startOffset);
     const end = lineWithColumns.columnForOffset(endOffset);
-    if (column >= start && column <= end) return text;
+    if (column >= start && column <= end) {
+      if (urlLink && urlLink.text.length > text.length) return urlLink.text;
+      return text;
+    }
   }
   return null;
 }

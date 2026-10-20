@@ -10,6 +10,7 @@ import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-
 import { log } from '@core/primitives/logging/browser/logger';
 import { cssColorToHex, cssVar } from '@core/primitives/styling/browser/cssVars';
 import { decodeOsc52ClipboardData } from '../../../browser/pty/pty-clipboard';
+import { isHttpUrl } from '../../../browser/pty/url-link-detection';
 import { ensureXtermHost } from '../../../browser/pty/xterm-host';
 
 /**
@@ -96,6 +97,8 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
+  private hoveredOscLink: string | null = null;
+  private swallowLinkMouseUp = false;
 
   constructor(
     readonly sessionId: string,
@@ -127,11 +130,19 @@ export class FrontendPty {
       allowProposedApi: true,
       scrollOnUserInput: false,
       linkHandler: {
-        activate: (_event: MouseEvent, text: string) => {
-          if (!isPrimaryMouseButton(_event)) return;
+        activate: (event: MouseEvent, text: string) => {
+          if (!isPrimaryMouseButton(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
           confirmOpenExternalLink(text, (error) => {
             log.warn('FrontendPty: failed to open external link', { text, error });
           });
+        },
+        hover: (_event: MouseEvent, text: string) => {
+          this.hoveredOscLink = text;
+        },
+        leave: () => {
+          this.hoveredOscLink = null;
         },
       },
       theme: buildTheme(theme),
@@ -143,6 +154,7 @@ export class FrontendPty {
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       if (!isPrimaryMouseButton(event)) return;
       event.preventDefault();
+      event.stopPropagation();
       confirmOpenExternalLink(uri);
     });
 
@@ -175,10 +187,37 @@ export class FrontendPty {
       el.style.boxSizing = 'border-box';
       el.style.padding = `${TERMINAL_PADDING_PX}px`;
       this.applyElementTheme(theme);
+      this.attachLinkClickShield(el);
     }
 
     FrontendPty.all.add(this);
     FrontendPty.bySession.set(this.sessionId, this);
+  }
+
+  getHoveredOscLink(): string | null {
+    return this.hoveredOscLink;
+  }
+
+  private attachLinkClickShield(element: HTMLElement): void {
+    element.addEventListener(
+      'mousedown',
+      (event) => {
+        if (!isPrimaryMouseButton(event)) return;
+        if (!this.hoveredOscLink || !isHttpUrl(this.hoveredOscLink)) return;
+        this.swallowLinkMouseUp = true;
+        event.stopImmediatePropagation();
+      },
+      true
+    );
+    element.addEventListener(
+      'mouseup',
+      (event) => {
+        if (!this.swallowLinkMouseUp) return;
+        this.swallowLinkMouseUp = false;
+        event.stopImmediatePropagation();
+      },
+      true
+    );
   }
 
   setTheme(theme?: SessionTheme): void {
@@ -267,6 +306,8 @@ export class FrontendPty {
   dispose(): void {
     FrontendPty.all.delete(this);
     FrontendPty.bySession.delete(this.sessionId);
+    this.hoveredOscLink = null;
+    this.swallowLinkMouseUp = false;
     this.offData?.();
     this.offData = null;
     try {
