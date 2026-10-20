@@ -433,6 +433,14 @@ export class PullRequestStore {
     return row ? this.assembleRows([row])[0] : null;
   }
 
+  getPullRequestByNumber(repositoryUrl: string, number: number): PullRequest | null {
+    const row = this.handle.connection.get<PullRequestDbRow>(
+      `${pullRequestSelectSql} WHERE repository_url = ? AND identifier IN (?, ?) LIMIT 1`,
+      [repositoryUrl, `#${number}`, `!${number}`]
+    );
+    return row ? this.assembleRows([row])[0] : null;
+  }
+
   getPullRequestIdentity(url: string): { repositoryUrl: string; identifier: string | null } | null {
     return (
       this.handle.connection.get<{ repositoryUrl: string; identifier: string | null }>(
@@ -460,7 +468,7 @@ export class PullRequestStore {
         "SELECT identifier FROM pull_requests WHERE repository_url = ? AND status = 'open'",
         [repositoryUrl]
       )
-      .map(({ identifier }) => Number(identifier?.replace('#', '')))
+      .map(({ identifier }) => Number(identifier?.replace(/^[#!]/, '')))
       .filter((number) => Number.isInteger(number) && number > 0);
   }
 

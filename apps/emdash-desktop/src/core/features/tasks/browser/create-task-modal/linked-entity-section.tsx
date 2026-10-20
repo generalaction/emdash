@@ -7,6 +7,7 @@ interface LinkedEntitySectionProps {
   state: CreateTaskState;
   hasAnyIssueIntegration: boolean;
   hasPrSupport: boolean;
+  requestProvider?: string;
   issueLabel: string;
   projectId?: string;
   repositoryUrl?: string;
@@ -17,6 +18,7 @@ export function LinkedEntitySection({
   state,
   hasAnyIssueIntegration,
   hasPrSupport,
+  requestProvider,
   issueLabel,
   projectId,
   repositoryUrl,
@@ -39,7 +41,7 @@ export function LinkedEntitySection({
             {issueLabel}
           </ToggleGroup.Item>
           <ToggleGroup.Item className="text-xs" value="pr" disabled={!hasPrSupport}>
-            Pull Request
+            {requestProvider === 'gitlab' ? 'Merge Request' : 'Pull Request'}
           </ToggleGroup.Item>
         </ToggleGroup.Root>
       </div>
@@ -69,6 +71,7 @@ export function LinkedEntitySection({
       )}
       {state.linkedType === 'pr' && (
         <PrComboboxField
+          provider={requestProvider}
           value={state.linkedPR}
           onValueChange={state.setLinkedPR}
           projectId={projectId}

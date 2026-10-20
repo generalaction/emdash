@@ -96,8 +96,8 @@ export const pullRequestSchema = z.object({
 export const pullRequestFileSchema = z.object({
   filename: z.string(),
   status: z.string(),
-  additions: z.number().int(),
-  deletions: z.number().int(),
+  additions: z.number().int().nullable(),
+  deletions: z.number().int().nullable(),
   patch: z.string().optional(),
 });
 

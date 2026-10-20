@@ -38,6 +38,7 @@ interface WorkspacePresetPickerProps {
   value: WorkspacePresetId;
   onValueChange: (id: WorkspacePresetId) => void;
   hasPR: boolean;
+  requestProvider?: string;
   hasExistingWorkspaces: boolean;
   worktreesDisabledReason?: string;
   disabled?: boolean;
@@ -47,6 +48,7 @@ export function WorkspacePresetPicker({
   value,
   onValueChange,
   hasPR,
+  requestProvider,
   hasExistingWorkspaces,
   worktreesDisabledReason,
   disabled,
@@ -57,6 +59,14 @@ export function WorkspacePresetPicker({
     (preset) => showPrPresets || !preset.requiresPR
   ).map((preset) => ({
     ...preset,
+    ...(requestProvider === 'gitlab' && preset.requiresPR
+      ? {
+          label: preset.label.replace(/\bPR\b/g, 'MR'),
+          description: preset.description
+            .replace(/pull request/g, 'merge request')
+            .replace(/\bPR\b/g, 'MR'),
+        }
+      : {}),
     disabledReason:
       preset.requiresCommits && worktreesDisabledReason ? worktreesDisabledReason : undefined,
     disabled:

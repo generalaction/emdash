@@ -89,6 +89,83 @@ async function harness(maxSyncCount = 300) {
 }
 
 describe('PullRequestService ownership', () => {
+  it('stores GitLab details and comments under the merge request web URL', async () => {
+    const h = await harness();
+    const mrUrl = `${repositoryUrl}/-/merge_requests/42`;
+    const mr = pullRequestFixture({ url: mrUrl, provider: 'gitlab', identifier: '!42' });
+    h.store.savePullRequest(mr);
+    h.context.fetchPullRequest.mockResolvedValueOnce(observed(mr));
+    h.context.fetchComments.mockResolvedValueOnce(
+      observed([
+        {
+          id: 'note-1',
+          pullRequestUrl: mrUrl,
+          kind: 'issue',
+          body: 'Comment',
+          url: `${mrUrl}#note_1`,
+          author: null,
+          path: null,
+          line: null,
+          isResolved: false,
+          isOutdated: false,
+          createdAt: mr.createdAt,
+          updatedAt: mr.updatedAt,
+        },
+      ])
+    );
+    expect(
+      await h.service.refreshPullRequest({
+        repositoryUrl,
+        number: 42,
+        comments: true,
+        policy: 'force',
+      })
+    ).toEqual(ok());
+    expect(h.store.getPullRequestByNumber(repositoryUrl, 42)?.url).toBe(mrUrl);
+    expect(h.store.getComments(mrUrl)).toMatchObject([{ id: 'note-1' }]);
+  });
+
+  it('hydrates incomplete MR inventory and preserves only unchanged detail observations', async () => {
+    const h = await harness();
+    const mr = pullRequestFixture({
+      provider: 'gitlab',
+      identifier: '!42',
+      url: `${repositoryUrl}/-/merge_requests/42`,
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    const summary = { ...mr, reviewDecision: null, baseRefOid: '' };
+    const inventory = {
+      ...page([summary]),
+      detailOnlyFields: ['reviewDecision', 'baseRefOid'] as ('reviewDecision' | 'baseRefOid')[],
+    };
+    h.context.fetchOpenPage.mockImplementation(async () => observed(inventory));
+    h.context.fetchPullRequest.mockImplementation(async () => observed(mr));
+    expect(await h.service.refreshRepository({ repositoryUrl, policy: 'force' })).toEqual(ok());
+    expect(h.store.getPullRequestByUrl(mr.url)?.metadataFetchedAt).toBeNull();
+    expect(
+      await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' })
+    ).toEqual(ok());
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(1);
+    expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+    expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' });
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(1);
+    summary.headRefOid = 'new-head';
+    summary.updatedAt = '2026-10-19T00:00:00Z';
+    await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+    expect(h.store.getPullRequestByUrl(mr.url)?.metadataFetchedAt).toBeNull();
+    await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' });
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(2);
+  });
+
   it('restores history progress after inventory completes, without losing either operation state', async () => {
     const h = await harness();
     let finishHistory!: () => void;
@@ -578,7 +655,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       'next',
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      undefined
     );
     expect(h.store.getCursor(repositoryUrl, 'full')).toMatchObject({ done: true });
     expect(
@@ -625,7 +703,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       'older',
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      '2026-01-02T00:00:00.000Z'
     );
     expect(h.store.getPullRequestByUrl(`${repositoryUrl}/pull/2`)).not.toBeNull();
     expect(h.store.getPullRequestByUrl(`${repositoryUrl}/pull/3`)).toBeNull();
@@ -658,7 +737,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       null,
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      undefined
     );
     expect(h.store.getCursor(repositoryUrl, 'full')?.done).toBe(true);
   });

@@ -134,6 +134,24 @@ describe('use-existing preset', () => {
 // ─── checkout-pr ─────────────────────────────────────────────────────────────
 
 describe('checkout-pr preset', () => {
+  it.each(['checkout-pr', 'pr-new-branch'] as const)('retains the MR provider for %s', (preset) => {
+    const pr = {
+      ...makePR(),
+      provider: 'gitlab',
+      url: 'https://gitlab.com/group/sub/repo/-/merge_requests/42',
+      identifier: '!42',
+      repositoryUrl: 'https://gitlab.com/group/sub/repo',
+      headRepositoryUrl: 'https://gitlab.com/fork/repo',
+    };
+    const cfg = buildWorkspaceConfigFromPreset(preset, { pr }, { taskBranch: 'task/42' });
+    expect(cfg.git).toMatchObject({
+      kind: 'pr-branch',
+      provider: 'gitlab',
+      prUrl: pr.url,
+      prNumber: 42,
+      isFork: true,
+    });
+  });
   it('produces pr-branch setup with no taskBranch for a same-repo PR', () => {
     const pr = makePR();
     const cfg = buildWorkspaceConfigFromPreset('checkout-pr', { pr });

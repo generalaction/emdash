@@ -30,6 +30,17 @@ describe('copyPrUrl', () => {
     expect(mocks.toast).toHaveBeenCalledWith('PR URL copied');
   });
 
+  it('uses MR terminology for GitLab clipboard success and failure', async () => {
+    const url = 'https://gitlab.com/acme/app/-/merge_requests/42';
+    await expect(copyPrUrl(url, 'gitlab')).resolves.toBe(true);
+    expect(mocks.toast).toHaveBeenCalledWith('MR URL copied');
+    mocks.clipboardWriteText.mockResolvedValueOnce({ success: false });
+    await expect(copyPrUrl(url, 'gitlab')).resolves.toBe(false);
+    expect(mocks.toast.error).toHaveBeenCalledWith('Copy failed', {
+      description: 'The MR URL could not be copied to the clipboard.',
+    });
+  });
+
   it('reports when the clipboard service returns a failure', async () => {
     mocks.clipboardWriteText.mockResolvedValue({
       success: false,

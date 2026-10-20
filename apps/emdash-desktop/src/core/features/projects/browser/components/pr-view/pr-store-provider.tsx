@@ -7,9 +7,11 @@ import {
 
 export function ProjectPullRequestsProvider({
   repositoryUrls,
+  provider = 'github',
   children,
 }: {
   repositoryUrls: string[];
+  provider?: string;
   children: ReactNode;
 }) {
   const [store, setStore] = useState<PullRequestsStore | null>(null);
@@ -50,7 +52,7 @@ export function ProjectPullRequestsProvider({
   if (error) {
     return (
       <p className="py-4 text-center text-sm text-foreground-error">
-        Could not load pull requests: {error}
+        Could not load {provider === 'gitlab' ? 'merge requests' : 'pull requests'}: {error}
       </p>
     );
   }

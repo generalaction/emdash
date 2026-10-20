@@ -253,3 +253,68 @@ describe('compileWorktreeGitPlan — remote name', () => {
     ).toThrow('no push remote');
   });
 });
+
+describe('compileWorktreeGitPlan — GitLab merge requests', () => {
+  const mr = (overrides = {}) =>
+    prBranch({
+      provider: 'gitlab',
+      prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42',
+      headRepositoryUrl: 'https://gitlab.com/group/nested/repo',
+      ...overrides,
+    });
+
+  it('tracks the source branch for a same-project checkout', () => {
+    expect(compileWorktreeGitPlan(mr(), context)).toEqual({
+      branch: 'feat/my-pr',
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/heads/feat/my-pr' },
+        upstream: { remote: 'origin', mergeRef: 'refs/heads/feat/my-pr' },
+        breadcrumb: { prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42' },
+        followRef: true,
+      },
+    });
+  });
+
+  it('fetches a fork MR from the target repository into an MR namespace', () => {
+    expect(
+      compileWorktreeGitPlan(
+        mr({ isFork: true, headRepositoryUrl: 'https://gitlab.com/fork/repo' }),
+        context
+      )
+    ).toEqual({
+      branch: 'mr/42/feat/my-pr',
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/merge-requests/42/head' },
+        upstream: { remote: 'origin', mergeRef: 'refs/merge-requests/42/head' },
+        breadcrumb: { prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42' },
+        followRef: true,
+      },
+    });
+  });
+
+  it.each([false, true])('bases a new task branch on the MR ref (fork: %s)', (isFork) => {
+    expect(
+      compileWorktreeGitPlan(mr({ isFork, taskBranch: 'task/42', pushBranch: true }), context)
+    ).toEqual({
+      branch: 'task/42',
+      publish: { remote: 'fork' },
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/merge-requests/42/head' },
+        breadcrumb: { prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42' },
+        followRef: true,
+      },
+    });
+  });
+
+  it('derives a nested MR URL when the canonical URL is absent', () => {
+    expect(compileWorktreeGitPlan(mr({ prUrl: undefined }), context).gitSetup?.breadcrumb).toEqual({
+      prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42',
+    });
+  });
+
+  it('refuses an MR checkout without a base remote', () => {
+    expect(() => compileWorktreeGitPlan(mr(), { baseRemote: null, pushRemote: null })).toThrow(
+      'no git remotes'
+    );
+  });
+});

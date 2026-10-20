@@ -207,3 +207,24 @@ describe('PrStore scoped detail interest', () => {
     await vi.waitFor(() => expect(h.store.details?.stale).toBe(false));
   });
 });
+
+describe('PrStore mark-ready errors', () => {
+  it('surfaces provider scope errors instead of reporting success', async () => {
+    const h = harness();
+    const hint = 'Reconnect GitLab with an api-scoped token.';
+    mocks.client.mockResolvedValue({
+      markReadyForReview: vi.fn(async () => ({
+        success: false,
+        error: { type: 'auth_required', integrationId: 'gitlab', host: 'gitlab.com', hint },
+      })),
+    });
+    await expect(h.store.markReadyForReview(h.pr.url)).rejects.toThrow(hint);
+  });
+  it('completes a successful mark-ready operation', async () => {
+    const h = harness();
+    const markReady = vi.fn(async () => ({ success: true }));
+    mocks.client.mockResolvedValue({ markReadyForReview: markReady });
+    await expect(h.store.markReadyForReview(h.pr.url)).resolves.toBeUndefined();
+    expect(markReady).toHaveBeenCalledWith({ repositoryUrl: h.pr.repositoryUrl, number: 42 });
+  });
+});

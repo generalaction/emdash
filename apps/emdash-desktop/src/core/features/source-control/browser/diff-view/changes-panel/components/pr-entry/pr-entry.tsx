@@ -63,6 +63,8 @@ export const PullRequestEntry = observer(function PullRequestEntry({
   const checks = pr.checks;
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
+  const noun = pr.provider === 'gitlab' ? 'merge request' : 'pull request';
+  const short = pr.provider === 'gitlab' ? 'MR' : 'PR';
   const isOpen = pr.status === 'open';
 
   const uiState = computeMergeUiState(pr);
@@ -78,7 +80,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({
       });
       if (!result.success) {
         toast.error(
-          bypassRequirements ? 'Failed to merge without waiting' : 'Failed to merge pull request',
+          bypassRequirements ? 'Failed to merge without waiting' : `Failed to merge ${noun}`,
           { description: result.error }
         );
       }
@@ -111,10 +113,22 @@ export const PullRequestEntry = observer(function PullRequestEntry({
 
   const mergeActions: MergeAction[] = (['merge', 'squash', 'rebase'] as const).map((strategy) => ({
     value: strategy,
-    label: shouldBypassRequirements ? bypassMergeLabels[strategy] : mergeLabels[strategy],
+    label: shouldBypassRequirements
+      ? bypassMergeLabels[strategy]
+      : strategy === 'merge' && pr.provider === 'gitlab'
+        ? 'Merge'
+        : strategy === 'rebase' && pr.provider === 'gitlab'
+          ? 'Fast-forward merge'
+          : mergeLabels[strategy],
     description: shouldBypassRequirements
       ? bypassMergeDescriptions[strategy]
-      : mergeDescriptions[strategy],
+      : pr.provider === 'gitlab'
+        ? strategy === 'rebase'
+          ? 'Merge without a merge commit. Requires fast-forward project settings and an up-to-date source branch.'
+          : strategy === 'merge'
+            ? 'Merge using the project merge method.'
+            : 'Combine the source branch commits into one commit and merge.'
+        : mergeDescriptions[strategy],
     action: () => handleMergeClick(strategy),
   }));
 
@@ -129,7 +143,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({
             <StatusIcon className="size-4" pr={pr} />
             <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>
             <div className="transition-opacity duration-200 group-hover:opacity-0">
-              <PrNumberBadge number={getPrNumber(pr) ?? 0} />
+              <PrNumberBadge number={getPrNumber(pr) ?? 0} provider={pr.provider} />
             </div>
             <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <ExternalLink className="size-3.5 text-foreground-muted" />
@@ -137,12 +151,14 @@ export const PullRequestEntry = observer(function PullRequestEntry({
           </button>
           <PrUrlCopyButton
             url={pr.url}
+            provider={pr.provider}
             className="opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100"
           />
         </div>
         <PrMergeLine pr={pr} />
         <PrCheckoutDriftLine
           drift={prStore.checkoutDrift}
+          provider={pr.provider}
           onUpdateNow={() => void updateCheckout()}
           isUpdating={isUpdatingCheckout}
         />
@@ -184,9 +200,12 @@ export const PullRequestEntry = observer(function PullRequestEntry({
             setIsMarkingReady(true);
             prStore
               .markReadyForReview(pr.url)
-              .catch(() => {
-                toast.error('Failed to mark pull request ready', {
-                  description: 'Refresh PR status and try again.',
+              .catch((error: unknown) => {
+                toast.error(`Failed to mark ${noun} ready`, {
+                  description:
+                    error instanceof Error
+                      ? error.message
+                      : `Refresh ${short} status and try again.`,
                 });
               })
               .finally(() => setIsMarkingReady(false));

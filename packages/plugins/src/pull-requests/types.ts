@@ -22,6 +22,8 @@ export type PullRequestPage = {
   prs: PullRequestMetadata[];
   pageInfo: { hasNextPage: boolean; endCursor: string | null };
   totalCount?: number;
+  /** Fields absent from inventory; unchanged records retain their cached detail values. */
+  detailOnlyFields?: (keyof PullRequestMetadata)[];
 };
 
 export type PullRequestOperationErrorType =
@@ -71,7 +73,8 @@ export interface PullRequestRepositoryClient {
   fetchHistoryPage(
     cursor: string | null,
     signal: AbortSignal,
-    priority?: number
+    priority?: number,
+    updatedAfter?: string
   ): Promise<Result<Observed<PullRequestPage>, PullRequestError>>;
   fetchPullRequest(
     number: number,
@@ -90,7 +93,7 @@ export interface PullRequestRepositoryClient {
   ): Promise<Result<Observed<PullRequestComment[]>, PullRequestError>>;
 }
 
-/** A single git hosting platform's PR/MR I/O: fetches and mutates, never store or scheduler policy. */
+/** A single git hosting platform's PR/MR I/O: fetches and mutates, never cache persistence or refresh policy. */
 export interface PullRequestClient {
   openRepository(
     repositoryUrl: string,

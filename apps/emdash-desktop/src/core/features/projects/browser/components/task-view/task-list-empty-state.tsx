@@ -48,6 +48,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   );
   const issueName = issueTerms(issueProvider ?? repositoryProvider);
   const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
+  const requestName = repositoryProvider === 'gitlab' ? 'Merge Request' : 'Pull Request';
   const supportsGhesIssues = Boolean(
     repositoryStore?.issueRepositoryUrl &&
     repositoryStore.providerRepository?.provider === 'github' &&
@@ -85,11 +86,13 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
           : navigate(settingsViewDef({ tab: 'integrations' })),
     },
     {
-      label: 'Create from Pull Request',
-      description: 'Create a task from a pull request',
+      label: `Create from ${requestName}`,
+      description: `Create a task from a ${requestName.toLowerCase()}`,
       icon: GitPullRequest,
       disabled: !!createDisabledReason || !supportsPullRequests,
-      disabledReason: createDisabledReason ?? 'No remote repository connected',
+      disabledReason:
+        createDisabledReason ??
+        (!supportsPullRequests ? 'No remote repository connected' : undefined),
       onActivate: () => void openTaskModal({ projectId, strategy: 'from-pull-request' }),
     },
   ];
