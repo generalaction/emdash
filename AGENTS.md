@@ -386,6 +386,13 @@ pnpm run test
  (`packages/core/src/primitives/versioned-schema/api/versioned-schema.ts`) and Drizzle
  `versionedJsonColumn()` from `src/core/services/app-db/node/versioned-column.ts`.
 
+## Cursor Cloud specific instructions
+
+- Bootstrap from the repo root with `pnpm install --frozen-lockfile`, then `pnpm exec playwright install chromium`. `pnpm run doctor` is the health check. Docker is only required for the workspace-server remote stack.
+- `pnpm` scripts use the pinned Node 24.14.0 from `node_modules/node`. A bare `node` on the image may still be 22, and pnpm then prints an unsupported-engine warning. That warning is expected; doctor reports the pinned runtime.
+- Desktop dev, from `apps/emdash-desktop`: `TELEMETRY_ENABLED=false pnpm run dev`. The window opens on the agent display. D-Bus "unknown address type" lines in the Electron log do not block startup. Clone mode uses the default directory `~/emdash/repositories` without a folder chooser.
+- This image sets global `commit.gpgsign=true`. A parallel `pnpm run test` can time out inside `ssh-keygen -Y sign`. For that run, prefix it with `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false`. Leave the global git signing config in place; the agent uses it for its own commits.
+
 ## Further Reading
 
 - [Agent docs map](agents/README.md)
