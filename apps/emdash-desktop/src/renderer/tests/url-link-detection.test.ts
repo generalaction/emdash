@@ -156,4 +156,10 @@ describe('copyableTerminalSelection', () => {
       'https://example.com/one\nhttps://example.com/two'
     );
   });
+
+  it('joins a wrapped URL whose next line starts with https://', () => {
+    expect(
+      copyableTerminalSelection('https://example.com/redirect?next=\nhttps://example.com/target')
+    ).toBe('https://example.com/redirect?next=https://example.com/target');
+  });
 });

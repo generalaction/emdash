@@ -76,7 +76,11 @@ export function isHttpUrl(text: string): boolean {
 
 function selectionLooksLikeSeparateUrls(text: string): boolean {
   const lines = text.split(/\r?\n/);
-  return lines.slice(1).some((line) => HTTP_URL_PREFIX.test(line.trimStart()));
+  return lines.slice(1).some((line, index) => {
+    if (!HTTP_URL_PREFIX.test(line.trimStart())) return false;
+    const previousChar = lines[index]?.[lines[index].length - 1];
+    return !previousChar || !URL_SEGMENT_BREAK_PATTERN.test(previousChar);
+  });
 }
 
 function getUrlLogicalLine(buffer: BufferLike, bufferIndex: number): LogicalLine | null {
