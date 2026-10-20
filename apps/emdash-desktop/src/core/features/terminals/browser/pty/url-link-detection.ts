@@ -61,6 +61,7 @@ export function findUrlLinks(buffer: BufferLike, bufferLineNumber: number): UrlL
 
 export function copyableTerminalSelection(text: string): string {
   if (!text.includes('\n') && !text.includes('\r')) return text;
+  if (selectionLooksLikeSeparateUrls(text)) return text;
   const joined = text.replace(/\r?\n[ \t]*/g, '');
   const normalized = normalizeTerminalHttpUrl(joined);
   if (!HTTP_URL_PREFIX.test(normalized)) return text;
@@ -71,6 +72,11 @@ export function copyableTerminalSelection(text: string): string {
 
 export function isHttpUrl(text: string): boolean {
   return HTTP_URL_PREFIX.test(text);
+}
+
+function selectionLooksLikeSeparateUrls(text: string): boolean {
+  const lines = text.split(/\r?\n/);
+  return lines.slice(1).some((line) => HTTP_URL_PREFIX.test(line.trimStart()));
 }
 
 function getUrlLogicalLine(buffer: BufferLike, bufferIndex: number): LogicalLine | null {

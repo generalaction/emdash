@@ -150,4 +150,10 @@ describe('copyableTerminalSelection', () => {
       'https://example.com/longpath/to/resource'
     );
   });
+
+  it('leaves separate URLs on different lines unchanged', () => {
+    expect(copyableTerminalSelection('https://example.com/one\nhttps://example.com/two')).toBe(
+      'https://example.com/one\nhttps://example.com/two'
+    );
+  });
 });
