@@ -125,7 +125,7 @@ describe('PullRequestService ownership', () => {
     expect(h.store.getComments(mrUrl)).toMatchObject([{ id: 'note-1' }]);
   });
 
-  it('hydrates incomplete MR inventory and preserves only unchanged detail observations', async () => {
+  it('hydrates incomplete MR inventory and preserves freshness only for unchanged observations', async () => {
     const h = await harness();
     const mr = pullRequestFixture({
       provider: 'gitlab',
@@ -165,6 +165,82 @@ describe('PullRequestService ownership', () => {
     await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' });
     expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(2);
   });
+
+  it.each(['title', 'head', 'worker restart'] as const)(
+    'retains omitted cached MR details after %s and a failed detail refresh',
+    async (change) => {
+      const h = await harness();
+      const mr = pullRequestFixture({
+        provider: 'gitlab',
+        identifier: '!42',
+        url: `${repositoryUrl}/-/merge_requests/42`,
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+      });
+      if (change === 'worker restart') {
+        h.store.savePullRequest({ ...mr, metadataFetchedAt: Date.now() });
+      } else {
+        h.context.fetchPullRequest.mockResolvedValueOnce(observed(mr));
+        await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'force' });
+      }
+      const summary = {
+        ...mr,
+        reviewDecision: null,
+        baseRefOid: '',
+        additions: null,
+        deletions: null,
+        changedFiles: null,
+        commitCount: null,
+        ...(change === 'title' ? { title: 'Renamed MR', updatedAt: '2026-10-20T00:00:00Z' } : {}),
+        ...(change === 'head' ? { headRefOid: 'new-head', updatedAt: '2026-10-20T00:00:00Z' } : {}),
+      };
+      const inventory: PullRequestPage = {
+        ...page([summary]),
+        detailOnlyFields: [
+          'reviewDecision',
+          'baseRefOid',
+          'additions',
+          'deletions',
+          'changedFiles',
+          'commitCount',
+        ],
+      };
+      h.context.fetchOpenPage.mockResolvedValueOnce(observed(inventory));
+      await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+      expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+        title: summary.title,
+        headRefOid: summary.headRefOid,
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+        metadataFetchedAt: null,
+      });
+      h.context.fetchPullRequest.mockClear();
+      h.context.fetchPullRequest.mockResolvedValueOnce(
+        err({ type: 'sync_failed', message: 'Detail endpoint unavailable' })
+      );
+      expect(
+        await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' })
+      ).toMatchObject({ success: false });
+      expect(h.context.fetchPullRequest).toHaveBeenCalledOnce();
+      expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+        metadataFetchedAt: null,
+      });
+    }
+  );
 
   it('restores history progress after inventory completes, without losing either operation state', async () => {
     const h = await harness();

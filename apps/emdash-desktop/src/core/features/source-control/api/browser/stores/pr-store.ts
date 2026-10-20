@@ -23,6 +23,7 @@ import { projectHostRef } from '@core/primitives/projects/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import { compilePrUpdateInstruction } from '@core/primitives/workspaces/api';
+import { prHeadRef } from '@core/primitives/workspaces/api/pr-source-refs';
 import {
   getPrNumber,
   isForkPr,
@@ -344,6 +345,7 @@ export class PrStore {
     if (prNumber) {
       await this.gitRepositoryStore.fetchPrForReview({
         prNumber,
+        ...(pr.provider === 'gitlab' ? { sourceRef: prHeadRef(prNumber, pr.provider) } : {}),
         headRefName: pr.headRefName,
         headRepositoryUrl: pr.headRepositoryUrl,
         localBranch: pr.headRefName,

@@ -262,9 +262,10 @@ A deleted or inaccessible source project leaves `headRepositoryUrl` empty; the M
 readable but cannot match a task by source repository and branch. Other source lookup failures
 remain refresh errors.
 
-`PullRequestPage.detailOnlyFields` declares fields absent from inventory. An unchanged head and
-update timestamp preserve cached detail values and their original freshness timestamp. Changed
-inventory invalidates detail freshness; it cannot make an incomplete observation detail-fresh.
+`PullRequestPage.detailOnlyFields` declares fields absent from inventory. Inventory preserves
+cached values for omitted detail fields. An unchanged head and update timestamp preserve their
+freshness within the current account generation. Changed inventory or a worker restart
+invalidates detail freshness; incomplete observations cannot mark details fresh.
 GitHub omits this optional declaration because its inventory query supplies complete metadata.
 `PullRequestFile.additions` and `deletions` are nullable when the provider omits a file diff.
 GitLab size limits produce unknown counts and no patch, rather than zero counts. Complete diffs
@@ -275,6 +276,8 @@ MRs through the shared selector. Request-based workspace configs carry an option
 omitted providers use GitHub. Same-project checkouts track the source branch, while fork
 checkouts use `mr/<iid>/<branch>` and the MR head ref from the target remote. A new task branch
 based on an MR also fetches the MR head ref. The MR URL is retained as the workspace breadcrumb.
+Missing-commit recovery in file review passes the MR head ref through the review-fetch input to
+the configured target remote, including for fork MRs.
 
 Focused checks from the repository root:
 

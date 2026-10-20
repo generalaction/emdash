@@ -731,10 +731,9 @@ export class PullRequestService {
       previous?.headRefOid === metadata.headRefOid &&
       previous.updatedAt === metadata.updatedAt &&
       this.acceptedObservations.get(metadata.url)?.generation === read.generation;
-    const retained =
-      unchanged && previous
-        ? Object.fromEntries(detailOnlyFields.map((field) => [field, previous[field]]))
-        : {};
+    const retained = previous
+      ? Object.fromEntries(detailOnlyFields.map((field) => [field, previous[field]]))
+      : {};
     const saved = this.options.store.savePullRequest({
       ...metadata,
       ...retained,
