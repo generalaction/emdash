@@ -89,4 +89,21 @@ describe('terminal context link detection', () => {
     expect(getTerminalLinkAtBufferCell(buffer, 1, 23)).toBe(url);
     expect(getTerminalLinkAtBufferCell(buffer, 2, 1)).toBe(url);
   });
+
+  it('does not treat the space after a wide character as part of a wrapped URL', () => {
+    const first = 'https://example.com/long-';
+    const cells = [
+      { chars: '界', width: 2 },
+      { chars: '', width: 0 },
+      { chars: ' ', width: 1 },
+      ...first.split('').map((chars) => ({ chars, width: 1 })),
+    ];
+    const buffer = makeBuffer([
+      new MockBufferLine(`界 ${first}`, false, cells),
+      new MockBufferLine('path', true),
+    ]);
+
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 3)).toBeNull();
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 4)).toBe('https://example.com/long-path');
+  });
 });
