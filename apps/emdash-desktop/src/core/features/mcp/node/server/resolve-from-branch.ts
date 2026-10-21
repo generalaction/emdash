@@ -25,10 +25,15 @@ export function isValidBranchName(name: string): boolean {
  * picks for the "new worktree" preset: the project's effective default branch
  * when no base is requested, otherwise the named branch preferring the base
  * remote's copy over a local one.
+ *
+ * Also rejects a new branch name that already exists locally, as the modal does:
+ * provisioning would otherwise check out that branch and ignore the base, or fail
+ * after the task row exists when the branch is checked out in another worktree.
  */
 export async function resolveFromBranch(
   project: ProjectProvider,
-  requested: string | undefined
+  requested: string | undefined,
+  newBranch?: string
 ): Promise<Result<GitBranchRef, string>> {
   const [effective, refs] = await Promise.all([
     resolveProjectEffectiveSettings({
@@ -38,6 +43,14 @@ export async function resolveFromBranch(
     }),
     project.git.repository.model.state(project.repository, 'refs').snapshot(),
   ]);
+  if (
+    newBranch &&
+    refs.data.branches.some(
+      (existing) => existing.type === 'local' && existing.ref === `refs/heads/${newBranch}`
+    )
+  ) {
+    return err(`Branch "${newBranch}" already exists; pass a different branchName.`);
+  }
   const branches = refs.data.branches.map(toBranchRef);
   const baseRemote = effective.baseRemote.value;
 

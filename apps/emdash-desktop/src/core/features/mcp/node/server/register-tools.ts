@@ -261,7 +261,7 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
           .optional()
           .describe(
             'The prompt the coding agent starts with. Omit to create the task without starting ' +
-              'an agent'
+              'an agent. Some providers can only take a prompt in chat UI'
           ),
         name: z.string().optional().describe('Task name; generated when omitted'),
         provider: z
@@ -282,7 +282,9 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
         branchName: z
           .string()
           .optional()
-          .describe('Branch name; derived from the task name when omitted'),
+          .describe(
+            'New branch name; must not already exist. Derived from the task name when omitted'
+          ),
         baseBranch: z
           .string()
           .optional()

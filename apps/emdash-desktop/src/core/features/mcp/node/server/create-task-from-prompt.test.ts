@@ -231,4 +231,50 @@ describe('createTaskFromPrompt', () => {
     });
     expect(createTask).not.toHaveBeenCalled();
   });
+
+  it('rejects a prompt for a terminal provider that cannot receive one at launch', async () => {
+    const createTask = vi.fn(async () => ok({}));
+    const result = await createTaskFromPrompt(dependencies({ createTask }), {
+      projectId: 'project-1',
+      prompt: 'Fix the bug',
+      provider: 'kimi',
+      branchName: 'feature/fix',
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Pass chatUi: true'),
+    });
+    expect(readProviderSettings).not.toHaveBeenCalled();
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
+  it('delivers the prompt through chat UI for a provider that has no terminal prompt', async () => {
+    const createTask = vi.fn(async () => ok({}));
+    const result = await createTaskFromPrompt(dependencies({ createTask }), {
+      projectId: 'project-1',
+      prompt: 'Fix the bug',
+      provider: 'kimi',
+      chatUi: true,
+      branchName: 'feature/fix',
+    });
+    expect(result).toMatchObject({ success: true, data: { conversationType: 'acp' } });
+    const [params] = createTask.mock.calls[0] as unknown as [CreateTaskParams];
+    expect(params.taskConfig.initialConversation).toMatchObject({
+      initialQueue: [{ text: 'Fix the bug' }],
+    });
+  });
+
+  it('rejects an explicit branch name that already exists locally', async () => {
+    const createTask = vi.fn(async () => ok({}));
+    const result = await createTaskFromPrompt(dependencies({ createTask }), {
+      projectId: 'project-1',
+      name: 'Reuse main',
+      branchName: 'main',
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('already exists'),
+    });
+    expect(createTask).not.toHaveBeenCalled();
+  });
 });

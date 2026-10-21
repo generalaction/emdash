@@ -86,6 +86,9 @@ Behavior:
   terminal setting unless explicitly overridden. Chat UI uses native ACP options instead;
   an explicit model override needs a discovered model option id. MCP still defaults to
   terminal mode unless `chatUi: true` is supplied.
+- `create_task` refuses, before creating anything, what the new-task modal would block or
+  silently drop: a new branch name that already exists locally, and a prompt for a terminal
+  provider whose prompt delivery is not `argv` or `stdin-pipe`
 - ACP startup calls `startSession` with `mode: 'resume'`; `attach` only creates a suspended
   handle and does not start an agent
 - tool errors are summarized for the caller and logged in full; internal messages

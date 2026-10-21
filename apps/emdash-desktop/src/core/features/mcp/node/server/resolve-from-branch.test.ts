@@ -119,4 +119,25 @@ describe('resolveFromBranch', () => {
     expect(resolved.success).toBe(false);
     expect(resolved.success ? '' : resolved.error).toContain('without a remote prefix');
   });
+
+  it('rejects a new branch name that already exists locally', async () => {
+    const resolved = await resolveFromBranch(
+      project([localBranch('main'), localBranch('feature/taken')]),
+      undefined,
+      'feature/taken'
+    );
+
+    expect(resolved.success).toBe(false);
+    expect(resolved.success ? '' : resolved.error).toContain('already exists');
+  });
+
+  it('accepts a new branch name that only exists on a remote', async () => {
+    const resolved = await resolveFromBranch(
+      project([localBranch('main'), remoteBranch('feature/remote-only')]),
+      undefined,
+      'feature/remote-only'
+    );
+
+    expect(resolved.success).toBe(true);
+  });
 });
