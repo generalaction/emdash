@@ -11,28 +11,28 @@ export function resolveEffectiveTheme(theme: Theme, shouldUseDarkColors: boolean
 }
 
 /**
- * Returns { COLORFGBG } for the current app theme, using the rxvt/konsole
- * convention: "foreground;background" with ANSI palette indices.
+ * Env vars that tell TUIs how emdash's xterm renders output. Only for
+ * xterm-rendered PTYs (terminals and agent sessions): ACP hosts must not get it.
  *
- * Light app theme -> "15;0"  (white fg, black bg) — but from the agent's
- * perspective it means the *terminal* bg is light, so agents should pick
- * their light color scheme.
- *
- * Actually: COLORFGBG encodes the terminal bg color, not the app theme.
- * Convention: dark terminal -> "15;0" (fg=white/15, bg=black/0)
- *             light terminal -> "0;15" (fg=black/0, bg=white/15)
- *
- * Returns {} on any error so callers can spread without guarding.
+ * - COLORFGBG: terminal background for the current app theme, using the
+ *   rxvt/konsole "foreground;background" ANSI index convention. Dark terminal ->
+ *   "15;0", light terminal -> "0;15". Omitted if the theme can't be resolved.
+ * - FORCE_HYPERLINK: makes TUIs emit OSC 8 links, which xterm keeps clickable
+ *   even when the TUI hard-wraps a URL. Hyperlink detection doesn't recognize
+ *   TERM_PROGRAM=emdash. A user-provided value wins.
  */
-export async function getTerminalColorEnv(): Promise<Record<string, string>> {
+export async function getTerminalDisplayEnv(): Promise<Record<string, string>> {
+  const env: Record<string, string> = {
+    FORCE_HYPERLINK: process.env.FORCE_HYPERLINK ?? '1',
+  };
   try {
     const appTheme = await appSettingsService.get('theme');
     const effective = resolveEffectiveTheme(appTheme, nativeTheme.shouldUseDarkColors);
-    return { COLORFGBG: effective === 'emlight' ? '0;15' : '15;0' };
+    env.COLORFGBG = effective === 'emlight' ? '0;15' : '15;0';
   } catch (error) {
     log.warn('terminal-color-scheme: failed to resolve app theme for COLORFGBG', {
       error: String(error),
     });
-    return {};
   }
+  return env;
 }

@@ -19,7 +19,7 @@ import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { makePtyId } from '@main/core/pty/ptyId';
-import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
+import { getTerminalDisplayEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
@@ -188,19 +188,20 @@ export class LocalConversationProvider implements ConversationProvider {
       const ptyId = makePtyId(conversation.providerId, conversation.id);
       const port = agentHookService.getPort();
       const token = agentHookService.getToken();
-      const colorEnv = await getTerminalColorEnv();
+      const displayEnv = await getTerminalDisplayEnv();
       const pty = spawnLocalPty({
         id: sessionId,
         command: resolved.command,
         args: resolved.args,
         cwd: resolved.cwd,
         env: {
+          // Provider custom env (inside buildAgentEnv) may override color/hyperlink defaults.
+          ...displayEnv,
           ...buildAgentEnv({
             hook: port > 0 ? { port, ptyId, token } : undefined,
             providerVars,
             shellProfile: this.shellProfile,
           }),
-          ...colorEnv,
           ...this.taskEnvVars,
         },
         cols: spawnSize.cols,

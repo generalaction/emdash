@@ -12,7 +12,7 @@ import {
   type PtyCommandSpec,
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
-import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
+import { getTerminalDisplayEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
@@ -181,7 +181,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       cwd: resolved.cwd,
       env: {
         ...buildTerminalEnv({ shellProfile }),
-        ...(await getTerminalColorEnv()),
+        ...(await getTerminalDisplayEnv()),
         ...this.taskEnvVars,
       },
       cols: initialSize.cols,

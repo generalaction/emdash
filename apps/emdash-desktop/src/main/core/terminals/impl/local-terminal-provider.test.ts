@@ -47,7 +47,7 @@ vi.mock('@main/core/preview-servers/terminal-url-detector', () => ({
 }));
 
 vi.mock('@main/core/pty/terminal-color-scheme', () => ({
-  getTerminalColorEnv: vi.fn().mockResolvedValue({}),
+  getTerminalDisplayEnv: vi.fn().mockResolvedValue({}),
 }));
 
 const terminal: Terminal = {

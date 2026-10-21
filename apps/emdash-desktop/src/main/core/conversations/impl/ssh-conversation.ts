@@ -9,7 +9,7 @@ import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
-import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
+import { getTerminalDisplayEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSessionTree } from '@main/core/pty/tmux-reaper';
 import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { IFilesRuntime } from '@main/core/runtime/types';
@@ -171,14 +171,14 @@ export class SshConversationProvider implements ConversationProvider {
         resume: agentSession.isResuming,
       };
 
-      const [profile, colorEnv] = await Promise.all([
+      const [profile, displayEnv] = await Promise.all([
         this.proxy.getRemoteShellProfile(),
-        getTerminalColorEnv(),
+        getTerminalDisplayEnv(),
       ]);
       const sshCommand = resolveSshCommand(
         'agent',
         cfg,
-        { ...providerEnv, ...colorEnv, ...this.taskEnvVars },
+        { ...displayEnv, ...providerEnv, ...this.taskEnvVars },
         profile
       );
 
