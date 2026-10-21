@@ -58,7 +58,7 @@ export type CreateTerminalsWireControllerOptions = Readonly<{
   logger: Logger;
   telemetry: TelemetryService;
   terminalShell: {
-    getColorEnv(): Promise<Record<string, string>>;
+    getDisplayEnv(): Promise<Record<string, string>>;
   };
   /**
    * Per-session git credential behavior from the project's "agent git
@@ -293,7 +293,7 @@ async function startRuntimeTerminal(
   const context = await resolveTerminalContext(options, terminal);
   if (!context.success) return context;
 
-  const colorEnv = await options.terminalShell.getColorEnv();
+  const displayEnv = await options.terminalShell.getDisplayEnv();
   const result = await withWorkspaceRuntime(options, context.data.identity.workspaceId, (client) =>
     client.terminals.start({
       key: context.data.key,
@@ -304,7 +304,7 @@ async function startRuntimeTerminal(
         tmux: context.data.tmuxEnabled,
         env: {
           ...context.data.taskEnvVars,
-          ...colorEnv,
+          ...displayEnv,
         },
         gitCredentials: context.data.gitCredentials,
         cols: initialSize.cols,

@@ -42,7 +42,7 @@ export type TuiConversationProviderDependencies = {
   db: AppDb;
   getProviderConfig(providerId: string): Promise<ProviderCustomConfig | undefined>;
   getTaskSettings(): Promise<{ autoTrustWorktrees: boolean }>;
-  getTerminalColorEnv(): Promise<Record<string, string>>;
+  getTerminalDisplayEnv(): Promise<Record<string, string>>;
   /**
    * Per-session git credential behavior from the project's "agent git
    * credentials" setting (spec: github-git-settings §4); constructed into the
@@ -129,13 +129,13 @@ export class TuiConversationProvider implements ConversationProvider {
     const agentSession = resolveAgentSession(conversation, mode);
     const effectiveInitialPrompt =
       !agentSession.isResuming && mode === 'start' ? initialPrompt : undefined;
-    const [providerConfig, taskSettings, colorEnv, launchContext, gitCredentials] =
+    const [providerConfig, taskSettings, displayEnv, launchContext, gitCredentials] =
       await Promise.all([
         this.dependencies.getProviderConfig(conversation.providerId),
         conversation.autoApprove === true
           ? Promise.resolve(undefined)
           : this.dependencies.getTaskSettings(),
-        this.dependencies.getTerminalColorEnv(),
+        this.dependencies.getTerminalDisplayEnv(),
         this.launchContextSource.resolve(),
         this.dependencies.resolveSessionGitCredentials({
           projectId: this.projectId,
@@ -148,8 +148,9 @@ export class TuiConversationProvider implements ConversationProvider {
     const trustWorkspace =
       conversation.autoApprove === true || taskSettings?.autoTrustWorktrees === true;
     const providerVars = {
+      // Provider custom env may override display defaults (e.g. FORCE_HYPERLINK).
+      ...displayEnv,
       ...(providerConfig?.env ?? {}),
-      ...colorEnv,
       ...launchContext.data.env,
     };
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversation.id);

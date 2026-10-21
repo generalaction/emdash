@@ -22,7 +22,7 @@ const controllerDeps = {
   settings: { get: vi.fn(async () => ({ defaultShell: 'default' })) } as never,
   telemetry: { capture: vi.fn() } as never,
   terminalShell: {
-    getColorEnv: vi.fn(async () => ({})),
+    getDisplayEnv: vi.fn(async () => ({})),
   } as never,
   sessionLaunchContexts: {
     resolve: vi.fn(async () =>
