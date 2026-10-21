@@ -85,6 +85,30 @@ async function open(client: GitLabPullRequestClient) {
 const project = { '/api/v4/projects/acme%2Fplatform%2Fapp': { data: { id: 99 } } };
 
 describe('GitLab pull request client', () => {
+  it.each([
+    [
+      'an access token',
+      { instanceUrl: 'https://gitlab.com', apiToken: 'glpat' },
+      { 'PRIVATE-TOKEN': 'glpat' },
+    ],
+    [
+      'OAuth credentials',
+      {
+        instanceUrl: 'https://gitlab.com',
+        accessToken: 'oauth-access',
+        refreshToken: 'refresh',
+        expiresAt: Date.now() + 3_600_000,
+      },
+      { Authorization: 'Bearer oauth-access' },
+    ],
+  ])('authenticates requests with %s', async (_kind, credentials, expected) => {
+    const { client, fetcher } = setup(project, undefined, undefined, credentials);
+    await open(client);
+    const headers = (fetcher.mock.calls[0]?.[1]?.headers ?? {}) as Record<string, string>;
+    expect(headers).toMatchObject(expected);
+    expect(Object.keys(headers)).toHaveLength(Object.keys(expected).length);
+  });
+
   it('maps nested-project inventory and follows a pagination link', async () => {
     const first =
       '/api/v4/projects/99/merge_requests?state=opened&order_by=updated_at&sort=desc&per_page=100&with_labels_details=true';

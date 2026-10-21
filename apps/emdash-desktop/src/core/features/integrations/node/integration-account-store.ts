@@ -2,6 +2,8 @@ import {
   integrationPluginRegistry,
   type IntegrationCredentials,
 } from '@emdash/plugins/integrations';
+import { KeyedMutex } from '@emdash/shared/concurrency';
+import { log } from '@emdash/shared/logger';
 import type {
   ProviderAccount,
   ProviderAccountStore,
@@ -21,14 +23,31 @@ function parseJson(value: string): unknown {
 
 /** Provider-schema JSON credentials and account metadata over the shared registry. */
 export class IntegrationAccountStore implements IntegrationAccountReader {
+  private readonly refreshes = new KeyedMutex();
+  /** Stored credentials, as JSON, whose refresh the provider rejected; keyed per account. */
+  private readonly rejectedRefreshes = new Map<string, string>();
+  /** Refreshed credentials that failed to persist, valid while the stored JSON is `replaces`. */
+  private readonly unsavedRefreshes = new Map<
+    string,
+    { replaces: string; credentials: IntegrationCredentials }
+  >();
+
   constructor(
     private readonly accounts: ProviderAccountStore,
-    readonly prepare: (providerId: string) => Promise<void> = async () => {}
+    readonly prepare: (providerId: string) => Promise<void> = async () => {},
+    private readonly now: () => number = Date.now
   ) {}
 
   /**
    * Resolve one account: by id when given, otherwise the integration's
-   * default account.
+   * default account. Credentials the integration can refresh are refreshed
+   * and persisted first when they are near expiry; refreshes are serialized
+   * per account because rotating refresh tokens are single-use. A failed
+   * refresh returns the stored credentials, so the API call reports the
+   * authentication failure. Credentials whose refresh was rejected are not
+   * refreshed again until they change. Refreshed credentials that fail to
+   * persist are kept in memory and written again on the next read, because
+   * the provider has already invalidated the stored refresh token.
    */
   async getAccount(
     integrationId: string,
@@ -38,11 +57,97 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     const account = await this.accounts.getAccount(integrationId, accountId);
     if (!account) return null;
 
-    const raw = await this.accounts.resolveSecret(integrationId, account.accountId);
+    const auth = integrationPluginRegistry.get(integrationId)?.behavior.auth;
+    if (!auth?.refreshCredentials) {
+      const credentials = await this.readCredentials(integrationId, account.accountId);
+      return credentials ? toIntegrationAccount(account, credentials) : null;
+    }
+    const refresh = auth.refreshCredentials.bind(auth);
+    const key = `${integrationId}\u0000${account.accountId}`;
+    const credentials = await this.refreshes.runExclusive(key, async () => {
+      const persisted = await this.readCredentials(integrationId, account.accountId);
+      if (!persisted) {
+        this.unsavedRefreshes.delete(key);
+        return null;
+      }
+      let persistedJson = JSON.stringify(persisted);
+      let stored = persisted;
+      const unsaved = this.unsavedRefreshes.get(key);
+      if (unsaved?.replaces === persistedJson) {
+        stored = unsaved.credentials;
+        if (await this.saveRefreshed(integrationId, account.accountId, stored)) {
+          this.unsavedRefreshes.delete(key);
+          persistedJson = JSON.stringify(stored);
+        }
+      } else if (unsaved) {
+        this.unsavedRefreshes.delete(key);
+      }
+      const storedJson = JSON.stringify(stored);
+      if (this.rejectedRefreshes.get(key) === storedJson) return stored;
+      const refreshed = await refresh({ log }, stored, this.now());
+      if (!refreshed.success) {
+        log.warn('IntegrationAccountStore: credential refresh failed', {
+          integrationId,
+          accountId: account.accountId,
+          error: refreshed.error.type,
+        });
+        if (refreshed.error.type === 'auth_failed') this.rejectedRefreshes.set(key, storedJson);
+        return stored;
+      }
+      this.rejectedRefreshes.delete(key);
+      if (!refreshed.data) return stored;
+      if (await this.saveRefreshed(integrationId, account.accountId, refreshed.data)) {
+        this.unsavedRefreshes.delete(key);
+      } else {
+        this.unsavedRefreshes.set(key, { replaces: persistedJson, credentials: refreshed.data });
+      }
+      return refreshed.data;
+    });
+    return credentials ? toIntegrationAccount(account, credentials) : null;
+  }
+
+  private async saveRefreshed(
+    integrationId: string,
+    accountId: string,
+    credentials: IntegrationCredentials
+  ): Promise<boolean> {
+    try {
+      await this.writeCredentials(integrationId, accountId, credentials);
+      return true;
+    } catch (error) {
+      log.error('IntegrationAccountStore: refreshed credentials were not saved', {
+        integrationId,
+        accountId,
+        error: error instanceof Error ? error.name : 'unknown',
+      });
+      return false;
+    }
+  }
+
+  private async readCredentials(
+    integrationId: string,
+    accountId: string
+  ): Promise<IntegrationCredentials | null> {
+    const raw = await this.accounts.resolveSecret(integrationId, accountId);
     const schema = integrationPluginRegistry.get(integrationId)?.behavior.auth?.credentialsSchema;
     const credentials = schema?.safeParse(raw ? parseJson(raw) : null);
-    if (!credentials?.success) return null;
-    return toIntegrationAccount(account, credentials.data);
+    return credentials?.success ? credentials.data : null;
+  }
+
+  /** Replaces only the secret; account metadata is untouched. */
+  private async writeCredentials(
+    integrationId: string,
+    accountId: string,
+    credentials: IntegrationCredentials
+  ): Promise<void> {
+    const schema = integrationPluginRegistry.get(integrationId)?.behavior.auth?.credentialsSchema;
+    const parsed = schema?.safeParse(credentials);
+    if (!parsed?.success) throw new Error(`Invalid ${integrationId} credentials`);
+    await this.accounts.upsertAccount({
+      providerId: integrationId,
+      accountId,
+      secret: JSON.stringify(parsed.data),
+    });
   }
 
   async upsertAccount(integrationId: string, account: IntegrationAccountRecord) {

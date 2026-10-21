@@ -1,6 +1,8 @@
+import type { Result } from '@emdash/shared';
 import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type { IntegrationCredentials, IntegrationHostContext } from '../host';
+import type { IntegrationError } from '../types';
 
 const authFieldSchema = z.object({
   id: z.string(),
@@ -95,6 +97,17 @@ export type VerifyResult =
     }
   | { connected: false; error?: string };
 
+/** A pending OAuth device authorization (RFC 8628) shown to the user. */
+export type DeviceAuthorizationSession = {
+  userCode: string;
+  verificationUri: string;
+  verificationUriComplete?: string;
+  /** Seconds until the user code expires. */
+  expiresIn: number;
+  /** Polls until the user approves; resolves with credentials to pass to `verify`. */
+  complete(signal: AbortSignal): Promise<Result<IntegrationCredentials, IntegrationError>>;
+};
+
 export type IIntegrationAuthBehavior = {
   credentialsSchema: z.ZodType<IntegrationCredentials>;
   verify(
@@ -102,6 +115,21 @@ export type IIntegrationAuthBehavior = {
     credentials: IntegrationCredentials,
     methodId?: string
   ): Promise<VerifyResult>;
+  /** Required when the descriptor declares an `oauth-device` method. */
+  startDeviceAuthorization?(
+    host: IntegrationHostContext
+  ): Promise<Result<DeviceAuthorizationSession, IntegrationError>>;
+  /**
+   * Returns replacement credentials when `credentials` expire soon, or
+   * `undefined` when they are still current. The host persists the result
+   * before handing it out and serializes calls per account, so a rotating
+   * refresh token is never used twice.
+   */
+  refreshCredentials?(
+    host: IntegrationHostContext,
+    credentials: IntegrationCredentials,
+    now: number
+  ): Promise<Result<IntegrationCredentials | undefined, IntegrationError>>;
 };
 
 export const integrationAuthCapability = definePluginCapability<IIntegrationAuthBehavior>()(

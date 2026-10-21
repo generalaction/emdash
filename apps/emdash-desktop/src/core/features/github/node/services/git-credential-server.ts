@@ -171,12 +171,16 @@ export class GitCredentialServer implements GitCredentialChannelServer {
     }
 
     const credential = credentials.data;
+    // GitLab OAuth tokens authenticate Git over HTTPS only with the `oauth2` username.
+    const gitLabOAuth = providerId === 'gitlab' && 'accessToken' in credential;
     const token =
       providerId === 'github' && 'accessToken' in credential
         ? credential.accessToken
-        : providerId === 'gitlab' && 'apiToken' in credential
-          ? credential.apiToken
-          : null;
+        : gitLabOAuth
+          ? credential.accessToken
+          : providerId === 'gitlab' && 'apiToken' in credential
+            ? credential.apiToken
+            : null;
     if (typeof token !== 'string' || !token) {
       res.writeHead(404);
       res.end();
@@ -196,7 +200,7 @@ export class GitCredentialServer implements GitCredentialChannelServer {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(
       serializeGitCredentialResponse({
-        username: account.login || 'oauth2',
+        username: gitLabOAuth ? 'oauth2' : account.login || 'oauth2',
         password: token,
       })
     );

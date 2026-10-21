@@ -18,10 +18,26 @@ export function readGitLabCredentials(
 }
 
 export function createGitLabClient(credentials: GitLabCredentials): GitLabClient {
-  return new Gitlab({
-    host: credentials.instanceUrl,
-    token: credentials.apiToken,
-  });
+  return 'accessToken' in credentials
+    ? new Gitlab({ host: credentials.instanceUrl, oauthToken: credentials.accessToken })
+    : new Gitlab({ host: credentials.instanceUrl, token: credentials.apiToken });
+}
+
+/** Request headers authenticating `credentials` against the GitLab REST API. */
+export function gitLabAuthHeaders(credentials: GitLabCredentials): Record<string, string> {
+  return 'accessToken' in credentials
+    ? { Authorization: `Bearer ${credentials.accessToken}` }
+    : { 'PRIVATE-TOKEN': credentials.apiToken };
+}
+
+/** Username and password for Git over HTTPS; OAuth tokens require the `oauth2` username. */
+export function gitLabGitCredential(
+  credentials: GitLabCredentials,
+  login: string | undefined
+): { username: string; password: string } {
+  return 'accessToken' in credentials
+    ? { username: 'oauth2', password: credentials.accessToken }
+    : { username: login || 'oauth2', password: credentials.apiToken };
 }
 
 export async function verifyGitLabCredentials(

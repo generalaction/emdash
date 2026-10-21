@@ -24,6 +24,26 @@ type ConnectResult =
   | { success: true; accountId: string; displayName?: string; displayDetail?: string }
   | { success: false; error: string };
 type DisconnectResult = { success: boolean; error?: string };
+export type DeviceFlowStartResult =
+  | {
+      success: true;
+      flowId: string;
+      userCode: string;
+      verificationUri: string;
+      verificationUriComplete?: string;
+      /** Seconds until the user code expires. */
+      expiresIn: number;
+    }
+  | { success: false; error: string };
+export type DeviceFlowCompleteResult =
+  | {
+      success: true;
+      accountId: string;
+      displayName?: string;
+      login?: string;
+      avatarUrl?: string;
+    }
+  | { success: false; error: string; cancelled?: boolean };
 
 export type IntegrationConnectOptions = {
   accountId?: string;
@@ -55,6 +75,24 @@ export const integrationsContract = defineContract({
   disconnect: procedure({
     input: z.object({ integrationId: z.string(), accountId: z.string().min(1) }),
     output: z.custom<DisconnectResult>(),
+  }),
+  /** Starts OAuth device sign-in for an integration with an `oauth-device` method. */
+  startDeviceFlow: procedure({
+    input: z.object({
+      integrationId: z.string(),
+      /** Reconnect this account; sign-in as a different identity fails. */
+      accountId: z.string().min(1).optional(),
+    }),
+    output: z.custom<DeviceFlowStartResult>(),
+  }),
+  /** Resolves when the user approves, denies, the code expires, or the flow is cancelled. */
+  completeDeviceFlow: procedure({
+    input: z.object({ flowId: z.string() }),
+    output: z.custom<DeviceFlowCompleteResult>(),
+  }),
+  cancelDeviceFlow: procedure({
+    input: z.object({ flowId: z.string() }),
+    output: z.void(),
   }),
   setDefaultAccount: procedure({
     input: z.object({ integrationId: z.string(), accountId: z.string() }),
