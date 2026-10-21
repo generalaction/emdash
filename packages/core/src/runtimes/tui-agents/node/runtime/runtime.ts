@@ -52,6 +52,7 @@ import {
   type PtyExitInfo,
   type PtySession,
   type PtySpawnSpec,
+  XTERM_PTY_DEFAULT_ENV,
 } from '#services/pty/api';
 import { resolveTerminalShell } from '#services/pty/node';
 import {
@@ -541,6 +542,7 @@ export class TuiAgentsRuntime {
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
           TERM_PROGRAM: 'emdash',
+          ...XTERM_PTY_DEFAULT_ENV,
         },
         command.env,
         config.input.providerVars ?? {},

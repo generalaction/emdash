@@ -145,7 +145,7 @@ import {
 import { sweepSessionHygiene } from '@main/core/runtime/operations/session-hygiene';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
-import { getTerminalDisplayEnv } from '@main/core/terminal-shell/display-env';
+import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { runLocalCommand } from '@main/core/utils/exec';
 import { cleanupLegacyOperationsDatabases } from '@main/db/legacy-operations-cleanup';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
@@ -292,7 +292,7 @@ export async function bootServices(
     db,
     getProviderConfig: (providerId: string) => providerOverrideSettings.getItem(providerId),
     getTaskSettings: () => appSettingsService.get('tasks'),
-    getTerminalDisplayEnv,
+    getTerminalColorEnv,
     // Late-bound: the git-credentials service is constructed further down in
     // this phase; sessions only call this after boot completes.
     resolveSessionGitCredentials: (params: { projectId: string; host: HostRef }) =>

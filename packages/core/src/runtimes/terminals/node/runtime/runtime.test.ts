@@ -110,6 +110,38 @@ describe('TerminalsRuntime', () => {
     }
   });
 
+  it('defaults FORCE_HYPERLINK under host env and spec overrides', async () => {
+    let userEnv: Record<string, string> = { PATH: '/usr/bin' };
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals-hyperlink-default' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      userEnv: async () => userEnv,
+    });
+
+    try {
+      await runtime.start({
+        key: { workspace: testWorkspace(), id: 'terminal-default' },
+        spec: { cwd: '/repo', env: {} },
+      });
+      userEnv = { PATH: '/usr/bin', FORCE_HYPERLINK: '0' };
+      await runtime.start({
+        key: { workspace: testWorkspace(), id: 'terminal-host-opt-out' },
+        spec: { cwd: '/repo', env: {} },
+      });
+      await runtime.start({
+        key: { workspace: testWorkspace(), id: 'terminal-spec-override' },
+        spec: { cwd: '/repo', env: { FORCE_HYPERLINK: '1' } },
+      });
+
+      expect(spawner.specs.map((spec) => spec.env?.FORCE_HYPERLINK)).toEqual(['1', '0', '1']);
+    } finally {
+      runtime.dispose();
+      await scope.dispose();
+    }
+  });
+
   it('does not duplicate a terminal scope for Windows casing variants', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals-windows-identity' });

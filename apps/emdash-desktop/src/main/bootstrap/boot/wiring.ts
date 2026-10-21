@@ -10,7 +10,7 @@ import {
   createDependencyManagerResolver,
   ensureAgentDependenciesProbed,
 } from '@main/core/dependencies/dependency-managers';
-import { getTerminalDisplayEnv } from '@main/core/terminal-shell/display-env';
+import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { withCompensation } from '@main/core/utils/compensation';
 import { legacyPortOperations } from '@main/db/legacy-port/controller';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
@@ -140,7 +140,7 @@ export function createDesktopWireOptions(
     taskService,
     taskSessions: services.taskSessions,
     terminalShell: {
-      getDisplayEnv: getTerminalDisplayEnv,
+      getColorEnv: getTerminalColorEnv,
     },
     updateOperations,
     usage: services.usage,

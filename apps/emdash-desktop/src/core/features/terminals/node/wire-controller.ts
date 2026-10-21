@@ -58,7 +58,7 @@ export type CreateTerminalsWireControllerOptions = Readonly<{
   logger: Logger;
   telemetry: TelemetryService;
   terminalShell: {
-    getDisplayEnv(): Promise<Record<string, string>>;
+    getColorEnv(): Promise<Record<string, string>>;
   };
   /**
    * Per-session git credential behavior from the project's "agent git
@@ -293,7 +293,7 @@ async function startRuntimeTerminal(
   const context = await resolveTerminalContext(options, terminal);
   if (!context.success) return context;
 
-  const displayEnv = await options.terminalShell.getDisplayEnv();
+  const colorEnv = await options.terminalShell.getColorEnv();
   const result = await withWorkspaceRuntime(options, context.data.identity.workspaceId, (client) =>
     client.terminals.start({
       key: context.data.key,
@@ -302,11 +302,9 @@ async function startRuntimeTerminal(
         shellIntent: terminal.shellId,
         shellSetup: context.data.shellSetup,
         tmux: context.data.tmuxEnabled,
-        // Project/task env may override display defaults (e.g. FORCE_HYPERLINK),
-        // matching agent sessions.
         env: {
-          ...displayEnv,
           ...context.data.taskEnvVars,
+          ...colorEnv,
         },
         gitCredentials: context.data.gitCredentials,
         cols: initialSize.cols,

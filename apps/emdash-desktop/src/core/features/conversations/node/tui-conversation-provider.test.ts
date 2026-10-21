@@ -147,24 +147,6 @@ describe('TuiConversationProvider', () => {
     expect(start).toHaveBeenCalledWith(expect.objectContaining({ trustWorkspace: true }));
   });
 
-  it('lets provider custom env override terminal display defaults', async () => {
-    const provider = createProvider({
-      displayEnv: { COLORFGBG: '15;0', FORCE_HYPERLINK: '1' },
-      providerEnv: { FORCE_HYPERLINK: '0' },
-    });
-
-    await provider.ensureSession({
-      conversation: conversation({ providerId: 'claude' }),
-      mode: 'start',
-    });
-
-    expect(start).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerVars: expect.objectContaining({ COLORFGBG: '15;0', FORCE_HYPERLINK: '0' }),
-      })
-    );
-  });
-
   it('resolves mutable task launch context immediately before each fresh start', async () => {
     let launchContext = {
       workspace: {
@@ -233,8 +215,6 @@ function createProvider(
     autoTrustWorktrees?: boolean;
     getTaskSettings?: () => Promise<{ autoTrustWorktrees: boolean }>;
     launchContextSource?: TuiConversationProviderOptions['launchContextSource'];
-    providerEnv?: Record<string, string>;
-    displayEnv?: Record<string, string>;
   } = {}
 ): TuiConversationProvider {
   return new TuiConversationProvider(
@@ -260,12 +240,11 @@ function createProvider(
     },
     {
       db: { select: vi.fn() } as never,
-      getProviderConfig: () =>
-        Promise.resolve(overrides.providerEnv ? { env: overrides.providerEnv } : undefined),
+      getProviderConfig: () => Promise.resolve(undefined),
       getTaskSettings:
         overrides.getTaskSettings ??
         (() => Promise.resolve({ autoTrustWorktrees: overrides.autoTrustWorktrees ?? false })),
-      getTerminalDisplayEnv: () => Promise.resolve(overrides.displayEnv ?? {}),
+      getTerminalColorEnv: () => Promise.resolve({}),
       resolveSessionGitCredentials: () => Promise.resolve(undefined),
     }
   );
