@@ -194,4 +194,58 @@ describe('IntegrationAccountStore credential refresh', () => {
 
     expect(account?.credentials).toEqual(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
   });
+
+  function pendingTokenResponse(suffix: string) {
+    let respond!: () => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          respond = () => resolve(tokenResponse(suffix));
+        })
+    );
+    return () => respond();
+  }
+
+  it('does not recreate an account disconnected during a refresh', async () => {
+    await seed(oauth(NOW + 60_000));
+    const respond = pendingTokenResponse('-2');
+
+    const read = store.getAccount('gitlab', ACCOUNT_ID);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    await fixture.registry.removeAccount('gitlab', ACCOUNT_ID);
+    respond();
+
+    await expect(read).resolves.toBeNull();
+    expect(await fixture.registry.getAccount('gitlab', ACCOUNT_ID)).toBeNull();
+  });
+
+  it('keeps credentials replaced during a refresh', async () => {
+    await seed(oauth(NOW + 60_000));
+    const respond = pendingTokenResponse('-2');
+
+    const read = store.getAccount('gitlab', ACCOUNT_ID);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    await fixture.registry.upsertAccount({
+      providerId: 'gitlab',
+      accountId: ACCOUNT_ID,
+      secret: JSON.stringify(oauth(NOW + 60 * 60 * 1000, '-reconnected')),
+    });
+    respond();
+
+    expect((await read)?.credentials).toEqual(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
+    expect(await storedSecret()).toEqual(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
+  });
+
+  it('applies a reconnect after an in-flight refresh of the same account', async () => {
+    await seed(oauth(NOW + 60_000));
+    const respond = pendingTokenResponse('-2');
+
+    const read = store.getAccount('gitlab', ACCOUNT_ID);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    const reconnect = seed(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
+    respond();
+    await Promise.all([read, reconnect]);
+
+    expect(await storedSecret()).toEqual(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
+  });
 });

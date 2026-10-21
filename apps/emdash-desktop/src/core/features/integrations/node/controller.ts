@@ -37,7 +37,8 @@ export const integrationOperations = {
   startDeviceFlow: (integrationId: string, accountId?: string) =>
     getIntegrationDeviceFlowService().start(integrationId, accountId),
 
-  completeDeviceFlow: (flowId: string) => getIntegrationDeviceFlowService().complete(flowId),
+  completeDeviceFlow: (flowId: string, signal?: AbortSignal) =>
+    getIntegrationDeviceFlowService().complete(flowId, signal),
 
   cancelDeviceFlow: async (flowId: string) => {
     getIntegrationDeviceFlowService().cancel(flowId);

@@ -48,13 +48,16 @@ credentials; the provider's 401 then surfaces as `auth_failed`. After an `auth_f
 the store does not refresh those credentials again until they change (for example on
 reconnect); network failures are retried on the next read. Refreshed credentials that fail to
 save are kept in memory, returned, and written again on the next read, since the provider has
-already invalidated the stored refresh token.
+already invalidated the stored refresh token. A refresh is saved only if the stored credentials
+are still the ones it replaced, and `upsertAccount` waits for an in-flight refresh of the same
+account, so a disconnect or reconnect during a refresh is never undone.
 
 The desktop drives device sign-in for any integration through the integrations Wire API:
 `startDeviceFlow` returns the code, `completeDeviceFlow` resolves once the user approves,
 denies, or the code expires, then verifies and saves the account with credential source
 `device_flow`, and `cancelDeviceFlow` aborts it; a flow cancelled before the save saves nothing.
-Each flow completes at most once. The renderer uses `integrationDeviceFlowModal`
+Each flow completes at most once. `completeDeviceFlow` waits for the user, so the renderer calls it
+with a deadline longer than the code's lifetime; cancelling the Wire call cancels the flow. The renderer uses `integrationDeviceFlowModal`
 and `DeviceFlowIntegrationAuth`, registered per integration in
 `core/manifests/browser/integration-auth-contributions.ts`. The modal shows the code, opens the
 verification URL (with the code pre-filled when the provider supplies one) after a three-second
