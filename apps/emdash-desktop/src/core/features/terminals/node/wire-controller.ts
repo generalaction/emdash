@@ -302,9 +302,11 @@ async function startRuntimeTerminal(
         shellIntent: terminal.shellId,
         shellSetup: context.data.shellSetup,
         tmux: context.data.tmuxEnabled,
+        // Project/task env may override display defaults (e.g. FORCE_HYPERLINK),
+        // matching agent sessions.
         env: {
-          ...context.data.taskEnvVars,
           ...displayEnv,
+          ...context.data.taskEnvVars,
         },
         gitCredentials: context.data.gitCredentials,
         cols: initialSize.cols,

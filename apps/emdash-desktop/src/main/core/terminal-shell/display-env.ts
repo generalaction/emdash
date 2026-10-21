@@ -30,7 +30,7 @@ export async function getTerminalDisplayEnv(): Promise<Record<string, string>> {
     const effective = resolveEffectiveTheme(appTheme, nativeTheme.shouldUseDarkColors);
     env.COLORFGBG = effective === 'emlight' ? '0;15' : '15;0';
   } catch (error) {
-    log.warn('terminal-color-scheme: failed to resolve app theme for COLORFGBG', {
+    log.warn('terminal-display-env: failed to resolve app theme for COLORFGBG', {
       error: String(error),
     });
   }

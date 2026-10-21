@@ -145,7 +145,7 @@ import {
 import { sweepSessionHygiene } from '@main/core/runtime/operations/session-hygiene';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
-import { getTerminalDisplayEnv } from '@main/core/terminal-shell/color-env';
+import { getTerminalDisplayEnv } from '@main/core/terminal-shell/display-env';
 import { runLocalCommand } from '@main/core/utils/exec';
 import { cleanupLegacyOperationsDatabases } from '@main/db/legacy-operations-cleanup';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';

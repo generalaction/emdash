@@ -212,9 +212,10 @@ describe('createTerminalsWireController', () => {
         workspace: identity,
         tmux: true,
         shellSetup: 'source .workspace-env',
-        env: { EMDASH_DEFAULT_BRANCH: 'main' },
+        env: { EMDASH_DEFAULT_BRANCH: 'main', FORCE_HYPERLINK: '0' },
       })
     );
+    const getDisplayEnv = vi.fn(async () => ({ COLORFGBG: '15;0', FORCE_HYPERLINK: '1' }));
     const start = vi.fn(async () => ok(undefined));
     const runtime = {
       terminals: { start },
@@ -225,6 +226,7 @@ describe('createTerminalsWireController', () => {
       db: { select } as never,
       projects: { requireAttached } as never,
       sessionLaunchContexts: { resolve: resolveLaunchContext },
+      terminalShell: { getDisplayEnv },
       runtimes: {
         client: vi.fn(async () => ok(runtime)),
       } as unknown as TerminalsRuntimeBroker,
@@ -250,7 +252,11 @@ describe('createTerminalsWireController', () => {
         spec: expect.objectContaining({
           shellSetup: 'source .workspace-env',
           tmux: true,
-          env: expect.objectContaining({ EMDASH_DEFAULT_BRANCH: 'main' }),
+          env: expect.objectContaining({
+            EMDASH_DEFAULT_BRANCH: 'main',
+            COLORFGBG: '15;0',
+            FORCE_HYPERLINK: '0',
+          }),
         }),
       })
     );

@@ -14,7 +14,7 @@ vi.mock('@main/lib/logger', () => ({
   log: { warn: vi.fn() },
 }));
 
-import { getTerminalDisplayEnv } from './color-env';
+import { getTerminalDisplayEnv } from './display-env';
 
 describe('getTerminalDisplayEnv', () => {
   beforeEach(() => {

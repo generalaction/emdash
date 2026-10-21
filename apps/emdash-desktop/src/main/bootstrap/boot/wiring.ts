@@ -10,7 +10,7 @@ import {
   createDependencyManagerResolver,
   ensureAgentDependenciesProbed,
 } from '@main/core/dependencies/dependency-managers';
-import { getTerminalDisplayEnv } from '@main/core/terminal-shell/color-env';
+import { getTerminalDisplayEnv } from '@main/core/terminal-shell/display-env';
 import { withCompensation } from '@main/core/utils/compensation';
 import { legacyPortOperations } from '@main/db/legacy-port/controller';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
