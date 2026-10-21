@@ -24,8 +24,8 @@ import { seeds } from '@tooling/seeds/index';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { afterAll, describe, it } from 'vitest';
+import * as schema from '@core/services/app-db/node/schema';
 import { initializeDatabase } from '@main/db/initialize';
-import * as schema from '@main/db/schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixturesDir = path.resolve(__dirname, 'fixtures');

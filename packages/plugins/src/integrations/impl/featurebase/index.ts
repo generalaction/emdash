@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyFeaturebaseCredentials } from './client';
 import { icon } from './icon';
+import { featurebaseCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -12,6 +13,7 @@ const plugin = defineIntegrationPlugin(
   },
   {
     auth: {
+      accountLabelRequired: true,
       methods: [
         {
           kind: 'form',
@@ -34,6 +36,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: featurebaseCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyFeaturebaseCredentials(credentials);
       if (!result.success)

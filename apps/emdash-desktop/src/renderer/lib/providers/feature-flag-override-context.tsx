@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, type ReactNode } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 const FeatureFlagContext = createContext<Record<string, boolean>>({});
 
 export function FeatureFlagProvider({ children }: { children: ReactNode }) {
   const { data: flags = {} } = useQuery({
     queryKey: ['feature-flags'],
-    queryFn: () => rpc.telemetry.getFeatureFlags(),
+    queryFn: async () => (await getDesktopWireClient()).telemetry.getFeatureFlags(),
     staleTime: Infinity,
     refetchInterval: (query) => {
       const data = query.state.data;

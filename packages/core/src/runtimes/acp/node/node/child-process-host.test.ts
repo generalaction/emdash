@@ -1,0 +1,164 @@
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ChildAcpProcessHost } from './child-process-host';
+
+const { execFileMock, spawnMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn(),
+  spawnMock: vi.fn(),
+}));
+
+vi.mock('node:child_process', () => ({ execFile: execFileMock, spawn: spawnMock }));
+
+describe('ChildAcpProcessHost', () => {
+  beforeEach(() => {
+    execFileMock.mockReset();
+    execFileMock.mockImplementation((_file, _args, _options, callback) => callback(null, '', ''));
+    spawnMock.mockReset();
+    spawnMock.mockImplementation(() => fakeChild());
+  });
+
+  it('wraps cmd shims for ACP primary processes', async () => {
+    const shim = 'C:\\Program Files\\npm\\provider.cmd';
+    const host = windowsHost(shim);
+
+    await host.spawn({
+      command: 'provider',
+      args: ['--acp', 'hello world'],
+      cwd: 'C:\\workspace',
+      env: windowsEnv(),
+    });
+
+    const [executable, args, options] = spawnMock.mock.calls[0]!;
+    expect(executable).toBe('C:\\Windows\\System32\\cmd.exe');
+    expect(args).toHaveLength(1);
+    expect(args[0].toLowerCase()).toContain(`/d /s /c ""${shim.toLowerCase()}"`);
+    expect(options).toMatchObject({ windowsVerbatimArguments: true });
+    expect(options).not.toHaveProperty('shell');
+  });
+
+  it('wraps cmd shims for ACP agent-requested terminals', async () => {
+    const shim = 'C:\\Program Files\\npm\\provider.cmd';
+    const host = windowsHost(shim);
+
+    await host.spawnTerminal({
+      command: { kind: 'argv', command: 'provider.cmd', args: ['run'] },
+      cwd: 'C:\\workspace',
+      env: windowsEnv(),
+    });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'C:\\Windows\\System32\\cmd.exe',
+      [expect.stringContaining(`/d /s /c ""${shim}`)],
+      expect.objectContaining({ windowsVerbatimArguments: true })
+    );
+    expect(spawnMock.mock.calls[0]?.[2]).not.toHaveProperty('shell');
+  });
+
+  it('terminates ACP primary and terminal Windows process trees', async () => {
+    const shim = 'C:\\Program Files\\npm\\provider.cmd';
+    const host = windowsHost(shim);
+    const spec = {
+      command: 'provider',
+      args: ['run'],
+      cwd: 'C:\\workspace',
+      env: windowsEnv(),
+    };
+
+    const primary = await host.spawn(spec);
+    const terminal = await host.spawnTerminal({
+      ...spec,
+      command: { kind: 'argv', command: spec.command, args: spec.args },
+    });
+    await Promise.all([primary.kill(), terminal.kill()]);
+
+    expect(execFileMock).toHaveBeenCalledTimes(2);
+    for (const call of execFileMock.mock.calls) {
+      expect(call[0]).toBe('taskkill.exe');
+      expect(call[1]).toEqual(['/PID', '4321', '/T']);
+      expect(call[2]).toMatchObject({ windowsHide: true });
+    }
+    expect(spawnMock.mock.results[0]?.value.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(spawnMock.mock.results[1]?.value.kill).toHaveBeenCalledWith('SIGTERM');
+  });
+
+  it('plans explicit Windows scripts through cmd without modifying the script', async () => {
+    const commandLine = '"C:\\Program Files\\tool.exe" && echo done > result';
+    await new ChildAcpProcessHost({ platform: 'win32' }).spawnTerminal({
+      command: { kind: 'shell-line', commandLine },
+      cwd: 'C:\\workspace',
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+    });
+    expect(spawnMock).toHaveBeenCalledWith(
+      'C:\\Windows\\System32\\cmd.exe',
+      [`/d /s /c "${commandLine}"`],
+      expect.objectContaining({ windowsVerbatimArguments: true })
+    );
+  });
+
+  it('retains process errors until the terminal owner subscribes', async () => {
+    const terminal = await new ChildAcpProcessHost().spawnTerminal({
+      command: { kind: 'argv', command: 'node', args: [] },
+      cwd: '/tmp',
+      env: {},
+    });
+    const child = spawnMock.mock.results[0]!.value;
+    const error = new Error('terminal failed');
+    expect(() => child.emit('error', error)).not.toThrow();
+    const onError = vi.fn();
+    terminal.onError(onError);
+    expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  it('waits for stdio closure and retains completion for late subscribers', async () => {
+    const terminal = await new ChildAcpProcessHost().spawnTerminal({
+      command: { kind: 'argv', command: 'node', args: [] },
+      cwd: '/tmp',
+      env: {},
+    });
+    const child = spawnMock.mock.results[0]!.value;
+    const onExit = vi.fn();
+    terminal.onExit(onExit);
+    child.emit('exit', 0, null);
+    expect(onExit).not.toHaveBeenCalled();
+    child.emit('close', 0, null);
+    expect(onExit).toHaveBeenCalledExactlyOnceWith({ exitCode: 0, signal: null });
+    const late = vi.fn();
+    terminal.onExit(late);
+    expect(late).toHaveBeenCalledExactlyOnceWith({ exitCode: 0, signal: null });
+  });
+});
+
+function windowsHost(shim: string): ChildAcpProcessHost {
+  return new ChildAcpProcessHost({
+    platform: 'win32',
+    fileExists: (candidate) => candidate.toLowerCase() === shim.toLowerCase(),
+  });
+}
+
+function windowsEnv(): Record<string, string> {
+  return {
+    Path: 'C:\\Program Files\\npm',
+    PATHEXT: '.EXE;.CMD',
+    ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+  };
+}
+
+function fakeChild() {
+  const child = Object.assign(new EventEmitter(), {
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    exitCode: null,
+    signalCode: null as NodeJS.Signals | null,
+    pid: 4321,
+    kill: vi.fn<(signal?: NodeJS.Signals) => boolean>(),
+  });
+  child.kill.mockImplementation((signal) => {
+    child.signalCode = signal ?? 'SIGTERM';
+    child.emit('exit', null, child.signalCode);
+    return true;
+  });
+  queueMicrotask(() => child.emit('spawn'));
+  return child;
+}

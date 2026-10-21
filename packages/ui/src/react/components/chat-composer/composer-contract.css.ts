@@ -1,14 +1,26 @@
 /**
  * composer-contract.css.ts — ChatComposer theme contract.
  *
- * Emits, at zero-specificity :where(.emlight) and :where(.emdark), a bridge that
- * maps every --em-* custom property read by the ChatComposer subtree (Button,
- * SplitButton, PromptEditor, notice band, permission band, portaled dropdown) to
- * a var(--composer-*, <polarity default>) expression.
+ * Emits, scoped to `composerThemeScope` under :where(.emlight)/:where(.emdark),
+ * a bridge that maps every --em-* custom property read by the ChatComposer
+ * subtree (Button, SplitButton, PromptEditor, notice band, permission band,
+ * portaled dropdown) to a var(--composer-*, <polarity default>) expression.
  *
  * This makes the full composer subtree re-themeable by the host via a small,
  * documented --composer-* set, without the host importing @emdash/ui's color
  * theme sheets (theme.css / semantic.css).
+ *
+ * SCOPING
+ * ───────
+ * The bridge only applies inside elements carrying `composerThemeScope`.
+ * ChatComposer puts the class on its root AND on every surface it portals out
+ * of its DOM subtree (agent/model/permission dropdowns, MCP and context-usage
+ * popovers, effort submenu, prompt-editor suggestion popups) — portals mount
+ * under <body>, so they would otherwise escape a root-scoped bridge. Keeping
+ * the redefinitions scoped means the host's app-wide --em-* values stay owned
+ * by the theme sheets; the composer contract never leaks document-wide.
+ * (Host --composer-* inputs are typically set on the theme root and inherit
+ * into the portaled surfaces just fine.)
  *
  * The defaults mirror the generated light/dark @emdash/ui theme so the composer
  * renders correctly in Storybook (where the theme sheets ARE imported) and in any
@@ -70,13 +82,28 @@
  *                                  (takes priority over --composer-surface-elevated)
  */
 
-import { globalStyle } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
+
+/**
+ * Scope marker for the composer theme bridge. ChatComposer applies it to its
+ * root element and to every portaled surface it renders (see SCOPING above).
+ * The rules stay unlayered on purpose: the bridge redefines --em-* slots that
+ * semantic.css declares inside `@layer tokens`, and staying unlayered keeps
+ * the bridge authoritative regardless of where a host mounts the theme class.
+ */
+export const composerThemeScope = style({});
+
+// Zero-specificity theme-conditional selectors for the scoped bridge. The
+// theme class always sits above the scoped element (<html>, or a wrapper-mode
+// provider element), so a descendant combinator is sufficient.
+const lightScope = `:where(.emlight) :where(${composerThemeScope})`;
+const darkScope = `:where(.emdark) :where(${composerThemeScope})`;
 
 // ── Light defaults ─────────────────────────────────────────────────────────────
 // Values mirror the generated @emdash/ui emlight theme (semantic.css + theme.css).
 
-globalStyle(':where(.emlight)', {
+globalStyle(lightScope, {
   vars: {
     // Core foregrounds
     [vars.foreground]: 'var(--composer-fg, color(display-p3 0.1329 0.1309 0.1314))',
@@ -149,7 +176,7 @@ globalStyle(':where(.emlight)', {
 // ── Dark defaults ──────────────────────────────────────────────────────────────
 // Values mirror the generated @emdash/ui emdark theme (semantic.css + theme.css).
 
-globalStyle(':where(.emdark)', {
+globalStyle(darkScope, {
   vars: {
     // Core foregrounds
     [vars.foreground]: 'var(--composer-fg, color(display-p3 0.9151 0.9123 0.913))',

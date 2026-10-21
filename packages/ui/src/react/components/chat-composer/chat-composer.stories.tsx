@@ -6,8 +6,10 @@ import { Button } from '@/react/primitives/button';
 import { ChatComposer } from '.';
 import type {
   ComposerAgentOption,
+  ComposerCollaborationModeOption,
   ComposerEffortOption,
   ComposerModelOption,
+  ComposerMcpServer,
   ComposerNotice,
   ComposerNoticeVariant,
   ComposerPermissionModeOption,
@@ -17,6 +19,7 @@ import type {
   MentionItem,
   CommandItem,
 } from '.';
+import { PromptEditorModel } from '../prompt-editor/prompt-editor-model';
 import { PermissionBand, type ComposerPermissionRequest } from './permission-band';
 import * as s from '@react/story-layout.css';
 import { sx } from '@styles/utilities/sprinkles.css';
@@ -214,8 +217,13 @@ const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
     name: 'Accept edits',
     description: 'Auto-allow file edits, prompt for shell commands.',
   },
-  plan: { name: 'Plan only', description: 'Agent proposes changes but never writes files.' },
+  readOnly: { name: 'Read only', description: 'Allow inspection without writing files.' },
   bypass: { name: 'Bypass all', description: 'Auto-approve everything — use with caution.' },
+};
+
+const MOCK_COLLABORATION_MODES: Record<string, ComposerCollaborationModeOption> = {
+  default: { name: 'Default', description: 'Work directly on the task.' },
+  plan: { name: 'Plan', description: 'Create a plan before making changes.' },
 };
 
 // ── Mock permission requests ──────────────────────────────────────────────────
@@ -266,7 +274,7 @@ const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'overflow-deep-path',
     title:
-      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/renderer/features/conversations/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
+      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/core/features/conversations/browser/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
     options: [
       { optionId: 'allow-edit-once', name: 'Allow this edit once', kind: 'allow_once' },
       {
@@ -322,6 +330,12 @@ const MOCK_HIGH_CONTEXT_USAGE: ContextUsage = {
   cost: { amount: 1.36, currency: 'USD' },
 };
 
+const MOCK_MCP_SERVERS: ComposerMcpServer[] = [
+  { name: 'filesystem', transport: 'stdio' },
+  { name: 'docs', transport: 'http' },
+  { name: 'linear', transport: 'sse' },
+];
+
 interface PlaygroundArgs {
   disabled: boolean;
   isWorking: boolean;
@@ -335,6 +349,7 @@ interface PlaygroundArgs {
   noticeTitle: string;
   noticeMessage: string;
   showPermissionModeSelector: boolean;
+  showCollaborationModeSelector: boolean;
   showPermissionRequest: boolean;
   showQueuedPrompts: boolean;
 }
@@ -353,6 +368,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     noticeTitle,
     noticeMessage,
     showPermissionModeSelector,
+    showCollaborationModeSelector,
     showPermissionRequest,
     showQueuedPrompts,
   } = args;
@@ -361,6 +377,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
   const [selectedPermissionMode, setSelectedPermissionMode] = useState('default');
+  const [selectedCollaborationMode, setSelectedCollaborationMode] = useState('default');
   const [permissionQueue, setPermissionQueue] = useState<ComposerPermissionRequest[]>([]);
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>([]);
 
@@ -390,7 +407,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
       <Box marginBottom="3" display="flex" alignItems="center" gap="3">
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           tone="destructive"
           disabled={!noticeVisible}
@@ -424,6 +441,9 @@ function ComposerPlayground(args: PlaygroundArgs) {
         permissionModeOptions={showPermissionModeSelector ? MOCK_PERMISSION_MODES : null}
         selectedPermissionMode={selectedPermissionMode}
         onPermissionModeChange={setSelectedPermissionMode}
+        collaborationModeOptions={showCollaborationModeSelector ? MOCK_COLLABORATION_MODES : null}
+        selectedCollaborationMode={selectedCollaborationMode}
+        onCollaborationModeChange={setSelectedCollaborationMode}
         permissionRequest={permissionQueue[0] ?? null}
         permissionQueueCount={permissionQueue.length}
         onResolvePermission={() => setPermissionQueue((q) => q.slice(1))}
@@ -498,6 +518,10 @@ const meta: Meta<PlaygroundArgs> = {
       control: 'boolean',
       description: 'Render the approval-policy (Permissions…) selector in the toolbar.',
     },
+    showCollaborationModeSelector: {
+      control: 'boolean',
+      description: 'Render the workflow (Default / Plan) selector in the toolbar.',
+    },
     showPermissionRequest: {
       control: 'boolean',
       description:
@@ -522,6 +546,7 @@ const meta: Meta<PlaygroundArgs> = {
     noticeMessage:
       'The agent hit the maximum number of turn requests. Send a new message to continue.',
     showPermissionModeSelector: true,
+    showCollaborationModeSelector: true,
     showPermissionRequest: false,
     showQueuedPrompts: false,
   },
@@ -533,6 +558,145 @@ type Story = StoryObj<PlaygroundArgs>;
 
 /** Full controls playground — flip any arg in the Controls panel. */
 export const Playground: Story = {};
+
+/** Only one view is mounted; each open conversation retains its own editing model. */
+export const PersistentModels: Story = {
+  render: function PersistentModelsStory() {
+    const [models, setModels] = useState<PromptEditorModel[] | null>(null);
+    const [active, setActive] = useState(0);
+    useEffect(() => {
+      const models = [
+        new PromptEditorModel({
+          text: Array.from(
+            { length: 30 },
+            (_, i) => `Line ${i + 1}: edit here, switch tabs, then undo.`
+          ).join('\n'),
+        }),
+        new PromptEditorModel({ text: 'This conversation has independent undo history.' }),
+      ];
+      setModels(models);
+      return () => models.forEach((model) => model.dispose());
+    }, []);
+    if (!models) return <></>;
+    return (
+      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+        <p>Select text or scroll, switch conversations, then try Cmd/Ctrl+Z and redo.</p>
+        <Button onClick={() => setActive(0)} disabled={active === 0}>
+          Conversation A
+        </Button>
+        <Button onClick={() => setActive(1)} disabled={active === 1}>
+          Conversation B
+        </Button>
+        <ChatComposer
+          key={active}
+          model={models[active]}
+          onSubmit={() => models[active].clear()}
+          modelOptions={MOCK_MODELS}
+          selectedModel="claude-sonnet-4-5"
+          mentionProvider={mockMentionProvider}
+          queryCommands={queryCommands}
+        />
+      </Box>
+    );
+  },
+};
+
+export const WithProviderConfiguration: Story = {
+  render: function ProviderConfigurationStory() {
+    const [model, setModel] = useState('default');
+    const [effort, setEffort] = useState('medium');
+    const [mode, setMode] = useState('full');
+    const [fast, setFast] = useState(false);
+    return (
+      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+        <ChatComposer
+          modelOptions={{
+            default: { name: 'Default (recommended)' },
+            astra: { name: 'Astra' },
+          }}
+          selectedModel={model}
+          onModelChange={setModel}
+          effortOptions={{ medium: { name: 'Medium' }, high: { name: 'High' } }}
+          selectedEffort={effort}
+          onEffortChange={setEffort}
+          permissionModeOptions={{ full: { name: 'Full access' }, ask: { name: 'Ask' } }}
+          selectedPermissionMode={mode}
+          onPermissionModeChange={setMode}
+          configurationControls={
+            <Button variant="ghost" size="sm" aria-pressed={fast} onClick={() => setFast(!fast)}>
+              Fast mode: {fast ? 'On' : 'Off'}
+            </Button>
+          }
+          onSubmit={() => {}}
+        />
+      </Box>
+    );
+  },
+};
+
+export const CachedConfigurationWhileStarting: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        modelOptions={MOCK_MODELS}
+        selectedModel="claude-sonnet-4-5"
+        effortOptions={{ medium: { name: 'Medium' }, high: { name: 'High' } }}
+        selectedEffort="high"
+        permissionModeOptions={MOCK_PERMISSION_MODES}
+        selectedPermissionMode="default"
+        collaborationModeOptions={MOCK_COLLABORATION_MODES}
+        selectedCollaborationMode="default"
+        canSubmit={false}
+        onSubmit={() => {}}
+      />
+    </Box>
+  ),
+};
+
+export const WithMcpServers: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        canSubmit
+        modelOptions={MOCK_MODELS}
+        selectedModel="claude-sonnet-4-5"
+        permissionModeOptions={MOCK_PERMISSION_MODES}
+        selectedPermissionMode="default"
+        mcpServers={MOCK_MCP_SERVERS}
+        mentionProvider={mockMentionProvider}
+        queryCommands={queryCommands}
+        onSubmit={() => {}}
+      />
+    </Box>
+  ),
+};
+
+export const WithMcpStartupFailure: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        onSubmit={() => {}}
+        mcpServers={[
+          { name: 'openaiDeveloperDocs', transport: 'http' },
+          {
+            name: 'node_repl',
+            transport: 'stdio',
+            startupError:
+              '[codex-acp forwarded startup error] MCP server `node_repl` failed to start: MCP client for `node_repl` failed to start: MCP startup failed: No such file or directory (os error 2)',
+          },
+        ]}
+      />
+    </Box>
+  ),
+};
+
+export const AwaitingProviderControls: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer canSubmit={false} onSubmit={() => {}} />
+    </Box>
+  ),
+};
 
 function QueuedPromptsDemo() {
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);

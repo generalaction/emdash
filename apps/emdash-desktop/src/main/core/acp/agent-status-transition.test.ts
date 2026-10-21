@@ -1,16 +1,15 @@
-import type { SessionSummary } from '@emdash/core/acp';
+import type { SessionSummary } from '@emdash/core/runtimes/acp/api';
 import { describe, expect, it } from 'vitest';
-import { deriveAcpAgentStatusActions } from './agent-status-transition';
+import { deriveAcpAgentStatusActions, projectAcpStatusSnapshot } from './agent-status-transition';
 
 function summary(overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
     conversationId: 'conv-1',
-    projectId: 'project-1',
-    taskId: 'task-1',
     providerId: 'claude',
     lifecycle: 'ready',
     isGenerating: false,
     lastStopReason: null,
+    lastTurnErrored: false,
     pendingPermissionCount: 0,
     backgroundAgentCount: 0,
     queuedPromptCount: 0,
@@ -20,28 +19,46 @@ function summary(overrides: Partial<SessionSummary> = {}): SessionSummary {
   };
 }
 
-describe('deriveAcpAgentStatusActions', () => {
-  it('does not mark a plain starting session as working', () => {
-    expect(deriveAcpAgentStatusActions(undefined, summary({ lifecycle: 'starting' }))).toEqual([]);
+describe('projectAcpStatusSnapshot', () => {
+  it('projects busy work and pending permissions', () => {
+    expect(projectAcpStatusSnapshot(summary({ queuedPromptCount: 1 }))).toBeNull();
+    expect(
+      projectAcpStatusSnapshot(summary({ isGenerating: true, pendingPermissionCount: 1 }))
+    ).toMatchObject({
+      kind: 'event',
+      event: { type: 'notification', payload: { notificationType: 'permission_prompt' } },
+    });
   });
 
-  it('emits start when a queued prompt makes the session busy', () => {
-    const actions = deriveAcpAgentStatusActions(
-      undefined,
-      summary({ lifecycle: 'starting', queuedPromptCount: 1 })
-    );
-
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toMatchObject({
+  it('reconstructs completed and errored terminal statuses', () => {
+    expect(projectAcpStatusSnapshot(summary({ lastStopReason: 'end_turn' }))).toMatchObject({
       kind: 'event',
-      event: {
-        type: 'start',
-        providerId: 'claude',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        conversationId: 'conv-1',
-      },
+      event: { type: 'stop' },
     });
+    expect(projectAcpStatusSnapshot(summary({ lastTurnErrored: true }))).toMatchObject({
+      kind: 'event',
+      event: { type: 'error' },
+    });
+  });
+
+  it('resets cancelled snapshots without overwriting fresh persisted state', () => {
+    expect(projectAcpStatusSnapshot(summary({ lastStopReason: 'cancelled' }))).toEqual({
+      kind: 'reset',
+      conversationId: 'conv-1',
+    });
+    expect(projectAcpStatusSnapshot(summary())).toBeNull();
+  });
+});
+
+describe('deriveAcpAgentStatusActions', () => {
+  it('does not project a newly observed summary on the live path', () => {
+    expect(deriveAcpAgentStatusActions(undefined, summary({ lifecycle: 'starting' }))).toEqual([]);
+    expect(
+      deriveAcpAgentStatusActions(
+        undefined,
+        summary({ lifecycle: 'starting', queuedPromptCount: 1 })
+      )
+    ).toEqual([]);
   });
 
   it('emits start when generation begins', () => {
@@ -52,6 +69,10 @@ describe('deriveAcpAgentStatusActions', () => {
 
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'start' } });
+  });
+
+  it('does not report an idle queue as active work', () => {
+    expect(deriveAcpAgentStatusActions(summary(), summary({ queuedPromptCount: 1 }))).toEqual([]);
   });
 
   it('emits an attention notification when a permission prompt appears', () => {
@@ -72,12 +93,69 @@ describe('deriveAcpAgentStatusActions', () => {
 
   it('does not also emit start when a permission prompt is the first busy state', () => {
     const actions = deriveAcpAgentStatusActions(
-      undefined,
+      summary(),
       summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 })
     );
 
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'notification' } });
+  });
+
+  it('restores working when the last permission request clears during generation', () => {
+    const actions = deriveAcpAgentStatusActions(
+      summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 }),
+      summary({ lifecycle: 'working', isGenerating: true })
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'start' } });
+  });
+
+  it('keeps attention status while another permission request is pending', () => {
+    expect(
+      deriveAcpAgentStatusActions(
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 2 }),
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 })
+      )
+    ).toEqual([]);
+  });
+
+  it('emits attention when a permission request is already present on first observation', () => {
+    const actions = deriveAcpAgentStatusActions(undefined, summary({ pendingPermissionCount: 1 }));
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      kind: 'event',
+      event: { type: 'notification', payload: { notificationType: 'permission_prompt' } },
+    });
+  });
+
+  it('does not repeat attention when generation begins with an existing permission request', () => {
+    expect(
+      deriveAcpAgentStatusActions(
+        summary({ pendingPermissionCount: 1 }),
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 })
+      )
+    ).toEqual([]);
+  });
+
+  it('does not restore working when cancellation clears a pending permission request', () => {
+    expect(
+      deriveAcpAgentStatusActions(
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 }),
+        summary({ lifecycle: 'cancelling', isGenerating: true })
+      )
+    ).toEqual([]);
+  });
+
+  it('emits completion when permission clearance coincides with generation ending', () => {
+    const actions = deriveAcpAgentStatusActions(
+      summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 }),
+      summary({ lastStopReason: 'end_turn' })
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'stop' } });
   });
 
   it('emits stop when busy work ends normally', () => {
@@ -90,18 +168,29 @@ describe('deriveAcpAgentStatusActions', () => {
     expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'stop' } });
   });
 
+  it('emits error when busy work ends with an error', () => {
+    const actions = deriveAcpAgentStatusActions(
+      summary({ lifecycle: 'working', isGenerating: true }),
+      summary({ lifecycle: 'ready', lastTurnErrored: true })
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'error' } });
+  });
+
   it('resets to idle when busy work is cancelled', () => {
     const actions = deriveAcpAgentStatusActions(
       summary({ lifecycle: 'cancelling', isGenerating: true }),
-      summary({ lifecycle: 'ready', lastStopReason: 'cancelled' })
+      summary({
+        lifecycle: 'ready',
+        lastStopReason: 'cancelled',
+      })
     );
 
     expect(actions).toEqual([
       {
         kind: 'reset',
         conversationId: 'conv-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
       },
     ]);
   });
@@ -111,16 +200,12 @@ describe('deriveAcpAgentStatusActions', () => {
       {
         kind: 'reset',
         conversationId: 'conv-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
       },
     ]);
     expect(deriveAcpAgentStatusActions(summary(), summary({ lifecycle: 'closed' }))).toEqual([
       {
         kind: 'reset',
         conversationId: 'conv-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
       },
     ]);
   });

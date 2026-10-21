@@ -1,0 +1,1021 @@
+import type {
+  CreateTerminalRequest,
+  CreateTerminalResponse,
+  RequestPermissionRequest,
+  RequestPermissionResponse,
+  SessionNotification,
+  SessionUpdate,
+} from '@agentclientprotocol/sdk';
+import type { Result, Serializable } from '@emdash/shared';
+import { err, ok, toSerializedError } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import type {
+  AcpCancelTurnError,
+  AcpChangeQueuePromptOrderError,
+  AcpDeleteQueuedPromptError,
+  AcpEditQueuedPromptError,
+  AcpExportRawLogError,
+  AcpExportTranscriptError,
+  AcpTerminateError,
+  AcpResolvePermissionError,
+  AcpSendPromptError,
+  AcpSetOptionError,
+  AcpStartError,
+  AcpSessionStartMode,
+  HistoryPage,
+  NormalizedEvent,
+  SessionState,
+  TerminalState,
+} from '#runtimes/acp/api';
+import { ACP_UNAMBIGUOUS_START_ERROR_TYPES, acpErr } from '#runtimes/acp/api';
+import { acceptsProviderValue } from '#runtimes/acp/api/models/config';
+import type { AcpSetOptionResult } from '#runtimes/acp/api/schemas';
+import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
+import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
+import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
+import type {
+  AcpConnectionContext,
+  AcpConnectionSource,
+} from '#runtimes/acp/node/connection/source';
+import type { AcpChatHistory, SessionCell } from '#runtimes/acp/node/session/cell';
+import {
+  closedSessionState,
+  createAcpSessionLiveHost,
+  createAcpSessionsLiveHost,
+  suspendedSessionState,
+  type AcpSessionLiveHost,
+  type AcpSessionsLiveHost,
+  type SessionLiveModels,
+  type RetainedPresentation,
+  type SessionsListModel,
+} from '#runtimes/acp/node/state/live-models';
+import type { SessionIntent } from '#services/session-intents/api';
+import type {
+  ActivityFields,
+  ConversationSessionLifecycle,
+  EvictOptions,
+  SessionSnapshotJudgment,
+} from '#services/session-lifecycle/api';
+import { createSessionLifecycle } from '#services/session-lifecycle/node';
+import { ConversationHandle } from './conversation-handle';
+import type { ActivationStartError, SessionRecord } from './conversation-types';
+import { persistedIntentV1Schema } from './session-intent-schemas';
+import { SessionMaterializer } from './session-materializer';
+import { routeOwnerId, SessionRouter } from './session-router';
+import { SessionsListProjector, type SuspendedIntentListEntry } from './sessions-list-projector';
+import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
+
+const DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS = 5_000;
+
+export type AcpWakeFailure = {
+  kind: 'wake-failed';
+  error: AcpStartError;
+};
+
+export type SessionManagerInspection = {
+  retained: string[];
+  indexedSuspended: string[];
+  running: string[];
+  materializing: string[];
+  pendingEvictions: string[];
+};
+
+export function isAcpWakeFailure(error: unknown): error is AcpWakeFailure {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'kind' in error &&
+    error.kind === 'wake-failed' &&
+    'error' in error
+  );
+}
+
+type SuspendedIntentEntry = {
+  unstarted: boolean;
+  initialQueueConsumed: boolean;
+  descriptor: AcpStartInput;
+  retained: RetainedPresentation;
+  summary: SuspendedIntentListEntry;
+};
+
+export class SessionManager {
+  readonly sessionHost: AcpSessionLiveHost = createAcpSessionLiveHost();
+  readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
+  readonly sessionsList: SessionsListModel = this.sessionsHost.model;
+  readonly router: SessionRouter;
+  private readonly retained = new Map<string, ConversationHandle>();
+  private readonly suspendedIntents = new Map<string, SuspendedIntentEntry>();
+  private readonly clock: Clock;
+  private readonly lifecycle: ConversationSessionLifecycle;
+  private readonly listProjector: SessionsListProjector;
+  private readonly materializer: SessionMaterializer;
+
+  constructor(
+    private readonly deps: AcpRuntimeDeps & { logger: Logger },
+    private readonly connections: AcpConnectionSource,
+    private readonly terminals: AgentTerminalManager,
+    private readonly ports: { fs: FsPort; terminals: TerminalPort }
+  ) {
+    this.clock = deps.clock ?? systemClock;
+    this.router = new SessionRouter(
+      {
+        onSessionUpdate: (conversationId, connection, params, event) =>
+          this.handleSessionUpdate(conversationId, connection, params, event),
+        onPermissionRequest: (conversationId, connection, params) =>
+          this.handlePermissionRequest(conversationId, connection, params),
+        onCreateTerminal: (conversationId, connection, params) =>
+          this.handleCreateTerminal(conversationId, connection, params),
+      },
+      deps.logger
+    );
+    this.listProjector = new SessionsListProjector(
+      this.sessionsList,
+      this.clock,
+      (conversationId) => this.lifecycle.activity(conversationId)
+    );
+    this.materializer = new SessionMaterializer(deps, connections, {
+      isCurrent: (entry, epoch) => entry.isEpochCurrent(epoch),
+      onRecordCreated: (record, scope) => {
+        record.conversation.attachProvisional(record);
+        scope.add(() => this.teardownRecord(record));
+      },
+      onRecordChanged: (record) => record.conversation.syncRecord(record),
+      onRecordClosed: (record) => {
+        if (!record.conversation.isCurrentRecord(record)) return;
+        void this.stop(record.input.conversationId, 'process-exited');
+      },
+      discardRecord: (record) => {
+        record.conversation.discardProvisional(record);
+        return this.teardownRecord(record);
+      },
+      registerRoute: (processOwner, acpSessionId, conversationId) =>
+        this.router.register(processOwner, acpSessionId, conversationId),
+      beginLoad: (processOwner, acpSessionId, conversationId) =>
+        this.router.beginLoad(processOwner, acpSessionId, conversationId),
+    });
+    this.lifecycle = createSessionLifecycle({
+      name: 'SessionManager',
+      logger: deps.logger,
+      clock: this.clock,
+      idlePolicy: deps.lifecycle?.session,
+      sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
+      entries: () => this.runningConversationIds(),
+      snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
+      syncListEntry: (conversationId, activity) =>
+        this.syncSessionActivity(conversationId, activity),
+      deactivate: async (conversationId, cause) => {
+        await this.stop(conversationId, cause);
+      },
+      evictSteps: [
+        {
+          name: 'activation',
+          run: async (key) => {
+            await this.retained.get(key)?.stopActivation();
+          },
+        },
+      ],
+      conversation: {
+        intents: deps.intents,
+        reports: deps.conversationReports,
+        activePayload: (conversationId) => this.activeIntentPayload(conversationId),
+      },
+    });
+  }
+
+  async attach(input: AcpStartInput): Promise<Result<{ sessionId: string | null }, AcpStartError>> {
+    await this.retained.get(input.conversationId)?.waitForEviction();
+    const existing = this.getOrRestoreHandle(input.conversationId);
+    const entry =
+      existing ??
+      this.createHandle(input, {
+        suspended: true,
+        consumed: input.sessionId !== null || !input.initialQueue?.length,
+        everMaterialized: input.sessionId !== null,
+      });
+    if (existing) entry.refreshDescriptor(input);
+    entry.saveIntent();
+    return ok({ sessionId: entry.descriptor.sessionId });
+  }
+
+  async startSession(
+    input: AcpStartInput,
+    mode: AcpSessionStartMode
+  ): Promise<
+    Result<
+      {
+        sessionId: string;
+      },
+      AcpStartError
+    >
+  > {
+    await this.retained.get(input.conversationId)?.waitForEviction();
+    const existing = this.retained.get(input.conversationId);
+    const restored = existing ? null : this.getOrRestoreHandle(input.conversationId);
+    const entry =
+      existing ??
+      restored ??
+      this.createHandle(input, {
+        suspended: false,
+        everMaterialized: input.sessionId !== null,
+      });
+    if (restored || (!entry.initialQueueConsumed && !entry.descriptor.initialQueue?.length)) {
+      entry.refreshDescriptor(input);
+    }
+    if (entry.descriptor.sessionId) entry.saveIntent();
+    this.lifecycle.recordInput(input.conversationId);
+
+    return this.activateEntry(entry, !existing, mode);
+  }
+
+  private async activateEntry(
+    entry: ConversationHandle,
+    removeOnInitialFailure: boolean,
+    mode: AcpSessionStartMode
+  ): Promise<
+    Result<
+      {
+        sessionId: string;
+      },
+      AcpStartError
+    >
+  > {
+    const started = await entry.ensure(mode);
+    if (!started.success) {
+      if (started.error.type === 'conversation_not_found') {
+        return acpErr.invalidState('ACP conversation was deleted while starting');
+      }
+      // Rejecting a fresh request must not disturb a concurrent resume or a live session.
+      if (mode === 'fresh') return err(started.error);
+      if (removeOnInitialFailure && !entry.everMaterialized && entry.state !== 'killed') {
+        entry.kill(started.error);
+        await entry.forceRemove(started.error);
+        this.removeHandle(entry);
+        await this.evict(entry.conversationId, { intent: 'keep' });
+      } else if (entry.state !== 'killed') {
+        entry.suspend();
+      }
+      return err(started.error);
+    }
+
+    entry.saveIntent();
+    return ok({
+      sessionId: started.data.cell.acpSessionId,
+    });
+  }
+
+  private async startActivation(
+    entry: ConversationHandle,
+    scope: Scope
+  ): Promise<Result<SessionRecord, ActivationStartError>> {
+    const closed = await entry.waitForProviderClose();
+    if (!closed.success) return closed;
+    const materialization = entry.beginMaterialization();
+    if (!materialization) return acpErr.conversationNotFound(entry.conversationId);
+    const input = entry.materializationInput();
+    if (!entry.initialQueueConsumed && !entry.descriptor.initialQueue?.length) {
+      return acpErr.invalidState(
+        'The saved initial prompts must be supplied before starting this conversation.'
+      );
+    }
+
+    const materialized = await this.materializer.materialize(
+      entry,
+      input,
+      materialization.epoch,
+      scope,
+      materialization.signal
+    );
+    if (!materialized.success) return materialized;
+
+    const { record, unstarted } = materialized.data;
+    const configuredRevision = entry.desiredRevision;
+    const committed = await entry.commitMaterialization(record, unstarted);
+    if (!committed.success) return committed;
+    try {
+      if (entry.desiredRevision !== configuredRevision) {
+        await this.materializer.applyDesiredConfiguration(record, entry);
+        if (!entry.isCurrentRecord(record))
+          return acpErr.conversationNotFound(entry.conversationId);
+      }
+      const prepared = record.cell.prepareActivation(
+        record.input.initialQueue ?? [],
+        record.resumeOutcome === 'loaded'
+      );
+      if (!prepared.success) return prepared;
+      if (entry.pendingEviction()) return acpErr.invalidState('Session startup was stopped.');
+      if (record.input.initialQueue?.length) {
+        const committedQueue = await entry.commitInitialQueue(record);
+        if (!committedQueue.success) return committedQueue;
+      }
+      if (entry.pendingEviction()) return acpErr.invalidState('Session startup was stopped.');
+      prepared.data();
+    } catch (error) {
+      return acpErr.initializeFailed(toSerializedError(error));
+    }
+    for (const [id, value] of Object.entries(record.clearedOptions ?? {})) {
+      if (entry.descriptor.options?.[id] === value) entry.updateOption(id, null);
+    }
+    return ok(record);
+  }
+
+  sendPrompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+    return new Promise((resolve, reject) => {
+      void this.runPrompt(input, (accepted) => resolve(ok(accepted))).then(
+        (result) => {
+          if (result.success) resolve(result);
+          else {
+            const error = result.error;
+            resolve(err(isAcpWakeFailure(error) ? error.error : error));
+          }
+        },
+        (error: unknown) => {
+          this.deps.logger.error('ACP prompt execution failed', {
+            conversationId: input.conversationId,
+            error,
+          });
+          reject(error);
+        }
+      );
+    });
+  }
+
+  private async runPrompt(
+    input: SendPromptInput,
+    onAccepted: (result: { queued: boolean }) => void
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
+    const entry = this.retained.get(input.conversationId);
+    if (!entry || entry.deleted) return acpErr.conversationNotFound(input.conversationId);
+    await entry.waitForEviction();
+    if (!entry.isCurrent()) return acpErr.conversationNotFound(input.conversationId);
+
+    const acquired = await entry.acquire();
+    if (!acquired.success) return this.mapWakeError(acquired.error);
+    const lease = acquired.data;
+    try {
+      let acceptance;
+      if (
+        !input.prompt.text.trim() &&
+        !input.prompt.hiddenContext?.trim() &&
+        !input.prompt.attachments?.length
+      )
+        return acpErr.invalidState('A prompt needs text or an attachment');
+      try {
+        acceptance = {
+          id: input.promptId,
+          onAccepted,
+          resolvedAttachments: await Promise.all(
+            (input.prompt.attachments ?? []).map((attachment) =>
+              this.deps.resolveAttachment(input.conversationId, attachment)
+            )
+          ),
+        };
+      } catch (error) {
+        return acpErr.promptFailed(toSerializedError(error));
+      }
+      if (!entry.isCurrent()) return acpErr.conversationNotFound(input.conversationId);
+      const preserved = await entry.preserveSession(lease.value);
+      if (!preserved.success) return this.mapWakeError(preserved.error);
+      this.lifecycle.recordInput(input.conversationId);
+      if (input.placement === 'queue') {
+        const state = lease.value.cell.sessionState;
+        if (state.lifecycle !== 'ready' || state.isGenerating || state.queuedPrompts.length > 0) {
+          const queued = lease.value.cell.queuePrompt(input.prompt, input.promptId);
+          if (!queued.success) return queued;
+          onAccepted({ queued: true });
+          return ok({ queued: true });
+        }
+      }
+      return await lease.value.cell.prompt(input.prompt, acceptance);
+    } finally {
+      await lease.release();
+    }
+  }
+
+  editQueuedPrompt(
+    conversationId: string,
+    id: string,
+    input: SendPromptInput['prompt']
+  ): Result<void, AcpEditQueuedPromptError> {
+    const retained = this.retained.get(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.editQueuedPrompt(id, input) : ok();
+  }
+
+  removeQueuedPrompt(conversationId: string, id: string): Result<void, AcpDeleteQueuedPromptError> {
+    const retained = this.retained.get(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.removeQueuedPrompt(id) : ok();
+  }
+
+  reorderQueue(
+    conversationId: string,
+    ids: readonly string[]
+  ): Result<void, AcpChangeQueuePromptOrderError> {
+    const retained = this.retained.get(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.reorderQueue(ids) : ok();
+  }
+
+  async cancel(conversationId: string): Promise<Result<void, AcpCancelTurnError>> {
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.cancel() : ok();
+  }
+
+  async stop(conversationId: string, cause = 'user'): Promise<Result<void, never>> {
+    await this.evict(conversationId, { cause, intent: 'suspend' });
+    const entry = this.retained.get(conversationId);
+    entry?.suspend();
+    return ok();
+  }
+
+  async kill(conversationId: string): Promise<Result<void, AcpTerminateError>> {
+    const entry = this.retained.get(conversationId);
+    if (entry) {
+      this.removeSuspendedIntentEntry(conversationId);
+      const materializingRecord =
+        entry.state === 'materializing' ? entry.currentRecord() : undefined;
+      entry.kill();
+      if (materializingRecord) await entry.interrupt(materializingRecord);
+      await entry.waitForEviction();
+      await entry.runEviction(() =>
+        this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' })
+      );
+      await entry.forceRemove('conversation killed');
+      this.removeHandle(entry);
+      return ok();
+    }
+
+    const indexed = this.suspendedIntents.get(conversationId);
+    await this.lifecycle.evict(conversationId, {
+      cause: 'user',
+      intent: indexed ? 'keep' : 'remove',
+    });
+    if (indexed) {
+      try {
+        const removed = await this.deps.intents.remove(conversationId);
+        if (!removed.success) {
+          this.deps.logger.warn('SessionManager: failed to remove suspended session intent', {
+            conversationId,
+            error: removed.error,
+          });
+          return acpErr.intentPersistenceFailed(conversationId, {
+            name: 'SessionIntentError',
+            message: removed.error.message,
+          });
+        }
+      } catch (error) {
+        this.deps.logger.warn('SessionManager: failed to remove suspended session intent', {
+          conversationId,
+          error: String(error),
+        });
+        return acpErr.intentPersistenceFailed(conversationId, toSerializedError(error));
+      }
+    }
+    if (indexed && this.suspendedIntents.get(conversationId) === indexed) {
+      this.suspendedIntents.delete(conversationId);
+      this.listProjector.removeSuspendedIntent(conversationId);
+    }
+    return ok();
+  }
+
+  resolvePermission(
+    conversationId: string,
+    requestId: string,
+    optionId: string
+  ): Result<void, AcpResolvePermissionError> {
+    const retained = this.retained.get(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.resolvePermission(requestId, optionId) : ok();
+  }
+
+  async setOption(
+    conversationId: string,
+    configId: string,
+    value: string | boolean
+  ): Promise<Result<AcpSetOptionResult, AcpSetOptionError | AcpWakeFailure>> {
+    const entry = this.retained.get(conversationId);
+    if (!entry) return acpErr.conversationNotFound(conversationId);
+    await entry.waitForEviction();
+    if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
+    const reapplyFailures: AcpSetOptionResult['reapplyFailures'] = [];
+    if (entry.state === 'active') {
+      const result = await entry.use(async (record) => {
+        const result = await record.cell.setOption(configId, value);
+        if (!result.success) return result;
+        if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
+        entry.updateOption(configId, value);
+        entry.saveIntent();
+        for (const [id, desired] of Object.entries(entry.descriptor.options ?? {})) {
+          if (id === configId) continue;
+          const option = record.cell.config.options?.find((item) => item.id === id);
+          if (!option || !acceptsProviderValue(option, desired)) {
+            record.clearedOptions = { ...record.clearedOptions, [id]: desired };
+            entry.updateOption(id, null);
+          } else if (option.currentValue !== desired) {
+            const applied = await record.cell.setOption(id, desired);
+            if (!applied.success) reapplyFailures.push({ configId: id, error: applied.error });
+          }
+        }
+        return result;
+      });
+      if (!result.success) {
+        if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
+        return result as Result<AcpSetOptionResult, AcpSetOptionError>;
+      }
+    } else {
+      entry.updateOption(configId, value);
+      entry.saveIntent();
+    }
+    if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
+    return ok({ reapplyFailures });
+  }
+
+  exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
+    const record = this.readyRecord(conversationId);
+    return record
+      ? ok(record.cell.exportParsedTranscript())
+      : acpErr.conversationNotFound(conversationId);
+  }
+
+  exportRawAcpLog(conversationId: string): Result<string, AcpExportRawLogError> {
+    const record = this.readyRecord(conversationId);
+    return record ? ok(record.cell.exportRawLog()) : acpErr.conversationNotFound(conversationId);
+  }
+
+  getHistory(conversationId: string, before?: number, limit = 50): HistoryPage {
+    const record = this.readyRecord(conversationId);
+    if (!record || record.cell.sessionState.transcript === null) return { kind: 'unavailable' };
+    const turns = record.cell.transcript.history;
+    const filtered = before === undefined ? turns : turns.filter((turn) => turn.seq < before);
+    const page = [...filtered].sort((a, b) => b.seq - a.seq).slice(0, limit);
+    const nextCursor = page.length === limit ? page.at(-1)!.seq : null;
+    return {
+      kind: 'available',
+      turns: page.reverse(),
+      nextCursor,
+      position: record.cell.transcript.position,
+      coverage: { fromSeq: nextCursor, beforeSeq: before ?? null },
+    };
+  }
+
+  getSessionState(conversationId: string): SessionState {
+    return (
+      this.retained.get(conversationId)?.sessionState() ??
+      (this.suspendedIntents.has(conversationId) ? suspendedSessionState : closedSessionState)
+    );
+  }
+
+  getTerminals(conversationId: string): TerminalState[] {
+    return this.terminals.listByConversation(conversationId);
+  }
+
+  getLiveModels(conversationId: string): SessionLiveModels | null {
+    return this.retained.get(conversationId)?.projection ?? null;
+  }
+
+  syncTerminals(conversationId: string): void {
+    const record = this.recordForCallbacks(conversationId);
+    if (record) record.conversation.syncRecord(record);
+  }
+
+  killAllTerminals(): Promise<void> {
+    return this.terminals.killAll();
+  }
+
+  private handleSessionUpdate(
+    conversationId: string,
+    connection: AcpConnectionContext,
+    params: SessionNotification,
+    event: NormalizedEvent
+  ): void {
+    const record = this.recordForCallbacks(conversationId);
+    if (!record) return;
+    this.lifecycle.recordOutput(conversationId);
+    if (record.cell.acpSessionId !== params.sessionId) {
+      record.cell.setAcpSessionId(params.sessionId);
+      this.router.register(
+        routeOwnerId(connection.key, connection.generation),
+        params.sessionId,
+        conversationId
+      );
+      if (record.conversation.state === 'active') {
+        record.conversation.updateProviderSessionId(params.sessionId);
+        this.lifecycle.providerSessionId(conversationId, {
+          conversationId,
+          providerSessionId: params.sessionId,
+        });
+      }
+    }
+    record.cell.recordRaw({
+      kind: 'session_update',
+      sessionId: params.sessionId,
+      update: params.update,
+    });
+    this.applyRawMeta(record.cell, params.update);
+    record.cell.push(event);
+    record.conversation.syncRecord(record);
+  }
+
+  private handlePermissionRequest(
+    conversationId: string,
+    _connection: AcpConnectionContext,
+    params: RequestPermissionRequest
+  ): Promise<RequestPermissionResponse> {
+    const record = this.recordForCallbacks(conversationId);
+    if (!record) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
+    this.lifecycle.recordOutput(conversationId);
+    const response = record.cell.requestPermission(params);
+    record.conversation.syncRecord(record);
+    return response;
+  }
+
+  private handleCreateTerminal(
+    conversationId: string,
+    connection: AcpConnectionContext,
+    params: CreateTerminalRequest
+  ): Promise<CreateTerminalResponse> {
+    return this.ports.terminals.createTerminal(
+      conversationId,
+      connection.cwd,
+      connection.env,
+      params,
+      connection.terminalCommand?.(params)
+    );
+  }
+
+  onProcessClosed(processKey: string, processGeneration: number, exitCode: number | null): void {
+    this.router.invalidate(routeOwnerId(processKey, processGeneration));
+    const records = new Set(
+      [...this.retained.values()]
+        .map((entry) => entry.currentRecord())
+        .filter((record): record is SessionRecord => record !== undefined)
+    );
+    for (const record of records) {
+      if (
+        record.processKey !== processKey ||
+        record.processGeneration !== processGeneration ||
+        record.disposed
+      ) {
+        continue;
+      }
+      record.connectionLeaseState.release = false;
+      record.cell.processClosed(exitCode);
+      void this.stop(record.input.conversationId, 'process-exited');
+    }
+  }
+
+  async dispose(): Promise<void> {
+    this.lifecycle.dispose();
+    const entries = [...this.retained.values()];
+    await Promise.all(entries.map((entry) => entry.dispose()));
+    for (const entry of entries) this.removeHandle(entry);
+    this.suspendedIntents.clear();
+    await Promise.all([this.sessionHost.dispose(), this.sessionsHost.dispose()]);
+  }
+
+  async reconcile(): Promise<void> {
+    const listed = await this.deps.intents.list();
+    if (listed.success) {
+      const suspended = new Map<string, SuspendedIntentEntry>();
+      for (const intent of listed.data) {
+        if (this.retained.has(intent.conversationId)) continue;
+        const indexed = this.parseIntent(intent);
+        if (!indexed) continue;
+        suspended.set(intent.conversationId, indexed);
+        await this.sanitizeIntent(intent, indexed);
+      }
+      this.suspendedIntents.clear();
+      for (const [conversationId, entry] of suspended) {
+        this.suspendedIntents.set(conversationId, entry);
+      }
+      this.listProjector.replaceSuspendedIntents(
+        [...this.suspendedIntents.values()].map((entry) => entry.summary)
+      );
+    } else {
+      this.deps.logger.warn('SessionManager: failed to restore suspended session intents', {
+        error: listed.error,
+      });
+    }
+  }
+
+  /** Deterministic lifecycle sweep seam used by runtime tests. */
+  sweepNow(): Promise<void> {
+    return this.lifecycle.sweepNow();
+  }
+
+  /** Snapshot-style inspection seam for lifecycle ownership and leak assertions. */
+  inspect(): SessionManagerInspection {
+    const retained = [...this.retained.keys()];
+    const indexedSuspended = [...this.suspendedIntents.keys()];
+    const running: string[] = [];
+    const materializing: string[] = [];
+    const pendingEvictions: string[] = [];
+    for (const [conversationId, entry] of this.retained) {
+      if (entry.hasActivation()) running.push(conversationId);
+      if (entry.state === 'materializing') materializing.push(conversationId);
+      if (entry.pendingEviction()) pendingEvictions.push(conversationId);
+    }
+    return { retained, indexedSuspended, running, materializing, pendingEvictions };
+  }
+
+  private evict(conversationId: string, options: EvictOptions): Promise<void> {
+    const entry = this.retained.get(conversationId);
+    return entry
+      ? entry.runEviction(() => this.lifecycle.evict(conversationId, options))
+      : this.lifecycle.evict(conversationId, options);
+  }
+
+  private syncSessionActivity(conversationId: string, activity: ActivityFields): void {
+    this.listProjector.syncActivity(conversationId, activity);
+  }
+
+  private lifecycleSnapshot(conversationId: string): SessionSnapshotJudgment | null {
+    const record = this.readyRecord(conversationId);
+    if (!record) return null;
+    const state = record.cell.sessionState;
+    return {
+      running: true,
+      busy:
+        state.isGenerating ||
+        state.pendingPermissions.length > 0 ||
+        state.queuedPrompts.length > 0 ||
+        state.backgroundAgentCount > 0,
+    };
+  }
+
+  private createHandle(
+    input: AcpStartInput,
+    options: {
+      suspended: boolean;
+      consumed?: boolean;
+      everMaterialized?: boolean;
+      retained?: RetainedPresentation;
+      unstarted?: boolean;
+    } = { suspended: false }
+  ): ConversationHandle {
+    const projection = this.sessionHost.models(input.conversationId);
+    const releaseProjection = this.sessionHost.models.retain(input.conversationId);
+    const entry = new ConversationHandle(
+      {
+        projection,
+        releaseProjection,
+        listProjector: this.listProjector,
+        terminals: this.terminals,
+        saveIntent: () => this.lifecycle.saveIntent(input.conversationId),
+        persistIntent: (prepare) => this.lifecycle.persistIntent(input.conversationId, prepare),
+        materialize: (scope) => this.startActivation(entry, scope),
+        interruptRecord: (record) => this.interruptRecord(record),
+        onActivated: (record) => {
+          this.lifecycle.started(input.conversationId, {
+            conversationId: input.conversationId,
+            providerSessionId: record.cell.acpSessionId,
+            resumeOutcome: record.resumeOutcome,
+          });
+        },
+        activationDrainTimeoutMs:
+          this.deps.lifecycle?.activationDrainTimeoutMs ?? DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS,
+        onLeaseDrainTimeout: ({ leaseCount, timeoutMs }) => {
+          this.deps.logger.warn('SessionManager: activation lease drain timed out', {
+            conversationId: input.conversationId,
+            leakedLeases: leaseCount,
+            timeoutMs,
+          });
+        },
+        onActivationObserverError: (error) => {
+          this.deps.logger.warn('SessionManager: activation state observer failed', {
+            conversationId: input.conversationId,
+            error: String(error),
+          });
+        },
+        now: () => this.clock.now(),
+        clock: this.clock,
+        isConnectionCurrent: (record) => {
+          const connection = this.connections.peek({
+            providerId: record.input.providerId,
+            cwd: record.input.cwd,
+            env: record.input.env,
+          });
+          return connection?.generation === record.processGeneration;
+        },
+      },
+      input,
+      options.consumed ?? !input.initialQueue?.length,
+      options.everMaterialized ?? (options.suspended || input.sessionId !== null),
+      options.retained,
+      options.unstarted
+    );
+    this.retained.set(input.conversationId, entry);
+    if (options.suspended) entry.initializeSuspended();
+    this.removeSuspendedIntentEntry(input.conversationId);
+    return entry;
+  }
+
+  private parseIntent(intent: SessionIntent): SuspendedIntentEntry | null {
+    const parsed = persistedIntentV1Schema.safeParse(intent.payload);
+    if (!parsed.success) return null;
+    const { configured, presentation, providerId, cwd, sessionId } = parsed.data;
+    const descriptor: AcpStartInput = {
+      conversationId: intent.conversationId,
+      providerId,
+      cwd,
+      sessionId: intent.sessionId ?? sessionId,
+      options: configured.options,
+    };
+    return {
+      // Older intents provide no evidence that the initial queue is safe to retry.
+      initialQueueConsumed: parsed.data.initialQueueConsumed !== false,
+      unstarted:
+        descriptor.sessionId === null ||
+        (parsed.data.unstarted === true && descriptor.sessionId === parsed.data.sessionId),
+      descriptor,
+      retained: { ...presentation, configured },
+      summary: {
+        conversationId: intent.conversationId,
+        providerId: descriptor.providerId,
+        cwd: descriptor.cwd,
+        updatedAt: intent.updatedAt,
+      },
+    };
+  }
+
+  private getOrRestoreHandle(conversationId: string): ConversationHandle | null {
+    const existing = this.retained.get(conversationId);
+    if (existing) return existing;
+    const indexed = this.suspendedIntents.get(conversationId);
+    if (!indexed) return null;
+    return this.createHandle(indexed.descriptor, {
+      suspended: true,
+      consumed: indexed.initialQueueConsumed,
+      everMaterialized: indexed.descriptor.sessionId !== null,
+      retained: indexed.retained,
+      unstarted: indexed.unstarted,
+    });
+  }
+
+  private removeSuspendedIntentEntry(conversationId: string): void {
+    if (!this.suspendedIntents.delete(conversationId)) return;
+    this.listProjector.removeSuspendedIntent(conversationId);
+  }
+
+  private activeIntentPayload(conversationId: string) {
+    return this.retained.get(conversationId)?.intentPayload() ?? null;
+  }
+
+  private async sanitizeIntent(
+    intent: SessionIntent,
+    indexed: SuspendedIntentEntry
+  ): Promise<void> {
+    const payload = persistedIntentPayload(
+      indexed.descriptor,
+      indexed.retained,
+      indexed.unstarted,
+      indexed.initialQueueConsumed
+    );
+    if (
+      intent.status === 'suspended' &&
+      JSON.stringify(intent.payload) === JSON.stringify(payload)
+    ) {
+      return;
+    }
+    try {
+      const saved = await this.deps.intents.saveActive({
+        conversationId: intent.conversationId,
+        payload,
+        sessionId: indexed.descriptor.sessionId,
+      });
+      if (!saved.success) throw new Error(saved.error.message);
+      const suspended = await this.deps.intents.markSuspended(
+        intent.conversationId,
+        intent.suspendedCause ?? 'worker-restart'
+      );
+      if (!suspended.success) throw new Error(suspended.error.message);
+    } catch (error) {
+      this.deps.logger.warn('SessionManager: failed to sanitize persisted ACP intent', {
+        conversationId: intent.conversationId,
+        error: String(error),
+      });
+    }
+  }
+
+  private readyRecord(conversationId: string): SessionRecord | undefined {
+    return this.retained.get(conversationId)?.readyRecord();
+  }
+
+  private getChatHistory(conversationId: string): AcpChatHistory {
+    return this.readyRecord(conversationId)?.cell.history() ?? { committed: [], active: null };
+  }
+
+  private recordForCallbacks(conversationId: string): SessionRecord | undefined {
+    return this.retained.get(conversationId)?.currentRecord();
+  }
+
+  private *runningConversationIds(): IterableIterator<string> {
+    for (const [conversationId, entry] of this.retained) {
+      if (entry.hasActivation()) yield conversationId;
+    }
+  }
+
+  private removeHandle(entry: ConversationHandle): void {
+    if (!entry.deleted && !entry.disposed) {
+      throw new Error('SessionManager: conversation handle removed before kill or disposal');
+    }
+    if (this.retained.get(entry.conversationId) === entry) {
+      this.retained.delete(entry.conversationId);
+    }
+  }
+
+  private async interruptRecord(record: SessionRecord): Promise<void> {
+    void record.cell
+      .cancel()
+      .then((result) => {
+        if (result.success) return;
+        this.deps.logger.warn('SessionManager: failed to cancel session during teardown', {
+          conversationId: record.input.conversationId,
+          error: result.error,
+        });
+      })
+      .catch((error) => {
+        this.deps.logger.warn('SessionManager: failed to cancel session during teardown', {
+          conversationId: record.input.conversationId,
+          error: String(error),
+        });
+      });
+    try {
+      await record.cell.closeSession();
+    } catch (error) {
+      this.deps.logger.warn('SessionManager: failed to close provider session during teardown', {
+        conversationId: record.input.conversationId,
+        error: String(error),
+      });
+      throw error;
+    }
+  }
+
+  private async teardownRecord(record: SessionRecord): Promise<void> {
+    if (record.disposed) return;
+    record.disposed = true;
+    record.cell.dispose();
+    record.machineStateBinding.dispose();
+    this.router.unregister(
+      routeOwnerId(record.processKey, record.processGeneration),
+      record.input.conversationId
+    );
+    record.conversation.clearRecord(record);
+    await this.terminals.disposeConversation(record.input.conversationId);
+  }
+
+  private mapWakeError<E>(error: ActivationStartError): Result<never, E | AcpWakeFailure> {
+    if (error.type === 'conversation_not_found') return err(error) as Result<never, E>;
+    return err({ kind: 'wake-failed', error });
+  }
+
+  private applyRawMeta(cell: SessionCell, update: SessionUpdate): void {
+    switch (update.sessionUpdate) {
+      case 'config_option_update':
+        cell.applySessionMeta({ configOptions: update.configOptions });
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+function persistedIntentPayload(
+  descriptor: AcpStartInput,
+  retained: RetainedPresentation,
+  unstarted: boolean,
+  initialQueueConsumed: boolean
+): Serializable {
+  return {
+    version: '1',
+    conversationId: descriptor.conversationId,
+    providerId: descriptor.providerId,
+    cwd: descriptor.cwd,
+    sessionId: descriptor.sessionId,
+    unstarted,
+    initialQueueConsumed,
+    configured: retained.configured,
+    presentation: retained,
+  } as unknown as Serializable;
+}
+
+function isUnambiguousStartError(error: unknown): error is ActivationStartError {
+  if (typeof error !== 'object' || error === null || !('type' in error)) return false;
+  return ACP_UNAMBIGUOUS_START_ERROR_TYPES.includes(
+    String(error.type) as (typeof ACP_UNAMBIGUOUS_START_ERROR_TYPES)[number]
+  );
+}

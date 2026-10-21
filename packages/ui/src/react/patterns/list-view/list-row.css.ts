@@ -32,11 +32,16 @@ export const row = recipe({
     isLast: {
       true: { borderBottom: 'none' },
     },
+    divider: {
+      default: {},
+      subtle: { borderBottomColor: vars.borderSubtle },
+    },
   },
   defaultVariants: {
     interactive: false,
     selected: false,
     isLast: false,
+    divider: 'default',
   },
 });
 
@@ -59,15 +64,15 @@ export const sectionHeader = style({
   display: 'flex',
   alignItems: 'center',
   gap: '0.375rem',
-  paddingLeft: '0.75rem',
-  paddingRight: '0.75rem',
+  paddingLeft: '1rem',
+  paddingRight: '1rem',
   paddingTop: '0.5rem',
   paddingBottom: '0.25rem',
 });
 
 export const sectionHeaderLabel = style({
   fontSize: tokenVars.textSm,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
 });
 

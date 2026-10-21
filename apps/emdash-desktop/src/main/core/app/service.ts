@@ -1,47 +1,40 @@
 import { exec } from 'node:child_process';
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { extname, isAbsolute, join, resolve, sep } from 'node:path';
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import { extname, resolve, sep } from 'node:path';
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import { parsePortableRelativePath, type HostFileRef } from '@emdash/core/primitives/path/api';
+import type { FsError } from '@emdash/core/runtimes/files/api';
+import { err, ok, type Result } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
-import { getMainWindow } from '@main/app/window';
-import { db } from '@main/db/client';
-import { sshConnections } from '@main/db/schema';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
-import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
+import {
+  getAppById,
+  getResolvedLabel,
+  type OpenInAppId,
+  type PlatformConfig,
+  type PlatformKey,
+} from '@core/primitives/open-in-apps/api/open-in-apps';
+import { sshConnections } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
+import type { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
 import {
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
-} from '@main/utils/remoteOpenIn';
+} from '@main/host/remoteOpenIn';
+import { getMainWindow } from '@main/host/window';
+import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
+import { log } from '@main/lib/logger';
+import { lookupAppPath } from './app-path-lookup';
+import { createInstalledAppDetector } from './installed-apps';
 import {
-  appPasteChannel,
-  appRedoChannel,
-  appUndoChannel,
-  terminalContextMenuActionChannel,
-  type TerminalContextMenuAction,
-} from '@shared/events/appEvents';
-import {
-  getAppById,
-  getResolvedLabel,
-  OPEN_IN_APPS,
-  type OpenInAppId,
-  type PlatformConfig,
-  type PlatformKey,
-} from '@shared/openInApps';
-import {
-  checkCommand,
-  checkMacApp,
-  checkMacAppByName,
-  checkMacMdfindQuery,
-  checkWindowsVisualStudio,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
   resolveAppVersion,
-  resolveWindowsVsProductPath,
   spawnDetachedCommand,
 } from './utils';
 
@@ -60,54 +53,54 @@ const AUDIO_MIME_TYPES: Record<string, string> = {
   '.webm': 'audio/webm',
 };
 
-function expandAbsoluteOrTildePath(rawPath: string): string {
-  if (!rawPath || typeof rawPath !== 'string') throw new Error('Invalid path');
-  const expanded = rawPath.startsWith('~/') ? join(homedir(), rawPath.slice(2)) : rawPath;
-  if (!isAbsolute(expanded)) throw new Error('Path must be absolute or start with ~/');
-  return expanded;
-}
-
-async function resolveHomeJailedPath(rawPath: string): Promise<string> {
-  const expanded = expandAbsoluteOrTildePath(rawPath);
-  const realPath = await realpath(expanded);
-  const realHome = await realpath(homedir());
-  const realHomeWithSep = realHome.endsWith(sep) ? realHome : realHome + sep;
-  if (realPath !== realHome && !realPath.startsWith(realHomeWithSep)) {
-    throw new Error('Path must be inside the user home directory');
-  }
-  return realPath;
-}
-
 type RemoteTerminalLaunchAttempt = {
   file: string;
   args: string[];
 };
 
-class AppService implements IInitializable, IDisposable {
+type TerminalContextMenuEvent = {
+  type: 'terminal-context-menu-action';
+  requestId: string;
+  action: 'paste' | 'select-all' | 'clear';
+};
+
+type WorkspaceRuntimeAcquirer = ReturnType<typeof createDesktopWorkspaceRuntimeAcquirer>;
+
+type ShowWorkspaceItemInFolderError =
+  | FsError
+  | {
+      type: 'not_found';
+      entity: 'workspace';
+      workspaceId: string;
+      message: string;
+    }
+  | {
+      type: 'unsupported_host';
+      host: HostRef;
+      message: string;
+    };
+
+class AppService implements Disposable {
+  private readonly appLookupLifetime = new AbortController();
+  private readonly installedAppDetector = createInstalledAppDetector();
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
-  private _unsubscribes: Array<() => void> = [];
+  private emitHostEvent: (event: TerminalContextMenuEvent) => void = () => {};
+  private acquireWorkspaceRuntime: WorkspaceRuntimeAcquirer | undefined;
 
-  initialize(): void {
+  initialize(options: {
+    acquireWorkspaceRuntime: WorkspaceRuntimeAcquirer;
+    emitHostEvent(event: TerminalContextMenuEvent): void;
+  }): void {
+    this.acquireWorkspaceRuntime = options.acquireWorkspaceRuntime;
+    this.emitHostEvent = options.emitHostEvent;
     void this.getCachedAppVersion();
-
-    this._unsubscribes = [
-      events.on(appUndoChannel, () => {
-        getMainWindow()?.webContents.undo();
-      }),
-      events.on(appRedoChannel, () => {
-        getMainWindow()?.webContents.redo();
-      }),
-      events.on(appPasteChannel, () => {
-        getMainWindow()?.webContents.paste();
-      }),
-    ];
   }
 
   dispose(): void {
-    for (const unsub of this._unsubscribes) unsub();
-    this._unsubscribes = [];
+    this.appLookupLifetime.abort();
+    this.installedAppDetector.dispose();
   }
 
   getCachedAppVersion(): Promise<string> {
@@ -145,60 +138,8 @@ class AppService implements IInitializable, IDisposable {
     }
   }
 
-  async checkInstalledApps(): Promise<Record<string, boolean>> {
-    const platform = process.platform as PlatformKey;
-    const availability: Record<string, boolean> = {};
-
-    for (const openInApp of Object.values(OPEN_IN_APPS)) {
-      const platformConfig = openInApp.platforms[platform];
-      if (!platformConfig && !openInApp.alwaysAvailable) {
-        availability[openInApp.id] = false;
-        continue;
-      }
-      if (openInApp.alwaysAvailable) {
-        availability[openInApp.id] = true;
-        continue;
-      }
-      try {
-        let isAvailable = false;
-        if (platformConfig?.bundleIds) {
-          for (const bundleId of platformConfig.bundleIds) {
-            if (await checkMacApp(bundleId)) {
-              isAvailable = true;
-              break;
-            }
-          }
-        }
-        if (!isAvailable && platformConfig?.appNames) {
-          for (const appName of platformConfig.appNames) {
-            if (await checkMacAppByName(appName)) {
-              isAvailable = true;
-              break;
-            }
-          }
-        }
-        if (!isAvailable && platformConfig?.checkCommands) {
-          for (const cmd of platformConfig.checkCommands) {
-            if (await checkCommand(cmd)) {
-              isAvailable = true;
-              break;
-            }
-          }
-        }
-        if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
-          isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
-        }
-        if (!isAvailable && platformConfig?.winVswhere && platform === 'win32') {
-          isAvailable = await checkWindowsVisualStudio();
-        }
-        availability[openInApp.id] = isAvailable;
-      } catch (error) {
-        log.error(`Error checking installed app ${openInApp.id}:`, error);
-        availability[openInApp.id] = false;
-      }
-    }
-
-    return availability;
+  checkInstalledApps() {
+    return this.installedAppDetector.check();
   }
 
   async openExternal(url: string): Promise<void> {
@@ -217,30 +158,56 @@ class AppService implements IInitializable, IDisposable {
     await shell.openExternal(url);
   }
 
-  async openPath(rawPath: string): Promise<void> {
-    const realPath = await resolveHomeJailedPath(rawPath);
+  async openPath(ref: HostFileRef): Promise<void> {
+    if (ref.host.type !== 'local') {
+      throw new Error('Default applications are only available for local files');
+    }
+    const realPath = await realpath(nativePathFromHost(ref.path));
     const errorMessage = await shell.openPath(realPath);
     if (errorMessage) throw new Error(errorMessage);
   }
 
-  async showItemInFolder(rawPath: string): Promise<void> {
-    const realPath = await resolveHomeJailedPath(rawPath);
-    shell.showItemInFolder(realPath);
-  }
-
-  /**
-   * Restricted to the user home directory: terminal output drives these reads,
-   * and AI-injected paths must not be a vector for reading e.g. `/etc/passwd`.
-   * Symlinks are resolved before the home-jail check so they can't escape.
-   */
-  async readUserFile(rawPath: string, maxBytes = 1_048_576): Promise<{ content: string }> {
-    const realPath = await resolveHomeJailedPath(rawPath);
-    const stats = await stat(realPath);
-    if (stats.size > maxBytes) {
-      throw new Error(`File too large (${stats.size} bytes, max ${maxBytes})`);
+  async showWorkspaceItemInFolder(args: {
+    workspaceId: string;
+    relativePath: string;
+  }): Promise<Result<void, ShowWorkspaceItemInFolderError>> {
+    const acquireWorkspaceRuntime = this.acquireWorkspaceRuntime;
+    if (!acquireWorkspaceRuntime) throw new Error('App service has not been initialized');
+    const workspace = await acquireWorkspaceRuntime(args.workspaceId);
+    if (!workspace) {
+      return err({
+        type: 'not_found',
+        entity: 'workspace',
+        workspaceId: args.workspaceId,
+        message: `Workspace not found: ${args.workspaceId}`,
+      });
     }
-    const buffer = await readFile(realPath);
-    return { content: buffer.toString('utf8') };
+    if (workspace.identity.host.type !== 'local') {
+      return err({
+        type: 'unsupported_host',
+        host: workspace.identity.host,
+        message: 'Show in file manager is only available for local workspaces',
+      });
+    }
+
+    const relativePath = parsePortableRelativePath(args.relativePath, {
+      unicodeNormalization: 'preserve',
+    });
+    if (!relativePath.success) {
+      return err({
+        type: 'invalid-path',
+        path: args.relativePath,
+        message: relativePath.error.message,
+      });
+    }
+
+    const resolved = await workspace.files.client.fs.realPath({
+      path: resolveRelativePath(workspace.files.root, relativePath.data),
+    });
+    if (!resolved.success) return resolved;
+
+    shell.showItemInFolder(nativePathFromHost(resolved.data.path));
+    return ok();
   }
 
   clipboardWriteText(text: string): void {
@@ -262,8 +229,12 @@ class AppService implements IInitializable, IDisposable {
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
-    const emitAction = (action: TerminalContextMenuAction) => {
-      events.emit(terminalContextMenuActionChannel, { requestId: args.requestId, action });
+    const emitAction = (action: 'paste' | 'select-all' | 'clear') => {
+      this.emitHostEvent({
+        type: 'terminal-context-menu-action',
+        requestId: args.requestId,
+        action,
+      });
     };
     const template: Electron.MenuItemConstructorOptions[] = [
       {
@@ -336,6 +307,33 @@ class AppService implements IInitializable, IDisposable {
     isRemote?: boolean;
     sshConnectionId?: string | null;
   }): Promise<void> {
+    const started = Date.now();
+    const fields = {
+      appId: args.app,
+      platform: process.platform,
+      isRemote: args.isRemote ?? false,
+    };
+    log.info('[open-in] Launch requested', fields);
+    try {
+      await this.performOpenIn(args);
+      log.info('[open-in] Launch completed', { ...fields, elapsedMs: Date.now() - started });
+    } catch (error) {
+      log.warn('[open-in] Launch failed', {
+        ...fields,
+        elapsedMs: Date.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+        code: error instanceof Error && 'code' in error ? error.code : undefined,
+      });
+      throw error;
+    }
+  }
+
+  private async performOpenIn(args: {
+    app: OpenInAppId;
+    path: string;
+    isRemote?: boolean;
+    sshConnectionId?: string | null;
+  }): Promise<void> {
     const { path: target, app: appId, isRemote = false, sshConnectionId } = args;
 
     if (!target || typeof target !== 'string' || !appId) {
@@ -371,7 +369,7 @@ class AppService implements IInitializable, IDisposable {
   }): Promise<void> {
     const { appId, appConfig, label, target, platform, sshConnectionId } = args;
 
-    const [connection] = await db
+    const [connection] = await getAppDb()
       .select()
       .from(sshConnections)
       .where(eq(sshConnections.id, sshConnectionId))
@@ -533,13 +531,25 @@ class AppService implements IInitializable, IDisposable {
       return;
     }
 
-    if (platformConfig?.winVswhere && process.platform === 'win32') {
-      const productPath = await resolveWindowsVsProductPath();
-      if (productPath) {
-        await spawnDetachedCommand(productPath, [target]);
-        return;
+    if (platformConfig?.winVswhere || platformConfig?.mdfindQuery) {
+      const found = await lookupAppPath(
+        platformConfig,
+        process.platform as PlatformKey,
+        buildExternalToolEnv(),
+        this.appLookupLifetime.signal
+      );
+      this.appLookupLifetime.signal.throwIfAborted();
+      if (found.status === 'detected') {
+        if (process.platform === 'win32') {
+          await spawnDetachedCommand(found.path, [target]);
+          return;
+        }
+        try {
+          await execFileCommand('/usr/bin/open', ['-a', found.path, target]);
+          return;
+        } catch {}
       }
-      // Fall through to the `devenv {{path}}` openCommands fallback (devenv on PATH).
+      // Fall through to the configured CLI or app-name launch fallback.
     }
 
     if (platformConfig?.openUrls) {

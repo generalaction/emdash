@@ -1,22 +1,21 @@
-import { createRequire } from 'node:module';
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   homebrewOption,
   passthroughMcpAdapter,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { resolveAdapterAsset } from '../../helpers/adapter-assets';
 import { enrichClaudeUpdate } from './acp-transform';
+import { claudeAdapter } from './adapter';
 import { claudeAuthStatus } from './auth';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 import { buildClaudeTrustBehavior } from './trust';
-
-const _require = createRequire(import.meta.url);
-
-function resolveClaudeAcpEntry(): string {
-  return _require.resolve('@agentclientprotocol/claude-agent-acp/dist/index.js');
-}
+import { probeClaudeUsage } from './usage';
 
 export const plugin = definePlugin(
   {
@@ -27,6 +26,7 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
+    usageLimits: { kind: 'supported' },
     acp: {
       kind: 'supported',
     },
@@ -55,28 +55,32 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
-        'claude-fable-5': {
-          name: 'Claude Fable 5',
-          modelFeatures: { intelligence: 4, speed: 3 },
-        },
-        'claude-opus-4-8': {
-          name: 'Claude Opus 4.8',
+        'opus[1m]': {
+          name: 'Opus 5.5',
+          description: 'Opus 5.5 with 1M context · Best for everyday, complex tasks',
           modelFeatures: { intelligence: 5, speed: 2 },
         },
-        'claude-sonnet-5': {
-          name: 'Claude Sonnet 5',
+        'claude-fable-5-1[1m]': {
+          name: 'Fable 5.1',
+          description: 'Most capable for your hardest and longest-running tasks',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
+        sonnet: {
+          name: 'Sonnet 5',
+          description: 'Efficient for routine tasks',
           modelFeatures: { intelligence: 4, speed: 4 },
         },
-        'claude-haiku-4-5': {
-          name: 'Claude Haiku 4.5',
+        haiku: {
+          name: 'Haiku 4.5',
+          description: 'Fastest for quick answers',
           modelFeatures: { intelligence: 3, speed: 5 },
         },
       },
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
-      supportedEvents: ['start', 'notification', 'stop'],
+      scope: 'global',
+      supportedEvents: ['start', 'notification', 'stop', 'session'],
     },
     hostDependency: {
       id: 'claude',
@@ -105,21 +109,17 @@ export const plugin = definePlugin(
               'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd',
             uninstallCommand: 'claude uninstall',
           },
+          {
+            method: 'winget',
+            command: 'winget install Anthropic.ClaudeCode',
+            updateCommand: 'winget upgrade Anthropic.ClaudeCode',
+            uninstallCommand: 'winget uninstall Anthropic.ClaudeCode',
+          },
         ],
       },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'github',
-          repo: 'anthropics/claude-code',
-        },
-        update: {
-          kind: 'cli',
-          args: ['install', 'latest'],
-        },
-      },
-      uninstall: {
-        kind: 'package-manager',
+      updateCommand: {
+        kind: 'self',
+        args: ['install', 'latest'],
       },
     },
     mcp: {
@@ -142,11 +142,12 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  usageLimits: { probe: probeClaudeUsage },
   acp: {
     buildSpawn: (ctx) => ({
       // Run the adapter as plain Node inside the Electron binary.
       command: process.execPath,
-      args: [resolveClaudeAcpEntry()],
+      args: [resolveAdapterAsset(claudeAdapter)],
       env: {
         ELECTRON_RUN_AS_NODE: '1',
         // Point the adapter's Claude Agent SDK at the host-installed claude

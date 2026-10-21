@@ -37,9 +37,20 @@ export async function verifyPlaneCredentials(
     await client.projects.list(workspaceSlug, { limit: 1 });
 
     const fullName = [user.first_name?.trim(), user.last_name?.trim()].filter(Boolean).join(' ');
+    const host = new URL(apiBaseUrl).host;
     return ok({
+      ...(user.id
+        ? {
+            account: {
+              id: `${workspaceSlug}:${user.id}`,
+              ...(user.email?.trim() ? { login: user.email.trim() } : {}),
+              host,
+              scope: apiBaseUrl,
+            },
+          }
+        : {}),
       displayName: user.display_name?.trim() || fullName || user.email?.trim() || undefined,
-      displayDetail: `${workspaceSlug} on ${new URL(apiBaseUrl).host}`,
+      displayDetail: `${workspaceSlug} on ${host}`,
       credentials: credentials.data,
     });
   } catch (error) {

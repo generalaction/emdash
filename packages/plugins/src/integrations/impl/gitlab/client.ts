@@ -41,6 +41,16 @@ export async function verifyGitLabCredentials(
       username && displayName && username !== displayName ? `@${username} · ${host}` : host;
 
     return ok({
+      ...(user.id !== undefined && username
+        ? {
+            account: {
+              id: String(user.id),
+              login: username,
+              host,
+              scope: credentials.data.instanceUrl,
+            },
+          }
+        : {}),
       displayName,
       displayDetail,
       credentials: credentials.data,

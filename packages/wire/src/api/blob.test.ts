@@ -1,7 +1,9 @@
 import { err, ok } from '@emdash/shared';
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createTestWire, waitFor } from '../testing';
+import type { createController } from '../rpc/controller';
+import { createTestWire } from '../testing';
 import {
   BLOB_CHUNK_SIZE,
   blobSourceFromBytes,
@@ -9,7 +11,6 @@ import {
   type BlobSource,
   type UploadFileValue,
 } from './blob-channel';
-import type { createController } from './controller';
 import { defineContract, downloadFile, uploadFile } from './define';
 
 const textEncoder = new TextEncoder();

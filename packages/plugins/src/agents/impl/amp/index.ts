@@ -1,13 +1,17 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   ampMcpAdapter,
   buildStandardCommand,
   createFileDropPlugin,
+  homeConfigRoot,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
-const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
+const AMP_PLUGIN_PATH = 'plugins/emdash-hook.ts';
 const LEGACY_MODEL_ALIASES: Record<string, string> = {
   deep: 'ultra',
   rush: 'low',
@@ -32,7 +36,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'plugin',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['start', 'stop', 'session'],
     },
     hostDependency: npmDependency({
@@ -68,7 +72,7 @@ export const plugin = definePlugin(
     },
     plugins: {
       kind: 'file-drop',
-      scope: 'workspace',
+      scope: 'global',
     },
     prompt: {
       kind: 'stdin-pipe',
@@ -97,6 +101,10 @@ export const provider = registerPluginBehavior(plugin, {
       ),
   },
   mcp: ampMcpAdapter(),
-  plugins: createFileDropPlugin({ relativePath: AMP_PLUGIN_PATH, content: AMP_PLUGIN_CONTENT }),
+  plugins: createFileDropPlugin({
+    resolveConfigRoot: homeConfigRoot('.amp'),
+    relativePath: AMP_PLUGIN_PATH,
+    content: AMP_PLUGIN_CONTENT,
+  }),
   sessions: { validateSessionId },
 });

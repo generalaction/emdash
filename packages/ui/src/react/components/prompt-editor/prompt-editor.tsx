@@ -14,23 +14,26 @@
  */
 
 import { cx } from '@styles/utilities/cx';
-import { EditorContent, useEditor } from '@tiptap/react';
-import { StarterKit } from '@tiptap/starter-kit';
+import { EditorContent } from '@tiptap/react';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type React from 'react';
-import { createPortal } from 'react-dom';
 import {
   ComboboxPopup,
   type ComboboxPopupHandle,
   type ComboboxPopupItem,
 } from '../../primitives/combobox/combobox-popup';
-import { buildMentionExtension } from './extensions/mention';
-import { buildSlashCommandExtension } from './extensions/slash-command';
-import { buildSubmitKeymap } from './extensions/submit-keymap';
 import { fileIconClass } from './mention-pill-helpers';
-import { serializeDoc, serializeNode } from './serialize';
+import { PromptEditorModel } from './prompt-editor-model';
 import type {
   CommandItem,
   MentionItem,
@@ -107,7 +110,8 @@ function emptySuggestion<T>(): SuggestionState<T> {
  */
 function makeSuggestionRender<T>(
   setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState<T>>>,
-  popupRef: React.RefObject<ComboboxPopupHandle | null>
+  popupRef: React.RefObject<ComboboxPopupHandle | null>,
+  onOpenChange?: (open: boolean) => void
 ): () => {
   onStart?: (props: SuggestionProps) => void;
   onUpdate?: (props: SuggestionProps) => void;
@@ -116,6 +120,7 @@ function makeSuggestionRender<T>(
 } {
   return () => ({
     onStart(props: SuggestionProps) {
+      onOpenChange?.(true);
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,
@@ -130,6 +135,7 @@ function makeSuggestionRender<T>(
       });
     },
     onExit() {
+      onOpenChange?.(false);
       setSuggestion(emptySuggestion());
     },
     onKeyDown({ event }: SuggestionKeyDownProps) {
@@ -138,286 +144,110 @@ function makeSuggestionRender<T>(
   });
 }
 
-function plainTextDoc(text: string) {
-  const lines = text.length > 0 ? text.split(/\r?\n/) : [''];
-  return {
-    type: 'doc',
-    content: lines.map((line) => ({
-      type: 'paragraph',
-      ...(line.length > 0 ? { content: [{ type: 'text', text: line }] } : {}),
-    })),
-  };
-}
+type EditorViewProps = PromptEditorProps & {
+  viewportClassName?: string;
+};
 
-function mentionInsertContent(item: MentionItem) {
-  return [
-    {
-      type: 'mention',
-      attrs: {
-        id: item.id,
-        label: item.label,
-        name: item.name ?? null,
-        kind: item.kind,
-        pending: item.pending ?? false,
+export const PromptEditor = forwardRef<PromptEditorRef, EditorViewProps>(
+  function PromptEditor(props, ref) {
+    const {
+      model: providedModel,
+      value,
+      mentions,
+      placeholder = 'Message…',
+      disabled = false,
+      commandPopupOpen,
+      className,
+      popupClassName,
+      viewportClassName,
+    } = props;
+    const [ownedModel] = useState(() => new PromptEditorModel({ text: value, mentions }));
+    const model = providedModel ?? ownedModel;
+    const { editor, isEmpty, viewId } = useSyncExternalStore(
+      model.subscribe,
+      model.getSnapshot,
+      model.getSnapshot
+    );
+    const [mentionSuggestion, setMentionSuggestion] =
+      useState<SuggestionState<MentionItem>>(emptySuggestion);
+    const [commandSuggestion, setCommandSuggestion] =
+      useState<SuggestionState<CommandItem>>(emptySuggestion);
+    const mentionPopupRef = useRef<ComboboxPopupHandle | null>(null);
+    const commandPopupRef = useRef<ComboboxPopupHandle | null>(null);
+
+    const attach = useCallback(
+      (viewport: HTMLDivElement) => {
+        const view = model.attach(viewport);
+        return () => {
+          view.detach();
+          if (!providedModel) model.dispose();
+        };
       },
-    },
-    { type: 'text', text: ' ' },
-  ];
-}
+      [model, providedModel]
+    );
 
-// ── Component ─────────────────────────────────────────────────────────────────
+    useLayoutEffect(() => {
+      model.commitView(props, {
+        mentions: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
+        commands: makeSuggestionRender<CommandItem>(
+          setCommandSuggestion,
+          commandPopupRef,
+          props.onCommandPopupOpenChange
+        ),
+      });
+    }, [model, props, viewId]);
+    useImperativeHandle(ref, () => model, [model]);
 
-export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(function PromptEditor(
-  {
-    placeholder = 'Message…',
-    disabled = false,
-    onChange,
-    onSubmit,
-    onMentionInsert,
-    mentionProvider,
-    renderMentionIcon,
-    queryMentions,
-    queryCommands,
-    onCommand,
-    className,
-  },
-  ref
-) {
-  // Stable refs so callbacks inside TipTap extensions always see current values.
-  const onSubmitRef = useRef(onSubmit);
-  onSubmitRef.current = onSubmit;
-  const onMentionInsertRef = useRef(onMentionInsert);
-  onMentionInsertRef.current = onMentionInsert;
-  const onCommandRef = useRef(onCommand);
-  onCommandRef.current = onCommand;
-  const mentionProviderRef = useRef(mentionProvider);
-  mentionProviderRef.current = mentionProvider;
-  const renderMentionIconRef = useRef(renderMentionIcon);
-  renderMentionIconRef.current = renderMentionIcon;
-  const queryMentionsRef = useRef(queryMentions);
-  queryMentionsRef.current = queryMentions;
-  const queryCommandsRef = useRef(queryCommands);
-  queryCommandsRef.current = queryCommands;
-
-  // Separate suggestion state for @ and / so they don't conflict.
-  const [isEmpty, setIsEmpty] = useState(true);
-  const [mentionSuggestion, setMentionSuggestion] =
-    useState<SuggestionState<MentionItem>>(emptySuggestion());
-  const [commandSuggestion, setCommandSuggestion] =
-    useState<SuggestionState<CommandItem>>(emptySuggestion());
-  const mentionPopupRef = useRef<ComboboxPopupHandle | null>(null);
-  const commandPopupRef = useRef<ComboboxPopupHandle | null>(null);
-
-  // We capture the editor in a stable ref so the submit handler can read the doc.
-  const editorRef = useRef<ReturnType<typeof useEditor> | null>(null);
-
-  // Stable submit callback that reads the doc from the current editor.
-  const handleSubmitFromKeymap = useCallback(() => {
-    const ed = editorRef.current;
-    if (!ed) return;
-    const text = serializeDoc(ed.state.doc);
-    if (!text.trim()) return;
-    if (!onSubmitRef.current) return;
-    ed.commands.clearContent(true);
-    onSubmitRef.current(text);
-  }, []);
-
-  const mentionExtension = buildMentionExtension(
-    {
-      items: async ({ query }: { query: string }) => {
-        // Prefer mentionProvider over the legacy queryMentions callback.
-        const provider = mentionProviderRef.current;
-        if (provider) return provider.search(query);
-        return (await queryMentionsRef.current?.(query)) ?? [];
-      },
-      render: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
-      command({ editor, range, props }) {
-        const item = props as unknown as MentionItem;
-        if (item.insertText !== undefined) {
-          editor
-            .chain()
-            .focus()
-            .deleteRange(range)
-            .insertContentAt(range.from, item.insertText)
-            .insertContent(' ')
-            .run();
-          return;
-        }
-        editor
-          .chain()
-          .focus()
-          .deleteRange(range)
-          .insertContentAt(range.from, mentionInsertContent(item))
-          .run();
-        onMentionInsertRef.current?.(item);
-      },
-    },
-    {
-      renderMentionIcon: (attrs) => renderMentionIconRef.current?.(attrs) ?? null,
+    if (providedModel && value !== undefined) {
+      throw new Error('PromptEditor accepts either a model or a controlled value, not both');
     }
-  );
 
-  const slashExtension = buildSlashCommandExtension(
-    {
-      items: async ({ query }: { query: string }) =>
-        (await queryCommandsRef.current?.(query)) ?? [],
-      render: makeSuggestionRender<CommandItem>(setCommandSuggestion, commandPopupRef),
-    },
-    (item: CommandItem) => {
-      onCommandRef.current?.(item);
-    }
-  );
-
-  const submitKeymap = buildSubmitKeymap(handleSubmitFromKeymap);
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // Disable block-level nodes we don't need for a chat input.
-        heading: false,
-        blockquote: false,
-        codeBlock: false,
-        bulletList: false,
-        orderedList: false,
-        listItem: false,
-        horizontalRule: false,
-      }),
-      mentionExtension,
-      slashExtension,
-      submitKeymap,
-    ],
-    editorProps: {
-      attributes: {
-        class: cx('prompt-editor-content', styles.promptEditorContentClass),
-        'data-testid': 'prompt-editor',
-      },
-      clipboardTextSerializer: (slice) => {
-        // Use serializeNode so mentions/commands within paragraphs are included
-        // as @label / /name even when the React NodeView renders them as complex DOM.
-        const parts: string[] = [];
-        slice.content.forEach((node) => parts.push(serializeNode(node)));
-        return parts.join('\n').replace(/\n+$/, '');
-      },
-    },
-    onUpdate({ editor: e }) {
-      setIsEmpty(e.isEmpty);
-      const text = serializeDoc(e.state.doc);
-      onChange?.(text);
-    },
-    editable: !disabled,
-  });
-
-  // Keep stable ref to editor.
-  editorRef.current = editor;
-
-  useImperativeHandle(ref, () => ({
-    focus() {
-      editor?.commands.focus();
-    },
-    clear() {
-      editor?.commands.clearContent(true);
-    },
-    getText() {
-      if (!editor) return '';
-      return serializeDoc(editor.state.doc);
-    },
-    setText(text) {
-      editor?.commands.setContent(plainTextDoc(text), { emitUpdate: true });
-    },
-    insertMention(item) {
-      if (item.insertText !== undefined) {
-        editor?.chain().focus().insertContent(item.insertText).insertContent(' ').run();
-        return;
-      }
-      editor?.chain().focus().insertContent(mentionInsertContent(item)).run();
-      onMentionInsertRef.current?.(item);
-    },
-    prependMention(item) {
-      if (!editor || item.insertText !== undefined) return;
-      const tr = editor.state.tr;
-      const ranges: Array<{ from: number; to: number }> = [];
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name !== 'mention' || node.attrs.id !== item.id) return;
-        ranges.push({ from: pos, to: pos + node.nodeSize });
-      });
-      for (const range of [...ranges].reverse()) {
-        tr.delete(range.from, range.to);
-      }
-      if (ranges.length > 0) editor.view.dispatch(tr);
-      editor.commands.insertContentAt(1, mentionInsertContent(item));
-    },
-    removeMention(id) {
-      if (!editor) return;
-      const tr = editor.state.tr;
-      const ranges: Array<{ from: number; to: number }> = [];
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name !== 'mention' || node.attrs.id !== id) return;
-        ranges.push({ from: pos, to: pos + node.nodeSize });
-      });
-      if (ranges.length === 0) return;
-      for (const range of [...ranges].reverse()) {
-        tr.delete(range.from, range.to);
-      }
-      editor.view.dispatch(tr);
-    },
-    setMentionPending(id, pending) {
-      if (!editor) return;
-      let changed = false;
-      const tr = editor.state.tr;
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name !== 'mention' || node.attrs.id !== id) return;
-        if (node.attrs.pending === pending) return;
-        tr.setNodeMarkup(pos, undefined, { ...node.attrs, pending });
-        changed = true;
-      });
-      if (changed) editor.view.dispatch(tr);
-    },
-  }));
-
-  // Convert suggestion items to ComboboxPopupItem shape.
-  const mentionPopupItems = mentionSuggestion.items.map(mentionToPopupItem);
-  const commandPopupItems = commandSuggestion.items.map(commandToPopupItem);
-
-  const mentionActive = mentionSuggestion.items.length > 0;
-  const commandActive = commandSuggestion.items.length > 0;
-
-  return (
-    <>
-      <div className={cx(styles.editorWrapper, className)}>
-        <EditorContent editor={editor} className={styles.editorContent} aria-disabled={disabled} />
-        {isEmpty && (
-          <span aria-hidden className={styles.editorPlaceholder}>
-            {placeholder}
-          </span>
-        )}
-      </div>
-      {mentionActive &&
-        createPortal(
+    const mentionPopupItems = mentionSuggestion.items.map(mentionToPopupItem);
+    const commandPopupItems = commandSuggestion.items.map(commandToPopupItem);
+    return (
+      <>
+        <div ref={attach} className={viewportClassName}>
+          <div className={cx(styles.editorWrapper, className)}>
+            <EditorContent
+              key={viewId}
+              editor={editor}
+              className={styles.editorContent}
+              aria-disabled={disabled}
+            />
+            {isEmpty && (
+              <span aria-hidden className={styles.editorPlaceholder}>
+                {placeholder}
+              </span>
+            )}
+          </div>
+        </div>
+        {mentionSuggestion.items.length > 0 && (
           <ComboboxPopup
             ref={mentionPopupRef}
             items={mentionPopupItems}
             anchorRect={mentionSuggestion.rect}
+            className={popupClassName}
+            wide
             onSelect={(popupItem) => {
-              const original = mentionSuggestion.items.find((m) => m.id === popupItem.id);
+              const original = mentionSuggestion.items.find((item) => item.id === popupItem.id);
               if (original) mentionSuggestion.onSelect(original);
             }}
-          />,
-          document.body
+          />
         )}
-      {commandActive &&
-        createPortal(
+        {commandSuggestion.items.length > 0 && commandPopupOpen !== false && (
           <ComboboxPopup
             ref={commandPopupRef}
             items={commandPopupItems}
             anchorRect={commandSuggestion.rect}
+            className={popupClassName}
             stacked
             onSelect={(popupItem) => {
-              const original = commandSuggestion.items.find((c) => c.id === popupItem.id);
+              const original = commandSuggestion.items.find((item) => item.id === popupItem.id);
               if (original) commandSuggestion.onSelect(original);
             }}
-          />,
-          document.body
+          />
         )}
-    </>
-  );
-});
+      </>
+    );
+  }
+);

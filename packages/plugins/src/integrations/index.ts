@@ -21,5 +21,6 @@ export type {
   IntegrationAuthDescriptor,
   IntegrationAuthField,
   IntegrationAuthMethod,
+  VerifiedAccountIdentity,
   VerifyResult,
 } from './capabilities/auth';

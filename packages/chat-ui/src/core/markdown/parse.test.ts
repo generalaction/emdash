@@ -258,3 +258,89 @@ describe('blockquote paragraphs → variant: quote', () => {
     expect(prose?.depth).toBe(1);
   });
 });
+
+describe('reference-style links and images', () => {
+  const linkRun = (runs: InlineRun[]): InlineText | undefined =>
+    runs.find((r): r is InlineText => r.kind === 'text' && r.href !== undefined);
+
+  it('resolves a full reference link to its definition URL (text is not dropped)', () => {
+    const runs = firstProseRuns('See [the docs][d] for more.\n\n[d]: https://example.com/docs');
+    const link = linkRun(runs);
+    expect(link?.text).toBe('the docs');
+    expect(link?.href).toBe('https://example.com/docs');
+    expect(textSegments(runs).join('')).toContain('the docs');
+  });
+
+  it('resolves collapsed and shortcut references', () => {
+    for (const md of [
+      'See [x][] now.\n\n[x]: https://c.com',
+      'See [x] now.\n\n[x]: https://c.com',
+    ]) {
+      const link = linkRun(firstProseRuns(md));
+      expect(link?.text).toBe('x');
+      expect(link?.href).toBe('https://c.com');
+    }
+  });
+
+  it('resolves an image reference to its alt text and URL', () => {
+    const link = linkRun(firstProseRuns('![the alt][img]\n\n[img]: https://i.com/x.png'));
+    expect(link?.text).toBe('the alt');
+    expect(link?.href).toBe('https://i.com/x.png');
+  });
+
+  it('uses the first definition when normalized identifiers are duplicated', () => {
+    for (const reference of ['[link][duplicate]', '![image][DUPLICATE]']) {
+      const markdown = `${reference}\n\n[duplicate]: https://first.example\n[DUPLICATE]: https://last.example`;
+      const link = linkRun(firstProseRuns(markdown));
+      expect(link?.href).toBe('https://first.example');
+    }
+  });
+
+  it('leaves an undefined reference as literal text', () => {
+    const runs = firstProseRuns('See [text][missing] here.', nullProvider);
+    expect(textSegments(runs).join('')).toContain('[text][missing]');
+  });
+});
+
+// ── Math ───────────────────────────────────────────────────────────────────
+
+describe('math delimiters', () => {
+  it('keeps prose with two dollar amounts as plain text (no single-dollar math)', () => {
+    const runs = firstProseRuns('A $580 fee means the customer pays $685 in total.', nullProvider);
+    expect(runs.some((r) => r.kind === 'mention')).toBe(false);
+    const text = runs
+      .filter((r): r is InlineText => r.kind === 'text')
+      .map((r) => r.text)
+      .join('');
+    expect(text).toBe('A $580 fee means the customer pays $685 in total.');
+  });
+
+  it('renders $$-delimited inline math as plain text with its delimiters', () => {
+    const runs = firstProseRuns('Energy is $$E = mc^2$$ here.', nullProvider);
+    // One run: separate rich-inline items would widen the spaces around the formula.
+    expect(runs).toEqual([{ kind: 'text', text: 'Energy is $$E = mc^2$$ here.' }]);
+  });
+
+  it('emits long inline math as wrappable text, never an atomic code or mention run', () => {
+    const formula = Array.from({ length: 40 }, (_, i) => `a_{${i}} x^{${i}}`).join(' + ');
+    const runs = firstProseRuns(`The series $$${formula}$$ diverges.`, nullProvider);
+    expect(runs.every((r) => r.kind === 'text')).toBe(true);
+    expect(runs.map((r) => (r as InlineText).text).join('')).toBe(
+      `The series $$${formula}$$ diverges.`
+    );
+  });
+
+  it('flattens newlines inside inline math and keeps surrounding emphasis', () => {
+    const runs = firstProseRuns('**sum $$a +\nb$$ done**', nullProvider);
+    expect(runs).toEqual([{ kind: 'text', text: 'sum $$a + b$$ done', bold: true }]);
+  });
+
+  it('does not merge text runs whose styles differ', () => {
+    const runs = firstProseRuns('plain **bold** $$x$$ tail', nullProvider);
+    expect(runs).toEqual([
+      { kind: 'text', text: 'plain ' },
+      { kind: 'text', text: 'bold', bold: true },
+      { kind: 'text', text: ' $$x$$ tail' },
+    ]);
+  });
+});

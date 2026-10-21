@@ -1,5 +1,8 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildDevinHookConfig } from './hooks';
 import { icon } from './icon';
@@ -21,7 +24,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['stop', 'notification'],
     },
     hostDependency: {
@@ -63,9 +66,13 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
-  acp: createNativeAcpBehavior(() => ({
-    args: ['acp'],
-  })),
+  acp: {
+    ...createNativeAcpBehavior(() => ({ args: ['acp'] })),
+    // Devin sends complete shell scripts in `command` when there are no argv entries.
+    // Explicit argv requests retain literal argument semantics.
+    terminalCommand: ({ command, args }) =>
+      args?.length ? { kind: 'argv', command, args } : { kind: 'shell-line', commandLine: command },
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

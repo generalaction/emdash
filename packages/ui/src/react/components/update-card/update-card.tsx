@@ -1,253 +1,213 @@
-import { cx } from '@styles/utilities/cx';
-import {
-  AlertCircleIcon,
-  CheckCircle2Icon,
-  DownloadIcon,
-  Loader2Icon,
-  RefreshCwIcon,
-} from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
+import { Box } from '../../primitives/box';
 import { Button } from '../../primitives/button';
+import { useAsyncAction } from '../../primitives/hooks/use-async-action';
+import { StatusIcon } from '../status-icon/status-icon';
 import * as styles from './update-card.css';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export type UpdateStatus =
-  | { kind: 'idle' }
-  | { kind: 'checking' }
-  | { kind: 'available'; version?: string }
-  | { kind: 'not-available' }
-  | { kind: 'downloading'; percent?: number }
-  | { kind: 'downloaded' }
-  | { kind: 'installing' }
-  | { kind: 'error'; message?: string };
+  | { type: 'up-to-date' }
+  | { type: 'checking' }
+  | { type: 'update-available'; version: string; onUpdate: () => Promise<void> }
+  | {
+      type: 'update-download-available';
+      version: string;
+      size: number;
+      onDownload: () => Promise<void>;
+    }
+  | { type: 'update-downloading'; version: string; progress?: number }
+  | { type: 'update-install-available'; onInstall: () => Promise<void> }
+  | { type: 'update-installing' };
 
 export interface UpdateCardProps {
-  /** Current installed version string (e.g. `"1.4.2"`). Shown as a badge. */
-  currentVersion?: string;
-  /** Drives all status text, icons, action buttons, and progress bar. */
+  currentVersion: string;
   status: UpdateStatus;
-  /** App name used in status messages, e.g. "Restart Emdash to apply the update." */
-  appName?: string;
-  /** Called when the refresh (check for update) icon button is clicked. */
-  onCheck?: () => void;
-  /** Called when the Download button is clicked. */
-  onDownload?: () => void;
-  /** Called when the Restart button is clicked. */
-  onInstall?: () => void;
-  className?: string;
+  appName: string;
+  onCheckForUpdates: () => Promise<void>;
+  /** A readable summary and, when needed, full sanitized diagnostic details. */
+  error?: { message: string; details?: string };
 }
 
-// ── Icon sizes ────────────────────────────────────────────────────────────────
-
-const ICON_SM: React.CSSProperties = { width: '0.75rem', height: '0.75rem', flexShrink: 0 };
-const ICON_MD: React.CSSProperties = { width: '1rem', height: '1rem', flexShrink: 0 };
-
-// ── Component ─────────────────────────────────────────────────────────────────
-
-/**
- * UpdateCard — displays the current app version and its update lifecycle.
- *
- * Fully controlled: all state is expressed via the `status` prop union, and
- * all actions are forwarded to callbacks. No internal async logic.
- *
- * Status → UI mapping:
- * | status       | Description                        | Action             | Progress |
- * |--------------|------------------------------------|--------------------|----------|
- * | idle         | "You're up to date."               | —                  | hidden   |
- * | not-available| "You're up to date."               | —                  | hidden   |
- * | checking     | "Checking for updates…" + spinner  | —                  | hidden   |
- * | available    | "Version X is available"           | Download           | hidden   |
- * | downloading  | "Downloading… (N%)"                | Downloading (dis.) | shown    |
- * | downloaded   | "Update ready. Restart…"           | Restart            | hidden   |
- * | installing   | "Installing…" + spinner            | Installing (dis.)  | hidden   |
- * | error        | warning badge                      | —                  | hidden   |
- *
- * Usage:
- * ```tsx
- * <UpdateCard
- *   currentVersion="1.4.2"
- *   status={{ kind: 'available', version: '1.5.0' }}
- *   appName="Emdash"
- *   onCheck={handleCheck}
- *   onDownload={handleDownload}
- *   onInstall={handleInstall}
- * />
- * ```
- */
-function UpdateCard({
+export function UpdateCard({
   currentVersion,
   status,
-  appName = 'the app',
-  onCheck,
-  onDownload,
-  onInstall,
-  className,
+  appName = 'app',
+  onCheckForUpdates,
+  error,
 }: UpdateCardProps) {
-  const isChecking = status.kind === 'checking';
-  const showCheckButton = status.kind !== 'downloaded' && status.kind !== 'installing';
+  const [checkForUpdates, , isCheckingForUpdates] = useAsyncAction(async () => {
+    await onCheckForUpdates();
+  });
+  const [downloadUpdate, , isDownloadRequested] = useAsyncAction(async () => {
+    if (status.type === 'update-download-available') await status.onDownload();
+  });
+  const [updateNow, , isUpdating] = useAsyncAction(async () => {
+    if (status.type === 'update-available') await status.onUpdate();
+  });
+  const [installUpdate, , isInstallRequested] = useAsyncAction(async () => {
+    if (status.type === 'update-install-available') await status.onInstall();
+  });
 
-  const downloadPercent = status.kind === 'downloading' ? (status.percent ?? 0) : 0;
+  const renderActionButton = () => {
+    switch (status.type) {
+      case 'checking':
+      case 'up-to-date': {
+        const checking = status.type === 'checking' || isCheckingForUpdates;
+        return (
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={checkForUpdates}
+            disabled={checking}
+            aria-busy={checking}
+          >
+            {checking ? 'Checking…' : 'Check for updates'}
+          </Button>
+        );
+      }
+      case 'update-available':
+        return (
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={updateNow}
+            disabled={isUpdating}
+            aria-busy={isUpdating}
+          >
+            {isUpdating ? 'Updating…' : 'Update'}
+          </Button>
+        );
+      case 'update-download-available':
+        return isDownloadRequested ? (
+          <DownloadingButton />
+        ) : (
+          <Button variant="secondary" size="xs" onClick={downloadUpdate}>
+            {error ? 'Retry download' : 'Download'}
+          </Button>
+        );
+      case 'update-downloading':
+        return <DownloadingButton progress={status.progress} />;
+      case 'update-installing':
+      case 'update-install-available': {
+        const installing = status.type === 'update-installing' || isInstallRequested;
+        return (
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={installUpdate}
+            disabled={installing}
+            aria-busy={installing}
+          >
+            {installing ? 'Restarting…' : 'Restart'}
+          </Button>
+        );
+      }
+    }
+  };
+
+  const renderStatusLabel = () => {
+    switch (status.type) {
+      case 'checking':
+        return 'Checking for updates';
+      case 'up-to-date':
+        return error ? 'Could not check for updates' : "You're up to date";
+      case 'update-downloading':
+        return 'Downloading update';
+      case 'update-installing':
+        return 'Restarting to install update';
+      case 'update-install-available':
+        return 'Update ready to install';
+      default:
+        return 'An update is available';
+    }
+  };
+
+  const renderStatusDescription = () => {
+    switch (status.type) {
+      case 'checking':
+        return `Current ${appName} version v${currentVersion}`;
+      case 'up-to-date':
+        return error
+          ? `Current ${appName} version v${currentVersion}`
+          : `Current ${appName} version v${currentVersion} is up to date`;
+      case 'update-available':
+        return `Version v${status.version} is available. Update and restart ${appName} to use the new version`;
+      case 'update-download-available':
+        return `Version v${status.version} is available. Download and restart ${appName} to use the new version`;
+      case 'update-downloading':
+        return `Downloading version v${status.version}. You can keep using ${appName} while it downloads.`;
+      case 'update-installing':
+        return `${appName} will reopen with the new version`;
+      case 'update-install-available':
+        return `Restart ${appName} to use the new version`;
+    }
+  };
 
   return (
-    <div className={cx(styles.card, className)}>
+    <Box surface="sunken" borderRadius="md" padding="2" px="3" className={styles.card}>
       <div className={styles.row}>
-        {/* ── Left: title + status description ── */}
+        <StatusIcon
+          size="lg"
+          severity={error ? 'error' : status.type === 'up-to-date' ? 'success' : 'warning'}
+        />
         <div className={styles.rowBody}>
-          <div className={styles.rowTitle}>
-            Version
-            {currentVersion && <span className={styles.versionBadge}>v{currentVersion}</span>}
-          </div>
-          <div className={styles.rowDescription}>
-            <StatusDescription status={status} appName={appName} />
-          </div>
+          <div className={styles.rowTitle}>{renderStatusLabel()}</div>
+          <div className={styles.rowDescription}>{renderStatusDescription()}</div>
         </div>
-
-        {/* ── Right: check icon + action button ── */}
-        <div className={styles.rowControls}>
-          {showCheckButton && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon
-              onClick={onCheck}
-              disabled={isChecking}
-              aria-label="Check for updates"
-            >
-              <RefreshCwIcon style={ICON_MD} className={isChecking ? styles.iconSpin : undefined} />
-            </Button>
-          )}
-          <ActionButton status={status} onDownload={onDownload} onInstall={onInstall} />
-        </div>
+        <div className={styles.rowControls}>{renderActionButton()}</div>
       </div>
+      {error && <UpdateError key={error.details ?? error.message} error={error} />}
+    </Box>
+  );
+}
 
-      {/* ── Progress bar (downloading only) ── */}
-      {status.kind === 'downloading' && (
-        <div className={styles.progressTrack}>
-          <div
-            className={styles.progressFill}
-            style={{ width: `${downloadPercent}%` }}
-            role="progressbar"
-            aria-valuenow={downloadPercent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          />
+function DownloadingButton({ progress }: { progress?: number }) {
+  const percent =
+    progress != null && Number.isFinite(progress)
+      ? Math.round(Math.min(100, Math.max(0, progress)))
+      : undefined;
+  return (
+    <Button variant="secondary" size="xs" disabled aria-busy="true">
+      {percent === undefined ? 'Downloading…' : `Downloading… ${percent}%`}
+    </Button>
+  );
+}
+
+function UpdateError({ error }: { error: NonNullable<UpdateCardProps['error']> }) {
+  const details = error.details ?? error.message;
+  const [copyFailed, setCopyFailed] = React.useState(false);
+  const [copyDetails, copied, copying] = useAsyncAction(
+    async () => {
+      setCopyFailed(false);
+      await navigator.clipboard.writeText(details);
+      return true;
+    },
+    { onError: () => setCopyFailed(true) }
+  );
+
+  return (
+    <div className={styles.errorPanel}>
+      <div className={styles.errorMessage} role="alert">
+        {error.message}
+      </div>
+      <div className={styles.errorActions}>
+        {details !== error.message && (
+          <details className={styles.errorDetails}>
+            <summary className={styles.errorSummary}>Details</summary>
+            <div className={styles.errorDetailsText}>{details}</div>
+          </details>
+        )}
+        <Button variant="ghost" size="xs" onClick={copyDetails} disabled={copying}>
+          {copied ? <Check /> : <Copy />}
+          {copied ? 'Copied' : 'Copy details'}
+        </Button>
+      </div>
+      {copyFailed && (
+        <div className={styles.errorMessage} role="status">
+          Could not copy. Select the text to copy it manually.
         </div>
       )}
     </div>
   );
 }
-
-// ── Status description ────────────────────────────────────────────────────────
-
-function StatusDescription({ status, appName }: { status: UpdateStatus; appName: string }) {
-  switch (status.kind) {
-    case 'checking':
-      return (
-        <>
-          <Loader2Icon style={ICON_SM} className={styles.iconSpin} />
-          Checking for updates…
-        </>
-      );
-
-    case 'available':
-      return status.version ? (
-        <>Version {status.version} is available.</>
-      ) : (
-        <>An update is available.</>
-      );
-
-    case 'downloading':
-      return (
-        <>
-          Downloading update
-          {status.percent != null ? ` (${Math.round(status.percent)}%)` : '…'}
-        </>
-      );
-
-    case 'downloaded':
-      return (
-        <span className={styles.statusSuccess}>
-          <CheckCircle2Icon style={ICON_SM} />
-          Update ready. Restart {appName} to use the new version.
-        </span>
-      );
-
-    case 'installing':
-      return (
-        <>
-          <Loader2Icon style={ICON_SM} className={styles.iconSpin} />
-          Installing update. {appName} will restart automatically.
-        </>
-      );
-
-    case 'error':
-      return (
-        <span className={styles.statusWarning}>
-          <AlertCircleIcon style={ICON_SM} />
-          Update temporarily unavailable — please try again later.
-        </span>
-      );
-
-    case 'idle':
-    case 'not-available':
-    default:
-      return (
-        <span className={styles.statusSuccess}>
-          <CheckCircle2Icon style={ICON_SM} />
-          You&apos;re up to date.
-        </span>
-      );
-  }
-}
-
-// ── Action button ─────────────────────────────────────────────────────────────
-
-function ActionButton({
-  status,
-  onDownload,
-  onInstall,
-}: {
-  status: UpdateStatus;
-  onDownload?: () => void;
-  onInstall?: () => void;
-}) {
-  switch (status.kind) {
-    case 'available':
-      return (
-        <Button size="sm" onClick={onDownload}>
-          <DownloadIcon style={ICON_MD} />
-          Download
-        </Button>
-      );
-
-    case 'downloading':
-      return (
-        <Button size="sm" variant="ghost" disabled>
-          <Loader2Icon style={ICON_MD} className={styles.iconSpin} />
-          Downloading
-        </Button>
-      );
-
-    case 'downloaded':
-      return (
-        <Button size="sm" onClick={onInstall}>
-          <RefreshCwIcon style={ICON_MD} />
-          Restart
-        </Button>
-      );
-
-    case 'installing':
-      return (
-        <Button size="sm" variant="ghost" disabled>
-          <Loader2Icon style={ICON_MD} className={styles.iconSpin} />
-          Installing
-        </Button>
-      );
-
-    default:
-      return null;
-  }
-}
-
-export { UpdateCard };

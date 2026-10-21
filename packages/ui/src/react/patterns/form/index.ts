@@ -4,6 +4,7 @@ export { FormFieldShell, type FormFieldShellProps, type FieldOrientation } from 
 
 export { TextField, type TextFieldProps } from './fields/text-field';
 export { NumberField, type NumberFieldProps } from './fields/number-field';
+export { RadioGroupField, type RadioGroupFieldProps } from './fields/radio-group-field';
 export { TextareaField, type TextareaFieldProps } from './fields/textarea-field';
 export { SelectField, type SelectFieldProps, type SelectOption } from './fields/select-field';
 export { ComboboxSelectField, type ComboboxSelectFieldProps } from './fields/combobox-select-field';

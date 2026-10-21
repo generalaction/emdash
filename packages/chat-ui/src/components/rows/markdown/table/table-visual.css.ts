@@ -2,30 +2,35 @@
  * table-visual.css.ts — visual styles for Table.tsx cells.
  *
  * Geometry rules (font-size, line-height, cell padding) stay in table.css.ts.
- * This file covers overflow/truncation, border, and background decoration.
+ * This file covers scrolling, borders, and background decoration.
  */
 
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
+import { TABLE_BORDER, TABLE_SCROLLBAR_SIZE } from './geometry';
 import { vars } from '@styles/theme.css';
 
 /** Scroll wrapper around the table. */
 export const tableScroll = style({
-  border: `1px solid ${vars.border}`,
+  border: `${TABLE_BORDER}px solid ${vars.border}`,
   borderRadius: vars.radiusLg,
   width: '100%',
   height: '100%',
   overflowX: 'auto',
+  overflowY: 'hidden',
   boxSizing: 'border-box',
+  scrollbarWidth: 'thin',
+});
+
+globalStyle(`${tableScroll}::-webkit-scrollbar`, {
+  height: `${TABLE_SCROLLBAR_SIZE}px`,
 });
 
 /** Applied to <th> cells for visual decoration. */
 export const thCell = style({
   background: vars.tableHeaderBg,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  borderRight: `1px solid ${vars.border}`,
-  borderBottom: `1px solid ${vars.border}`,
+  borderRight: `${TABLE_BORDER}px solid ${vars.border}`,
+  borderBottom: `${TABLE_BORDER}px solid ${vars.border}`,
   selectors: {
     '&:last-child': { borderRight: 'none' },
   },
@@ -33,11 +38,9 @@ export const thCell = style({
 
 /** Applied to <td> cells for visual decoration. */
 export const tdCell = style({
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  borderRight: `1px solid ${vars.border}`,
-  borderBottom: `1px solid ${vars.border}`,
+  borderRight: `${TABLE_BORDER}px solid ${vars.border}`,
+  borderBottom: `${TABLE_BORDER}px solid ${vars.border}`,
   selectors: {
     '&:last-child': { borderRight: 'none' },
   },

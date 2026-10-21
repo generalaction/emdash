@@ -7,7 +7,7 @@ import type {
   AcpSpawnContext,
   AcpSpawnResult,
   IAcpBehavior,
-} from '@emdash/core/agents/plugins';
+} from '@emdash/core/services/agent-plugins/api/plugins';
 
 type NativeAcpSpawnResult = Omit<AcpSpawnResult, 'command'> & {
   command?: string;

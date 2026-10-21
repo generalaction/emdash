@@ -10,7 +10,7 @@ import type {
   TranscriptThinking,
   TranscriptTurn,
   TranscriptTurnOutcome,
-} from '@emdash/core/acp/client';
+} from '@emdash/core/runtimes/acp/api/client';
 
 export type {
   AcpPermissionRequest,
@@ -107,12 +107,27 @@ export type ChatThinking = {
   durationMs?: number;
 };
 
+/**
+ * Presentation-only group for two or more adjacent reasoning segments.
+ *
+ * The source transcript keeps each segment as an independent `ChatThinking`
+ * item. The flattening pass wraps adjacent siblings so the renderer can offer
+ * one disclosure control without losing protocol ordering or segment data.
+ */
+export type ThinkingGroupItem = {
+  kind: 'thinking-group';
+  /** Synthetic parent id; child thinking rows retain their own disclosure ids. */
+  id: string;
+  steps: readonly ChatThinking[];
+};
+
 /** ACP tool-call categories that represent file operations. */
 export type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
 
 /** A single file touched by a file-operation tool call. */
 export type FileOp = {
   path: string;
+  line?: number;
 };
 
 /**
@@ -143,9 +158,10 @@ export type ChatFileOpToolCall = {
 /**
  * An execute tool call row — ACP `kind: 'execute'` commands (e.g. Bash).
  *
- * Rendered as a single non-interactive line: "Execute `{command}` {elapsed}s".
- * While running: shimmer + live ticking timer. When done: frozen duration if
- * durationMs is present; duration omitted if data is unavailable (e.g. replay).
+ * Rendered as a collapsible card. The header shows `inputSummary` when the
+ * provider supplied one, otherwise the first command line. The body (command
+ * and output) is hidden until the user expands the row, in every status; a
+ * running row only shimmers its header.
  */
 export type ChatExecute = {
   kind: 'execute';
@@ -154,8 +170,16 @@ export type ChatExecute = {
   command: string;
   /** Optional provider-supplied purpose shown as the execute card title. */
   inputSummary?: string;
-  /** Static tool output, or live terminal output when available. */
-  outputText?: string;
+  /**
+   * Tool output as retained lines. For live terminal output this is the
+   * client store's identity-stable array (mutated in place across flushes);
+   * for static tool output it is a memoized split of the final text.
+   */
+  outputLines?: readonly string[];
+  /** True when earlier output was dropped upstream (agent ring or client cap). */
+  outputTruncated?: boolean;
+  /** Bumped per live-output flush; lets consumers detect changes despite the stable array identity. */
+  outputVersion?: number;
   status: ToolStatus;
   awaitingPermission?: boolean;
   /** Optional failure message shown in the error icon's native tooltip. */
@@ -164,9 +188,25 @@ export type ChatExecute = {
   startedAt: number;
   /** Frozen duration once status flips to 'done'. Absent when data is unavailable. */
   durationMs?: number;
+  /** ACP terminal id backing live output, when the command runs in a terminal. */
   terminalId?: string;
   /** Id of the parent tool call (for hierarchical rendering). */
   parentId?: string;
+};
+
+/**
+ * Live terminal output as held by the client-side line log store.
+ *
+ * `lines` is identity-stable across flushes (the store mutates it in place);
+ * `version` is bumped once per flush so consumers can detect changes without
+ * comparing content. `truncated` collapses at presentation: it is true when
+ * output was dropped anywhere upstream (agent-side ring buffer or the client
+ * store's byte cap) — the UI never distinguishes the two.
+ */
+export type TerminalOutputSnapshot = {
+  readonly lines: readonly string[];
+  readonly truncated: boolean;
+  readonly version: number;
 };
 
 /**
@@ -286,7 +326,7 @@ export type TurnOutcomeItem = {
   outcome: TranscriptTurnOutcome;
 };
 
-export type SyntheticItem = WorkingItem | TurnOutcomeItem;
+export type SyntheticItem = ThinkingGroupItem | WorkingItem | TurnOutcomeItem;
 
 export type ChatItem =
   | TranscriptItem

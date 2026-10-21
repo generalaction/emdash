@@ -80,6 +80,26 @@ export const kfSlideOutToLeft = keyframes({
   to: { transform: 'translateX(-100%)' },
 });
 
+export const kfSlideInFromTop = keyframes({
+  from: { transform: 'translateY(-100%)' },
+  to: { transform: 'translateY(0)' },
+});
+
+export const kfSlideInFromBottom = keyframes({
+  from: { transform: 'translateY(100%)' },
+  to: { transform: 'translateY(0)' },
+});
+
+export const kfSlideOutToTop = keyframes({
+  from: { transform: 'translateY(0)' },
+  to: { transform: 'translateY(-100%)' },
+});
+
+export const kfSlideOutToBottom = keyframes({
+  from: { transform: 'translateY(0)' },
+  to: { transform: 'translateY(100%)' },
+});
+
 // ── Convenience: selectors blocks for positioner popups ───────────────────────
 // Import the individual keyframe constants above and compose into style() calls.
 // The per-side selectors use higher specificity ([data-open][data-side=*]) so

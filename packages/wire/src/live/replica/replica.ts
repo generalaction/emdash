@@ -1,46 +1,49 @@
 import type { PendingLease } from '@emdash/shared';
+import { stableStringify } from '@emdash/shared/util';
+import type { LiveMutationResult, LiveSource } from '../../api/channel';
 import type {
   MutationCallOptions,
   LiveModelClientHandle,
   LiveClientHandle,
 } from '../../api/client';
 import type { LiveModelKey, LiveModelDef, MutationData, MutationError } from '../../api/define';
-import { createManagedSource } from '../../util/managed-source';
-import { stableStringify, type LiveMutationResult } from '../mutations';
-import type { LiveSource } from '../protocol';
 import type { LiveChangeMeta } from '../state';
 import {
   buildReplicaInstance,
   translateCursors,
   type ReplicaInstance,
   type ReplicaInstanceOptions,
+  type ReplicaMutationResult,
 } from './instance';
 import type { LiveModelProvider } from './provider';
-import { managedLiveSource } from './source';
+import { createReplicaResourceCache } from './retention';
+import { resourceCachedLiveSource } from './source';
 import { ReplicaState } from './state';
 import type { StateStore } from './store';
 
-export type LiveModelReplicaOptions<Group extends LiveModelDef = LiveModelDef> =
+export type LiveModelReplicaCacheOptions<Group extends LiveModelDef = LiveModelDef> =
   ReplicaInstanceOptions<Group> & {
-    retentionMs?: number;
+    lingerMs?: number;
   };
 
-export type LiveModelReplica<Group extends LiveModelDef = LiveModelDef> =
-  LiveModelProvider<Group> & {
-    readonly replica: true;
-    acquire(key: LiveModelKey<Group>): PendingLease<ReplicaInstance<Group>>;
-    peek(key: LiveModelKey<Group>): ReplicaInstance<Group> | undefined;
-    dispose(): Promise<void>;
-  };
+export type LiveModelReplicaCache<Group extends LiveModelDef = LiveModelDef> = Omit<
+  LiveModelProvider<Group>,
+  'kind'
+> & {
+  readonly kind: 'liveModelReplicaCache';
+  acquire(key: LiveModelKey<Group>): PendingLease<ReplicaInstance<Group>>;
+  peek(key: LiveModelKey<Group>): ReplicaInstance<Group> | undefined;
+  dispose(): Promise<void>;
+};
 
-export function createLiveModelReplica<Group extends LiveModelDef>(
+export function createLiveModelReplicaCache<Group extends LiveModelDef>(
   contract: Group,
   group: LiveModelClientHandle<Group>,
-  options: LiveModelReplicaOptions<Group> = {}
-): LiveModelReplica<Group> {
-  const source = createManagedSource<LiveModelKey<Group>, ReplicaInstance<Group>>({
+  options: LiveModelReplicaCacheOptions<Group> = {}
+): LiveModelReplicaCache<Group> {
+  const source = createReplicaResourceCache<LiveModelKey<Group>, ReplicaInstance<Group>>({
     key: stableStringify,
-    graceMs: options.retentionMs,
+    lingerMs: options.lingerMs,
     async create(key, scope) {
       const instance = buildReplicaInstance(contract, key, {
         createState(name, model) {
@@ -50,6 +53,8 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
             {
               instrumentation: options.instrumentation,
               logger: options.logger,
+              clock: options.clock,
+              onResyncFailed: options.onResyncFailed,
               onChange: options.onChange?.[stateName] as
                 | ((value: unknown, meta: LiveChangeMeta) => void)
                 | undefined,
@@ -60,8 +65,8 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
           scope.add(() => replica.dispose());
           return replica;
         },
-        mutate(name, envelope) {
-          return runReplicaMutation(name, envelope);
+        mutate(name, envelope, callOptions) {
+          return runReplicaMutation(name, envelope, callOptions);
         },
       });
       await instance.ready;
@@ -70,8 +75,7 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
   });
 
   return {
-    kind: 'liveModelProvider',
-    replica: true,
+    kind: 'liveModelReplicaCache',
     contract,
     acquire(key) {
       return source.acquire(key);
@@ -80,7 +84,7 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
       return source.peek(key);
     },
     resolveState(key, name) {
-      return managedLiveSource(source, key, (instance) => stateFor(instance, name));
+      return resourceCachedLiveSource(source, key, (instance) => stateFor(instance, name));
     },
     async runMutation(name, envelope) {
       return runReplicaMutation(name, envelope);
@@ -96,9 +100,10 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
       key: LiveModelKey<Group>;
       input: unknown;
       mutationId: string;
-    }
+    },
+    callOptions?: MutationCallOptions
   ): Promise<
-    LiveMutationResult<
+    ReplicaMutationResult<
       MutationData<Group['mutations'][Name]>,
       MutationError<Group['mutations'][Name]>
     >
@@ -113,30 +118,29 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
           input: envelope.input as never,
           mutationId: envelope.mutationId,
         },
-        { mutationId: envelope.mutationId } satisfies MutationCallOptions
+        { ...callOptions, mutationId: envelope.mutationId } satisfies MutationCallOptions
       )) as LiveMutationResult<
         MutationData<Group['mutations'][Name]>,
         MutationError<Group['mutations'][Name]>
       >;
       if (!result.success) return result;
-      const cursors = await translateCursors(instance, contract, result.data.cursors);
+      const translation = await translateCursors(instance, contract, result.data.cursors, {
+        instrumentation: options.instrumentation,
+        mutationId: envelope.mutationId,
+      });
       return {
         success: true,
         data: {
           ...result.data,
-          cursors,
+          cursors: translation.cursors,
+          // Only added on timeout so the settled wire shape stays byte-identical.
+          ...(translation.settled ? {} : { settled: false }),
         },
       };
     } finally {
       await lease.release();
     }
   }
-}
-
-export function isLiveModelReplica(value: unknown): value is LiveModelReplica {
-  return (
-    typeof value === 'object' && value !== null && (value as { replica?: unknown }).replica === true
-  );
 }
 
 function stateFor(instance: ReplicaInstance, name: string): LiveSource {

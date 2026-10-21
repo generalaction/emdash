@@ -387,7 +387,7 @@ Let me make 3 concise bullet points that capture the essential structure:",
 
 - **pnpm workspace monorepo** with Electron app in \`apps/emdash-desktop/\` and shared packages (\`chat-ui\`, \`core\`, \`plugins\`, \`shared\`, \`ui\`) under \`packages/\`
 - **Repo root** contains \`.claude/\`, \`.github/\` (workflows), \`agents/\` (architecture docs), and workspace configuration (\`pnpm-workspace.yaml\`, \`package.json\`, \`nx.json\`)
-- **App internals** (\`apps/emdash-desktop/\`) include main process (\`src/main/\`), React renderer (\`src/renderer/\`), preload bridge, database migrations (\`drizzle/\`), and shared IPC primitives (\`src/shared/\`)",
+- **App internals** (\`apps/emdash-desktop/\`) include main process (\`src/main/\`), vertical slices (\`src/core/\`), the React composition shell (\`src/renderer/\`), preload bridge, and database migrations (\`drizzle/\`)",
         },
       ],
       "seq": 1,
@@ -584,7 +584,7 @@ Let me write this in two sentences.",
 
 **5. Downstream consumers**
 - [ ] \`packages/core/src/acp/session-machine.ts\` — \`foo\` flows through \`Updated\` events and \`update\` Effects unchanged (no code change needed, but verify no exhaustive destructuring drops it).
-- [ ] Trace \`AgentUpdate\` consumers: \`src/renderer/features/tasks/acp/\` (maps updates into \`@emdash/chat-ui\`) and \`packages/chat-ui/\` renderer — decide whether \`foo\` needs rendering or just passthrough.
+- [ ] Trace \`AgentUpdate\` consumers: \`src/core/features/conversations/browser/acp/\` (maps updates into \`@emdash/chat-ui\`) and \`packages/chat-ui/\` renderer — decide whether \`foo\` needs rendering or just passthrough.
 - [ ] Check \`SessionSnapshot\` / IPC serialization path (\`state.ts\`) — an optional string serializes fine, but confirm no schema/validation rejects unknown fields.
 
 **6. Tests**

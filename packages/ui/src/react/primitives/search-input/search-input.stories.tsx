@@ -1,4 +1,5 @@
 import { Box } from '@react/primitives/box';
+import { Kbd } from '@react/primitives/kbd';
 import { SearchInput } from '@react/primitives/search-input';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
@@ -29,6 +30,14 @@ export const Sizes: Story = {
   ),
 };
 
+export const BareSurface: Story = {
+  render: () => (
+    <div className={s.w72} style={{ background: 'var(--em-surface-paper)', padding: '0.5rem' }}>
+      <SearchInput bare placeholder="Search…" />
+    </div>
+  ),
+};
+
 // ── With clear button ─────────────────────────────────────────────────────────
 
 export const WithClear: Story = {
@@ -41,6 +50,27 @@ export const WithClear: Story = {
         onChange={(e) => setValue(e.target.value)}
         onClear={() => setValue('')}
         placeholder="Filter tasks…"
+      />
+    );
+  },
+};
+
+export const WithShortcut: Story = {
+  render: function WithShortcutDemo() {
+    const [value, setValue] = useState('');
+    return (
+      <SearchInput
+        className={s.w72}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onClear={() => setValue('')}
+        placeholder="Search settings"
+        shortcut={
+          <>
+            <Kbd>⌘</Kbd>
+            <Kbd>F</Kbd>
+          </>
+        }
       />
     );
   },

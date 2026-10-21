@@ -169,4 +169,24 @@ describe('jira issues plugin', () => {
       },
     });
   });
+
+  it('returns invalid input for incomplete stored bearer credentials before constructing a client', async () => {
+    const host = makeHost();
+    host.credentials = {
+      authMethod: 'bearer',
+      siteUrl: 'https://example.atlassian.net',
+      accessToken: 'oauth-token',
+    };
+    await expect(issues.listIssues(host, { limit: 10 })).resolves.toMatchObject({
+      success: false,
+      error: { type: 'invalid_input' },
+    });
+    await expect(
+      issues.searchIssues(host, { searchTerm: 'ENG-1', limit: 10 })
+    ).resolves.toMatchObject({
+      success: false,
+      error: { type: 'invalid_input' },
+    });
+    expect(mockCreateJiraClient).not.toHaveBeenCalled();
+  });
 });

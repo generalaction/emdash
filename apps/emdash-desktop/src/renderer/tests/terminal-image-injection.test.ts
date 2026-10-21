@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildTerminalImageInjection,
   escapePathForTerminal,
   escapeWindowsPathForTerminal,
   extractClipboardImageFiles,
@@ -8,7 +9,7 @@ import {
   isNearDuplicatePaste,
   isUnstableDropPath,
   wrapAsBracketedPaste,
-} from '@renderer/lib/pty/terminal-image-paths';
+} from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 
 describe('terminal-image-injection', () => {
   it('detects unstable Chromium drop paths', () => {
@@ -70,5 +71,13 @@ describe('terminal-image-injection', () => {
     const payload = wrapAsBracketedPaste(formatTerminalImagePaths(['/tmp/a.png'], 'darwin'));
     expect(payload).toBe('\x1b[200~/tmp/a.png\x1b[201~');
     expect(payload.charCodeAt(0)).toBe(27);
+  });
+
+  it('keeps the trailing separator inside the bracketed paste', () => {
+    // Claude Code discards the pasted text when any byte follows the paste-end
+    // marker in the same write, so the separator must travel inside the paste.
+    const payload = buildTerminalImageInjection(['/tmp/a.png', '/tmp/b.txt'], 'darwin');
+    expect(payload).toBe('\x1b[200~/tmp/a.png /tmp/b.txt \x1b[201~');
+    expect(payload.endsWith('\x1b[201~')).toBe(true);
   });
 });

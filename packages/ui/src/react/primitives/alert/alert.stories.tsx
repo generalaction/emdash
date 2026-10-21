@@ -118,6 +118,32 @@ export const Dismissible: Story = {
   },
 };
 
+/** Action slot — a free-form control pinned to the top-right corner. */
+export const WithAction: Story = {
+  render: () => (
+    <Box display="flex" flexDirection="column" gap="3" className={s.w80}>
+      <Alert.Root status="warning">
+        <Alert.Title>CLI not found</Alert.Title>
+        <Alert.Description>The claude binary is missing from your PATH.</Alert.Description>
+        <Alert.Action>
+          <Button variant="secondary" size="xs">
+            Install
+          </Button>
+        </Alert.Action>
+      </Alert.Root>
+      <Alert.Root status="destructive">
+        <Alert.Title>Sync failed</Alert.Title>
+        <Alert.Description>The remote rejected the push.</Alert.Description>
+        <Alert.Action>
+          <Button variant="secondary" size="xs">
+            Retry
+          </Button>
+        </Alert.Action>
+      </Alert.Root>
+    </Box>
+  ),
+};
+
 export const NoIcon: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3" className={s.w80}>

@@ -91,7 +91,7 @@ function AnchoredPopup({
 
   return (
     <Box display="flex" flexDirection="column" alignItems="center" gap="2">
-      <Button ref={buttonRef} variant="ghost" size="sm" onClick={toggle}>
+      <Button ref={buttonRef} variant="ghost" size="xs" onClick={toggle}>
         {anchorRect ? 'Close popup' : 'Open popup'}
       </Button>
       <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
@@ -124,9 +124,7 @@ export const WithHeader: Story = {
   render: () => (
     <AnchoredPopup
       items={FILE_ITEMS.slice(0, 3)}
-      header={
-        <span className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Context files</span>
-      }
+      header={<span className={cx(sx({ color: 'foreground' }))}>Context files</span>}
     />
   ),
 };

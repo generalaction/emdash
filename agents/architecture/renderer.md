@@ -4,43 +4,103 @@ All paths are relative to `apps/emdash-desktop/`.
 
 ## Main Entry Points
 
-- `src/renderer/main.tsx`: renderer bootstrap
+- `src/renderer/main.tsx`: renderer bootstrap — seeds the wire connection and navigation host,
+  creates the app store scope, then mounts React
 - `src/renderer/App.tsx`: top-level provider composition
 - `src/renderer/app/workspace.tsx`: main post-onboarding shell
-- `src/renderer/app/view-registry.ts`: view definitions and navigation guards; switches between views
-- `src/renderer/lib/ipc.ts`: typed RPC client (`rpc`) and event emitter (`events`) used throughout renderer
+- `src/core/primitives/wire/browser/connection.ts`: seeded wire-connection seam
+  (`seedWireConnection` / `getWireConnection` / `domainClient`); every slice exposes a typed
+  domain client from its `api/` built on `domainClient`
+- `src/core/manifests/browser/view-catalog.ts`: aggregated view catalog; view definitions are
+  contributed by slices (`contributions/views.ts`) via `defineView` from
+  `src/core/primitives/views/`
 
 ## App Shell (`src/renderer/app/`)
 
-- `workspace.tsx`, `home-view.tsx`, `welcome.tsx` — shell and top-level views
-- `modal-registry.ts` — central modal registry; all modals are registered here
-- `view-registry.ts` — central view registry; all views are registered here
+- `workspace.tsx`, `welcome.tsx` — shell and top-level views (the home view is workbench-owned:
+  `src/core/features/workbench/browser/home-view.tsx`)
 - `app-menu-events.tsx` — native app menu event wiring
+- `app-shutdown-lifecycle.tsx` — quit-confirmation and shutdown-flush handling
 
-## Feature Areas (`src/renderer/features/`)
+Modal and view registration are manifest-owned, not shell-owned:
+`src/core/manifests/browser/modal-catalog.ts` and `src/core/manifests/browser/view-catalog.ts`
+aggregate slice contributions.
 
-- `tasks/` — task experience: `conversations/`, `diff-view/`, `editor/` (Monaco, file tree),
-  `terminals/`, `create-task-modal/`, `issue-context/`, `task-config/`, `tabs/`, `stores/`
-  (MobX task stores and `task-selectors.ts`), `hooks/`, `view/`
-- `projects/` — project management, settings panel, branch selector; `stores/` holds
-  project stores and `project-selectors.ts`
-- `sidebar/` — app sidebar
-- `mcp/` — MCP server management UI (`mcp-view.tsx`, `components/`)
-- `skills/` — skills catalog and management
-- `integrations/` — integration management (GitHub, GitLab, Jira, Linear, ...)
-- `settings/` — settings view
-- `automations/`, `browser/`, `command-palette/`, `library/`, `onboarding/`
+## Feature Areas (`src/core/features/*/browser/`)
+
+Feature-owned React components, hooks, and MobX stores live beside their portable API and Node
+implementation. Major browser slices include `tasks`, `projects`, `conversations`, `automations`,
+`browser`, `integrations`, `settings`, `skills`, `mcp`, and `library`. Workbench-owned tabs,
+sidebar, command palette, and onboarding UI live under `src/core/features/workbench/browser/`.
+Cross-slice task-view lifecycle and workspace composition live in
+`src/core/features/workbench/api/browser/task-composition.ts` and
+`src/core/features/workbench/browser/task-composition-state.ts`; task, project, and workspace
+stores expose feature-owned children through scoped-store tokens.
+
+Task children have two explicit lifetimes: lightweight persistent stores survive session teardown
+for as long as the task row exists (`task-persistent-stores.ts`), while operational task stores are
+disposed when the task session is torn down (`task-scoped-stores.ts`).
+
+Task attention indicators aggregate unseen events from saved Conversations, independently of open
+tabs. A successful user close of either an ACP or terminal conversation tab acknowledges its
+existing notification through the resource's `onClose` hook; later background events can notify
+again. Generic disposal (including snapshot restoration, preview replacement and teardown) only
+releases resources. Conversation managers reconcile membership on successful list reloads and
+deletion events, preserving membership changes received during an in-flight reload. Stream gaps
+invalidate the list so a gap during a reload schedules another fetch. Failed reloads preserve the
+current stores. An empty pane can still have background attention, but a task with no Conversations
+has no agent status indicator.
+
+Notification clicks wait for the task composition and saved conversation record, then resolve
+its tab kind through the Conversations API. Opening through the pane layout focuses an existing
+ACP chat or terminal conversation tab across panes; unavailable targets expire without opening a tab.
+
+The Tasks slice owns current-task workspace activation in its app-scoped
+`TaskActivationCoordinator`. It derives activation from navigation, Project context hydration,
+Task state, and Host generation readiness. Views and navigation handlers only express which Task
+is current; they do not opportunistically provision it. Explicit Retry and Re-provision actions
+remain direct user commands.
+
+Feature views, modals, and task tabs are exposed through `contributions/` and aggregated by
+`src/core/manifests/browser/browser-contributions.ts` and
+`src/core/manifests/browser/task-tab-contributions.ts`.
+
+The command palette uses the same static contribution model. Owning slices export
+`PaletteProviderDef` arrays from `contributions/browser/`, and
+`src/core/manifests/browser/palette-provider-catalog.ts` aggregates the five providers for
+commands, tasks, conversations, files, and projects. The workbench modal only renders
+`PaletteController` output. Argumentless commands opt in separately through
+`CommandPaletteItemDef` contributions aggregated by
+`src/core/manifests/shared/command-palette-catalog.ts`; command matching stays in the renderer,
+while task, conversation, and project providers request kind-filtered candidates through the
+search slice.
 
 ## Shared Renderer Infrastructure (`src/renderer/lib/`)
 
-- `ipc.ts` — typed RPC client and event emitter
-- `modal/` — modal provider, renderer, store, and close-guard infrastructure
-- `layout/` — layout, navigation, and panel drag providers
-- `commands/` — command registry (`registry.ts`) and view-level `commandProvider` hooks
-- `pty/` — frontend PTY sessions, pool provider, panes, prompt injection
-- `monaco/`, `editor/` — Monaco editor integration
-- `stores/` — cross-feature stores (navigation, dependencies, resource monitor, ...)
-- `providers/`, `hooks/`, `components/`, `ui/`, `theme/` — shared providers, hooks, and UI primitives
+`src/renderer/lib/` is a thin host shell; portable browser infrastructure lives in
+`src/core/primitives/`.
+
+- `runtime/` — bootstrap seeding (`seed-desktop-wire.ts`, `seed-navigation-host.ts`) and the
+  renderer-internal aggregate Wire client (`desktop-wire-client.ts`); slices use their own
+  domain clients instead
+- `modal/modal-renderer.tsx` — renders the active modal from the manifest catalog; modal
+  definitions, store, and close guards live in `src/core/primitives/modals/react/`
+- `layout/` — workspace layout and right-sidebar composition
+- `keybindings/` — keybinding dispatcher mount and browser shortcut forwarding
+- `stores/` — navigation telemetry wiring; app-lifetime stores are slice-owned and ride the app
+  scope (`src/core/manifests/browser/app-scoped-stores.ts`)
+- `providers/`, `hooks/` — shared providers and hooks (theme, feature flags, multi-select)
+
+Navigation lives in `src/core/primitives/navigation/`; commands and the palette live in
+`src/core/primitives/commands/`, `src/core/primitives/view-scopes/`, and
+`src/core/primitives/palette/`. The PTY frontend is owned by the terminals slice
+(`src/core/features/terminals/`). Monaco, file rendering, file-tree projection, and
+renderer-facing file runtime access are owned by `src/core/features/editor/browser/`.
+
+The renderer error boundary offers a state-preserving Reload app action, collapsible error details,
+and a Reset UI state and reload fallback under "Still having trouble?". Reset discards pending
+memento writes before clearing saved presentation state (including unsent drafts), and only reloads
+once deletion succeeds. A failed reset stays visible above the disclosures so it can be retried.
 
 ## Tests
 
@@ -50,10 +110,37 @@ All paths are relative to `apps/emdash-desktop/`.
 ## When Editing Here
 
 - Check `agents/conventions/renderer-patterns.md` for modal, view, PTY frontend, and store patterns.
-- Call RPC methods via the typed `rpc` client from `src/renderer/lib/ipc.ts`
-  (alias `@renderer/lib/ipc`), e.g. `rpc.tasks.create(...)`.
-- New modals must be registered in `src/renderer/app/modal-registry.ts`.
-- New views must be registered in `src/renderer/app/view-registry.ts`.
-- The preload bridge (`src/preload/index.ts`) exposes only `invoke`, `eventSend`,
-  `eventOn`, and `getPathForFile` on `window.electronAPI`; keep renderer-main calls on
-  typed RPC and typed events.
+- Call renderer-main methods through the owning slice's typed domain client.
+- Add feature views, modals, and task tabs through the owning slice's contributions.
+- The preload bridge (`src/entry/preload.ts`) exposes only `requestWirePort` and
+  `getPathForFile`; keep application traffic on Wire.
+
+## ACP Transcript Synchronization
+
+`SessionState.transcript` publishes a coherent `{ generation, historyRevision,
+lastCommittedTurnSeq, activeTurn }` snapshot. Generations change when the runtime rebuilds
+history, not when a renderer reconnects. Every committed turn and amendment advances the
+history revision; live chunks do not. The legacy `activeTurn` model remains available for
+older consumers, but new renderers use the coherent snapshot rather than combining independently
+coalesced live models.
+
+History pages carry the same position plus half-open coverage (`fromSeq`, `beforeSeq`, with
+null denoting an unbounded edge). Chat UI merges only that range, rejects obsolete pages, and
+keeps observed outgoing turns visible until authoritative history acknowledges them. Retention
+never invents a turn outcome or finalizes running tools. A generation change keeps the old
+presentation until replacement history arrives, then discards the old generation even if IDs
+repeat. Pending submissions are acknowledged by prompt ID independently of the mounted view.
+
+The conversation store refreshes history on revision changes, including entirely unobserved
+turns and direct A-to-B queue handoffs. Refreshes can run while a successor streams and cover
+the already loaded range, so pagination and old tool amendments survive catch-up. Initial live
+content determines presentation readiness; history, config, usage, plan, terminals, and MCP
+metadata must not block displaying it. Optional metadata has safe defaults while loading.
+Older runtimes without version metadata use the legacy synchronization path and cannot provide
+the same missed-update guarantees.
+
+
+## Editor language services
+
+See the [LSP runtime README](../../packages/core/src/runtimes/lsp/README.md) for
+server setup, architecture, editor integration and testing.

@@ -1,15 +1,17 @@
 import { toSerializedError, type SerializedError, type Unsubscribe } from '@emdash/shared';
-import type { LiveUpdate } from '../live/protocol';
+import type { LiveUpdate } from './channel';
 
 export type WireErrorCode =
   | 'CANCELLED'
   | 'DISCONNECTED'
+  | 'SERIALIZATION'
   | 'UNKNOWN_PROCEDURE'
   | 'UNKNOWN_TOPIC'
   | 'NOT_FOUND'
   | 'MISSING_HANDLER'
   | 'CONTRACT_MISMATCH'
   | 'ALREADY_EXISTS'
+  | 'TIMEOUT'
   | 'HANDLER_ERROR';
 
 export type WireCallMessage = {
@@ -59,6 +61,7 @@ export type WireResultMessage =
       code: WireErrorCode;
       message: string;
       cause?: SerializedError;
+      delivery?: 'not-sent';
     };
 
 export type WireUpdateMessage = {
@@ -136,18 +139,35 @@ export type WireTransport = {
   post(message: WireMessage): void;
   onMessage(cb: (message: WireMessage) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
+  /**
+   * Fires whenever the transport establishes connectivity, including the first
+   * time. Presence of this hook marks the transport as reconnect-capable and
+   * opts connections into holding calls issued while disconnected until the
+   * next reconnect or their deadline; transports without it fail such calls
+   * immediately.
+   */
   onReconnect?(cb: () => void): Unsubscribe;
+  /**
+   * Fires once when the transport gives up permanently (reconnect abandoned or
+   * the transport closed), carrying the cause. Connections reject all held and
+   * future calls with a `WireError('DISCONNECTED')` wrapping it.
+   */
+  onTerminalFailure?(cb: (error: unknown) => void): Unsubscribe;
   close?(): void;
 };
 
 export class WireError extends Error {
+  /** Present only when the failing request was never handed to its peer. */
+  readonly delivery?: 'not-sent';
+
   constructor(
     readonly code: WireErrorCode,
     message: string,
-    options: { cause?: unknown } = {}
+    options: { cause?: unknown; delivery?: 'not-sent' } = {}
   ) {
     super(message, options);
     this.name = 'WireError';
+    this.delivery = options.delivery;
   }
 }
 
@@ -155,6 +175,7 @@ export type SerializedWireError = {
   code: WireErrorCode;
   message: string;
   cause?: SerializedError;
+  delivery?: 'not-sent';
 };
 
 export function serializeWireError(error: unknown): SerializedWireError {
@@ -163,6 +184,7 @@ export function serializeWireError(error: unknown): SerializedWireError {
       code: error.code,
       message: error.message,
       cause: serializeCause(error.cause),
+      ...(error.delivery ? { delivery: error.delivery } : {}),
     };
   }
   if (error instanceof Error) {

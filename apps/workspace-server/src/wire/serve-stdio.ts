@@ -1,6 +1,6 @@
 import type { Readable, Writable } from 'node:stream';
-import type { Controller } from '@emdash/wire';
-import { serve, streamTransport } from '@emdash/wire';
+import type { Controller } from '@emdash/wire/rpc';
+import { serve, streamTransport } from '@emdash/wire/rpc';
 
 export type StdioStreams = {
   input: Readable;

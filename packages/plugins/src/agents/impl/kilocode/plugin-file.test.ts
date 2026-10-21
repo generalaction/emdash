@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { provider } from './index';
 
@@ -26,16 +26,13 @@ function createMemoryFs(): PluginFs & { files: Map<string, string> } {
 }
 
 describe('kilocode plugin hooks', () => {
-  it('installs the emdash notifications plugin into the Kilo workspace plugin path', async () => {
+  it('installs the emdash notifications plugin relative to the global Kilo root', async () => {
     const fs = createMemoryFs();
 
-    const written = await provider.behavior.plugins?.installPlugin(fs, {
-      kind: 'workspace',
-      path: '/workspace',
-    });
+    const written = await provider.behavior.plugins?.installPlugin(fs, { kind: 'global' });
 
-    expect(written).toEqual(['.kilo/plugins/emdash-notifications.js']);
-    const content = await fs.read('.kilo/plugins/emdash-notifications.js');
+    expect(written).toEqual(['plugin/emdash-notifications.js']);
+    const content = await fs.read('plugin/emdash-notifications.js');
     expect(content).toContain('export const EmdashNotifications');
     expect(content).toContain('X-Emdash-Event-Type');
     expect(content).toContain("event.type === 'session.idle'");

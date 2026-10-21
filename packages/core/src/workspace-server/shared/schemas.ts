@@ -7,12 +7,6 @@ import { z } from 'zod';
  */
 export const result = resultSchema;
 
-/**
- * Wraps a LiveValue<T> (value + generation + sequence) for read-your-writes tracking.
- */
-export const liveValue = <T extends z.ZodTypeAny>(value: T) =>
-  z.object({ value, generation: z.number().int(), sequence: z.number().int() });
-
 export const runtimeUnavailableErrorSchema = z.object({
   type: z.literal('runtime-unavailable'),
   message: z.string(),

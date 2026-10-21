@@ -1,7 +1,10 @@
-import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { controlVariants } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the variant prop types.
+import type { ControlVariantProps } from '../../../styles/recipes/control';
 import {
   triggerButtonChevron,
   triggerButtonExtra,
@@ -57,7 +60,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
         ? cx(
             fieldShellBase,
             triggerInputLayoutBase,
-            size === 'sm' && triggerInputLayoutSm,
+            size === 'xs' && triggerInputLayoutSm,
             className
           )
         : cx(controlVariants({ variant: 'ghost', tone, size }), triggerButtonExtra, className);
@@ -65,7 +68,9 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
     return (
       <button ref={ref} type="button" data-slot="trigger-button" className={buttonClass} {...props}>
         {children}
-        {showChevron && <ChevronDownIcon className={triggerButtonChevron} aria-hidden />}
+        {showChevron && (
+          <ChevronDownIcon size={14} strokeWidth={1} className={triggerButtonChevron} aria-hidden />
+        )}
       </button>
     );
   }

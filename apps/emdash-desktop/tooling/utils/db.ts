@@ -15,8 +15,8 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import * as schema from '@core/services/app-db/node/schema';
 import { initializeDatabase } from '@main/db/initialize';
-import * as schema from '@main/db/schema';
 
 const fixturesDir = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../fixtures');
 

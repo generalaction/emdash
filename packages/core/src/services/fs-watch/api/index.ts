@@ -1,15 +1,15 @@
 export {
   fsWatchContract,
-  watchErrorSchema,
   watchEventSchema,
   watchEventsBatchSchema,
   watchKeySchema,
-  watchReadySchema,
   watchResyncSchema,
   type FsWatchEvent,
   type FsWatchKey,
   type FsWatchStreamEvent,
 } from './contract';
+export { requireWatchReady } from './models';
+export { gitMetadataWatchIgnore, workspaceContentWatchIgnore } from './profiles';
 export type {
   IWatchService,
   WatchEvent,
@@ -17,3 +17,5 @@ export type {
   WatchHandle,
   WatchOptions,
 } from './models';
+
+export { fsWatchWorker } from './worker';

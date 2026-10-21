@@ -1,14 +1,28 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Octokit } from '@octokit/rest';
 import { Arch, Platform, build as electronBuild } from 'electron-builder';
 import type { Configuration } from 'electron-builder';
-import { duplicateChannelManifests, resolvePublishChannels } from './lib/artifacts.ts';
-import { GITHUB_OWNER, GITHUB_REPO } from './lib/config.ts';
+import canaryConfig from '../../electron-builder.canary.config.ts';
+import stableConfig from '../../electron-builder.config.ts';
+import {
+  duplicateChannelManifests,
+  findManifests,
+  mergeUpdateManifests,
+  resolvePublishChannels,
+} from './lib/artifacts.ts';
+import { createReleaseBuildConfig } from './lib/build-config.ts';
+import { GITHUB_OWNER, GITHUB_REPO, requireEnv } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
+import { verifyLanguageServerAssets } from './lib/language-servers.ts';
 import { fail, info, step, warn } from './lib/log.ts';
+import {
+  packagedLanguageServerApp,
+  verifyPackagedLanguageServers,
+  type PackagedLanguageServerApp,
+} from './lib/packaged-language-servers.ts';
+import { releaseHasOwnership } from './lib/release-ownership.ts';
 import { resolveReleaseVersion } from './lib/version.ts';
 import type { ReleaseChannel } from './lib/version.ts';
 
@@ -19,6 +33,7 @@ const { values } = parseArgs({
     targets: { type: 'string' },
     config: { type: 'string', default: 'electron-builder.config.ts' },
     channel: { type: 'string', default: 'stable' },
+    'release-id': { type: 'string' },
   },
   strict: true,
 });
@@ -26,7 +41,7 @@ const { values } = parseArgs({
 const platform = values.platform;
 if (!platform || !['mac', 'linux', 'win'].includes(platform)) {
   fail(
-    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts] [--channel stable|canary]'
+    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts] [--channel stable|canary] [--release-id id]'
   );
 }
 
@@ -36,7 +51,11 @@ if (!['stable', 'canary'].includes(channel)) {
 }
 
 const archInput = values.arch ?? 'both';
-const archs: string[] = archInput === 'both' ? ['x64', 'arm64'] : [archInput];
+if (!['x64', 'arm64', 'both'].includes(archInput)) {
+  fail(`Unknown arch: ${archInput}`);
+}
+const archs: Array<'x64' | 'arm64'> =
+  archInput === 'both' ? ['x64', 'arm64'] : [archInput as 'x64' | 'arm64'];
 
 const defaultTargets: Record<string, string[]> = {
   mac: ['dmg', 'zip'],
@@ -63,6 +82,28 @@ if (isCanary) {
   info(`Canary build: packaging as version ${overrideVersion} (tag ${tag})`);
 }
 
+const releaseId = Number(values['release-id']);
+if (!Number.isSafeInteger(releaseId) || releaseId <= 0) {
+  fail('--release-id must be a positive integer from prepare-release');
+}
+const ghToken = requireEnv('GH_TOKEN');
+const octokit = new Octokit({ auth: ghToken });
+const { data: draft } = await octokit.rest.repos.getRelease({
+  owner: GITHUB_OWNER,
+  repo: GITHUB_REPO,
+  release_id: releaseId,
+});
+const ownership = {
+  runId: requireEnv('GITHUB_RUN_ID'),
+  sha: requireEnv('GITHUB_SHA'),
+};
+if (!draft.draft || draft.tag_name !== tag || !releaseHasOwnership(draft.body, ownership)) {
+  fail(`Release ${releaseId} is not the owned ${tag} draft for this workflow run and commit`);
+}
+if (draft.target_commitish !== ownership.sha) {
+  fail(`Release ${releaseId} targets ${draft.target_commitish}, expected ${ownership.sha}`);
+}
+
 step('Creating deployment directory with production dependencies');
 const workspaceRoot = resolve(process.cwd(), '../..');
 const deployDir = mkdtempSync(join(workspaceRoot, '.emdash-deploy-'));
@@ -71,16 +112,30 @@ exec(`pnpm --filter @emdash/emdash-desktop deploy --legacy --prod ${deployDir}`,
   echo: true,
 });
 
+verifyLanguageServerAssets(deployDir);
+
 step('Copying built assets into deployment directory');
 cpSync('out', join(deployDir, 'out'), { recursive: true });
 cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
 
 const electronVersion = exec(`node -p "require('electron/package.json').version"`);
 
-// Dynamically load the electron-builder config (TypeScript stripping via --experimental-strip-types).
-// Use a file:// URL so absolute Windows paths (e.g. D:\...) are not parsed as a URL scheme.
-const configModule = await import(pathToFileURL(resolve(values.config)).href);
-const baseConfig = (configModule.default ?? configModule) as Configuration;
+const configName = basename(values.config ?? 'electron-builder.config.ts');
+const baseConfig: Configuration =
+  configName === 'electron-builder.config.ts'
+    ? stableConfig
+    : configName === 'electron-builder.canary.config.ts'
+      ? canaryConfig
+      : fail(`Unknown electron-builder config "${configName}"`);
+const publishArray = Array.isArray(baseConfig.publish)
+  ? baseConfig.publish
+  : baseConfig.publish
+    ? [baseConfig.publish]
+    : [];
+const { githubChannel, r2Channel } = resolvePublishChannels(
+  publishArray as Array<Record<string, unknown>>
+);
+const collectedManifests = new Map<string, string[]>();
 
 try {
   for (const arch of archs) {
@@ -95,117 +150,70 @@ try {
     if (!archEnum) fail(`Unknown arch: ${arch}`);
 
     const buildTargets = ebPlatform.createTarget(targetList, archEnum);
-    // Clone per iteration: electron-builder's normalizeFiles mutates config.files in
-    // place (collapsing strings into a single fileset and leaving null holes), which
-    // crashes the second arch iteration if the same config object is reused.
-    const config: Configuration = {
-      ...structuredClone(baseConfig),
+    const config = createReleaseBuildConfig(
+      baseConfig,
       electronVersion,
-      npmRebuild: false,
-      ...(isCanary ? { extraMetadata: { version: overrideVersion } } : {}),
-    };
+      isCanary ? overrideVersion : undefined
+    );
+    const packagedApps: PackagedLanguageServerApp[] = [];
 
     await electronBuild({
       targets: buildTargets,
-      config,
+      config: {
+        ...config,
+        afterPack: async (context) => {
+          packagedApps.push(packagedLanguageServerApp(context));
+        },
+      },
       projectDir: deployDir,
-      publish: 'always',
+      // Platform verification and notarization must run against the exact bytes that ship.
+      // A later explicit step uploads those final files to the owned GitHub draft.
+      publish: 'never',
     });
+
+    if (arch === process.arch && ebPlatform.nodeName === process.platform) {
+      if (packagedApps.length !== 1)
+        fail('Expected one finished app for language-server verification');
+      step('Verifying bundled language servers in the finished app with an empty PATH');
+      await verifyPackagedLanguageServers(packagedApps[0]);
+    } else {
+      warn(
+        `Cannot execute the ${platform}/${arch} app on this host; run verify-language-servers on a matching host`
+      );
+    }
+
+    for (const manifest of findManifests(githubChannel, join(deployDir, 'release'))) {
+      const name = basename(manifest);
+      const versions = collectedManifests.get(name) ?? [];
+      versions.push(readFileSync(manifest, 'utf8'));
+      collectedManifests.set(name, versions);
+    }
 
     info(`Built ${platform} ${targetList.join(' ')} for ${arch}`);
   }
 
+  for (const [name, manifests] of collectedManifests) {
+    writeFileSync(join(deployDir, 'release', name), mergeUpdateManifests(manifests));
+  }
+
   step('Copying release artifacts to app directory');
+  rmSync('release', { recursive: true, force: true });
   cpSync(join(deployDir, 'release'), 'release', { recursive: true });
 
-  step('Duplicating manifests for R2 stable channel');
-  const publishArray = Array.isArray(baseConfig.publish)
-    ? baseConfig.publish
-    : baseConfig.publish
-      ? [baseConfig.publish]
-      : [];
-  const { githubChannel, r2Channel } = resolvePublishChannels(
-    publishArray as Array<Record<string, unknown>>
-  );
-
+  step('Preparing GitHub and R2 channel manifests');
+  const generatedManifests = findManifests(githubChannel);
   if (r2Channel && githubChannel !== r2Channel) {
     const duplicated = duplicateChannelManifests(githubChannel, r2Channel);
     if (duplicated.length > 0) {
       info(`Duplicated ${duplicated.length} manifest(s): "${githubChannel}" → "${r2Channel}"`);
-      const ghToken = process.env.GH_TOKEN;
-      if (ghToken) {
-        await uploadManifestsToGithubDraft(duplicated, tag, ghToken);
-      } else {
-        info(
-          'GH_TOKEN not set; skipping GitHub manifest upload (R2 upload will still include them)'
-        );
-      }
+      generatedManifests.push(...duplicated);
     } else {
       warn(`No "${githubChannel}" manifests found to duplicate for R2 channel "${r2Channel}"`);
     }
   }
+  info(
+    `Prepared ${generatedManifests.length} local update manifest(s) for post-verification upload`
+  );
 } finally {
   rmSync(deployDir, { recursive: true, force: true });
-}
-
-/**
- * Uploads the given manifest files to the GitHub draft release for `tag`, clobbering
- * any asset of the same name that already exists (safe for re-runs).
- */
-async function uploadManifestsToGithubDraft(
-  files: string[],
-  tag: string,
-  token: string
-): Promise<void> {
-  const octokit = new Octokit({ auth: token });
-
-  const { data: releases } = await octokit.rest.repos.listReleases({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    per_page: 100,
-  });
-  const drafts = releases.filter((r) => r.tag_name === tag && r.draft);
-  if (drafts.length === 0) {
-    warn(`No draft release found for tag ${tag}; skipping GitHub manifest upload`);
-    return;
-  }
-  if (drafts.length > 1) {
-    const ids = drafts.map((r) => String(r.id)).join(', ');
-    fail(
-      `Multiple draft releases found for tag ${tag} (ids: ${ids}); cannot safely upload manifests. Run prepare-release.ts to fix.`
-    );
-  }
-  const draft = drafts[0];
-
-  const { data: assets } = await octokit.rest.repos.listReleaseAssets({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    release_id: draft.id,
-    per_page: 100,
-  });
-
-  step(`Uploading ${files.length} R2 channel manifest(s) to GitHub draft release ${tag}`);
-  for (const file of files) {
-    const name = basename(file);
-    const existing = assets.find((a) => a.name === name);
-    if (existing) {
-      await octokit.rest.repos.deleteReleaseAsset({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
-        asset_id: existing.id,
-      });
-    }
-    await octokit.rest.repos.uploadReleaseAsset({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
-      release_id: draft.id,
-      name,
-      data: readFileSync(file, 'utf-8'),
-      headers: {
-        'content-type': 'application/yaml',
-        'content-length': statSync(file).size,
-      },
-    });
-    info(`Uploaded ${name} to draft release ${tag}`);
-  }
 }

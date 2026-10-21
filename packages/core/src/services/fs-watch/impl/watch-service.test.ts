@@ -1,11 +1,14 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { Scope } from '@emdash/wire/util';
+import { err, ok } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
-import type { WatchEvent } from '../api';
+import { requireWatchReady, type WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchSink } from './backend';
 import { nativeWatchBackend } from './native-backend';
+import type { ParcelSubscribeFn } from './native-watch';
 import { realpathOrResolve } from './paths';
 import { createWatchService } from './watch-service';
 
@@ -38,7 +41,10 @@ describe('createWatchService', () => {
       const second = service.watch(root, (events) => secondEvents.push(...events), {
         ignore: ['a', 'b'],
       });
-      await Promise.all([first.ready(), second.ready()]);
+      await expect(Promise.all([first.ready(), second.ready()])).resolves.toEqual([
+        ok(undefined),
+        ok(undefined),
+      ]);
 
       expect(backend.subscribeCount).toBe(1);
       backend.emit({ root, ignore: ['a', 'b'] }, [{ kind: 'create', path: path.join(root, 'a') }]);
@@ -72,7 +78,7 @@ describe('createWatchService', () => {
           resyncs += 1;
         },
       });
-      await handle.ready();
+      await expect(handle.ready()).resolves.toEqual(ok(undefined));
 
       backend.emit({ root, ignore: [] }, [
         { kind: 'create', path: path.join(root, 'first') },
@@ -102,7 +108,10 @@ describe('createWatchService', () => {
     try {
       const first = watch.watch(root, (events) => firstEvents.push(...events));
       const second = watch.watch(root, (events) => secondEvents.push(...events));
-      await Promise.all([first.ready(), second.ready()]);
+      await expect(Promise.all([first.ready(), second.ready()])).resolves.toEqual([
+        ok(undefined),
+        ok(undefined),
+      ]);
 
       const file = path.join(root, 'created.txt');
       await writeFile(file, 'watch me\n', 'utf8');
@@ -145,10 +154,10 @@ describe('createWatchService', () => {
 
     try {
       const first = watch.watch(root, () => {});
-      await first.ready();
+      await expect(first.ready()).resolves.toEqual(ok(undefined));
       await first.release();
       const second = watch.watch(root, (incoming) => events.push(...incoming));
-      await second.ready();
+      await expect(second.ready()).resolves.toEqual(ok(undefined));
 
       await writeFile(path.join(root, 'after-rewatch.txt'), 'hi\n', 'utf8');
       await eventually(() =>
@@ -167,24 +176,478 @@ describe('createWatchService', () => {
     try {
       const handle = watch.watch(root, () => {});
 
-      await expect(handle.ready()).rejects.toThrow();
+      const failed = await handle.ready();
+      expect(failed.success).toBe(false);
       await handle.release();
 
       await mkdir(root, { recursive: true });
       const recovered = watch.watch(root, () => {});
-      await expect(recovered.ready()).resolves.toBeUndefined();
+      await expect(recovered.ready()).resolves.toEqual(ok(undefined));
       await recovered.release();
     } finally {
       await watch.dispose();
     }
   });
 
+  it('reports watcher subscription failures while ready() fulfills with a failure Result', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-error-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const onError = vi.fn();
+
+    try {
+      const handle = service.watch(root, () => {}, { onError });
+      const attempt = await eventually(() => backend.attempts[0]);
+      const failure = new Error('watch attach failed');
+
+      attempt.ready.reject(failure);
+
+      await expect(handle.ready()).resolves.toEqual(err(failure));
+      await expect(requireWatchReady(handle)).rejects.toBe(failure);
+      expect(onError).toHaveBeenCalledOnce();
+      expect(onError).toHaveBeenCalledWith(failure);
+      await handle.release();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('does not emit an unhandled rejection when ready() is not awaited', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-unhandled-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+
+    try {
+      const handle = service.watch(root, () => {});
+      const attempt = await eventually(() => backend.attempts[0]);
+      const failure = new Error('watch attach failed');
+
+      attempt.ready.reject(failure);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(unhandled).not.toHaveBeenCalled();
+      await expect(handle.ready()).resolves.toEqual(err(failure));
+      await handle.release();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      await service.dispose();
+    }
+  });
+
+  it('suppresses watcher subscription errors after release', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-released-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const onError = vi.fn();
+
+    try {
+      const handle = service.watch(root, () => {}, { onError });
+      const attempt = await eventually(() => backend.attempts[0]);
+      const failure = new Error('watch attach failed after release');
+
+      await handle.release();
+      attempt.ready.reject(failure);
+
+      const result = await handle.ready();
+      expect(result.success).toBe(false);
+      expect(onError).not.toHaveBeenCalled();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('contains errors thrown by the attach-failure observer', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-error-observer-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const failure = new Error('watch attach failed');
+
+    try {
+      const handle = service.watch(root, () => {}, {
+        onError: () => {
+          throw new Error('observer failed');
+        },
+      });
+      const attempt = await eventually(() => backend.attempts[0]);
+
+      attempt.ready.reject(failure);
+
+      await expect(handle.ready()).resolves.toEqual(err(failure));
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('evicts a failed startup so the next watch makes a fresh attempt', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-retry-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const failure = new Error('watch attach failed');
+
+    try {
+      const first = service.watch(root, () => {});
+      const firstReady = first.ready();
+      const firstAttempt = await eventually(() => backend.attempts[0]);
+      firstAttempt.ready.reject(failure);
+      await expect(firstReady).resolves.toEqual(err(failure));
+      await first.release();
+      expect(backend.attempts).toHaveLength(1);
+      expect(backend.attempts[0]?.disposed).toBe(true);
+
+      const second = service.watch(root, () => {});
+      const secondReady = second.ready();
+      await eventually(() => backend.attempts[1]);
+      backend.attempts[1]?.ready.resolve(undefined);
+      await expect(secondReady).resolves.toEqual(ok(undefined));
+
+      await second.release();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('keeps the native backend healthy when an active startup is cancelled', async () => {
+    const activeRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-active-'));
+    const cancelledRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-cancelled-'));
+    const nextRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-next-'));
+    const cancelledSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const activeUnsubscribe = vi.fn(async () => {});
+    const cancelledUnsubscribe = vi.fn(async () => {});
+    const nextUnsubscribe = vi.fn(async () => {});
+    let activeCallback: Parameters<ParcelSubscribeFn>[1] | undefined;
+    const subscribe = vi
+      .fn<ParcelSubscribeFn>()
+      .mockImplementationOnce((_root, callback) => {
+        activeCallback = callback;
+        return Promise.resolve({ unsubscribe: activeUnsubscribe });
+      })
+      .mockReturnValueOnce(cancelledSubscription.promise)
+      .mockResolvedValueOnce({ unsubscribe: nextUnsubscribe });
+    const backend = nativeWatchBackend({ subscribe });
+    const service = createWatchService({
+      backend,
+    });
+    const activeEvents: WatchEvent[] = [];
+
+    try {
+      const active = service.watch(activeRoot, (events) => activeEvents.push(...events));
+      await expect(active.ready()).resolves.toEqual(ok(undefined));
+
+      const cancelled = service.watch(cancelledRoot, () => {});
+      const cancelledReady = cancelled.ready();
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+      await cancelled.release();
+      const cancelledResult = await cancelledReady;
+      expect(cancelledResult.success).toBe(false);
+      if (cancelledResult.success) throw new Error('Expected watch startup to be cancelled');
+      expect(backend.failureSignal.aborted).toBe(false);
+
+      activeCallback?.(null, [{ type: 'update', path: path.join(activeRoot, 'still-watched') }]);
+      expect(activeEvents).toEqual([
+        { kind: 'update', path: path.join(activeRoot, 'still-watched') },
+      ]);
+
+      const next = service.watch(nextRoot, () => {});
+      await expect(next.ready()).resolves.toEqual(ok(undefined));
+      expect(subscribe).toHaveBeenCalledTimes(3);
+
+      cancelledSubscription.resolve({ unsubscribe: cancelledUnsubscribe });
+      await vi.waitFor(() => expect(cancelledUnsubscribe).toHaveBeenCalledOnce());
+
+      await active.release();
+      await next.release();
+      expect(activeUnsubscribe).toHaveBeenCalledOnce();
+      expect(nextUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      cancelledSubscription.resolve({ unsubscribe: cancelledUnsubscribe });
+      await service.dispose();
+    }
+  });
+
+  it('poisons the native backend when a cancelled startup exceeds its watchdog', async () => {
+    vi.useFakeTimers();
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-cancelled-stuck-'));
+    const subscription = deferred<parcelWatcher.AsyncSubscription>();
+    const unsubscribe = vi.fn(async () => {});
+    const subscribe = vi.fn().mockReturnValueOnce(subscription.promise);
+    const backend = nativeWatchBackend({ subscribe });
+    const service = createWatchService({ backend });
+
+    try {
+      const handle = service.watch(root, () => {});
+      const ready = handle.ready();
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+      await handle.release();
+      await expect(ready).resolves.toMatchObject({ success: false });
+
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(backend.failureSignal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(backend.failureSignal.reason).toMatchObject({
+        name: 'NativeWatchStartupTimeoutError',
+        message: expect.stringContaining(realpathOrResolve(root)),
+      });
+
+      subscription.resolve({ unsubscribe });
+      await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
+    } finally {
+      subscription.resolve({ unsubscribe });
+      vi.useRealTimers();
+      await service.dispose();
+    }
+  });
+
+  it('starts native subscriptions FIFO', async () => {
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-queue-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-queue-second-'));
+    const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const secondSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const secondUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi
+      .fn()
+      .mockReturnValueOnce(firstSubscription.promise)
+      .mockReturnValueOnce(secondSubscription.promise);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe }),
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      const second = service.watch(secondRoot, () => {});
+      const firstReady = first.ready();
+      let secondSettled = false;
+      const secondReady = second.ready().finally(() => {
+        secondSettled = true;
+      });
+
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+      expect(subscribe.mock.calls[0]?.[0]).toBe(realpathOrResolve(firstRoot));
+      expect(secondSettled).toBe(false);
+
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      await expect(firstReady).resolves.toEqual(ok(undefined));
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+      expect(subscribe.mock.calls[1]?.[0]).toBe(realpathOrResolve(secondRoot));
+      secondSubscription.resolve({ unsubscribe: secondUnsubscribe });
+      await expect(secondReady).resolves.toEqual(ok(undefined));
+
+      await first.release();
+      await second.release();
+      expect(firstUnsubscribe).toHaveBeenCalledOnce();
+      expect(secondUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('poisons queued native starts when the active startup exceeds its watchdog', async () => {
+    vi.useFakeTimers();
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-second-'));
+    const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi.fn().mockReturnValueOnce(firstSubscription.promise);
+    const backend = nativeWatchBackend({ subscribe });
+    const service = createWatchService({
+      backend,
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      const second = service.watch(secondRoot, () => {});
+      const firstReady = first.ready();
+      let secondSettled = false;
+      const secondReady = second.ready().finally(() => {
+        secondSettled = true;
+      });
+
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(secondSettled).toBe(false);
+      expect(backend.failureSignal.aborted).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      const firstResult = await firstReady;
+      expect(firstResult.success).toBe(false);
+      if (firstResult.success) throw new Error('Expected watch startup to fail');
+      expect(firstResult.error).toMatchObject({
+        name: 'NativeWatchStartupTimeoutError',
+        message: expect.stringContaining(realpathOrResolve(firstRoot)),
+      });
+      expect(secondSettled).toBe(true);
+      await expect(secondReady).resolves.toEqual(err(firstResult.error));
+      expect(backend.failureSignal.aborted).toBe(true);
+      expect(backend.failureSignal.reason).toBe(firstResult.error);
+      expect(subscribe).toHaveBeenCalledOnce();
+
+      expect(() => service.watch(secondRoot, () => {})).toThrow(firstResult.error);
+      expect(subscribe).toHaveBeenCalledOnce();
+
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      await vi.waitFor(() => expect(firstUnsubscribe).toHaveBeenCalledOnce());
+      await first.release();
+      await second.release();
+    } finally {
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      vi.useRealTimers();
+      await service.dispose();
+    }
+  });
+
+  it('applies the native startup watchdog to replacement subscriptions', async () => {
+    vi.useFakeTimers();
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-replacement-'));
+    const replacement = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const replacementUnsubscribe = vi.fn(async () => {});
+    let firstCallback: Parameters<ParcelSubscribeFn>[1] | undefined;
+    const subscribe = vi
+      .fn<ParcelSubscribeFn>()
+      .mockImplementationOnce((_root, callback) => {
+        firstCallback = callback;
+        return Promise.resolve({ unsubscribe: firstUnsubscribe });
+      })
+      .mockReturnValueOnce(replacement.promise);
+    const backend = nativeWatchBackend({ subscribe });
+    const service = createWatchService({
+      backend,
+    });
+
+    try {
+      const handle = service.watch(root, () => {});
+      await expect(handle.ready()).resolves.toEqual(ok(undefined));
+
+      firstCallback?.(new Error('native watcher failed'), []);
+      await vi.advanceTimersByTimeAsync(250);
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+      expect(firstUnsubscribe).toHaveBeenCalledOnce();
+
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(backend.failureSignal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(backend.failureSignal.aborted).toBe(true);
+      const failure = backend.failureSignal.reason;
+      expect(failure).toMatchObject({ name: 'NativeWatchStartupTimeoutError' });
+
+      expect(() => service.watch(root, () => {})).toThrow(failure);
+      expect(subscribe).toHaveBeenCalledTimes(2);
+
+      replacement.resolve({ unsubscribe: replacementUnsubscribe });
+      await vi.waitFor(() => expect(replacementUnsubscribe).toHaveBeenCalledOnce());
+      await handle.release();
+    } finally {
+      replacement.resolve({ unsubscribe: replacementUnsubscribe });
+      vi.useRealTimers();
+      await service.dispose();
+    }
+  });
+
+  it('cancels a queued native subscription when its final lease is released', async () => {
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-second-'));
+    const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi.fn().mockReturnValueOnce(firstSubscription.promise);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe }),
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      const second = service.watch(secondRoot, () => {});
+      const secondReady = second.ready();
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+
+      await second.release();
+      const secondResult = await secondReady;
+      expect(secondResult.success).toBe(false);
+
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      await expect(first.ready()).resolves.toEqual(ok(undefined));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(subscribe).toHaveBeenCalledOnce();
+
+      await first.release();
+      expect(firstUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('survives native unsubscribe failure and accepts a later root', async () => {
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-release-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-release-second-'));
+    const failure = new Error('Unable to remove watcher');
+    const firstUnsubscribe = vi.fn().mockRejectedValue(failure);
+    const secondUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi
+      .fn()
+      .mockResolvedValueOnce({ unsubscribe: firstUnsubscribe })
+      .mockResolvedValueOnce({ unsubscribe: secondUnsubscribe });
+    const onError = vi.fn();
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe, onError }),
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      await expect(first.ready()).resolves.toEqual(ok(undefined));
+      await first.release();
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(onError).toHaveBeenCalledWith(`unsubscribe ${realpathOrResolve(firstRoot)}`, failure);
+      expect(unhandled).not.toHaveBeenCalled();
+
+      const second = service.watch(secondRoot, () => {});
+      await expect(second.ready()).resolves.toEqual(ok(undefined));
+      await second.release();
+      expect(secondUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      await service.dispose();
+    }
+  });
+
+  it('releases every native subscription after repeated many-root churn', async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), 'emdash-native-churn-'));
+    const roots = Array.from({ length: 8 }, (_, index) => path.join(parent, `root-${index}`));
+    await Promise.all(roots.map((root) => mkdir(root)));
+    const service = createNativeWatchService();
+
+    try {
+      for (let cycle = 0; cycle < 4; cycle += 1) {
+        const handles = roots.map((root) => service.watch(root, () => {}));
+        await expect(Promise.all(handles.map((handle) => handle.ready()))).resolves.toEqual(
+          roots.map(() => ok(undefined))
+        );
+        await Promise.all(handles.map((handle) => handle.release()));
+      }
+
+      const events: WatchEvent[] = [];
+      const final = service.watch(roots[0]!, (batch) => events.push(...batch));
+      await expect(final.ready()).resolves.toEqual(ok(undefined));
+      await writeFile(path.join(roots[0]!, 'after-churn.txt'), 'still alive\n', 'utf8');
+      await eventually(() =>
+        events.some((event) => path.basename(event.path) === 'after-churn.txt') ? true : undefined
+      );
+      await final.release();
+    } finally {
+      await service.dispose();
+      await rm(parent, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   it('disposes active handles by releasing their shared native subscription', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-dispose-'));
     const watch = createNativeWatchService();
     const handle = watch.watch(root, () => {});
 
-    await handle.ready();
+    await expect(handle.ready()).resolves.toEqual(ok(undefined));
     await expect(watch.dispose()).resolves.toBeUndefined();
     await expect(handle.release()).resolves.toBeUndefined();
   });
@@ -216,10 +679,40 @@ class FakeWatchBackend implements WatchBackend {
   }
 }
 
+class DeferredWatchBackend implements WatchBackend {
+  readonly attempts: Array<{
+    ready: ReturnType<typeof deferred>;
+    disposed: boolean;
+  }> = [];
+
+  async subscribe(_key: WatchKey, _sink: WatchSink, scope: Scope): Promise<void> {
+    const attempt = { ready: deferred(), disposed: false };
+    this.attempts.push(attempt);
+    scope.add(() => {
+      attempt.disposed = true;
+    });
+    await attempt.ready.promise;
+  }
+}
+
 function createNativeWatchService() {
   return createWatchService({ backend: nativeWatchBackend() });
 }
 
 function keyOf(key: WatchKey): string {
   return JSON.stringify({ root: realpathOrResolve(key.root), ignore: [...key.ignore].sort() });
+}
+
+function deferred<T = void>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+  reject(error?: unknown): void;
+} {
+  let resolve: (value: T) => void = () => {};
+  let reject: (error?: unknown) => void = () => {};
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
 }

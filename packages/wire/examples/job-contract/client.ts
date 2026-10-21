@@ -1,16 +1,15 @@
 import { ok } from '@emdash/shared';
-import { z } from 'zod';
+import { createLiveJobReplicaCache, LiveJobCancelledError } from '@emdash/wire/live';
 import {
-  LiveJobCancelledError,
   createController,
   client,
   connect,
-  createLiveJobReplica,
   defineContract,
   liveJob,
   memoryTransportPair,
   serve,
-} from '../../src/index';
+} from '@emdash/wire/rpc';
+import { z } from 'zod';
 
 const api = defineContract({
   build: liveJob({
@@ -40,7 +39,7 @@ async function main(): Promise<void> {
   });
   serve(pair.right, controller);
   const contractClient = client(api, connect(pair.left));
-  const jobs = createLiveJobReplica(api.build, contractClient.build, { retentionMs: 10_000 });
+  const jobs = createLiveJobReplicaCache(api.build, contractClient.build, { lingerMs: 10_000 });
 
   const successfulLease = await jobs.start({ target: 'desktop' });
   const successful = await successfulLease.ready();
@@ -66,7 +65,7 @@ async function main(): Promise<void> {
   await cancellableLease.release();
   await jobs.dispose();
 
-  controller.dispose?.();
+  await controller.dispose?.();
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {

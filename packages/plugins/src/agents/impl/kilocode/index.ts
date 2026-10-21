@@ -1,14 +1,18 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
+  homeConfigRoot,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 import { KILOCODE_PLUGIN_CONTENT } from './plugin-file';
 
-const KILOCODE_PLUGIN_PATH = '.kilo/plugins/emdash-notifications.js';
+const KILOCODE_PLUGIN_PATH = 'plugin/emdash-notifications.js';
 
 export const plugin = definePlugin(
   {
@@ -27,7 +31,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'plugin',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({
@@ -37,7 +41,7 @@ export const plugin = definePlugin(
     }),
     plugins: {
       kind: 'file-drop',
-      scope: 'workspace',
+      scope: 'global',
     },
     prompt: {
       kind: 'argv',
@@ -66,6 +70,7 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   plugins: createFileDropPlugin({
+    resolveConfigRoot: homeConfigRoot('.kilo'),
     relativePath: KILOCODE_PLUGIN_PATH,
     content: KILOCODE_PLUGIN_CONTENT,
   }),

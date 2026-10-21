@@ -1,41 +1,32 @@
-import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
-import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-binder';
-import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
-import { BrowserAppShortcutEvents } from '@renderer/lib/components/browser-app-shortcut-events';
-import { MonacoKeyboardBridge } from '@renderer/lib/components/monaco-keyboard-bridge';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { Toaster } from '@emdash/ui/react/primitives';
+import { LeftSidebar } from '@core/features/workbench/browser/sidebar/left-sidebar';
+import { WindowScope } from '@core/features/workbench/browser/window-scope';
 import {
   useWorkspaceSlots,
-  useWorkspaceWrapParams,
-} from '@renderer/lib/layout/navigation-provider';
+  useWorkspaceViewParams,
+} from '@core/primitives/navigation/browser/navigation-hooks';
+import { useTheme } from '@core/primitives/theme/browser';
+import { BrowserShortcutForwarding, KeybindingDispatcherMount } from '@renderer/lib/keybindings';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/lib/layout/workspace-layout';
-import { Toaster } from '@renderer/lib/ui/toaster';
 
 export function Workspace() {
   useTheme();
-  const { WrapView } = useWorkspaceSlots();
-  const { wrapParams } = useWorkspaceWrapParams();
+  const { WrapView, TitlebarSlot, MainPanel } = useWorkspaceSlots();
+  const { params } = useWorkspaceViewParams();
 
   return (
-    <>
-      <AppKeyboardShortcuts />
-      <BrowserAppShortcutEvents />
-      <CommandShortcutBinder />
-      <MonacoKeyboardBridge />
+    <WindowScope>
+      <BrowserShortcutForwarding />
+      <KeybindingDispatcherMount />
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={
-          <WrapView {...wrapParams}>
-            <WorkspaceViewContent />
+          <WrapView {...params}>
+            <WorkspaceContentLayout titlebarSlot={<TitlebarSlot />} mainPanel={<MainPanel />} />
           </WrapView>
         }
       />
       <Toaster />
-    </>
+    </WindowScope>
   );
-}
-
-function WorkspaceViewContent() {
-  const { TitlebarSlot, MainPanel } = useWorkspaceSlots();
-  return <WorkspaceContentLayout titlebarSlot={<TitlebarSlot />} mainPanel={<MainPanel />} />;
 }

@@ -1,6 +1,5 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defaultCredentialRef } from './provider-account-registry';
 
 describe('ProviderAccountRegistry', () => {
   let fixture: RegistryFixture;
@@ -29,7 +28,7 @@ describe('ProviderAccountRegistry', () => {
     expect(account).toMatchObject({
       providerId: 'linear',
       accountId: 'default',
-      credentialRef: defaultCredentialRef('linear', 'default'),
+      credentialRef: 'provider-credential:linear:default',
       isDefault: true,
       meta: { version: '1', displayName: 'Acme Linear' },
     });
@@ -209,18 +208,6 @@ describe('ProviderAccountRegistry', () => {
     await upsert('github', 'github.com:84', 'other-token');
 
     await expect(fixture.registry.resolveSecret('github')).resolves.toBe('default-token');
-  });
-
-  it('removes all accounts and secrets for a provider', async () => {
-    await upsert('github', 'github.com:42');
-    await upsert('github', 'github.com:84');
-    await upsert('linear', 'default', 'lin-token');
-
-    await fixture.registry.removeAllAccounts('github');
-
-    await expect(fixture.registry.listAccounts('github')).resolves.toEqual([]);
-    expect(fixture.secretStore.secrets.size).toBe(1);
-    await expect(fixture.registry.resolveSecret('linear', 'default')).resolves.toBe('lin-token');
   });
 
   it('reports configuration status per provider', async () => {

@@ -43,6 +43,8 @@ export function serializeMentionLabel(
  */
 export function serializeNode(node: Node): string {
   if (node.type.name === 'mention') {
+    const serializedText = node.attrs.serializedText as string | null;
+    if (serializedText) return serializedText;
     const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
     const name = node.attrs.name as string | null;
     return serializeMentionLabel(label, node.attrs.kind as string | null, name);

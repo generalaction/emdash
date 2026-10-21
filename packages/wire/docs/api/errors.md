@@ -24,12 +24,14 @@ caller intent.
 
 ### `DISCONNECTED`
 
-The transport disconnected while a request was pending, or posting a request
-failed because the peer was already gone.
+The transport disconnected while a request was in flight, posting a request
+failed because the peer was already gone, the held-call buffer overflowed while
+disconnected, or the transport failed permanently (the terminal cause is
+attached as `cause`).
 
-This is the only code the contract mutation retry loop retries by default. That
-retry is safe because mutations carry a stable `mutationId` and the server
-deduplicates repeated ids.
+Mutations are never retried automatically. Callers can opt in per call with
+`retry: { schedule }`; that retry is safe because mutations carry a stable
+`mutationId` and the server deduplicates repeated ids.
 
 ### `UNKNOWN_PROCEDURE`
 
@@ -59,23 +61,38 @@ Retrying may make sense only if the domain resource is expected to appear later.
 
 Controller creation-time error: a contract endpoint has no implementation. Examples include a
 missing procedure implementation, missing live resolver, missing job handler, or
-missing live model host.
+missing live model provider.
 
 This should not cross the wire during normal operation. Fix the controller implementation.
 
 ### `CONTRACT_MISMATCH`
 
-Controller creation-time error: a `LiveModelHost` was created for a different live model
-contract than the contract endpoint being bound.
+Controller creation-time error: a live model provider, replica cache, or client
+handle was created for a different contract than the endpoint being bound.
 
-This is not retryable; fix the host/contract pairing.
+This is not retryable; fix the provider/contract pairing.
 
 ### `ALREADY_EXISTS`
 
-`LiveModelHost.create()` was called for a key that already has a live instance.
+A keyed live resource was created for a key that already has a live instance.
 
 This is a lifecycle error. Dispose or reuse the existing instance instead of
 creating another one for the same key.
+
+### `TIMEOUT`
+
+A Wire call or snapshot exceeded an infrastructure deadline. The connection
+applies a default 30s call deadline (`callTimeoutMs`, per-call `timeoutMs`
+override) spanning call-issued to result-received, including time spent held
+while disconnected; live attach traffic and blob streaming are exempt. Timeout
+is distinct from `CANCELLED`: cancellation is caller intent, while timeout means
+policy stopped waiting for the operation.
+
+Timeouts are not retried automatically. Mutation calls that opt in to
+`retry: { schedule }` retry both `DISCONNECTED` and `TIMEOUT`, relying on
+stable `mutationId` deduplication. If a domain treats a timeout as an expected
+outcome, model it as a `Result` payload instead of relying on the
+infrastructure error plane.
 
 ### `HANDLER_ERROR`
 

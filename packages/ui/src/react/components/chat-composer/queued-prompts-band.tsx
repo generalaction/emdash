@@ -170,7 +170,7 @@ export function QueuedPromptsBand({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     icon
                     aria-label="Save queued prompt"
                     title="Save queued prompt"
@@ -182,7 +182,7 @@ export function QueuedPromptsBand({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     icon
                     aria-label="Cancel edit"
                     title="Cancel edit"
@@ -208,7 +208,7 @@ export function QueuedPromptsBand({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     icon
                     aria-label="Send queued prompt now"
                     title="Send now - cancels the active turn"
@@ -223,7 +223,7 @@ export function QueuedPromptsBand({
                     type="button"
                     variant="ghost"
                     tone="destructive"
-                    size="sm"
+                    size="xs"
                     icon
                     aria-label="Delete queued prompt"
                     title="Delete queued prompt"

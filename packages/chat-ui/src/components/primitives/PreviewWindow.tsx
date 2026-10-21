@@ -39,6 +39,7 @@ export function PreviewWindow(props: PreviewWindowProps): JSX.Element {
 
   return (
     <div
+      data-preview-window
       style={{
         height: `${props.height}px`,
         'max-height': `${props.maxH}px`,
@@ -48,12 +49,14 @@ export function PreviewWindow(props: PreviewWindowProps): JSX.Element {
     >
       <Show when={props.overlay}>
         <div
+          data-preview-overlay={props.overlay}
           class={`${props.overlay === 'fade-top' ? fadeOverlayTop : fadeOverlayBottom} ${overlay({ position: props.overlay === 'fade-top' ? 'top' : 'bottom' })}`}
           style={{ height: '28px' }}
           aria-hidden="true"
         />
       </Show>
       <div
+        data-preview-scroll
         ref={(el) => {
           scrollEl = el;
         }}

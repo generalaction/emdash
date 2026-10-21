@@ -1,4 +1,4 @@
-import { stableStringify } from '../live/mutations';
+import { stableStringify } from '@emdash/shared/util';
 
 export function encodeTopic(refId: string, key: unknown): string {
   if (key === undefined) return refId;

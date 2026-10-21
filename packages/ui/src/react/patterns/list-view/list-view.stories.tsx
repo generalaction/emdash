@@ -1,3 +1,8 @@
+/**
+ * Stories for the raw `ListView` chrome — an internal escape hatch. Page-level
+ * lists render through `CollectionView` (see Patterns/CollectionView); compose
+ * this chrome directly only when a surface cannot fit that shell.
+ */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
   CheckIcon,
@@ -14,7 +19,7 @@ import { ListView } from './index';
 import * as s from '../../story-layout.css';
 
 const meta: Meta = {
-  title: 'Patterns/ListView',
+  title: 'Patterns/ListView/Chrome (escape hatch)',
   parameters: { layout: 'padded' },
 };
 export default meta;
@@ -72,7 +77,7 @@ function ItemRow({
         <div
           style={{
             fontSize: 'var(--em-text-sm)',
-            fontWeight: 500,
+            fontWeight: 400,
             color: 'var(--em-foreground)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -537,7 +542,7 @@ function AgentRow({ agent, isLast }: { agent: AgentItem; isLast: boolean }) {
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
-          style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500, color: 'var(--em-foreground)' }}
+          style={{ fontSize: 'var(--em-text-sm)', fontWeight: 400, color: 'var(--em-foreground)' }}
         >
           {agent.name}
         </div>

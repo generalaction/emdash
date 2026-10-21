@@ -33,6 +33,10 @@ export async function verifyLinearCredentials(
     const organization = await viewer.organization;
     const displayName = viewer.displayName || viewer.name || organization.name;
     return ok({
+      account: {
+        id: `${organization.id}:${viewer.id}`,
+        ...(viewer.email ? { login: viewer.email } : {}),
+      },
       displayName,
       displayDetail:
         organization.name && organization.name !== displayName ? organization.name : undefined,

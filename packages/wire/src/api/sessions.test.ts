@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { LiveSource, LiveUpdate } from '../live/protocol';
+import { createController } from '../rpc/controller';
+import type { LiveSource, LiveUpdate } from './channel';
 import { connect } from './connect';
-import { createController, encodeTopic } from './controller';
 import { defineContract, liveModel, liveState } from './define';
 import { createWireSessionHub } from './sessions';
+import { encodeTopic } from './topics';
 import { memoryTransportPair } from './transports';
 
 const contract = defineContract({
@@ -59,7 +60,7 @@ describe('createWireSessionHub', () => {
     expect(live.unsubscribes[0]).toHaveBeenCalledTimes(1);
     expect(live.subscribers.size).toBe(1);
 
-    hub.dispose();
+    await hub.dispose();
     expect(live.unsubscribes[1]).toHaveBeenCalledTimes(1);
     expect(live.subscribers.size).toBe(0);
   });

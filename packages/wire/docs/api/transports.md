@@ -8,6 +8,7 @@ type WireTransport = {
   onMessage(cb: (message: WireMessage) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
   onReconnect?(cb: () => void): Unsubscribe;
+  onTerminalFailure?(cb: (error: unknown) => void): Unsubscribe;
   close?(): void;
 };
 ```
@@ -15,11 +16,16 @@ type WireTransport = {
 The same `serve()`, `connect()`, and `client()` code works across every
 transport. Only construction changes.
 
-`onReconnect` is optional and should fire only after a replacement link is live.
-`connect()` uses it to re-attach live topics; replicas then force a fresh
-snapshot. `close()` releases listeners registered by the adapter. It closes the
-underlying channel only when the adapter owns a closeable channel, such as a
-`MessagePort`.
+`onReconnect` is optional and fires whenever the transport establishes
+connectivity, including the first time. Its presence marks the transport as
+reconnect-capable: `connect()` then holds calls issued while disconnected until
+the next reconnect or the call deadline, and re-attaches live topics after each
+reconnect; replicas then force a fresh snapshot. Transports without it fail
+calls immediately while disconnected. `onTerminalFailure` fires once when the
+transport gives up permanently; `connect()` rejects all held and future calls
+with a `WireError('DISCONNECTED')` carrying the cause. `close()` releases
+listeners registered by the adapter. It closes the underlying channel only when
+the adapter owns a closeable channel, such as a `MessagePort`.
 
 ## Memory
 
@@ -41,20 +47,6 @@ Posting on `left` delivers to listeners registered on `right`, and posting on
 `right` delivers to listeners registered on `left`. This mirrors
 `MessageChannel`'s `port1`/`port2`: tests commonly call `serve(pair.right, ...)`
 and `connect(pair.left)`, but the opposite assignment is equally valid.
-
-## Event Ports
-
-`portTransport(port)` adapts Electron-style ports with `postMessage()` and
-`on('message')`:
-
-```ts
-const transport = portTransport(messagePortMain);
-serve(transport, controller);
-```
-
-The adapter listens for `close`, `exit`, and `error` as disconnect signals.
-`close()` removes the message and lifecycle listeners it registered and calls
-`port.close?.()`.
 
 ## DOM MessagePort
 
@@ -123,69 +115,85 @@ const transport = reconnectingTransport(
     const pair = await openRemoteWirePair();
     return pair.left;
   },
-  { backoffMs: [100, 250, 500, 1000], maxQueuedMessages: 1000 }
+  { backoffMs: [100, 250, 500, 1000] }
 );
+
+await transport.ready();
 ```
 
-Messages posted while no inner transport is connected are queued. When an inner
-transport disconnects, listeners are notified and reconnection starts. The queue
-is bounded with drop-oldest semantics; `maxQueuedMessages` defaults to `1000`.
-
-`onReconnect` fires after a replacement inner transport is connected and queued
-messages are flushed. `Connection` listens for that signal and re-issues active
-`attach` requests; replicas refresh their snapshots after reattach.
-`close()` stops the retry loop, closes the current inner
-transport if present, and clears queued messages and listeners.
-
-## Process Transport
-
-`processTransport(process)` adapts a supervised `ManagedProcess` to
-`WireTransport`:
+`connectOnce` is the readiness boundary for one physical connection. The returned
+transport remains private until the promise resolves. Applications that require a
+handshake should open the candidate, run the handshake against it, dispose the
+temporary logical `Connection`, and only then return the candidate:
 
 ```ts
-const runtime = await host.spawn({ entry: '/path/to/runtime.js' }, scope);
-const contractClient = client(api, connect(processTransport(runtime)));
+const transport = reconnectingTransport(
+  async () => {
+    const candidate = await openRemoteTransport();
+    const handshakeConnection = connect(candidate);
+    const handshakeClient = client(api, handshakeConnection);
+    try {
+      const result = await handshakeClient.initialize({ version: PROTOCOL_VERSION });
+      if (!result.success) throw new ProtocolMismatchError(result.error);
+      return candidate;
+    } catch (error) {
+      candidate.close?.();
+      throw error;
+    } finally {
+      handshakeConnection.dispose();
+    }
+  },
+  {
+    shouldRetry: (error) => !(error instanceof ProtocolMismatchError),
+  }
+);
+
+await transport.ready();
+const stableClient = client(api, connect(transport));
 ```
 
-See [process host](../runtime/process-host.md).
+This ordering guarantees that held calls and live-topic reattachments cannot
+overtake an application handshake. Wire itself remains version-agnostic; the
+application owns the handshake contract and permanent-error classification.
 
-`close()` releases `ManagedProcess` message and exit subscriptions. It does not
-kill the process; process lifetime remains owned by the `ProcessHost`/`Scope`.
+The reconnecting transport does not queue messages. `post()` while no ready
+inner transport exists throws a `WireError('DISCONNECTED')`; robustness is
+owned entirely by `connect()`, which holds calls issued while disconnected
+until the next reconnect or the call deadline. When an inner transport
+disconnects, listeners are notified, readiness resets, and reconnection starts.
 
-## Logging Transport
+`ready()` resolves after the current `connectOnce` succeeds and its candidate is
+installed. After a disconnect, a new call to `ready()` waits for the replacement
+generation. A previously resolved readiness promise does not become pending
+again, so disconnect observers should call `ready()` after receiving the
+disconnect event.
 
-`loggingTransport(transport, logger, options?)` wraps any transport and debug
-logs every sent and received protocol message:
+`shouldRetry(error, { attempt, isReconnect })` classifies factory or handshake
+failures. Returning `false`, or exhausting a finite `retrySchedule`, permanently
+stops that transport, rejects its current readiness promise, and fires
+`onTerminalFailure` with the terminal error. Future `post()` calls fail with the
+terminal error. By default, failures remain retryable under the configured
+schedule.
 
-```ts
-const transport = loggingTransport(pair.right, logger.child({ side: 'server' }), {
-  payloads: true,
-  maxPayloadLength: 4096,
-});
-```
+`onReconnect` fires whenever an inner transport reaches readiness, including
+the first one. `Connection` listens for that signal to flush held calls and
+re-issue active `attach` requests; replicas refresh their snapshots after
+reattach. `close()` stops the retry loop, closes the current inner transport if
+present, fires `onTerminalFailure`, and clears listeners.
 
-Use it for local debugging and integration diagnostics. For semantic request
-events, prefer instrumentation and `withLogging()`; see
+## Composition Notes
+
+`reconnectingTransport()` accepts `clock` and `retrySchedule` options. The legacy
+`backoffMs` array is normalized to a repeat-last retry schedule. Closing the
+transport synchronously aborts pending reconnect sleeps and disposes late
+connections.
+
+Electron window exposure returns an async cleanup function. Await it when tearing
+down a runtime host so session hubs and controllers finish disposal before the
+worker or window bridge is replaced.
+
+Transport composition is ordinary function wrapping, so order matters when
+stacking adapters around `reconnectingTransport()`. For semantic telemetry (one
+event per logical call, snapshot, attachment, cancellation, resync, or mutation
+dedupe), attach a `WireInstrumentation`; see
 [observability](../observability.md).
-
-`loggingTransport.close()` delegates to the wrapped transport, and
-`onReconnect()` is forwarded when the wrapped transport supports it.
-
-Transport composition is ordinary function wrapping, so order matters:
-
-```ts
-// Logs the stable outer endpoint, including queued frames and reconnect events.
-const outerLogged = loggingTransport(reconnectingTransport(openTransport), logger);
-
-// Logs each concrete inner connection separately.
-const innerLogged = reconnectingTransport(async () =>
-  loggingTransport(await openTransport(), logger)
-);
-```
-
-Use transport-level logging when you need frame-level evidence: raw `call`,
-`result`, `attach`, `update`, and reconnect traffic. Use controller/client
-instrumentation for semantic telemetry: one event per logical call, snapshot,
-attachment, cancellation, resync, or mutation dedupe. In practice, apps should
-enable instrumentation by default and turn on transport logging only while
-debugging a boundary.

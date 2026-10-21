@@ -1,3 +1,9 @@
+import type { Result } from '@emdash/shared';
+import {
+  createMutationId,
+  type LiveCursorEntry,
+  type LiveMutationSuccess,
+} from '../../api/channel';
 import type { MutationCallOptions } from '../../api/client';
 import type {
   LiveStateData,
@@ -10,14 +16,25 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
-import { createMutationId, type LiveMutationResult } from '../mutations';
-import type { LiveCursorEntry } from '../protocol';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import type { LiveChangeMeta } from '../state';
 import type { ReplicaState, ReplicaStateOptions } from './state';
 import type { StateStore } from './store';
 
+/**
+ * Replica-side mutation success. `settled: false` is client-side metadata added
+ * when the mutation committed upstream but cursor translation timed out before
+ * the local replica caught up; the field is absent otherwise, so the wire shape
+ * of `LiveMutationResult` is unchanged.
+ */
+export type ReplicaMutationSuccess<D> = LiveMutationSuccess<D> & {
+  settled?: boolean;
+};
+
+export type ReplicaMutationResult<D, E> = Result<ReplicaMutationSuccess<D>, E>;
+
 export type ContractMutationInvocation<D, E> = {
-  result: LiveMutationResult<D, E>;
+  result: ReplicaMutationResult<D, E>;
   settled: Promise<void>;
 };
 
@@ -76,9 +93,10 @@ export function buildReplicaInstance<Group extends LiveModelDef>(
         key: LiveModelKey<Group>;
         input: unknown;
         mutationId: string;
-      }
+      },
+      options?: MutationCallOptions
     ): Promise<
-      LiveMutationResult<
+      ReplicaMutationResult<
         MutationData<LiveModelMutations<Group>[Name]>,
         MutationError<LiveModelMutations<Group>[Name]>
       >
@@ -98,7 +116,7 @@ export function buildReplicaInstance<Group extends LiveModelDef>(
       callOptions: MutationCallOptions = {}
     ): Promise<ContractMutationInvocation<unknown, unknown>> => {
       const mutationId = callOptions.mutationId ?? createMutationId();
-      const result = await opts.mutate(name as never, { key, input, mutationId });
+      const result = await opts.mutate(name as never, { key, input, mutationId }, callOptions);
       return {
         result,
         settled: result.success
@@ -116,12 +134,24 @@ export function buildReplicaInstance<Group extends LiveModelDef>(
   };
 }
 
+export type TranslateCursorsOptions = {
+  instrumentation?: WireInstrumentation;
+  mutationId?: string;
+};
+
+/**
+ * Translates upstream cursors to the replica's local numbering. A translation
+ * timeout never throws: the entry is translated best-effort and the result is
+ * marked `settled: false` so callers can react without failure semantics.
+ */
 export async function translateCursors(
   instance: ReplicaInstance,
   contract: LiveModelDef,
-  cursors: LiveCursorEntry[]
-): Promise<LiveCursorEntry[]> {
+  cursors: LiveCursorEntry[],
+  options: TranslateCursorsOptions = {}
+): Promise<{ cursors: LiveCursorEntry[]; settled: boolean }> {
   const translated: LiveCursorEntry[] = [];
+  let settled = true;
   for (const entry of cursors) {
     const stateName = stateNameForCursor(contract, entry);
     const state = stateName ? instance.states[stateName] : undefined;
@@ -129,13 +159,22 @@ export async function translateCursors(
       translated.push(entry);
       continue;
     }
-    await state.waitForCursor(entry.cursor);
+    try {
+      await state.waitForCursor(entry.cursor);
+    } catch (error) {
+      settled = false;
+      options.instrumentation?.cursorTranslationTimeout?.({
+        model: entry.model,
+        mutationId: options.mutationId,
+        error,
+      });
+    }
     translated.push({
       ...entry,
       cursor: state.localCursorFor(entry.cursor),
     });
   }
-  return translated;
+  return { cursors: translated, settled };
 }
 
 async function settleCursors(

@@ -1,7 +1,10 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
-import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { controlVariants } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the variant prop types.
+import type { ControlVariantProps } from '../../../styles/recipes/control';
 import * as styles from './tabs.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
@@ -28,14 +31,14 @@ export interface TabsTabProps extends TabsPrimitive.Tab.Props {
 }
 
 const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsTab(
-  { className, size = 'sm', tone = 'neutral', ...props },
+  { className, size = 'xs', tone = 'neutral', ...props },
   ref
 ) {
   return (
     <TabsPrimitive.Tab
       ref={ref}
       data-slot="tabs-tab"
-      className={cx(controlVariants({ variant: 'ghost', tone, size }), className)}
+      className={cx(controlVariants({ variant: 'ghost', tone, size }), styles.tab, className)}
       {...props}
     />
   );

@@ -1,21 +1,24 @@
 /**
  * tokens.css.ts — Non-color design tokens in Vanilla Extract.
  *
- * Replaces the :root { --font-*, --text-*, --radius-*, --font-weight-*, --animate-* }
- * blocks that were hand-maintained in theme.base.css. Values are emitted into
- * dist/style.css via the VE build pipeline.
+ * Replaces the :root { --font-*, --text-*, --font-weight-*, --animate-* }
+ * blocks that were hand-maintained in theme.base.css. Static values are emitted
+ * into dist/style.css via the VE build pipeline.
+ *
+ * Spacing and radius tokens are reference-only here; their values are generated
+ * by @emdash/theme into the default density vars and .density-* classes.
  *
  * Exports a typed `tokenVars` contract so consumers can reference these tokens
  * with full TypeScript safety rather than raw `'var(--text-sm)'` strings.
- * The sprinkles fontSize / fontWeight / fontFamily / borderRadius properties
- * use these refs.
+ * The sprinkles fontSize / fontWeight / fontFamily / borderRadius / spacing
+ * properties use these refs.
  *
  * Also emits composite typography role vars (--type-*) which are derived from
  * the primitive tokens; these remain as plain strings since they chain one var
  * into another and cannot be represented in the VE typed-vars map.
  */
 
-import { nsName } from '@theme/core/contract/namespace';
+import { nsName } from '@emdash/theme';
 import { createGlobalThemeContract, globalStyle } from '@vanilla-extract/css';
 
 // ── Primitive non-color token contract ────────────────────────────────────────
@@ -30,7 +33,6 @@ export const tokenVars = createGlobalThemeContract(
     fontWeightNormal: 'font-weight-normal',
     fontWeightMedium: 'font-weight-medium',
     fontWeightSemibold: 'font-weight-semibold',
-    fontWeightBold: 'font-weight-bold',
 
     // Primitive type size scale
     textMicro: 'text-micro',
@@ -60,6 +62,23 @@ export const tokenVars = createGlobalThemeContract(
     radius2xl: 'radius-2xl',
     radiusFull: 'radius-full',
 
+    // Spacing scale (4px base grid, Tailwind-style step names)
+    space0: 'space-0',
+    space0_5: 'space-0-5',
+    space1: 'space-1',
+    space1_5: 'space-1-5',
+    space2: 'space-2',
+    space2_5: 'space-2-5',
+    space3: 'space-3',
+    space3_5: 'space-3-5',
+    space4: 'space-4',
+    space5: 'space-5',
+    space6: 'space-6',
+    space7: 'space-7',
+    space8: 'space-8',
+    space10: 'space-10',
+    space12: 'space-12',
+
     // Named animation shorthands
     animateAccordionDown: 'animate-accordion-down',
     animateAccordionUp: 'animate-accordion-up',
@@ -83,7 +102,6 @@ globalStyle(':root', {
     [tokenVars.fontWeightNormal]: '400',
     [tokenVars.fontWeightMedium]: '500',
     [tokenVars.fontWeightSemibold]: '600',
-    [tokenVars.fontWeightBold]: '700',
 
     // Primitive type size scale
     [tokenVars.textMicro]: '10px',
@@ -103,16 +121,6 @@ globalStyle(':root', {
     [tokenVars.text2xl]: '24px',
     [tokenVars.text2xlLineHeight]: '1.3',
 
-    // Radius scale
-    [tokenVars.radius]: '0.5rem',
-    [tokenVars.radiusXs]: '0.25rem',
-    [tokenVars.radiusSm]: '0.375rem',
-    [tokenVars.radiusMd]: '0.5rem',
-    [tokenVars.radiusLg]: '0.625rem',
-    [tokenVars.radiusXl]: '0.875rem',
-    [tokenVars.radius2xl]: '1.25rem',
-    [tokenVars.radiusFull]: '9999px',
-
     // Named animation shorthands
     [tokenVars.animateAccordionDown]: 'accordion-down 0.2s ease-out',
     [tokenVars.animateAccordionUp]: 'accordion-up 0.2s ease-out',
@@ -128,59 +136,74 @@ globalStyle(':root', {
 // backward compatibility with typography.css.
 
 globalStyle(':root', {
-  [nsName('type-body-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
+  [nsName('type-body-font-family')]: tokenVars.fontSans,
+  [nsName('type-body-font-size')]: tokenVars.textBase,
+  [nsName('type-body-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-body-line-height')]: '20px',
 
-  [nsName('type-body-bold-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-bold-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-bold-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
+  [nsName('type-body-bold-font-family')]: tokenVars.fontSans,
+  [nsName('type-body-bold-font-size')]: tokenVars.textBase,
+  [nsName('type-body-bold-font-weight')]: tokenVars.fontWeightSemibold,
   [nsName('type-body-bold-line-height')]: '20px',
 
-  [nsName('type-body-italic-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-italic-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-italic-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
+  [nsName('type-body-italic-font-family')]: tokenVars.fontSans,
+  [nsName('type-body-italic-font-size')]: tokenVars.textBase,
+  [nsName('type-body-italic-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-body-italic-font-style')]: 'italic',
   [nsName('type-body-italic-line-height')]: '20px',
 
-  [nsName('type-body-link-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-body-link-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-body-link-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
+  [nsName('type-body-link-font-family')]: tokenVars.fontSans,
+  [nsName('type-body-link-font-size')]: tokenVars.textBase,
+  [nsName('type-body-link-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-body-link-line-height')]: '20px',
 
-  [nsName('type-h1-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-h1-font-size')]: `var(${tokenVars.textXl})`,
-  [nsName('type-h1-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
+  [nsName('type-h1-font-family')]: tokenVars.fontSans,
+  [nsName('type-h1-font-size')]: tokenVars.textXl,
+  [nsName('type-h1-font-weight')]: tokenVars.fontWeightMedium,
   [nsName('type-h1-line-height')]: '28px',
 
-  [nsName('type-h2-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-h2-font-size')]: `var(${tokenVars.textLg})`,
-  [nsName('type-h2-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
+  [nsName('type-h2-font-family')]: tokenVars.fontSans,
+  [nsName('type-h2-font-size')]: tokenVars.textLg,
+  [nsName('type-h2-font-weight')]: tokenVars.fontWeightMedium,
   [nsName('type-h2-line-height')]: '25px',
 
-  [nsName('type-h3-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-h3-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-h3-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
+  [nsName('type-h3-font-family')]: tokenVars.fontSans,
+  [nsName('type-h3-font-size')]: tokenVars.textBase,
+  [nsName('type-h3-font-weight')]: tokenVars.fontWeightMedium,
   [nsName('type-h3-line-height')]: '22px',
 
-  [nsName('type-inline-code-font-family')]: `var(${tokenVars.fontMono})`,
-  [nsName('type-inline-code-font-size')]: `var(${tokenVars.textXs})`,
-  [nsName('type-inline-code-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
+  [nsName('type-section-font-family')]: tokenVars.fontSans,
+  [nsName('type-section-font-size')]: tokenVars.textSm,
+  [nsName('type-section-font-weight')]: tokenVars.fontWeightNormal,
+  [nsName('type-section-line-height')]: '18px',
+
+  [nsName('type-caption-font-family')]: tokenVars.fontSans,
+  [nsName('type-caption-font-size')]: tokenVars.textXs,
+  [nsName('type-caption-font-weight')]: tokenVars.fontWeightMedium,
+  [nsName('type-caption-line-height')]: '16px',
+
+  [nsName('type-description-font-family')]: tokenVars.fontSans,
+  [nsName('type-description-font-size')]: tokenVars.textSm,
+  [nsName('type-description-font-weight')]: tokenVars.fontWeightNormal,
+  [nsName('type-description-line-height')]: '18px',
+
+  [nsName('type-inline-code-font-family')]: tokenVars.fontMono,
+  [nsName('type-inline-code-font-size')]: tokenVars.textXs,
+  [nsName('type-inline-code-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-inline-code-line-height')]: '20px',
 
-  [nsName('type-code-font-family')]: `var(${tokenVars.fontMono})`,
-  [nsName('type-code-font-size')]: `var(${tokenVars.textSm})`,
-  [nsName('type-code-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
+  [nsName('type-code-font-family')]: tokenVars.fontMono,
+  [nsName('type-code-font-size')]: tokenVars.textSm,
+  [nsName('type-code-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-code-line-height')]: '20px',
 
-  [nsName('type-code-lang-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-code-lang-font-size')]: `var(${tokenVars.textTiny})`,
-  [nsName('type-code-lang-font-weight')]: `var(${tokenVars.fontWeightMedium})`,
+  [nsName('type-code-lang-font-family')]: tokenVars.fontSans,
+  [nsName('type-code-lang-font-size')]: tokenVars.textTiny,
+  [nsName('type-code-lang-font-weight')]: tokenVars.fontWeightMedium,
   [nsName('type-code-lang-line-height')]: '16px',
 
-  [nsName('type-mention-font-family')]: `var(${tokenVars.fontSans})`,
-  [nsName('type-mention-font-size')]: `var(${tokenVars.textBase})`,
-  [nsName('type-mention-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
+  [nsName('type-mention-font-family')]: tokenVars.fontSans,
+  [nsName('type-mention-font-size')]: tokenVars.textBase,
+  [nsName('type-mention-font-weight')]: tokenVars.fontWeightSemibold,
   [nsName('type-mention-line-height')]: '20px',
 });

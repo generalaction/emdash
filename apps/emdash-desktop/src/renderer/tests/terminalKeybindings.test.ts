@@ -1,16 +1,43 @@
 import { describe, expect, it } from 'vitest';
-import { decodeOsc52ClipboardData } from '@renderer/lib/pty/pty-clipboard';
+import { decodeOsc52ClipboardData } from '@core/features/terminals/browser/pty/pty-clipboard';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
+  getMacOptionArrowSequence,
   shouldCopySelectionFromTerminal,
-  shouldDispatchAppHotkeyFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
   type KeyEventLike,
-} from '@renderer/lib/pty/pty-keybindings';
+} from '@core/features/terminals/browser/pty/pty-keybindings';
+
+describe('macOS Option arrow sequences', () => {
+  it.each([
+    ['ArrowLeft', '\x1bb'],
+    ['ArrowRight', '\x1bf'],
+    ['ArrowUp', '\x01'],
+    ['ArrowDown', '\x05'],
+  ])('maps %s only on macOS keydown with Option alone', (key, sequence) => {
+    const event = { type: 'keydown', key, altKey: true };
+    expect(getMacOptionArrowSequence(event, true)).toBe(sequence);
+    expect(getMacOptionArrowSequence(event, false)).toBeUndefined();
+    for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey', 'isComposing']) {
+      expect(getMacOptionArrowSequence({ ...event, [modifier]: true }, true)).toBeUndefined();
+    }
+    expect(getMacOptionArrowSequence({ ...event, altKey: false }, true)).toBeUndefined();
+    expect(getMacOptionArrowSequence({ ...event, type: 'keyup' }, true)).toBeUndefined();
+    expect(getMacOptionArrowSequence({ ...event, type: 'keypress' }, true)).toBeUndefined();
+  });
+
+  it('does not intercept Option combinations used to type characters', () => {
+    for (const key of ['a', 'b', 'f', 'Dead', 'Alt', 'Home', 'End']) {
+      expect(
+        getMacOptionArrowSequence({ type: 'keydown', key, altKey: true }, true)
+      ).toBeUndefined();
+    }
+  });
+});
 
 describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
   const makeEvent = (overrides: Partial<KeyEventLike> = {}): KeyEventLike => ({
@@ -35,34 +62,6 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
 
   it('uses line feed for Ctrl+J', () => {
     expect(CTRL_J_ASCII).toBe('\n');
-  });
-
-  it('dispatches macOS app shortcuts while preserving non-macOS terminal controls', () => {
-    expect(shouldDispatchAppHotkeyFromTerminal(makeEvent({ key: 'z', ctrlKey: true }), true)).toBe(
-      true
-    );
-
-    for (const key of ['z', 'w', 'k', 'd']) {
-      expect(shouldDispatchAppHotkeyFromTerminal(makeEvent({ key, ctrlKey: true }), false)).toBe(
-        false
-      );
-    }
-
-    expect(
-      shouldDispatchAppHotkeyFromTerminal(makeEvent({ key: 'Tab', ctrlKey: true }), false)
-    ).toBe(true);
-    expect(
-      shouldDispatchAppHotkeyFromTerminal(
-        makeEvent({ key: 'Tab', ctrlKey: true, shiftKey: true }),
-        false
-      )
-    ).toBe(true);
-    expect(
-      shouldDispatchAppHotkeyFromTerminal(
-        makeEvent({ type: 'keyup', key: 'k', metaKey: true }),
-        true
-      )
-    ).toBe(false);
   });
 
   it('detects copy shortcuts with selection', () => {

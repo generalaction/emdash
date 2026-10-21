@@ -7,42 +7,72 @@
   "author": "",
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.mjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
   "exports": {
     "./agents": {
+      "development": "./src/agents/registry.ts",
       "types": "./dist/agents.d.mts",
       "default": "./dist/agents.mjs"
     },
     "./agents/types": {
+      "development": "./src/agents/types.ts",
       "types": "./dist/agents/types.d.mts",
       "default": "./dist/agents/types.mjs"
     },
     "./integrations": {
+      "development": "./src/integrations/index.ts",
       "types": "./dist/integrations.d.mts",
       "default": "./dist/integrations.mjs"
     },
+    "./integrations/github": {
+      "development": "./src/integrations/impl/github/types.ts",
+      "types": "./dist/integrations/github.d.mts",
+      "default": "./dist/integrations/github.mjs"
+    },
     "./issues": {
+      "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
       "default": "./dist/issues.mjs"
+    },
+    "./pull-requests": {
+      "development": "./src/pull-requests/index.ts",
+      "types": "./dist/pull-requests.d.mts",
+      "default": "./dist/pull-requests.mjs"
+    },
+    "./pull-requests/github": {
+      "development": "./src/pull-requests/impl/github/client.ts",
+      "types": "./dist/pull-requests/github.d.mts",
+      "default": "./dist/pull-requests/github.mjs"
+    },
+    "./pull-requests/schemas": {
+      "development": "./src/pull-requests/schemas.ts",
+      "types": "./dist/pull-requests/schemas.d.mts",
+      "default": "./dist/pull-requests/schemas.mjs"
+    },
+    "./pull-requests/types": {
+      "development": "./src/pull-requests/types.ts",
+      "types": "./dist/pull-requests/types.d.mts",
+      "default": "./dist/pull-requests/types.mjs"
+    },
+    "./repository": {
+      "development": "./src/repository/index.ts",
+      "types": "./dist/repository.d.mts",
+      "default": "./dist/repository.mjs"
     }
   },
   "scripts": {
-    "dev": "tsdown --watch",
-    "build": "tsdown",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "dev": "tsdown --config-loader tsx --watch",
+    "build": "tsdown --config-loader tsx && tsx tooling/validate-adapters.ts",
+    "test": "pnpm exec nx test @emdash/plugins",
+    "test:watch": "pnpm exec nx run @emdash/plugins:test-watch",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
+    "lint": "oxlint src",
     "typecheck": "tsgo --noEmit",
     "generate:acp-fixture": "tsx tooling/fixtures/create-acp-transcript.ts"
   },
   "dependencies": {
-    "@agentclientprotocol/claude-agent-acp": "^0.54.1",
-    "@agentclientprotocol/codex-acp": "^1.0.2",
     "@agentclientprotocol/sdk": "^1.1.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.280",
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
@@ -54,15 +84,17 @@
     "@octokit/rest": "^22.0.1",
     "@team-plain/graphql": "^1.0.1",
     "asana": "^3.1.12",
+    "axios": "^1.20.0",
     "featurebase-node": "^0.14.0",
     "jira.js": "^5.4.0",
     "smol-toml": "^1.6.0",
     "trello.js": "^2.1.4",
+    "youtrack-client": "^0.7.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@emdash/runtime": "workspace:*",
-    "@emdash/wire": "workspace:*",
+    "@agentclientprotocol/claude-agent-acp": "^0.81.2",
+    "@agentclientprotocol/codex-acp": "^1.13.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",
@@ -70,5 +102,32 @@
     "tsx": "^4.22.4",
     "vitest": "^3.1.4"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build",
+          "build"
+        ],
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/plugins"
+        }
+      },
+      "test-watch": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build",
+          "build"
+        ],
+        "cache": false,
+        "options": {
+          "command": "pnpm exec vitest",
+          "cwd": "packages/plugins"
+        }
+      }
+    }
+  }
 }

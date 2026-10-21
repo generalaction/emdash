@@ -22,6 +22,8 @@ export type CardHeaderProps = {
   height: number;
   /** Whether the section is currently expanded. */
   expanded: boolean;
+  /** Whether to draw the separator between the header and body. */
+  bodyVisible: boolean;
   /** Leading icon shown until the header row is hovered. */
   icon: JSX.Element;
   /** Header label content. */
@@ -43,12 +45,13 @@ export type CardHeaderProps = {
 
 export function CardHeader(props: CardHeaderProps) {
   return (
-    <div
+    <button
+      type="button"
       class={cardHeader}
       style={{ height: `${props.height}px` }}
-      role="button"
       aria-expanded={props.expanded ? 'true' : 'false'}
       data-collapse-id={props.id}
+      data-body-visible={props.bodyVisible ? '' : undefined}
     >
       <span class={cardHeaderLeft}>
         <span class={cardLeadingSlot} aria-hidden="true">
@@ -86,6 +89,6 @@ export function CardHeader(props: CardHeaderProps) {
           </span>
         </Show>
       </span>
-    </div>
+    </button>
   );
 }

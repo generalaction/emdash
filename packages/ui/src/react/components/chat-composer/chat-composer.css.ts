@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
+import { svgContainer } from '@styles/effects/svg-helpers.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
@@ -197,12 +198,104 @@ export const toolbar = style({
   paddingBottom: '0.5rem',
 });
 
-export const toolbarLeft = style({ display: 'flex', alignItems: 'center', gap: '0.375rem' });
+export const toolbarLeft = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  minHeight: '2rem',
+});
+
+export const mcpNameGroup = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  minWidth: 0,
+});
+
+export const mcpInfoIcon = style({
+  transform: 'translateY(1px)',
+});
+
+export const mcpErrorText = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+  whiteSpace: 'pre-wrap',
+});
 export const toolbarRight = style({ display: 'flex', alignItems: 'center', gap: '0.25rem' });
 
 export const permissionModeTrigger = style({
   paddingLeft: '0.1875rem',
   paddingRight: '0.1875rem',
+});
+
+export const selectedModelEffort = style({
+  color: vars.foregroundMuted,
+});
+
+export const mcpTrigger = style([
+  svgContainer,
+  {
+    display: 'inline-flex',
+    height: '1.75rem',
+    alignItems: 'center',
+    gap: '0.25rem',
+    borderRadius: tokenVars.radiusMd,
+    paddingLeft: '0.1875rem',
+    paddingRight: '0.1875rem',
+    color: vars.foreground,
+    fontSize: tokenVars.textXs,
+    lineHeight: 1,
+    outline: 'none',
+    selectors: {
+      '&[data-failed]': { color: vars.surfaceDestructiveForeground },
+      '&:hover': { backgroundColor: vars.surfaceBaseSelected },
+      '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
+    },
+  },
+]);
+
+export const mcpPopoverContent = style({
+  width: '16rem',
+  padding: '0.5rem',
+});
+
+export const mcpList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+});
+
+export const mcpRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+  borderRadius: tokenVars.radiusMd,
+  padding: '0.375rem 0.5rem',
+  fontSize: tokenVars.textSm,
+  color: vars.foreground,
+  selectors: {
+    '&[data-failed]': { color: vars.surfaceDestructiveForeground },
+  },
+});
+
+export const mcpName = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const mcpBadge = style({
+  flexShrink: 0,
+  borderRadius: tokenVars.radiusSm,
+  border: `1px solid ${vars.border}`,
+  padding: '0.0625rem 0.3125rem',
+  fontSize: tokenVars.textXs,
+  color: vars.foregroundMuted,
+  selectors: {
+    '&[data-failed]': { color: vars.surfaceDestructiveForeground },
+  },
 });
 
 // ── Agent trigger ─────────────────────────────────────────────────────────────
@@ -241,7 +334,7 @@ export const modelDetailCard = style({
 
 export const modelDetailName = style({
   lineHeight: 1.25,
-  fontWeight: 500,
+  fontWeight: 400,
 });
 
 export const modelDetailDesc = style({
@@ -319,7 +412,7 @@ export const usageStatsRow = style({
 });
 
 export const usagePercent = style({
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
 });
 

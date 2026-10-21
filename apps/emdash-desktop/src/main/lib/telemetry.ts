@@ -1,11 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import type { IDisposable, IInitializable } from '@emdash/shared';
-import { app } from 'electron';
+import type { Disposable } from '@emdash/shared/concurrency';
+import { SPAWN_PURPOSES } from '@emdash/shared/perf';
+import type {
+  TelemetryEnvelope,
+  TelemetryEvent,
+  TelemetryProperties,
+  TelemetryService as TelemetryServicePort,
+} from '@core/primitives/telemetry/api/telemetry';
+import { getAppConfig } from '@main/bootstrap/core/config';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
-import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 
 interface InitOptions {
+  appVersion?: string;
+  isPackaged?: boolean;
   installSource?: string;
 }
 
@@ -22,8 +30,10 @@ const isViteDevBuild = import.meta.env.DEV;
 const MAX_EVENT_TS_MS = 9_999_999_999_999;
 const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1_000;
 const MAX_GENERIC_NUMBER = 1_000_000;
+/** Fraction of telemetry-enabled sessions that report performance vitals. */
+const PERF_SESSION_SAMPLE_RATE = 0.05;
 
-class TelemetryService implements IInitializable, IDisposable {
+class DesktopTelemetryService implements Disposable, TelemetryServicePort {
   private enabled = true;
   private apiKey: string | undefined;
   private host: string | undefined;
@@ -37,6 +47,9 @@ class TelemetryService implements IInitializable, IDisposable {
   private cachedEmail: string | null = null;
   private cachedFeatureFlags: Record<string, boolean> = {};
   private heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+  private perfSampled = false;
+  private appVersion = 'unknown';
+  private isPackaged = false;
   private readonly kv = new KV<TelemetryKVSchema>('telemetry');
 
   // ---------------------------------------------------------------------------
@@ -55,25 +68,17 @@ class TelemetryService implements IInitializable, IDisposable {
     );
   }
 
-  private getVersionSafe(): string {
-    try {
-      return app.getVersion();
-    } catch {
-      return 'unknown';
-    }
-  }
-
   private getBaseProps() {
     return {
       schema_version: 1,
-      app_version: this.getVersionSafe(),
+      app_version: this.appVersion,
       build_variant: appEnv.build.VITE_BUILD,
       source: 'desktop_app',
       electron_version: process.versions.electron,
       platform: process.platform,
       arch: process.arch,
-      is_dev: !app.isPackaged,
-      install_source: this.installSource ?? (app.isPackaged ? 'dmg' : 'dev'),
+      is_dev: !this.isPackaged,
+      install_source: this.installSource ?? (this.isPackaged ? 'dmg' : 'dev'),
       $lib: LIB_NAME,
       ...(this.cachedGithubUsername ? { github_username: this.cachedGithubUsername } : {}),
       ...(this.cachedAccountId ? { account_id: this.cachedAccountId } : {}),
@@ -152,6 +157,31 @@ class TelemetryService implements IInitializable, IDisposable {
       'duration_ms',
       'error_step',
       'error_code',
+      // Boot watchdog / boot guardrails.
+      'stuck_phase',
+      'backend_completed',
+      'window_loaded',
+      'window_visible_ms',
+      'usable_workspace_ms',
+      // Performance vitals (sampled sessions): numbers only, fixed key set.
+      'process_name',
+      'rss_mb',
+      'heap_used_mb',
+      'heap_total_mb',
+      'detached_contexts',
+      'cpu_percent',
+      'elu_percent',
+      'loop_delay_p95_ms',
+      'loop_delay_max_ms',
+      'interval_ms',
+      ...SPAWN_PURPOSES.map((purpose) => `spawns_${purpose}`),
+      'app_process_count',
+      'app_total_rss_mb',
+      'renderer_rss_mb',
+      'gpu_rss_mb',
+      'long_tasks',
+      'long_task_total_ms',
+      'inp_ms',
     ]);
     const passthroughProps = new Set([
       '$exception_message',
@@ -315,13 +345,14 @@ class TelemetryService implements IInitializable, IDisposable {
   // ---------------------------------------------------------------------------
 
   async initialize(options?: InitOptions): Promise<void> {
-    const enabledEnv = (appEnv.runtime.TELEMETRY_ENABLED ?? 'true').toLowerCase();
-    this.enabled =
-      !isViteDevBuild && enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
+    const config = getAppConfig();
+    this.appVersion = options?.appVersion ?? 'unknown';
+    this.isPackaged = options?.isPackaged ?? false;
+    this.enabled = !isViteDevBuild && config.telemetryEnabled;
     // build value wins (prod); dev fallback used locally without VITE_ vars set
     this.apiKey = appEnv.build.VITE_POSTHOG_KEY ?? appEnv.dev.POSTHOG_PROJECT_API_KEY;
     this.host = this.normalizeHost(appEnv.build.VITE_POSTHOG_HOST ?? appEnv.dev.POSTHOG_HOST);
-    this.installSource = options?.installSource ?? appEnv.runtime.INSTALL_SOURCE;
+    this.installSource = config.installSource ?? options?.installSource;
     this.sessionId = randomUUID();
 
     // Load persisted state from SQLite KV (all reads are non-blocking best-effort)
@@ -373,7 +404,14 @@ class TelemetryService implements IInitializable, IDisposable {
     // sessionId is guaranteed non-undefined at this point (set to randomUUID() above).
     void this.kv.set('lastSessionId', this.sessionId!);
 
-    void this.posthogCapture('app_started');
+    // Session-level perf-vitals sampling roll: decided once per session, only
+    // ever true when telemetry is fully enabled. Consumers (main vitals
+    // reporter, worker sampling activation, renderer observers) must create
+    // zero timers/observers when this is false.
+    this.perfSampled = this.isEnabled() && Math.random() < PERF_SESSION_SAMPLE_RATE;
+
+    // app_started is captured by the boot report (bootstrap/core/boot-report)
+    // once boot settles, so it can carry the boot durations.
     void this.checkDailyActiveUser();
 
     // Heartbeat: write lastHeartbeatTs to KV every 60 s so crash recovery can
@@ -458,9 +496,15 @@ class TelemetryService implements IInitializable, IDisposable {
       envDisabled: isViteDevBuild || !this.enabled,
       userOptOut: this.userOptOut === true,
       hasKeyAndHost: !!this.apiKey && !!this.host,
+      perf_sampled: this.isPerfSampledSession(),
       session_id: this.sessionId ?? null,
       instance_id: this.instanceId ?? null,
     };
+  }
+
+  /** Whether this session reports performance vitals (implies telemetry is enabled). */
+  isPerfSampledSession(): boolean {
+    return this.perfSampled && this.isEnabled();
   }
 
   getInstanceId(): string | undefined {
@@ -494,4 +538,4 @@ class TelemetryService implements IInitializable, IDisposable {
   }
 }
 
-export const telemetryService = new TelemetryService();
+export const telemetryService = new DesktopTelemetryService();

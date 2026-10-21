@@ -2,12 +2,13 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyGitLabCredentials } from './client';
 import { icon } from './icon';
+import { gitLabCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
     id: 'gitlab',
     name: 'GitLab',
-    description: 'Work on GitLab issues',
+    description: 'Work on GitLab work items',
     websiteUrl: 'https://gitlab.com',
   },
   {
@@ -31,7 +32,7 @@ const plugin = defineIntegrationPlugin(
               placeholder: 'Personal access token',
             },
           ],
-          help: 'Create a personal access token with read_api scope in GitLab settings.',
+          help: 'Create a personal access token with api scope in GitLab settings.',
         },
       ],
     },
@@ -41,6 +42,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: gitLabCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyGitLabCredentials(credentials);
       if (!result.success)

@@ -56,6 +56,7 @@ export async function verifyAsanaCredentials(
     const displayDetail =
       workspace?.name && user.name && workspace.name !== user.name ? user.name : undefined;
     return ok({
+      ...(user.gid ? { account: { id: user.gid } } : {}),
       displayName,
       displayDetail,
       credentials: {

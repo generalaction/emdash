@@ -7,9 +7,14 @@ import { VirtualList } from './virtual-list';
 // ── Public namespace ──────────────────────────────────────────────────────────
 
 /**
- * ListView — a namespaced, virtualized, composable list pattern.
+ * ListView — the raw, virtualized list chrome. **Internal escape hatch, not a
+ * page pattern**: page-level lists render through `CollectionView`
+ * (`../collection-view/`), which owns this chrome and pairs it with the
+ * headless `createListView` state factory below. Compose these pieces directly
+ * only when a surface genuinely cannot fit `CollectionView`'s shell (for
+ * example the workbench sidebar lists) — and expect to justify that in review.
  *
- * Usage:
+ * Usage (escape hatch only):
  * ```tsx
  * <ListView>
  *   <ListView.Toolbar>
@@ -66,6 +71,9 @@ export type { Comparator } from './comparators';
 
 export { useClientListFilter } from './use-client-list-filter';
 export type { ClientListFilterOptions } from './use-client-list-filter';
+
+export { useQueryListSource } from './use-query-list-source';
+export type { ExternalListSource, QueryResultLike } from './use-query-list-source';
 
 // ── Headless state factory (createListView) ───────────────────────────────────
 

@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyTrelloCredentials } from './client';
 import { icon } from './icon';
+import { trelloCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -41,6 +42,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: trelloCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyTrelloCredentials(credentials);
       if (!result.success)

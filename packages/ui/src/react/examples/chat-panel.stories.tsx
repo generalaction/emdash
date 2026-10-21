@@ -12,7 +12,7 @@ import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ImageViewerDialog } from '@/react/components/image-viewer';
+import { ImageViewerDialog } from '@/react/components/image-viewer/image-viewer-dialog';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
 import type {
   ComposerAttachment,
@@ -341,7 +341,7 @@ function LiveChatPanel({
         >
           <Button
             variant="primary"
-            size="sm"
+            size="xs"
             icon
             aria-label="Scroll to bottom"
             onClick={() => viewRef.current?.scrollToBottom({ behavior: 'smooth' })}

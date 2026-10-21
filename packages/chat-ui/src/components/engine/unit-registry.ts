@@ -16,8 +16,10 @@
  */
 
 import { messageFromItem, messageUnitDef } from '@components/rows/message/message.def';
+import { notificationUnitDef } from '@components/rows/notification/notification.def';
 import { planFromItem, planUnitDef } from '@components/rows/plan/plan.def';
 import { resourceLinkUnitDef } from '@components/rows/resource-link/resource-link.def';
+import { thinkingGroupUnitDef } from '@components/rows/thinking/thinking-group.def';
 import { thinkingUnitDef } from '@components/rows/thinking/thinking.def';
 import {
   createFileDiffFromItem,
@@ -38,6 +40,7 @@ import { workingUnitDef } from '@components/rows/working/working.def';
 import type { GroupChrome, ItemSegmenter, SegmentCtx, SegmentItem, UnitDef } from '@core/units';
 import { unit } from '@core/units';
 import type { ItemNode } from '@state/flatten';
+import { deriveToolHeaderState } from '@state/tool-header-state';
 import type {
   ChatDiff,
   ChatExecute,
@@ -48,6 +51,7 @@ import type {
   ChatSubagentToolCall,
   ChatToolCall,
   SyntheticItem,
+  ThinkingGroupItem,
   ToolNode,
 } from '@/model';
 import { ROW_INSET_X } from './row-metrics';
@@ -116,7 +120,15 @@ function toToolGroupNode(item: ToolNode, ctx: SegmentCtx): ItemNode {
       : 'children' in item && item.children
         ? item.children.map((child: ToolNode) => toToolGroupNode(child, ctx))
         : [];
-  return { item: header, children };
+  return {
+    item: header,
+    children,
+    headerState: deriveToolHeaderState(
+      item,
+      children.map((child) => child.headerState),
+      ctx.pendingToolCallIds()
+    ),
+  };
 }
 
 function toUnitData(item: ToolNode, ctx: SegmentCtx): ToolPresentationData {
@@ -124,7 +136,7 @@ function toUnitData(item: ToolNode, ctx: SegmentCtx): ToolPresentationData {
     case 'execute-tool-call':
       return executeFromItem(item, ctx);
     case 'read-tool-call':
-      return readFileOpFromItem(item, ctx);
+      return item.locations?.length ? readFileOpFromItem(item, ctx) : toolFromItem(item, ctx);
     case 'create-file-tool-call':
       return createFileDiffFromItem(item, ctx);
     case 'modify-file-tool-call':
@@ -170,7 +182,13 @@ function toolNodeSegment(kind: ToolNode['kind']): ItemSegmenter {
  */
 export const SEGMENTERS: Record<string, ItemSegmenter> = {
   message: messageSegmenter,
+  notification: nativePassthrough<ChatItem>('notification', (item) => item, COMPOSITE_CHROME),
   thinking: nativePassthrough<ChatItem>('thinking', (item) => item, COMPOSITE_CHROME),
+  'thinking-group': nativePassthrough<ThinkingGroupItem>(
+    'thinking-group',
+    (item) => item,
+    COMPOSITE_CHROME
+  ),
   tool: nativePassthrough<ChatItem>('tool', (item) => item, COMPOSITE_CHROME),
   'file-op': nativePassthrough<ChatItem>('file-op', (item) => item, COMPOSITE_CHROME),
   execute: nativePassthrough<ChatItem>('execute', (item) => item, COMPOSITE_CHROME),
@@ -209,10 +227,12 @@ export const SEGMENTERS: Record<string, ItemSegmenter> = {
 export const UNIT_REGISTRY: Record<string, RegistryUnitDef> = {
   // Message unit (single unit per message, renders block stack internally)
   message: messageUnitDef as unknown as RegistryUnitDef,
+  notification: notificationUnitDef as unknown as RegistryUnitDef,
   // Composite item units (single-unit per ChatItem kind)
   diff: diffUnitDef as unknown as RegistryUnitDef,
   plan: planUnitDef as unknown as RegistryUnitDef,
   thinking: thinkingUnitDef as unknown as RegistryUnitDef,
+  'thinking-group': thinkingGroupUnitDef as unknown as RegistryUnitDef,
   'file-op': fileOpUnitDef as unknown as RegistryUnitDef,
   subagent: subagentUnitDef as unknown as RegistryUnitDef,
   tool: toolUnitDef as unknown as RegistryUnitDef,

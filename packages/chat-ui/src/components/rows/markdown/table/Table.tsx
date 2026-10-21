@@ -4,17 +4,15 @@
  * Uses BlockFrame (not MeasuredBlockFrame) because the height is fully
  * determined by the formula in layoutTable — no DOM write-back needed.
  *
- * Column widths are enforced via <colgroup> + table-layout:fixed so that
- * text-overflow:ellipsis truncation works on every cell. Wide tables (where
- * tableWidth > contentWidth) scroll horizontally inside the scroll wrapper.
+ * Pretext-measured column widths are projected through <colgroup> and fixed
+ * table layout. Wide tables scroll horizontally inside the wrapper without
+ * making the DOM a second source of geometry.
  *
  * Each cell receives a native `title` attribute so the full content is
  * accessible on hover via the browser tooltip.
  *
- * Visual styles (overflow, border-color, header bg, truncation) use Tailwind.
- * Geometry-coupled rules (cell padding, font-size, line-height) remain in
- * table.module.css because they define TABLE_ROW_H = 32, which the layout
- * engine and a parity test both enforce.
+ * Geometry-coupled rules (cell padding, font-size, line-height) stay alongside
+ * the layout constants so the virtualizer's reserved height matches the DOM.
  */
 
 import { BlockFrame } from '@components/engine/block-frame';

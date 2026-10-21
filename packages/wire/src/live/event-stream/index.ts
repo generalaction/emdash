@@ -6,4 +6,4 @@ export {
   type EventStreamHostOptions,
   type EventStreamHost,
   type EventStreamSourceOptions,
-} from './server';
+} from './source';

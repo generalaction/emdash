@@ -50,7 +50,7 @@ export function PlanList(props: PlanListProps) {
             <div
               style={{
                 width: planVars.iconBox,
-                height: '20px',
+                height: planVars.entryMinH,
                 'flex-shrink': '0',
                 display: 'flex',
                 'align-items': 'center',

@@ -6,9 +6,22 @@ export const GITHUB_DOTCOM_API_BASE_URL = 'https://api.github.com';
 
 export const gitHubCredentialsSchema = z.object({
   accessToken: credentialString('GitHub access token is required.'),
-  apiBaseUrl: optionalCredentialString().transform(
-    (value) => value?.replace(/\/+$/, '') ?? GITHUB_DOTCOM_API_BASE_URL
-  ),
+  apiBaseUrl: optionalCredentialString()
+    .transform((value) => value?.replace(/\/+$/, '') ?? GITHUB_DOTCOM_API_BASE_URL)
+    .refine((value) => {
+      try {
+        const url = new URL(value);
+        return (
+          (url.protocol === 'https:' || url.protocol === 'http:') &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash
+        );
+      } catch {
+        return false;
+      }
+    }, 'A valid GitHub API base URL is required.'),
 });
 
 export type GitHubCredentials = z.infer<typeof gitHubCredentialsSchema>;

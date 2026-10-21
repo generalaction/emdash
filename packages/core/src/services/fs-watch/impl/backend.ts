@@ -1,5 +1,5 @@
-import type { Scope } from '@emdash/wire/util';
-import type { WatchEvent } from '../api';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { WatchEvent } from '#services/fs-watch/api';
 
 export type WatchKey = {
   root: string;
@@ -14,6 +14,8 @@ export type WatchSink = {
 export type WatchOnError = (context: string, error: unknown) => void;
 
 export interface WatchBackend {
+  /** Aborts when backend-wide state is poisoned and the owning service must be replaced. */
+  readonly failureSignal?: AbortSignal;
   subscribe(key: WatchKey, sink: WatchSink, scope: Scope): Promise<void>;
   dispose?(): Promise<void> | void;
 }

@@ -1,4 +1,4 @@
-import type { AgentAuthContext } from '@emdash/core/agents/plugins';
+import type { AgentAuthContext } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { opencodeAuthStatus } from './auth';
 
@@ -24,6 +24,15 @@ describe('opencodeAuthStatus', () => {
 
     await expect(
       opencodeAuthStatus(ctx({ env: { OPENAI_API_KEY: 'test-key' }, exec }))
+    ).resolves.toEqual({ kind: 'authenticated' });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('reports authenticated from an OrcaRouter API key without probing the CLI', async () => {
+    const exec = vi.fn();
+
+    await expect(
+      opencodeAuthStatus(ctx({ env: { ORCAROUTER_API_KEY: 'sk-orca-test' }, exec }))
     ).resolves.toEqual({ kind: 'authenticated' });
     expect(exec).not.toHaveBeenCalled();
   });

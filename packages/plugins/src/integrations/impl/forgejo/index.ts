@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyForgejoCredentials } from './client';
 import { icon } from './icon';
+import { forgejoCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -40,6 +41,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: forgejoCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyForgejoCredentials(credentials);
       if (!result.success)

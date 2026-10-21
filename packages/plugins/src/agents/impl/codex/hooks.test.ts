@@ -1,4 +1,6 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
+import { spawnSync } from 'node:child_process';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import { parse as parseToml } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { CODEX_CONFIG_PATH, CODEX_LEGACY_HOOKS_PATH, buildCodexHookConfig } from './hooks';
 
@@ -98,6 +100,91 @@ describe('buildCodexHookConfig', () => {
 
     await expect(fs.read(CODEX_LEGACY_HOOKS_PATH)).resolves.toBe(legacyHooks);
   });
+
+  it('preserves Codex hook trust state while installing and deleting Emdash hooks', async () => {
+    const trustKey = '/home/user/.codex/config.toml:stop:0:0';
+    const fs = createMemoryFs({
+      [CODEX_CONFIG_PATH]: `[hooks.state."${trustKey}"]
+enabled = true
+trusted_hash = "sha256:trusted"
+`,
+    });
+    const hooks = buildCodexHookConfig();
+
+    await expect(hooks.writeHooks(fs, [])).resolves.toEqual([CODEX_CONFIG_PATH]);
+    await expect(hooks.getHooksInstalled(fs)).resolves.toBe(true);
+
+    const installed = parseToml((await fs.read(CODEX_CONFIG_PATH)) ?? '') as {
+      hooks: {
+        state: Record<string, { enabled?: boolean; trusted_hash?: string }>;
+      };
+    };
+    expect(installed.hooks.state[trustKey]).toEqual({
+      enabled: true,
+      trusted_hash: 'sha256:trusted',
+    });
+
+    await hooks.deleteHooks(fs);
+
+    const deleted = parseToml((await fs.read(CODEX_CONFIG_PATH)) ?? '') as {
+      hooks: {
+        state: Record<string, { enabled?: boolean; trusted_hash?: string }>;
+      };
+    };
+    expect(deleted.hooks.state[trustKey]).toEqual({
+      enabled: true,
+      trusted_hash: 'sha256:trusted',
+    });
+    expect(await hooks.getHooksInstalled(fs)).toBe(false);
+  });
+
+  it('still validates Codex event hooks after separating trust state', async () => {
+    const fs = createMemoryFs({
+      [CODEX_CONFIG_PATH]: `[hooks.state."config.toml:stop:0:0"]
+enabled = true
+
+[hooks.Stop]
+invalid = true
+`,
+    });
+
+    await expect(buildCodexHookConfig().getHooksInstalled(fs)).rejects.toThrow(
+      'expected "hooks.Stop" to be an array of objects'
+    );
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'pipes the Codex session argument through to the hook request body',
+    async () => {
+      const fs = createMemoryFs();
+      const hooks = buildCodexHookConfig();
+      await hooks.writeHooks(fs, []);
+
+      const config = parseToml((await fs.read(CODEX_CONFIG_PATH)) ?? '') as {
+        hooks: { SessionStart: Array<{ hooks: Array<{ command: string }> }> };
+      };
+      const command = config.hooks.SessionStart[0]?.hooks[0]?.command;
+      expect(command).toBeDefined();
+
+      const payload = '{"session_id":"session-1"}';
+      const result = spawnSync(
+        '/bin/sh',
+        ['-c', `curl() { cat; }; ${command}`, 'codex-hook', payload],
+        {
+          encoding: 'utf8',
+          env: {
+            PATH: process.env.PATH ?? '',
+            EMDASH_HOOK_PORT: '1234',
+            EMDASH_HOOK_NONCE: 'nonce',
+            EMDASH_PTY_ID: 'pty-1',
+          },
+        }
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe(payload);
+    }
+  );
 
   it('deletes Emdash hooks from both current and legacy Codex hook config', async () => {
     const emdashHook = {

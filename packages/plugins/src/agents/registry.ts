@@ -1,5 +1,5 @@
 // The single plugin registry
-import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import type { CLIAgentPluginProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { createPluginRegistry } from '@emdash/shared/plugins';
 import { provider as amp } from './impl/amp';
 import { provider as antigravity } from './impl/antigravity';
@@ -8,6 +8,7 @@ import { provider as autohand } from './impl/autohand';
 import { provider as charm } from './impl/charm';
 import { provider as claude } from './impl/claude';
 import { provider as cline } from './impl/cline';
+import { provider as codebuddy } from './impl/codebuddy';
 import { provider as codebuff } from './impl/codebuff';
 import { provider as codex } from './impl/codex';
 import { provider as commandcode } from './impl/commandcode';
@@ -28,9 +29,11 @@ import { provider as kiro } from './impl/kiro';
 import { provider as letta } from './impl/letta';
 import { provider as mimocode } from './impl/mimocode';
 import { provider as mistral } from './impl/mistral';
+import { provider as muse } from './impl/muse';
 import { provider as ohMyPi } from './impl/oh-my-pi';
 import { provider as opencode } from './impl/opencode';
 import { provider as pi } from './impl/pi';
+import { provider as primeAgent } from './impl/prime-agent';
 import { provider as qoder } from './impl/qoder';
 import { provider as qwen } from './impl/qwen';
 import { provider as rovo } from './impl/rovo';
@@ -63,6 +66,7 @@ for (const p of [
   kiro,
   rovo,
   cline,
+  codebuddy,
   continueCli,
   codebuff,
   freebuff,
@@ -71,10 +75,12 @@ for (const p of [
   junie,
   ohMyPi,
   pi,
+  primeAgent,
   qoder,
   letta,
   autohand,
   mimocode,
+  muse,
   zero,
 ]) {
   pluginRegistry.register(p);

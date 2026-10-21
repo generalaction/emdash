@@ -205,6 +205,14 @@ describe('NativeWatch', () => {
     expect(resync).not.toHaveBeenCalled();
   });
 
+  it('does not enter the native subscriber when disposed during preflight', async () => {
+    const watch = new NativeWatch(root, [], vi.fn(), vi.fn(), vi.fn(), subscribe);
+
+    await watch.dispose();
+
+    expect(subscribe).not.toHaveBeenCalled();
+  });
+
   it('disposes a replacement that finishes subscribing during disposal', async () => {
     const replacement = deferred<parcelWatcher.AsyncSubscription>();
     const replacementUnsubscribe = vi.fn(async () => {});
@@ -223,5 +231,18 @@ describe('NativeWatch', () => {
     expect(replacementUnsubscribe).toHaveBeenCalledOnce();
     expect(subscribe).toHaveBeenCalledTimes(2);
     expect(resync).not.toHaveBeenCalled();
+  });
+
+  it('contains final unsubscribe failures and reports them', async () => {
+    const failure = new Error('Unable to remove watcher');
+    const unsubscribe = vi.fn().mockRejectedValue(failure);
+    queueSubscription({ unsubscribe });
+    const onError = vi.fn();
+    const watch = await openWatch(vi.fn(), onError);
+
+    await expect(watch.dispose()).resolves.toBeUndefined();
+
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(`unsubscribe ${root}`, failure);
   });
 });

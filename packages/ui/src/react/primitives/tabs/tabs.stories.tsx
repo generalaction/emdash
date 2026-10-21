@@ -42,6 +42,18 @@ export const Default: Story = {
   ),
 };
 
+export const Vertical: Story = {
+  render: () => (
+    <Tabs.Root defaultValue="overview" orientation="vertical">
+      <Tabs.List aria-label="Sections">
+        <Tabs.Tab value="overview">Overview</Tabs.Tab>
+        <Tabs.Tab value="details">Details</Tabs.Tab>
+        <Tabs.Tab value="history">History</Tabs.Tab>
+      </Tabs.List>
+    </Tabs.Root>
+  ),
+};
+
 export const AcrossSurfaces: Story = {
   render: () => (
     <Box

@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "customConditions": ["development"],
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,

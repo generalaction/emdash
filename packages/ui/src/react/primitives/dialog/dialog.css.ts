@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { kfFadeIn, kfFadeOut, kfPopupIn, kfPopupOut } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
@@ -40,7 +40,7 @@ export const content = recipe({
     backgroundColor: vars.surface,
     fontSize: tokenVars.textSm,
     color: vars.foreground,
-    boxShadow: `0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+    boxShadow: `${vars.shadowOverlay}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
     outline: 'none',
     selectors: {
       '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
@@ -54,6 +54,8 @@ export const content = recipe({
       md: { '@media': { 'screen and (min-width: 640px)': { maxWidth: '32rem' } } },
       lg: { '@media': { 'screen and (min-width: 640px)': { maxWidth: '42rem' } } },
       xl: { '@media': { 'screen and (min-width: 640px)': { maxWidth: '80vw', height: '80vh' } } },
+      // Near-fullscreen: fills the positioner (viewport minus its 1rem padding).
+      full: { height: '100%' },
     },
   },
   defaultVariants: { size: 'md' },
@@ -82,7 +84,7 @@ export const footer = style({
   gap: '0.5rem',
   borderTop: `1px solid ${vars.border}`,
   padding: '0.75rem',
-  backgroundColor: vars.surfaceBaseEmphasis,
+  backgroundColor: vars.surfaceEmphasis,
   '@media': {
     '(min-width: 640px)': {
       flexDirection: 'row',
@@ -94,6 +96,18 @@ export const footer = style({
 export const title = style({
   fontSize: tokenVars.textSm,
   letterSpacing: '-0.015em',
+  color: vars.foreground,
+});
+
+export const description = style({
+  fontSize: tokenVars.textSm,
+  color: vars.foregroundMuted,
+});
+globalStyle(`${description} a`, {
+  textDecoration: 'underline',
+  textUnderlineOffset: '3px',
+});
+globalStyle(`${description} a:hover`, {
   color: vars.foreground,
 });
 

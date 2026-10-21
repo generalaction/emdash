@@ -10,6 +10,7 @@ import { provider as notion } from './impl/notion';
 import { provider as plain } from './impl/plain';
 import { provider as plane } from './impl/plane';
 import { provider as trello } from './impl/trello';
+import { provider as youtrack } from './impl/youtrack';
 import type { IssuesPluginProvider } from './plugin';
 
 /**
@@ -40,6 +41,7 @@ for (const provider of [
   notion,
   featurebase,
   plain,
+  youtrack,
 ]) {
   issuesPluginRegistry.register(provider);
 }

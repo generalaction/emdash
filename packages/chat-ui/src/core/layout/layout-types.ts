@@ -71,16 +71,16 @@ export type CodeLaidOut = {
   lang?: string;
 };
 
-/** Table block: formula-measured, single-line truncated cells. */
+/** Table block: formula-measured, single-line cells with horizontal overflow. */
 export type TableLaidOut = {
   kind: 'table';
   id: string;
   top: number;
   height: number;
   contentWidth: number;
-  /** Width of each column in px (equal distribution, floored at TABLE_MIN_COL_W). */
+  /** Content-aware width of each column in px. */
   colWidths: number[];
-  /** Total table width = colWidths.length * colW; may exceed contentWidth (triggers scroll). */
+  /** Sum of colWidths; may exceed the available width and trigger horizontal scroll. */
   tableWidth: number;
   header: string[];
   rows: string[][];

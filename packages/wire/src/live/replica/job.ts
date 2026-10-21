@@ -1,5 +1,7 @@
 import type { PendingLease, Unsubscribe } from '@emdash/shared';
+import { stableStringify } from '@emdash/shared/util';
 import type { z } from 'zod';
+import type { LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveJobClientHandle } from '../../api/client';
 import type {
   LiveJobEndpointDef,
@@ -8,14 +10,14 @@ import type {
   JobProgress,
   JobResult,
 } from '../../api/define';
-import type { WireInstrumentation } from '../../observability';
-import { createManagedSource } from '../../util/managed-source';
+import type { WireInstrumentation } from '../../api/instrumentation';
+import { resyncRetry } from '../follower';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from '../job';
-import { stableStringify } from '../mutations';
 import { liveJobStateSchema } from '../protocol';
-import type { LiveJobState, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
-import { LiveState } from '../state';
-import { managedLiveSource } from './source';
+import type { LiveJobState } from '../protocol';
+import { LiveStateSource } from '../state';
+import { createReplicaResourceCache } from './retention';
+import { resourceCachedLiveSource } from './source';
 
 export type ReplicaJobState<Def extends LiveJobEndpointDef> = LiveJobState<
   JobProgress<Def>,
@@ -40,7 +42,7 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
 
   private readonly client: LiveJobClient<JobProgress<Def>, JobResult<Def>, JobError<Def>>;
   private local:
-    | LiveState<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>
+    | LiveStateSource<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>
     | undefined;
   private readonly store: JobStore<ReplicaJobState<Def>>;
   private readonly detachPromise: Promise<Unsubscribe>;
@@ -61,11 +63,15 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
       this.job.def.result,
       this.job.def.error
     ) as z.ZodType<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>;
+    const retryPolicy = resyncRetry();
     this.client = new LiveJobClient<JobProgress<Def>, JobResult<Def>, JobError<Def>>(stateSchema, {
       refetchSnapshot: () =>
         handle.snapshot() as Promise<
           LiveSnapshot<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>
         >,
+      // Retry like every production replica, but stop once the job reached a
+      // terminal state — the replica detaches from upstream then anyway.
+      onResyncFailed: (context) => (this.detached ? { kind: 'give-up' } : retryPolicy(context)),
       onState: (state) => this.handleState(state),
       instrumentation: options.instrumentation,
       topic: handle.topic,
@@ -84,7 +90,7 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
       }
     });
     this.detachPromise = handle.attach((update) => this.client.applyUpdate(update), {
-      onReattach: () => void this.client.refresh(),
+      onReattach: () => this.client.invalidate(),
     });
     void this.result.catch(() => undefined);
   }
@@ -143,24 +149,26 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
     (await this.detachPromise)();
   }
 
-  private localSource(): LiveState<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>> {
+  private localSource(): LiveStateSource<
+    LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>
+  > {
     if (!this.local) {
-      this.local = new LiveState(structuredClone(this.store.current()));
+      this.local = new LiveStateSource(structuredClone(this.store.current()));
     }
     return this.local;
   }
 }
 
-export type LiveJobReplicaOptions<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = Omit<
+export type LiveJobReplicaCacheOptions<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = Omit<
   ReplicaJobOptions<Def>,
   'store'
 > & {
-  retentionMs?: number;
+  lingerMs?: number;
   store?: () => JobStore<ReplicaJobState<Def>>;
 };
 
-export type LiveJobReplica<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = {
-  readonly kind: 'liveJobReplica';
+export type LiveJobReplicaCache<Def extends LiveJobEndpointDef = LiveJobEndpointDef> = {
+  readonly kind: 'liveJobReplicaCache';
   readonly def: Def;
   start(input: JobInput<Def>): Promise<PendingLease<ReplicaJob<Def>>>;
   acquire(jobId: string): PendingLease<ReplicaJob<Def>>;
@@ -170,14 +178,14 @@ export type LiveJobReplica<Def extends LiveJobEndpointDef = LiveJobEndpointDef> 
   dispose(): Promise<void>;
 };
 
-export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
+export function createLiveJobReplicaCache<Def extends LiveJobEndpointDef>(
   def: Def,
   job: LiveJobClientHandle<Def>,
-  options: LiveJobReplicaOptions<Def> = {}
-): LiveJobReplica<Def> {
-  const source = createManagedSource<string, ReplicaJob<Def>>({
+  options: LiveJobReplicaCacheOptions<Def> = {}
+): LiveJobReplicaCache<Def> {
+  const source = createReplicaResourceCache<string, ReplicaJob<Def>>({
     key: stableStringify,
-    graceMs: options.retentionMs,
+    lingerMs: options.lingerMs,
     async create(jobId, scope) {
       const { store, ...replicaOptions } = options;
       const replica = new ReplicaJob(job, jobId, { ...replicaOptions, store: store?.() });
@@ -188,7 +196,7 @@ export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
   });
 
   return {
-    kind: 'liveJobReplica',
+    kind: 'liveJobReplicaCache',
     def,
     async start(input) {
       const { jobId } = await job.start(input);
@@ -201,7 +209,7 @@ export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
       return source.peek(jobId);
     },
     resolve(jobId) {
-      return managedLiveSource(source, jobId, (replica) => replica);
+      return resourceCachedLiveSource(source, jobId, (replica) => replica);
     },
     cancel(jobId) {
       return job.cancel(jobId);
@@ -212,11 +220,11 @@ export function createLiveJobReplica<Def extends LiveJobEndpointDef>(
   };
 }
 
-export function isLiveJobReplica(value: unknown): value is LiveJobReplica {
+export function isLiveJobReplicaCache(value: unknown): value is LiveJobReplicaCache {
   return (
     typeof value === 'object' &&
     value !== null &&
-    (value as { kind?: unknown }).kind === 'liveJobReplica'
+    (value as { kind?: unknown }).kind === 'liveJobReplicaCache'
   );
 }
 

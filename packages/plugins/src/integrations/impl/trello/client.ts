@@ -37,6 +37,7 @@ export async function verifyTrelloCredentials(
       fields: ['fullName', 'username'],
     });
     return ok({
+      ...(me.id ? { account: { id: me.id, ...(me.username ? { login: me.username } : {}) } } : {}),
       displayName: me.fullName ?? me.username,
       displayDetail:
         me.fullName && me.username && me.fullName !== me.username ? `@${me.username}` : undefined,

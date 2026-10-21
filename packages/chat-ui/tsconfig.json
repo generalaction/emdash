@@ -3,6 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    // No customConditions here: this package typechecks and emits dts with tsc 6,
+    // which crashes ("No error for last overload signature") when it resolves
+    // @emdash/core / @emdash/wire types from src via the development condition.
+    // Types resolve from built dists; runtime tooling (vite, vitest) still uses src.
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,

@@ -1,6 +1,6 @@
+import { SCALE_NAMES, STEPS } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { SCALE_NAMES, STEPS } from '@theme/core/contract/roles';
 import React, { useEffect, useRef, useState } from 'react';
 import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';
@@ -100,11 +100,7 @@ function ScaleRow({ scale }: { scale: ScaleName }) {
   return (
     <Box display="flex" alignItems="flex-start" gap="2">
       <Box paddingTop="3" flexShrink={0} className={s.w16}>
-        <span
-          className={cx(
-            sx({ fontFamily: 'mono', fontSize: 'xs', fontWeight: 'medium', color: 'foreground' })
-          )}
-        >
+        <span className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foreground' }))}>
           {scale}
         </span>
       </Box>
@@ -158,9 +154,7 @@ function PaletteGrid() {
   return (
     <Box display="flex" flexDirection="column" gap="3" background="background" padding="6">
       <Box marginBottom="2">
-        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
-          Color Palette
-        </h2>
+        <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Color Palette</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Generated from OKLCH hue seeds with APCA-targeted contrast. Step 9 (ringed) is the solid
           fill. &quot;C&quot; is the auto-selected contrast text color for use on step 9. Hover a
@@ -203,7 +197,6 @@ export const BothModes: Story = {
           px="6"
           py="3"
           fontSize="sm"
-          fontWeight="medium"
           color="foreground"
         >
           Light
@@ -219,7 +212,6 @@ export const BothModes: Story = {
           px="6"
           py="3"
           fontSize="sm"
-          fontWeight="medium"
           color="foreground"
         >
           Dark

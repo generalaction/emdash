@@ -1,22 +1,23 @@
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveLog } from '../../api/define';
-import { createTestWire, waitFor } from '../../testing';
-import { LiveLog } from '../log';
-import { createLiveLogReplica } from './log';
+import { createTestWire } from '../../testing';
+import { LiveLogSource } from '../log';
+import { createLiveLogReplicaCache } from './log';
 
 const api = defineContract({
   output: liveLog({ key: z.object({ id: z.string() }) }),
 });
 
-describe('createLiveLogReplica', () => {
+describe('createLiveLogReplicaCache', () => {
   it('seeds retained text and passes through appends under local cursors', async () => {
     const key = { id: 'session' };
-    const log = new LiveLog({ generation: 1000 });
+    const log = new LiveLogSource({ generation: 1000 });
     log.append('seed\n');
     const contractClient = createTestWire(api, { output: () => log }).client;
 
-    const replica = createLiveLogReplica(api.output, contractClient.output);
+    const replica = createLiveLogReplicaCache(api.output, contractClient.output);
     const lease = replica.acquire(key);
     const output = await lease.ready();
     const appends: string[] = [];
@@ -35,12 +36,12 @@ describe('createLiveLogReplica', () => {
 
   it('writes through to a custom log store', async () => {
     const key = { id: 'session' };
-    const log = new LiveLog({ generation: 1000 });
+    const log = new LiveLogSource({ generation: 1000 });
     log.append('seed');
     const contractClient = createTestWire(api, { output: () => log }).client;
     let text = '';
 
-    const replica = createLiveLogReplica(api.output, contractClient.output, {
+    const replica = createLiveLogReplicaCache(api.output, contractClient.output, {
       store: () => ({
         reset: (data) => {
           text = data.text;
@@ -64,12 +65,12 @@ describe('createLiveLogReplica', () => {
 
   it('supports write-only log sinks without readable text', async () => {
     const key = { id: 'session' };
-    const log = new LiveLog({ generation: 1000 });
+    const log = new LiveLogSource({ generation: 1000 });
     log.append('seed');
     const contractClient = createTestWire(api, { output: () => log }).client;
     const writes: string[] = [];
 
-    const replica = createLiveLogReplica(api.output, contractClient.output, {
+    const replica = createLiveLogReplicaCache(api.output, contractClient.output, {
       store: () => ({
         reset: (data) => {
           writes.push(`reset:${data.text}`);
@@ -93,9 +94,9 @@ describe('createLiveLogReplica', () => {
 
   it('serves downstream clients from the local log buffer', async () => {
     const key = { id: 'session' };
-    const log = new LiveLog({ generation: 1000 });
+    const log = new LiveLogSource({ generation: 1000 });
     const upstream = createTestWire(api, { output: () => log }).client;
-    const replica = createLiveLogReplica(api.output, upstream.output);
+    const replica = createLiveLogReplicaCache(api.output, upstream.output);
     const downstream = createTestWire(api, { output: replica }).client;
 
     const handle = downstream.output.handle(key);

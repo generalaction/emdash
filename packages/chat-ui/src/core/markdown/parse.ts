@@ -5,7 +5,8 @@
  * a unified pipeline:
  *   1. remarkParse  — tokenise / parse the string into an mdast Root
  *   2. remarkGfm    — tables, strikethrough, task-lists, autolinks
- *   3. remarkMath   — block-level and inline LaTeX / KaTeX
+ *   3. remarkMath   — block-level and inline LaTeX, `$$`-delimited only. Single-dollar
+ *      inline math is disabled so prose like "$580 … $685" keeps its text.
  *   4. remarkInlineMentions — fold `@[label](target)` links and split `@bare` /
  *      `/command` text spans into `MdastMention` nodes (reads per-call data
  *      from the VFile so the processor can be built once at module scope)
@@ -56,6 +57,7 @@ import type { MdastMention } from './mdast-mention';
 import type { MentionProvider } from './mention-provider';
 import { remarkInlineMentions } from './remark-inline-mentions';
 import type { ParseData } from './remark-inline-mentions';
+import { remarkResolveReferences } from './remark-resolve-references';
 
 // ── Shared processor instance ────────────────────────────────────────────────
 //
@@ -65,7 +67,8 @@ import type { ParseData } from './remark-inline-mentions';
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
-  .use(remarkMath)
+  .use(remarkMath, { singleDollarTextMath: false })
+  .use(remarkResolveReferences)
   .use(remarkInlineMentions)
   .freeze();
 
@@ -101,6 +104,7 @@ function phrasingsToRuns(
     const node = rawNode as PhrasingContent;
 
     switch (node.type) {
+      case 'html':
       case 'text': {
         // Split on literal newlines (soft breaks inside a paragraph) and emit
         // an InlineBreak between each segment so layoutProse can force a new line.
@@ -179,20 +183,57 @@ function phrasingsToRuns(
         break;
       }
 
-      // mdast extension — math inline (remark-math attaches 'inlineMath' type)
+      // mdast extension — math inline (remark-math attaches 'inlineMath' type).
+      // The transcript does not typeset math, so show the `$$` source as plain
+      // text. A text run wraps like prose; an atomic code chip would overflow the
+      // column for long expressions. Newlines are flattened because prose
+      // fragments render with `white-space: pre` and breaks are explicit runs.
       case 'inlineMath': {
-        const run: InlineMention = { kind: 'mention', label: '∑ math', tone: 'math' };
-        runs.push(run);
+        const source = (node as { value: string }).value.replace(/\s*\n\s*/g, ' ');
+        runs.push({
+          kind: 'text',
+          text: `$$${source}$$`,
+          bold: opts.bold,
+          italic: opts.italic,
+          strike: opts.strike,
+          href: opts.href,
+        } satisfies InlineText);
         break;
       }
 
       default:
-        // Ignore unknown inline node types (html, footnote references, …)
+        // Ignore unknown inline node types (footnote references, …)
         break;
     }
   }
 
-  return runs;
+  return mergeAdjacentTextRuns(runs);
+}
+
+/**
+ * Join neighbouring text runs that share every style flag. Pretext pays a
+ * collapsed boundary gap between rich-inline items, so a split such as
+ * `formula ` + `$$x^2$$` + ` here` would render visibly wider spaces than the
+ * same sentence laid out as one run.
+ */
+function mergeAdjacentTextRuns(runs: InlineRun[]): InlineRun[] {
+  const merged: InlineRun[] = [];
+  for (const run of runs) {
+    const prev = merged[merged.length - 1];
+    if (
+      run.kind === 'text' &&
+      prev?.kind === 'text' &&
+      prev.bold === run.bold &&
+      prev.italic === run.italic &&
+      prev.strike === run.strike &&
+      prev.href === run.href
+    ) {
+      merged[merged.length - 1] = { ...prev, text: prev.text + run.text };
+      continue;
+    }
+    merged.push(run);
+  }
+  return merged;
 }
 
 // ── mdast node → Block[] ────────────────────────────────────────────────────
@@ -208,6 +249,17 @@ function blockToBlocks(
   const blocks: Block[] = [];
 
   switch (node.type) {
+    case 'html': {
+      blocks.push({
+        kind: 'prose',
+        id: nextId(),
+        variant: inQuote ? 'quote' : 'body',
+        runs: phrasingsToRuns([node]),
+        depth,
+      } satisfies ProseBlock);
+      break;
+    }
+
     case 'paragraph': {
       const parent = node as Parent;
       const runs = phrasingsToRuns(parent.children as PhrasingContent[]);

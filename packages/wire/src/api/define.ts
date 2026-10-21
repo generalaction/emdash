@@ -1,8 +1,6 @@
 import { resultSchema, type Result } from '@emdash/shared';
 import { z } from 'zod';
-import type { LiveStateRef } from '../live/mutations/model-ref';
-import type { LiveMutationInput } from '../live/mutations/types';
-import type { Mutator } from '../live/state';
+import type { LiveMutationInput, Mutator } from './channel';
 import type { WireFileMeta } from './protocol';
 
 export const contractSymbol: unique symbol = Symbol('wire.contract');
@@ -20,8 +18,11 @@ export type LiveStateDef<
   Id extends string = string,
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny = z.ZodTypeAny,
-> = LiveStateRef<Id, KeySchema, DataSchema> & {
+> = {
   kind: 'liveState';
+  id: Id;
+  keySchema: KeySchema;
+  dataSchema: DataSchema;
 };
 
 export type LiveLogEndpointDef<
@@ -37,12 +38,13 @@ export type EventStreamEndpointDef<
   Id extends string = string,
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
   EventSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  Resourced extends boolean = boolean,
 > = {
   kind: 'eventStream';
   id: Id;
   keySchema: KeySchema;
   eventSchema: EventSchema;
-};
+} & (Resourced extends true ? { resourced: true } : { resourced?: false });
 
 export type LiveJobEndpointDef<
   Id extends string = string,
@@ -110,12 +112,14 @@ export type LiveModelMutationHandler<
   InputSchema extends z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny,
   ErrorSchema extends z.ZodTypeAny,
-> = (
-  ctx: LiveModelMutationCtx<LiveModelDef>,
-  input: LiveMutationInput<z.infer<InputSchema>>
-) =>
-  | Promise<Result<z.infer<DataSchema>, z.infer<ErrorSchema>>>
-  | Result<z.infer<DataSchema>, z.infer<ErrorSchema>>;
+> = {
+  bivarianceHack(
+    ctx: LiveModelMutationCtx<LiveModelDef>,
+    input: LiveMutationInput<z.infer<InputSchema>>
+  ):
+    | Promise<Result<z.infer<DataSchema>, z.infer<ErrorSchema>>>
+    | Result<z.infer<DataSchema>, z.infer<ErrorSchema>>;
+}['bivarianceHack'];
 
 export type LiveModelDef<
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -257,6 +261,10 @@ export function procedure<
   return { kind: 'procedure', ...def };
 }
 
+export function fallible<InputSchema extends z.ZodTypeAny, ErrorSchema extends z.ZodTypeAny>(def: {
+  input: InputSchema;
+  error: ErrorSchema;
+}): ProcedureDef<InputSchema, z.ZodType<Result<void, z.output<ErrorSchema>>>>;
 export function fallible<
   InputSchema extends z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny,
@@ -265,10 +273,24 @@ export function fallible<
   input: InputSchema;
   data: DataSchema;
   error: ErrorSchema;
-}): ProcedureDef<InputSchema, ReturnType<typeof resultSchema<DataSchema, ErrorSchema>>> {
+}): ProcedureDef<InputSchema, ReturnType<typeof resultSchema<DataSchema, ErrorSchema>>>;
+export function fallible(def: {
+  input: z.ZodTypeAny;
+  data?: z.ZodTypeAny;
+  error: z.ZodTypeAny;
+}): ProcedureDef {
+  // JSON transports omit properties whose value is undefined. When the data schema accepts
+  // undefined (including the no-data case), the success envelope accepts an absent data property
+  // at the wire boundary and normalizes it back to the in-memory Result shape.
+  const data = def.data ?? z.void();
+  const output = data.safeParse(undefined).success
+    ? resultSchema(data.optional(), def.error).transform((result) =>
+        result.success ? { success: true as const, data: result.data } : result
+      )
+    : resultSchema(data, def.error);
   return procedure({
     input: def.input,
-    output: resultSchema(def.data, def.error),
+    output,
   });
 }
 
@@ -281,8 +303,24 @@ export function liveLog<KeySchema extends z.ZodTypeAny>(def: {
 export function eventStream<KeySchema extends z.ZodTypeAny, EventSchema extends z.ZodTypeAny>(def: {
   key: KeySchema;
   event: EventSchema;
-}): EventStreamEndpointDef<string, KeySchema, EventSchema> {
+}): EventStreamEndpointDef<string, KeySchema, EventSchema, false> {
   return { kind: 'eventStream', id: '', keySchema: def.key, eventSchema: def.event };
+}
+
+export function resourcedStream<
+  KeySchema extends z.ZodTypeAny,
+  EventSchema extends z.ZodTypeAny,
+>(def: {
+  key: KeySchema;
+  event: EventSchema;
+}): EventStreamEndpointDef<string, KeySchema, EventSchema, true> {
+  return {
+    kind: 'eventStream',
+    id: '',
+    keySchema: def.key,
+    eventSchema: def.event,
+    resourced: true,
+  };
 }
 
 export function liveJob<

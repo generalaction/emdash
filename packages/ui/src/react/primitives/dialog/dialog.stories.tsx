@@ -70,6 +70,54 @@ export const Sizes: Story = {
   ),
 };
 
+export const WithDescription: Story = {
+  render: () => (
+    <Dialog.Root>
+      <Dialog.Trigger render={<Button variant="ghost">Open dialog</Button>} />
+      <Dialog.Content size="sm">
+        <Dialog.Header>
+          <Dialog.Title>Connect account</Dialog.Title>
+          <Dialog.Description>
+            Authorize access to your <a href="#github">GitHub</a> account to enable pull-request
+            integration.
+          </Dialog.Description>
+        </Dialog.Header>
+        <Dialog.Body>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
+            The description renders muted supporting text under the title, with inline links
+            underlined.
+          </p>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Dialog.Close render={<Button variant="ghost">Cancel</Button>} />
+          <Dialog.Close render={<Button variant="primary">Connect</Button>} />
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+  ),
+};
+
+/** Footer `showCloseButton` appends a secondary Close button that dismisses the dialog. */
+export const FooterCloseButton: Story = {
+  render: () => (
+    <Dialog.Root>
+      <Dialog.Trigger render={<Button variant="ghost">Open read-only dialog</Button>} />
+      <Dialog.Content size="sm">
+        <Dialog.Header>
+          <Dialog.Title>Release notes</Dialog.Title>
+        </Dialog.Header>
+        <Dialog.Body>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
+            Informational dialogs can opt into the built-in footer Close button instead of wiring
+            their own.
+          </p>
+        </Dialog.Body>
+        <Dialog.Footer showCloseButton />
+      </Dialog.Content>
+    </Dialog.Root>
+  ),
+};
+
 export const Confirmation: Story = {
   render: () => (
     <Dialog.Root>
@@ -112,6 +160,38 @@ export const ExtraLarge: Story = {
             for content-heavy views like previews, diffs, or browsers.
           </p>
           {Array.from({ length: 24 }, (_, i) => (
+            <p key={i} className={cx(sx({ color: 'foregroundMuted' }))}>
+              {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+            </p>
+          ))}
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Dialog.Close render={<Button variant="ghost">Close</Button>} />
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+  ),
+};
+
+/**
+ * Body `height` pins the body to a fixed size regardless of content, unlike `maxHeight`
+ * which only caps growth. Useful when the body hosts a measured surface (e.g. an
+ * embedded terminal) that must not resize with its own output.
+ */
+export const FixedHeightBody: Story = {
+  render: () => (
+    <Dialog.Root>
+      <Dialog.Trigger render={<Button variant="ghost">Open fixed-height dialog</Button>} />
+      <Dialog.Content size="lg">
+        <Dialog.Header>
+          <Dialog.Title>Fixed-height body</Dialog.Title>
+        </Dialog.Header>
+        <Dialog.Body height={320}>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
+            This body is pinned to <code>height={'{320}'}</code>. Short content leaves empty space
+            below; long content scrolls within the fixed 320px instead of growing the dialog.
+          </p>
+          {Array.from({ length: 16 }, (_, i) => (
             <p key={i} className={cx(sx({ color: 'foregroundMuted' }))}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
             </p>

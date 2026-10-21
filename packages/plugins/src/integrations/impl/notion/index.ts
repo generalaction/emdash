@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyNotionCredentials } from './client';
 import { icon } from './icon';
+import { notionCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -35,6 +36,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: notionCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyNotionCredentials(credentials);
       if (!result.success) return { connected: false, error: result.error.message };

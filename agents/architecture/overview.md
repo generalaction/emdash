@@ -5,9 +5,10 @@ All paths are relative to `apps/emdash-desktop/`.
 ## Process Model
 
 - `src/main/`: Electron main process — app lifecycle, RPC controllers, domain services, database, PTY orchestration, updater, SSH
-- `src/preload/`: Electron preload bridge — exposes typed `invoke`, `eventSend`, `eventOn` to renderer
-- `src/renderer/`: React UI — app shell (`app/`), feature areas (`features/`), shared infrastructure (`lib/`), typed RPC client
-- `src/shared/`: Provider registry, IPC primitives (RPC + events), MCP types, skills types, shared domain types
+- `src/entry/preload.ts`: minimal Electron bridge for the Wire port and file-path lookup
+- `src/renderer/`: React composition shell and shared browser infrastructure
+- `src/core/`: vertical slices with portable APIs, Node implementations, browser UI, contributions,
+  and manifests
 
 ## Boot Sequence
 

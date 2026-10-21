@@ -3,15 +3,17 @@ import {
   APP_ID,
   APP_NAME_LOWER,
   ARTIFACT_PREFIX,
+  LINUX_DESKTOP_ID,
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity.canary.ts';
+} from './src/core/primitives/app-identity/api/app-identity.canary.ts';
 
 const config: Configuration = {
   appId: APP_ID,
   productName: PRODUCT_NAME,
   executableName: PRODUCT_NAME,
+  extraMetadata: { desktopName: `${LINUX_DESKTOP_ID}.desktop` },
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
@@ -35,10 +37,23 @@ const config: Configuration = {
   generateUpdatesFilesForAllChannels: false,
   files: ['out/**/*', 'node_modules/**/*', 'drizzle/**/*'],
   asarUnpack: [
+    'out/main/adapters/**',
     'node_modules/better-sqlite3/**',
     'node_modules/node-pty/**',
     'node_modules/@parcel/watcher/**',
+    'node_modules/typescript/**',
+    'node_modules/typescript-language-server/**',
+    'node_modules/pyright/**',
     '**/*.node',
+  ],
+  // electron-builder removes .d.ts files from node_modules even when unpacked.
+  // tsserver reads these standard libraries as runtime data.
+  extraResources: [
+    {
+      from: 'node_modules/typescript/lib',
+      to: 'app.asar.unpacked/node_modules/typescript/lib',
+      filter: ['*.d.ts'],
+    },
   ],
   mac: {
     category: 'public.app-category.developer-tools',
@@ -48,6 +63,8 @@ const config: Configuration = {
     extendInfo: {
       NSMicrophoneUsageDescription:
         'Emdash needs microphone access for voice dictation and voice mode features.',
+      NSLocalNetworkUsageDescription:
+        'Emdash needs local network access to connect to SSH hosts on your network.',
     },
     target: [
       { target: 'dmg', arch: ['arm64'] },
@@ -69,6 +86,10 @@ const config: Configuration = {
     category: 'Development',
     executableName: APP_NAME_LOWER,
     icon: 'src/assets/images/emdash/emdash-canary.png',
+    syncDesktopName: true,
+    desktop: {
+      entry: { StartupWMClass: PRODUCT_NAME },
+    },
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },

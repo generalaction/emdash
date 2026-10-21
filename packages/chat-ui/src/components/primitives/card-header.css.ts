@@ -1,22 +1,43 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@styles/theme.css';
 
+const cardInnerRadius = `calc(${vars.radiusLg} - 1px)`;
+
 // Uses content-box intentionally: the borderBottom is counted by card chrome
 // measurement helpers as the header separator.
 export const cardHeader = style({
   display: 'flex',
+  appearance: 'none',
+  boxSizing: 'content-box',
+  width: 'calc(100% - 16px)',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '6px',
-  paddingLeft: '8px',
-  paddingRight: '8px',
+  margin: 0,
+  padding: '0 8px',
+  background: 'transparent',
+  border: 0,
+  borderRadius: cardInnerRadius,
   cursor: 'pointer',
   color: vars.fgMuted,
+  font: 'inherit',
   fontSize: vars.typeBodyFontSize,
-  borderBottom: `1px solid ${vars.border}`,
+  letterSpacing: 'inherit',
+  textAlign: 'left',
+  textTransform: 'inherit',
   transition: 'background 150ms',
   userSelect: 'none',
   selectors: {
+    '&[data-body-visible]': {
+      borderBottom: `1px solid ${vars.border}`,
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+    },
+    '&:focus-visible': {
+      boxShadow: 'inset 0 0 0 2px currentColor',
+      outline: '2px solid transparent',
+      outlineOffset: '-2px',
+    },
     '&:hover': { background: vars.bg3 },
   },
 });

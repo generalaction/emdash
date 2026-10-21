@@ -1,4 +1,4 @@
-import { buildJsonConfigTrustBehavior } from '@emdash/core/agents/plugins/helpers';
+import { buildJsonConfigTrustBehavior } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
 function withCopilotTrustedFolder(
   config: Record<string, unknown>,

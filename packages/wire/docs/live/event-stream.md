@@ -50,7 +50,11 @@ host. `onActive` runs when the first subscriber attaches to a key, and `onIdle`
 runs when the last subscriber detaches:
 
 ```ts
-const fileEvents = createEventStreamHost(api.fileEvents, {
+const resourceEvents = resourcedStream({
+  key: z.object({ rootPath: z.string() }),
+  event: z.object({ kind: z.string(), path: z.string() }),
+});
+const fileEvents = createEventStreamHost(resourceEvents, {
   onActive(key) {
     void startWatcher(key);
   },
@@ -63,6 +67,23 @@ const fileEvents = createEventStreamHost(api.fileEvents, {
 This is useful for resources that should be recreated after reconnect. The wire
 client automatically reattaches live topics after reconnect, so `onActive` runs
 again in the new server process.
+
+When a successful attach must mean that the resource is ready, define the endpoint with
+`resourcedStream()` and provide `activate`. Activation receives a signal and resolves to its owned
+disposer:
+
+```ts
+const fileEvents = createEventStreamHost(api.fileEvents, {
+  async activate(key, signal) {
+    const watcher = await startWatcher(key, { signal });
+    return () => watcher.dispose();
+  },
+});
+```
+
+Concurrent subscribers share one activation. The host aborts pending activation when the final
+subscriber leaves, disposes a late result, and keeps activation alive when another subscriber still
+owns the key.
 
 You can also pass a resolver to `createController()` if another component owns
 the source:
@@ -88,6 +109,7 @@ const unsubscribe = await client.fileEvents.subscribe(
     onError(error, { retrying }) {
       if (!retrying) showFileEventStreamError(error.message);
     },
+    signal,
   }
 );
 ```
@@ -109,7 +131,7 @@ attachment.
 
 - Events are at-most-once and only delivered to currently attached clients.
 - No historical events are retained for late subscribers.
-- Event stream keys are validated by `withValidation()`.
+- Event stream keys are validated by controller validation.
 - Event payloads are not validated on the push path, matching other live updates.
 - Forwarding preserves upstream gaps and reattach errors even when the downstream
   transport remains connected.

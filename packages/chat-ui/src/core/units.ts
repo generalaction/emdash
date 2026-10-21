@@ -29,7 +29,7 @@
  */
 
 import type { Component } from 'solid-js';
-import type { ChatItem, PlanState, SyntheticItem } from '@/model';
+import type { ChatItem, PlanState, SyntheticItem, TerminalOutputSnapshot } from '@/model';
 import type { ChatCaches } from './caches';
 import type { MeasureCtx, RenderCtx } from './define';
 import type { Margin } from './spacing';
@@ -119,7 +119,7 @@ export type SegmentCtx = {
   active: boolean;
   plan: () => PlanState | null;
   pendingToolCallIds: () => Set<string>;
-  terminalOutputText: (terminalId: string) => string | null;
+  terminalOutput: (terminalId: string) => TerminalOutputSnapshot | null;
 };
 
 // ── UnitDef ───────────────────────────────────────────────────────────────────
@@ -138,6 +138,8 @@ export type SegmentCtx = {
  *              resolve to 8px via the user message's margin (top: 8, bottom: 8).
  * `estimate` — O(1) height heuristic for off-screen units at setCount/prepend.
  *              Falls back to `genericEstimate` when omitted.
+ * `collapseIds` — ids whose disclosure state changes this unit's height. Omit
+ *                 when the unit only responds to its own item id.
  * `measure`  — exact height (px); called only for visible units.
  *              Returns a number — no Measured<L> tree.
  * `Render`   — Solid component; receives `data` (the unit payload), `ctx`,
@@ -147,6 +149,7 @@ export type UnitDef<D, V extends Record<string, number> = {}> = {
   kind: string;
   vars?: V;
   margin?: Margin;
+  collapseIds?(data: D): readonly string[];
   estimate?(data: D, ctx: MeasureCtx, vars: V): number;
   measure(data: D, ctx: MeasureCtx, vars: V): number;
   Render: Component<{ data: D; ctx: RenderCtx; vars: V }>;

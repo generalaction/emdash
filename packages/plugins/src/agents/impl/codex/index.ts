@@ -1,21 +1,22 @@
-import { createRequire } from 'node:module';
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   codexMcpAdapter,
   homebrewOption,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { resolveAdapterAsset } from '../../helpers/adapter-assets';
 import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
+import { enrichCodexUpdate } from './acp-enrich';
+import { isCodexSessionNotFound } from './acp-errors';
+import { codexAdapter } from './adapter';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
-
-const _require = createRequire(import.meta.url);
-
-function resolveCodexAcpEntry(): string {
-  return _require.resolve('@agentclientprotocol/codex-acp/dist/index.js');
-}
+import { probeCodexUsage } from './usage';
 
 export const plugin = definePlugin(
   {
@@ -26,6 +27,7 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/openai/codex',
   },
   {
+    usageLimits: { kind: 'supported' },
     acp: {
       kind: 'supported',
     },
@@ -39,7 +41,7 @@ export const plugin = definePlugin(
           kind: 'cli-login',
           id: 'codex-login',
           name: 'Sign in with Codex',
-          args: ['login'],
+          args: ['login', '--device-auth'],
           description: 'Open the Codex CLI sign-in flow in a terminal.',
         },
         {
@@ -54,35 +56,40 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
+        'gpt-6-astra': {
+          name: '6 Astra',
+          description: 'Frontier intelligence for the most demanding work.',
+          modelFeatures: { intelligence: 5, speed: 3 },
+        },
+        'gpt-6-sol': {
+          name: '6 Sol',
+          description: 'Workhorse model for coding and everyday work.',
+          modelFeatures: { intelligence: 5, speed: 4 },
+        },
+        'gpt-6-luna': {
+          name: '6 Luna',
+          description: 'Fast and affordable model for easier tasks.',
+          modelFeatures: { intelligence: 4, speed: 5 },
+        },
         'gpt-5.6-sol': {
-          name: 'GPT-5.6 Sol',
-          description: 'Flagship GPT-5.6 model for the hardest agentic coding workflows.',
+          name: '5.6 Sol',
+          description: 'Older coding model for complex work.',
           modelFeatures: { intelligence: 5, speed: 2 },
         },
         'gpt-5.6-terra': {
-          name: 'GPT-5.6 Terra',
-          description: 'Balanced GPT-5.6 model for everyday coding work with lower cost.',
+          name: '5.6 Terra',
+          description: 'Older balanced model for straightforward work.',
           modelFeatures: { intelligence: 5, speed: 4 },
         },
         'gpt-5.6-luna': {
-          name: 'GPT-5.6 Luna',
-          description: 'Fast and cost-efficient GPT-5.6 model for lighter coding tasks.',
+          name: '5.6 Luna',
+          description: 'Older fast and efficient model.',
           modelFeatures: { intelligence: 4, speed: 5 },
         },
         'gpt-5.5': {
-          name: 'GPT-5.5',
-          description: 'Recommended Codex model for complex coding and agentic workflows.',
+          name: '5.5',
+          description: 'Legacy coding model.',
           modelFeatures: { intelligence: 5, speed: 3 },
-        },
-        'gpt-5.4-mini': {
-          name: 'GPT-5.4 Mini',
-          description: 'Faster Codex model for lighter coding tasks and subagents.',
-          modelFeatures: { intelligence: 4, speed: 5 },
-        },
-        'gpt-5.3-codex-spark': {
-          name: 'GPT-5.3 Codex Spark',
-          description: 'Research-preview Codex model optimized for near-instant iteration.',
-          modelFeatures: { intelligence: 2, speed: 5 },
         },
       },
     },
@@ -95,8 +102,22 @@ export const plugin = definePlugin(
       id: 'codex',
       package: '@openai/codex',
       extraOptions: {
-        macos: [homebrewOption({ formula: 'codex', cask: true })],
-        linux: [homebrewOption({ formula: 'codex', cask: true })],
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            elevation: 'never',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            elevation: 'never',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
         windows: [
           {
             method: 'powershell',
@@ -125,10 +146,11 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  usageLimits: { probe: probeCodexUsage },
   acp: {
     buildSpawn: (ctx) => ({
       command: process.execPath,
-      args: [resolveCodexAcpEntry()],
+      args: [resolveAdapterAsset(codexAdapter)],
       env: {
         ELECTRON_RUN_AS_NODE: '1',
         CODEX_PATH: ctx.cli,
@@ -137,6 +159,8 @@ export const provider = registerPluginBehavior(plugin, {
     connect: (io, toClient) => {
       return connectStdioAcp(io, toClient);
     },
+    enrich: enrichCodexUpdate,
+    isSessionNotFound: isCodexSessionNotFound,
   },
   auth: {
     checkStatus: async (ctx) => {
@@ -152,7 +176,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag:
-          '-c approval_policy="never" -c sandbox_mode="danger-full-access" --dangerously-bypass-hook-trust',
+          '-c approval_policy=never -c sandbox_mode=danger-full-access --dangerously-bypass-hook-trust',
         initialPromptFlag: '',
         resumeFlag: 'resume',
         sessionIdFlag: ' ',

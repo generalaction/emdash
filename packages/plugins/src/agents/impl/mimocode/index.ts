@@ -1,15 +1,19 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   mimocodeMcpAdapter,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+  xdgConfigRoot,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 import { MIMOCODE_PLUGIN_CONTENT } from './plugin-file';
 
-const MIMOCODE_PLUGIN_PATH = '.mimocode/plugins/emdash-notifications.js';
+const MIMOCODE_PLUGIN_PATH = 'plugins/emdash-notifications.js';
 
 // MiMoCode session ids match `^ses.*` (inherited from its OpenCode base). The
 // guard prevents resuming with the emdash conversation UUID that
@@ -33,7 +37,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'plugin',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({
@@ -75,7 +79,7 @@ export const plugin = definePlugin(
     },
     plugins: {
       kind: 'file-drop',
-      scope: 'workspace',
+      scope: 'global',
     },
     prompt: {
       kind: 'argv',
@@ -107,6 +111,7 @@ export const provider = registerPluginBehavior(plugin, {
   sessions: { validateSessionId },
   mcp: mimocodeMcpAdapter(),
   plugins: createFileDropPlugin({
+    resolveConfigRoot: xdgConfigRoot('mimocode', { overrideEnvVar: 'MIMOCODE_HOME' }),
     relativePath: MIMOCODE_PLUGIN_PATH,
     content: MIMOCODE_PLUGIN_CONTENT,
   }),
