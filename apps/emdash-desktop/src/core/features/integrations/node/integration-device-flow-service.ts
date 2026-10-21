@@ -52,12 +52,16 @@ export class IntegrationDeviceFlowService {
     };
   }
 
-  async complete(flowId: string): Promise<DeviceFlowCompleteResult> {
+  /** Aborting `signal` (the caller went away) cancels the flow. */
+  async complete(flowId: string, signal?: AbortSignal): Promise<DeviceFlowCompleteResult> {
     const flow = this.flows.get(flowId);
     if (!flow || flow.completing) {
       return { success: false, error: 'This sign-in is no longer active.' };
     }
     flow.completing = true;
+    const cancel = () => flow.controller.abort();
+    if (signal?.aborted) cancel();
+    signal?.addEventListener('abort', cancel, { once: true });
     try {
       const credentials = await flow.session.complete(flow.controller.signal);
       if (flow.controller.signal.aborted) {
@@ -95,6 +99,7 @@ export class IntegrationDeviceFlowService {
       });
       return { success: false, error: 'Sign-in failed.' };
     } finally {
+      signal?.removeEventListener('abort', cancel);
       this.flows.delete(flowId);
     }
   }

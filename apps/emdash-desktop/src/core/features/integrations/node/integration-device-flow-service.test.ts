@@ -232,4 +232,24 @@ describe('IntegrationDeviceFlowService', () => {
     });
     expect(complete).toHaveBeenCalledTimes(1);
   });
+
+  it('cancels the flow when the caller goes away', async () => {
+    devicePlugin(
+      (signal) =>
+        new Promise((resolve) => {
+          signal.addEventListener('abort', () =>
+            resolve(err({ type: 'generic', message: 'GitLab sign-in was cancelled.' }))
+          );
+        })
+    );
+    const started = await service.start('gitlab');
+    if (!started.success) throw new Error('start failed');
+    const caller = new AbortController();
+
+    const completion = service.complete(started.flowId, caller.signal);
+    caller.abort();
+
+    await expect(completion).resolves.toMatchObject({ success: false, cancelled: true });
+    expect(connectVerified).not.toHaveBeenCalled();
+  });
 });

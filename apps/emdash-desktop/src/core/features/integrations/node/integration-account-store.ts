@@ -47,7 +47,9 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
    * authentication failure. Credentials whose refresh was rejected are not
    * refreshed again until they change. Refreshed credentials that fail to
    * persist are kept in memory and written again on the next read, because
-   * the provider has already invalidated the stored refresh token.
+   * the provider has already invalidated the stored refresh token. A refresh
+   * is saved only while the stored credentials it replaces are unchanged, so
+   * a disconnect or reconnect during the request wins.
    */
   async getAccount(
     integrationId: string,
@@ -75,7 +77,17 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
       const unsaved = this.unsavedRefreshes.get(key);
       if (unsaved?.replaces === persistedJson) {
         stored = unsaved.credentials;
-        if (await this.saveRefreshed(integrationId, account.accountId, stored)) {
+        const saved = await this.saveRefreshed(
+          integrationId,
+          account.accountId,
+          stored,
+          persistedJson
+        );
+        if (saved === 'superseded') {
+          this.unsavedRefreshes.delete(key);
+          return await this.readCredentials(integrationId, account.accountId);
+        }
+        if (saved === 'saved') {
           this.unsavedRefreshes.delete(key);
           persistedJson = JSON.stringify(stored);
         }
@@ -96,31 +108,44 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
       }
       this.rejectedRefreshes.delete(key);
       if (!refreshed.data) return stored;
-      if (await this.saveRefreshed(integrationId, account.accountId, refreshed.data)) {
-        this.unsavedRefreshes.delete(key);
-      } else {
+      const saved = await this.saveRefreshed(
+        integrationId,
+        account.accountId,
+        refreshed.data,
+        persistedJson
+      );
+      if (saved === 'failed') {
         this.unsavedRefreshes.set(key, { replaces: persistedJson, credentials: refreshed.data });
+        return refreshed.data;
+      }
+      this.unsavedRefreshes.delete(key);
+      if (saved === 'superseded') {
+        return await this.readCredentials(integrationId, account.accountId);
       }
       return refreshed.data;
     });
     return credentials ? toIntegrationAccount(account, credentials) : null;
   }
 
+  /** Writes `credentials` unless the stored credentials no longer match `replaces`. */
   private async saveRefreshed(
     integrationId: string,
     accountId: string,
-    credentials: IntegrationCredentials
-  ): Promise<boolean> {
+    credentials: IntegrationCredentials,
+    replaces: string
+  ): Promise<'saved' | 'superseded' | 'failed'> {
     try {
+      const current = await this.readCredentials(integrationId, accountId);
+      if (!current || JSON.stringify(current) !== replaces) return 'superseded';
       await this.writeCredentials(integrationId, accountId, credentials);
-      return true;
+      return 'saved';
     } catch (error) {
       log.error('IntegrationAccountStore: refreshed credentials were not saved', {
         integrationId,
         accountId,
         error: error instanceof Error ? error.name : 'unknown',
       });
-      return false;
+      return 'failed';
     }
   }
 
@@ -150,7 +175,14 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     });
   }
 
+  /** Serialized with refreshes of the same account. */
   async upsertAccount(integrationId: string, account: IntegrationAccountRecord) {
+    return await this.refreshes.runExclusive(`${integrationId}\u0000${account.accountId}`, () =>
+      this.writeAccount(integrationId, account)
+    );
+  }
+
+  private async writeAccount(integrationId: string, account: IntegrationAccountRecord) {
     const schema = integrationPluginRegistry.get(integrationId)?.behavior.auth?.credentialsSchema;
     if (!schema) throw new Error(`Unknown integration: ${integrationId}`);
     const credentials = schema.safeParse(account.credentials);

@@ -18,6 +18,8 @@ export type IntegrationDeviceFlowModalArgs = {
 };
 
 const BROWSER_OPEN_DELAY_SECONDS = 3;
+/** Completion waits for the user, so its call deadline outlasts the code's lifetime. */
+const COMPLETE_DEADLINE_MARGIN_SECONDS = 60;
 
 type Code = {
   flowId: string;
@@ -70,7 +72,10 @@ export function IntegrationDeviceFlowModal({
       setOpeningIn(BROWSER_OPEN_DELAY_SECONDS);
       setState({ kind: 'waiting', ...started });
 
-      const result = await client.completeDeviceFlow({ flowId: started.flowId });
+      const result = await client.completeDeviceFlow(
+        { flowId: started.flowId },
+        { timeoutMs: (started.expiresIn + COMPLETE_DEADLINE_MARGIN_SECONDS) * 1000 }
+      );
       flowIdRef.current = null;
       if (!active) return;
       if (result.success) {

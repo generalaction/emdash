@@ -156,7 +156,10 @@ describe('GitLab device sign-in', () => {
       expect(document.body.textContent).toContain('N03SDJ4B');
       expect(document.body.textContent).toContain('Opening GitLab in 3s');
       expect(host.openExternal).not.toHaveBeenCalled();
-      expect(client.completeDeviceFlow).toHaveBeenCalledWith({ flowId: 'flow-1' });
+      expect(client.completeDeviceFlow).toHaveBeenCalledWith(
+        { flowId: 'flow-1' },
+        { timeoutMs: (300 + 60) * 1000 }
+      );
 
       for (let second = 0; second < 3; second += 1) {
         await act(async () => vi.advanceTimersByTime(1000));

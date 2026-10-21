@@ -15,7 +15,8 @@ export function createIntegrationsWireController(): Controller {
       }),
     startDeviceFlow: ({ integrationId, accountId }) =>
       integrationOperations.startDeviceFlow(integrationId, accountId),
-    completeDeviceFlow: ({ flowId }) => integrationOperations.completeDeviceFlow(flowId),
+    completeDeviceFlow: ({ flowId }, meta) =>
+      integrationOperations.completeDeviceFlow(flowId, meta.signal),
     cancelDeviceFlow: ({ flowId }) => integrationOperations.cancelDeviceFlow(flowId),
     disconnect: ({ integrationId, accountId }) =>
       integrationOperations.disconnect(integrationId, accountId),
