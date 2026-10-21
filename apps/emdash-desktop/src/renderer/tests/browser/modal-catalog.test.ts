@@ -24,6 +24,7 @@ const expectedModalIds = [
   'feedbackModal',
   'githubDeviceFlowModal',
   'integrationSetupModal',
+  'integrationDeviceFlowModal',
   'linkConversationModal',
   'projectConfigImportModal',
   'promptModal',

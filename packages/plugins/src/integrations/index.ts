@@ -17,6 +17,7 @@ export type {
 } from './host';
 export type { ConnectionStatus } from './types';
 export type {
+  DeviceAuthorizationSession,
   IIntegrationAuthBehavior,
   IntegrationAuthDescriptor,
   IntegrationAuthField,

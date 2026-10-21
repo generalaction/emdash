@@ -50,6 +50,10 @@ import {
   IntegrationConnectionService,
   setIntegrationConnectionService,
 } from '@core/features/integrations/node/integration-connection-service';
+import {
+  IntegrationDeviceFlowService,
+  setIntegrationDeviceFlowService,
+} from '@core/features/integrations/node/integration-device-flow-service';
 import { migrateGitHubJsonCredentials } from '@core/features/integrations/node/migrations/github-json-credentials';
 import { LegacyIntegrationAccountsMigration } from '@core/features/integrations/node/migrations/legacy-integration-accounts';
 import { createIssueProviderRegistry } from '@core/features/issues/node/registry';
@@ -507,6 +511,12 @@ export async function bootServices(
     onIntegrationAccountsChanged
   );
   setIntegrationConnectionService(integrationConnections);
+  const integrationDeviceFlow = new IntegrationDeviceFlowService({
+    connections: integrationConnections,
+    logger: log,
+  });
+  setIntegrationDeviceFlowService(integrationDeviceFlow);
+  appScope.add(() => integrationDeviceFlow.dispose());
   const providerAccounts = new ProviderAccountService(providerAccountRegistry, {
     prepare: (providerId) => legacyIntegrationAccounts.run(providerId),
     onAccountsChanged: onIntegrationAccountsChanged,

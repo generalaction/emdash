@@ -190,6 +190,65 @@ describe('GitCredentialServer', () => {
     );
   });
 
+  it('answers GitLab OAuth credentials with the oauth2 username', async () => {
+    const gitlabAccount: ProviderAccountSummary = {
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      displayName: '@user',
+      host: 'gitlab.example.com',
+      login: 'user',
+      isDefault: true,
+    };
+    const harness = track(makeHarness({ accounts: [gitlabAccount] }));
+    harness.readIntegrationCredentials.mockResolvedValueOnce(
+      ok({
+        instanceUrl: 'https://gitlab.example.com',
+        accessToken: SECRET_TOKEN,
+        refreshToken: 'refresh',
+        expiresAt: Date.now() + 3_600_000,
+      }) as never
+    );
+    const channel = await harness.server.mintSession({
+      kind: 'account',
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      host: 'gitlab.example.com',
+    });
+    expect(await requestCredential(channel, 'protocol=https\nhost=gitlab.example.com\n')).toEqual({
+      status: 200,
+      text: `username=oauth2\npassword=${SECRET_TOKEN}\n`,
+    });
+  });
+
+  it('refuses GitLab OAuth credentials issued for a different host', async () => {
+    const gitlabAccount: ProviderAccountSummary = {
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      displayName: '@user',
+      host: 'gitlab.example.com',
+      login: 'user',
+      isDefault: true,
+    };
+    const harness = track(makeHarness({ accounts: [gitlabAccount] }));
+    harness.readIntegrationCredentials.mockResolvedValueOnce(
+      ok({
+        instanceUrl: 'https://gitlab.com',
+        accessToken: SECRET_TOKEN,
+        refreshToken: 'refresh',
+        expiresAt: Date.now() + 3_600_000,
+      }) as never
+    );
+    const channel = await harness.server.mintSession({
+      kind: 'account',
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      host: 'gitlab.example.com',
+    });
+    expect(
+      (await requestCredential(channel, 'protocol=https\nhost=gitlab.example.com\n')).status
+    ).toBe(404);
+  });
+
   it('answers a GitLab project session with its current account', async () => {
     const gitlabAccount: ProviderAccountSummary = {
       providerId: 'gitlab',

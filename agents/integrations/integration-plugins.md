@@ -29,6 +29,38 @@ in `behavior.auth`, which must register both:
   success, together with optional stable account identity and display metadata. Persist
   the returned credentials, never fall back to the submitted form values.
 
+Two behaviors are optional:
+
+- `startDeviceAuthorization`: required when the descriptor declares an `oauth-device`
+  method that the shared device sign-in should drive. It returns the user code, verification
+  URL, and lifetime, plus `complete(signal)`, which polls until the user approves and resolves
+  with credentials for `verify`. RFC 8628 helpers live in `integrations/helpers/oauth-device.ts`;
+  every request times out after 30 seconds, and polling retries network failures and 5xx
+  responses until the code expires.
+- `refreshCredentials(host, credentials, now)`: returns replacement credentials when the
+  stored ones expire soon, or `undefined` when they are current.
+
+`IntegrationAccountStore.getAccount` is the only credential read path, so it applies
+`refreshCredentials` before returning an account. Refreshes are serialized per account and
+the new credentials are written (secret only; metadata unchanged) before they are returned,
+because rotating refresh tokens are single-use. A failed refresh logs and returns the stored
+credentials; the provider's 401 then surfaces as `auth_failed`. After an `auth_failed` refresh,
+the store does not refresh those credentials again until they change (for example on
+reconnect); network failures are retried on the next read. Refreshed credentials that fail to
+save are kept in memory, returned, and written again on the next read, since the provider has
+already invalidated the stored refresh token.
+
+The desktop drives device sign-in for any integration through the integrations Wire API:
+`startDeviceFlow` returns the code, `completeDeviceFlow` resolves once the user approves,
+denies, or the code expires, then verifies and saves the account with credential source
+`device_flow`, and `cancelDeviceFlow` aborts it; a flow cancelled before the save saves nothing.
+Each flow completes at most once. The renderer uses `integrationDeviceFlowModal`
+and `DeviceFlowIntegrationAuth`, registered per integration in
+`core/manifests/browser/integration-auth-contributions.ts`. The modal shows the code, opens the
+verification URL (with the code pre-filled when the provider supplies one) after a three-second
+countdown, and supports ⌘C to copy and Enter or ⌘R to open. Reconnecting an account passes its
+`accountId`; signing in as a different identity fails. GitHub keeps its own device flow.
+
 Credentials include connection configuration needed to create a client, such as GitHub's
 `apiBaseUrl`, Jira's `siteUrl`, or Plane's workspace slug. The schema remains backend-only;
 it is not embedded in the renderer descriptor. Register schemas for every integration,
@@ -242,6 +274,15 @@ lists and searches work items. Work-item writes are not yet implemented in Emdas
 The GitLab pull-requests plugin supports merge request inventory, details, approvals, pipeline
 jobs, discussions, files, creation, merge, and mark-ready actions. GitLab-facing text uses
 MR / merge request; GitHub-facing text retains PR / pull request.
+
+GitLab credentials are either an access token (`{ instanceUrl, apiToken }`, sent as
+`PRIVATE-TOKEN`) or an OAuth pair from device sign-in (`{ instanceUrl, accessToken,
+refreshToken, expiresAt }`, sent as `Authorization: Bearer`). Device sign-in is gitlab.com only:
+it uses emdash's public OAuth application (scopes `api read_user`, client ID in the GitLab
+plugin). Access tokens last two hours; the store refreshes them within five minutes of expiry,
+and GitLab rotates the refresh token on every use, so users sign in once. Refresh tokens are
+only ever sent to `https://gitlab.com`. Git over HTTPS sends OAuth tokens with the username
+`oauth2`. Self-hosted instances use an access token.
 
 A legacy personal token with `read_api` supports reads; writes require `api` and the project
 permissions for the operation. A forbidden write prompts the user to reconnect with an
