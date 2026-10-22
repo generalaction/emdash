@@ -12,9 +12,14 @@ import { createTaskFromPrompt, validProviderIds } from './create-task-from-promp
 import type { McpToolDependencies } from './dependencies';
 import { runTaskScript, stopTaskScript } from './run-task-script';
 import {
+  inspectBranchDeletion,
   inspectWorktreeChanges,
   resolveTaskWorkspaceId,
+  resolveWorkspaceRuntime,
+  type BranchDeletionState,
+  type TaskBranch,
   type WorktreeChangeCounts,
+  type WorktreeChangesState,
 } from './workspace-runtime';
 
 const MAX_LISTED_TASKS = 50;
@@ -65,6 +70,14 @@ async function findTaskInProject(
 type DeleteConfirmationGate = Readonly<{
   reason: string;
   changes?: WorktreeChangeCounts | null;
+  /** Commits only the task branch has, or null when they could not be counted. */
+  unpushedCommits?: number | null;
+}>;
+
+/** What the caller asked to remove, mirroring the delete dialog's checkboxes. */
+type DeleteRequest = Readonly<{
+  deleteWorktree: boolean;
+  deleteBranch: boolean;
 }>;
 
 type DeleteDecision = Readonly<{
@@ -75,23 +88,100 @@ type DeleteDecision = Readonly<{
    * checkout the gate below never inspected.
    */
   deleteWorktree: boolean;
+  /**
+   * Like the dialog's "Delete branch" checkbox: only a branch the task created
+   * from a source branch, and only together with its worktree. On top of that,
+   * only when the worktree is verifiably on that branch, since the host deletes
+   * whatever is checked out.
+   */
+  deleteBranch: boolean;
+  /** Why a requested branch delete was dropped, or null when it was not. */
+  branchKeptReason: string | null;
   /** Why the delete needs confirmation, or null when it is verifiably safe. */
   gate: DeleteConfirmationGate | null;
 }>;
 
+const BRANCH_NOT_OWNED =
+  'Emdash only deletes a branch the task created, together with its worktree.';
+
+function worktreeChangesGate(changes: WorktreeChangesState): DeleteConfirmationGate | null {
+  if (changes.kind === 'clean') return null;
+  if (changes.kind === 'unknown') {
+    return {
+      reason:
+        'Emdash could not check the worktree for uncommitted changes ' +
+        `(${changes.reason}), so it may contain work that would be lost.`,
+    };
+  }
+  return {
+    reason: 'The task worktree has uncommitted changes that will be permanently lost.',
+    changes: changes.counts,
+  };
+}
+
+function branchDeletionGate(state: BranchDeletionState): DeleteConfirmationGate | null {
+  if (state.kind === 'safe' || state.kind === 'not-checked-out') return null;
+  if (state.kind === 'unknown') {
+    return {
+      reason:
+        'Emdash could not check the task branch for unpushed commits ' +
+        `(${state.reason}), so deleting the branch may lose commits.`,
+      unpushedCommits: null,
+    };
+  }
+  const [noun, pronoun] = state.count === 1 ? ['commit', 'it'] : ['commits', 'them'];
+  return {
+    reason:
+      `The task branch has ${state.count} ${noun} not on its upstream or source branch; ` +
+      `deleting the branch may lose ${pronoun} permanently.`,
+    unpushedCommits: state.count,
+  };
+}
+
+/** The provisioned task branch of a workspace, or null when it has none to delete. */
+async function findTaskBranch(
+  dependencies: McpToolDependencies,
+  workspaceId: string
+): Promise<TaskBranch | null> {
+  const [workspace] = await dependencies.db
+    .select({ kind: workspaces.kind, config: workspaces.config })
+    .from(workspaces)
+    .where(and(eq(workspaces.id, workspaceId), liveWorkspaces()))
+    .limit(1);
+  const name = workspace ? getProvisionedWorkspaceBranch(workspace) : null;
+  if (!workspace || !name) return null;
+  const git = workspace.config?.git;
+  return { name, fromBranch: git?.kind === 'create-branch' ? git.fromBranch : null };
+}
+
 /**
- * Decides whether deleting a task removes its worktree, and why that needs the
- * user's explicit confirmation.
+ * Decides what deleting a task removes, and why that needs the user's explicit
+ * confirmation.
  *
- * Fails closed: a worktree whose state cannot be read counts as needing
- * confirmation, because refusing a delete is recoverable and deleting
- * uncommitted work is not.
+ * Fails closed: a worktree or branch whose state cannot be read counts as
+ * needing confirmation, because refusing a delete is recoverable and deleting
+ * uncommitted work or unpushed commits is not. A branch that cannot be
+ * positively identified as the task's own is kept rather than gated, since no
+ * confirmation makes deleting the wrong branch right.
  */
 async function resolveDeleteDecision(
   dependencies: McpToolDependencies,
   projectId: string,
-  taskId: string
+  taskId: string,
+  request: DeleteRequest
 ): Promise<DeleteDecision> {
+  const keep = (reason: string) => (request.deleteBranch ? reason : null);
+
+  // Keeping the worktree keeps the branch too, so nothing on disk is at stake.
+  if (!request.deleteWorktree) {
+    return {
+      deleteWorktree: false,
+      deleteBranch: false,
+      branchKeptReason: keep(BRANCH_NOT_OWNED),
+      gate: null,
+    };
+  }
+
   const preflight = await dependencies.tasks.getDeletePreflight([taskId]);
   const item = preflight.tasks.find((task) => task.taskId === taskId);
   if (!item) {
@@ -99,39 +189,67 @@ async function resolveDeleteDecision(
     // worktree, so do not ask for artifact removal even once confirmed.
     return {
       deleteWorktree: false,
+      deleteBranch: false,
+      branchKeptReason: keep(BRANCH_NOT_OWNED),
       gate: { reason: 'Emdash could not determine what deleting this task would remove.' },
     };
   }
   // Nothing to lose: either the task has no worktree of its own, or another task
   // still uses it and the delete leaves it in place.
-  if (!item.hasWorktree) return { deleteWorktree: false, gate: null };
+  if (!item.hasWorktree) {
+    return {
+      deleteWorktree: false,
+      deleteBranch: false,
+      branchKeptReason: keep(BRANCH_NOT_OWNED),
+      gate: null,
+    };
+  }
 
+  // Branch removal needs every read below to succeed, so any failure on the way
+  // keeps the branch and gates only the worktree.
+  const unreachable = (reason: string): DeleteDecision => ({
+    deleteWorktree: true,
+    deleteBranch: false,
+    branchKeptReason: keep(`Emdash could not check the task branch (${reason}).`),
+    gate: { reason: `Emdash could not reach the task's worktree (${reason}).` },
+  });
   const workspaceId = await resolveTaskWorkspaceId(dependencies, { projectId, taskId });
-  if (!workspaceId.success) {
-    return {
-      deleteWorktree: true,
-      gate: { reason: `Emdash could not locate the task's worktree (${workspaceId.error}).` },
-    };
+  if (!workspaceId.success) return unreachable(workspaceId.error);
+  const runtime = await resolveWorkspaceRuntime(dependencies, workspaceId.data);
+  if (!runtime.success) return unreachable(runtime.error);
+
+  const branch =
+    request.deleteBranch && item.hasDeletableBranch
+      ? await findTaskBranch(dependencies, workspaceId.data)
+      : null;
+  const [changes, branchState] = await Promise.all([
+    inspectWorktreeChanges(runtime.data),
+    branch ? inspectBranchDeletion(runtime.data, branch) : null,
+  ]);
+
+  let deleteBranch = branchState !== null;
+  let branchKeptReason = deleteBranch ? null : keep(BRANCH_NOT_OWNED);
+  if (branch && branchState?.kind === 'not-checked-out') {
+    deleteBranch = false;
+    branchKeptReason = keep(
+      `The worktree has ${branchState.current ?? 'no branch'} checked out instead of the ` +
+        `task branch ${branch.name}, so Emdash left every branch in place.`
+    );
   }
 
-  const changes = await inspectWorktreeChanges(dependencies, workspaceId.data);
-  if (changes.kind === 'clean') return { deleteWorktree: true, gate: null };
-  if (changes.kind === 'unknown') {
-    return {
-      deleteWorktree: true,
-      gate: {
-        reason:
-          'Emdash could not check the worktree for uncommitted changes ' +
-          `(${changes.reason}), so it may contain work that would be lost.`,
-      },
-    };
+  const gates = [
+    worktreeChangesGate(changes),
+    branchState && deleteBranch ? branchDeletionGate(branchState) : null,
+  ].filter((gate): gate is DeleteConfirmationGate => gate !== null);
+  if (gates.length === 0) {
+    return { deleteWorktree: true, deleteBranch, branchKeptReason, gate: null };
   }
+  const merged = gates.reduce((all, gate) => ({ ...all, ...gate }));
   return {
     deleteWorktree: true,
-    gate: {
-      reason: 'The task worktree has uncommitted changes that will be permanently lost.',
-      changes: changes.counts,
-    },
+    deleteBranch,
+    branchKeptReason,
+    gate: { ...merged, reason: gates.map((gate) => gate.reason).join(' ') },
   };
 }
 
@@ -380,38 +498,67 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
     {
       title: 'Delete task',
       description:
-        'Deletes an Emdash task and removes its worktree. The task branch is always kept, so ' +
-        'committed work stays recoverable. If the worktree has uncommitted changes, or Emdash ' +
-        'cannot verify that it is clean, the tool returns requiresConfirmation instead of ' +
-        'deleting; get the user’s explicit approval, then retry with confirm: true.',
+        'Deletes an Emdash task, with the same options as the delete dialog in the Emdash UI: ' +
+        'by default it removes the worktree and the task’s conversations and keeps the task ' +
+        'branch. Pass deleteBranch: true only when the user asked for the branch to go too; ' +
+        'only the local branch is deleted, never one on a remote. If the delete would lose ' +
+        'uncommitted changes or unpushed commits, or Emdash cannot verify that it would not, ' +
+        'the tool returns requiresConfirmation instead of deleting; get the user’s explicit ' +
+        'approval, then retry with confirm: true.',
       inputSchema: {
         projectId: projectIdInput,
         taskId: taskIdInput,
+        deleteWorktree: z
+          .boolean()
+          .optional()
+          .describe(
+            'Remove the task worktree from disk; defaults to true. False keeps the worktree and ' +
+              'its branch and only deletes the task.'
+          ),
+        deleteBranch: z
+          .boolean()
+          .optional()
+          .describe(
+            'Also delete the local task branch; defaults to false. Only applies to a branch the ' +
+              'task created, and only together with its worktree.'
+          ),
+        deleteConversations: z
+          .boolean()
+          .optional()
+          .describe(
+            'Delete the task’s conversations; defaults to true. False keeps them, unlinked ' +
+              'from any task.'
+          ),
         confirm: z
           .boolean()
           .optional()
           .describe(
-            'Required (true) to delete a task whose worktree has uncommitted changes. Only set ' +
-              'this after the user has explicitly approved losing those changes; never set it ' +
-              'preemptively.'
+            'Required (true) to delete a task when that would lose uncommitted changes or ' +
+              'unpushed commits. Only set this after the user has explicitly approved losing ' +
+              'that work; never set it preemptively.'
           ),
       },
       annotations: { destructiveHint: true, openWorldHint: false },
     },
-    guarded(dependencies, 'delete_task', async ({ projectId, taskId, confirm }) => {
+    guarded(dependencies, 'delete_task', async (input) => {
+      const { projectId, taskId, confirm } = input;
+      const request = {
+        deleteWorktree: input.deleteWorktree ?? true,
+        deleteBranch: input.deleteBranch ?? false,
+      };
+      const deleteConversations = input.deleteConversations ?? true;
+
       const row = await findTaskInProject(dependencies, projectId, taskId);
       if (!row) return errorResult(`Task not found in project ${projectId}: ${taskId}`);
 
       // Hold the attachment across both steps: the delete's session teardown
-      // needs it, and it keeps the host runtime up for the status read.
+      // needs it, and it keeps the host runtime up for the git reads.
       const attached = await attachProject(dependencies.projects, projectId);
       if (!attached.success) return errorResult(attached.error);
+      let decision: DeleteDecision;
       try {
-        const { deleteWorktree, gate } = await resolveDeleteDecision(
-          dependencies,
-          projectId,
-          taskId
-        );
+        decision = await resolveDeleteDecision(dependencies, projectId, taskId, request);
+        const { gate } = decision;
         if (gate && confirm !== true) {
           // An ordinary (non-error) result: the agent is expected to relay this
           // to its user and retry with confirm, not to treat it as a failure and
@@ -429,13 +576,30 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
         }
 
         await dependencies.tasks.deleteTask(projectId, taskId, {
-          deleteWorktree,
-          deleteBranch: false,
+          deleteWorktree: decision.deleteWorktree,
+          deleteBranch: decision.deleteBranch,
+          deleteConversations,
         });
       } finally {
         await attached.data.release();
       }
-      return textResult({ taskId, deleted: true, branchKept: true });
+      // The task record and conversations go synchronously; worktree and branch
+      // removal is best effort on the host, so report it as requested, not done.
+      return textResult({
+        taskId,
+        deleted: true,
+        conversationsDeleted: deleteConversations,
+        worktreeRemovalRequested: decision.deleteWorktree,
+        branchDeletionRequested: decision.deleteBranch,
+        ...(decision.branchKeptReason ? { branchKeptReason: decision.branchKeptReason } : {}),
+        ...(decision.deleteWorktree
+          ? {
+              note:
+                'If removing the worktree fails on its host, it stays listed in the Emdash ' +
+                'Workspaces view for removal there.',
+            }
+          : {}),
+      });
     })
   );
 

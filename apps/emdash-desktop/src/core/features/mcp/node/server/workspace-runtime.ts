@@ -1,3 +1,4 @@
+import type { GitBranchRef, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -88,13 +89,9 @@ export type WorktreeChangesState =
  * Anything unreadable is `unknown`, never clean, so the gate fails closed.
  */
 export async function inspectWorktreeChanges(
-  dependencies: McpToolDependencies,
-  workspaceId: string
+  runtime: WorkspaceRuntime
 ): Promise<WorktreeChangesState> {
-  const runtime = await resolveWorkspaceRuntime(dependencies, workspaceId);
-  if (!runtime.success) return { kind: 'unknown', reason: runtime.error };
-
-  const { client, path } = runtime.data;
+  const { client, path } = runtime;
   const checkout = checkoutSelector(path);
   let status: Awaited<ReturnType<ReturnType<typeof client.git.checkout.model.state>['snapshot']>>;
   let changed: Awaited<ReturnType<typeof client.git.checkout.getChangedFiles>>;
@@ -127,4 +124,86 @@ export async function inspectWorktreeChanges(
   // The summary says clean, but it is the stale one of the two reads.
   if (changedTrackedFiles > 0) return { kind: 'dirty', counts: null };
   return { kind: 'clean' };
+}
+
+/** The task branch a delete would remove, as provisioned for its worktree. */
+export type TaskBranch = Readonly<{
+  name: string;
+  /** The branch it was created from, compared against when it has no upstream. */
+  fromBranch: GitBranchRef | null;
+}>;
+
+export type BranchDeletionState =
+  | { kind: 'safe' }
+  | { kind: 'unpushed'; count: number }
+  /** The worktree is not on the task branch; `current` is what it has checked out, if anything. */
+  | { kind: 'not-checked-out'; current: string | null }
+  | { kind: 'unknown'; reason: string };
+
+/**
+ * Checks what deleting a worktree's task branch would lose.
+ *
+ * The host deletes whichever branch the worktree has checked out (falling back
+ * to a recorded hint when HEAD is detached), not the provisioned branch. So this
+ * first confirms the worktree is on the task branch: otherwise a branch delete
+ * could remove a base branch such as `main`, or a branch none of these reads
+ * inspected. The head state is watcher-backed, so a checkout made moments
+ * before the delete can still slip past; that is the remaining race.
+ *
+ * It then counts the commits on the task branch that its upstream lacks, or,
+ * for a branch that was never pushed, that its source branch lacks. The count
+ * is a direct `git log` range rather than the registry mirror's `ahead`, for the
+ * same freshness reason as {@link inspectWorktreeChanges}: an agent that
+ * commits and immediately asks to delete must be checked against that commit.
+ */
+export async function inspectBranchDeletion(
+  runtime: WorkspaceRuntime,
+  branch: TaskBranch
+): Promise<BranchDeletionState> {
+  const { client, path } = runtime;
+  const checkout = checkoutSelector(path);
+  let head: Awaited<ReturnType<ReturnType<typeof client.git.checkout.model.state>['snapshot']>>;
+  try {
+    head = await client.git.checkout.model.state(checkout, 'head').snapshot();
+  } catch (error) {
+    return { kind: 'unknown', reason: gitErrorMessage(error) };
+  }
+
+  const state = head.data;
+  if (state.kind !== 'branch') return { kind: 'not-checked-out', current: null };
+  const current = state.ref.replace(/^refs\/heads\//u, '');
+  if (current !== branch.name) return { kind: 'not-checked-out', current };
+
+  const tracking = state.upstream.kind === 'none' ? null : state.upstream.tracking;
+  const base: GitObjectRef | null =
+    tracking?.kind === 'resolved'
+      ? { kind: 'commit', sha: tracking.oid }
+      : branch.fromBranch
+        ? { kind: 'branch', branch: branch.fromBranch }
+        : null;
+  if (!base) {
+    return {
+      kind: 'unknown',
+      reason: 'the task branch has no upstream or source branch to compare its commits against',
+    };
+  }
+
+  let log: Awaited<ReturnType<typeof client.git.checkout.getLog>>;
+  try {
+    log = await client.git.checkout.getLog({
+      ...checkout,
+      options: {
+        base,
+        head: { kind: 'branch', branch: { type: 'local', branch: branch.name } },
+        // Only the range's total is needed, not the commits themselves.
+        limit: 1,
+      },
+    });
+  } catch (error) {
+    return { kind: 'unknown', reason: gitErrorMessage(error) };
+  }
+  if (!log.success) return { kind: 'unknown', reason: gitErrorMessage(log.error) };
+
+  const count = log.data.totalCount;
+  return count === 0 ? { kind: 'safe' } : { kind: 'unpushed', count };
 }

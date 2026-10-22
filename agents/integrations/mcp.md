@@ -68,6 +68,29 @@ Behavior:
   fresh `McpServer` is built per request
 - tools: `list_projects`, `list_tasks`, `create_task`, `rename_task`, `archive_task`,
   `delete_task`, `run_task_script`, `stop_task_script`
+- `delete_task` takes the delete dialog's options: `deleteWorktree` (default true),
+  `deleteBranch` (default false, and deliberately not the UI's `deleteBranchByDefault`
+  setting, so an agent never deletes a branch nobody asked about), and
+  `deleteConversations` (default true). As in the dialog, a branch is deleted only when
+  the task created it (`hasDeletableBranch`) and only together with its worktree, and only
+  the local branch: nothing is deleted on a remote. `deleteWorktree: false` keeps every
+  artifact on disk, so it skips the gate below.
+- the host deletes whichever branch the worktree has checked out (falling back to a hint
+  when HEAD is detached), not the provisioned one, so `delete_task` first checks the head
+  state and keeps every branch unless the worktree is on the task branch. Anything it
+  cannot read (unreachable host, unknown workspace) also keeps the branch rather than
+  gating it, because no confirmation makes deleting the wrong branch right. The head state
+  is watcher-backed, so a checkout made moments before the delete is the remaining race.
+- deleting the branch also gates on its own commits: a direct `git log` range count from
+  the upstream tip (or, for a never-pushed branch, its source branch) to the task branch,
+  rather than the mirror's `ahead`, so a commit made just before the delete is counted.
+  An unreadable log is `unknown` and needs confirmation too.
+- the response reports `worktreeRemovalRequested` / `branchDeletionRequested`, not
+  "deleted": host artifact removal is best effort and a failure leaves the workspace
+  listed for removal from the Workspaces view.
+- `confirm: true` is not bound to the state the user saw: a retry re-reads git and
+  deletes what is there then. Agents are told not to change the worktree to get past the
+  gate, but nothing enforces it.
 - `delete_task` refuses a dirty worktree unless the caller passes `confirm: true`, which
   the agent is expected to obtain from the user. It asks git on the owning host rather
   than trusting the registry mirror's `dirty` flag, which is only as fresh as the last
