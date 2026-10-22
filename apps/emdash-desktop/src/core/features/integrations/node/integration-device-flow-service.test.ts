@@ -57,6 +57,7 @@ describe('IntegrationDeviceFlowService', () => {
     service = new IntegrationDeviceFlowService({
       connections: { connectVerified },
       logger: createStubLogger().logger,
+      clock: { sleep: async () => {} },
     });
   });
 
@@ -136,9 +137,23 @@ describe('IntegrationDeviceFlowService', () => {
     expect(connectVerified).not.toHaveBeenCalled();
   });
 
-  it('does not save an account whose credentials fail verification', async () => {
+  it('verifies a just-issued token once more before reporting a rejection', async () => {
     const { verify } = devicePlugin(async () => ok(credentials));
     verify.mockResolvedValueOnce({
+      connected: false,
+      error: 'GitLab authentication failed.',
+    } as never);
+    const started = await service.start('gitlab');
+    if (!started.success) throw new Error('start failed');
+
+    await expect(service.complete(started.flowId)).resolves.toMatchObject({ success: true });
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(connectVerified).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not save an account whose credentials fail verification', async () => {
+    const { verify } = devicePlugin(async () => ok(credentials));
+    verify.mockResolvedValue({
       connected: false,
       error: 'GitLab authentication failed.',
     } as never);

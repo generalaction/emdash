@@ -102,7 +102,8 @@ The desktop drives device sign-in for any integration through the integrations W
 `startDeviceFlow` returns the code, `completeDeviceFlow` resolves once the user approves,
 denies, or the code expires, then verifies and saves the account with credential source
 `device_flow`, and `cancelDeviceFlow` aborts it; a flow cancelled before the save saves nothing.
-Each flow completes at most once. `completeDeviceFlow` waits for the user, so the renderer calls
+A failed verification is retried once after a second, because a provider can briefly reject a
+token it has just issued (seen on GitLab.com). Each flow completes at most once. `completeDeviceFlow` waits for the user, so the renderer calls
 it with a deadline longer than the code's lifetime; cancelling the Wire call cancels the flow.
 The renderer uses `integrationDeviceFlowModal`. It shows the code, opens the verification URL
 (with the code pre-filled when the provider supplies one, otherwise after copying the code)

@@ -4,8 +4,15 @@ import {
   type DeviceAuthorizationSession,
 } from '@emdash/plugins/integrations';
 import type { Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { DeviceFlowCompleteResult, DeviceFlowStartResult } from '../api/contract';
 import type { IntegrationConnections } from '../api/node/integration-accounts';
+
+/**
+ * A provider can briefly reject a token it has just issued (seen on GitLab.com),
+ * so a failed verification is retried once after this delay.
+ */
+const VERIFY_RETRY_DELAY_MS = 1000;
 
 type PendingFlow = {
   integrationId: string;
@@ -23,7 +30,13 @@ type PendingFlow = {
 export class IntegrationDeviceFlowService {
   private readonly flows = new Map<string, PendingFlow>();
 
-  constructor(private readonly deps: { connections: IntegrationConnections; logger: Logger }) {}
+  constructor(
+    private readonly deps: {
+      connections: IntegrationConnections;
+      logger: Logger;
+      clock?: Pick<Clock, 'sleep'>;
+    }
+  ) {}
 
   async start(integrationId: string, accountId?: string): Promise<DeviceFlowStartResult> {
     const auth = integrationPluginRegistry.get(integrationId)?.behavior.auth;
@@ -70,15 +83,22 @@ export class IntegrationDeviceFlowService {
       if (!credentials.success) return { success: false, error: credentials.error.message };
 
       const plugin = integrationPluginRegistry.get(flow.integrationId);
-      const verified = await plugin?.behavior.auth?.verify(
-        { log: this.deps.logger },
-        credentials.data
-      );
-      if (!verified?.connected) {
-        return { success: false, error: verified?.error ?? 'Sign-in could not be verified.' };
+      const verify = async () =>
+        await plugin?.behavior.auth?.verify({ log: this.deps.logger }, credentials.data);
+      let verified = await verify();
+      if (verified && !verified.connected && !flow.controller.signal.aborted) {
+        const clock = this.deps.clock ?? systemClock;
+        const waited = await clock
+          .sleep(VERIFY_RETRY_DELAY_MS, { signal: flow.controller.signal })
+          .then(() => true)
+          .catch(() => false);
+        if (waited) verified = await verify();
       }
       if (flow.controller.signal.aborted) {
         return { success: false, error: 'Sign-in was cancelled.', cancelled: true };
+      }
+      if (!verified?.connected) {
+        return { success: false, error: verified?.error ?? 'Sign-in could not be verified.' };
       }
       const connection = await this.deps.connections.connectVerified(flow.integrationId, verified, {
         ...(flow.accountId ? { accountId: flow.accountId } : {}),
