@@ -273,8 +273,9 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     try {
       const current = await this.readCredentials(integrationId, accountId);
       if (!current || JSON.stringify(current) !== replaces) return 'superseded';
-      await this.writeCredentials(integrationId, accountId, credentials);
-      return 'saved';
+      return (await this.writeCredentials(integrationId, accountId, credentials))
+        ? 'saved'
+        : 'superseded';
     } catch (error) {
       log.error('IntegrationAccountStore: renewed credentials were not saved', {
         integrationId,
@@ -295,20 +296,19 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     return credentials?.success ? credentials.data : null;
   }
 
-  /** Replaces only the secret; account metadata is untouched. */
+  /**
+   * Replaces only the secret; account metadata is untouched. Resolves false
+   * when the account was removed, which disconnects run without this lock.
+   */
   private async writeCredentials(
     integrationId: string,
     accountId: string,
     credentials: IntegrationCredentials
-  ): Promise<void> {
+  ): Promise<boolean> {
     const schema = integrationPluginRegistry.get(integrationId)?.behavior.auth?.credentialsSchema;
     const parsed = schema?.safeParse(credentials);
     if (!parsed?.success) throw new Error(`Invalid ${integrationId} credentials`);
-    await this.accounts.upsertAccount({
-      providerId: integrationId,
-      accountId,
-      secret: JSON.stringify(parsed.data),
-    });
+    return await this.accounts.updateSecret(integrationId, accountId, JSON.stringify(parsed.data));
   }
 
   /** Serialized with renewals of the same account. */

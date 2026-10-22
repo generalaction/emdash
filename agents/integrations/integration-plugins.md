@@ -90,8 +90,9 @@ server rejects is cleared, so later reads fail without a request until the user 
 a response for an older session never clears a newer one. Renewed credentials that fail to save
 are kept in memory, returned, and written again on the next read, since the provider has already
 invalidated the stored refresh token. A renewal is saved only if the stored credentials are still
-the ones it replaced, and `upsertAccount` waits for an in-flight renewal of the same account, so
-a disconnect or reconnect during a renewal is never undone.
+the ones it replaced, and only as the secret of an account that still exists (`updateSecret`,
+which never creates one). `upsertAccount` waits for an in-flight renewal of the same account. So a
+disconnect or reconnect during a renewal is never undone.
 
 Another device can rotate a shared token before this one's renewal window, and the provider then
 rejects the cached token. `reportRejected` marks expiring credentials the provider rejected, and

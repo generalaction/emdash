@@ -172,7 +172,7 @@ describe('IntegrationAccountStore credential refresh', () => {
   it('keeps rotated credentials that failed to save and saves them on the next read', async () => {
     await seed(oauth(NOW + 60_000));
     fetch.mockResolvedValueOnce(tokenResponse('-2'));
-    vi.spyOn(fixture.registry, 'upsertAccount').mockRejectedValueOnce(new Error('keychain'));
+    vi.spyOn(fixture.registry, 'updateSecret').mockRejectedValueOnce(new Error('keychain'));
 
     const first = await store.getAccount('gitlab', ACCOUNT_ID);
     expect(first?.credentials).toEqual(oauth(NOW + 7_200_000, '-2'));
@@ -187,7 +187,7 @@ describe('IntegrationAccountStore credential refresh', () => {
   it('drops unsaved credentials once the stored credentials change', async () => {
     await seed(oauth(NOW + 60_000));
     fetch.mockResolvedValueOnce(tokenResponse('-2'));
-    vi.spyOn(fixture.registry, 'upsertAccount').mockRejectedValueOnce(new Error('keychain'));
+    vi.spyOn(fixture.registry, 'updateSecret').mockRejectedValueOnce(new Error('keychain'));
     await store.getAccount('gitlab', ACCOUNT_ID);
 
     await seed(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
@@ -218,6 +218,20 @@ describe('IntegrationAccountStore credential refresh', () => {
 
     await expect(read).resolves.toBeNull();
     expect(await fixture.registry.getAccount('gitlab', ACCOUNT_ID)).toBeNull();
+  });
+
+  it('does not recreate an account disconnected while the renewed secret is written', async () => {
+    await seed(oauth(NOW + 60_000));
+    fetch.mockResolvedValueOnce(tokenResponse('-2'));
+    const setSecret = fixture.secretStore.setSecret.bind(fixture.secretStore);
+    vi.spyOn(fixture.secretStore, 'setSecret').mockImplementationOnce(async (key, value) => {
+      await fixture.registry.removeAccount('gitlab', ACCOUNT_ID);
+      await setSecret(key, value);
+    });
+
+    await expect(store.getAccount('gitlab', ACCOUNT_ID)).resolves.toBeNull();
+    expect(await fixture.registry.getAccount('gitlab', ACCOUNT_ID)).toBeNull();
+    expect(fixture.secretStore.secrets.size).toBe(0);
   });
 
   it('keeps credentials replaced during a refresh', async () => {
