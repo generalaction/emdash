@@ -103,12 +103,17 @@ The desktop drives device sign-in for any integration through the integrations W
 denies, or the code expires, then verifies and saves the account with credential source
 `device_flow`, and `cancelDeviceFlow` aborts it; a flow cancelled before the save saves nothing.
 A failed verification is retried once after a second, because a provider can briefly reject a
-token it has just issued (seen on GitLab.com). Each flow completes at most once. `completeDeviceFlow` waits for the user, so the renderer calls
-it with a deadline longer than the code's lifetime; cancelling the Wire call cancels the flow.
-The renderer uses `integrationDeviceFlowModal`. It shows the code, opens the verification URL
-(with the code pre-filled when the provider supplies one, otherwise after copying the code)
-after a three-second countdown, and supports ⌘C to copy and Enter or ⌘R to open. Reconnecting
-an account passes its `accountId`; signing in as a different identity fails.
+token it has just issued (seen on GitLab.com). Each flow completes at most once.
+`completeDeviceFlow` waits for the user, so the renderer calls it with a deadline longer than the
+code's lifetime; cancelling the Wire call cancels the flow.
+
+The renderer shows device sign-in as a step of the connect modal (`DeviceSignIn`), not as a modal
+of its own. It shows the code, opens the verification URL (with the code pre-filled when the
+provider supplies one, otherwise after copying the code) after a three-second countdown, and
+supports ⌘C to copy and Enter or ⌘R to open. Failures appear inline with "Try again"; "Back" or
+closing the connect modal cancels the flow; success closes the connect modal with a toast, as
+the other methods do. Reconnecting an account passes its `accountId`; signing in as a different
+identity fails.
 
 ### Connection UI
 

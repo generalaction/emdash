@@ -12,7 +12,7 @@ import {
   IntegrationAuthMethodPicker,
   type IntegrationAuthMethodOption,
 } from '@core/features/integrations/contributions/browser/integration-auth-method-picker';
-import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { DeviceSignIn } from '../../browser/device-sign-in';
 import { IntegrationSetupForm } from '../../browser/integration-setup-modal';
 
 type StandardIntegrationAuthProps = IntegrationAuthUiProps & {
@@ -35,13 +35,24 @@ export function StandardIntegrationAuth({
   oauthIcon = LogIn,
   extraMethods = [],
 }: StandardIntegrationAuthProps) {
-  const [view, setView] = useState<'choose' | 'form'>('choose');
+  const [view, setView] = useState<'choose' | 'form' | 'device'>('choose');
   /** Errors belong to the most recent attempt; trying another method hides them. */
   const [attemptedMethodId, setAttemptedMethodId] = useState<string>();
   const { data: session } = useAccountSession();
   const oauth = useEmdashOAuthMethod({ metadata, accountId, icon: oauthIcon, onSuccess });
-  const openDeviceFlow = useOpenModal('integrationDeviceFlowModal');
   const hasMethod = (kind: string) => metadata.auth.methods.some((method) => method.kind === kind);
+
+  if (view === 'device') {
+    return (
+      <DeviceSignIn
+        integrationId={metadata.id}
+        providerName={metadata.name}
+        accountId={accountId}
+        onSuccess={onSuccess}
+        onBack={() => setView('choose')}
+      />
+    );
+  }
 
   if (view === 'form') {
     return (
@@ -70,15 +81,7 @@ export function StandardIntegrationAuth({
             icon: RectangleEllipsis,
             title: 'Use device flow',
             description: `Connect ${metadata.name} on this device with a one-time code`,
-            onSelect: () => {
-              void openDeviceFlow({
-                integrationId: metadata.id,
-                providerName: metadata.name,
-                ...(accountId ? { accountId } : {}),
-              }).then((outcome) => {
-                if (outcome.success) onSuccess();
-              });
-            },
+            onSelect: () => setView('device'),
           },
         ]
       : []),

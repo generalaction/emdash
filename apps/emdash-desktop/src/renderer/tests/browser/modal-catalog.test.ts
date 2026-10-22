@@ -23,7 +23,6 @@ const expectedModalIds = [
   'directorySelectorModal',
   'feedbackModal',
   'integrationSetupModal',
-  'integrationDeviceFlowModal',
   'languageServicesDialog',
   'linkConversationModal',
   'projectConfigImportModal',

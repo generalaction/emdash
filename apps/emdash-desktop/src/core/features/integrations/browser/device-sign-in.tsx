@@ -1,56 +1,57 @@
-import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
+import { Alert, Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getIntegrationsClient } from '@core/features/integrations/api/browser/client';
 import { invalidateProviderAccountState } from '@core/features/integrations/api/browser/use-provider-accounts';
-import { useModalController } from '@core/manifests/browser/modal-api';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
-import { defineModal } from '@core/primitives/modals/react';
 import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
-
-export type IntegrationDeviceFlowModalArgs = {
-  integrationId: string;
-  providerName: string;
-  /** Reconnect this account instead of adding one. */
-  accountId?: string;
-};
 
 const BROWSER_OPEN_DELAY_SECONDS = 3;
 /** Completion waits for the user, so its call deadline outlasts the code's lifetime. */
 const COMPLETE_DEADLINE_MARGIN_SECONDS = 60;
 
-type Code = {
-  flowId: string;
-  userCode: string;
-  verificationUri: string;
-  verificationUriComplete?: string;
-};
-
 type State =
   | { kind: 'starting' }
-  | ({ kind: 'waiting' } & Code)
-  | { kind: 'success'; displayName?: string; login?: string; avatarUrl?: string }
+  | {
+      kind: 'waiting';
+      userCode: string;
+      verificationUri: string;
+      verificationUriComplete?: string;
+    }
   | { kind: 'error'; message: string };
 
-export function IntegrationDeviceFlowModal({
+/**
+ * OAuth device sign-in as a step of the connect modal: shows the code, opens
+ * the provider's verification page, and completes once the user approves.
+ * Leaving the step (Back or closing the modal) cancels the pending sign-in.
+ */
+export function DeviceSignIn({
   integrationId,
   providerName,
   accountId,
-}: IntegrationDeviceFlowModalArgs) {
-  const modal = useModalController('integrationDeviceFlowModal');
+  onSuccess,
+  onBack,
+}: {
+  integrationId: string;
+  providerName: string;
+  /** Reconnect this account instead of adding one. */
+  accountId?: string;
+  onSuccess: () => void;
+  onBack: () => void;
+}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<State>({ kind: 'starting' });
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [openingIn, setOpeningIn] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const flowIdRef = useRef<string | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const succeededRef = useRef(false);
-  const completeRef = useRef(modal.complete);
-  completeRef.current = modal.complete;
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
 
   const flashCopied = useCallback(() => {
     setCopied(true);
@@ -61,6 +62,8 @@ export function IntegrationDeviceFlowModal({
 
   useEffect(() => {
     let active = true;
+    setState({ kind: 'starting' });
+    setOpeningIn(null);
     void (async () => {
       const client = await getIntegrationsClient();
       const started = await client.startDeviceFlow({
@@ -78,7 +81,14 @@ export function IntegrationDeviceFlowModal({
       flowIdRef.current = started.flowId;
       setSecondsLeft(started.expiresIn);
       setOpeningIn(BROWSER_OPEN_DELAY_SECONDS);
-      setState({ kind: 'waiting', ...started });
+      setState({
+        kind: 'waiting',
+        userCode: started.userCode,
+        verificationUri: started.verificationUri,
+        ...(started.verificationUriComplete
+          ? { verificationUriComplete: started.verificationUriComplete }
+          : {}),
+      });
       // Without a link that carries the code, the provider asks for it; have it ready to paste.
       if (!started.verificationUriComplete) {
         navigator.clipboard?.writeText(started.userCode).then(
@@ -96,18 +106,11 @@ export function IntegrationDeviceFlowModal({
       flowIdRef.current = null;
       if (!active) return;
       if (result.success) {
-        succeededRef.current = true;
-        setState({
-          kind: 'success',
-          displayName: result.displayName,
-          login: result.login,
-          avatarUrl: result.avatarUrl,
-        });
         toast(`Connected to ${providerName}`, {
-          description: result.login ? `@${result.login} is connected.` : undefined,
+          description: `${result.login ? `@${result.login} is connected. ` : ''}You can close the ${providerName} page.`,
         });
         void invalidateProviderAccountState(queryClient);
-        setTimeout(() => completeRef.current(), 1000);
+        onSuccessRef.current();
       } else if (!result.cancelled) {
         setState({ kind: 'error', message: result.error });
       }
@@ -118,11 +121,12 @@ export function IntegrationDeviceFlowModal({
     return () => {
       active = false;
       const flowId = flowIdRef.current;
-      if (flowId && !succeededRef.current) {
+      flowIdRef.current = null;
+      if (flowId) {
         void getIntegrationsClient().then((client) => client.cancelDeviceFlow({ flowId }));
       }
     };
-  }, [accountId, flashCopied, integrationId, providerName, queryClient, toast]);
+  }, [accountId, attempt, flashCopied, integrationId, providerName, queryClient, toast]);
 
   const waiting = state.kind === 'waiting';
   const verificationUrl =
@@ -185,52 +189,14 @@ export function IntegrationDeviceFlowModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [copyCode, openProvider, waiting]);
 
-  const title =
-    state.kind === 'success'
-      ? `${providerName} connected`
-      : state.kind === 'error'
-        ? 'Sign-in failed'
-        : `Sign in with ${providerName}`;
-
   return (
     <>
-      <Dialog.Header>
-        <Dialog.Title>{title}</Dialog.Title>
-      </Dialog.Header>
       <Dialog.Body className="gap-4">
-        {state.kind === 'success' ? (
-          <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/60 p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background-success">
-              <Check className="h-4 w-4 text-foreground-success" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">
-                You're connected to {providerName}
-              </p>
-              {state.login ? (
-                <div className="mt-1 flex min-w-0 items-center gap-2">
-                  {state.avatarUrl ? (
-                    <img
-                      src={state.avatarUrl}
-                      alt={state.displayName ?? state.login}
-                      className="h-5 w-5 shrink-0 rounded-full"
-                    />
-                  ) : null}
-                  <p className="text-muted-foreground truncate text-xs">@{state.login}</p>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : state.kind === 'error' ? (
-          <div className="flex items-start gap-3 rounded-lg border border-border-destructive bg-background-destructive p-3">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-foreground-destructive" />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground-destructive">
-                {providerName} authorization failed
-              </p>
-              <p className="mt-1 text-xs text-foreground-destructive/80">{state.message}</p>
-            </div>
-          </div>
+        {state.kind === 'error' ? (
+          <Alert.Root status="destructive">
+            <Alert.Title>{providerName} sign-in failed</Alert.Title>
+            <Alert.Description>{state.message}</Alert.Description>
+          </Alert.Root>
         ) : (
           <>
             <p className="text-sm text-foreground-muted">
@@ -285,15 +251,15 @@ export function IntegrationDeviceFlowModal({
         )}
       </Dialog.Body>
       <Dialog.Footer>
-        {state.kind === 'success' || state.kind === 'error' ? (
-          <Button variant="secondary" onClick={modal.dismiss}>
-            Close
+        <Button variant="secondary" onClick={onBack}>
+          Back
+        </Button>
+        {state.kind === 'error' ? (
+          <Button variant="primary" onClick={() => setAttempt((count) => count + 1)}>
+            Try again
           </Button>
         ) : (
           <>
-            <Button variant="secondary" onClick={modal.dismiss}>
-              Cancel
-            </Button>
             <Button variant="secondary" onClick={() => void copyCode()} disabled={!userCode}>
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied ? 'Copied' : 'Copy code'}
@@ -323,9 +289,3 @@ function Step({ number, children }: { number: number; children: React.ReactNode 
 function formatTime(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
 }
-
-export const integrationDeviceFlowModal = defineModal<void>()({
-  id: 'integrationDeviceFlowModal',
-  component: IntegrationDeviceFlowModal,
-  size: 'md',
-});

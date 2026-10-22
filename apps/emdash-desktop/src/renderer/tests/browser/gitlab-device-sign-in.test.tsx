@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { IntegrationDeviceFlowModal } from '@core/features/integrations/browser/integration-device-flow-modal';
 import { IntegrationSetupModal } from '@core/features/integrations/browser/integration-setup-modal';
 import { ModalHostTestProvider, type ModalHostController } from '@core/primitives/modals/react';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
@@ -133,6 +132,23 @@ describe('GitLab device sign-in', () => {
     return found;
   }
 
+  function buttonWithText(text: string): HTMLButtonElement {
+    const found = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+      (candidate) => candidate.textContent?.trim() === text
+    );
+    if (!found) throw new Error(`no button with text "${text}"`);
+    return found;
+  }
+
+  /** Opens the connect modal and chooses device sign-in, which stays inside that modal. */
+  async function startDeviceSignIn(accountId?: string) {
+    await render(
+      'integrationSetupModal',
+      <IntegrationSetupModal integration="gitlab" {...(accountId ? { accountId } : {})} />
+    );
+    await act(async () => button('Use device flow').click());
+  }
+
   it('offers Emdash sign-in, device sign-in, and the token form', async () => {
     await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
     expect(button('Continue')).toBeTruthy();
@@ -159,16 +175,7 @@ describe('GitLab device sign-in', () => {
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
-  it('opens the device sign-in modal and completes the connect modal on success', async () => {
-    await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
-    await act(async () => button('Use device flow').click());
-    expect(modalStore.activeModalId).toBe('integrationDeviceFlowModal');
-
-    await act(async () => modalStore.complete(undefined));
-    expect(controller.complete).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows the code, opens the verification page after a countdown, and completes', async () => {
+  it('signs in with a code inside the connect modal and completes it on approval', async () => {
     client.startDeviceFlow.mockResolvedValue(started);
     let approve!: () => void;
     client.completeDeviceFlow.mockReturnValue(
@@ -184,11 +191,10 @@ describe('GitLab device sign-in', () => {
     );
     vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval'] });
     try {
-      await render(
-        'integrationDeviceFlowModal',
-        <IntegrationDeviceFlowModal integrationId="gitlab" providerName="GitLab" />
-      );
+      await startDeviceSignIn();
 
+      expect(modalStore.stack).toHaveLength(0);
+      expect(document.body.textContent).toContain('Connect GitLab');
       expect(client.startDeviceFlow).toHaveBeenCalledWith({ integrationId: 'gitlab' });
       expect(document.body.textContent).toContain('N03SDJ4B');
       expect(document.body.textContent).toContain('Opening GitLab in 3s');
@@ -205,9 +211,8 @@ describe('GitLab device sign-in', () => {
       expect(host.openExternal).toHaveBeenCalledWith(started.verificationUriComplete);
 
       await act(async () => approve());
-      expect(document.body.textContent).toContain('@tdewitt');
-      await act(async () => vi.advanceTimersByTime(1000));
       expect(controller.complete).toHaveBeenCalledTimes(1);
+      expect(client.cancelDeviceFlow).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -219,10 +224,7 @@ describe('GitLab device sign-in', () => {
     client.startDeviceFlow.mockResolvedValue(withoutPrefill);
     client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
     try {
-      await render(
-        'integrationDeviceFlowModal',
-        <IntegrationDeviceFlowModal integrationId="github" providerName="GitHub" />
-      );
+      await startDeviceSignIn();
       expect(writeText).toHaveBeenCalledWith('N03SDJ4B');
       expect(button('Code copied')).toBeTruthy();
     } finally {
@@ -233,10 +235,7 @@ describe('GitLab device sign-in', () => {
   it('opens the verification page immediately on Enter', async () => {
     client.startDeviceFlow.mockResolvedValue(started);
     client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
-    await render(
-      'integrationDeviceFlowModal',
-      <IntegrationDeviceFlowModal integrationId="gitlab" providerName="GitLab" />
-    );
+    await startDeviceSignIn();
 
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
@@ -247,14 +246,7 @@ describe('GitLab device sign-in', () => {
   it('reconnects the selected account', async () => {
     client.startDeviceFlow.mockResolvedValue(started);
     client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
-    await render(
-      'integrationDeviceFlowModal',
-      <IntegrationDeviceFlowModal
-        integrationId="gitlab"
-        providerName="GitLab"
-        accountId="https://gitlab.com:42"
-      />
-    );
+    await startDeviceSignIn('https://gitlab.com:42');
     expect(client.startDeviceFlow).toHaveBeenCalledWith({
       integrationId: 'gitlab',
       accountId: 'https://gitlab.com:42',
@@ -273,48 +265,54 @@ describe('GitLab device sign-in', () => {
     });
   });
 
-  it('offers device sign-in when reconnecting an account', async () => {
-    await render(
-      'integrationSetupModal',
-      <IntegrationSetupModal integration="gitlab" accountId="https://gitlab.com:42" />
-    );
-    await act(async () => button('Use device flow').click());
-    expect(modalStore.activeModalId).toBe('integrationDeviceFlowModal');
-    expect(modalStore.stack.at(-1)?.args).toMatchObject({ accountId: 'https://gitlab.com:42' });
-  });
+  it('shows a failure to start inline and tries again', async () => {
+    client.startDeviceFlow.mockResolvedValueOnce({
+      success: false,
+      error: 'Could not reach GitLab.',
+    });
+    client.startDeviceFlow.mockResolvedValueOnce(started);
+    client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
+    await startDeviceSignIn();
 
-  it('shows a failure to start sign-in without polling', async () => {
-    client.startDeviceFlow.mockResolvedValue({ success: false, error: 'Could not reach GitLab.' });
-    await render(
-      'integrationDeviceFlowModal',
-      <IntegrationDeviceFlowModal integrationId="gitlab" providerName="GitLab" />
-    );
+    expect(document.body.textContent).toContain('GitLab sign-in failed');
     expect(document.body.textContent).toContain('Could not reach GitLab.');
     expect(client.completeDeviceFlow).not.toHaveBeenCalled();
     expect(host.openExternal).not.toHaveBeenCalled();
+
+    await act(async () => buttonWithText('Try again').click());
+    expect(client.startDeviceFlow).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).toContain('N03SDJ4B');
   });
 
-  it('shows a denied sign-in', async () => {
+  it('shows a denied sign-in inline without completing the connect modal', async () => {
     client.startDeviceFlow.mockResolvedValue(started);
     client.completeDeviceFlow.mockResolvedValue({
       success: false,
       error: 'GitLab sign-in was denied.',
     });
-    await render(
-      'integrationDeviceFlowModal',
-      <IntegrationDeviceFlowModal integrationId="gitlab" providerName="GitLab" />
-    );
+    await startDeviceSignIn();
     expect(document.body.textContent).toContain('GitLab sign-in was denied.');
+    expect(modalStore.stack).toHaveLength(0);
     expect(controller.complete).not.toHaveBeenCalled();
   });
 
-  it('cancels the pending flow when closed before approval', async () => {
+  it('cancels the pending flow when going back to the sign-in options', async () => {
     client.startDeviceFlow.mockResolvedValue(started);
     client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
-    await render(
-      'integrationDeviceFlowModal',
-      <IntegrationDeviceFlowModal integrationId="gitlab" providerName="GitLab" />
+    await startDeviceSignIn();
+
+    await act(async () => buttonWithText('Back').click());
+    await vi.waitFor(() =>
+      expect(client.cancelDeviceFlow).toHaveBeenCalledWith({ flowId: 'flow-1' })
     );
+    expect(button('Use device flow')).toBeTruthy();
+    expect(controller.dismiss).not.toHaveBeenCalled();
+  });
+
+  it('cancels the pending flow when the connect modal closes', async () => {
+    client.startDeviceFlow.mockResolvedValue(started);
+    client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
+    await startDeviceSignIn();
 
     await act(async () => root.render(<></>));
     await vi.waitFor(() =>

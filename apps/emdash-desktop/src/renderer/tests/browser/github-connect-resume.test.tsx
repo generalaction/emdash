@@ -1,11 +1,26 @@
 import '@emdash/ui/style.css';
 import { Dialog } from '@emdash/ui/react/primitives';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { IntegrationSetupModal } from '@core/features/integrations/browser/integration-setup-modal';
 import { ModalHostTestProvider, type ModalHostController } from '@core/primitives/modals/react';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
+
+const integrationsClient = vi.hoisted(() => ({
+  startDeviceFlow: vi.fn(),
+  completeDeviceFlow: vi.fn(),
+  cancelDeviceFlow: vi.fn(async () => undefined),
+}));
+
+vi.mock('@core/features/integrations/api/browser/client', () => ({
+  getIntegrationsClient: async () => integrationsClient,
+}));
+
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
+  openExternal: vi.fn(async () => undefined),
+}));
 
 const accountHooks = vi.hoisted(() => ({
   session: { isSignedIn: false, hasAccount: false },
@@ -99,13 +114,15 @@ describe('GitHub connect-and-resume', () => {
   async function renderConnectModal() {
     await act(async () => {
       root.render(
-        <Dialog.Root open>
-          <Dialog.Content size="md">
-            <ModalHostTestProvider id="integrationSetupModal" controller={controller}>
-              <IntegrationSetupModal integration="github" />
-            </ModalHostTestProvider>
-          </Dialog.Content>
-        </Dialog.Root>
+        <QueryClientProvider client={new QueryClient()}>
+          <Dialog.Root open>
+            <Dialog.Content size="md">
+              <ModalHostTestProvider id="integrationSetupModal" controller={controller}>
+                <IntegrationSetupModal integration="github" />
+              </ModalHostTestProvider>
+            </Dialog.Content>
+          </Dialog.Root>
+        </QueryClientProvider>
       );
     });
   }
@@ -218,33 +235,55 @@ describe('GitHub connect-and-resume', () => {
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
-  it('completes the connect modal when the device flow modal completes', async () => {
+  it('completes the connect modal when device sign-in inside it is approved', async () => {
+    integrationsClient.startDeviceFlow.mockResolvedValue({
+      success: true,
+      flowId: 'flow-1',
+      userCode: 'WDJB-MJHT',
+      verificationUri: 'https://github.com/login/device',
+      expiresIn: 900,
+    });
+    let approve!: () => void;
+    integrationsClient.completeDeviceFlow.mockReturnValue(
+      new Promise((resolve) => {
+        approve = () => resolve({ success: true, accountId: 'github.com:42', login: 'octocat' });
+      })
+    );
     await renderConnectModal();
 
     await act(async () => methodButton('Use device flow').click());
 
-    expect(modalStore.activeModalId).toBe('integrationDeviceFlowModal');
-    expect(modalStore.stack.at(-1)?.args).toEqual({
-      integrationId: 'github',
-      providerName: 'GitHub',
-    });
+    expect(modalStore.stack).toHaveLength(0);
+    expect(integrationsClient.startDeviceFlow).toHaveBeenCalledWith({ integrationId: 'github' });
+    expect(document.body.textContent).toContain('WDJB-MJHT');
     expect(controller.complete).not.toHaveBeenCalled();
 
-    await act(async () => {
-      modalStore.complete(undefined);
-    });
+    await act(async () => approve());
 
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the connect modal open when the device flow is dismissed', async () => {
+  it('keeps the connect modal open when going back from device sign-in', async () => {
+    integrationsClient.startDeviceFlow.mockResolvedValue({
+      success: true,
+      flowId: 'flow-1',
+      userCode: 'WDJB-MJHT',
+      verificationUri: 'https://github.com/login/device',
+      expiresIn: 900,
+    });
+    integrationsClient.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
     await renderConnectModal();
 
     await act(async () => methodButton('Use device flow').click());
-    await act(async () => {
-      modalStore.dismiss();
-    });
+    const back = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent?.trim() === 'Back'
+    );
+    await act(async () => back?.click());
 
+    expect(methodButton('Use device flow')).toBeTruthy();
+    await vi.waitFor(() =>
+      expect(integrationsClient.cancelDeviceFlow).toHaveBeenCalledWith({ flowId: 'flow-1' })
+    );
     expect(controller.complete).not.toHaveBeenCalled();
     expect(controller.dismiss).not.toHaveBeenCalled();
   });
