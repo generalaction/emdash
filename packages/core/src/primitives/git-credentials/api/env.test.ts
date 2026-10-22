@@ -40,11 +40,19 @@ function gitConfigPairs(env: Record<string, string>): [string, string][] {
     });
 }
 
-/** Runs the helper as git does (`<helper> <action>`) with a stub curl that echoes its URL. */
-function runHelper(action: string): string {
+/**
+ * Runs the helper as git does (`<helper> <action>`) with a stub curl that, like
+ * the real one, reads the request body from stdin, then echoes its URL. Pass
+ * `request` only for actions the helper forwards: for the others nothing reads
+ * stdin, so writing a request could fail with EPIPE once the shell exits.
+ */
+function runHelper(action: string, request?: string): string {
   const bin = mkdtempSync(join(tmpdir(), 'emdash-helper-'));
   try {
-    writeFileSync(join(bin, 'curl'), '#!/bin/sh\nfor arg; do last=$arg; done\necho "$last"\n');
+    writeFileSync(
+      join(bin, 'curl'),
+      '#!/bin/sh\ncat >/dev/null\nfor arg; do last=$arg; done\necho "$last"\n'
+    );
     chmodSync(join(bin, 'curl'), 0o755);
     return execFileSync(
       'sh',
@@ -55,7 +63,7 @@ function runHelper(action: string): string {
           EMDASH_GIT_CREDENTIAL_PORT: String(channel.port),
           EMDASH_GIT_CREDENTIAL_NONCE: channel.nonce,
         },
-        input: 'protocol=https\nhost=github.com\n\n',
+        ...(request !== undefined ? { input: request } : {}),
         encoding: 'utf8',
       }
     );
@@ -66,8 +74,11 @@ function runHelper(action: string): string {
 
 describe('GIT_CREDENTIAL_HELPER_COMMAND', () => {
   it.skipIf(process.platform === 'win32')('forwards get and erase to their endpoints', () => {
-    expect(runHelper('get')).toBe(`http://127.0.0.1:${channel.port}/git-credential/get\n`);
-    expect(runHelper('erase')).toBe(`http://127.0.0.1:${channel.port}/git-credential/erase\n`);
+    const request = 'protocol=https\nhost=github.com\n\n';
+    expect(runHelper('get', request)).toBe(`http://127.0.0.1:${channel.port}/git-credential/get\n`);
+    expect(runHelper('erase', request)).toBe(
+      `http://127.0.0.1:${channel.port}/git-credential/erase\n`
+    );
   });
 
   it('waits longer than a credential read that renews the token', () => {
