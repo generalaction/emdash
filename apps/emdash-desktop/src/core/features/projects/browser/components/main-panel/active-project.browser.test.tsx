@@ -9,6 +9,7 @@ import { ActiveProject } from './active-project';
 
 const state = vi.hoisted(() => ({
   view: undefined as ProjectViewStore | undefined,
+  provider: 'github',
 }));
 
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
@@ -17,6 +18,10 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectSettingsStore: () => undefined,
   getProjectStore: () => ({}),
   getProjectViewStore: () => state.view,
+}));
+
+vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
+  getGitRepositoryStore: () => ({ providerRepository: { provider: state.provider } }),
 }));
 
 vi.mock('@core/primitives/navigation/browser/navigation-hooks', () => ({
@@ -54,6 +59,7 @@ describe('ActiveProject section state', () => {
   let handle: MementoHandle<ProjectViewState>;
 
   beforeEach(() => {
+    state.provider = 'github';
     handle = createHandle('settings');
     state.view = new ProjectViewStore(handle);
     host = document.createElement('div');
@@ -64,6 +70,19 @@ describe('ActiveProject section state', () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     host.remove();
+  });
+
+  it.each([
+    ['github', 'Pull Requests'],
+    ['gitlab', 'Merge Requests'],
+  ])('uses the %s request label', async (provider, label) => {
+    state.provider = provider;
+    await act(async () => root.render(<ActiveProject />));
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(tabs.map((tab) => tab.textContent)).toContain(label);
+    expect(tabs.map((tab) => tab.textContent)).not.toContain(
+      provider === 'gitlab' ? 'Pull Requests' : 'Merge Requests'
+    );
   });
 
   it('starts from persisted selection and switches sections without changing the URL', async () => {

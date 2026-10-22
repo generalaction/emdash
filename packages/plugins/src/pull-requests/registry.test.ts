@@ -20,5 +20,6 @@ describe('pull-request plugin registry', () => {
 
   it('registers the GitHub pull-request plugin', () => {
     expect(pullRequestsPluginRegistry.get('github')).toBeDefined();
+    expect(pullRequestsPluginRegistry.get('gitlab')).toBeDefined();
   });
 });

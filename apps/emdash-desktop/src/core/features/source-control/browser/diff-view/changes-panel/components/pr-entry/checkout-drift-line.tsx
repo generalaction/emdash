@@ -6,18 +6,19 @@ import type { PrCheckoutDrift } from '@core/services/pull-requests/api';
  * spec, Staleness). Null for `unknown`: no honest claim can be made, so no
  * claim is rendered.
  */
-export function checkoutDriftLabel(drift: PrCheckoutDrift): string | null {
+export function checkoutDriftLabel(drift: PrCheckoutDrift, provider = 'github'): string | null {
+  const short = provider === 'gitlab' ? 'MR' : 'PR';
   switch (drift.kind) {
     case 'unknown':
       return null;
     case 'in-sync':
-      return 'Checkout in sync with PR head';
+      return `Checkout in sync with ${short} head`;
     case 'drifted': {
       const details = [
-        drift.prMoved === true ? 'PR head moved' : null,
+        drift.prMoved === true ? `${short} head moved` : null,
         drift.localAhead === true ? 'local commits ahead' : null,
       ].filter((part): part is string => part !== null);
-      const base = 'Checkout differs from PR head';
+      const base = `Checkout differs from ${short} head`;
       return details.length > 0 ? `${base} (${details.join(', ')})` : base;
     }
   }
@@ -31,15 +32,17 @@ export function checkoutDriftSyncNote(drift: PrCheckoutDrift): string | null {
 
 export function PrCheckoutDriftLine({
   drift,
+  provider = 'github',
   onUpdateNow,
   isUpdating = false,
 }: {
   drift: PrCheckoutDrift;
+  provider?: string;
   /** The manual update verb; rendered only while the state is `drifted`. */
   onUpdateNow?: () => void;
   isUpdating?: boolean;
 }) {
-  const label = checkoutDriftLabel(drift);
+  const label = checkoutDriftLabel(drift, provider);
   if (!label) return null;
   const syncNote = checkoutDriftSyncNote(drift);
   return (

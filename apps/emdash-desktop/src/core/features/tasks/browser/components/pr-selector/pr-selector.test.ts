@@ -22,7 +22,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@core/features/integrations/contributions/browser/integrations-provider', () => ({
   useIntegrationsContext: () => ({
-    integrationById: { 'github-enterprise': { id: 'github-enterprise', name: 'Acme GitHub' } },
+    integrationById: {
+      github: { id: 'github', name: 'GitHub' },
+      gitlab: { id: 'gitlab', name: 'GitLab' },
+      'github-enterprise': { id: 'github-enterprise', name: 'Acme GitHub' },
+    },
   }),
 }));
 
@@ -483,13 +487,14 @@ describe('PrSelector', () => {
     ).not.toBeNull();
   });
 
-  function renderSelector() {
+  function renderSelector(provider = 'github') {
     return act(async () => {
       root.render(
         React.createElement(
           QueryClientProvider,
           { client: queryClient },
           React.createElement(PrSelector, {
+            provider,
             value: null,
             onValueChange: vi.fn(),
             projectId: PROJECT_ID,
@@ -531,40 +536,49 @@ describe('PrSelector', () => {
     expect(mocks.useAccounts).toHaveBeenCalledWith('github');
   });
 
-  it('renders a quiet disabled state and does not sync when GitHub is explicitly off', async () => {
+  it.each([
+    ['github', 'GitHub'],
+    ['gitlab', 'GitLab'],
+  ])('does not read when %s is explicitly off', async (provider, name) => {
     mocks.useProjectAccount.mockReturnValue({ value: null, provenance: { kind: 'set' } });
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [] } });
 
-    await renderSelector();
+    await renderSelector(provider);
 
     expect(container.querySelector('[data-testid="account-state-disabled"]')).not.toBeNull();
-    expect(container.textContent).toContain('GitHub is disabled for this project.');
+    expect(container.textContent).toContain(`${name} is disabled for this project.`);
     expect(container.querySelector('[data-status="destructive"]')).toBeNull();
     expect(mocks.refreshRepository).not.toHaveBeenCalled();
     expect(mocks.listPullRequests).not.toHaveBeenCalled();
   });
 
-  it('fails closed without syncing when the pinned account is unresolvable', async () => {
+  it.each([
+    ['github', 'GitHub'],
+    ['gitlab', 'GitLab'],
+  ])('fails closed when the pinned %s account is unresolvable', async (provider, name) => {
     mocks.useProjectAccount.mockReturnValue({ value: null, provenance: { kind: 'unresolvable' } });
 
-    await renderSelector();
+    await renderSelector(provider);
 
     expect(container.querySelector('[data-testid="account-state-unresolvable"]')).not.toBeNull();
-    expect(container.textContent).toContain('The selected GitHub account is no longer connected.');
+    expect(container.textContent).toContain(`The selected ${name} account is no longer connected.`);
     expect(mocks.refreshRepository).not.toHaveBeenCalled();
     expect(mocks.listPullRequests).not.toHaveBeenCalled();
   });
 
-  it('renders the connect state when no GitHub accounts are connected', async () => {
+  it.each([
+    ['github', 'GitHub'],
+    ['gitlab', 'GitLab'],
+  ])('renders the connect state without %s accounts', async (provider, name) => {
     mocks.useProjectAccount.mockReturnValue({
       value: null,
       provenance: { kind: 'inferred', from: 'no host-matching account' },
     });
 
-    await renderSelector();
+    await renderSelector(provider);
 
     expect(container.querySelector('[data-testid="account-state-connect"]')).not.toBeNull();
-    expect(container.textContent).toContain('Connect a GitHub account to get started.');
+    expect(container.textContent).toContain(`Connect a ${name} account to get started.`);
     expect(mocks.refreshRepository).not.toHaveBeenCalled();
   });
 });

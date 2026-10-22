@@ -135,7 +135,7 @@ export class GitRepository {
     context: GitOperationContext = {}
   ): Promise<Result<void, FetchPrForReviewError>> {
     try {
-      if (options.isFork) {
+      if (options.isFork && options.sourceRef === undefined) {
         const forkRemote = remoteNameForRepositoryUrl(options.headRepositoryUrl);
         const remotes = await this.exec.exec(['remote'], { signal: context.signal });
         const names = remotes.stdout
@@ -190,7 +190,7 @@ export class GitRepository {
           remote,
           '--force',
           '--',
-          `refs/pull/${options.prNumber}/head:refs/heads/${options.localBranch}`,
+          `${options.sourceRef ?? `refs/pull/${options.prNumber}/head`}:refs/heads/${options.localBranch}`,
         ],
         context
       );

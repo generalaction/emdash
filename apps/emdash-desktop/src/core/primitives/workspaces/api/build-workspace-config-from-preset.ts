@@ -82,6 +82,7 @@ export function buildWorkspaceConfigFromPreset(
         git: {
           kind: 'pr-branch',
           prUrl: pr.url,
+          ...(pr.provider === 'gitlab' ? { provider: pr.provider } : {}),
           prNumber,
           headBranch: pr.headRefName,
           headRepositoryUrl: pr.headRepositoryUrl,
@@ -100,6 +101,7 @@ export function buildWorkspaceConfigFromPreset(
         git: {
           kind: 'pr-branch',
           prUrl: pr.url,
+          ...(pr.provider === 'gitlab' ? { provider: pr.provider } : {}),
           prNumber,
           headBranch: pr.headRefName,
           headRepositoryUrl: pr.headRepositoryUrl,

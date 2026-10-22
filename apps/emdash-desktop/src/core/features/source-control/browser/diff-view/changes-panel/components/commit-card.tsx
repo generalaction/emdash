@@ -46,13 +46,18 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const isInFlight = phase !== 'idle';
 
   const openCreatePrModal = useOpenModal('createPrModal');
-  const repositoryUrl = getGitRepositoryStore(projectId)?.pullRequestRepositoryUrl ?? null;
+  const repository = getGitRepositoryStore(projectId);
+  const repositoryUrl = repository?.pullRequestRepositoryUrl ?? null;
 
   if (!diffView || !changesView) return null;
 
   const branchName = getTaskGitCheckoutStore(projectId, taskId)?.branchName;
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
-  const canCreatePr = Boolean(repositoryUrl) && Boolean(branchName) && !hasOpenPr;
+  const canCreatePr =
+    repository?.providerRepository?.capabilities.pullRequests &&
+    Boolean(repositoryUrl) &&
+    Boolean(branchName) &&
+    !hasOpenPr;
 
   const stageAllIfNeeded = async (): Promise<boolean> => {
     if (!autoStage) return true;
@@ -145,7 +150,10 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       ? [
           {
             id: 'commit-pr',
-            label: 'Commit & Create PR',
+            label:
+              repository?.providerRepository?.provider === 'gitlab'
+                ? 'Commit & Create MR'
+                : 'Commit & Create PR',
             action: () => void doCommitAndCreatePr(),
           },
         ]
@@ -196,7 +204,12 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
         <StatusRow icon={<Loader2 className="size-4 animate-spin" />} label="Committing…" />
       )}
       {phase === 'opening-pr' && (
-        <StatusRow icon={<Loader2 className="size-4 animate-spin" />} label="Opening PR…" />
+        <StatusRow
+          icon={<Loader2 className="size-4 animate-spin" />}
+          label={
+            repository?.providerRepository?.provider === 'gitlab' ? 'Opening MR…' : 'Opening PR…'
+          }
+        />
       )}
       {(phase === 'commit-only-done' || phase === 'committed') && (
         <StatusRow

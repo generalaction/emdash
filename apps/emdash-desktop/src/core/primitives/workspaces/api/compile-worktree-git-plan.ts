@@ -75,7 +75,7 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
   }
   const prUrl = resolvePrUrl(git);
   const breadcrumb = prUrl !== undefined ? { breadcrumb: { prUrl } } : {};
-  const prRef = prHeadRef(git.prNumber);
+  const prRef = prHeadRef(git.prNumber, git.provider);
 
   // pr-new-branch (either origin, uniform): base the task branch on the PR head; the
   // existing background push-branch step owns pushing and upstream tracking.
@@ -97,7 +97,7 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
   // itself rejects pushes.
   if (git.isFork) {
     return {
-      branch: `pr/${git.prNumber}/${git.headBranch}`,
+      branch: `${git.provider === 'gitlab' ? 'mr' : 'pr'}/${git.prNumber}/${git.headBranch}`,
       gitSetup: {
         fetchBranch: { remote, sourceRef: prRef },
         upstream: { remote, mergeRef: prRef },
@@ -133,16 +133,15 @@ function compilePublishTarget(
 }
 
 /**
- * The canonical PR identity for the breadcrumb: the stored `prUrl` when present, else
- * derived on read for pre-prUrl configs (migration ticket: construct from the
- * repository URL). Derivation only works for same-repo PRs — a fork config's only
- * repository URL is the fork's, not the PR's home — so old fork configs compile
- * without a breadcrumb (status-quo association via branch matching).
+ * Use the canonical request URL when stored. Same-repository configs can derive
+ * it from the source repository; fork configs require the target request URL.
  */
 function resolvePrUrl(git: PrBranchGit): string | undefined {
   if (git.prUrl) return git.prUrl;
   if (git.isFork || git.prNumber <= 0) return undefined;
   const repositoryUrl = normalizeRepositoryUrl(git.headRepositoryUrl);
   if (!repositoryUrl) return undefined;
-  return `${repositoryUrl}/pull/${git.prNumber}`;
+  return git.provider === 'gitlab'
+    ? `${repositoryUrl}/-/merge_requests/${git.prNumber}`
+    : `${repositoryUrl}/pull/${git.prNumber}`;
 }

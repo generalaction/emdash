@@ -232,12 +232,12 @@ export class PullRequestService {
       await entry.run;
       return ok(entry.value);
     }
-    const pr = this.options.store.getPullRequestByUrl(`${normalized}/pull/${input.number}`);
+    const pr = this.options.store.getPullRequestByNumber(normalized, input.number);
     const fresh = (time: number | null | undefined) => time != null && time >= since;
     if (
       input.policy === 'if-stale' &&
       this.repositoryEntry(normalized).access?.identity != null &&
-      this.acceptedObservations.get(`${normalized}/pull/${input.number}`)?.generation ===
+      this.acceptedObservations.get(pr?.url ?? '')?.generation ===
         this.repositoryEntry(normalized).access?.generation &&
       !entry.value.errors.metadata &&
       !entry.value.errors.checks &&
@@ -270,9 +270,7 @@ export class PullRequestService {
             this.publishDetails(entry);
             continue;
           }
-          const cached = this.options.store.getPullRequestByUrl(
-            `${normalized}/pull/${input.number}`
-          );
+          const cached = this.options.store.getPullRequestByNumber(normalized, input.number);
           const metadata =
             !force &&
             cached &&
@@ -298,7 +296,7 @@ export class PullRequestService {
               ) {
                 errors.checks = {
                   type: 'checks_failed',
-                  message: 'The PR head changed while refreshing checks',
+                  message: 'The source branch changed while refreshing checks',
                 };
               }
             }
@@ -306,15 +304,20 @@ export class PullRequestService {
           if (withComments) {
             delete errors.comments;
             const result = await read.data.repository.fetchComments(input.number, signal);
+            const commentUrl = metadata.success ? metadata.data.url : cached?.url;
             if (!result.success) errors.comments = result.error;
-            else {
+            else if (commentUrl) {
               this.assertCurrent(read.data, signal);
               this.options.store.saveCommentObservation(
-                `${normalized}/pull/${input.number}`,
+                commentUrl,
                 result.data.data,
                 result.data.fetchedAt
               );
-            }
+            } else
+              errors.comments = {
+                type: 'comments_failed',
+                message: 'Request metadata unavailable',
+              };
           }
         } catch (error) {
           if (signal.aborted) return;
@@ -351,10 +354,12 @@ export class PullRequestService {
     const key = `${repositoryUrl}/pull/${number}`;
     const existing = this.details.get(key);
     if (existing) return existing;
+    const pr = this.options.store.getPullRequestByNumber(repositoryUrl, number);
+    const url = pr?.url ?? key;
     const value: PullRequestDetails = {
-      pr: this.options.store.getPullRequestByUrl(key),
-      comments: this.options.store.getComments(key),
-      commentsFetchedAt: this.options.store.getCommentState(key)?.lastFetchedAt ?? null,
+      pr,
+      comments: this.options.store.getComments(url),
+      commentsFetchedAt: this.options.store.getCommentState(url)?.lastFetchedAt ?? null,
       refreshing: false,
       stale: true,
       errors: {},
@@ -376,8 +381,8 @@ export class PullRequestService {
   }
 
   private publishDetails(entry: DetailEntry): void {
-    const url = `${entry.repositoryUrl}/pull/${entry.number}`;
-    const pr = this.options.store.getPullRequestByUrl(url);
+    const pr = this.options.store.getPullRequestByNumber(entry.repositoryUrl, entry.number);
+    const url = pr?.url ?? `${entry.repositoryUrl}/pull/${entry.number}`;
     const commentsFetchedAt = this.options.store.getCommentState(url)?.lastFetchedAt ?? null;
     entry.value = projectDetails(
       {
@@ -714,16 +719,30 @@ export class PullRequestService {
   private acceptMetadata(
     read: RepositoryRead,
     observation: Observed<PullRequestMetadata>,
-    signal: AbortSignal
+    signal: AbortSignal,
+    detailOnlyFields: (keyof PullRequestMetadata)[] = []
   ): PullRequest {
     this.assertCurrent(read, signal);
     const metadata = observation.data;
     const previous = this.options.store.getPullRequestByUrl(metadata.url);
     if (previous && read.sequence < (this.acceptedObservations.get(metadata.url)?.sequence ?? 0))
       return previous;
+    const unchanged =
+      previous?.headRefOid === metadata.headRefOid &&
+      previous.updatedAt === metadata.updatedAt &&
+      this.acceptedObservations.get(metadata.url)?.generation === read.generation;
+    const retained = previous
+      ? Object.fromEntries(detailOnlyFields.map((field) => [field, previous[field]]))
+      : {};
     const saved = this.options.store.savePullRequest({
       ...metadata,
-      metadataFetchedAt: observation.fetchedAt,
+      ...retained,
+      metadataFetchedAt:
+        detailOnlyFields.length > 0
+          ? unchanged
+            ? (previous?.metadataFetchedAt ?? null)
+            : null
+          : observation.fetchedAt,
       checks: previous?.checks ?? [],
     });
     this.acceptedObservations.set(metadata.url, {
@@ -765,11 +784,16 @@ export class PullRequestService {
       this.assertCurrent(read, signal);
       observedAt ??= result.data.fetchedAt;
       for (const pr of result.data.data.prs) {
-        const number = Number(pr.identifier?.replace('#', ''));
+        const number = Number(pr.identifier?.replace(/^[#!]/, ''));
         if (!Number.isInteger(number) || number <= 0)
           return err({ type: 'sync_failed', message: 'Invalid PR identity in inventory' });
         seen.add(number);
-        this.acceptMetadata(read, { data: pr, fetchedAt: result.data.fetchedAt }, signal);
+        this.acceptMetadata(
+          read,
+          { data: pr, fetchedAt: result.data.fetchedAt },
+          signal,
+          result.data.data.detailOnlyFields
+        );
       }
       this.notifyCacheChanged(repositoryUrl);
       this.setSyncState(repositoryUrl, {
@@ -855,14 +879,19 @@ export class PullRequestService {
     let newest = boundary ?? existing?.lastUpdatedAt;
     const limit = this.options.maxSyncCount ?? DEFAULT_MAX_SYNC_COUNT;
     for (;;) {
-      const result = await read.repository.fetchHistoryPage(cursor, signal, priority);
+      const result = await read.repository.fetchHistoryPage(cursor, signal, priority, boundary);
       if (!result.success) return result;
       this.assertCurrent(read, signal);
       const page = result.data.data;
       const recent = boundary ? page.prs.filter((pr) => pr.updatedAt >= boundary) : page.prs;
       const batch = recent.slice(0, Math.max(0, limit - synced));
       for (const pr of batch) {
-        this.acceptMetadata(read, { data: pr, fetchedAt: result.data.fetchedAt }, signal);
+        this.acceptMetadata(
+          read,
+          { data: pr, fetchedAt: result.data.fetchedAt },
+          signal,
+          result.data.data.detailOnlyFields
+        );
         if (!newest || pr.updatedAt > newest) newest = pr.updatedAt;
       }
       synced += batch.length;

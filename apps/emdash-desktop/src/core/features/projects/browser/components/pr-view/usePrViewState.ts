@@ -10,10 +10,10 @@ export type StatusFilter = 'open' | 'not-open';
 
 export type LabelItem = { value: string; label: string; color?: string };
 
-export function usePrViewState(projectId: string, repositoryUrl: string) {
+export function usePrViewState(projectId: string, repositoryUrl: string, provider: string) {
   const store = usePullRequestsStore();
   const listView = store.listView.store;
-  const account = useProjectAccount(projectId, 'github', {
+  const account = useProjectAccount(projectId, provider, {
     repository: { kind: 'project' },
   })?.value;
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');

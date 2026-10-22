@@ -45,6 +45,7 @@ const repositoryUrl = 'https://github.com/acme/repo';
 const remote = { name: 'origin', url: repositoryUrl };
 const baseBranch = { type: 'remote', branch: 'main', remote };
 const repository = {
+  providerRepository: { provider: 'github', capabilities: { pullRequests: true } },
   remotes: [remote],
   baseRemote: remote,
   pushRemote: remote,
@@ -73,6 +74,11 @@ vi.mock('@core/features/integrations/api/browser/use-project-account', () => ({
 vi.mock('@core/features/integrations/api/browser/use-provider-accounts', () => ({
   useAccounts: (providerId: string) => ({
     data: providerId === 'gitlab' ? [gitlabAccount] : [personal, work],
+  }),
+}));
+vi.mock('@core/features/integrations/contributions/browser/integrations-provider', () => ({
+  useIntegrationsContext: () => ({
+    integrationById: { github: { name: 'GitHub' }, gitlab: { name: 'GitLab' } },
   }),
 }));
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({

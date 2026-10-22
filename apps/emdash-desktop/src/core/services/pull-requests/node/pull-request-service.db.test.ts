@@ -89,6 +89,159 @@ async function harness(maxSyncCount = 300) {
 }
 
 describe('PullRequestService ownership', () => {
+  it('stores GitLab details and comments under the merge request web URL', async () => {
+    const h = await harness();
+    const mrUrl = `${repositoryUrl}/-/merge_requests/42`;
+    const mr = pullRequestFixture({ url: mrUrl, provider: 'gitlab', identifier: '!42' });
+    h.store.savePullRequest(mr);
+    h.context.fetchPullRequest.mockResolvedValueOnce(observed(mr));
+    h.context.fetchComments.mockResolvedValueOnce(
+      observed([
+        {
+          id: 'note-1',
+          pullRequestUrl: mrUrl,
+          kind: 'issue',
+          body: 'Comment',
+          url: `${mrUrl}#note_1`,
+          author: null,
+          path: null,
+          line: null,
+          isResolved: false,
+          isOutdated: false,
+          createdAt: mr.createdAt,
+          updatedAt: mr.updatedAt,
+        },
+      ])
+    );
+    expect(
+      await h.service.refreshPullRequest({
+        repositoryUrl,
+        number: 42,
+        comments: true,
+        policy: 'force',
+      })
+    ).toEqual(ok());
+    expect(h.store.getPullRequestByNumber(repositoryUrl, 42)?.url).toBe(mrUrl);
+    expect(h.store.getComments(mrUrl)).toMatchObject([{ id: 'note-1' }]);
+  });
+
+  it('hydrates incomplete MR inventory and preserves freshness only for unchanged observations', async () => {
+    const h = await harness();
+    const mr = pullRequestFixture({
+      provider: 'gitlab',
+      identifier: '!42',
+      url: `${repositoryUrl}/-/merge_requests/42`,
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    const summary = { ...mr, reviewDecision: null, baseRefOid: '' };
+    const inventory = {
+      ...page([summary]),
+      detailOnlyFields: ['reviewDecision', 'baseRefOid'] as ('reviewDecision' | 'baseRefOid')[],
+    };
+    h.context.fetchOpenPage.mockImplementation(async () => observed(inventory));
+    h.context.fetchPullRequest.mockImplementation(async () => observed(mr));
+    expect(await h.service.refreshRepository({ repositoryUrl, policy: 'force' })).toEqual(ok());
+    expect(h.store.getPullRequestByUrl(mr.url)?.metadataFetchedAt).toBeNull();
+    expect(
+      await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' })
+    ).toEqual(ok());
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(1);
+    expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+    expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' });
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(1);
+    summary.headRefOid = 'new-head';
+    summary.updatedAt = '2026-10-19T00:00:00Z';
+    await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+    expect(h.store.getPullRequestByUrl(mr.url)?.metadataFetchedAt).toBeNull();
+    await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' });
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['title', 'head', 'worker restart'] as const)(
+    'retains omitted cached MR details after %s and a failed detail refresh',
+    async (change) => {
+      const h = await harness();
+      const mr = pullRequestFixture({
+        provider: 'gitlab',
+        identifier: '!42',
+        url: `${repositoryUrl}/-/merge_requests/42`,
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+      });
+      if (change === 'worker restart') {
+        h.store.savePullRequest({ ...mr, metadataFetchedAt: Date.now() });
+      } else {
+        h.context.fetchPullRequest.mockResolvedValueOnce(observed(mr));
+        await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'force' });
+      }
+      const summary = {
+        ...mr,
+        reviewDecision: null,
+        baseRefOid: '',
+        additions: null,
+        deletions: null,
+        changedFiles: null,
+        commitCount: null,
+        ...(change === 'title' ? { title: 'Renamed MR', updatedAt: '2026-10-20T00:00:00Z' } : {}),
+        ...(change === 'head' ? { headRefOid: 'new-head', updatedAt: '2026-10-20T00:00:00Z' } : {}),
+      };
+      const inventory: PullRequestPage = {
+        ...page([summary]),
+        detailOnlyFields: [
+          'reviewDecision',
+          'baseRefOid',
+          'additions',
+          'deletions',
+          'changedFiles',
+          'commitCount',
+        ],
+      };
+      h.context.fetchOpenPage.mockResolvedValueOnce(observed(inventory));
+      await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+      expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+        title: summary.title,
+        headRefOid: summary.headRefOid,
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+        metadataFetchedAt: null,
+      });
+      h.context.fetchPullRequest.mockClear();
+      h.context.fetchPullRequest.mockResolvedValueOnce(
+        err({ type: 'sync_failed', message: 'Detail endpoint unavailable' })
+      );
+      expect(
+        await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' })
+      ).toMatchObject({ success: false });
+      expect(h.context.fetchPullRequest).toHaveBeenCalledOnce();
+      expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+        metadataFetchedAt: null,
+      });
+    }
+  );
+
   it('restores history progress after inventory completes, without losing either operation state', async () => {
     const h = await harness();
     let finishHistory!: () => void;
@@ -578,7 +731,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       'next',
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      undefined
     );
     expect(h.store.getCursor(repositoryUrl, 'full')).toMatchObject({ done: true });
     expect(
@@ -625,7 +779,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       'older',
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      '2026-01-02T00:00:00.000Z'
     );
     expect(h.store.getPullRequestByUrl(`${repositoryUrl}/pull/2`)).not.toBeNull();
     expect(h.store.getPullRequestByUrl(`${repositoryUrl}/pull/3`)).toBeNull();
@@ -658,7 +813,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       null,
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      undefined
     );
     expect(h.store.getCursor(repositoryUrl, 'full')?.done).toBe(true);
   });

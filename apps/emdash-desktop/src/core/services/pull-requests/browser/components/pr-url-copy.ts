@@ -1,22 +1,25 @@
 import { toast } from '@emdash/ui/react/primitives';
 import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-client';
 
-export async function copyPrUrl(url: string): Promise<boolean> {
+export async function copyPrUrl(url: string, provider = 'github'): Promise<boolean> {
+  const short = provider === 'gitlab' ? 'MR' : 'PR';
   try {
     const result = await copyTextToClipboard(url);
     if (!result.success) {
-      showCopyFailure();
+      showCopyFailure(short);
       return false;
     }
 
-    toast('PR URL copied');
+    toast(`${short} URL copied`);
     return true;
   } catch {
-    showCopyFailure();
+    showCopyFailure(short);
     return false;
   }
 }
 
-function showCopyFailure(): void {
-  toast.error('Copy failed', { description: 'The PR URL could not be copied to the clipboard.' });
+function showCopyFailure(short: string): void {
+  toast.error('Copy failed', {
+    description: `The ${short} URL could not be copied to the clipboard.`,
+  });
 }

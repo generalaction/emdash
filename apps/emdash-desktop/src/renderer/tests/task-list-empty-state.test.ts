@@ -90,6 +90,48 @@ describe('TaskListEmptyState issue action', () => {
     return button;
   }
 
+  it.each([
+    ['gitlab', 'Merge Request'],
+    ['github', 'Pull Request'],
+  ])('opens request task creation for %s with the correct terminology', async (provider, title) => {
+    mocks.repository = {
+      canonicalRepositoryUrl: `https://${provider}.com/group/repo`,
+      issueRepositoryUrl: null,
+      pullRequestRepositoryUrl: `https://${provider}.com/group/repo`,
+      providerRepository: { provider, host: `${provider}.com` },
+    };
+    await renderIssueAction();
+    const button = [...container.querySelectorAll('button')].find((element) =>
+      element.textContent?.startsWith(`Create from ${title}`)
+    );
+    expect(button).toBeDefined();
+    expect(button?.disabled).toBe(false);
+    expect(button?.getAttribute('aria-label')).toBe(`Create from ${title}`);
+    expect(button?.textContent).toContain(`Create a task from a ${title.toLowerCase()}`);
+    await act(async () => button?.click());
+    expect(mocks.openTaskModal).toHaveBeenCalledExactlyOnceWith({
+      projectId: 'p',
+      strategy: 'from-pull-request',
+    });
+  });
+
+  it('disables the GitLab MR shortcut when no request repository resolves', async () => {
+    mocks.repository = {
+      canonicalRepositoryUrl: 'https://gitlab.com/group/repo',
+      issueRepositoryUrl: null,
+      pullRequestRepositoryUrl: null,
+      providerRepository: { provider: 'gitlab', host: 'gitlab.com' },
+    };
+    await renderIssueAction();
+    const button = [...container.querySelectorAll('button')].find((element) =>
+      element.textContent?.startsWith('Create from Merge Request')
+    );
+    expect(button?.disabled).toBe(true);
+    expect(button?.textContent).toContain('No remote repository connected');
+    await act(async () => button?.click());
+    expect(mocks.openTaskModal).not.toHaveBeenCalled();
+  });
+
   it('sends GitLab projects to integration setup when no issue account is connected', async () => {
     mocks.repository = {
       canonicalRepositoryUrl: 'https://gitlab.example.com/group/repo',

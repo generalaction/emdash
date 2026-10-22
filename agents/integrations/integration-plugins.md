@@ -237,8 +237,58 @@ Add Remote creates an empty GitHub or GitLab repository before publishing the cu
 The selected account is used for creation, fetch, and publish in that action. Create Repository
 initializes a README before cloning.
 GitLab continues to use the issues plugin and GitLab Issues API. The current GitLab issues plugin
-lists and searches work items. Work-item writes and GitLab merge-request operations are not yet
-implemented in Emdash.
+lists and searches work items. Work-item writes are not yet implemented in Emdash.
+
+The GitLab pull-requests plugin supports merge request inventory, details, approvals, pipeline
+jobs, discussions, files, creation, merge, and mark-ready actions. GitLab-facing text uses
+MR / merge request; GitHub-facing text retains PR / pull request.
+
+A legacy personal token with `read_api` supports reads; writes require `api` and the project
+permissions for the operation. A forbidden write prompts the user to reconnect with an
+`api`-scoped token. Project rules still apply. GitLab does not offer the GitHub bypass action.
+The rebase strategy requires a project configured for fast-forward merging and a source branch
+that can fast-forward; other project merge methods return `merge_failed`. Draft creation uses
+the `Draft:` title prefix; mark-ready removes the draft prefix through the MR update endpoint
+and verifies the returned draft state.
+
+GitLab uses a separate REST request lane and token-bucket gate from GitHub. Requests reject
+redirects and pagination URLs outside the configured instance API. Inventory uses the MR list
+endpoint, ordered by `updated_at`, and incremental history supplies `updated_after`. Pagination
+follows the server's next link or page header; the MR endpoint returns page-based links.
+Inventory resolves source project URLs for fork association, sharing a lookup for MRs from the
+same source project on a page. Detail consumers fetch approvals, commits, and diffs; pipeline jobs and discussions have separate
+reads. Label details retain colors, and detail reads resolve fork source projects.
+A deleted or inaccessible source project leaves `headRepositoryUrl` empty; the MR remains
+readable but cannot match a task by source repository and branch. Other source lookup failures
+remain refresh errors.
+
+`PullRequestPage.detailOnlyFields` declares fields absent from inventory. Inventory preserves
+cached values for omitted detail fields. An unchanged head and update timestamp preserve their
+freshness within the current account generation. Changed inventory or a worker restart
+invalidates detail freshness; incomplete observations cannot mark details fresh.
+GitHub omits this optional declaration because its inventory query supplies complete metadata.
+`PullRequestFile.additions` and `deletions` are nullable when the provider omits a file diff.
+GitLab size limits produce unknown counts and no patch, rather than zero counts. Complete diffs
+retain numeric counts. GitHub file responses remain numeric. No database schema change is required.
+For an MR associated with an existing task, Update now fetches the source branch for same-project
+MRs and `refs/merge-requests/<iid>/head` for forks. Create Task and Review in Task accept GitLab
+MRs through the shared selector. Request-based workspace configs carry an optional provider;
+omitted providers use GitHub. Same-project checkouts track the source branch, while fork
+checkouts use `mr/<iid>/<branch>` and the MR head ref from the target remote. A new task branch
+based on an MR also fetches the MR head ref. The MR URL is retained as the workspace breadcrumb.
+Missing-commit recovery in file review passes the MR head ref through the review-fetch input to
+the configured target remote, including for fork MRs.
+
+Focused checks from the repository root:
+
+```bash
+pnpm --filter @emdash/plugins test -- src/pull-requests
+pnpm --filter @emdash/emdash-desktop test -- --project main-db src/core/services/pull-requests/node
+pnpm --filter @emdash/emdash-desktop test -- --project node pr-sync-status-card.test.ts merge-ui-state.test.ts
+```
+
+These tests use mocked API responses and temporary SQLite stores. They do not establish live
+GitLab token-scope or write behavior.
 
 ### GitLab token permissions
 

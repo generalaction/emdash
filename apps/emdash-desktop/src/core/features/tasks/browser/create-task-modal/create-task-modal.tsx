@@ -89,7 +89,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     connectedProviders,
     repositoryProvider
   );
-  const hasPrSupport = !!pullRequestRepositoryUrl;
+  const hasPrSupport =
+    !!pullRequestRepositoryUrl && !!repositoryStore?.providerRepository?.capabilities.pullRequests;
 
   const defaults = createTaskModalDefaults(initialStrategy, {
     hasIssues: hasAnyIssueIntegration,
@@ -142,6 +143,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             state={state}
             hasAnyIssueIntegration={hasAnyIssueIntegration}
             hasPrSupport={hasPrSupport}
+            requestProvider={repositoryProvider}
             issueLabel={issueTerms(issueProvider ?? repositoryProvider).title}
             projectId={selectedProjectId}
             repositoryUrl={repositoryUrl}
@@ -154,6 +156,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             isUnborn={isUnborn}
             hasRepository={hasRepository}
             hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
+            requestProvider={repositoryProvider}
             linkedIssue={
               state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
             }

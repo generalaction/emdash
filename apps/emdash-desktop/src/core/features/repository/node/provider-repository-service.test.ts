@@ -97,7 +97,7 @@ describe('ProviderRepositoryService', () => {
     expect(router.route).toHaveBeenCalledWith('https://ghe.example.com/acme/repo');
   });
 
-  it('reports no pull-request support for an integration without a pull-requests plugin', async () => {
+  it('enables merge requests for the registered GitLab plugin', async () => {
     mockProject({ hasRemote: true, selectedRemoteUrl: 'https://gitlab.com/group/sub/proj' });
     router.route.mockResolvedValue(
       ok({
@@ -119,7 +119,7 @@ describe('ProviderRepositoryService', () => {
     }).resolveProject('project-1');
     expect(result).toMatchObject({
       success: true,
-      data: { provider: 'gitlab', capabilities: { pullRequests: false, issues: true } },
+      data: { provider: 'gitlab', capabilities: { pullRequests: true, issues: true } },
     });
   });
 

@@ -326,6 +326,24 @@ describe('useWorkspaceConfig branch selection', () => {
     );
   });
 
+  it('previews a GitLab fork checkout with the MR head ref and branch namespace', async () => {
+    await renderProbe(
+      { mode: 'new-worktree', presetId: 'checkout-pr' },
+      {
+        pr: makePr({
+          provider: 'gitlab',
+          identifier: '!7',
+          url: 'https://gitlab.com/group/sub/repo/-/merge_requests/7',
+          repositoryUrl: 'https://gitlab.com/group/sub/repo',
+          headRepositoryUrl: 'https://gitlab.com/contributor/repo',
+        }),
+      }
+    );
+    expect(latestState?.setupSteps[0]?.description).toBe(
+      'Fetch refs/merge-requests/7/head from origin into mr/7/fix/thing'
+    );
+  });
+
   it('renders an empty preview for a PR checkout when the repository has no remotes', async () => {
     repositoryStoreMock.current = { baseRemote: null, pushRemote: null };
     await renderProbe({ mode: 'new-worktree', presetId: 'checkout-pr' }, { pr: makePr() });
