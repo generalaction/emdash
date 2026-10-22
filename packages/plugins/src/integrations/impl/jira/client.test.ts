@@ -3,8 +3,18 @@ import { createJiraClient, verifyJiraCredentials } from './client';
 import { provider as integration } from './index';
 import { jiraCredentialsSchema } from './types';
 
-const mocks = vi.hoisted(() => ({ createClient: vi.fn(), getCurrentUser: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  createClient: vi.fn(),
+  createV2Client: vi.fn(),
+  getCurrentUser: vi.fn(),
+}));
 vi.mock('jira.js', () => ({
+  Version2Client: class {
+    myself = { getCurrentUser: mocks.getCurrentUser };
+    constructor(config: unknown) {
+      mocks.createV2Client(config);
+    }
+  },
   Version3Client: class {
     myself = { getCurrentUser: mocks.getCurrentUser };
     constructor(config: unknown) {
@@ -90,7 +100,7 @@ describe('Jira connection verification', () => {
       'https://api.atlassian.com/oauth/token/accessible-resources',
       { headers: { Authorization: 'Bearer scoped-token' } }
     );
-    expect(integration.capabilities.auth.methods).toHaveLength(2);
+    expect(integration.capabilities.auth.methods).toHaveLength(3);
   });
 
   it('rejects a bearer token that cannot access the selected Jira site', async () => {
@@ -181,6 +191,39 @@ describe('Jira connection verification', () => {
       data: {
         account: { id: 'account-1', host: 'example.atlassian.net', login: 'user@example.com' },
         credentials: { authMethod: 'basic', email: 'user@example.com', apiToken: 'api-token' },
+      },
+    });
+  });
+
+  it('verifies a Data Center personal access token against the site itself', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({
+      key: 'JIRAUSER10100',
+      name: 'ada',
+      displayName: 'Ada Lovelace',
+    });
+
+    const result = await verifyJiraCredentials(
+      { siteUrl: 'https://jira.example.com/', personalAccessToken: 'dc-token' },
+      'pat'
+    );
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.createV2Client).toHaveBeenCalledWith({
+      host: 'https://jira.example.com',
+      authentication: { oauth2: { accessToken: 'dc-token' } },
+    });
+    expect(result).toEqual({
+      success: true,
+      data: {
+        account: { id: 'JIRAUSER10100', login: 'ada', host: 'jira.example.com' },
+        displayName: 'Ada Lovelace',
+        displayDetail: 'Personal access token · jira.example.com',
+        credentials: {
+          authMethod: 'pat',
+          siteUrl: 'https://jira.example.com',
+          personalAccessToken: 'dc-token',
+        },
       },
     });
   });

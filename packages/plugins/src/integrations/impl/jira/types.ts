@@ -1,4 +1,4 @@
-import type { Version3Client, Version3Models } from 'jira.js';
+import type { Version2Client, Version2Models, Version3Client, Version3Models } from 'jira.js';
 import z from 'zod';
 import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
@@ -20,9 +20,16 @@ const bearerJiraConnectionInputSchema = z.object({
   accessToken: credentialString('Jira OAuth 2.0 access token is required.'),
 });
 
+const patJiraCredentialsSchema = z.object({
+  authMethod: z.string().trim().pipe(z.literal('pat')),
+  siteUrl: jiraSiteUrlSchema,
+  personalAccessToken: credentialString('Jira personal access token is required.'),
+});
+
 export const jiraConnectionInputSchema = z.union([
   basicJiraCredentialsSchema,
   bearerJiraConnectionInputSchema,
+  patJiraCredentialsSchema,
 ]);
 
 const bearerJiraCredentialsSchema = bearerJiraConnectionInputSchema.extend({
@@ -32,13 +39,15 @@ const bearerJiraCredentialsSchema = bearerJiraConnectionInputSchema.extend({
 export const jiraCredentialsSchema = z.union([
   basicJiraCredentialsSchema,
   bearerJiraCredentialsSchema,
+  patJiraCredentialsSchema,
 ]);
 
 export type JiraCredentials = z.infer<typeof jiraCredentialsSchema>;
 
-export type JiraClient = Version3Client;
+/** Cloud speaks REST v3; Data Center only serves v2, so personal access tokens get a v2 client. */
+export type JiraClient = Version3Client | Version2Client;
 
-export type JiraIssue = Version3Models.Issue;
+export type JiraIssue = Version3Models.Issue | Version2Models.Issue;
 
 export type JiraVerifiedConnection = {
   account?: VerifiedAccountIdentity;

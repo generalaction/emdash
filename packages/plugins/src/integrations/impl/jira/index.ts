@@ -63,6 +63,29 @@ const plugin = defineIntegrationPlugin(
           ],
           help: 'Use an OAuth 2.0 access token for Jira Cloud. Atlassian API tokens are not supported by this method.',
         },
+        {
+          kind: 'form',
+          id: 'pat',
+          label: 'Personal access token (Data Center)',
+          fields: [
+            {
+              id: 'siteUrl',
+              label: 'Site URL',
+              required: true,
+              placeholder: 'https://jira.example.com',
+            },
+            {
+              id: 'personalAccessToken',
+              label: 'Personal access token',
+              secret: true,
+              required: true,
+              placeholder: 'Jira personal access token',
+            },
+          ],
+          help: 'For Jira Data Center or Server 8.14+. Create a token under your Jira profile, Personal Access Tokens.',
+          helpUrl:
+            'https://confluence.atlassian.com/enterprise/using-personal-access-tokens-1026032365.html',
+        },
       ],
     },
   },

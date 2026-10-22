@@ -1,8 +1,9 @@
 import { err, ok } from '@emdash/shared';
+import type { Version2Client, Version3Client } from 'jira.js';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { createJiraClient, readJiraCredentials } from '../../../integrations/impl/jira/client';
-import type { JiraClient, JiraIssue } from '../../../integrations/impl/jira/types';
+import type { JiraClient, JiraCredentials, JiraIssue } from '../../../integrations/impl/jira/types';
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
 import type { IssueListResult, IssueQueryOpts, IssueSearchOpts } from '../../types';
@@ -23,7 +24,7 @@ export async function listIssues(
   const sanitizedLimit = clampIssueLimit(opts.limit, 50, 500);
 
   try {
-    const issues = await searchJql(client, LIST_JQL, sanitizedLimit);
+    const issues = await searchJql(client, parsedCredentials.data, LIST_JQL, sanitizedLimit);
     return ok(issues.map((issue) => toIssueData(issue, parsedCredentials.data.siteUrl)));
   } catch (error) {
     host.log.warn('Jira listIssues failed', { error });
@@ -48,7 +49,12 @@ export async function searchIssues(
     const jql = JIRA_KEY_PATTERN.test(term)
       ? `(key = "${escapedTerm}" OR text ~ "${escapedTerm}") ORDER BY updated DESC`
       : `text ~ "${escapedTerm}" ORDER BY updated DESC`;
-    const issues = await searchJql(client, jql, clampIssueLimit(opts.limit, 20, 500));
+    const issues = await searchJql(
+      client,
+      parsedCredentials.data,
+      jql,
+      clampIssueLimit(opts.limit, 20, 500)
+    );
 
     return ok(issues.map((issue) => toIssueData(issue, parsedCredentials.data.siteUrl)));
   } catch (error) {
@@ -57,12 +63,20 @@ export async function searchIssues(
   }
 }
 
-async function searchJql(client: JiraClient, jql: string, limit: number): Promise<JiraIssue[]> {
-  const response = await client.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
-    jql,
-    maxResults: limit,
-    fields: SEARCH_FIELDS,
-  });
+async function searchJql(
+  client: JiraClient,
+  credentials: JiraCredentials,
+  jql: string,
+  limit: number
+): Promise<JiraIssue[]> {
+  const params = { jql, maxResults: limit, fields: SEARCH_FIELDS };
+  // Data Center has no enhanced search; createJiraClient pairs 'pat' with a v2 client.
+  const response =
+    credentials.authMethod === 'pat'
+      ? await (client as Version2Client).issueSearch.searchForIssuesUsingJqlPost(params)
+      : await (client as Version3Client).issueSearch.searchForIssuesUsingJqlEnhancedSearchPost(
+          params
+        );
   return response.issues ?? [];
 }
 

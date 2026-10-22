@@ -170,6 +170,44 @@ describe('jira issues plugin', () => {
     });
   });
 
+  it('lists Data Center issues through the v2 search with plain-text descriptions', async () => {
+    const mockV2Search = vi.fn().mockResolvedValueOnce({
+      issues: [
+        {
+          ...jiraIssue('OPS-7', 'Renew certificate'),
+          fields: {
+            ...jiraIssue('OPS-7', 'Renew certificate').fields,
+            description: 'h3. Steps\n* renew the cert',
+          },
+        },
+      ],
+    });
+    mockCreateJiraClient.mockReturnValue({
+      issueSearch: { searchForIssuesUsingJqlPost: mockV2Search },
+    } as unknown as JiraClient);
+    const host = makeHost();
+    host.credentials = {
+      authMethod: 'pat',
+      siteUrl: 'https://jira.example.com',
+      personalAccessToken: 'dc-token',
+    };
+
+    const result = await issues.listIssues(host, { limit: 10 });
+
+    expect(result).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          identifier: 'OPS-7',
+          title: 'Renew certificate',
+          url: 'https://jira.example.com/browse/OPS-7',
+          description: 'h3. Steps\n* renew the cert',
+        }),
+      ],
+    });
+    expect(mockSearchForIssues).not.toHaveBeenCalled();
+  });
+
   it('returns invalid input for incomplete stored bearer credentials before constructing a client', async () => {
     const host = makeHost();
     host.credentials = {
