@@ -47,6 +47,14 @@ export const storedIntegrationAccountsSchema = z.record(z.string(), storedIntegr
 
 export type StoredIntegrationAccounts = z.infer<typeof storedIntegrationAccountsSchema>;
 
+/**
+ * Per-integration issue filters keyed by provider id, in that provider's query
+ * language (JQL for Jira). Narrows the account's own filter for this project.
+ */
+export const storedIssueFiltersSchema = z.record(z.string(), z.string().trim().min(1));
+
+export type StoredIssueFilters = z.infer<typeof storedIssueFiltersSchema>;
+
 export const storedBaseProjectSettingsSchema = z.object({
   /** Renamed from the legacy `worktreeDirectory` key. */
   worktreeRoot: z.string().trim().optional(),
@@ -54,6 +62,7 @@ export const storedBaseProjectSettingsSchema = z.object({
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   integrationAccounts: storedIntegrationAccountsSchema.optional(),
+  issueFilters: storedIssueFiltersSchema.optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
   /** Lazy-migration marker; not a user setting. */

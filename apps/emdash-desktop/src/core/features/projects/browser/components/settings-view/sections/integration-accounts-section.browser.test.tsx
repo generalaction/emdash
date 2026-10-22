@@ -69,6 +69,8 @@ describe('project integration account rows', () => {
         <IntegrationAccountsSection
           integrationAccountsForm={{}}
           updateIntegrationAccounts={update}
+          issueFiltersForm={{}}
+          updateIssueFilters={vi.fn()}
           repositoryHost={null}
         />
       )
@@ -102,6 +104,8 @@ describe('project integration account rows', () => {
         <IntegrationAccountsSection
           integrationAccountsForm={{ jira: { kind: 'account', accountId: 'jira:a' } }}
           updateIntegrationAccounts={vi.fn()}
+          issueFiltersForm={{}}
+          updateIssueFilters={vi.fn()}
           repositoryHost={null}
         />
       );
@@ -142,6 +146,8 @@ describe('project integration account rows', () => {
           <IntegrationAccountsSection
             integrationAccountsForm={form}
             updateIntegrationAccounts={vi.fn()}
+            issueFiltersForm={{}}
+            updateIssueFilters={vi.fn()}
             repositoryHost="code.example"
           />
         );
@@ -172,6 +178,8 @@ describe('project integration account rows', () => {
         <IntegrationAccountsSection
           integrationAccountsForm={form}
           updateIntegrationAccounts={update}
+          issueFiltersForm={{}}
+          updateIssueFilters={vi.fn()}
           repositoryHost="github.com"
         />
       );

@@ -16,6 +16,7 @@ type ResolvedIssueAccess = {
   host: ConnectedIntegrationHostContext;
   accountId: string;
   repositoryUrl?: string;
+  issueFilter?: string;
 };
 
 /** Provider adapters prepare access; list/search execution has one policy and result mapping. */
@@ -28,7 +29,7 @@ export function createIssueListOperations(
   async function invoke(opts: IssueQueryOpts, searchTerm?: string): Promise<IssueListResult> {
     const context = await prepare(opts);
     if (!context.success) return context;
-    const { repositoryUrl, host } = context.data;
+    const { repositoryUrl, host, issueFilter } = context.data;
     if (capabilities.requiresRepositoryUrl && !repositoryUrl) {
       return err({ type: 'invalid_input', message: 'Repository URL is required.' });
     }
@@ -37,10 +38,12 @@ export function createIssueListOperations(
         ? await plugin.behavior.issues?.listIssues(host, {
             limit: clampIssueProviderLimit(opts.limit, DEFAULT_LIST_LIMIT),
             repositoryUrl,
+            issueFilter,
           })
         : await plugin.behavior.issues?.searchIssues(host, {
             limit: clampIssueProviderLimit(opts.limit, DEFAULT_SEARCH_LIMIT),
             repositoryUrl,
+            issueFilter,
             searchTerm,
           });
     if (!result) return ok([]);
@@ -68,10 +71,11 @@ export function clampIssueProviderLimit(limit: number | undefined, fallback: num
 export function toIssueProviderCapabilities(
   plugin: IssuesPluginProvider
 ): IssueProviderCapabilities {
-  const requiredInputs = plugin.capabilities.issues.requiredInputs;
+  const { requiredInputs, issueFilter } = plugin.capabilities.issues;
   return {
     requiresRepositoryUrl: requiredInputs.includes('repositoryUrl'),
     supportsIssueContext: !!plugin.behavior.issues?.getIssue,
+    ...(issueFilter ? { issueFilter } : {}),
   };
 }
 

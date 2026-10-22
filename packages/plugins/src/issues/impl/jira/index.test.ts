@@ -192,6 +192,29 @@ describe('jira issues plugin', () => {
     });
   });
 
+  it('narrows the account filter with the project filter', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({ issues: [] });
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'project = WEB' };
+
+    await issues.listIssues(host, { limit: 10, issueFilter: '"Epic Link" = WEB-123' });
+
+    expect(searchParams(0)).toMatchObject({
+      jql: '(project = WEB) AND ("Epic Link" = WEB-123) ORDER BY updated DESC',
+    });
+  });
+
+  it('rejects a project filter that brings its own ORDER BY without querying Jira', async () => {
+    const result = await issues.searchIssues(makeHost(), {
+      searchTerm: 'cert',
+      limit: 5,
+      issueFilter: 'project = WEB order by created',
+    });
+
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mockSearchForIssues).not.toHaveBeenCalled();
+  });
+
   it('lists Data Center issues through the v2 search with plain-text descriptions', async () => {
     const mockV2Search = vi.fn().mockResolvedValueOnce({
       issues: [

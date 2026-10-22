@@ -9,7 +9,7 @@ const jiraSiteUrlSchema = credentialString('Jira site URL is required.')
 
 // The filter is ANDed with other clauses and Emdash appends its own sort.
 const jiraJqlFilterSchema = optionalCredentialString().refine(
-  (value) => value === undefined || !/\border\s+by\b/i.test(value),
+  (value) => value === undefined || !jqlHasOrderBy(value),
   'Leave ORDER BY out of the Jira issue filter; issues are sorted by last update.'
 );
 
@@ -64,6 +64,11 @@ export type JiraVerifiedConnection = {
   displayDetail?: string;
   credentials: JiraCredentials;
 };
+
+/** Filters are ANDed with other clauses, so one carrying its own sort would break the query. */
+export function jqlHasOrderBy(jql: string): boolean {
+  return /\border\s+by\b/i.test(jql);
+}
 
 function isHttpUrl(value: string): boolean {
   try {

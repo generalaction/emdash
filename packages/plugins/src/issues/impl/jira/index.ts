@@ -1,9 +1,15 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { Version2Client, Version3Client } from 'jira.js';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { createJiraClient, readJiraCredentials } from '../../../integrations/impl/jira/client';
-import type { JiraClient, JiraCredentials, JiraIssue } from '../../../integrations/impl/jira/types';
+import {
+  jqlHasOrderBy,
+  type JiraClient,
+  type JiraCredentials,
+  type JiraIssue,
+} from '../../../integrations/impl/jira/types';
+import type { IntegrationError } from '../../../integrations/types';
 import { clampIssueLimit, normalizeSearchTerm } from '../../helpers/provider-inputs';
 import { defineIssuesPlugin, registerIssuesPluginBehavior } from '../../plugin';
 import type { IssueListResult, IssueQueryOpts, IssueSearchOpts } from '../../types';
@@ -20,6 +26,9 @@ export async function listIssues(
   const parsedCredentials = readJiraCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
 
+  const filters = issueFilters(parsedCredentials.data, opts.issueFilter);
+  if (!filters.success) return filters;
+
   const client = createJiraClient(parsedCredentials.data);
   const sanitizedLimit = clampIssueLimit(opts.limit, 50, 500);
 
@@ -27,7 +36,7 @@ export async function listIssues(
     const issues = await searchJql(
       client,
       parsedCredentials.data,
-      listJql(issueFilters(parsedCredentials.data)),
+      listJql(filters.data),
       sanitizedLimit
     );
     return ok(issues.map((issue) => toIssueData(issue, parsedCredentials.data.siteUrl)));
@@ -46,6 +55,8 @@ export async function searchIssues(
 
   const parsedCredentials = readJiraCredentials(host.credentials);
   if (!parsedCredentials.success) return err(parsedCredentials.error);
+  const filters = issueFilters(parsedCredentials.data, opts.issueFilter);
+  if (!filters.success) return filters;
 
   const client = createJiraClient(parsedCredentials.data);
 
@@ -54,7 +65,7 @@ export async function searchIssues(
     const termClause = JIRA_KEY_PATTERN.test(term)
       ? `(key = "${escapedTerm}" OR text ~ "${escapedTerm}")`
       : `text ~ "${escapedTerm}"`;
-    const jql = scopedJql([...issueFilters(parsedCredentials.data), termClause]);
+    const jql = scopedJql([...filters.data, termClause]);
     const issues = await searchJql(
       client,
       parsedCredentials.data,
@@ -69,8 +80,19 @@ export async function searchIssues(
   }
 }
 
-function issueFilters(credentials: JiraCredentials): string[] {
-  return credentials.jqlFilter ? [credentials.jqlFilter] : [];
+/** The account's filter, narrowed by the project's; both are optional. */
+function issueFilters(
+  credentials: JiraCredentials,
+  projectFilter: string | undefined
+): Result<string[], IntegrationError> {
+  if (projectFilter && jqlHasOrderBy(projectFilter)) {
+    return err({
+      type: 'invalid_input',
+      message:
+        "Remove ORDER BY from this project's Jira issue filter; issues are sorted by last update.",
+    });
+  }
+  return ok([credentials.jqlFilter, projectFilter].filter((filter): filter is string => !!filter));
 }
 
 /** A filter is the user's chosen scope, so the recent-activity window only applies without one. */
@@ -101,7 +123,11 @@ async function searchJql(
   return response.issues ?? [];
 }
 
-const plugin = defineIssuesPlugin({ integrationId: 'jira' }, { issues: {} }, {});
+const plugin = defineIssuesPlugin(
+  { integrationId: 'jira' },
+  { issues: { issueFilter: { label: 'JQL filter', placeholder: '"Epic Link" = WEB-123' } } },
+  {}
+);
 
 export const provider = registerIssuesPluginBehavior(plugin, {
   issues: { listIssues, searchIssues },
