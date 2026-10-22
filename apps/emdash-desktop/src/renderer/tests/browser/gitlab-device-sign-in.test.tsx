@@ -158,11 +158,25 @@ describe('GitLab device sign-in', () => {
     expect(document.querySelector('input[type="password"]')).not.toBeNull();
   });
 
-  it('signs in to Emdash with GitLab', async () => {
+  it('signs in to Emdash with GitHub, then links GitLab, when signed out', async () => {
+    await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
+    expect(document.body.textContent).toContain('Link GitLab to Emdash');
+    await act(async () => button('Continue').click());
+    expect(accountHooks.signIn).toHaveBeenCalledExactlyOnceWith({ provider: 'github' });
+    expect(accountHooks.linkProvider).toHaveBeenCalledExactlyOnceWith({ provider: 'gitlab' });
+    expect(controller.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not link GitLab when the GitHub sign-in fails', async () => {
+    accountHooks.signIn.mockResolvedValueOnce({
+      success: false,
+      error: 'Sign-in cancelled.',
+    } as never);
     await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
     await act(async () => button('Continue').click());
-    expect(accountHooks.signIn).toHaveBeenCalledWith({ provider: 'gitlab' });
-    expect(controller.complete).toHaveBeenCalledTimes(1);
+    expect(accountHooks.linkProvider).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('Sign-in cancelled.');
+    expect(controller.complete).not.toHaveBeenCalled();
   });
 
   it('links GitLab to a signed-in Emdash account instead of offering device sign-in', async () => {
@@ -259,7 +273,8 @@ describe('GitLab device sign-in', () => {
       <IntegrationSetupModal integration="gitlab" accountId="https://gitlab.com:42" />
     );
     await act(async () => button('Continue').click());
-    expect(accountHooks.signIn).toHaveBeenCalledWith({
+    expect(accountHooks.signIn).toHaveBeenCalledWith({ provider: 'github' });
+    expect(accountHooks.linkProvider).toHaveBeenCalledWith({
       provider: 'gitlab',
       accountId: 'https://gitlab.com:42',
     });

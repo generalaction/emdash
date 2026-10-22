@@ -252,6 +252,14 @@ describe('EmdashAccountService', () => {
       });
     });
 
+    it('signs in only with GitHub: other providers can only be linked', async () => {
+      const error = unwrapError(await service.signIn('gitlab'));
+
+      expect(error).toMatchObject({ type: 'unsupported_provider', provider: 'gitlab' });
+      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
+      expect(mockCredSet).not.toHaveBeenCalled();
+    });
+
     it('does not dispatch when provider token is absent', async () => {
       const oauthResponse = {
         sessionToken: 'session-abc',

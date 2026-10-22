@@ -10,7 +10,8 @@ export type AccountSignInError =
   | AccountInvalidAuthResponseError
   | AccountOAuthError
   | AccountSessionPersistenceError
-  | AccountProviderTokenPersistenceError;
+  | AccountProviderTokenPersistenceError
+  | AccountUnsupportedProviderError;
 
 export type AccountLinkProviderError =
   | AccountAuthServerError

@@ -49,8 +49,11 @@ Credentials that expire carry `expiresAt` (epoch milliseconds); `credentialsExpi
 ### Sign-in through the Emdash auth server (`oauth`)
 
 The desktop runs the browser PKCE flow against the auth server for any integration whose
-descriptor declares `{ kind: 'oauth', providerId }`: it signs in to Emdash with the provider, or,
-when already signed in, links another provider account (`account-link/start?provider_id=...`).
+descriptor declares `{ kind: 'oauth', providerId }`. Emdash accounts are created and signed into
+only with `EMDASH_SIGN_IN_PROVIDER` (GitHub); the auth server enforces this too. When signed in,
+the desktop links the provider account (`account-link/start?provider_id=...`). When signed out,
+it signs in with GitHub for GitHub itself; for any other provider (GitLab) it signs in with GitHub
+first and then links, so another provider never creates an Emdash account.
 The exchange returns the provider access token, its expiry, and the account identity.
 `IntegrationOAuthTokens` (`core/features/integrations/node/integration-oauth-tokens.ts`) maps the
 token with `credentialsFromOAuthToken`, verifies it with the plugin's `verify` (so an account has

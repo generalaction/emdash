@@ -28,6 +28,12 @@ type AccountResult = {
 
 export const accountDomain = 'account' as const;
 
+/**
+ * Emdash accounts are created and signed into only with this provider. Other
+ * providers can only be linked to a signed-in Emdash account.
+ */
+export const EMDASH_SIGN_IN_PROVIDER = { id: 'github', name: 'GitHub' } as const;
+
 const providerInput = z.object({
   provider: z.string().optional(),
   /** Reconnect this integration account; a token for another identity is not saved. */

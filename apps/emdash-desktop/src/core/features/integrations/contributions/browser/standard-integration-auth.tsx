@@ -6,6 +6,7 @@ import {
   useAccountSession,
   useAccountSignIn,
 } from '@core/features/account/api/browser/useAccount';
+import { EMDASH_SIGN_IN_PROVIDER } from '@core/features/account/api/contract';
 import type { IntegrationAuthUiProps } from '@core/features/integrations/api/browser/integration-auth-ui';
 import type { IntegrationProviderDescriptor } from '@core/features/integrations/api/contract';
 import {
@@ -114,9 +115,11 @@ export function StandardIntegrationAuth({
 }
 
 /**
- * Signs in to Emdash with the provider, or links another provider account when
- * already signed in. The auth server issues the provider token; `null` when the
- * integration does not offer this method.
+ * Connects through the Emdash auth server, which issues the provider token:
+ * links the provider account when signed in to Emdash; otherwise signs in with
+ * the provider, or, for providers that can only be linked, signs in with
+ * EMDASH_SIGN_IN_PROVIDER first and then links. `null` when the integration
+ * does not offer this method.
  */
 function useEmdashOAuthMethod({
   metadata,
@@ -141,16 +144,29 @@ function useEmdashOAuthMethod({
   if (method?.kind !== 'oauth') return null;
   const { name } = metadata;
   const isSignedIn = session?.isSignedIn === true;
-  const content = oauthContent(name, { isSignedIn, hasAccount: session?.hasAccount === true });
+  const linkOnly = method.providerId !== EMDASH_SIGN_IN_PROVIDER.id;
+  const content = oauthContent(name, {
+    isSignedIn,
+    hasAccount: session?.hasAccount === true,
+    linkOnly,
+  });
 
   const connect = async () => {
     setError(undefined);
     setLoading(true);
     try {
       const input = { provider: method.providerId, ...(accountId ? { accountId } : {}) };
-      const result = isSignedIn
-        ? await linkProvider.mutateAsync(input)
-        : await signIn.mutateAsync(input);
+      if (!isSignedIn && linkOnly) {
+        const signedIn = await signIn.mutateAsync({ provider: EMDASH_SIGN_IN_PROVIDER.id });
+        if (!signedIn.success) {
+          setError(signedIn.error ?? 'Sign-in failed. Please try again.');
+          return;
+        }
+      }
+      const result =
+        isSignedIn || linkOnly
+          ? await linkProvider.mutateAsync(input)
+          : await signIn.mutateAsync(input);
       if (!result.success) {
         setError(result.error ?? 'Connection failed. Please try again.');
         return;
@@ -184,7 +200,11 @@ function useEmdashOAuthMethod({
 
 function oauthContent(
   name: string,
-  { isSignedIn, hasAccount }: { isSignedIn: boolean; hasAccount: boolean }
+  {
+    isSignedIn,
+    hasAccount,
+    linkOnly,
+  }: { isSignedIn: boolean; hasAccount: boolean; linkOnly: boolean }
 ) {
   if (isSignedIn) {
     return {
@@ -192,6 +212,15 @@ function oauthContent(
       description: `Add another ${name} account to your Emdash account`,
       label: 'Link',
       loadingLabel: 'Linking...',
+    };
+  }
+
+  if (linkOnly) {
+    return {
+      title: `Link ${name} to Emdash`,
+      description: `Sign in to Emdash with ${EMDASH_SIGN_IN_PROVIDER.name}, then link your ${name} account`,
+      label: 'Continue',
+      loadingLabel: 'Continuing...',
     };
   }
 

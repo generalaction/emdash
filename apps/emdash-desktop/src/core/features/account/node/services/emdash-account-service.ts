@@ -1,5 +1,6 @@
 import { err, ok, Result as ResultUtil, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
+import { EMDASH_SIGN_IN_PROVIDER } from '@core/features/account/api/contract';
 import type { ProviderTokenTarget } from '@core/features/account/api/node/provider-token-sink';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import {
@@ -99,11 +100,22 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     return validation;
   }
 
-  /** `accountId` reconnects that integration account; a token for another identity is not saved. */
+  /**
+   * Only EMDASH_SIGN_IN_PROVIDER signs in to (or creates) an Emdash account; other
+   * providers are linked once signed in. `accountId` reconnects that integration
+   * account; a token for another identity is not saved.
+   */
   async signIn(
-    provider: string = 'github',
+    provider: string = EMDASH_SIGN_IN_PROVIDER.id,
     options: ProviderTokenTarget = {}
   ): Promise<Result<SignInResult, AccountSignInError>> {
+    if (provider !== EMDASH_SIGN_IN_PROVIDER.id) {
+      return err({
+        type: 'unsupported_provider',
+        provider,
+        message: `Sign in to Emdash with ${EMDASH_SIGN_IN_PROVIDER.name}, then link ${provider}.`,
+      });
+    }
     return await ResultUtil.fromAsync(this.oauthClient.signIn(provider))
       .andThen((raw) => parseSignInResponse(raw))
       .andThen(
