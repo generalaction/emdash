@@ -85,7 +85,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     if (!validation.success) return validation;
 
     if (validation.data === 'invalid') {
-      const cleared = await this.clearSessionAndNotify();
+      const cleared = await this.clearExpiredSession(token.data);
       if (!cleared.success) return cleared;
       return ok('invalid');
     }
@@ -152,7 +152,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     );
     if (!accountLinkState.success) {
       if (accountLinkState.error.type === 'session_expired') {
-        const cleared = await this.clearSessionAndNotify();
+        const cleared = await this.clearExpiredSession(sessionToken.data);
         if (!cleared.success) return cleared;
       }
       return accountLinkState;
@@ -182,7 +182,8 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   /**
    * Reads the access token of a provider account linked to the Emdash account;
    * the auth server refreshes it first when it is close to expiry. An expired
-   * Emdash session is cleared, so later reads fail without a request.
+   * Emdash session is cleared (unless a newer one replaced it meanwhile), so
+   * later reads fail without a request.
    */
   async renewProviderToken(
     provider: string,
@@ -201,7 +202,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     );
     if (!raw.success) {
       if (raw.error.type === 'session_expired') {
-        const cleared = await this.clearSessionAndNotify();
+        const cleared = await this.clearExpiredSession(sessionToken.data);
         if (!cleared.success) return cleared;
       }
       return raw;
@@ -211,6 +212,14 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
 
   async checkServerHealth(): Promise<boolean> {
     return this.authServerClient.checkHealth();
+  }
+
+  /** Clears `token`'s session after the server rejected it, unless a newer session replaced it. */
+  private async clearExpiredSession(token: string): Promise<Result<void, AccountSessionReadError>> {
+    const cleared = await this.sessionStore.clearSessionIfCurrent(token);
+    if (!cleared.success) return cleared;
+    if (cleared.data) this._hooks.callHookBackground('accountCleared');
+    return ok();
   }
 
   private async clearSessionAndNotify(): Promise<Result<void, AccountSessionReadError>> {

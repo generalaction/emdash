@@ -574,6 +574,36 @@ describe('EmdashAccountService', () => {
       expect(accountCleared).toHaveBeenCalled();
     });
 
+    it('keeps a session signed in while a renewal for the previous one was pending', async () => {
+      const accountCleared = vi.fn();
+      service.on('accountCleared', accountCleared);
+      mockCredGet.mockResolvedValue(ok('session-old'));
+      let respond!: (response: unknown) => void;
+      mockFetch.mockReturnValueOnce(new Promise((resolve) => (respond = resolve)));
+
+      const renewal = service.renewProviderToken('gitlab', '7');
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+      mockExecuteOAuthFlow.mockResolvedValue({
+        sessionToken: 'session-new',
+        user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
+      });
+      unwrapResult(await service.signIn());
+      respond({ ok: false, status: 401, json: async () => ({}) });
+
+      expect(unwrapError(await renewal)).toMatchObject({ type: 'session_expired' });
+      expect(mockCredClear).not.toHaveBeenCalled();
+      expect(accountCleared).not.toHaveBeenCalled();
+
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
+      await service.renewProviderToken('gitlab', '7');
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer session-new' }),
+        })
+      );
+    });
+
     it('reports an account that is no longer linked', async () => {
       mockCredGet.mockResolvedValue(ok('session-abc'));
       mockFetch.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
