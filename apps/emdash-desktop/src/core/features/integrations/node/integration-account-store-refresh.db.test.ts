@@ -452,6 +452,27 @@ describe('IntegrationAccountStore credential refresh', () => {
       expect(renew).not.toHaveBeenCalled();
     });
 
+    it('keeps rejected credentials eligible after a temporary renewal failure', async () => {
+      const current = serverIssued(NOW + 60 * 60 * 1000);
+      const renew = vi
+        .fn<CredentialRenewer>()
+        .mockResolvedValueOnce(err({ type: 'unavailable', message: 'Could not renew GitLab.' }))
+        .mockResolvedValueOnce(ok(serverIssued(NOW + 7_200_000, '-2')));
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(current);
+      await store.reportRejected('gitlab', ACCOUNT_ID, current);
+
+      expect(await store.getAccount('gitlab', ACCOUNT_ID)).toMatchObject({
+        credentials: current,
+        renewalError: 'Could not renew GitLab.',
+      });
+      await expect(store.reportRejected('gitlab', ACCOUNT_ID, current)).resolves.toBe(true);
+      const renewed = await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).toHaveBeenCalledTimes(2);
+      expect(renewed?.credentials).toEqual(serverIssued(NOW + 7_200_000, '-2'));
+    });
+
     it('ignores rejected credentials that do not expire', async () => {
       const token = { instanceUrl: 'https://gitlab.com', apiToken: 'glpat' };
       await seed(token);

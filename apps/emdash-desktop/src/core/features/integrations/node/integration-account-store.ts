@@ -195,14 +195,19 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     if (!renew || !this.needsRenewal(key, stored)) return { account, credentials: stored };
 
     const storedJson = JSON.stringify(stored);
-    if (this.rejectedCredentials.get(key) === storedJson) {
+    // Rejected credentials renew early once. A temporary failure keeps them
+    // eligible, so a brief outage does not leave a revoked token in use.
+    const forced = this.rejectedCredentials.get(key) === storedJson;
+    const settleForced = () => {
+      if (!forced) return;
       this.rejectedCredentials.delete(key);
       this.forcedRenewals.set(key, storedJson);
-    }
+    };
     const failure = this.failedRenewals.get(key);
     if (failure?.credentials !== storedJson) {
       this.failedRenewals.delete(key);
     } else if (failure.error.type === 'rejected') {
+      settleForced();
       return { account, credentials: stored, renewalError: failure.error.message };
     }
     const renewed = await renew(integrationId, toIntegrationAccount(account, stored), this.now());
@@ -217,8 +222,10 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
         ...(credentialSource ? { credentialSource } : {}),
         error: renewed.error,
       });
+      if (renewed.error.type === 'rejected') settleForced();
       return { account, credentials: stored, renewalError: renewed.error.message };
     }
+    settleForced();
     this.failedRenewals.delete(key);
     if (!renewed.data) return { account, credentials: stored };
     const saved = await this.saveRenewed(integrationId, accountId, renewed.data, persistedJson);
