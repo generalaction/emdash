@@ -80,14 +80,15 @@ renewal logs and returns the stored credentials with `renewalError`; the provide
 fails the API call, and the connection status shows `renewalError` (for example, "Sign in to
 Emdash to keep GitLab connected."). A renewal the provider or server rejected (`auth_failed`,
 or an account no longer linked to the Emdash account) is not retried until the credentials
-change, for example on reconnect. Other failures, including a missing or expired Emdash session,
-are retried on the next read. A session the server rejects is cleared, so later reads fail
-without a request until the user signs in again; a response for an older session never clears a
-newer one. Renewed credentials that fail to save are kept in memory, returned, and written again
-on the next read, since the provider has already invalidated the stored refresh token. A renewal
-is saved only if the stored credentials are still the ones it replaced, and `upsertAccount` waits
-for an in-flight renewal of the same account, so a disconnect or reconnect during a renewal is
-never undone.
+change (for example on reconnect) or, for `emdash_oauth`, until the user signs in or out of
+Emdash, since another Emdash account may have the provider account linked. Other failures,
+including a missing or expired Emdash session, are retried on the next read. A session the
+server rejects is cleared, so later reads fail without a request until the user signs in again;
+a response for an older session never clears a newer one. Renewed credentials that fail to save
+are kept in memory, returned, and written again on the next read, since the provider has already
+invalidated the stored refresh token. A renewal is saved only if the stored credentials are still
+the ones it replaced, and `upsertAccount` waits for an in-flight renewal of the same account, so
+a disconnect or reconnect during a renewal is never undone.
 
 ### Device sign-in (`oauth-device`)
 

@@ -516,6 +516,12 @@ export async function bootServices(
       accountService.renewProviderToken(provider, providerAccountId)
     )
   );
+  // A renewal that failed under one Emdash account (e.g. "not linked") says
+  // nothing about the next one, so retry after every sign-in or sign-out.
+  const forgetEmdashRenewalFailures = () =>
+    integrationAccountStore.forgetRenewalFailures(EMDASH_OAUTH_CREDENTIAL_SOURCE);
+  accountService.on('accountChanged', forgetEmdashRenewalFailures);
+  accountService.on('accountCleared', forgetEmdashRenewalFailures);
   const integrationDeviceFlow = new IntegrationDeviceFlowService({
     connections: integrationConnections,
     logger: log,

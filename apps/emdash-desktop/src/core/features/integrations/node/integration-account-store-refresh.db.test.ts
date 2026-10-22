@@ -313,6 +313,36 @@ describe('IntegrationAccountStore credential refresh', () => {
       expect(account?.renewalError).toBe('GitLab is no longer linked.');
     });
 
+    it('retries a rejected renewal after its failures are forgotten', async () => {
+      const renew = vi
+        .fn<CredentialRenewer>()
+        .mockResolvedValueOnce(err({ type: 'rejected', message: 'GitLab is no longer linked.' }))
+        .mockResolvedValueOnce(ok(serverIssued(NOW + 7_200_000, '-2')));
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(serverIssued(NOW + 60_000));
+      await store.getAccount('gitlab', ACCOUNT_ID);
+
+      store.forgetRenewalFailures('emdash_oauth');
+      const account = await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).toHaveBeenCalledTimes(2);
+      expect(account?.credentials).toEqual(serverIssued(NOW + 7_200_000, '-2'));
+    });
+
+    it('keeps failures of other credential sources when forgetting', async () => {
+      store.setRenewer('emdash_oauth', vi.fn<CredentialRenewer>());
+      await seed(oauth(NOW + 60_000));
+      fetch.mockResolvedValue(
+        new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })
+      );
+      await store.getAccount('gitlab', ACCOUNT_ID);
+
+      store.forgetRenewalFailures('emdash_oauth');
+      await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('renews with the method of credentials a reconnect saved during the read', async () => {
       const renew = vi.fn<CredentialRenewer>(async () =>
         ok(serverIssued(NOW + 7_200_000, '-server'))

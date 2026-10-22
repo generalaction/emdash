@@ -46,7 +46,7 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
   /** Stored credentials, as JSON, whose renewal failed; keyed per account. */
   private readonly failedRenewals = new Map<
     string,
-    { credentials: string; error: CredentialRenewalError }
+    { credentials: string; credentialSource?: string; error: CredentialRenewalError }
   >();
   /** Renewed credentials that failed to persist, valid while the stored JSON is `replaces`. */
   private readonly unsavedRenewals = new Map<
@@ -70,6 +70,16 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
   }
 
   /**
+   * Forgets failed renewals of accounts connected with `credentialSource`, e.g.
+   * when the session their renewer depends on changes, so they are retried.
+   */
+  forgetRenewalFailures(credentialSource: string): void {
+    for (const [key, failure] of this.failedRenewals) {
+      if (failure.credentialSource === credentialSource) this.failedRenewals.delete(key);
+    }
+  }
+
+  /**
    * Resolve one account: by id when given, otherwise the integration's
    * default account. Credentials whose `expiresAt` is near are renewed and
    * persisted first; renewals are serialized per account because rotating
@@ -77,7 +87,7 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
    * source. A failed renewal returns the stored credentials with
    * `renewalError`, so the API call reports the authentication failure.
    * Credentials whose renewal was rejected are not renewed again until they
-   * change. Renewed credentials that fail to persist are kept in memory and
+   * change or `forgetRenewalFailures` runs. Renewed credentials that fail to persist are kept in memory and
    * written again on the next read, because the provider has already
    * invalidated the stored refresh token. A renewal is saved only while the
    * stored credentials it replaces are unchanged, so a disconnect or
@@ -165,7 +175,11 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
         accountId,
         error: renewed.error.type,
       });
-      this.failedRenewals.set(key, { credentials: storedJson, error: renewed.error });
+      this.failedRenewals.set(key, {
+        credentials: storedJson,
+        ...(credentialSource ? { credentialSource } : {}),
+        error: renewed.error,
+      });
       return { account, credentials: stored, renewalError: renewed.error.message };
     }
     this.failedRenewals.delete(key);
