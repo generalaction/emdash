@@ -2,12 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FetchLike } from '../../helpers/oauth-device';
 import type { IntegrationHostContext } from '../../host';
 import { gitLabAuthHeaders, gitLabGitCredential } from './client';
-import {
-  createGitLabAuthBehavior,
-  GITLAB_OAUTH_CLIENT_ID,
-  GITLAB_REFRESH_SKEW_MS,
-  provider,
-} from './index';
+import { createGitLabAuthBehavior, GITLAB_OAUTH_CLIENT_ID, provider } from './index';
 import { gitLabCredentialsSchema } from './types';
 
 const host = {
@@ -26,9 +21,11 @@ function json(status: number, body: unknown): Response {
 }
 
 describe('GitLab credentials', () => {
-  it('accepts personal access tokens and OAuth token pairs', () => {
+  it('accepts personal access tokens, OAuth token pairs, and server-issued OAuth tokens', () => {
     expect(gitLabCredentialsSchema.safeParse(pat).success).toBe(true);
-    expect(gitLabCredentialsSchema.safeParse(oauth).success).toBe(true);
+    expect(gitLabCredentialsSchema.parse(oauth)).toEqual(oauth);
+    const serverIssued = { instanceUrl: 'https://gitlab.com', accessToken: 'access', expiresAt: 1 };
+    expect(gitLabCredentialsSchema.parse(serverIssued)).toEqual(serverIssued);
     expect(gitLabCredentialsSchema.safeParse({ instanceUrl: 'https://gitlab.com' }).success).toBe(
       false
     );
@@ -52,16 +49,26 @@ describe('GitLab credentials', () => {
 });
 
 describe('GitLab auth behavior', () => {
-  it('declares device sign-in for gitlab.com before the token form', () => {
-    expect(provider.capabilities.auth.methods.map((method) => method.kind)).toEqual([
-      'oauth-device',
-      'form',
+  it('declares Emdash and device sign-in for gitlab.com before the token form', () => {
+    expect(provider.capabilities.auth.methods).toEqual([
+      { kind: 'oauth', providerId: 'gitlab' },
+      { kind: 'oauth-device', clientId: GITLAB_OAUTH_CLIENT_ID, scopes: ['api', 'read_user'] },
+      expect.objectContaining({ kind: 'form' }),
     ]);
-    expect(provider.capabilities.auth.methods[0]).toEqual({
-      kind: 'oauth-device',
-      clientId: GITLAB_OAUTH_CLIENT_ID,
-      scopes: ['api', 'read_user'],
-    });
+  });
+
+  it('maps server-issued tokens to OAuth credentials without a refresh token', () => {
+    const behavior = createGitLabAuthBehavior();
+    expect(
+      behavior.credentialsFromOAuthToken({
+        accessToken: 'access',
+        expiresAt: 5_000,
+        host: 'gitlab.com',
+      })
+    ).toEqual({ instanceUrl: 'https://gitlab.com', accessToken: 'access', expiresAt: 5_000 });
+    expect(
+      behavior.credentialsFromOAuthToken({ accessToken: 'access', host: 'gitlab.com' })
+    ).toEqual({ instanceUrl: 'https://gitlab.com', accessToken: 'access' });
   });
 
   it('completes device sign-in with gitlab.com OAuth credentials', async () => {
@@ -131,16 +138,16 @@ describe('GitLab auth behavior', () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it('leaves OAuth credentials alone until they are within the refresh window', async () => {
+    it('leaves server-issued OAuth credentials to the Emdash auth server', async () => {
       const fetch = vi.fn<FetchLike>();
-      const now = oauth.expiresAt - GITLAB_REFRESH_SKEW_MS - 1;
+      const { refreshToken: _refreshToken, ...serverIssued } = oauth;
       await expect(
-        createGitLabAuthBehavior({ fetch }).refreshCredentials(host, oauth, now)
+        createGitLabAuthBehavior({ fetch }).refreshCredentials(host, serverIssued, 0)
       ).resolves.toEqual({ success: true, data: undefined });
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it('rotates the token pair inside the refresh window', async () => {
+    it('rotates the token pair', async () => {
       const fetch = vi
         .fn<FetchLike>()
         .mockResolvedValue(

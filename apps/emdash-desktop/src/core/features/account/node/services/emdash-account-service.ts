@@ -4,6 +4,7 @@ import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import {
   type AccountInitializeError,
   type AccountLinkProviderError,
+  type AccountRenewProviderTokenError,
   type AccountSessionReadError,
   type AccountSessionValidationError,
   type AccountSignInError,
@@ -11,11 +12,13 @@ import {
 } from '../account-errors';
 import type {
   LinkProviderAccountResult,
+  RenewedProviderToken,
   SessionState,
   SessionValidationResult,
   SignInResult,
 } from '../account-types';
 import {
+  parseRenewedProviderTokenResponse,
   parseRequiredProviderTokenResponse,
   parseSignInResponse,
 } from './account-auth-response-parser';
@@ -132,7 +135,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   async linkProviderAccount(
     provider: string = 'github'
   ): Promise<Result<LinkProviderAccountResult, AccountLinkProviderError>> {
-    if (provider !== 'github') {
+    if (!this.providerTokenDispatcher.supports(provider)) {
       return err({
         type: 'unsupported_provider',
         provider,
@@ -143,7 +146,10 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     const sessionToken = await this.sessionStore.requireToken();
     if (!sessionToken.success) return sessionToken;
 
-    const accountLinkState = await this.authServerClient.startAccountLink(sessionToken.data);
+    const accountLinkState = await this.authServerClient.startAccountLink(
+      sessionToken.data,
+      provider
+    );
     if (!accountLinkState.success) {
       if (accountLinkState.error.type === 'session_expired') {
         const cleared = await this.clearSessionAndNotify();
@@ -171,6 +177,36 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
       result.providerAccount = providerToken.data.providerAccount;
     }
     return ok(result);
+  }
+
+  /**
+   * Reads the access token of a provider account linked to the Emdash account;
+   * the auth server refreshes it first when it is close to expiry. An expired
+   * Emdash session is cleared, so later reads fail without a request.
+   */
+  async renewProviderToken(
+    provider: string,
+    providerAccountId: string
+  ): Promise<Result<RenewedProviderToken, AccountRenewProviderTokenError>> {
+    const sessionToken = await this.sessionStore.ensureTokenLoaded();
+    if (!sessionToken.success) return sessionToken;
+    if (!sessionToken.data) {
+      return err({ type: 'not_signed_in', message: 'You are signed out of Emdash.' });
+    }
+
+    const raw = await this.authServerClient.getProviderToken(
+      sessionToken.data,
+      provider,
+      providerAccountId
+    );
+    if (!raw.success) {
+      if (raw.error.type === 'session_expired') {
+        const cleared = await this.clearSessionAndNotify();
+        if (!cleared.success) return cleared;
+      }
+      return raw;
+    }
+    return parseRenewedProviderTokenResponse(raw.data);
   }
 
   async checkServerHealth(): Promise<boolean> {

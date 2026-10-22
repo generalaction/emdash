@@ -1,4 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { DeviceAuthorizationSession } from '../capabilities/auth';
+import type { IntegrationCredentials } from '../host';
 import type { IntegrationError } from '../types';
 import { hasKnownNetworkErrorCode } from './hosted-instance';
 
@@ -32,6 +34,44 @@ type TokenResponse = {
   error?: unknown;
   error_description?: unknown;
 };
+
+/**
+ * Starts device authorization and returns the session shown to the user;
+ * completing it polls for tokens and maps them with `toCredentials`.
+ */
+export async function startDeviceAuthorizationSession(options: {
+  deviceAuthorizationUrl: string;
+  tokenUrl: string;
+  clientId: string;
+  scopes: string[];
+  provider: string;
+  fetch?: FetchLike;
+  toCredentials(tokens: OAuthTokens): Result<IntegrationCredentials, IntegrationError>;
+}): Promise<Result<DeviceAuthorizationSession, IntegrationError>> {
+  const authorization = await requestDeviceAuthorization({
+    url: options.deviceAuthorizationUrl,
+    clientId: options.clientId,
+    scopes: options.scopes,
+    provider: options.provider,
+    fetch: options.fetch,
+  });
+  if (!authorization.success) return authorization;
+  const { deviceCode: _deviceCode, interval: _interval, ...shown } = authorization.data;
+  return ok({
+    ...shown,
+    async complete(signal: AbortSignal) {
+      const tokens = await pollDeviceToken({
+        url: options.tokenUrl,
+        clientId: options.clientId,
+        authorization: authorization.data,
+        provider: options.provider,
+        signal,
+        fetch: options.fetch,
+      });
+      return tokens.success ? options.toCredentials(tokens.data) : tokens;
+    },
+  });
+}
 
 /** RFC 8628 §3.1: request a device and user code. */
 export async function requestDeviceAuthorization(options: {

@@ -14,6 +14,8 @@ export type IntegrationAccountRecord = {
   identity?: VerifiedAccountIdentity;
   credentialSource?: string;
   credentials: IntegrationCredentials;
+  /** Why expiring `credentials` could not be renewed; set while they stay unchanged. */
+  renewalError?: string;
 };
 
 /** Credential consumers resolve one account; persistence stays with the integration owner. */

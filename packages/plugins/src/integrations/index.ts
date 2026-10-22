@@ -22,6 +22,8 @@ export type {
   IntegrationAuthDescriptor,
   IntegrationAuthField,
   IntegrationAuthMethod,
+  OAuthAccessToken,
   VerifiedAccountIdentity,
   VerifyResult,
 } from './capabilities/auth';
+export { credentialsExpireAt } from './capabilities/auth';

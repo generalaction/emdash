@@ -1,9 +1,8 @@
 import { err, ok } from '@emdash/shared';
-import type { VerifyResult } from '../../capabilities/auth';
+import type { OAuthAccessToken, VerifyResult } from '../../capabilities/auth';
 import {
-  pollDeviceToken,
   refreshOAuthToken,
-  requestDeviceAuthorization,
+  startDeviceAuthorizationSession,
   type FetchLike,
 } from '../../helpers/oauth-device';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
@@ -16,8 +15,6 @@ export const GITLAB_OAUTH_CLIENT_ID =
   '5313b9638141050d75e9e8d6ff4b93c925fc72a9c4ac04fa064257fe27590ca4';
 export const GITLAB_OAUTH_SCOPES = ['api', 'read_user'];
 const GITLAB_DOT_COM = 'https://gitlab.com';
-/** OAuth credentials within this window of expiry are refreshed before use. */
-export const GITLAB_REFRESH_SKEW_MS = 5 * 60 * 1000;
 
 const plugin = defineIntegrationPlugin(
   {
@@ -29,6 +26,7 @@ const plugin = defineIntegrationPlugin(
   {
     auth: {
       methods: [
+        { kind: 'oauth', providerId: 'gitlab' },
         {
           kind: 'oauth-device',
           clientId: GITLAB_OAUTH_CLIENT_ID,
@@ -71,28 +69,14 @@ export function createGitLabAuthBehavior(options: { fetch?: FetchLike } = {}) {
       return { connected: true, ...result.data } satisfies VerifyResult;
     },
     async startDeviceAuthorization() {
-      const authorization = await requestDeviceAuthorization({
-        url: `${GITLAB_DOT_COM}/oauth/authorize_device`,
+      return await startDeviceAuthorizationSession({
+        deviceAuthorizationUrl: `${GITLAB_DOT_COM}/oauth/authorize_device`,
+        tokenUrl,
         clientId: GITLAB_OAUTH_CLIENT_ID,
         scopes: GITLAB_OAUTH_SCOPES,
         provider: 'GitLab',
         fetch: options.fetch,
-      });
-      if (!authorization.success) return authorization;
-      const { deviceCode: _deviceCode, interval: _interval, ...shown } = authorization.data;
-      return ok({
-        ...shown,
-        async complete(signal: AbortSignal) {
-          const tokens = await pollDeviceToken({
-            url: tokenUrl,
-            clientId: GITLAB_OAUTH_CLIENT_ID,
-            authorization: authorization.data,
-            provider: 'GitLab',
-            signal,
-            fetch: options.fetch,
-          });
-          if (!tokens.success) return tokens;
-          const { accessToken, refreshToken, expiresAt } = tokens.data;
+        toCredentials({ accessToken, refreshToken, expiresAt }) {
           if (!refreshToken || expiresAt === undefined) {
             return err({
               type: 'generic' as const,
@@ -103,17 +87,20 @@ export function createGitLabAuthBehavior(options: { fetch?: FetchLike } = {}) {
         },
       });
     },
+    credentialsFromOAuthToken({ accessToken, expiresAt, host }: OAuthAccessToken) {
+      return {
+        instanceUrl: `https://${host}`,
+        accessToken,
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+      };
+    },
     async refreshCredentials(
       _host: unknown,
       credentials: Parameters<typeof verifyGitLabCredentials>[0],
       now: number
     ) {
       const oauth = gitLabOAuthCredentialsSchema.safeParse(credentials);
-      if (
-        !oauth.success ||
-        oauth.data.instanceUrl !== GITLAB_DOT_COM ||
-        oauth.data.expiresAt - now > GITLAB_REFRESH_SKEW_MS
-      ) {
+      if (!oauth.success || !oauth.data.refreshToken || oauth.data.instanceUrl !== GITLAB_DOT_COM) {
         return ok(undefined);
       }
       const tokens = await refreshOAuthToken({

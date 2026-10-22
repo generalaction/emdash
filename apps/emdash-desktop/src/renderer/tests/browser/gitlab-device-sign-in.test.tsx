@@ -15,6 +15,21 @@ const client = vi.hoisted(() => ({
   cancelDeviceFlow: vi.fn(async () => undefined),
 }));
 const host = vi.hoisted(() => ({ openExternal: vi.fn(async () => undefined) }));
+const accountHooks = vi.hoisted(() => ({
+  session: { isSignedIn: false, hasAccount: false },
+  signIn: vi.fn(async (_provider: string | undefined) => ({ success: true })),
+  linkProvider: vi.fn(async (_provider: string | undefined) => ({
+    success: true,
+    providerAccount: { login: 'tanuki' },
+    providerAccountStatus: 'created',
+  })),
+}));
+
+vi.mock('@core/features/account/api/browser/useAccount', () => ({
+  useAccountSession: () => ({ data: accountHooks.session }),
+  useAccountSignIn: () => ({ mutateAsync: accountHooks.signIn, isPending: false }),
+  useAccountLinkProvider: () => ({ mutateAsync: accountHooks.linkProvider, isPending: false }),
+}));
 
 vi.mock('@core/features/integrations/api/browser/client', () => ({
   getIntegrationsClient: async () => client,
@@ -32,6 +47,7 @@ vi.mock('@core/features/integrations/contributions/browser/integrations-provider
         name: 'GitLab',
         auth: {
           methods: [
+            { kind: 'oauth', providerId: 'gitlab' },
             { kind: 'oauth-device', clientId: 'test', scopes: ['api', 'read_user'] },
             {
               kind: 'form',
@@ -74,6 +90,7 @@ describe('GitLab device sign-in', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    accountHooks.session = { isSignedIn: false, hasAccount: false };
     controller = {
       complete: vi.fn<(result: unknown) => void>(),
       dismiss: vi.fn<() => void>(),
@@ -114,17 +131,35 @@ describe('GitLab device sign-in', () => {
     return found;
   }
 
-  it('offers device sign-in and the token form', async () => {
+  it('offers Emdash sign-in, device sign-in, and the token form', async () => {
     await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
-    expect(button('Sign in with GitLab')).toBeTruthy();
+    expect(button('Continue')).toBeTruthy();
+    expect(button('Use device flow')).toBeTruthy();
 
     await act(async () => button('Use an access token').click());
     expect(document.querySelector('input[type="password"]')).not.toBeNull();
   });
 
+  it('signs in to Emdash with GitLab', async () => {
+    await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
+    await act(async () => button('Continue').click());
+    expect(accountHooks.signIn).toHaveBeenCalledWith('gitlab');
+    expect(controller.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('links GitLab to a signed-in Emdash account instead of offering device sign-in', async () => {
+    accountHooks.session = { isSignedIn: true, hasAccount: true };
+    await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
+    expect(document.querySelector('button[aria-label="Use device flow"]')).toBeNull();
+
+    await act(async () => button('Link').click());
+    expect(accountHooks.linkProvider).toHaveBeenCalledWith('gitlab');
+    expect(controller.complete).toHaveBeenCalledTimes(1);
+  });
+
   it('opens the device sign-in modal and completes the connect modal on success', async () => {
     await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
-    await act(async () => button('Sign in with GitLab').click());
+    await act(async () => button('Use device flow').click());
     expect(modalStore.activeModalId).toBe('integrationDeviceFlowModal');
 
     await act(async () => modalStore.complete(undefined));
@@ -176,6 +211,23 @@ describe('GitLab device sign-in', () => {
     }
   });
 
+  it('copies the code when the verification page does not prefill it', async () => {
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    const { verificationUriComplete: _prefilled, ...withoutPrefill } = started;
+    client.startDeviceFlow.mockResolvedValue(withoutPrefill);
+    client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
+    try {
+      await render(
+        'integrationDeviceFlowModal',
+        <IntegrationDeviceFlowModal integrationId="github" providerName="GitHub" />
+      );
+      expect(writeText).toHaveBeenCalledWith('N03SDJ4B');
+      expect(button('Code copied')).toBeTruthy();
+    } finally {
+      writeText.mockRestore();
+    }
+  });
+
   it('opens the verification page immediately on Enter', async () => {
     client.startDeviceFlow.mockResolvedValue(started);
     client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
@@ -212,7 +264,7 @@ describe('GitLab device sign-in', () => {
       'integrationSetupModal',
       <IntegrationSetupModal integration="gitlab" accountId="https://gitlab.com:42" />
     );
-    await act(async () => button('Sign in with GitLab').click());
+    await act(async () => button('Use device flow').click());
     expect(modalStore.activeModalId).toBe('integrationDeviceFlowModal');
     expect(modalStore.stack.at(-1)?.args).toMatchObject({ accountId: 'https://gitlab.com:42' });
   });

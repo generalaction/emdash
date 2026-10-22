@@ -18,7 +18,6 @@ const accountHooks = vi.hoisted(() => ({
 }));
 
 const githubHooks = vi.hoisted(() => ({
-  deviceFlowAuth: vi.fn(async () => ({ success: true })),
   importCliAccounts: vi.fn(async () => ({ success: true, importedAccountIds: [] as string[] })),
 }));
 
@@ -29,7 +28,6 @@ vi.mock('@core/features/account/api/browser/useAccount', () => ({
 }));
 
 vi.mock('@core/features/github/api/browser/use-github-auth', () => ({
-  useGitHubDeviceFlowAuth: () => ({ mutateAsync: githubHooks.deviceFlowAuth, isPending: false }),
   useImportGitHubCliAccounts: () => ({
     mutateAsync: githubHooks.importCliAccounts,
     isPending: false,
@@ -223,7 +221,11 @@ describe('GitHub connect-and-resume', () => {
 
     await act(async () => methodButton('Use device flow').click());
 
-    expect(modalStore.activeModalId).toBe('githubDeviceFlowModal');
+    expect(modalStore.activeModalId).toBe('integrationDeviceFlowModal');
+    expect(modalStore.stack.at(-1)?.args).toEqual({
+      integrationId: 'github',
+      providerName: 'GitHub',
+    });
     expect(controller.complete).not.toHaveBeenCalled();
 
     await act(async () => {

@@ -1,6 +1,7 @@
+import { err, ok } from '@emdash/shared';
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IntegrationAccountStore } from './integration-account-store';
+import { IntegrationAccountStore, type CredentialRenewer } from './integration-account-store';
 
 const NOW = 1_800_000_000_000;
 const ACCOUNT_ID = 'https://gitlab.com:42';
@@ -234,6 +235,83 @@ describe('IntegrationAccountStore credential refresh', () => {
 
     expect((await read)?.credentials).toEqual(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
     expect(await storedSecret()).toEqual(oauth(NOW + 60 * 60 * 1000, '-reconnected'));
+  });
+
+  describe('renewal by credential source', () => {
+    function serverIssued(expiresAt: number, suffix = '') {
+      return { instanceUrl: 'https://gitlab.com', accessToken: `access${suffix}`, expiresAt };
+    }
+
+    async function seedServerIssued(credentials: Record<string, unknown>) {
+      await store.upsertAccount('gitlab', {
+        accountId: ACCOUNT_ID,
+        identity: { id: '42', login: 'tdewitt', host: 'gitlab.com', scope: 'https://gitlab.com' },
+        credentialSource: 'emdash_oauth',
+        credentials: credentials as never,
+      });
+    }
+
+    it('renews through the registered renewer instead of the provider', async () => {
+      const renew = vi.fn<CredentialRenewer>(async () => ok(serverIssued(NOW + 7_200_000, '-2')));
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(serverIssued(NOW + 60_000));
+
+      const account = await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(account?.credentials).toEqual(serverIssued(NOW + 7_200_000, '-2'));
+      expect(await storedSecret()).toEqual(serverIssued(NOW + 7_200_000, '-2'));
+      expect(renew).toHaveBeenCalledWith(
+        'gitlab',
+        expect.objectContaining({ identity: expect.objectContaining({ id: '42' }) }),
+        NOW
+      );
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('does not renew credentials that are still current', async () => {
+      const renew = vi.fn<CredentialRenewer>();
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(serverIssued(NOW + 60 * 60 * 1000));
+
+      await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).not.toHaveBeenCalled();
+    });
+
+    it('reports why renewal failed and retries on the next read', async () => {
+      const renew = vi
+        .fn<CredentialRenewer>()
+        .mockResolvedValueOnce(
+          err({ type: 'unavailable', message: 'Sign in to Emdash to keep GitLab connected.' })
+        )
+        .mockResolvedValueOnce(ok(serverIssued(NOW + 7_200_000, '-2')));
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(serverIssued(NOW + 60_000));
+
+      expect(await store.getAccount('gitlab', ACCOUNT_ID)).toMatchObject({
+        credentials: serverIssued(NOW + 60_000),
+        renewalError: 'Sign in to Emdash to keep GitLab connected.',
+      });
+      const renewed = await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).toHaveBeenCalledTimes(2);
+      expect(renewed?.credentials).toEqual(serverIssued(NOW + 7_200_000, '-2'));
+      expect(renewed?.renewalError).toBeUndefined();
+    });
+
+    it('does not retry a rejected renewal until the credentials change', async () => {
+      const renew = vi.fn<CredentialRenewer>(async () =>
+        err({ type: 'rejected', message: 'GitLab is no longer linked.' })
+      );
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(serverIssued(NOW + 60_000));
+
+      await store.getAccount('gitlab', ACCOUNT_ID);
+      const account = await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).toHaveBeenCalledTimes(1);
+      expect(account?.renewalError).toBe('GitLab is no longer linked.');
+    });
   });
 
   it('applies a reconnect after an in-flight refresh of the same account', async () => {

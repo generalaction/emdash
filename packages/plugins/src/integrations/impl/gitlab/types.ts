@@ -1,7 +1,7 @@
 import type { Gitlab, IssueSchemaWithBasicLabels } from '@gitbeaker/rest';
 import z from 'zod';
 import type { VerifiedAccountIdentity } from '../../capabilities/auth';
-import { credentialString } from '../../helpers/credentials';
+import { credentialString, optionalCredentialString } from '../../helpers/credentials';
 import { normalizeHostedInstanceUrl } from '../../helpers/hosted-instance';
 
 const instanceUrlSchema = credentialString('A valid GitLab instance URL is required.')
@@ -14,13 +14,16 @@ export const gitLabTokenCredentialsSchema = z.object({
   apiToken: credentialString('A GitLab API token is required.'),
 });
 
-/** OAuth token pair from device authorization; the refresh token rotates on use. */
+/**
+ * OAuth access token. Device sign-in stores the refresh token, which rotates on
+ * use; the Emdash auth server keeps the refresh token for tokens it issues.
+ */
 export const gitLabOAuthCredentialsSchema = z.object({
   instanceUrl: instanceUrlSchema,
   accessToken: credentialString('A GitLab access token is required.'),
-  refreshToken: credentialString('A GitLab refresh token is required.'),
+  refreshToken: optionalCredentialString(),
   /** Epoch milliseconds. */
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().int().positive().optional(),
 });
 
 export const gitLabCredentialsSchema = z.union([

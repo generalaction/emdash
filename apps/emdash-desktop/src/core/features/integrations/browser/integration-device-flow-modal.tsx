@@ -47,9 +47,17 @@ export function IntegrationDeviceFlowModal({
   const [openingIn, setOpeningIn] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const flowIdRef = useRef<string | null>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const succeededRef = useRef(false);
   const completeRef = useRef(modal.complete);
   completeRef.current = modal.complete;
+
+  const flashCopied = useCallback(() => {
+    setCopied(true);
+    clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
+  }, []);
+  useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
 
   useEffect(() => {
     let active = true;
@@ -71,6 +79,15 @@ export function IntegrationDeviceFlowModal({
       setSecondsLeft(started.expiresIn);
       setOpeningIn(BROWSER_OPEN_DELAY_SECONDS);
       setState({ kind: 'waiting', ...started });
+      // Without a link that carries the code, the provider asks for it; have it ready to paste.
+      if (!started.verificationUriComplete) {
+        navigator.clipboard?.writeText(started.userCode).then(
+          () => {
+            if (active) flashCopied();
+          },
+          (error: unknown) => log.warn('Failed to copy device code', error)
+        );
+      }
 
       const result = await client.completeDeviceFlow(
         { flowId: started.flowId },
@@ -105,7 +122,7 @@ export function IntegrationDeviceFlowModal({
         void getIntegrationsClient().then((client) => client.cancelDeviceFlow({ flowId }));
       }
     };
-  }, [accountId, integrationId, providerName, queryClient, toast]);
+  }, [accountId, flashCopied, integrationId, providerName, queryClient, toast]);
 
   const waiting = state.kind === 'waiting';
   const verificationUrl =
@@ -139,13 +156,12 @@ export function IntegrationDeviceFlowModal({
     if (!userCode) return;
     try {
       await navigator.clipboard.writeText(userCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      flashCopied();
     } catch (error) {
       log.error('Failed to copy device code', error);
       toast.error('Copy failed', { description: 'Copy the code manually.' });
     }
-  }, [toast, userCode]);
+  }, [flashCopied, toast, userCode]);
 
   const openProvider = useCallback(() => {
     if (!verificationUrl) return;
