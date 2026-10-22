@@ -108,9 +108,10 @@ The desktop drives device sign-in for any integration through the integrations W
 `startDeviceFlow` returns the code, `completeDeviceFlow` resolves once the user approves,
 denies, or the code expires, then verifies and saves the account with credential source
 `device_flow`, and `cancelDeviceFlow` aborts it; a flow cancelled before the save saves nothing.
-A failed verification is retried once after a second, because a provider can briefly reject a
-token it has just issued (seen on GitLab.com). Cancelling while the save waits behind a renewal of
-the same account saves nothing. Each flow completes at most once.
+A failed verification is retried once after a second (`verifyFreshCredentials`, also used when
+linking through Emdash), because a provider can briefly reject a token it has just issued (seen on
+GitLab.com). Cancelling while the save waits behind a renewal of the same account saves nothing.
+Each flow completes at most once.
 `completeDeviceFlow` waits for the user, so the renderer calls it with a deadline longer than the
 code's lifetime; cancelling the Wire call cancels the flow.
 

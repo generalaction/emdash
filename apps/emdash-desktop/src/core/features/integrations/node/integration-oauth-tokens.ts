@@ -5,6 +5,7 @@ import {
 } from '@emdash/plugins/integrations';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
 import type {
   ProviderTokenDispatchResult,
   ProviderTokenPayload,
@@ -13,6 +14,7 @@ import type {
 } from '@core/features/account/api/node/provider-token-sink';
 import type { IntegrationConnections } from '../api/node/integration-accounts';
 import type { CredentialRenewer } from './integration-account-store';
+import { verifyFreshCredentials } from './verify-fresh-credentials';
 
 /** Accounts connected with an access token issued by the Emdash auth server. */
 export const EMDASH_OAUTH_CREDENTIAL_SOURCE = 'emdash_oauth';
@@ -38,7 +40,8 @@ function findOAuthIntegration(provider: string): IntegrationPluginProvider | und
 export class IntegrationOAuthTokens implements ProviderTokenSink {
   constructor(
     private readonly connections: IntegrationConnections,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly clock?: Pick<Clock, 'sleep'>
   ) {}
 
   supports(provider: string): boolean {
@@ -61,7 +64,10 @@ export class IntegrationOAuthTokens implements ProviderTokenSink {
       ...(payload.expiresAt !== undefined ? { expiresAt: payload.expiresAt } : {}),
       host: normalizeRepositoryHost(providerAccount.host),
     });
-    const verified = await auth.verify({ log: this.logger }, credentials);
+    const verified = await verifyFreshCredentials(
+      async () => await auth.verify({ log: this.logger }, credentials),
+      this.clock ? { clock: this.clock } : {}
+    );
     if (!verified.connected) {
       throw new Error(verified.error ?? `Could not verify the ${name} account.`);
     }

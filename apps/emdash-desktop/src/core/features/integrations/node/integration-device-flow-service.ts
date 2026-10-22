@@ -4,15 +4,10 @@ import {
   type DeviceAuthorizationSession,
 } from '@emdash/plugins/integrations';
 import type { Logger } from '@emdash/shared/logger';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import type { Clock } from '@emdash/shared/scheduling';
 import type { DeviceFlowCompleteResult, DeviceFlowStartResult } from '../api/contract';
 import type { IntegrationConnections } from '../api/node/integration-accounts';
-
-/**
- * A provider can briefly reject a token it has just issued (seen on GitLab.com),
- * so a failed verification is retried once after this delay.
- */
-const VERIFY_RETRY_DELAY_MS = 1000;
+import { verifyFreshCredentials } from './verify-fresh-credentials';
 
 type PendingFlow = {
   integrationId: string;
@@ -83,17 +78,14 @@ export class IntegrationDeviceFlowService {
       if (!credentials.success) return { success: false, error: credentials.error.message };
 
       const plugin = integrationPluginRegistry.get(flow.integrationId);
-      const verify = async () =>
-        await plugin?.behavior.auth?.verify({ log: this.deps.logger }, credentials.data);
-      let verified = await verify();
-      if (verified && !verified.connected && !flow.controller.signal.aborted) {
-        const clock = this.deps.clock ?? systemClock;
-        const waited = await clock
-          .sleep(VERIFY_RETRY_DELAY_MS, { signal: flow.controller.signal })
-          .then(() => true)
-          .catch(() => false);
-        if (waited) verified = await verify();
-      }
+      const verified = await verifyFreshCredentials(
+        async () =>
+          await plugin?.behavior.auth?.verify({ log: this.deps.logger }, credentials.data),
+        {
+          signal: flow.controller.signal,
+          ...(this.deps.clock ? { clock: this.deps.clock } : {}),
+        }
+      );
       if (flow.controller.signal.aborted) {
         return { success: false, error: 'Sign-in was cancelled.', cancelled: true };
       }

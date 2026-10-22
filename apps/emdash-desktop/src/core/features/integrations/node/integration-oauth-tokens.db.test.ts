@@ -9,10 +9,11 @@ import {
 } from './integration-oauth-tokens';
 
 const gitlabUser = vi.hoisted(() => ({ id: 7, username: 'tanuki', name: 'Tanuki' }));
+const showCurrentUser = vi.hoisted(() => vi.fn());
 
 vi.mock('@gitbeaker/rest', () => ({
   Gitlab: class {
-    Users = { showCurrentUser: async () => gitlabUser };
+    Users = { showCurrentUser: () => showCurrentUser() };
   },
 }));
 
@@ -31,8 +32,10 @@ describe('IntegrationOAuthTokens', () => {
 
   beforeEach(async () => {
     gitlabUser.id = 7;
+    showCurrentUser.mockReset();
+    showCurrentUser.mockImplementation(async () => gitlabUser);
     fixture = await openRegistryFixture('empty');
-    tokens = new IntegrationOAuthTokens(fixture.connections, log);
+    tokens = new IntegrationOAuthTokens(fixture.connections, log, { sleep: async () => {} });
   });
   afterEach(() => fixture?.close());
 
@@ -62,6 +65,17 @@ describe('IntegrationOAuthTokens', () => {
         expiresAt: EXPIRES_AT,
       },
     });
+  });
+
+  it('verifies a just-issued token once more before rejecting it', async () => {
+    showCurrentUser.mockRejectedValueOnce(
+      Object.assign(new Error('401 Unauthorized'), { cause: { response: { status: 401 } } })
+    );
+
+    const result = await tokens.store('gitlab', { accessToken: 'glo_server', providerAccount });
+
+    expect(result?.providerAccountStatus).toBe('created');
+    expect(showCurrentUser).toHaveBeenCalledTimes(2);
   });
 
   it('updates the account a device sign-in already connected', async () => {
