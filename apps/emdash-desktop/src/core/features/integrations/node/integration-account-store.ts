@@ -73,14 +73,15 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
    * Resolve one account: by id when given, otherwise the integration's
    * default account. Credentials whose `expiresAt` is near are renewed and
    * persisted first; renewals are serialized per account because rotating
-   * refresh tokens are single-use. A failed renewal returns the stored
-   * credentials with `renewalError`, so the API call reports the
-   * authentication failure. Credentials whose renewal was rejected are not
-   * renewed again until they change. Renewed credentials that fail to
-   * persist are kept in memory and written again on the next read, because
-   * the provider has already invalidated the stored refresh token. A renewal
-   * is saved only while the stored credentials it replaces are unchanged, so
-   * a disconnect or reconnect during the request wins.
+   * refresh tokens are single-use, and use the account's current credential
+   * source. A failed renewal returns the stored credentials with
+   * `renewalError`, so the API call reports the authentication failure.
+   * Credentials whose renewal was rejected are not renewed again until they
+   * change. Renewed credentials that fail to persist are kept in memory and
+   * written again on the next read, because the provider has already
+   * invalidated the stored refresh token. A renewal is saved only while the
+   * stored credentials it replaces are unchanged, so a disconnect or
+   * reconnect during the request wins.
    */
   async getAccount(
     integrationId: string,
@@ -90,48 +91,51 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     const account = await this.accounts.getAccount(integrationId, accountId);
     if (!account) return null;
 
-    const renew = this.renewerFor(integrationId, account.meta?.credentialSource);
-    if (!renew) {
-      const credentials = await this.readCredentials(integrationId, account.accountId);
-      return credentials ? toIntegrationAccount(account, credentials) : null;
-    }
+    const credentials = await this.readCredentials(integrationId, account.accountId);
+    if (!credentials) return null;
     const key = `${integrationId}\u0000${account.accountId}`;
-    if (!this.unsavedRenewals.has(key)) {
-      const credentials = await this.readCredentials(integrationId, account.accountId);
-      if (!credentials) return null;
-      if (!this.expiresSoon(credentials)) return toIntegrationAccount(account, credentials);
+    if (
+      !this.renewerFor(integrationId, account.meta?.credentialSource) ||
+      (!this.unsavedRenewals.has(key) && !this.expiresSoon(credentials))
+    ) {
+      return toIntegrationAccount(account, credentials);
     }
     const resolved = await this.renewals.runExclusive(key, () =>
-      this.renewExclusive(integrationId, account, key, renew)
+      this.renewExclusive(integrationId, account.accountId, key)
     );
     if (!resolved) return null;
     return {
-      ...toIntegrationAccount(account, resolved.credentials),
+      ...toIntegrationAccount(resolved.account, resolved.credentials),
       ...(resolved.renewalError ? { renewalError: resolved.renewalError } : {}),
     };
   }
 
+  /** Rereads metadata and credentials under the account lock, since a reconnect may replace both. */
   private async renewExclusive(
     integrationId: string,
-    account: ProviderAccount,
-    key: string,
-    renew: CredentialRenewer
-  ): Promise<{ credentials: IntegrationCredentials; renewalError?: string } | null> {
-    const reread = async () => {
-      const credentials = await this.readCredentials(integrationId, account.accountId);
-      return credentials ? { credentials } : null;
-    };
-    const persisted = await this.readCredentials(integrationId, account.accountId);
-    if (!persisted) {
+    accountId: string,
+    key: string
+  ): Promise<{
+    account: ProviderAccount;
+    credentials: IntegrationCredentials;
+    renewalError?: string;
+  } | null> {
+    const account = await this.accounts.getAccount(integrationId, accountId);
+    const persisted = account ? await this.readCredentials(integrationId, accountId) : null;
+    if (!account || !persisted) {
       this.unsavedRenewals.delete(key);
       return null;
     }
+    const reread = async () => {
+      const credentials = await this.readCredentials(integrationId, accountId);
+      return credentials ? { account, credentials } : null;
+    };
     let persistedJson = JSON.stringify(persisted);
     let stored = persisted;
     const unsaved = this.unsavedRenewals.get(key);
     if (unsaved?.replaces === persistedJson) {
       stored = unsaved.credentials;
-      const saved = await this.saveRenewed(integrationId, account.accountId, stored, persistedJson);
+      const saved = await this.saveRenewed(integrationId, accountId, stored, persistedJson);
       if (saved === 'superseded') {
         this.unsavedRenewals.delete(key);
         return await reread();
@@ -143,40 +147,37 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     } else if (unsaved) {
       this.unsavedRenewals.delete(key);
     }
-    if (!this.expiresSoon(stored)) return { credentials: stored };
+    const credentialSource = account.meta?.credentialSource;
+    const renew = this.renewerFor(integrationId, credentialSource);
+    if (!renew || !this.expiresSoon(stored)) return { account, credentials: stored };
 
     const storedJson = JSON.stringify(stored);
     const failure = this.failedRenewals.get(key);
     if (failure?.credentials !== storedJson) {
       this.failedRenewals.delete(key);
     } else if (failure.error.type === 'rejected') {
-      return { credentials: stored, renewalError: failure.error.message };
+      return { account, credentials: stored, renewalError: failure.error.message };
     }
     const renewed = await renew(integrationId, toIntegrationAccount(account, stored), this.now());
     if (!renewed.success) {
       log.warn('IntegrationAccountStore: credential renewal failed', {
         integrationId,
-        accountId: account.accountId,
+        accountId,
         error: renewed.error.type,
       });
       this.failedRenewals.set(key, { credentials: storedJson, error: renewed.error });
-      return { credentials: stored, renewalError: renewed.error.message };
+      return { account, credentials: stored, renewalError: renewed.error.message };
     }
     this.failedRenewals.delete(key);
-    if (!renewed.data) return { credentials: stored };
-    const saved = await this.saveRenewed(
-      integrationId,
-      account.accountId,
-      renewed.data,
-      persistedJson
-    );
+    if (!renewed.data) return { account, credentials: stored };
+    const saved = await this.saveRenewed(integrationId, accountId, renewed.data, persistedJson);
     if (saved === 'failed') {
       this.unsavedRenewals.set(key, { replaces: persistedJson, credentials: renewed.data });
-      return { credentials: renewed.data };
+      return { account, credentials: renewed.data };
     }
     this.unsavedRenewals.delete(key);
     if (saved === 'superseded') return await reread();
-    return { credentials: renewed.data };
+    return { account, credentials: renewed.data };
   }
 
   private renewerFor(

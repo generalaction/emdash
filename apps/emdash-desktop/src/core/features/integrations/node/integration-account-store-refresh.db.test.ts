@@ -312,6 +312,44 @@ describe('IntegrationAccountStore credential refresh', () => {
       expect(renew).toHaveBeenCalledTimes(1);
       expect(account?.renewalError).toBe('GitLab is no longer linked.');
     });
+
+    it('renews with the method of credentials a reconnect saved during the read', async () => {
+      const renew = vi.fn<CredentialRenewer>(async () =>
+        ok(serverIssued(NOW + 7_200_000, '-server'))
+      );
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(serverIssued(NOW + 60_000));
+      // A device sign-in reconnect lands after the metadata read, before the account lock.
+      let reconnect: (() => Promise<unknown>) | undefined = () =>
+        store.upsertAccount('gitlab', {
+          accountId: ACCOUNT_ID,
+          identity: { id: '42', login: 'tdewitt', host: 'gitlab.com', scope: 'https://gitlab.com' },
+          credentialSource: 'device_flow',
+          credentials: oauth(NOW + 60_000, '-device') as never,
+        });
+      const getRegistryAccount = fixture.registry.getAccount.bind(fixture.registry);
+      vi.spyOn(fixture.registry, 'getAccount').mockImplementation(async (providerId, accountId) => {
+        const account = await getRegistryAccount(providerId, accountId);
+        const pending = reconnect;
+        reconnect = undefined;
+        await pending?.();
+        return account;
+      });
+      fetch.mockResolvedValueOnce(tokenResponse('-2'));
+
+      const account = await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).not.toHaveBeenCalled();
+      const body = new URLSearchParams(
+        String((fetch.mock.calls[0] as [string, RequestInit])[1].body)
+      );
+      expect(body.get('refresh_token')).toBe('refresh-device');
+      expect(account).toMatchObject({
+        credentialSource: 'device_flow',
+        credentials: oauth(NOW + 7_200_000, '-2'),
+      });
+      expect(await storedSecret()).toEqual(oauth(NOW + 7_200_000, '-2'));
+    });
   });
 
   it('applies a reconnect after an in-flight refresh of the same account', async () => {

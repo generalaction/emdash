@@ -63,7 +63,8 @@ identity is not saved. GitHub and GitLab use this path; there is no per-provider
 
 `IntegrationAccountStore.getAccount` is the only credential read path. When stored credentials
 expire within five minutes (`CREDENTIAL_RENEWAL_SKEW_MS`), it renews them before returning the
-account. The store decides when; the credential source decides how:
+account. The store decides when; the account's current credential source decides how. Both are
+reread under the account lock, because a reconnect can replace them during a read:
 
 - `emdash_oauth`: the renewer registered with `setRenewer` asks the auth server for the linked
   account's current token (`POST /api/v1/auth/electron/provider-token` with the Emdash session).
