@@ -9,11 +9,3 @@ export function useImportGitHubCliAccounts() {
     onSuccess: () => invalidateProviderAccountState(queryClient),
   });
 }
-
-export function useGitHubDeviceFlowAuth() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async () => (await getGithubClient()).auth(undefined),
-    onSettled: () => invalidateProviderAccountState(queryClient),
-  });
-}

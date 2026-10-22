@@ -9,7 +9,6 @@ import { pullRequestsPluginRegistry } from '@emdash/plugins/pull-requests';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { peek } from '@emdash/wire/state';
 import { app, powerMonitor } from 'electron';
-import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 import { AccountAuthServerClient } from '@core/features/account/node/services/account-auth-server-client';
 import { AccountOAuthClient } from '@core/features/account/node/services/account-oauth-client';
 import type { AccountKVSchema } from '@core/features/account/node/services/account-session-store';
@@ -31,12 +30,7 @@ import {
 import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
 import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
-import { githubEvents } from '@core/features/github/node/event-host';
 import { GitCredentialServer } from '@core/features/github/node/services/git-credential-server';
-import {
-  defaultGitHubDeviceAuthFactory,
-  GitHubDeviceFlowService,
-} from '@core/features/github/node/services/github-device-flow-service';
 import { githubIdentityClient } from '@core/features/github/node/services/github-identity-client';
 import { LegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store';
 import { clearOctokitCache } from '@core/features/github/node/services/octokit-cache';
@@ -50,6 +44,15 @@ import {
   IntegrationConnectionService,
   setIntegrationConnectionService,
 } from '@core/features/integrations/node/integration-connection-service';
+import {
+  IntegrationDeviceFlowService,
+  setIntegrationDeviceFlowService,
+} from '@core/features/integrations/node/integration-device-flow-service';
+import {
+  createEmdashOAuthRenewer,
+  EMDASH_OAUTH_CREDENTIAL_SOURCE,
+  IntegrationOAuthTokens,
+} from '@core/features/integrations/node/integration-oauth-tokens';
 import { migrateGitHubJsonCredentials } from '@core/features/integrations/node/migrations/github-json-credentials';
 import { LegacyIntegrationAccountsMigration } from '@core/features/integrations/node/migrations/legacy-integration-accounts';
 import { createIssueProviderRegistry } from '@core/features/issues/node/registry';
@@ -164,7 +167,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { appScope } from '../../core/app-scope';
 import { step } from '../../core/phase';
 import { setCoreServiceInstances } from '../../core/service-instances';
-import { registerProviderTokenHandlers, wireAccountTelemetry } from '../wiring';
+import { wireAccountTelemetry } from '../wiring';
 import type { DatabaseBundle } from './database';
 import type { InfrastructureBundle } from './infrastructure';
 
@@ -173,7 +176,6 @@ export type ServicesBundle = {
   readonly automations: AutomationsService;
   readonly github: {
     cliImport: GitHubCliAccountImportService;
-    deviceFlow: GitHubDeviceFlowService;
     legacyTokenImport: GitHubLegacyTokenImportStep;
     repositories: ReturnType<typeof createGitHubRepositoryService>;
   };
@@ -457,14 +459,6 @@ export async function bootServices(
   // Unmigrated string-typed consumers get the documented plaintext view over
   // the Secret-typed secrets store (see toPlaintextSecretStore).
   const plaintextSecrets = toPlaintextSecretStore(encryptedAppSecretsStore);
-  const accountCredentials = new AccountCredentialStore(plaintextSecrets, log);
-  const accountService = createEmdashAccountService({
-    authServerClient: new AccountAuthServerClient(),
-    credentials: accountCredentials,
-    keyValueStore: new AppDbKeyValueStore<AccountKVSchema>(db, 'account', log),
-    oauthClient: new AccountOAuthClient(executeOAuthFlow),
-    providerTokenDispatcher: new ProviderTokenDispatcher(providerTokenRegistry),
-  });
   const promptLibraryService = createPromptLibraryService({
     db,
     keyValueStore: new AppDbKeyValueStore<PromptLibraryKV>(db, 'prompt-library', log),
@@ -507,6 +501,33 @@ export async function bootServices(
     onIntegrationAccountsChanged
   );
   setIntegrationConnectionService(integrationConnections);
+  const accountService = createEmdashAccountService({
+    authServerClient: new AccountAuthServerClient(),
+    credentials: new AccountCredentialStore(plaintextSecrets, log),
+    keyValueStore: new AppDbKeyValueStore<AccountKVSchema>(db, 'account', log),
+    oauthClient: new AccountOAuthClient(executeOAuthFlow),
+    providerTokenDispatcher: new ProviderTokenDispatcher(
+      new IntegrationOAuthTokens(integrationConnections, log)
+    ),
+  });
+  integrationAccountStore.setRenewer(
+    EMDASH_OAUTH_CREDENTIAL_SOURCE,
+    createEmdashOAuthRenewer((provider, providerAccountId) =>
+      accountService.renewProviderToken(provider, providerAccountId)
+    )
+  );
+  // A renewal that failed under one Emdash account (e.g. "not linked") says
+  // nothing about the next one, so retry after every sign-in or sign-out.
+  const forgetEmdashRenewalFailures = () =>
+    integrationAccountStore.forgetRenewalFailures(EMDASH_OAUTH_CREDENTIAL_SOURCE);
+  accountService.on('accountChanged', forgetEmdashRenewalFailures);
+  accountService.on('accountCleared', forgetEmdashRenewalFailures);
+  const integrationDeviceFlow = new IntegrationDeviceFlowService({
+    connections: integrationConnections,
+    logger: log,
+  });
+  setIntegrationDeviceFlowService(integrationDeviceFlow);
+  appScope.add(() => integrationDeviceFlow.dispose());
   const providerAccounts = new ProviderAccountService(providerAccountRegistry, {
     prepare: (providerId) => legacyIntegrationAccounts.run(providerId),
     onAccountsChanged: onIntegrationAccountsChanged,
@@ -552,6 +573,8 @@ export async function bootServices(
       integrationAccountStore,
       providerAccountRegistry
     ),
+    reportRejectedCredentials: (integrationId, accountId, credentials) =>
+      integrationAccountStore.reportRejected(integrationId, accountId, credentials),
     logger: log,
   });
   appScope.add(() => {
@@ -630,23 +653,6 @@ export async function bootServices(
       providerAccountRegistry
     ),
   });
-  const githubAuthPlugin = integrationPluginRegistry.get('github');
-  const githubDeviceMethod = githubAuthPlugin?.capabilities.auth.methods.find(
-    (candidate) => candidate.kind === 'oauth-device'
-  );
-  if (!githubDeviceMethod || githubDeviceMethod.kind !== 'oauth-device') {
-    throw new Error('GitHub integration plugin does not declare an oauth-device auth method.');
-  }
-  const githubDeviceFlow = new GitHubDeviceFlowService({
-    connections: integrationConnections,
-    identityClient: githubIdentityClient,
-    publishEvent: (event) => githubEvents.emit(undefined, event),
-    createDeviceAuth: defaultGitHubDeviceAuthFactory,
-    config: {
-      clientId: githubDeviceMethod.clientId,
-      scopes: githubDeviceMethod.scopes,
-    },
-  });
   // Run-once upgrade step (spec: github-git-settings §10): the legacy
   // single-token import lives behind an app-DB done-flag instead of a
   // recurring startup backfill. The KV github-account backfill retired into
@@ -658,7 +664,6 @@ export async function bootServices(
   );
   const githubServices = {
     cliImport: githubCliImporter,
-    deviceFlow: githubDeviceFlow,
     legacyTokenImport: githubLegacyTokenImport,
     repositories: githubRepositories,
   };
@@ -844,7 +849,6 @@ export async function bootServices(
   void sessionHygieneSweep.runNow().catch((error) => {
     log.warn('session hygiene sweep failed', { error: String(error) });
   });
-  registerProviderTokenHandlers();
   return {
     account: accountService,
     automations: automationsService,

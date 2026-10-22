@@ -13,6 +13,11 @@ export function createIntegrationsWireController(): Controller {
         displayName,
         authMethodId,
       }),
+    startDeviceFlow: ({ integrationId, accountId }) =>
+      integrationOperations.startDeviceFlow(integrationId, accountId),
+    completeDeviceFlow: ({ flowId }, meta) =>
+      integrationOperations.completeDeviceFlow(flowId, meta.signal),
+    cancelDeviceFlow: ({ flowId }) => integrationOperations.cancelDeviceFlow(flowId),
     disconnect: ({ integrationId, accountId }) =>
       integrationOperations.disconnect(integrationId, accountId),
     setDefaultAccount: ({ integrationId, accountId }) =>

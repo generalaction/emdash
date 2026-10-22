@@ -9,7 +9,7 @@ import {
   type RequestScheduler,
 } from '@emdash/shared/requests';
 import { resolveInstanceRemote } from '../../../integrations/helpers/repository-remote';
-import { readGitLabCredentials } from '../../../integrations/impl/gitlab/client';
+import { gitLabAuthHeaders, readGitLabCredentials } from '../../../integrations/impl/gitlab/client';
 import { isNetworkError } from '../../helpers/errors';
 import type {
   PullRequestCheck,
@@ -96,7 +96,7 @@ type Repository = {
   slug: string;
   projectId: number;
   instanceUrl: string;
-  token: string;
+  authHeaders: Record<string, string>;
   identity: string;
   scheduler: RequestScheduler;
   gate: RateGate;
@@ -182,7 +182,7 @@ export class GitLabPullRequestClient implements PullRequestClient {
       slug: remote.data.slug,
       projectId: 0,
       instanceUrl: credentials.data.instanceUrl,
-      token: credentials.data.apiToken,
+      authHeaders: gitLabAuthHeaders(credentials.data),
       identity: laneKey,
       ...lane,
     };
@@ -694,7 +694,7 @@ export class GitLabPullRequestClient implements PullRequestClient {
             throw new Error('Invalid GitLab pagination URL');
           const response = await (this.options.fetch ?? fetch)(url, {
             headers: {
-              'PRIVATE-TOKEN': repo.token,
+              ...repo.authHeaders,
               ...(mutation ? { 'Content-Type': 'application/json' } : {}),
             },
             method: mutation?.method ?? 'GET',

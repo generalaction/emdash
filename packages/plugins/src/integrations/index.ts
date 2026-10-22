@@ -17,10 +17,13 @@ export type {
 } from './host';
 export type { ConnectionStatus } from './types';
 export type {
+  DeviceAuthorizationSession,
   IIntegrationAuthBehavior,
   IntegrationAuthDescriptor,
   IntegrationAuthField,
   IntegrationAuthMethod,
+  OAuthAccessToken,
   VerifiedAccountIdentity,
   VerifyResult,
 } from './capabilities/auth';
+export { credentialsExpireAt } from './capabilities/auth';

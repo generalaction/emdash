@@ -176,6 +176,8 @@ doctor lists any that are active.
 | Variable | Effect |
 | --- | --- |
 | `EMDASH_DB_FILE` | Point the app (and `db:reset`) at an isolated database file |
+| `EMDASH_USER_DATA_DIR` | Use an isolated profile directory (database, secrets, logs) |
+| `EMDASH_AUTH_SERVER_URL` | Development builds only: use another Emdash auth server, e.g. a local one; pair it with `EMDASH_USER_DATA_DIR` so its session stays separate |
 | `EMDASH_SKIP_ELECTRON_REBUILD=1` | Skip the Electron-ABI rebuild in postinstall (CI sets this implicitly via `--ignore-scripts`) |
 | `EMDASH_DISABLE_NATIVE_DB=1` | Run without the native better-sqlite3 (also skips its rebuild) |
 | `EMDASH_DISABLE_PTY=1` | Run without PTY support |

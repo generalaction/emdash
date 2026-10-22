@@ -28,16 +28,22 @@ type AccountResult = {
 
 export const accountDomain = 'account' as const;
 
+/**
+ * Emdash accounts are created and signed into only with this provider. Other
+ * providers can only be linked to a signed-in Emdash account.
+ */
+export const EMDASH_SIGN_IN_PROVIDER = { id: 'github', name: 'GitHub' } as const;
+
+const providerInput = z.object({
+  provider: z.string().optional(),
+  /** Reconnect this integration account; a token for another identity is not saved. */
+  accountId: z.string().min(1).optional(),
+});
+
 export const accountContract = defineContract({
   getSession: procedure({ input: z.void(), output: z.custom<AccountSession>() }),
-  signIn: procedure({
-    input: z.object({ provider: z.string().optional() }),
-    output: z.custom<AccountResult>(),
-  }),
-  linkProviderAccount: procedure({
-    input: z.object({ provider: z.string().optional() }),
-    output: z.custom<AccountResult>(),
-  }),
+  signIn: procedure({ input: providerInput, output: z.custom<AccountResult>() }),
+  linkProviderAccount: procedure({ input: providerInput, output: z.custom<AccountResult>() }),
   signOut: procedure({ input: z.void(), output: z.custom<AccountResult>() }),
   checkHealth: procedure({ input: z.void(), output: z.boolean() }),
 });

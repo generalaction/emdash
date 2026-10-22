@@ -1,11 +1,6 @@
-import { defineContract, eventStream, procedure } from '@emdash/wire/rpc';
+import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
-import type {
-  GitHubAuthResponse,
-  GitHubEvent,
-  GitHubImportCliAccountsResponse,
-  GitHubOwner,
-} from '@core/primitives/github/api';
+import type { GitHubImportCliAccountsResponse, GitHubOwner } from '@core/primitives/github/api';
 
 type ActionResult = { success: true } | { success: false; error: string };
 type OwnersResult = { success: true; owners: GitHubOwner[] } | { success: false; error: string };
@@ -24,12 +19,10 @@ const voidInput = z.void();
 export const githubDomain = 'github' as const;
 
 export const githubContract = defineContract({
-  auth: procedure({ input: voidInput, output: z.custom<GitHubAuthResponse>() }),
   importCliAccounts: procedure({
     input: voidInput,
     output: z.custom<GitHubImportCliAccountsResponse>(),
   }),
-  authCancel: procedure({ input: voidInput, output: z.custom<ActionResult>() }),
   getOwners: procedure({
     input: z.object({ accountId: z.string().optional() }),
     output: z.custom<OwnersResult>(),
@@ -54,5 +47,4 @@ export const githubContract = defineContract({
     }),
     output: z.custom<ActionResult>(),
   }),
-  events: eventStream({ key: z.void(), event: z.custom<GitHubEvent>() }),
 });

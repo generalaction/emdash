@@ -29,6 +29,108 @@ in `behavior.auth`, which must register both:
   success, together with optional stable account identity and display metadata. Persist
   the returned credentials, never fall back to the submitted form values.
 
+Three behaviors are optional:
+
+- `credentialsFromOAuthToken({ accessToken, expiresAt?, host })`: required when the descriptor
+  declares an `oauth` method (sign-in through the Emdash auth server). It maps an access token
+  issued by the server into the provider's credential shape. The server keeps the refresh token.
+- `startDeviceAuthorization`: required when the descriptor declares an `oauth-device` method.
+  It returns the user code, verification URL, and lifetime, plus `complete(signal)`, which polls
+  until the user approves and resolves with credentials for `verify`. Build it with
+  `startDeviceAuthorizationSession` from `integrations/helpers/oauth-device.ts` (RFC 8628);
+  every request times out after 30 seconds, and polling retries network failures and 5xx
+  responses until the code expires.
+- `refreshCredentials(host, credentials, now)`: renews credentials the integration issued itself
+  (e.g. by device sign-in) with their refresh token. It returns replacement credentials, or
+  `undefined` when these credentials cannot be refreshed.
+
+Credentials that expire carry `expiresAt` (epoch milliseconds); `credentialsExpireAt` reads it.
+
+### Sign-in through the Emdash auth server (`oauth`)
+
+The desktop runs the browser PKCE flow against the auth server for any integration whose
+descriptor declares `{ kind: 'oauth', providerId }`. Emdash accounts are created and signed into
+only with `EMDASH_SIGN_IN_PROVIDER` (GitHub); the auth server enforces this too. When signed in,
+the desktop links the provider account (`account-link/start?provider_id=...`). When signed out,
+it signs in with GitHub for GitHub itself; for any other provider (GitLab) it signs in with GitHub
+first and then links, so another provider never creates an Emdash account.
+The exchange returns the provider access token, its expiry, and the account identity.
+`IntegrationOAuthTokens` (`core/features/integrations/node/integration-oauth-tokens.ts`) maps the
+token with `credentialsFromOAuthToken`, verifies it with the plugin's `verify` (so an account has
+the same identity whichever method connected it), checks that it belongs to the account the
+server named, and saves it through `connectVerified` with credential source `emdash_oauth`.
+Reconnecting an account passes its `accountId` through sign-in or linking, so a token for another
+identity is not saved. GitHub and GitLab use this path; there is no per-provider adapter.
+
+### Renewing expiring credentials
+
+`IntegrationAccountStore.getAccount` is the only credential read path. When stored credentials
+expire within five minutes (`CREDENTIAL_RENEWAL_SKEW_MS`), it renews them before returning the
+account. The store decides when; the account's current credential source decides how. Both are
+reread under the account lock, because a reconnect can replace them during a read:
+
+- `emdash_oauth`: the renewer registered with `setRenewer` asks the auth server for the linked
+  account's current token (`POST /api/v1/auth/electron/provider-token` with the Emdash session).
+  The server refreshes tokens that expire within ten minutes, so it always returns a token that
+  outlives the desktop window. Every client of an Emdash account shares that token, and GitLab
+  revokes the previous token pair on refresh.
+- any other source: the integration's `refreshCredentials`, if it has one.
+- no `expiresAt` (access tokens, GitHub OAuth tokens): never renewed.
+
+Renewals are serialized per account and the new credentials are written (secret only; metadata
+unchanged) before they are returned, because rotating refresh tokens are single-use. A failed
+renewal logs and returns the stored credentials with `renewalError`; the provider's 401 then
+fails the API call, and the connection status shows `renewalError` (for example, "Sign in to
+Emdash to keep GitLab connected."). A renewal the provider or server rejected (`auth_failed`,
+or an account no longer linked to the Emdash account) is not retried until the credentials
+change (for example on reconnect) or, for `emdash_oauth`, until the user signs in or out of
+Emdash, since another Emdash account may have the provider account linked. Other failures,
+including a missing or expired Emdash session, are retried on the next read. A session the
+server rejects is cleared, so later reads fail without a request until the user signs in again;
+a response for an older session never clears a newer one. Renewed credentials that fail to save
+are kept in memory, returned, and written again on the next read, since the provider has already
+invalidated the stored refresh token. A renewal is saved only if the stored credentials are still
+the ones it replaced, and only as the secret of an account that still exists (`updateSecret`,
+which never creates one). `upsertAccount` waits for an in-flight renewal of the same account. So a
+disconnect or reconnect during a renewal is never undone.
+
+Another device can rotate a shared token before this one's renewal window, and the provider then
+rejects the cached token. `reportRejected` marks expiring credentials the provider rejected, and
+the next read renews them once, even before they expire; a temporary renewal failure keeps them
+marked, so the following read tries again. The git credential helper forwards git's `erase`
+(sent after an authentication failure) for the token it served, and the connection check reports
+a failed verification and checks once more. Because a credential read can include a renewal, the
+helper waits up to 90 seconds (`GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS`).
+
+### Device sign-in (`oauth-device`)
+
+The desktop drives device sign-in for any integration through the integrations Wire API:
+`startDeviceFlow` returns the code, `completeDeviceFlow` resolves once the user approves,
+denies, or the code expires, then verifies and saves the account with credential source
+`device_flow`, and `cancelDeviceFlow` aborts it; a flow cancelled before the save saves nothing.
+A failed verification is retried once after a second (`verifyFreshCredentials`, also used when
+linking through Emdash), because a provider can briefly reject a token it has just issued (seen on
+GitLab.com). Cancelling while the save waits behind a renewal of the same account saves nothing.
+Each flow completes at most once.
+`completeDeviceFlow` waits for the user, so the renderer calls it with a deadline longer than the
+code's lifetime; cancelling the Wire call cancels the flow.
+
+The renderer shows device sign-in as a step of the connect modal (`DeviceSignIn`), not as a modal
+of its own. It shows the code, opens the verification URL (with the code pre-filled when the
+provider supplies one, otherwise after copying the code) after a three-second countdown, and
+supports ⌘C to copy and Enter or ⌘R to open. Failures appear inline with "Try again"; "Back" or
+closing the connect modal cancels the flow; success closes the connect modal with a toast, as
+the other methods do. Reconnecting an account passes its `accountId`; signing in as a different
+identity fails.
+
+### Connection UI
+
+`StandardIntegrationAuth` (`core/features/integrations/contributions/browser/standard-integration-auth.tsx`)
+offers the declared `oauth`, `oauth-device`, and `form` methods. With an Emdash account, signing
+in through Emdash replaces device sign-in, except when reconnecting an account. Integrations
+register it, or a wrapper that adds provider-specific methods (GitHub adds CLI import), in
+`core/manifests/browser/integration-auth-contributions.ts`.
+
 Credentials include connection configuration needed to create a client, such as GitHub's
 `apiBaseUrl`, Jira's `siteUrl`, or Plane's workspace slug. The schema remains backend-only;
 it is not embedded in the renderer descriptor. Register schemas for every integration,
@@ -242,6 +344,17 @@ lists and searches work items. Work-item writes are not yet implemented in Emdas
 The GitLab pull-requests plugin supports merge request inventory, details, approvals, pipeline
 jobs, discussions, files, creation, merge, and mark-ready actions. GitLab-facing text uses
 MR / merge request; GitHub-facing text retains PR / pull request.
+
+GitLab credentials are either an access token (`{ instanceUrl, apiToken }`, sent as
+`PRIVATE-TOKEN`) or an OAuth access token (`{ instanceUrl, accessToken, refreshToken?,
+expiresAt? }`, sent as `Authorization: Bearer`). OAuth is gitlab.com only. Signing in through
+Emdash is the primary method: the auth server issues the token and keeps the refresh token.
+Device sign-in stores the refresh token on the desktop; GitLab rotates it on every use. Both use
+the same emdash GitLab application (scopes `api read_user`, client ID in the GitLab plugin). It is
+not confidential, because the desktop cannot keep a secret: the server authenticates with the
+client secret, the desktop with the client ID alone. Access tokens last two hours and are
+renewed as described above. Refresh tokens are only ever sent to `https://gitlab.com`. Git over HTTPS sends OAuth tokens with the username
+`oauth2`. Self-hosted instances use an access token.
 
 A legacy personal token with `read_api` supports reads; writes require `api` and the project
 permissions for the operation. A forbidden write prompts the user to reconnect with an

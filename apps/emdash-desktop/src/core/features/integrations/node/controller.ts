@@ -5,6 +5,7 @@ import type { ProviderAccountsByProvider } from '@core/primitives/provider-accou
 import { getProviderAccountService } from '@core/services/provider-accounts/node/provider-account-service';
 import type { IntegrationConnectOptions } from '../api/contract';
 import { getIntegrationConnectionService } from './integration-connection-service';
+import { getIntegrationDeviceFlowService } from './integration-device-flow-service';
 import { buildIntegrationProviderDescriptors } from './integration-payload-builder';
 
 export const integrationOperations = {
@@ -31,6 +32,16 @@ export const integrationOperations = {
       return { success: false as const, error: 'Use this integration’s sign-in flow to connect.' };
     }
     return getIntegrationConnectionService().connect(integrationId, credentials, options);
+  },
+
+  startDeviceFlow: (integrationId: string, accountId?: string) =>
+    getIntegrationDeviceFlowService().start(integrationId, accountId),
+
+  completeDeviceFlow: (flowId: string, signal?: AbortSignal) =>
+    getIntegrationDeviceFlowService().complete(flowId, signal),
+
+  cancelDeviceFlow: async (flowId: string) => {
+    getIntegrationDeviceFlowService().cancel(flowId);
   },
 
   disconnect: async (integrationId: string, accountId: string) => {

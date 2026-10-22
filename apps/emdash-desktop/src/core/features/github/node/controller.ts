@@ -1,47 +1,16 @@
 import { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { githubEvents } from '@core/features/github/node';
-import type { GitHubDeviceFlowService } from '@core/features/github/node/services/github-device-flow-service';
 import type { GitHubRepositoryService } from '@core/features/github/node/services/repo-service';
-import type {
-  GitHubAuthResponse,
-  GitHubImportCliAccountsResponse,
-} from '@core/primitives/github/api';
+import type { GitHubImportCliAccountsResponse } from '@core/primitives/github/api';
 import type { GitHubCliAccountImportService } from './accounts/github-cli-account-import';
 
 export function createGithubOperations(dependencies: {
   cliAccountImporter: Pick<GitHubCliAccountImportService, 'importAccounts'>;
-  deviceFlowService: GitHubDeviceFlowService;
   logger: Logger;
   repositoryService: GitHubRepositoryService;
 }) {
-  const {
-    cliAccountImporter,
-    deviceFlowService: githubDeviceFlowService,
-    logger,
-    repositoryService: repoService,
-  } = dependencies;
+  const { cliAccountImporter, logger, repositoryService: repoService } = dependencies;
   return {
-    auth: async (): Promise<GitHubAuthResponse> => {
-      let result: Awaited<ReturnType<typeof githubDeviceFlowService.start>>;
-      try {
-        result = await githubDeviceFlowService.start();
-      } catch (error) {
-        logger.error('GitHub authentication failed', { error });
-        githubEvents.emit(undefined, {
-          type: 'auth-error',
-          error: 'device_flow_error',
-          message: 'Authentication failed',
-        });
-        return { success: false, error: 'Authentication failed' };
-      }
-
-      if (!result.success) return result;
-
-      githubEvents.emit(undefined, { type: 'auth-success', user: result.user });
-      return { success: true, account: result.account };
-    },
-
     importCliAccounts: (): Promise<GitHubImportCliAccountsResponse> =>
       Result.tryAsync<GitHubImportCliAccountsResponse>(async () => {
         const imported = await cliAccountImporter.importAccounts();
@@ -50,15 +19,6 @@ export function createGithubOperations(dependencies: {
       }).unwrapOrElse((error) => {
         logger.error('Failed to import GitHub CLI accounts', { error });
         return { success: false, error: 'Failed to import GitHub CLI accounts' };
-      }),
-
-    authCancel: (): Promise<{ success: true } | { success: false; error: string }> =>
-      Result.tryAsync<{ success: true } | { success: false; error: string }>(async () => {
-        githubDeviceFlowService.cancel();
-        return { success: true };
-      }).unwrapOrElse((error) => {
-        logger.error('Failed to cancel GitHub auth', { error });
-        return { success: false, error: 'Failed to cancel' };
       }),
 
     // -- Repositories --------------------------------------------------------

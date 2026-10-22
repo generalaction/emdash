@@ -45,6 +45,7 @@ function makeHarness(
   const readIntegrationCredentials = vi.fn(async () =>
     ok({ instanceUrl: 'https://gitlab.example.com', apiToken: SECRET_TOKEN })
   );
+  const reportRejectedCredentials = vi.fn(async () => true);
   const server = new GitCredentialServer({
     resolveProjectIntegrationAccount: async () => ({
       ...(options.resolution ?? { value: account, provenance: { kind: 'set' as const } }),
@@ -54,17 +55,25 @@ function makeHarness(
     listAccounts: async () => options.accounts ?? [account],
     readCredentials,
     readIntegrationCredentials,
+    reportRejectedCredentials,
     logger,
   });
-  return { server, logLines, readCredentials, readIntegrationCredentials };
+  return {
+    server,
+    logLines,
+    readCredentials,
+    readIntegrationCredentials,
+    reportRejectedCredentials,
+  };
 }
 
 async function requestCredential(
   channel: { port: number; nonce: string },
   body: string,
-  nonceOverride?: string
+  nonceOverride?: string,
+  operation: 'get' | 'erase' = 'get'
 ): Promise<{ status: number; text: string }> {
-  const response = await fetch(`http://127.0.0.1:${channel.port}/git-credential/get`, {
+  const response = await fetch(`http://127.0.0.1:${channel.port}/git-credential/${operation}`, {
     method: 'POST',
     headers: { 'X-Emdash-Token': nonceOverride ?? channel.nonce },
     body,
@@ -93,6 +102,55 @@ describe('GitCredentialServer', () => {
     expect(result.text).toBe(`username=octocat\npassword=${SECRET_TOKEN}\n`);
     // The channel handle itself carries no token material.
     expect(JSON.stringify(channel)).not.toContain(SECRET_TOKEN);
+  });
+
+  it('reports the current credential when git erases it after a rejection', async () => {
+    const { server, reportRejectedCredentials, logLines } = track(makeHarness());
+    const channel = await server.mintSession({ kind: 'project', projectId: 'project-1' });
+
+    const result = await requestCredential(
+      channel,
+      `protocol=https\nhost=github.com\nusername=octocat\npassword=${SECRET_TOKEN}\n`,
+      undefined,
+      'erase'
+    );
+
+    expect(result).toEqual({ status: 200, text: '' });
+    expect(reportRejectedCredentials).toHaveBeenCalledWith('github', 'account-1', {
+      accessToken: SECRET_TOKEN,
+      apiBaseUrl: 'https://api.github.com',
+    });
+    expect(logLines.join('\n')).not.toContain(SECRET_TOKEN);
+  });
+
+  it('ignores an erase of a credential it no longer serves', async () => {
+    const { server, reportRejectedCredentials } = track(makeHarness());
+    const channel = await server.mintSession({ kind: 'project', projectId: 'project-1' });
+
+    const result = await requestCredential(
+      channel,
+      'protocol=https\nhost=github.com\nusername=octocat\npassword=ghp_previous\n',
+      undefined,
+      'erase'
+    );
+
+    expect(result).toEqual({ status: 200, text: '' });
+    expect(reportRejectedCredentials).not.toHaveBeenCalled();
+  });
+
+  it('rejects erase requests with an unknown nonce', async () => {
+    const { server, reportRejectedCredentials } = track(makeHarness());
+    const channel = await server.mintSession({ kind: 'project', projectId: 'project-1' });
+
+    const result = await requestCredential(
+      channel,
+      `protocol=https\nhost=github.com\npassword=${SECRET_TOKEN}\n`,
+      'not-the-nonce',
+      'erase'
+    );
+
+    expect(result.status).toBe(403);
+    expect(reportRejectedCredentials).not.toHaveBeenCalled();
   });
 
   it('rejects unknown and revoked nonces', async () => {
@@ -188,6 +246,65 @@ describe('GitCredentialServer', () => {
     expect((await requestCredential(channel, 'protocol=https\nhost=evil.example\n')).status).toBe(
       404
     );
+  });
+
+  it('answers GitLab OAuth credentials with the oauth2 username', async () => {
+    const gitlabAccount: ProviderAccountSummary = {
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      displayName: '@user',
+      host: 'gitlab.example.com',
+      login: 'user',
+      isDefault: true,
+    };
+    const harness = track(makeHarness({ accounts: [gitlabAccount] }));
+    harness.readIntegrationCredentials.mockResolvedValueOnce(
+      ok({
+        instanceUrl: 'https://gitlab.example.com',
+        accessToken: SECRET_TOKEN,
+        refreshToken: 'refresh',
+        expiresAt: Date.now() + 3_600_000,
+      }) as never
+    );
+    const channel = await harness.server.mintSession({
+      kind: 'account',
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      host: 'gitlab.example.com',
+    });
+    expect(await requestCredential(channel, 'protocol=https\nhost=gitlab.example.com\n')).toEqual({
+      status: 200,
+      text: `username=oauth2\npassword=${SECRET_TOKEN}\n`,
+    });
+  });
+
+  it('refuses GitLab OAuth credentials issued for a different host', async () => {
+    const gitlabAccount: ProviderAccountSummary = {
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      displayName: '@user',
+      host: 'gitlab.example.com',
+      login: 'user',
+      isDefault: true,
+    };
+    const harness = track(makeHarness({ accounts: [gitlabAccount] }));
+    harness.readIntegrationCredentials.mockResolvedValueOnce(
+      ok({
+        instanceUrl: 'https://gitlab.com',
+        accessToken: SECRET_TOKEN,
+        refreshToken: 'refresh',
+        expiresAt: Date.now() + 3_600_000,
+      }) as never
+    );
+    const channel = await harness.server.mintSession({
+      kind: 'account',
+      providerId: 'gitlab',
+      accountId: 'gitlab-1',
+      host: 'gitlab.example.com',
+    });
+    expect(
+      (await requestCredential(channel, 'protocol=https\nhost=gitlab.example.com\n')).status
+    ).toBe(404);
   });
 
   it('answers a GitLab project session with its current account', async () => {

@@ -15,6 +15,7 @@ const mockKvSet = vi.fn();
 
 const mockExecuteOAuthFlow = vi.fn();
 const mockDispatch = vi.fn().mockResolvedValue(undefined);
+const mockSupports = vi.fn((provider: string) => provider === 'github' || provider === 'gitlab');
 
 vi.mock('../config', () => ({
   ACCOUNT_CONFIG: {
@@ -69,8 +70,9 @@ describe('EmdashAccountService', () => {
       new AccountAuthServerClient(),
       new AccountOAuthClient((options) => mockExecuteOAuthFlow(options)),
       new ProviderTokenDispatcher({
-        dispatch: (...args: unknown[]) => mockDispatch(...args),
-      } as never)
+        supports: (provider) => mockSupports(provider),
+        store: (...args) => mockDispatch(...args),
+      })
     );
   });
 
@@ -172,7 +174,7 @@ describe('EmdashAccountService', () => {
       expect(mockExecuteOAuthFlow).toHaveBeenCalledWith(expect.objectContaining({}));
     });
 
-    it('dispatches provider token via registry when provider token is present', async () => {
+    it('stores the provider token when the auth server issues one', async () => {
       const oauthResponse = {
         sessionToken: 'session-abc',
         accessToken: 'ghp_123',
@@ -190,16 +192,20 @@ describe('EmdashAccountService', () => {
 
       unwrapResult(await service.signIn());
 
-      expect(mockDispatch).toHaveBeenCalledWith('github', {
-        accessToken: 'ghp_123',
-        providerAccount: {
-          providerId: 'github',
-          providerAccountId: '42',
-          host: 'github.com',
-          login: 'monalisa',
-          avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'github',
+        {
+          accessToken: 'ghp_123',
+          providerAccount: {
+            providerId: 'github',
+            providerAccountId: '42',
+            host: 'github.com',
+            login: 'monalisa',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+          },
         },
-      });
+        {}
+      );
     });
 
     it('ignores malformed provider account metadata from the auth server', async () => {
@@ -218,10 +224,14 @@ describe('EmdashAccountService', () => {
 
       unwrapResult(await service.signIn());
 
-      expect(mockDispatch).toHaveBeenCalledWith('github', {
-        accessToken: 'ghp_123',
-        providerAccount: undefined,
-      });
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'github',
+        {
+          accessToken: 'ghp_123',
+          providerAccount: undefined,
+        },
+        {}
+      );
     });
 
     it('returns a typed error when provider token persistence fails', async () => {
@@ -240,6 +250,14 @@ describe('EmdashAccountService', () => {
         provider: 'github',
         message: 'secure storage failed',
       });
+    });
+
+    it('signs in only with GitHub: other providers can only be linked', async () => {
+      const error = unwrapError(await service.signIn('gitlab'));
+
+      expect(error).toMatchObject({ type: 'unsupported_provider', provider: 'gitlab' });
+      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
+      expect(mockCredSet).not.toHaveBeenCalled();
     });
 
     it('does not dispatch when provider token is absent', async () => {
@@ -282,7 +300,7 @@ describe('EmdashAccountService', () => {
       const result = unwrapResult(await service.linkProviderAccount());
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://auth.test.emdash.sh/api/v1/auth/electron/account-link/start',
+        'https://auth.test.emdash.sh/api/v1/auth/electron/account-link/start?provider_id=github',
         expect.objectContaining({
           method: 'POST',
           headers: { Authorization: 'Bearer session-abc' },
@@ -300,16 +318,20 @@ describe('EmdashAccountService', () => {
         },
         timeoutMs: 5000,
       });
-      expect(mockDispatch).toHaveBeenCalledWith('github', {
-        accessToken: 'ghp_linked',
-        providerAccount: {
-          providerId: 'github',
-          providerAccountId: '84',
-          host: 'github.com',
-          login: 'octocat',
-          avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'github',
+        {
+          accessToken: 'ghp_linked',
+          providerAccount: {
+            providerId: 'github',
+            providerAccountId: '84',
+            host: 'github.com',
+            login: 'octocat',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+          },
         },
-      });
+        {}
+      );
       expect(result).toEqual({
         provider: 'github',
         providerAccountStatus: 'created',
@@ -368,12 +390,81 @@ describe('EmdashAccountService', () => {
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
+    it('links a GitLab account and keeps its token expiry', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ accountLinkState: 'account-link-state' }),
+      });
+      const providerAccount = {
+        providerId: 'gitlab',
+        providerAccountId: '7',
+        host: 'gitlab.com',
+        login: 'tanuki',
+        avatarUrl: '',
+      };
+      mockExecuteOAuthFlow.mockResolvedValue({
+        accessToken: 'glo_linked',
+        accessTokenExpiresAt: '2026-10-22T12:00:00.000Z',
+        providerId: 'gitlab',
+        providerAccount,
+      });
+
+      unwrapResult(await service.linkProviderAccount('gitlab'));
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://auth.test.emdash.sh/api/v1/auth/electron/account-link/start?provider_id=gitlab',
+        expect.anything()
+      );
+      expect(mockExecuteOAuthFlow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          extraParams: { account_link_state: 'account-link-state', provider_id: 'gitlab' },
+        })
+      );
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'gitlab',
+        {
+          accessToken: 'glo_linked',
+          expiresAt: Date.parse('2026-10-22T12:00:00.000Z'),
+          providerAccount,
+        },
+        {}
+      );
+    });
+
+    it('reconnects the selected account', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ accountLinkState: 'account-link-state' }),
+      });
+      mockExecuteOAuthFlow.mockResolvedValue({
+        accessToken: 'glo_linked',
+        providerId: 'gitlab',
+        providerAccount: {
+          providerId: 'gitlab',
+          providerAccountId: '7',
+          host: 'gitlab.com',
+          login: 'tanuki',
+          avatarUrl: '',
+        },
+      });
+
+      unwrapResult(
+        await service.linkProviderAccount('gitlab', { accountId: 'https://gitlab.com:7' })
+      );
+
+      expect(mockDispatch).toHaveBeenCalledWith('gitlab', expect.anything(), {
+        accountId: 'https://gitlab.com:7',
+      });
+    });
+
     it('rejects unsupported providers before starting a link transaction', async () => {
-      const error = unwrapError(await service.linkProviderAccount('gitlab'));
+      const error = unwrapError(await service.linkProviderAccount('bitbucket'));
       expect(error).toMatchObject({
         type: 'unsupported_provider',
-        provider: 'gitlab',
-        message: 'Account linking is not supported for provider "gitlab"',
+        provider: 'bitbucket',
+        message: 'Account linking is not supported for provider "bitbucket"',
       });
       expect(mockCredGet).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
@@ -401,7 +492,7 @@ describe('EmdashAccountService', () => {
       const error = unwrapError(await service.linkProviderAccount());
       expect(error).toMatchObject({
         type: 'session_expired',
-        message: 'Your Emdash session expired. Sign in again to connect GitHub.',
+        message: 'Your Emdash session expired. Sign in again.',
       });
       expect(mockCredClear).toHaveBeenCalled();
       expect(mockKvSet).toHaveBeenCalledWith(
@@ -467,6 +558,128 @@ describe('EmdashAccountService', () => {
         message: 'Invalid account link response: missing provider token',
       });
       expect(mockDispatch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('renewProviderToken()', () => {
+    it('requires an Emdash session without contacting the auth server', async () => {
+      mockCredGet.mockResolvedValue(ok(null));
+
+      const error = unwrapError(await service.renewProviderToken('gitlab', '7'));
+      expect(error).toMatchObject({ type: 'not_signed_in' });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('reads the current token of the linked account', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          providerId: 'gitlab',
+          providerAccountId: '7',
+          accessToken: 'glo_renewed',
+          accessTokenExpiresAt: '2026-10-22T14:00:00.000Z',
+        }),
+      });
+
+      const token = unwrapResult(await service.renewProviderToken('gitlab', '7'));
+
+      expect(token).toEqual({
+        accessToken: 'glo_renewed',
+        expiresAt: Date.parse('2026-10-22T14:00:00.000Z'),
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://auth.test.emdash.sh/api/v1/auth/electron/provider-token',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer session-abc', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider_id: 'gitlab', account_id: '7' }),
+        })
+      );
+    });
+
+    it('returns tokens without an expiry as non-expiring', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ accessToken: 'gho_current', accessTokenExpiresAt: null }),
+      });
+
+      expect(unwrapResult(await service.renewProviderToken('github', '42'))).toEqual({
+        accessToken: 'gho_current',
+      });
+    });
+
+    it('clears an expired Emdash session', async () => {
+      const accountCleared = vi.fn();
+      service.on('accountCleared', accountCleared);
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) });
+
+      const error = unwrapError(await service.renewProviderToken('gitlab', '7'));
+
+      expect(error).toMatchObject({ type: 'session_expired' });
+      expect(mockCredClear).toHaveBeenCalled();
+      expect(accountCleared).toHaveBeenCalled();
+    });
+
+    it('keeps a session signed in while a renewal for the previous one was pending', async () => {
+      const accountCleared = vi.fn();
+      service.on('accountCleared', accountCleared);
+      mockCredGet.mockResolvedValue(ok('session-old'));
+      let respond!: (response: unknown) => void;
+      mockFetch.mockReturnValueOnce(new Promise((resolve) => (respond = resolve)));
+
+      const renewal = service.renewProviderToken('gitlab', '7');
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+      mockExecuteOAuthFlow.mockResolvedValue({
+        sessionToken: 'session-new',
+        user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
+      });
+      unwrapResult(await service.signIn());
+      respond({ ok: false, status: 401, json: async () => ({}) });
+
+      expect(unwrapError(await renewal)).toMatchObject({ type: 'session_expired' });
+      expect(mockCredClear).not.toHaveBeenCalled();
+      expect(accountCleared).not.toHaveBeenCalled();
+
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
+      await service.renewProviderToken('gitlab', '7');
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer session-new' }),
+        })
+      );
+    });
+
+    it('reports an account that is no longer linked', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
+
+      const error = unwrapError(await service.renewProviderToken('gitlab', '7'));
+
+      expect(error).toMatchObject({ type: 'provider_account_not_linked', provider: 'gitlab' });
+      expect(mockCredClear).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed provider refresh as an auth server error', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: 'Unable to obtain a valid provider access token' }),
+      });
+
+      const error = unwrapError(await service.renewProviderToken('gitlab', '7'));
+
+      expect(error).toMatchObject({
+        type: 'auth_server_error',
+        status: 502,
+        message: 'Unable to obtain a valid provider access token',
+      });
     });
   });
 
