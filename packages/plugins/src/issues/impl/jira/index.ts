@@ -11,7 +11,7 @@ import { toIssueData } from './mapper';
 
 const SEARCH_FIELDS = ['summary', 'description', 'updated', 'project', 'status', 'assignee'];
 const JIRA_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
-const LIST_JQL = 'updated >= -90d ORDER BY updated DESC';
+const RECENT_CLAUSE = 'updated >= -90d';
 
 export async function listIssues(
   host: ConnectedIntegrationHostContext,
@@ -24,7 +24,12 @@ export async function listIssues(
   const sanitizedLimit = clampIssueLimit(opts.limit, 50, 500);
 
   try {
-    const issues = await searchJql(client, parsedCredentials.data, LIST_JQL, sanitizedLimit);
+    const issues = await searchJql(
+      client,
+      parsedCredentials.data,
+      listJql(issueFilters(parsedCredentials.data)),
+      sanitizedLimit
+    );
     return ok(issues.map((issue) => toIssueData(issue, parsedCredentials.data.siteUrl)));
   } catch (error) {
     host.log.warn('Jira listIssues failed', { error });
@@ -46,9 +51,10 @@ export async function searchIssues(
 
   try {
     const escapedTerm = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    const jql = JIRA_KEY_PATTERN.test(term)
-      ? `(key = "${escapedTerm}" OR text ~ "${escapedTerm}") ORDER BY updated DESC`
-      : `text ~ "${escapedTerm}" ORDER BY updated DESC`;
+    const termClause = JIRA_KEY_PATTERN.test(term)
+      ? `(key = "${escapedTerm}" OR text ~ "${escapedTerm}")`
+      : `text ~ "${escapedTerm}"`;
+    const jql = scopedJql([...issueFilters(parsedCredentials.data), termClause]);
     const issues = await searchJql(
       client,
       parsedCredentials.data,
@@ -61,6 +67,21 @@ export async function searchIssues(
     host.log.warn('Jira searchIssues failed', { error });
     return err(toIntegrationError(error, 'Jira', 'Unable to search Jira issues.'));
   }
+}
+
+function issueFilters(credentials: JiraCredentials): string[] {
+  return credentials.jqlFilter ? [credentials.jqlFilter] : [];
+}
+
+/** A filter is the user's chosen scope, so the recent-activity window only applies without one. */
+function listJql(filters: string[]): string {
+  return scopedJql(filters.length > 0 ? filters : [RECENT_CLAUSE]);
+}
+
+/** ANDs the clauses, parenthesizing each only when there is more than one. */
+function scopedJql(clauses: string[]): string {
+  const where = clauses.length === 1 ? clauses[0] : clauses.map((c) => `(${c})`).join(' AND ');
+  return `${where} ORDER BY updated DESC`;
 }
 
 async function searchJql(

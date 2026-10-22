@@ -228,6 +228,19 @@ describe('Jira connection verification', () => {
     });
   });
 
+  it('rejects an issue filter that brings its own ORDER BY', async () => {
+    const result = await verifyJiraCredentials(
+      {
+        siteUrl: 'https://jira.example.com',
+        personalAccessToken: 'dc-token',
+        jqlFilter: 'project = WEB ORDER BY created',
+      },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mocks.createV2Client).not.toHaveBeenCalled();
+  });
+
   it('rejects an unknown selected method before calling either API', async () => {
     const result = await verifyJiraCredentials(
       {

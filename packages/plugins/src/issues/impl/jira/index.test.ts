@@ -170,6 +170,28 @@ describe('jira issues plugin', () => {
     });
   });
 
+  it('scopes the list to the account filter instead of the recent-activity window', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({ issues: [] });
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'project = WEB' };
+
+    await issues.listIssues(host, { limit: 10 });
+
+    expect(searchParams(0)).toMatchObject({ jql: 'project = WEB ORDER BY updated DESC' });
+  });
+
+  it('ANDs the account filter with the search term', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({ issues: [] });
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'project = WEB OR project = IT' };
+
+    await issues.searchIssues(host, { searchTerm: 'certificate', limit: 5 });
+
+    expect(searchParams(0)).toMatchObject({
+      jql: '(project = WEB OR project = IT) AND (text ~ "certificate") ORDER BY updated DESC',
+    });
+  });
+
   it('lists Data Center issues through the v2 search with plain-text descriptions', async () => {
     const mockV2Search = vi.fn().mockResolvedValueOnce({
       issues: [
