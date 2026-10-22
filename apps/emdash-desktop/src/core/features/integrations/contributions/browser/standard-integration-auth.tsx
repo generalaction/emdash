@@ -39,7 +39,7 @@ export function StandardIntegrationAuth({
   /** Errors belong to the most recent attempt; trying another method hides them. */
   const [attemptedMethodId, setAttemptedMethodId] = useState<string>();
   const { data: session } = useAccountSession();
-  const oauth = useEmdashOAuthMethod({ metadata, icon: oauthIcon, onSuccess });
+  const oauth = useEmdashOAuthMethod({ metadata, accountId, icon: oauthIcon, onSuccess });
   const openDeviceFlow = useOpenModal('integrationDeviceFlowModal');
   const hasMethod = (kind: string) => metadata.auth.methods.some((method) => method.kind === kind);
 
@@ -117,10 +117,13 @@ export function StandardIntegrationAuth({
  */
 function useEmdashOAuthMethod({
   metadata,
+  accountId,
   icon,
   onSuccess,
 }: {
   metadata: IntegrationProviderDescriptor;
+  /** Reconnect this account; signing in as another identity fails. */
+  accountId?: string;
   icon: LucideIcon;
   onSuccess: () => void;
 }): IntegrationAuthMethodOption | null {
@@ -141,9 +144,10 @@ function useEmdashOAuthMethod({
     setError(undefined);
     setLoading(true);
     try {
+      const input = { provider: method.providerId, ...(accountId ? { accountId } : {}) };
       const result = isSignedIn
-        ? await linkProvider.mutateAsync(method.providerId)
-        : await signIn.mutateAsync(method.providerId);
+        ? await linkProvider.mutateAsync(input)
+        : await signIn.mutateAsync(input);
       if (!result.success) {
         setError(result.error ?? 'Connection failed. Please try again.');
         return;

@@ -9,12 +9,14 @@ import { modalStore } from '@core/primitives/modals/react/modal-store';
 
 const accountHooks = vi.hoisted(() => ({
   session: { isSignedIn: false, hasAccount: false },
-  signIn: vi.fn(async (_provider: string | undefined) => ({
+  signIn: vi.fn(async (_input: { provider?: string; accountId?: string } | undefined) => ({
     success: true,
     providerAccount: { login: 'dkonopka' },
     providerAccountStatus: 'created',
   })),
-  linkProvider: vi.fn(async (_provider: string | undefined) => ({ success: true })),
+  linkProvider: vi.fn(async (_input: { provider?: string; accountId?: string } | undefined) => ({
+    success: true,
+  })),
 }));
 
 const githubHooks = vi.hoisted(() => ({
@@ -137,7 +139,7 @@ describe('GitHub connect-and-resume', () => {
 
     await act(async () => methodButton('Continue').click());
 
-    expect(accountHooks.signIn).toHaveBeenCalledWith('github');
+    expect(accountHooks.signIn).toHaveBeenCalledWith({ provider: 'github' });
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
@@ -191,7 +193,7 @@ describe('GitHub connect-and-resume', () => {
 
     await act(async () => methodButton('Continue').click());
     expect(document.querySelector('[role="alert"]')).toBeNull();
-    expect(accountHooks.signIn).toHaveBeenCalledWith('github');
+    expect(accountHooks.signIn).toHaveBeenCalledWith({ provider: 'github' });
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
@@ -200,7 +202,7 @@ describe('GitHub connect-and-resume', () => {
     await renderConnectModal();
     expect(document.querySelector('button[aria-label="Use device flow"]')).toBeNull();
     await act(async () => methodButton('Link').click());
-    expect(accountHooks.linkProvider).toHaveBeenCalledWith('github');
+    expect(accountHooks.linkProvider).toHaveBeenCalledWith({ provider: 'github' });
     expect(accountHooks.signIn).not.toHaveBeenCalled();
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });

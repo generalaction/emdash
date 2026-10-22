@@ -56,7 +56,8 @@ The exchange returns the provider access token, its expiry, and the account iden
 token with `credentialsFromOAuthToken`, verifies it with the plugin's `verify` (so an account has
 the same identity whichever method connected it), checks that it belongs to the account the
 server named, and saves it through `connectVerified` with credential source `emdash_oauth`.
-GitHub and GitLab use this path; there is no per-provider adapter.
+Reconnecting an account passes its `accountId` through sign-in or linking, so a token for another
+identity is not saved. GitHub and GitLab use this path; there is no per-provider adapter.
 
 ### Renewing expiring credentials
 

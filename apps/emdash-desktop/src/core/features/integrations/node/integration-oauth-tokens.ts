@@ -9,6 +9,7 @@ import type {
   ProviderTokenDispatchResult,
   ProviderTokenPayload,
   ProviderTokenSink,
+  ProviderTokenTarget,
 } from '@core/features/account/api/node/provider-token-sink';
 import type { IntegrationConnections } from '../api/node/integration-accounts';
 import type { CredentialRenewer } from './integration-account-store';
@@ -46,7 +47,8 @@ export class IntegrationOAuthTokens implements ProviderTokenSink {
 
   async store(
     provider: string,
-    payload: ProviderTokenPayload
+    payload: ProviderTokenPayload,
+    target: ProviderTokenTarget = {}
   ): Promise<ProviderTokenDispatchResult | undefined> {
     const integration = findOAuthIntegration(provider);
     const auth = integration?.behavior.auth;
@@ -66,7 +68,9 @@ export class IntegrationOAuthTokens implements ProviderTokenSink {
     if (verified.account?.id !== providerAccount.providerAccountId) {
       throw new Error(`The ${name} token belongs to a different account.`);
     }
+    // Reconnecting an account rejects a token for another identity.
     const result = await this.connections.connectVerified(integration.metadata.id, verified, {
+      ...(target.accountId ? { accountId: target.accountId } : {}),
       credentialSource: EMDASH_OAUTH_CREDENTIAL_SOURCE,
     });
     if (!result.success) throw new Error(result.error);

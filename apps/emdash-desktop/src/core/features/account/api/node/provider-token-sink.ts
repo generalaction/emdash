@@ -8,6 +8,11 @@ export type ProviderTokenPayload = {
   providerAccount?: ProviderAccountIdentity;
 };
 
+export type ProviderTokenTarget = {
+  /** Reconnect this integration account; a token for another identity is rejected. */
+  accountId?: string;
+};
+
 export type ProviderTokenDispatchResult = {
   providerAccountStatus?: 'created' | 'updated';
   providerAccount?: ProviderAccountIdentity;
@@ -20,6 +25,7 @@ export interface ProviderTokenSink {
   /** Saves the token; resolves `undefined` when `provider` is not supported. */
   store(
     provider: string,
-    payload: ProviderTokenPayload
+    payload: ProviderTokenPayload,
+    target?: ProviderTokenTarget
   ): Promise<ProviderTokenDispatchResult | undefined>;
 }

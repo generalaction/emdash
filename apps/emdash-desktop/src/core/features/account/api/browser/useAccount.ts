@@ -14,11 +14,17 @@ export function useAccountSession() {
   });
 }
 
+type ProviderAccountInput = {
+  provider?: string;
+  /** Reconnect this integration account; a token for another identity is not saved. */
+  accountId?: string;
+};
+
 export function useAccountSignIn() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (provider: string | undefined) =>
-      (await getAccountClient()).signIn({ provider }),
+    mutationFn: async (input: ProviderAccountInput | undefined) =>
+      (await getAccountClient()).signIn(input ?? {}),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...ACCOUNT_SESSION_KEY] });
       void invalidateProviderAccountState(queryClient);
@@ -30,8 +36,8 @@ export function useAccountSignIn() {
 export function useAccountLinkProvider() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (provider: string | undefined) =>
-      (await getAccountClient()).linkProviderAccount({ provider }),
+    mutationFn: async (input: ProviderAccountInput | undefined) =>
+      (await getAccountClient()).linkProviderAccount(input ?? {}),
     onSuccess: () => {
       void invalidateProviderAccountState(queryClient);
     },

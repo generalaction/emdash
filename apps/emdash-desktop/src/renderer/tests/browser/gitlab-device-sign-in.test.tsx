@@ -17,8 +17,10 @@ const client = vi.hoisted(() => ({
 const host = vi.hoisted(() => ({ openExternal: vi.fn(async () => undefined) }));
 const accountHooks = vi.hoisted(() => ({
   session: { isSignedIn: false, hasAccount: false },
-  signIn: vi.fn(async (_provider: string | undefined) => ({ success: true })),
-  linkProvider: vi.fn(async (_provider: string | undefined) => ({
+  signIn: vi.fn(async (_input: { provider?: string; accountId?: string } | undefined) => ({
+    success: true,
+  })),
+  linkProvider: vi.fn(async (_input: { provider?: string; accountId?: string } | undefined) => ({
     success: true,
     providerAccount: { login: 'tanuki' },
     providerAccountStatus: 'created',
@@ -143,7 +145,7 @@ describe('GitLab device sign-in', () => {
   it('signs in to Emdash with GitLab', async () => {
     await render('integrationSetupModal', <IntegrationSetupModal integration="gitlab" />);
     await act(async () => button('Continue').click());
-    expect(accountHooks.signIn).toHaveBeenCalledWith('gitlab');
+    expect(accountHooks.signIn).toHaveBeenCalledWith({ provider: 'gitlab' });
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
@@ -153,7 +155,7 @@ describe('GitLab device sign-in', () => {
     expect(document.querySelector('button[aria-label="Use device flow"]')).toBeNull();
 
     await act(async () => button('Link').click());
-    expect(accountHooks.linkProvider).toHaveBeenCalledWith('gitlab');
+    expect(accountHooks.linkProvider).toHaveBeenCalledWith({ provider: 'gitlab' });
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 
@@ -255,6 +257,18 @@ describe('GitLab device sign-in', () => {
     );
     expect(client.startDeviceFlow).toHaveBeenCalledWith({
       integrationId: 'gitlab',
+      accountId: 'https://gitlab.com:42',
+    });
+  });
+
+  it('reconnects the selected account through Emdash sign-in', async () => {
+    await render(
+      'integrationSetupModal',
+      <IntegrationSetupModal integration="gitlab" accountId="https://gitlab.com:42" />
+    );
+    await act(async () => button('Continue').click());
+    expect(accountHooks.signIn).toHaveBeenCalledWith({
+      provider: 'gitlab',
       accountId: 'https://gitlab.com:42',
     });
   });

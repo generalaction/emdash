@@ -90,6 +90,26 @@ describe('IntegrationOAuthTokens', () => {
     });
   });
 
+  it('does not save another identity when reconnecting the selected account', async () => {
+    await tokens.store('gitlab', { accessToken: 'glo_first', providerAccount });
+    gitlabUser.id = 8;
+
+    await expect(
+      tokens.store(
+        'gitlab',
+        {
+          accessToken: 'glo_other',
+          providerAccount: { ...providerAccount, providerAccountId: '8', login: 'other' },
+        },
+        { accountId: 'https://gitlab.com:7' }
+      )
+    ).rejects.toThrow('These credentials belong to a different account.');
+    expect(await fixture.registry.listAccounts('gitlab')).toHaveLength(1);
+    expect(await fixture.integrationAccounts.getAccount('gitlab')).toMatchObject({
+      credentials: { accessToken: 'glo_first' },
+    });
+  });
+
   it('rejects a token that belongs to another account', async () => {
     gitlabUser.id = 8;
 

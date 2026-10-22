@@ -192,16 +192,20 @@ describe('EmdashAccountService', () => {
 
       unwrapResult(await service.signIn());
 
-      expect(mockDispatch).toHaveBeenCalledWith('github', {
-        accessToken: 'ghp_123',
-        providerAccount: {
-          providerId: 'github',
-          providerAccountId: '42',
-          host: 'github.com',
-          login: 'monalisa',
-          avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'github',
+        {
+          accessToken: 'ghp_123',
+          providerAccount: {
+            providerId: 'github',
+            providerAccountId: '42',
+            host: 'github.com',
+            login: 'monalisa',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+          },
         },
-      });
+        {}
+      );
     });
 
     it('ignores malformed provider account metadata from the auth server', async () => {
@@ -220,10 +224,14 @@ describe('EmdashAccountService', () => {
 
       unwrapResult(await service.signIn());
 
-      expect(mockDispatch).toHaveBeenCalledWith('github', {
-        accessToken: 'ghp_123',
-        providerAccount: undefined,
-      });
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'github',
+        {
+          accessToken: 'ghp_123',
+          providerAccount: undefined,
+        },
+        {}
+      );
     });
 
     it('returns a typed error when provider token persistence fails', async () => {
@@ -302,16 +310,20 @@ describe('EmdashAccountService', () => {
         },
         timeoutMs: 5000,
       });
-      expect(mockDispatch).toHaveBeenCalledWith('github', {
-        accessToken: 'ghp_linked',
-        providerAccount: {
-          providerId: 'github',
-          providerAccountId: '84',
-          host: 'github.com',
-          login: 'octocat',
-          avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'github',
+        {
+          accessToken: 'ghp_linked',
+          providerAccount: {
+            providerId: 'github',
+            providerAccountId: '84',
+            host: 'github.com',
+            login: 'octocat',
+            avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+          },
         },
-      });
+        {}
+      );
       expect(result).toEqual({
         provider: 'github',
         providerAccountStatus: 'created',
@@ -401,10 +413,41 @@ describe('EmdashAccountService', () => {
           extraParams: { account_link_state: 'account-link-state', provider_id: 'gitlab' },
         })
       );
-      expect(mockDispatch).toHaveBeenCalledWith('gitlab', {
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'gitlab',
+        {
+          accessToken: 'glo_linked',
+          expiresAt: Date.parse('2026-10-22T12:00:00.000Z'),
+          providerAccount,
+        },
+        {}
+      );
+    });
+
+    it('reconnects the selected account', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ accountLinkState: 'account-link-state' }),
+      });
+      mockExecuteOAuthFlow.mockResolvedValue({
         accessToken: 'glo_linked',
-        expiresAt: Date.parse('2026-10-22T12:00:00.000Z'),
-        providerAccount,
+        providerId: 'gitlab',
+        providerAccount: {
+          providerId: 'gitlab',
+          providerAccountId: '7',
+          host: 'gitlab.com',
+          login: 'tanuki',
+          avatarUrl: '',
+        },
+      });
+
+      unwrapResult(
+        await service.linkProviderAccount('gitlab', { accountId: 'https://gitlab.com:7' })
+      );
+
+      expect(mockDispatch).toHaveBeenCalledWith('gitlab', expect.anything(), {
+        accountId: 'https://gitlab.com:7',
       });
     });
 

@@ -1,5 +1,6 @@
 import { err, ok, Result as ResultUtil, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
+import type { ProviderTokenTarget } from '@core/features/account/api/node/provider-token-sink';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import {
   type AccountInitializeError,
@@ -98,7 +99,11 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     return validation;
   }
 
-  async signIn(provider: string = 'github'): Promise<Result<SignInResult, AccountSignInError>> {
+  /** `accountId` reconnects that integration account; a token for another identity is not saved. */
+  async signIn(
+    provider: string = 'github',
+    options: ProviderTokenTarget = {}
+  ): Promise<Result<SignInResult, AccountSignInError>> {
     return await ResultUtil.fromAsync(this.oauthClient.signIn(provider))
       .andThen((raw) => parseSignInResponse(raw))
       .andThen(
@@ -113,7 +118,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
             .andThen(
               async () =>
                 await ResultUtil.fromAsync(
-                  this.providerTokenDispatcher.dispatchOptional(exchange.providerToken)
+                  this.providerTokenDispatcher.dispatchOptional(exchange.providerToken, options)
                 )
             )
             .tap(() =>
@@ -132,8 +137,10 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     return this.clearSessionAndNotify();
   }
 
+  /** `accountId` reconnects that integration account; a token for another identity is not saved. */
   async linkProviderAccount(
-    provider: string = 'github'
+    provider: string = 'github',
+    options: ProviderTokenTarget = {}
   ): Promise<Result<LinkProviderAccountResult, AccountLinkProviderError>> {
     if (!this.providerTokenDispatcher.supports(provider)) {
       return err({
@@ -164,7 +171,10 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     const providerToken = parseRequiredProviderTokenResponse(raw.data);
     if (!providerToken.success) return providerToken;
 
-    const dispatched = await this.providerTokenDispatcher.dispatchRequired(providerToken.data);
+    const dispatched = await this.providerTokenDispatcher.dispatchRequired(
+      providerToken.data,
+      options
+    );
     if (!dispatched.success) return dispatched;
 
     const result: LinkProviderAccountResult = {
