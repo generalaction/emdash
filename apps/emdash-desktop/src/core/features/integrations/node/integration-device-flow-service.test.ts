@@ -85,7 +85,7 @@ describe('IntegrationDeviceFlowService', () => {
     expect(connectVerified).toHaveBeenCalledWith(
       'gitlab',
       expect.objectContaining({ connected: true, credentials }),
-      { credentialSource: 'device_flow' }
+      { credentialSource: 'device_flow', signal: expect.any(AbortSignal) }
     );
     await expect(service.complete(started.flowId)).resolves.toMatchObject({ success: false });
   });
@@ -99,6 +99,7 @@ describe('IntegrationDeviceFlowService', () => {
     expect(connectVerified).toHaveBeenCalledWith('gitlab', expect.anything(), {
       accountId: 'https://gitlab.com:42',
       credentialSource: 'device_flow',
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -232,6 +233,31 @@ describe('IntegrationDeviceFlowService', () => {
 
     await expect(completion).resolves.toMatchObject({ success: false, cancelled: true });
     expect(connectVerified).not.toHaveBeenCalled();
+  });
+
+  it('saves nothing when cancelled while the save waits for the account', async () => {
+    devicePlugin(async () => ok(credentials));
+    let finishSave!: () => void;
+    connectVerified.mockImplementationOnce(
+      (_integrationId: string, _verified: unknown, options: { signal: AbortSignal }) =>
+        new Promise((resolve) => {
+          finishSave = () =>
+            resolve(
+              options.signal.aborted
+                ? { success: false, error: 'The connection was cancelled.' }
+                : { success: true, accountId: 'https://gitlab.com:42', account: {} }
+            );
+        })
+    );
+    const started = await service.start('gitlab');
+    if (!started.success) throw new Error('start failed');
+
+    const completion = service.complete(started.flowId);
+    await vi.waitFor(() => expect(connectVerified).toHaveBeenCalled());
+    service.cancel(started.flowId);
+    finishSave();
+
+    await expect(completion).resolves.toMatchObject({ success: false, cancelled: true });
   });
 
   it('polls a flow once when completed twice', async () => {

@@ -103,8 +103,14 @@ export class IntegrationDeviceFlowService {
       const connection = await this.deps.connections.connectVerified(flow.integrationId, verified, {
         ...(flow.accountId ? { accountId: flow.accountId } : {}),
         credentialSource: 'device_flow',
+        // The save can wait behind a renewal of the same account; cancelling meanwhile saves nothing.
+        signal: flow.controller.signal,
       });
-      if (!connection.success) return { success: false, error: connection.error };
+      if (!connection.success) {
+        return flow.controller.signal.aborted
+          ? { success: false, error: 'Sign-in was cancelled.', cancelled: true }
+          : { success: false, error: connection.error };
+      }
       return {
         success: true,
         accountId: connection.accountId,

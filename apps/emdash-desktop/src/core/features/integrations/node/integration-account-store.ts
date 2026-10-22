@@ -318,10 +318,17 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     return await this.accounts.updateSecret(integrationId, accountId, JSON.stringify(parsed.data));
   }
 
-  /** Serialized with renewals of the same account. */
-  async upsertAccount(integrationId: string, account: IntegrationAccountRecord) {
+  /**
+   * Serialized with renewals of the same account. Resolves null, writing
+   * nothing, when `signal` is aborted while waiting for the account.
+   */
+  async upsertAccount(
+    integrationId: string,
+    account: IntegrationAccountRecord,
+    signal?: AbortSignal
+  ) {
     return await this.renewals.runExclusive(`${integrationId}\u0000${account.accountId}`, () =>
-      this.writeAccount(integrationId, account)
+      signal?.aborted ? Promise.resolve(null) : this.writeAccount(integrationId, account)
     );
   }
 

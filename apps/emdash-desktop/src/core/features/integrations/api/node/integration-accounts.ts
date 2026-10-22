@@ -39,6 +39,10 @@ export interface IntegrationConnections {
   connectVerified(
     providerId: string,
     result: Extract<VerifyResult, { connected: true }>,
-    options?: IntegrationConnectOptions & { credentialSource?: string }
+    options?: IntegrationConnectOptions & {
+      credentialSource?: string;
+      /** Aborting before the account is saved saves nothing. */
+      signal?: AbortSignal;
+    }
   ): Promise<IntegrationConnectionResult>;
 }

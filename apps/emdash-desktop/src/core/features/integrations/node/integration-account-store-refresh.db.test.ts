@@ -234,6 +234,26 @@ describe('IntegrationAccountStore credential refresh', () => {
     expect(fixture.secretStore.secrets.size).toBe(0);
   });
 
+  it('writes nothing for an upsert cancelled while it waited for a renewal', async () => {
+    await seed(oauth(NOW + 60_000));
+    const respond = pendingTokenResponse('-2');
+    const read = store.getAccount('gitlab', ACCOUNT_ID);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+
+    const controller = new AbortController();
+    const write = store.upsertAccount(
+      'gitlab',
+      { accountId: ACCOUNT_ID, credentials: oauth(NOW + 60 * 60 * 1000, '-device') as never },
+      controller.signal
+    );
+    controller.abort();
+    respond();
+
+    await expect(write).resolves.toBeNull();
+    await read;
+    expect(await storedSecret()).toEqual(oauth(NOW + 7_200_000, '-2'));
+  });
+
   it('keeps credentials replaced during a refresh', async () => {
     await seed(oauth(NOW + 60_000));
     const respond = pendingTokenResponse('-2');
