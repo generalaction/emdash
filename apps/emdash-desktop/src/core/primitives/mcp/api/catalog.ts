@@ -23,7 +23,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     // save, so this config is never used as-is.
     config: { type: 'http' },
     name: 'Emdash',
-    description: 'Let agents create and manage Emdash tasks',
+    description: 'Create and manage Emdash tasks',
     docsUrl: 'https://github.com/generalaction/emdash',
     credentialKeys: [],
     managed: true,
