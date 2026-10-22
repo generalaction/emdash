@@ -103,7 +103,8 @@ export function DeviceSignIn({
         { flowId: started.flowId },
         { timeoutMs: (started.expiresIn + COMPLETE_DEADLINE_MARGIN_SECONDS) * 1000 }
       );
-      flowIdRef.current = null;
+      // A late completion of a replaced flow must not forget the current flow's ID.
+      if (flowIdRef.current === started.flowId) flowIdRef.current = null;
       if (!active) return;
       if (result.success) {
         toast(`Connected to ${providerName}`, {

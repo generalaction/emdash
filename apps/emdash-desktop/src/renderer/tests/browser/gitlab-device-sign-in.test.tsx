@@ -324,6 +324,40 @@ describe('GitLab device sign-in', () => {
     expect(controller.dismiss).not.toHaveBeenCalled();
   });
 
+  it('still cancels the current flow after a replaced flow completes late', async () => {
+    client.startDeviceFlow
+      .mockResolvedValueOnce({ ...started, expiresIn: 2 })
+      .mockResolvedValueOnce({ ...started, flowId: 'flow-2' });
+    let finishFirst!: () => void;
+    client.completeDeviceFlow
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishFirst = () =>
+            resolve({ success: false, error: 'Sign-in was cancelled.', cancelled: true });
+        })
+      )
+      .mockReturnValueOnce(new Promise(() => {}));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval'] });
+    try {
+      await startDeviceSignIn();
+      for (let second = 0; second < 2; second += 1) {
+        await act(async () => vi.advanceTimersByTime(1000));
+      }
+      expect(document.body.textContent).toContain('The code expired');
+
+      await act(async () => buttonWithText('Try again').click());
+      expect(client.startDeviceFlow).toHaveBeenCalledTimes(2);
+      await act(async () => finishFirst());
+      await act(async () => root.render(<></>));
+    } finally {
+      vi.useRealTimers();
+    }
+
+    await vi.waitFor(() =>
+      expect(client.cancelDeviceFlow).toHaveBeenCalledWith({ flowId: 'flow-2' })
+    );
+  });
+
   it('cancels the pending flow when the connect modal closes', async () => {
     client.startDeviceFlow.mockResolvedValue(started);
     client.completeDeviceFlow.mockReturnValue(new Promise(() => {}));
