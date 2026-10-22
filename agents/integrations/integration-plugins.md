@@ -334,11 +334,12 @@ MR / merge request; GitHub-facing text retains PR / pull request.
 GitLab credentials are either an access token (`{ instanceUrl, apiToken }`, sent as
 `PRIVATE-TOKEN`) or an OAuth access token (`{ instanceUrl, accessToken, refreshToken?,
 expiresAt? }`, sent as `Authorization: Bearer`). OAuth is gitlab.com only. Signing in through
-Emdash is the primary method: the auth server's GitLab application issues the token and keeps
-the refresh token. Device sign-in uses emdash's public OAuth application (scopes `api read_user`,
-client ID in the GitLab plugin) and stores the refresh token on the desktop; GitLab rotates it on
-every use. Access tokens last two hours and are renewed as described above. Refresh tokens are
-only ever sent to `https://gitlab.com`. Git over HTTPS sends OAuth tokens with the username
+Emdash is the primary method: the auth server issues the token and keeps the refresh token.
+Device sign-in stores the refresh token on the desktop; GitLab rotates it on every use. Both use
+the same emdash GitLab application (scopes `api read_user`, client ID in the GitLab plugin). It is
+not confidential, because the desktop cannot keep a secret: the server authenticates with the
+client secret, the desktop with the client ID alone. Access tokens last two hours and are
+renewed as described above. Refresh tokens are only ever sent to `https://gitlab.com`. Git over HTTPS sends OAuth tokens with the username
 `oauth2`. Self-hosted instances use an access token.
 
 A legacy personal token with `read_api` supports reads; writes require `api` and the project

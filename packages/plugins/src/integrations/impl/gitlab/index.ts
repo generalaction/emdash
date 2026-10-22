@@ -10,9 +10,13 @@ import { verifyGitLabCredentials } from './client';
 import { icon } from './icon';
 import { gitLabCredentialsSchema, gitLabOAuthCredentialsSchema } from './types';
 
-/** emdash's public (non-confidential) OAuth application on gitlab.com. */
+/**
+ * emdash's OAuth application on gitlab.com, shared with the auth server. It is
+ * not confidential: the server authenticates with its secret, while device
+ * sign-in and refreshes on the desktop send only this ID.
+ */
 export const GITLAB_OAUTH_CLIENT_ID =
-  '5313b9638141050d75e9e8d6ff4b93c925fc72a9c4ac04fa064257fe27590ca4';
+  '5426ca5d36a893cc469b0776a939b494d2b558053e3f0fcbff351f95973e5375';
 export const GITLAB_OAUTH_SCOPES = ['api', 'read_user'];
 const GITLAB_DOT_COM = 'https://gitlab.com';
 
