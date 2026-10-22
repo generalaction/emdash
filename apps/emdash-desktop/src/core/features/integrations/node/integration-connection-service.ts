@@ -17,6 +17,7 @@ import {
   checkIntegrationConnection,
 } from '../api/node/account-verification';
 import type {
+  IntegrationAccountRecord,
   IntegrationConnectionResult,
   IntegrationConnections,
 } from '../api/node/integration-accounts';
@@ -152,9 +153,27 @@ export class IntegrationConnectionService implements IntegrationConnections {
     capabilities: ConnectionStatus['capabilities'],
     accountId?: string
   ): Promise<ConnectionStatus> {
-    return checkIntegrationConnection(integrationId, capabilities, this.logger, () =>
-      this.credentials.getAccount(integrationId, accountId)
+    const checked: { account?: IntegrationAccountRecord | null } = {};
+    const loadAccount = async () =>
+      (checked.account = await this.credentials.getAccount(integrationId, accountId));
+    const status = await checkIntegrationConnection(
+      integrationId,
+      capabilities,
+      this.logger,
+      loadAccount
     );
+    const account = checked.account;
+    if (status.connected || !account) return status;
+    // Another device may have rotated a token they share; check once more with
+    // renewed credentials.
+    const retry = await this.credentials.reportRejected(
+      integrationId,
+      account.accountId,
+      account.credentials
+    );
+    return retry
+      ? checkIntegrationConnection(integrationId, capabilities, this.logger, loadAccount)
+      : status;
   }
 }
 

@@ -53,6 +53,10 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     string,
     { replaces: string; credentials: IntegrationCredentials }
   >();
+  /** Stored credentials, as JSON, that the provider rejected and that renew on the next read. */
+  private readonly rejectedCredentials = new Map<string, string>();
+  /** The last rejected credentials renewed early, so each rejected token forces one renewal. */
+  private readonly forcedRenewals = new Map<string, string>();
 
   constructor(
     private readonly accounts: ProviderAccountStore,
@@ -80,18 +84,47 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
   }
 
   /**
+   * Reports that the provider rejected `rejected`, e.g. because another device
+   * rotated a token they share. The next read renews those expiring
+   * credentials once, even before they expire. Resolves whether reading the
+   * account again may return other credentials.
+   */
+  async reportRejected(
+    integrationId: string,
+    accountId: string,
+    rejected: IntegrationCredentials
+  ): Promise<boolean> {
+    const account = await this.accounts.getAccount(integrationId, accountId);
+    if (!account || !this.renewerFor(integrationId, account.meta?.credentialSource)) return false;
+    const schema = integrationPluginRegistry.get(integrationId)?.behavior.auth?.credentialsSchema;
+    const parsed = schema?.safeParse(rejected);
+    const stored = await this.readCredentials(integrationId, account.accountId);
+    if (!parsed?.success || !stored) return false;
+    const rejectedJson = JSON.stringify(parsed.data);
+    // Credentials replaced since they were used need no renewal.
+    if (JSON.stringify(stored) !== rejectedJson) return true;
+    // Renewal cannot help credentials that do not expire, such as access tokens.
+    if (credentialsExpireAt(stored) === undefined) return false;
+    const key = `${integrationId}\u0000${account.accountId}`;
+    if (this.forcedRenewals.get(key) === rejectedJson) return false;
+    this.rejectedCredentials.set(key, rejectedJson);
+    return true;
+  }
+
+  /**
    * Resolve one account: by id when given, otherwise the integration's
-   * default account. Credentials whose `expiresAt` is near are renewed and
-   * persisted first; renewals are serialized per account because rotating
-   * refresh tokens are single-use, and use the account's current credential
-   * source. A failed renewal returns the stored credentials with
-   * `renewalError`, so the API call reports the authentication failure.
-   * Credentials whose renewal was rejected are not renewed again until they
-   * change or `forgetRenewalFailures` runs. Renewed credentials that fail to persist are kept in memory and
-   * written again on the next read, because the provider has already
-   * invalidated the stored refresh token. A renewal is saved only while the
-   * stored credentials it replaces are unchanged, so a disconnect or
-   * reconnect during the request wins.
+   * default account. Credentials whose `expiresAt` is near, or that the
+   * provider rejected (see `reportRejected`), are renewed and persisted
+   * first; renewals are serialized per account because rotating refresh
+   * tokens are single-use, and use the account's current credential source.
+   * A failed renewal returns the stored credentials with `renewalError`, so
+   * the API call reports the authentication failure. Credentials whose
+   * renewal was rejected are not renewed again until they change or
+   * `forgetRenewalFailures` runs. Renewed credentials that fail to persist
+   * are kept in memory and written again on the next read, because the
+   * provider has already invalidated the stored refresh token. A renewal is
+   * saved only while the stored credentials it replaces are unchanged, so a
+   * disconnect or reconnect during the request wins.
    */
   async getAccount(
     integrationId: string,
@@ -106,7 +139,7 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     const key = `${integrationId}\u0000${account.accountId}`;
     if (
       !this.renewerFor(integrationId, account.meta?.credentialSource) ||
-      (!this.unsavedRenewals.has(key) && !this.expiresSoon(credentials))
+      (!this.unsavedRenewals.has(key) && !this.needsRenewal(key, credentials))
     ) {
       return toIntegrationAccount(account, credentials);
     }
@@ -159,9 +192,13 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     }
     const credentialSource = account.meta?.credentialSource;
     const renew = this.renewerFor(integrationId, credentialSource);
-    if (!renew || !this.expiresSoon(stored)) return { account, credentials: stored };
+    if (!renew || !this.needsRenewal(key, stored)) return { account, credentials: stored };
 
     const storedJson = JSON.stringify(stored);
+    if (this.rejectedCredentials.get(key) === storedJson) {
+      this.rejectedCredentials.delete(key);
+      this.forcedRenewals.set(key, storedJson);
+    }
     const failure = this.failedRenewals.get(key);
     if (failure?.credentials !== storedJson) {
       this.failedRenewals.delete(key);
@@ -192,6 +229,14 @@ export class IntegrationAccountStore implements IntegrationAccountReader {
     this.unsavedRenewals.delete(key);
     if (saved === 'superseded') return await reread();
     return { account, credentials: renewed.data };
+  }
+
+  /** Credentials renew when they expire soon or the provider rejected them. */
+  private needsRenewal(key: string, credentials: IntegrationCredentials): boolean {
+    return (
+      this.expiresSoon(credentials) ||
+      this.rejectedCredentials.get(key) === JSON.stringify(credentials)
+    );
   }
 
   private renewerFor(

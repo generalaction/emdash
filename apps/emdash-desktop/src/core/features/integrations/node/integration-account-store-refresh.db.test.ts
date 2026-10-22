@@ -382,6 +382,73 @@ describe('IntegrationAccountStore credential refresh', () => {
     });
   });
 
+  describe('rejected credentials', () => {
+    function serverIssued(expiresAt: number, suffix = '') {
+      return { instanceUrl: 'https://gitlab.com', accessToken: `access${suffix}`, expiresAt };
+    }
+
+    async function seedServerIssued(credentials: Record<string, unknown>) {
+      await store.upsertAccount('gitlab', {
+        accountId: ACCOUNT_ID,
+        identity: { id: '42', login: 'tdewitt', host: 'gitlab.com', scope: 'https://gitlab.com' },
+        credentialSource: 'emdash_oauth',
+        credentials: credentials as never,
+      });
+    }
+
+    it('renews rejected credentials once before they expire', async () => {
+      const renew = vi.fn<CredentialRenewer>(async () => ok(serverIssued(NOW + 7_200_000, '-2')));
+      store.setRenewer('emdash_oauth', renew);
+      const current = serverIssued(NOW + 60 * 60 * 1000);
+      await seedServerIssued(current);
+      await store.getAccount('gitlab', ACCOUNT_ID);
+      expect(renew).not.toHaveBeenCalled();
+
+      await expect(store.reportRejected('gitlab', ACCOUNT_ID, current)).resolves.toBe(true);
+      const renewed = await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).toHaveBeenCalledTimes(1);
+      expect(renewed?.credentials).toEqual(serverIssued(NOW + 7_200_000, '-2'));
+    });
+
+    it('forces at most one renewal per rejected token', async () => {
+      const current = serverIssued(NOW + 60 * 60 * 1000);
+      const renew = vi.fn<CredentialRenewer>(async () => ok(current));
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(current);
+
+      await expect(store.reportRejected('gitlab', ACCOUNT_ID, current)).resolves.toBe(true);
+      await store.getAccount('gitlab', ACCOUNT_ID);
+      await expect(store.reportRejected('gitlab', ACCOUNT_ID, current)).resolves.toBe(false);
+      await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not renew credentials that were already replaced', async () => {
+      const renew = vi.fn<CredentialRenewer>();
+      store.setRenewer('emdash_oauth', renew);
+      await seedServerIssued(serverIssued(NOW + 60 * 60 * 1000, '-2'));
+
+      await expect(
+        store.reportRejected('gitlab', ACCOUNT_ID, serverIssued(NOW + 60 * 60 * 1000))
+      ).resolves.toBe(true);
+      await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(renew).not.toHaveBeenCalled();
+    });
+
+    it('ignores rejected credentials that do not expire', async () => {
+      const token = { instanceUrl: 'https://gitlab.com', apiToken: 'glpat' };
+      await seed(token);
+
+      await expect(store.reportRejected('gitlab', ACCOUNT_ID, token)).resolves.toBe(false);
+      await store.getAccount('gitlab', ACCOUNT_ID);
+
+      expect(fetch).not.toHaveBeenCalled();
+    });
+  });
+
   it('applies a reconnect after an in-flight refresh of the same account', async () => {
     await seed(oauth(NOW + 60_000));
     const respond = pendingTokenResponse('-2');

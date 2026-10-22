@@ -90,6 +90,12 @@ invalidated the stored refresh token. A renewal is saved only if the stored cred
 the ones it replaced, and `upsertAccount` waits for an in-flight renewal of the same account, so
 a disconnect or reconnect during a renewal is never undone.
 
+Another device can rotate a shared token before this one's renewal window, and the provider then
+rejects the cached token. `reportRejected` marks expiring credentials the provider rejected, and
+the next read renews them once, even before they expire. The git credential helper forwards
+git's `erase` (sent after an authentication failure) for the token it served, and the connection
+check reports a failed verification and checks once more.
+
 ### Device sign-in (`oauth-device`)
 
 The desktop drives device sign-in for any integration through the integrations Wire API:

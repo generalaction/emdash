@@ -573,6 +573,8 @@ export async function bootServices(
       integrationAccountStore,
       providerAccountRegistry
     ),
+    reportRejectedCredentials: (integrationId, accountId, credentials) =>
+      integrationAccountStore.reportRejected(integrationId, accountId, credentials),
     logger: log,
   });
   appScope.add(() => {

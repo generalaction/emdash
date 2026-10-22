@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   applyGitCredentialsToEnv,
@@ -36,6 +38,43 @@ function gitConfigPairs(env: Record<string, string>): [string, string][] {
       return [entry.slice(0, separator), entry.slice(separator + 1)];
     });
 }
+
+/** Runs the helper as git does (`<helper> <action>`) with a stub curl that echoes its URL. */
+function runHelper(action: string): string {
+  const bin = mkdtempSync(join(tmpdir(), 'emdash-helper-'));
+  try {
+    writeFileSync(join(bin, 'curl'), '#!/bin/sh\nfor arg; do last=$arg; done\necho "$last"\n');
+    chmodSync(join(bin, 'curl'), 0o755);
+    return execFileSync(
+      'sh',
+      ['-c', `${GIT_CREDENTIAL_HELPER_COMMAND.slice(1)} "$@"`, 'sh', action],
+      {
+        env: {
+          PATH: `${bin}:${process.env.PATH}`,
+          EMDASH_GIT_CREDENTIAL_PORT: String(channel.port),
+          EMDASH_GIT_CREDENTIAL_NONCE: channel.nonce,
+        },
+        input: 'protocol=https\nhost=github.com\n\n',
+        encoding: 'utf8',
+      }
+    );
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
+}
+
+describe('GIT_CREDENTIAL_HELPER_COMMAND', () => {
+  it.skipIf(process.platform === 'win32')('forwards get and erase to their endpoints', () => {
+    expect(runHelper('get')).toBe(`http://127.0.0.1:${channel.port}/git-credential/get\n`);
+    expect(runHelper('erase')).toBe(`http://127.0.0.1:${channel.port}/git-credential/erase\n`);
+  });
+
+  it.skipIf(process.platform === 'win32')('sends nothing for other actions', () => {
+    for (const action of ['store', 'get;id', 'get erase', '']) {
+      expect(runHelper(action)).toBe('');
+    }
+  });
+});
 
 describe('applyGitCredentialsToEnv', () => {
   it('returns the env untouched for system mode and for no spec', () => {
