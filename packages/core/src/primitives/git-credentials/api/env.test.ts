@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyGitCredentialsToEnv,
   GIT_CREDENTIAL_HELPER_COMMAND,
+  GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS,
   gitCredentialOperationEnv,
   type GitCredentialsSessionSpec,
 } from './env';
@@ -67,6 +68,11 @@ describe('GIT_CREDENTIAL_HELPER_COMMAND', () => {
   it.skipIf(process.platform === 'win32')('forwards get and erase to their endpoints', () => {
     expect(runHelper('get')).toBe(`http://127.0.0.1:${channel.port}/git-credential/get\n`);
     expect(runHelper('erase')).toBe(`http://127.0.0.1:${channel.port}/git-credential/erase\n`);
+  });
+
+  it('waits longer than a credential read that renews the token', () => {
+    expect(GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS).toBeGreaterThan(60);
+    expect(GIT_CREDENTIAL_HELPER_COMMAND).toContain(`-m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} `);
   });
 
   it.skipIf(process.platform === 'win32')('sends nothing for other actions', () => {

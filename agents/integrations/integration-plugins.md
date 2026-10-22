@@ -97,7 +97,8 @@ Another device can rotate a shared token before this one's renewal window, and t
 rejects the cached token. `reportRejected` marks expiring credentials the provider rejected, and
 the next read renews them once, even before they expire. The git credential helper forwards
 git's `erase` (sent after an authentication failure) for the token it served, and the connection
-check reports a failed verification and checks once more.
+check reports a failed verification and checks once more. Because a credential read can include
+a renewal, the helper waits up to 90 seconds (`GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS`).
 
 ### Device sign-in (`oauth-device`)
 

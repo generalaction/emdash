@@ -47,6 +47,12 @@ export type GitCredentialsSessionSpec = z.infer<typeof gitCredentialsSessionSpec
 export const GIT_CREDENTIAL_PORT_ENV_VAR = 'EMDASH_GIT_CREDENTIAL_PORT';
 export const GIT_CREDENTIAL_NONCE_ENV_VAR = 'EMDASH_GIT_CREDENTIAL_NONCE';
 const GIT_CREDENTIAL_HELPER_PATH_PREFIX = '/git-credential/';
+/**
+ * A credential read may first renew the token: each renewal request is
+ * bounded at 30s, and a read can wait behind one other renewal of the same
+ * account. Stay above that worst case so git receives the renewed token.
+ */
+export const GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS = 90;
 export const GIT_CREDENTIAL_HELPER_URL_PATH = `${GIT_CREDENTIAL_HELPER_PATH_PREFIX}get`;
 /** Git erases a credential the remote rejected, so the desktop can renew it. */
 export const GIT_CREDENTIAL_HELPER_ERASE_URL_PATH = `${GIT_CREDENTIAL_HELPER_PATH_PREFIX}erase`;
@@ -63,7 +69,7 @@ export const GIT_CREDENTIAL_HELPER_ERASE_URL_PATH = `${GIT_CREDENTIAL_HELPER_PAT
  */
 export const GIT_CREDENTIAL_HELPER_COMMAND =
   '!f() { case "$1" in get|erase) ' +
-  'curl -s -f -m 10 -X POST --data-binary @- ' +
+  `curl -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
   `-H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
   `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1" ` +
   '2>/dev/null || true;; esac; }; f';
