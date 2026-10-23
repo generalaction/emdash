@@ -33,6 +33,8 @@ export function openSshMasterArgs(
 ): string[] {
   const options = [
     'ControlPersist=no',
+    'StdinNull=no',
+    'ForkAfterAuthentication=no',
     'BatchMode=yes',
     'StrictHostKeyChecking=yes',
     'ClearAllForwardings=yes',

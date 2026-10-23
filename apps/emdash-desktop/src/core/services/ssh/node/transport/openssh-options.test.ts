@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openSshMasterArgs, openSshSlaveArgs, validateOpenSshTarget } from './openssh-options';
 
@@ -20,6 +24,25 @@ describe('OpenSSH Kerberos arguments', () => {
     expect(args).not.toContain('-l');
     expect(args).not.toContain('-p');
   });
+
+  it.skipIf(process.platform === 'win32')(
+    'overrides inherited settings that detach or close the master',
+    () => {
+      const directory = mkdtempSync(join(tmpdir(), 'emdash-ssh-options-'));
+      try {
+        const config = join(directory, 'config');
+        writeFileSync(config, 'Host *\n  StdinNull yes\n  ForkAfterAuthentication yes\n');
+        const args = openSshMasterArgs(target, join(directory, 'ctl'), {}, 'ready');
+        const effective = execFileSync('/usr/bin/ssh', ['-G', '-F', config, ...args], {
+          encoding: 'utf8',
+        });
+        expect(effective).toMatch(/^stdinnull no$/m);
+        expect(effective).toMatch(/^forkafterauthentication no$/m);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  );
 
   it('honors explicit manual destination and jump host', () => {
     const args = openSshMasterArgs(

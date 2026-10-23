@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Server, utils, type Connection } from 'ssh2';
@@ -26,6 +26,7 @@ interface Fixture {
   knownHosts: string;
   connections: Set<Connection>;
   serverErrors: Error[];
+  directory: string;
 }
 
 function createServer(options: { rejectAuth?: boolean; stall?: boolean }): {
@@ -46,7 +47,13 @@ function createServer(options: { rejectAuth?: boolean; stall?: boolean }): {
   return { server, connections, serverErrors };
 }
 
-async function fixture(options: { rejectAuth?: boolean; stall?: boolean } = {}): Promise<Fixture> {
+type FixtureOptions = {
+  rejectAuth?: boolean;
+  stall?: boolean;
+  forwardFault?: 'reject' | 'lost-ack' | 'timeout';
+};
+
+async function fixture(options: FixtureOptions = {}): Promise<Fixture> {
   const { server, connections, serverErrors } = createServer(options);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -65,20 +72,40 @@ async function fixture(options: { rejectAuth?: boolean; stall?: boolean } = {}):
     knownHosts,
     `[127.0.0.1]:${address.port} ${key.type} ${key.getPublicSSH().toString('base64')}\n`
   );
-  const executable = join(directory, 'ssh');
-  // 真实 OpenSSH 集成测试：仅把认证替换为本地夹具支持的 none，保留主机密钥校验。
-  writeFileSync(
-    executable,
-    `#!/bin/sh\nexec /usr/bin/ssh -o GSSAPIAuthentication=no -o PreferredAuthentications=none -o 'UserKnownHostsFile=${knownHosts}' "$@"\n`,
-    { mode: 0o700 }
-  );
+  const executable = createExecutable(directory, knownHosts, options.forwardFault);
   const client = new OpenSshClient(
     { host: '127.0.0.1', port: address.port, username: 'test' },
     executable
   );
   const manager = new SshConnectionManager();
   cleanup.push(() => manager.disconnectAll());
-  return { client, manager, knownHosts, connections, serverErrors };
+  return { client, manager, knownHosts, connections, serverErrors, directory };
+}
+
+function createExecutable(
+  directory: string,
+  knownHosts: string,
+  fault?: 'reject' | 'lost-ack' | 'timeout'
+): string {
+  const executable = join(directory, 'ssh');
+  const ssh = `/usr/bin/ssh -o GSSAPIAuthentication=no -o PreferredAuthentications=none -o 'UserKnownHostsFile=${knownHosts}'`;
+  // 故障只作用于首次转发；lost-ack 用真实 OpenSSH 创建监听后模拟确认丢失。
+  const inject = fault
+    ? `
+case " $* " in
+  *" -O forward "*)
+    if [ ! -f '${directory}/attempted' ]; then
+      touch '${directory}/attempted'
+      ${fault !== 'reject' ? `${ssh} "$@" || exit $?` : ':'}
+      printf '%s\\n' "$@" > '${directory}/forward-args'
+      ${fault === 'timeout' ? 'exec /bin/sleep 60' : "echo 'fixture forwarding failure' >&2; exit 1"}
+    fi
+    ;;
+esac
+`
+    : '';
+  writeFileSync(executable, `#!/bin/sh\n${inject}exec ${ssh} "$@"\n`, { mode: 0o700 });
+  return executable;
 }
 
 function handleConnection(connection: Connection, stall: boolean): void {
@@ -119,6 +146,35 @@ async function connect(f: Fixture, timeoutMs = 5000): Promise<SshClientProxy> {
   }));
 }
 
+async function expectForwardRecovery(
+  forwardFault: NonNullable<FixtureOptions['forwardFault']>,
+  expectedError: RegExp
+): Promise<void> {
+  const f = await fixture({ forwardFault });
+  const proxy = await connect(f);
+  // 直接观察控制命令自身的10秒超时，避免代理层相同期限的计时器先结束断言。
+  const first =
+    forwardFault === 'timeout'
+      ? new Promise<unknown>((resolve, reject) => {
+          f.client.openssh_forwardOutStreamLocal('/tmp/retry.sock', (error, channel) => {
+            if (error) reject(error);
+            else resolve(channel);
+          });
+        })
+      : proxy.forwardOutStreamLocal('/tmp/retry.sock');
+  await expect(first).rejects.toThrow(expectedError);
+  const args = readFileSync(join(f.directory, 'forward-args'), 'utf8').trim().split('\n');
+  const listener = args[args.indexOf('-L') + 1]!.split(':')[0]!;
+  expect(existsSync(listener)).toBe(false);
+  expect(proxy.isConnected).toBe(true);
+  const channel = await proxy.forwardOutStreamLocal('/tmp/retry.sock');
+  const received = once(channel, 'data');
+  channel.write('recovered');
+  expect((await received)[0].toString()).toBe('recovered');
+  channel.destroy();
+  expect(f.connections.size).toBe(1);
+}
+
 describe.skipIf(process.platform === 'win32')('system OpenSSH transport', () => {
   it('preserves stdout, stderr and nonzero exit status', async () => {
     const f = await fixture();
@@ -151,6 +207,17 @@ describe.skipIf(process.platform === 'win32')('system OpenSSH transport', () => 
       channel.destroy();
     }
   });
+
+  it.each(['reject', 'lost-ack'] as const)(
+    'recovers a %s forward on the same physical connection',
+    (forwardFault) => expectForwardRecovery(forwardFault, /fixture forwarding failure/)
+  );
+
+  it(
+    'cleans up a listener after a real control-command timeout',
+    () => expectForwardRecovery('timeout', /SSH socket forwarding/),
+    15_000
+  );
 
   it('bounds execution and output and retires channels on disconnect', async () => {
     const f = await fixture();

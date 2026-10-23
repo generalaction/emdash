@@ -29,6 +29,7 @@ export class OpenSshClient extends EventEmitter implements SshTransportClient {
   private readonly lifetime = new AbortController();
   private readonly channels = new Set<Duplex>();
   private readonly forwards = new Map<string, Promise<string>>();
+  private nextForwardId = 0;
 
   constructor(
     private readonly target: OpenSshTarget,
@@ -102,6 +103,7 @@ export class OpenSshClient extends EventEmitter implements SshTransportClient {
     this.lifetime.abort();
     for (const channel of this.channels) channel.destroy();
     this.channels.clear();
+    this.forwards.clear();
     this.master?.kill();
     if (this.directory) rmSync(this.directory, { recursive: true, force: true });
     this.emit('close');
@@ -186,29 +188,66 @@ export class OpenSshClient extends EventEmitter implements SshTransportClient {
     const existing = this.forwards.get(remotePath);
     if (existing) return existing;
     if (!this.directory) throw new Error('SSH connection is not available');
-    const localPath = join(this.directory, `f${this.forwards.size}`);
+    // 失败项会被移除，不能用缓存大小分配路径，否则会覆盖其它仍在使用的监听。
+    const localPath = join(this.directory, `f${this.nextForwardId++}`);
+    const pending = this.configureForward('forward', localPath, remotePath)
+      .then(() => localPath)
+      .catch(async (error: unknown) => {
+        try {
+          // 请求失败也可能已经建立监听；清理完成前并发调用仍共享本次失败。
+          if (!this.closed) {
+            await this.configureForward('cancel', localPath, remotePath);
+            rmSync(localPath, { force: true });
+          }
+        } catch (cleanupError: unknown) {
+          if (!this.closed) {
+            const failure = new AggregateError(
+              [error, cleanupError],
+              'SSH forwarding cleanup failed; closing connection'
+            );
+            this.fail(failure);
+            throw failure;
+          }
+        } finally {
+          if (this.forwards.get(remotePath) === pending) this.forwards.delete(remotePath);
+        }
+        throw error;
+      });
+    this.forwards.set(remotePath, pending);
+    return pending;
+  }
+
+  private configureForward(
+    operation: 'forward' | 'cancel',
+    localPath: string,
+    remotePath: string
+  ): Promise<void> {
     const args = [
       ...this.slaveArgs(),
       '-O',
-      'forward',
+      operation,
       '-L',
       `${localPath}:${remotePath}`,
       '--',
       this.target.host,
     ];
-    const pending = new Promise<string>((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       execFile(
         this.sshPath,
         args,
         { timeout: 10_000, maxBuffer: 8192, signal: this.lifetime.signal },
         (error, _stdout, stderr) => {
-          if (error)
-            reject(new Error(`SSH socket forwarding failed: ${stderr.trim() || error.message}`));
-          else resolve(localPath);
+          // OpenSSH 对不存在的转发返回非零；这是清理已完成的正常情况。
+          const absent = operation === 'cancel' && stderr.trim().endsWith('port not forwarded');
+          if (error && !absent)
+            reject(
+              new Error(
+                `SSH socket forwarding${operation === 'cancel' ? ' cancellation' : ''} failed: ${stderr.trim() || error.message}`
+              )
+            );
+          else resolve();
         }
       );
     });
-    this.forwards.set(remotePath, pending);
-    return pending;
   }
 }
