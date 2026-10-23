@@ -502,15 +502,19 @@ export class TuiAgentsRuntime {
       startedAt,
     });
 
-    const commandResult = await this.deps.agentHost.buildPromptCommand(config.input.providerId, {
-      extraArgs: config.input.extraArgs,
-      autoApprove: config.input.autoApprove ?? false,
-      initialPrompt: isResuming ? undefined : config.input.initialPrompt,
-      sessionId: config.input.conversationId,
-      providerSessionId: config.input.sessionId ?? undefined,
-      isResuming,
-      model: config.input.model ?? '',
-    });
+    const commandResult = await this.deps.agentHost.buildPromptCommand(
+      config.input.providerId,
+      {
+        extraArgs: config.input.extraArgs,
+        autoApprove: config.input.autoApprove ?? false,
+        initialPrompt: isResuming ? undefined : config.input.initialPrompt,
+        sessionId: config.input.conversationId,
+        providerSessionId: config.input.sessionId ?? undefined,
+        isResuming,
+        model: config.input.model ?? '',
+      },
+      config.input.providerVars
+    );
     if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
       return this.cancelledSpawn(config.input.conversationId);
     }

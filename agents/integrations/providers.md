@@ -73,9 +73,22 @@ host's `agent-config` runtime for both local and remote hosts.
 
 ## Provider API Keys
 
-Emdash passes provider API keys through to the agent CLIs it spawns. The allowlisted agent
-environment in `packages/core/src/primitives/agent-env/api/index.ts` is the single source of truth
-for which variables reach a spawned agent.
+Emdash builds agent environments from the baseline allowlist in
+`packages/core/src/primitives/agent-env/api/index.ts`, additional names declared by the selected
+agent plugin, and explicit user-configured overrides. Explicit overrides have the highest priority.
+The existing baseline remains shared for compatibility; additional names are scoped to that agent.
+
+Plugins can declare `auth.environment` to read authentication variable names from their user-level
+configuration through a read-only filesystem. Codex reads `model_providers.*.env_key` and the values
+of `model_providers.*.env_http_headers` from `$CODEX_HOME/config.toml` (default:
+`~/.codex/config.toml`). Names are validated and deduplicated. Project configuration, inline header
+values, and MCP environment settings do not expand the inherited environment. Invalid TOML reports
+a configuration error without including the configuration contents.
+
+Values come from the execution host's captured user-shell environment, not from the client machine
+or from the variable declarations themselves. For remote agents, export the variables on the remote
+host. Configuration is read for each spawn; this does not refresh an already captured shell
+snapshot or an existing agent process. No credential values are persisted by this resolution step.
 
 [OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible gateway that routes to models from
 OpenAI, Anthropic, Google, DeepSeek, Qwen, and more through one API key (`sk-orca-…`). OpenCode

@@ -60,6 +60,7 @@ export type AgentHostDeps = {
   exec: IExecutionContext;
   dependencies: HostDependencyResolver;
   fs: PluginFs;
+  configFs?: (root: string) => PluginFs;
   env: EnvSource;
   homeDir: string;
   platform?: Platform;
@@ -104,6 +105,7 @@ export class AgentPluginHost {
       resolveCli: (providerId) => this.resolveCli(providerId),
       hasProvider: (providerId) => this.registry.get(providerId) !== undefined,
       env: deps.env,
+      envKeys: (providerId, env) => this.readAuthEnvKeys(providerId, env),
       homeDir: deps.homeDir,
       includeShellVar: true,
       platform: this.agentEnvPlatform,
@@ -115,6 +117,22 @@ export class AgentPluginHost {
       [deduplicate({ key: (providerId) => providerId })]
     );
     this.checkAuthStatusOnce = (providerId) => checkAuthStatusOnce(providerId, {});
+  }
+
+  private async readAuthEnvKeys(
+    providerId: string,
+    env: Record<string, string>
+  ): Promise<readonly string[]> {
+    const environment = this.registry.get(providerId)?.behavior.auth?.environment;
+    if (!environment) return [];
+    if (!this.deps.configFs) throw new Error('Provider config filesystem is unavailable');
+    const root = environment.resolveConfigRoot({
+      env,
+      homeDir: this.homeDir,
+      platform: this.platform,
+    });
+    const fs = this.deps.configFs(root);
+    return environment.readEnvKeys({ read: (path) => fs.read(path) });
   }
 
   get fs(): PluginFs {
@@ -180,8 +198,11 @@ export class AgentPluginHost {
     };
   }
 
-  resolveSpawnContext(providerId: string): Promise<Result<SpawnContext, SpawnContextError>> {
-    return this.spawnContext.resolve(providerId);
+  resolveSpawnContext(
+    providerId: string,
+    envOverrides?: Record<string, string>
+  ): Promise<Result<SpawnContext, SpawnContextError>> {
+    return this.spawnContext.resolve(providerId, envOverrides);
   }
 
   invalidateSpawnContext(providerId?: string): void {
@@ -269,16 +290,22 @@ export class AgentPluginHost {
 
   async buildPromptCommand(
     providerId: string,
-    ctx: Omit<CommandContext, 'cli'>
+    ctx: Omit<CommandContext, 'cli'>,
+    envOverrides?: Record<string, string>
   ): Promise<Result<AgentCommand, AgentHostError>> {
     const provider = this.resolveTuiProvider(providerId);
     if (!provider) return err({ type: 'capability-unsupported', providerId, capability: 'prompt' });
-    const spawnContext = await this.resolveSpawnContext(providerId);
+    const spawnContext = await this.resolveSpawnContext(providerId, envOverrides);
     if (!spawnContext.success) return err(spawnContext.error);
     const command = provider.buildCommand({ ...ctx, cli: spawnContext.data.cli });
     return ok({
       ...command,
-      env: mergeAgentEnvLayers(this.agentEnvPlatform, spawnContext.data.agentEnv, command.env),
+      env: mergeAgentEnvLayers(
+        this.agentEnvPlatform,
+        spawnContext.data.agentEnv,
+        command.env,
+        envOverrides ?? {}
+      ),
     });
   }
 
@@ -288,7 +315,7 @@ export class AgentPluginHost {
   ): Promise<Result<AgentHostAcpSpawn, AgentHostError>> {
     const provider = this.resolveAcp(providerId);
     if (!provider) return err({ type: 'capability-unsupported', providerId, capability: 'acp' });
-    const spawnContext = await this.resolveSpawnContext(providerId);
+    const spawnContext = await this.resolveSpawnContext(providerId, ctx.env);
     if (!spawnContext.success) return err(spawnContext.error);
     const spawn = provider.behavior.buildSpawn({
       cwd: ctx.cwd,

@@ -34,6 +34,7 @@ export function createProviderUsageComponent(options: {
         exec: new NodeExecutionContext({ env }),
         dependencies: createHostDependencyResolverFromDependency(dependencies.hostDependencies),
         fs: createLocalPluginFs(homeDir),
+        configFs: createLocalPluginFs,
         env,
         homeDir,
       });

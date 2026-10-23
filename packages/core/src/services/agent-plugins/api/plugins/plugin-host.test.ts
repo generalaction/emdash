@@ -365,6 +365,43 @@ describe('AgentPluginHost', () => {
     expect(readServers).toHaveBeenCalledWith(expect.any(Object));
   });
 
+  it('passes only provider-declared custom authentication variables to ACP', async () => {
+    const host = createHost(
+      [
+        plugin({
+          acp: { kind: 'supported' },
+          behavior: {
+            acp: {
+              buildSpawn: () => ({ command: 'test', args: [] }),
+              connect: () => {
+                throw new Error('Not used by spawn tests');
+              },
+            },
+            auth: {
+              checkStatus: async () => ({ kind: 'unknown' }),
+              environment: {
+                resolveConfigRoot: ({ homeDir }) => `${homeDir}/.test`,
+                readEnvKeys: async () => ['LOCAL_API_KEY'],
+              },
+            },
+          },
+        }),
+        { ...plugin(), metadata: { ...plugin().metadata, id: 'other' } },
+      ],
+      async () => ({ PATH: '/bin', LOCAL_API_KEY: 'fixture-only', UNRELATED_SECRET: 'excluded' })
+    );
+    const result = await host.buildAcpSpawn('test', { cwd: '/work' });
+    expect(result).toMatchObject({
+      success: true,
+      data: { env: { LOCAL_API_KEY: 'fixture-only' } },
+    });
+    if (result.success) expect(result.data.env).not.toHaveProperty('UNRELATED_SECRET');
+    const other = await host.resolveSpawnContext('other');
+    expect(other.success).toBe(true);
+    if (other.success) expect(other.data.agentEnv).not.toHaveProperty('LOCAL_API_KEY');
+    await host.dispose();
+  });
+
   it('loads the current user environment for each agent spawn context', async () => {
     let env = { HOME: '/home/test', PATH: '/tools/old' };
     const host = createHost([plugin()], async () => env);
@@ -391,6 +428,7 @@ function createHost(
     exec: options.exec ?? fakeExec(),
     dependencies: fakeDependencies(),
     fs: memoryFs(),
+    configFs: () => memoryFs(),
     env,
     homeDir: '/home/test',
     platform: options.platform,

@@ -66,6 +66,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
         exec,
         dependencies: dependencyResolver,
         fs: createLocalPluginFs(homeDir),
+        configFs: createLocalPluginFs,
         env,
         homeDir,
       });

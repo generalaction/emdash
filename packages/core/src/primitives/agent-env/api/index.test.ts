@@ -2,6 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { buildAllowlistedAgentEnv, getWindowsEnvKey, mergeAgentEnvLayers } from './index';
 
 describe('buildAllowlistedAgentEnv', () => {
+  it('adds only explicitly declared names without changing the global allowlist', () => {
+    const source = { LOCAL_API_KEY: 'fixture-only', UNRELATED_SECRET: 'excluded' };
+    expect(buildAllowlistedAgentEnv(source)).not.toHaveProperty('LOCAL_API_KEY');
+    const env = buildAllowlistedAgentEnv(source, { extraKeys: ['LOCAL_API_KEY', 'BAD=NAME'] });
+    expect(env.LOCAL_API_KEY).toBe('fixture-only');
+    expect(env).not.toHaveProperty('UNRELATED_SECRET');
+    expect(env).not.toHaveProperty('BAD=NAME');
+  });
+
+  it('resolves declared custom variables case insensitively on Windows', () => {
+    const env = buildAllowlistedAgentEnv(
+      { local_api_key: 'fixture-only' },
+      {
+        extraKeys: ['LOCAL_API_KEY'],
+        platform: 'windows',
+      }
+    );
+    expect(env.LOCAL_API_KEY).toBe('fixture-only');
+  });
+
   it('reads the full allowlist case-insensitively and emits canonical Windows names', () => {
     const env = buildAllowlistedAgentEnv(
       {

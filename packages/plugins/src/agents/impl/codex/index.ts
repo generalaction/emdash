@@ -5,6 +5,7 @@ import {
 import {
   buildStandardCommand,
   codexMcpAdapter,
+  envConfigRoot,
   homebrewOption,
   npmDependency,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
@@ -14,6 +15,7 @@ import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
 import { enrichCodexUpdate } from './acp-enrich';
 import { isCodexSessionNotFound } from './acp-errors';
 import { codexAdapter } from './adapter';
+import { readCodexAuthEnvKeys } from './auth-env';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 import { probeCodexUsage } from './usage';
@@ -163,6 +165,10 @@ export const provider = registerPluginBehavior(plugin, {
     isSessionNotFound: isCodexSessionNotFound,
   },
   auth: {
+    environment: {
+      resolveConfigRoot: envConfigRoot('CODEX_HOME', '.codex'),
+      readEnvKeys: readCodexAuthEnvKeys,
+    },
     checkStatus: async (ctx) => {
       const envStatus = authenticatedFromEnv(ctx, ['OPENAI_API_KEY']);
       if (envStatus.kind === 'authenticated') return envStatus;

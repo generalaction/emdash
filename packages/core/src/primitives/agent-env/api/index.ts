@@ -167,6 +167,8 @@ const CANONICAL_WINDOWS_ENV_NAMES = new Map(
 );
 
 export interface BuildAllowlistedAgentEnvOptions {
+  /** 当前 provider 从用户级配置中声明的认证变量名。 */
+  extraKeys?: readonly string[];
   homeDir?: string;
   username?: string;
   includeShellVar?: boolean;
@@ -194,6 +196,7 @@ export function buildAllowlistedAgentEnv(
     ...getAllowlistedEnv(sourceEnv, GLOBAL_AGENT_ENV_VARS, platform),
     ...getAllowlistedEnv(sourceEnv, DISPLAY_ENV_VARS, platform),
     ...getAllowlistedEnv(sourceEnv, AGENT_ENV_VARS, platform),
+    ...getAllowlistedEnv(sourceEnv, options.extraKeys ?? [], platform),
   };
 
   if (platform === 'windows') {
@@ -280,6 +283,7 @@ function getAllowlistedEnv(
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const key of keys) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
     const value = platform === 'windows' ? getWindowsEnvValue(sourceEnv, key) : sourceEnv[key];
     if (value) env[key] = value;
   }

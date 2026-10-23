@@ -70,6 +70,7 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
         exec,
         dependencies: dependencyResolver,
         fs: createLocalPluginFs(homeDir),
+        configFs: createLocalPluginFs,
         env,
         homeDir,
       });

@@ -47,6 +47,7 @@ export function createAgentConfigComponent(options: CreateAgentConfigComponentOp
         exec,
         dependencies: dependencyResolver,
         fs: createLocalPluginFs(homeDir),
+        configFs: createLocalPluginFs,
         env,
         homeDir,
       });

@@ -1,5 +1,6 @@
 import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
+import type { Platform } from '#primitives/host-dependencies/api';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 
 const cliLoginMethodSchema = z.object({
@@ -70,6 +71,15 @@ export type AgentAuthContext = {
 };
 
 export type IAgentAuthBehavior = {
+  /** 只读取用户级配置中的变量名，不读取或持久化密钥值。 */
+  environment?: {
+    resolveConfigRoot(context: {
+      env: Record<string, string | undefined>;
+      homeDir: string;
+      platform: Platform;
+    }): string;
+    readEnvKeys(fs: Pick<PluginFs, 'read'>): Promise<readonly string[]>;
+  };
   checkStatus(ctx: AgentAuthContext): Promise<AgentAuthStatus>;
   buildLoginCommand?(
     ctx: { cli: string },

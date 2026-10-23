@@ -149,7 +149,8 @@ describe('TuiAgentsRuntime', () => {
             isResuming: true,
             providerSessionId: 'switched-session',
             initialPrompt: undefined,
-          })
+          }),
+          undefined
         );
         expect(reports.started.at(-1)).toEqual({
           conversationId: 'conversation-1',
@@ -325,12 +326,15 @@ describe('TuiAgentsRuntime', () => {
   });
 
   it('merges final Windows provider environment overlays case-insensitively', async () => {
-    const { runtime, spawner } = createRuntime({
+    const { runtime, spawner, agentHost } = createRuntime({
       platform: 'win32',
       commandEnv: { PATH: 'C:\\base' },
     });
 
     await runtime.startSession(startInput({ providerVars: { Path: 'C:\\override' } }));
+    expect(agentHost.buildPromptCommand).toHaveBeenCalledWith('test', expect.any(Object), {
+      Path: 'C:\\override',
+    });
 
     expect(spawner.specs[0]?.env).toMatchObject({ PATH: 'C:\\override' });
     expect(
@@ -562,7 +566,8 @@ describe('TuiAgentsRuntime', () => {
       'test',
       expect.objectContaining({
         initialPrompt: 'Read /host/tmp/task-context.md and complete the task.',
-      })
+      }),
+      undefined
     );
 
     await runtime.stopSession('conversation-1');
@@ -610,12 +615,14 @@ describe('TuiAgentsRuntime', () => {
     expect(agentHost.buildPromptCommand).toHaveBeenNthCalledWith(
       1,
       'test',
-      expect.objectContaining({ isResuming: true, initialPrompt: undefined })
+      expect.objectContaining({ isResuming: true, initialPrompt: undefined }),
+      undefined
     );
     expect(agentHost.buildPromptCommand).toHaveBeenNthCalledWith(
       2,
       'test',
-      expect.objectContaining({ isResuming: false, initialPrompt: 'hello' })
+      expect.objectContaining({ isResuming: false, initialPrompt: 'hello' }),
+      undefined
     );
   });
 
