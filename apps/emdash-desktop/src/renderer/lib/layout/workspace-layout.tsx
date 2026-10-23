@@ -11,13 +11,13 @@ const LEFT_SIDEBAR_MIN_SIZE = '200px';
 const LEFT_SIDEBAR_MAX_SIZE = '30%';
 const MAIN_PANEL_MIN_SIZE = '30%';
 
-// Drag-to-close threshold for the left sidebar, in percent of the group.
-// 200px — the old resize floor — is at least 8% of the group on any window up
-// to 2500px wide, so every width the previous UI let a user settle at stays a
-// plain resize/restore, never a surprise close. Below 8% (~115px at 1440px)
-// the sidebar content is unusable, so a drag settling there reads as intent
-// to close rather than a resize.
-const LEFT_SIDEBAR_CLOSE_THRESHOLD = 8;
+// Drag-to-close threshold for the left sidebar, in percent of the group. A
+// drag can only settle at 0 (the snap below the 200px floor) or at 200px and
+// up, so the threshold only has to catch the snap. The sidebar keeps its
+// pixel width when the window resizes, so a larger threshold such as 8% would
+// close a 200px sidebar as soon as the window grows past 2500px. 200px stays
+// above 1% of the group on any window up to 20000px wide.
+const LEFT_SIDEBAR_CLOSE_THRESHOLD = 1;
 
 interface WorkspaceLayoutProps {
   leftSidebar: ReactNode;
@@ -50,6 +50,9 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
             maxSize={LEFT_SIDEBAR_MAX_SIZE}
             collapsible
             collapsedSize="0%"
+            // Window resizes go to the main panel: the sidebar keeps the pixel
+            // width the user dragged it to (tiling WMs resize constantly).
+            groupResizeBehavior="preserve-pixel-size"
           >
             {leftSidebar}
           </Resizable.Panel>
