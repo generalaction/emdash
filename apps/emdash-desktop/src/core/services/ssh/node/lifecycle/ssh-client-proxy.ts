@@ -1,16 +1,17 @@
+import type { Duplex } from 'node:stream';
 import { formatCommandLine, type Command } from '@emdash/core/primitives/exec/api';
-import type { Client, ClientChannel } from 'ssh2';
 import type {
   SshClientProxy as SshClientProxyContract,
   SshExecOptions,
   SshExecResult,
   SshTcpTarget,
 } from '@core/primitives/ssh/api/node/ssh-client-proxy';
+import type { SshTransportClient } from '@core/primitives/ssh/api/node/ssh-transport-client';
 import { execOnClient } from '../operations/exec';
 import { openChannel } from '../operations/open-channel';
 
 /**
- * Stable reference to an ssh2 Client that survives reconnects.
+ * Stable reference to an SSH transport that survives reconnects.
  *
  * SSH-backed services hold a SshClientProxy rather than a raw Client.
  * SshConnectionManager calls update() each time
@@ -20,13 +21,13 @@ import { openChannel } from '../operations/open-channel';
  * rebuilt or replaced.
  */
 export class SshClientProxy implements SshClientProxyContract {
-  private _client: Client | null = null;
+  private _client: SshTransportClient | null = null;
   private connectionLifetime = new AbortController();
 
   constructor(readonly connectionId: string) {}
 
   /** Called by SshConnectionManager when a connection becomes ready. */
-  update(client: Client): void {
+  update(client: SshTransportClient): void {
     const previousLifetime = this.connectionLifetime;
     this.connectionLifetime = new AbortController();
     this._client = client;
@@ -40,11 +41,11 @@ export class SshClientProxy implements SshClientProxyContract {
   }
 
   /**
-   * The live ssh2 Client. Throws if the connection is not currently
+   * The live SSH transport. Throws if the connection is not currently
    * established. Callers should check isConnected first if they want to
    * avoid throwing.
    */
-  get client(): Client {
+  get client(): SshTransportClient {
     if (!this._client) {
       throw new Error('SSH connection is not available');
     }
@@ -59,7 +60,7 @@ export class SshClientProxy implements SshClientProxyContract {
   async openTcpChannel(
     target: SshTcpTarget,
     options: { signal?: AbortSignal; timeoutMs?: number } = {}
-  ): Promise<ClientChannel> {
+  ): Promise<Duplex> {
     const { client, signal } = this.captureConnection(options.signal);
     return openChannel(
       client,
@@ -81,7 +82,7 @@ export class SshClientProxy implements SshClientProxyContract {
   forwardOutStreamLocal(
     socketPath: string,
     options?: { signal?: AbortSignal; timeoutMs?: number }
-  ): Promise<ClientChannel> {
+  ): Promise<Duplex> {
     const { client, signal } = this.captureConnection(options?.signal);
     return openChannel(
       client,
@@ -106,7 +107,10 @@ export class SshClientProxy implements SshClientProxyContract {
   }
 
   /** Each operation stays bound to the physical connection on which it started. */
-  private captureConnection(callerSignal?: AbortSignal): { client: Client; signal: AbortSignal } {
+  private captureConnection(callerSignal?: AbortSignal): {
+    client: SshTransportClient;
+    signal: AbortSignal;
+  } {
     return {
       client: this.client,
       signal: callerSignal

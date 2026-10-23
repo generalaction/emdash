@@ -1,5 +1,8 @@
-import type { Client, ClientChannel } from 'ssh2';
 import type { SshExecOptions, SshExecResult } from '@core/primitives/ssh/api/node/ssh-client-proxy';
+import type {
+  SshTransportClient,
+  SshExecChannel,
+} from '@core/primitives/ssh/api/node/ssh-transport-client';
 
 export class SshExecTimeoutError extends Error {
   readonly name = 'SshExecTimeoutError';
@@ -24,7 +27,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
 
 export function execOnClient(
-  client: Client,
+  client: SshTransportClient,
   command: string,
   options: SshExecOptions = {}
 ): Promise<SshExecResult> {
@@ -33,7 +36,7 @@ export function execOnClient(
   const maxStderrBytes = options.maxStderrBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
 
   return new Promise((resolve, reject) => {
-    let channel: ClientChannel | undefined;
+    let channel: SshExecChannel | undefined;
     let settled = false;
     let stdoutBytes = 0;
     let stderrBytes = 0;
@@ -114,8 +117,8 @@ export function execOnClient(
           nextChannel?.destroy();
           return;
         }
-        if (error) {
-          fail(error);
+        if (error || !nextChannel) {
+          fail(error ?? new Error('SSH command returned no channel'));
           return;
         }
         channel = nextChannel;

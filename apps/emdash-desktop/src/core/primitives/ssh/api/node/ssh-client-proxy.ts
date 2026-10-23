@@ -1,5 +1,6 @@
+import type { Duplex } from 'node:stream';
 import type { Command } from '@emdash/core/primitives/exec/api';
-import type { Client, ClientChannel } from 'ssh2';
+import type { SshTransportClient } from './ssh-transport-client';
 
 export type SshTcpTarget = {
   sourceHost: string;
@@ -22,10 +23,10 @@ export type SshExecResult = {
 };
 
 /**
- * Stable reference to an ssh2 Client that survives reconnects.
+ * Stable reference to an SSH transport that survives reconnects.
  *
  * SSH-backed services hold a SshClientProxy rather than a raw Client. The
- * connection manager keeps the proxy pointed at the current live Client, so
+ * connection manager keeps the proxy pointed at the current live transport, so
  * callers that access proxy.client at call time always get the live
  * connection without needing to be rebuilt or replaced.
  * Operations are cancelled by either their caller or replacement/invalidation of
@@ -36,11 +37,11 @@ export interface SshClientProxy {
   readonly connectionId: string;
 
   /**
-   * The live ssh2 Client. Throws if the connection is not currently
+   * The live SSH transport. Throws if the connection is not currently
    * established. Callers should check isConnected first if they want to
    * avoid throwing.
    */
-  readonly client: Client;
+  readonly client: SshTransportClient;
 
   /** True while an active connection is held. */
   readonly isConnected: boolean;
@@ -53,13 +54,13 @@ export interface SshClientProxy {
   openTcpChannel(
     target: SshTcpTarget,
     options?: { signal?: AbortSignal; timeoutMs?: number }
-  ): Promise<ClientChannel>;
+  ): Promise<Duplex>;
 
   /** Opens an OpenSSH streamlocal channel through the current live connection. */
   forwardOutStreamLocal(
     socketPath: string,
     options?: { signal?: AbortSignal; timeoutMs?: number }
-  ): Promise<ClientChannel>;
+  ): Promise<Duplex>;
 
   /** Runs a structured command through the current live connection with bounded resources. */
   exec(command: Command, options?: SshExecOptions): Promise<SshExecResult>;

@@ -1,13 +1,17 @@
+import type { Duplex } from 'node:stream';
 import { abortableWait, systemClock, TimeoutError } from '@emdash/shared/scheduling';
-import type { Client, ClientChannel } from 'ssh2';
+import type {
+  SshTransportClient,
+  SshChannelCallback,
+} from '@core/primitives/ssh/api/node/ssh-transport-client';
 
 /** Owns acquisition only. Once resolved, the caller owns the channel. */
 export function openChannel(
-  client: Client,
+  client: SshTransportClient,
   kind: string,
-  open: (callback: (error: Error | undefined, channel: ClientChannel) => void) => void,
+  open: (callback: SshChannelCallback) => void,
   options: { signal?: AbortSignal; timeoutMs?: number } = {}
-): Promise<ClientChannel> {
+): Promise<Duplex> {
   return abortableWait(options, ({ resolve, reject }) => {
     let finished = false;
     const fail = (error: unknown) => {
@@ -30,9 +34,9 @@ export function openChannel(
           return;
         }
         finished = true;
-        if (error) {
+        if (error || !channel) {
           channel?.destroy();
-          reject(error);
+          reject(error ?? new Error('SSH returned no channel'));
         } else {
           resolve(channel);
         }

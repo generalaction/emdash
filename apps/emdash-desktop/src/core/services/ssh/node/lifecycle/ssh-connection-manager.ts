@@ -1,12 +1,13 @@
 import { EventEmitter } from 'node:events';
 import { waitWithSignal } from '@emdash/shared/scheduling';
-import ssh2, { type Client } from 'ssh2';
+import ssh2 from 'ssh2';
 import type { ConnectionState, SshConnectionEvent, SshHealthState } from '@core/primitives/ssh/api';
 import { SshConnectionFailure } from '@core/primitives/ssh/api/node/connection-control';
 import type {
   SshConnectionManager as SshConnectionManagerContract,
   SshConnectionManagerEvent,
 } from '@core/primitives/ssh/api/node/ssh-connection-manager';
+import type { SshTransportClient } from '@core/primitives/ssh/api/node/ssh-transport-client';
 import type { SshConnectResult } from '../connect/resolve-ssh-connect-config';
 import { SshClientProxy } from './ssh-client-proxy';
 
@@ -30,7 +31,7 @@ export class SshConnectionError extends SshConnectionFailure {
 }
 
 export interface SshConnectionManagerDeps {
-  createClient?: () => Client;
+  createClient?: () => SshTransportClient;
   publishEvent?: (event: SshConnectionEvent) => void;
   log?: {
     info(message: string, metadata?: Record<string, unknown>): void;
@@ -43,7 +44,7 @@ type PhysicalConnection = {
   generation: number;
   ephemeral: boolean;
   established: boolean;
-  client?: Client;
+  client?: SshTransportClient;
   pending?: Promise<SshClientProxy>;
   controller?: AbortController;
   cleanup?: () => void;
