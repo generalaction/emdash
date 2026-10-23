@@ -78,4 +78,42 @@ describe('terminal context link detection', () => {
 
     expect(getTerminalLinkAtBufferCell(buffer, 1, 9)).toBe('/tmp/output/report.md');
   });
+
+  it('resolves a URL split across a soft line break', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('Investigate KAI-1044 (https://'),
+      new MockBufferLine('linear.app/kairoslive/issue/KAI-1044)', true),
+    ]);
+    const url = 'https://linear.app/kairoslive/issue/KAI-1044';
+
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 23)).toBe(url);
+    expect(getTerminalLinkAtBufferCell(buffer, 2, 1)).toBe(url);
+  });
+
+  it.each([
+    ['see https://example.com/', '    started successfully', 'https://example.com/'],
+    ['see https://example.com/docs.', 'Then continue.', 'https://example.com/docs'],
+  ])('keeps Copy Link within the logical line: %s', (first, second, url) => {
+    const buffer = makeBuffer([new MockBufferLine(first), new MockBufferLine(second)]);
+
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 8)).toBe(url);
+    expect(getTerminalLinkAtBufferCell(buffer, 2, 5)).toBeNull();
+  });
+
+  it('does not treat the space after a wide character as part of a wrapped URL', () => {
+    const first = 'https://example.com/long-';
+    const cells = [
+      { chars: '界', width: 2 },
+      { chars: '', width: 0 },
+      { chars: ' ', width: 1 },
+      ...first.split('').map((chars) => ({ chars, width: 1 })),
+    ];
+    const buffer = makeBuffer([
+      new MockBufferLine(`界 ${first}`, false, cells),
+      new MockBufferLine('path', true),
+    ]);
+
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 3)).toBeNull();
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 4)).toBe('https://example.com/long-path');
+  });
 });

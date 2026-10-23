@@ -1,42 +1,39 @@
 import type { ILink, Terminal } from '@xterm/xterm';
 import { getCellMetrics } from '@core/features/terminals/api/browser/pty/xterm-cell-metrics';
 import { findFileLinks, type BufferLike } from './file-link-detection';
-
-const URL_PATTERN = /https?:\/\/[^\s"'<>`]+/gi;
-
-type CellLike = {
-  getChars(): string;
-  getWidth(): number;
-};
-
-type BufferLineWithCells = {
-  length: number;
-  getCell(index: number): CellLike | undefined;
-};
-
-type BufferLineWithOptionalCells = NonNullable<ReturnType<BufferLike['getLine']>> &
-  BufferLineWithCells;
-
-type LineTextWithColumns = {
-  text: string;
-  columnForOffset(offset: number): number;
-};
+import { findUrlLinks } from './url-link-detection';
 
 export function getTerminalContextLink(terminal: Terminal, event: MouseEvent): string | null {
+  const position = getTerminalBufferCell(terminal, event);
+  if (!position) return null;
+  return getTerminalLinkAtBufferCell(terminal.buffer.active, position.y, position.x);
+}
+
+export function isTerminalLinkAtMouseEvent(
+  terminal: Terminal,
+  event: MouseEvent,
+  range: ILink['range']
+): boolean {
+  const position = getTerminalBufferCell(terminal, event);
+  return position !== null && rangeContainsColumn(range, position.y, position.x);
+}
+
+function getTerminalBufferCell(
+  terminal: Terminal,
+  event: MouseEvent
+): ILink['range']['start'] | null {
   const cell = getCellMetrics(terminal);
-  const element = (terminal as unknown as { element?: HTMLElement }).element;
-  if (!cell || !element) return null;
+  const screen = terminal.element?.querySelector('.xterm-screen');
+  // xterm's linkifier only listens on the screen, which excludes the terminal padding.
+  if (!cell || !screen || !(event.target instanceof Node) || !screen.contains(event.target)) {
+    return null;
+  }
 
-  const rect = element.getBoundingClientRect();
-  const row = Math.floor((event.clientY - rect.top) / cell.height);
-  const column = Math.floor((event.clientX - rect.left) / cell.width) + 1;
-  if (row < 0 || row >= terminal.rows || column < 1 || column > terminal.cols) return null;
-
-  return getTerminalLinkAtBufferCell(
-    terminal.buffer.active,
-    terminal.buffer.active.viewportY + row + 1,
-    column
-  );
+  // Mirror xterm's getCoords so hit tests agree with its linkifier on cell edges.
+  const rect = screen.getBoundingClientRect();
+  const column = clamp(Math.ceil((event.clientX - rect.left) / cell.width), 1, terminal.cols);
+  const row = clamp(Math.ceil((event.clientY - rect.top) / cell.height), 1, terminal.rows);
+  return { x: column, y: terminal.buffer.active.viewportY + row };
 }
 
 export function getTerminalLinkAtBufferCell(
@@ -49,63 +46,10 @@ export function getTerminalLinkAtBufferCell(
   );
   if (fileLink) return fileLink.text;
 
-  const lineWithColumns = getLineTextWithColumns(buffer.getLine(bufferLineNumber - 1));
-  if (!lineWithColumns.text) return null;
-  for (const match of lineWithColumns.text.matchAll(URL_PATTERN)) {
-    const text = trimLinkText(match[0]);
-    const startOffset = match.index ?? 0;
-    const endOffset = startOffset + text.length - 1;
-    const start = lineWithColumns.columnForOffset(startOffset);
-    const end = lineWithColumns.columnForOffset(endOffset);
-    if (column >= start && column <= end) return text;
-  }
-  return null;
-}
-
-function getLineTextWithColumns(line: ReturnType<BufferLike['getLine']>): LineTextWithColumns {
-  const fallbackText = line?.translateToString(true) ?? '';
-  if (!line || !hasCellAccess(line)) {
-    return {
-      text: fallbackText,
-      columnForOffset: (offset) => offset + 1,
-    };
-  }
-
-  let text = '';
-  const offsetColumns: number[] = [];
-  for (let cellIndex = 0; cellIndex < line.length; cellIndex += 1) {
-    const cell = line.getCell(cellIndex);
-    if (!cell || cell.getWidth() === 0) continue;
-
-    const chars = cell.getChars() || ' ';
-    const column = cellIndex + 1;
-    for (let offset = 0; offset < chars.length; offset += 1) {
-      offsetColumns.push(column);
-    }
-    text += chars;
-  }
-
-  const trimLength = text.length - text.trimEnd().length;
-  if (trimLength > 0) {
-    text = text.slice(0, -trimLength);
-    offsetColumns.splice(-trimLength);
-  }
-
-  return {
-    text,
-    columnForOffset: (offset) => offsetColumns[offset] ?? offset + 1,
-  };
-}
-
-function hasCellAccess(
-  line: ReturnType<BufferLike['getLine']>
-): line is BufferLineWithOptionalCells {
   return (
-    !!line &&
-    'length' in line &&
-    'getCell' in line &&
-    typeof line.length === 'number' &&
-    typeof line.getCell === 'function'
+    findUrlLinks(buffer, bufferLineNumber).find((link) =>
+      rangeContainsColumn(link.range, bufferLineNumber, column)
+    )?.text ?? null
   );
 }
 
@@ -120,6 +64,6 @@ function rangeContainsColumn(
   return column >= startColumn && column <= endColumn;
 }
 
-function trimLinkText(text: string): string {
-  return text.replace(/[),.;:!?]+$/, '');
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }

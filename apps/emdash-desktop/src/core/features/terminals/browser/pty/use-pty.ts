@@ -533,7 +533,8 @@ export function usePty(
         contextMenuRequestIdRef.current = requestId;
         const selectionText =
           terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
-        const linkText = getTerminalContextLink(terminal, event);
+        const linkText =
+          frontendPty.getHoveredOscLink(event) ?? getTerminalContextLink(terminal, event);
         void getHostClient().then((client) =>
           client.showTerminalContextMenu({
             requestId,
