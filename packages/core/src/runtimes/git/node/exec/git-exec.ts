@@ -42,6 +42,7 @@ export function createGitExec(options: CreateGitExecOptions): BoundExec {
     file: options.executable ?? 'git',
     cwd: options.cwd,
     env,
+    git: true,
   });
 }
 

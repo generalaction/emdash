@@ -147,4 +147,54 @@ describe('withSafeGitDirectoryEnv', () => {
     const input = { PATH: 'C:\\Windows' };
     expect(withSafeGitDirectoryEnv(input, undefined, 'win32')).toEqual(input);
   });
+
+  it('resolves enclosing repository root when given a WSL subfolder', () => {
+    const input = { PATH: 'C:\\Windows' };
+    const subfolderPath = '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo\\packages\\sub';
+    const fakeFileExists = (p: string) =>
+      p.replace(/\\/g, '/').toLowerCase() === '//wsl.localhost/ubuntu/home/user/repo/.git';
+
+    const result = withSafeGitDirectoryEnv(input, subfolderPath, 'win32', fakeFileExists);
+    expect(result).toEqual({
+      PATH: 'C:\\Windows',
+      GIT_CONFIG_COUNT: '4',
+      GIT_CONFIG_KEY_0: 'safe.directory',
+      GIT_CONFIG_VALUE_0: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo\\packages\\sub',
+      GIT_CONFIG_KEY_1: 'safe.directory',
+      GIT_CONFIG_VALUE_1: '//wsl.localhost/Ubuntu/home/user/repo/packages/sub',
+      GIT_CONFIG_KEY_2: 'safe.directory',
+      GIT_CONFIG_VALUE_2: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      GIT_CONFIG_KEY_3: 'safe.directory',
+      GIT_CONFIG_VALUE_3: '//wsl.localhost/Ubuntu/home/user/repo',
+    });
+  });
+});
+
+describe('findWslRepositoryRoot', () => {
+  it('finds repository root from subfolder within WSL', async () => {
+    const { findWslRepositoryRoot } = await import('./index');
+    const fakeFileExists = (p: string) =>
+      p.replace(/\\/g, '/').toLowerCase() === '//wsl.localhost/ubuntu/home/user/repo/.git';
+
+    expect(
+      findWslRepositoryRoot(
+        '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo\\src\\components',
+        fakeFileExists
+      )
+    ).toBe('\\\\wsl.localhost\\Ubuntu\\home\\user\\repo');
+  });
+
+  it('returns null when path is not in a repository', async () => {
+    const { findWslRepositoryRoot } = await import('./index');
+    const fakeFileExists = () => false;
+
+    expect(
+      findWslRepositoryRoot('\\\\wsl.localhost\\Ubuntu\\home\\user\\plain-dir', fakeFileExists)
+    ).toBe(null);
+  });
+
+  it('returns null for non-WSL paths', async () => {
+    const { findWslRepositoryRoot } = await import('./index');
+    expect(findWslRepositoryRoot('C:\\Users\\Mallory\\repo')).toBe(null);
+  });
 });

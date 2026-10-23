@@ -42,6 +42,7 @@ export async function inspectWorkspacePath(
       file: 'git',
       cwd: canonicalPath,
       env: async () => nonInteractiveEnv(await env()),
+      git: true,
     });
     let insideWorkTree: string;
     try {

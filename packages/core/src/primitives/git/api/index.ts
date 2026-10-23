@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+
 /**
  * Pure Git discovery policy shared by host runtimes. Call only for the initial
  * discovery command, with Git's diagnostic locale fixed to C.
@@ -32,6 +35,88 @@ export function normalizeSafeGitDirectoryPath(targetPath: string): string {
   return targetPath.trim().replace(/[/\\]+$/, '');
 }
 
+function defaultFileExists(filePath: string): boolean {
+  try {
+    return existsSync(filePath);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Traverses parent directories of a WSL path to locate the enclosing Git repository root.
+ * Returns the repository root if found, or null if no enclosing Git repository is found.
+ */
+export function findWslRepositoryRoot(
+  targetPath: string,
+  fileExists: (filePath: string) => boolean = defaultFileExists
+): string | null {
+  if (!isWslPath(targetPath)) return null;
+
+  let current = normalizeSafeGitDirectoryPath(targetPath);
+  if (!current) return null;
+
+  // If path ends in .git, start from its parent directory
+  if (/[/\\]\.git$/i.test(current)) {
+    current = current.replace(/[/\\]\.git$/i, '');
+    if (!current || !isWslPath(current)) return null;
+  }
+
+  while (isWslPath(current)) {
+    const gitDirSlash = `${current}/.git`.replace(/\\/g, '/');
+    const gitDirBackslash = current.includes('\\') ? `${current}\\.git` : gitDirSlash;
+    if (fileExists(gitDirSlash) || fileExists(gitDirBackslash)) {
+      return current;
+    }
+
+    const lastSlash = Math.max(current.lastIndexOf('/'), current.lastIndexOf('\\'));
+    if (lastSlash <= 2) break;
+    const parent = current.slice(0, lastSlash);
+    if (parent === current || !isWslPath(parent)) break;
+    current = parent;
+  }
+
+  return null;
+}
+
+function resolveWorktreeCommonRepo(
+  worktreeRoot: string,
+  fileExists: (filePath: string) => boolean
+): string | null {
+  try {
+    const gitDirSlash = `${worktreeRoot}/.git`.replace(/\\/g, '/');
+    const gitDirBackslash = worktreeRoot.includes('\\') ? `${worktreeRoot}\\.git` : gitDirSlash;
+    const gitPath = fileExists(gitDirBackslash) ? gitDirBackslash : gitDirSlash;
+
+    const stat = statSync(gitPath);
+    if (!stat.isFile()) return null;
+    const content = readFileSync(gitPath, 'utf8');
+    const match = content.match(/^gitdir:\s*(.+)$/m);
+    if (!match) return null;
+    let gitDir = match[1].trim();
+
+    if (!path.isAbsolute(gitDir) && !gitDir.startsWith('/') && !gitDir.startsWith('\\')) {
+      gitDir = path.resolve(worktreeRoot, gitDir);
+    } else if (gitDir.startsWith('/') && !/^[/\\]{2}/.test(gitDir)) {
+      const shareMatch = worktreeRoot.match(/^([/\\]{2}wsl(?:\.localhost|\$)?[/\\][^/\\]+)/i);
+      if (shareMatch) {
+        gitDir = `${shareMatch[1]}${gitDir}`.replace(/\//g, '\\');
+      }
+    }
+
+    const gitDirIdx = gitDir.toLowerCase().lastIndexOf('.git');
+    if (gitDirIdx !== -1) {
+      const mainRepo = gitDir.slice(0, gitDirIdx).replace(/[/\\]+$/, '');
+      if (mainRepo && isWslPath(mainRepo)) {
+        return mainRepo;
+      }
+    }
+  } catch {
+    // Ignore errors reading gitdir
+  }
+  return null;
+}
+
 /**
  * Augments an execution environment for Git commands so that cross-boundary WSL
  * repositories (`\\wsl.localhost\...` or `\\wsl$\...`) accessed on Windows are not
@@ -44,7 +129,8 @@ export function normalizeSafeGitDirectoryPath(targetPath: string): string {
 export function withSafeGitDirectoryEnv(
   env: NodeJS.ProcessEnv,
   targetPaths?: string | readonly (string | undefined)[],
-  platform: NodeJS.Platform = process.platform
+  platform: NodeJS.Platform = process.platform,
+  fileExists: (filePath: string) => boolean = defaultFileExists
 ): NodeJS.ProcessEnv {
   if (platform !== 'win32' || !targetPaths) {
     return env;
@@ -63,6 +149,21 @@ export function withSafeGitDirectoryEnv(
     candidates.add(primaryPath);
     const forwardSlashPath = primaryPath.replace(/\\/g, '/');
     candidates.add(forwardSlashPath);
+
+    // Resolve enclosing repository root (e.g. when opening a subdirectory of a WSL repository)
+    const enclosingRepo = findWslRepositoryRoot(primaryPath, fileExists);
+    if (enclosingRepo) {
+      const normalizedEnclosing = normalizeSafeGitDirectoryPath(enclosingRepo);
+      candidates.add(normalizedEnclosing);
+      candidates.add(normalizedEnclosing.replace(/\\/g, '/'));
+
+      const commonRepo = resolveWorktreeCommonRepo(normalizedEnclosing, fileExists);
+      if (commonRepo) {
+        const normalizedCommon = normalizeSafeGitDirectoryPath(commonRepo);
+        candidates.add(normalizedCommon);
+        candidates.add(normalizedCommon.replace(/\\/g, '/'));
+      }
+    }
 
     // If pointing to a .git directory, also trust the enclosing repository root
     if (/[/\\]\.git$/i.test(primaryPath)) {

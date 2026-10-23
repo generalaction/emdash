@@ -26,6 +26,7 @@ export type CreateBoundExecOptions = {
   env?: NodeJS.ProcessEnv | EnvSource;
   platform?: NodeJS.Platform;
   fileExists?: FileExists;
+  git?: boolean;
 };
 
 export function createBoundExec(options: CreateBoundExecOptions): BoundExec {
@@ -34,7 +35,8 @@ export function createBoundExec(options: CreateBoundExecOptions): BoundExec {
     options.cwd,
     options.env,
     options.platform ?? process.platform,
-    options.fileExists
+    options.fileExists,
+    options.git
   );
 }
 
@@ -44,13 +46,18 @@ type StdoutSink =
   | { kind: 'stream'; onStdout: (chunk: string) => boolean | void };
 
 class ProcessBoundExec implements BoundExec {
+  private readonly isGit: boolean;
+
   constructor(
     readonly file: string,
     readonly cwd: string,
     readonly env: NodeJS.ProcessEnv | EnvSource | undefined,
     private readonly platform: NodeJS.Platform,
-    private readonly fileExists: FileExists | undefined
-  ) {}
+    private readonly fileExists: FileExists | undefined,
+    isGit?: boolean
+  ) {
+    this.isGit = isGit ?? isGitCommand(file);
+  }
 
   async exec(args: string[], options: ExecOptions = {}): Promise<ExecResult> {
     const chunks: string[] = [];
@@ -79,9 +86,13 @@ class ProcessBoundExec implements BoundExec {
     const env = await resolveEnv(this.env);
     let composedEnv = composeEnv(env, options.env);
     const targetCwd = options.cwd ?? this.cwd;
-    if (isGitCommand(this.file)) {
+    if (this.isGit && this.platform === 'win32') {
       const targetPaths = extractGitTargetPaths(targetCwd, args);
-      composedEnv = withSafeGitDirectoryEnv(composedEnv ?? {}, targetPaths, this.platform);
+      const base = composedEnv ?? process.env;
+      const withSafe = withSafeGitDirectoryEnv(base, targetPaths, this.platform);
+      if (withSafe !== base) {
+        composedEnv = withSafe;
+      }
     }
     const plan = planExecutableLaunch({
       platform: this.platform,
@@ -104,7 +115,14 @@ class ProcessBoundExec implements BoundExec {
   }
 
   withCwd(cwd: string): BoundExec {
-    return new ProcessBoundExec(this.file, cwd, this.env, this.platform, this.fileExists);
+    return new ProcessBoundExec(
+      this.file,
+      cwd,
+      this.env,
+      this.platform,
+      this.fileExists,
+      this.isGit
+    );
   }
 
   private async run(
@@ -116,9 +134,13 @@ class ProcessBoundExec implements BoundExec {
     return new Promise((resolve, reject) => {
       let composedEnv = composeEnv(env, options.env);
       const targetCwd = options.cwd ?? this.cwd;
-      if (isGitCommand(this.file)) {
+      if (this.isGit && this.platform === 'win32') {
         const targetPaths = extractGitTargetPaths(targetCwd, args);
-        composedEnv = withSafeGitDirectoryEnv(composedEnv ?? {}, targetPaths, this.platform);
+        const base = composedEnv ?? process.env;
+        const withSafe = withSafeGitDirectoryEnv(base, targetPaths, this.platform);
+        if (withSafe !== base) {
+          composedEnv = withSafe;
+        }
       }
       const plan = planExecutableLaunch({
         platform: this.platform,
