@@ -5,6 +5,18 @@ import {
 } from '#primitives/git-credentials/api';
 import type { ResolvedPtyShellProfile } from './local-spawn';
 
+/**
+ * Defaults for PTYs that emdash renders in xterm (interactive terminals and TUI
+ * agents). FORCE_HYPERLINK makes TUIs emit OSC 8 links, which stay clickable
+ * when a TUI hard-wraps a URL; hyperlink detection doesn't recognize
+ * TERM_PROGRAM=emdash. Callers apply these under the host and provider env so
+ * an explicit value wins. Not for ACP tool terminals or scripts, whose output
+ * isn't rendered by xterm.
+ */
+export const XTERM_PTY_DEFAULT_ENV: Readonly<Record<string, string>> = {
+  FORCE_HYPERLINK: '1',
+};
+
 export function buildTerminalEnv(options: {
   shellProfile?: ResolvedPtyShellProfile;
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>;
