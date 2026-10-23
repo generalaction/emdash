@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeCreateWorktree } from './create-worktree';
 import { createRegistryGitContext } from './git-context';
 
@@ -138,6 +138,137 @@ describe('executeCreateWorktree resolve-base', () => {
     });
 
     expect(result).toMatchObject({ status: 'failed', stage: 'resolve-base' });
+  });
+});
+
+describe('executeCreateWorktree stale worktree records', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-stale-')));
+  });
+
+  afterEach(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it('reuses a path after its worktree directory was deleted', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreePath = path.join(root, 'stale-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/stale-path', worktreePath, 'main');
+    await fs.rm(worktreePath, { recursive: true });
+
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath,
+      branch: 'feature/stale-path',
+      baseRef: 'main',
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(git(worktreePath, 'branch', '--show-current')).toBe('feature/stale-path');
+  });
+
+  it('reuses a branch after its worktree directory was deleted', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const stalePath = path.join(root, 'stale-wt');
+    const replacementPath = path.join(root, 'replacement-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/stale-branch', stalePath, 'main');
+    await fs.rm(stalePath, { recursive: true });
+
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath: replacementPath,
+      branch: 'feature/stale-branch',
+      baseRef: 'main',
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(git(replacementPath, 'branch', '--show-current')).toBe('feature/stale-branch');
+  });
+
+  it('retries a transient lock while removing a stale worktree record', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreePath = path.join(root, 'stale-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/retry', worktreePath, 'main');
+    await fs.rm(worktreePath, { recursive: true });
+    const context = createRegistryGitContext();
+    const originalExec = context.exec.bind(context);
+    let removals = 0;
+    vi.spyOn(context, 'exec').mockImplementation((cwd, options) => {
+      const exec = originalExec(cwd, options);
+      const originalRun = exec.exec.bind(exec);
+      vi.spyOn(exec, 'exec').mockImplementation(async (args, execOptions) => {
+        if (args[0] === 'worktree' && args[1] === 'remove') {
+          removals += 1;
+          if (removals === 1) {
+            throw new Error(`fatal: Unable to create '${repoPath}/.git/index.lock': File exists`);
+          }
+        }
+        return originalRun(args, execOptions);
+      });
+      return exec;
+    });
+
+    const result = await executeCreateWorktree({
+      git: context,
+      repositoryPath: repoPath,
+      worktreePath,
+      branch: 'feature/retry',
+      baseRef: 'main',
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(removals).toBe(2);
+    expect(git(worktreePath, 'branch', '--show-current')).toBe('feature/retry');
+  });
+
+  it('does not reuse a branch whose missing worktree is locked', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const stalePath = path.join(root, 'locked-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/locked', stalePath, 'main');
+    git(repoPath, 'worktree', 'lock', '--reason', 'temporarily offline', stalePath);
+    await fs.rm(stalePath, { recursive: true });
+
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'replacement-wt'),
+      branch: 'feature/locked',
+      baseRef: 'main',
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'failed', stage: 'add-worktree' });
+    expect(git(repoPath, 'worktree', 'list', '--porcelain')).toContain(
+      'locked temporarily offline'
+    );
+  });
+
+  it('leaves unrelated stale worktree records alone', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const stalePath = path.join(root, 'unrelated-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/unrelated', stalePath, 'main');
+    await fs.rm(stalePath, { recursive: true });
+
+    const result = await executeCreateWorktree({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'new-wt'),
+      branch: 'feature/new',
+      baseRef: 'main',
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    const listed = git(repoPath, 'worktree', 'list', '--porcelain');
+    expect(listed).toContain(`worktree ${stalePath}`);
+    expect(listed).toContain('prunable gitdir file points to non-existent location');
   });
 });
 
