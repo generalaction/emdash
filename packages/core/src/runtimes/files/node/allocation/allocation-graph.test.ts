@@ -1,9 +1,10 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
+import { peek } from '@emdash/wire/state';
 import { afterEach, describe, expect, it } from 'vitest';
-import { runtimeRoot } from '#runtimes/files/node/testing/paths';
+import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
 import type { IWatchService, WatchOptions } from '#services/fs-watch/api';
 import { FilesAllocationGraph } from './allocation-graph';
 
@@ -14,7 +15,7 @@ afterEach(async () => {
 });
 
 describe('FilesAllocationGraph', () => {
-  it('pools root watchers across tree sessions and shared content', async () => {
+  it('shares one listing per folder and pools root watchers with content', async () => {
     const root = await makeRoot();
     let watchCount = 0;
     let releaseCount = 0;
@@ -32,18 +33,23 @@ describe('FilesAllocationGraph', () => {
     };
     const graph = new FilesAllocationGraph({ watcher, idleTtlMs: 10_000 });
     const rootRef = runtimeRoot(root);
-    const treeA = graph.acquireTree({ root: rootRef, sessionId: 'a' });
-    const treeB = graph.acquireTree({ root: rootRef, sessionId: 'b' });
+    const listingA = graph.acquireListing({ root: rootRef, path: relativePath('') });
+    const listingB = graph.acquireListing({ root: rootRef, path: relativePath('') });
     const contentA = graph.acquireContent({ path: runtimeRoot(path.join(root, 'file.txt')) });
     const contentB = graph.acquireContent({ path: runtimeRoot(path.join(root, 'file.txt')) });
 
-    expect(await treeA.ready()).not.toBe(await treeB.ready());
+    expect((await listingA.ready()).state).toBe((await listingB.ready()).state);
     expect(await contentA.ready()).toBe(await contentB.ready());
-    // One recursive watch shared by the tree sessions plus one children-scoped
+    // One recursive watch shared by the listings plus one children-scoped
     // per-file watch shared by the content sessions of the same file.
     expect(watchCount).toBe(2);
 
-    await Promise.all([treeA.release(), treeB.release(), contentA.release(), contentB.release()]);
+    await Promise.all([
+      listingA.release(),
+      listingB.release(),
+      contentA.release(),
+      contentB.release(),
+    ]);
     await graph.dispose();
     expect(releaseCount).toBe(2);
   });
@@ -65,12 +71,12 @@ describe('FilesAllocationGraph', () => {
     });
     const rootRef = runtimeRoot(root);
 
-    const tree = graph.acquireTree({ root: rootRef, sessionId: 'one' });
-    await expect(tree.ready()).resolves.toMatchObject({ identity: { sessionId: 'one' } });
+    const listing = graph.acquireListing({ root: rootRef, path: relativePath('') });
+    expect(peek((await listing.ready()).state)).toEqual({ status: 'ready', entries: {} });
     await expect
       .poll(() => errors.some((context) => context.includes('files root watch')))
       .toBe(true);
-    await tree.release();
+    await listing.release();
     await graph.dispose();
   });
 
@@ -121,16 +127,17 @@ describe('FilesAllocationGraph', () => {
       idleTtlMs: 10_000,
     });
 
-    const tree = graph.acquireTree({ root: runtimeRoot(root), sessionId: 'watch-ignore-test' });
-    await tree.ready();
-    await tree.release();
+    const listing = graph.acquireListing({ root: runtimeRoot(root), path: relativePath('') });
+    await listing.ready();
+    await listing.release();
     await graph.dispose();
 
     expect(watchOptions?.ignore).toEqual(['**/node_modules/**']);
   });
 
-  it('keeps children-scoped trees shallow without changing recursive tree defaults', async () => {
+  it('watches a listed folder the root watch ignores through its own children watch', async () => {
     const root = await makeRoot();
+    await mkdir(path.join(root, 'node_modules'));
     const watched: { root: string; options: WatchOptions | undefined }[] = [];
     const watcher: IWatchService = {
       watch: (watchRoot, _onEvents, options) => {
@@ -149,21 +156,23 @@ describe('FilesAllocationGraph', () => {
     });
     const rootRef = runtimeRoot(root);
 
-    const recursive = graph.acquireTree({ root: rootRef, sessionId: 'recursive' });
-    await recursive.ready();
-    const children = graph.acquireTree({
+    const top = graph.acquireListing({ root: rootRef, path: relativePath('') });
+    const dependencies = graph.acquireListing({
       root: rootRef,
-      sessionId: 'children',
-      watchScope: 'children',
+      path: relativePath('node_modules'),
     });
-    await children.ready();
+    await Promise.all([top.ready(), dependencies.ready()]);
 
+    await expect.poll(() => watched.length).toBe(2);
     expect(watched).toEqual([
       { root, options: expect.objectContaining({ ignore: ['**/node_modules/**'] }) },
-      { root, options: expect.objectContaining({ ignore: ['*/**'] }) },
+      {
+        root: path.join(root, 'node_modules'),
+        options: expect.objectContaining({ ignore: ['*/**'] }),
+      },
     ]);
 
-    await Promise.all([recursive.release(), children.release()]);
+    await Promise.all([top.release(), dependencies.release()]);
     await graph.dispose();
   });
 });

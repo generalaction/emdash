@@ -49,6 +49,79 @@ async function makeRepository() {
 }
 
 describe('GitRepository', () => {
+  it.each([
+    { name: 'GitHub default', sourceRef: undefined, remoteRef: 'refs/pull/42/head', isFork: false },
+    {
+      name: 'GitLab same-project',
+      sourceRef: 'refs/merge-requests/42/head',
+      remoteRef: 'refs/merge-requests/42/head',
+      isFork: false,
+    },
+    {
+      name: 'GitLab fork',
+      sourceRef: 'refs/merge-requests/42/head',
+      remoteRef: 'refs/merge-requests/42/head',
+      isFork: true,
+    },
+  ])(
+    'fetches the missing review head using $name refs',
+    async ({ sourceRef, remoteRef, isFork }) => {
+      const { repo, repository, cleanup } = await makeRepository();
+      const remoteRepo = await makeRepo();
+      try {
+        await git(remoteRepo, ['checkout', '-b', 'feature/review']);
+        await writeFile(path.join(remoteRepo, 'review.txt'), 'review content\n');
+        await git(remoteRepo, ['add', 'review.txt']);
+        await git(remoteRepo, ['commit', '-m', 'review change']);
+        const head = (await git(remoteRepo, ['rev-parse', 'HEAD'])).trim();
+        await git(remoteRepo, ['update-ref', remoteRef, head]);
+        await git(remoteRepo, ['checkout', 'main']);
+        await git(remoteRepo, ['branch', '-D', 'feature/review']);
+        await git(repo, ['remote', 'add', 'target', remoteRepo]);
+        const originalHead = await git(repo, ['rev-parse', 'HEAD']);
+        expect(
+          await repository.fetchPrForReview({
+            prNumber: 42,
+            sourceRef,
+            headRefName: 'feature/review',
+            headRepositoryUrl: '/unavailable-fork',
+            localBranch: 'review/42',
+            isFork,
+            configuredRemote: 'target',
+          })
+        ).toEqual({ success: true, data: undefined });
+        expect((await git(repo, ['rev-parse', 'refs/heads/review/42'])).trim()).toBe(head);
+        expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(originalHead);
+        expect((await git(repo, ['remote'])).trim()).toBe('target');
+      } finally {
+        await cleanup();
+        await rm(remoteRepo, { recursive: true, force: true });
+      }
+    }
+  );
+
+  it('reports a missing MR ref without creating a review branch', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    const remoteRepo = await makeRepo();
+    try {
+      await git(repo, ['remote', 'add', 'target', remoteRepo]);
+      const result = await repository.fetchPrForReview({
+        prNumber: 42,
+        sourceRef: 'refs/merge-requests/42/head',
+        headRefName: 'feature/review',
+        headRepositoryUrl: remoteRepo,
+        localBranch: 'review/42',
+        isFork: false,
+        configuredRemote: 'target',
+      });
+      expect(result.success).toBe(false);
+      expect(await git(repo, ['branch', '--list', 'review/42'])).toBe('');
+    } finally {
+      await cleanup();
+      await rm(remoteRepo, { recursive: true, force: true });
+    }
+  });
+
   it('keeps canonical branch and tag names when they collide', async () => {
     const { repo, repository, cleanup } = await makeRepository();
     try {

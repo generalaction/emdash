@@ -1,5 +1,5 @@
+import { normalizeRepositoryHost } from '@emdash/core/primitives/repository/api';
 import type { Octokit } from '@octokit/rest';
-import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 
 const cachedOctokits = new Map<string, { octokit: Octokit; token: string; apiBaseUrl: string }>();
 

@@ -1,23 +1,27 @@
-import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
+import { once, toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import type { PortableRelativePath } from '#primitives/path/api';
-import type { AbsolutePathKey, ContentKey, FsError, RootKey, TreeKey } from '#runtimes/files/api';
+import type {
+  AbsolutePathKey,
+  ContentKey,
+  FsError,
+  ListingKey,
+  RootKey,
+} from '#runtimes/files/api';
 import { FsException } from '#runtimes/files/node/api/errors';
 import { ContentResource } from '#runtimes/files/node/content/content-resource';
+import { RootListings, type FolderListingHandle } from '#runtimes/files/node/listing/root-listings';
 import {
   RootResource,
   type AbsoluteChange,
   type RootChange,
 } from '#runtimes/files/node/root/root-resource';
-import { TreeResource } from '#runtimes/files/node/tree/tree-resource';
 import type { IWatchService } from '#services/fs-watch/api';
 import {
   contentIdentity,
   resolveAbsoluteFileLocation,
   resolveRootIdentity,
-  treeIdentity,
   type RootIdentity,
-  type TreeIdentity,
   type ContentIdentity,
 } from './identity';
 
@@ -37,10 +41,10 @@ export type FilesAllocationGraphOptions = {
 
 export class FilesAllocationGraph {
   private readonly roots: ResourceCache<RootIdentity, RootResource>;
-  private readonly trees: ResourceCache<TreeIdentity, TreeResource>;
+  private readonly listings: ResourceCache<RootIdentity, RootListings>;
   private readonly contents: ResourceCache<ContentIdentity, ContentResource>;
   private readonly activeRoots = new Set<RootResource>();
-  private readonly activeTrees = new Set<TreeResource>();
+  private readonly activeListings = new Set<RootListings>();
   private readonly onError: (context: string, error: unknown) => void;
   private disposed = false;
 
@@ -68,24 +72,29 @@ export class FilesAllocationGraph {
         return resource;
       },
     });
-    this.trees = createResourceCache({
-      key: (identity: TreeIdentity) => identity.treeId,
+    // One set of listings per workspace root, shared by every subscriber of its folders.
+    this.listings = createResourceCache({
+      key: (identity: RootIdentity) => identity.rootId,
       idleTtlMs,
-      onError: (error, id) => onError(`files tree ${id}`, error),
+      onError: (error, id) => onError(`files listings ${id}`, error),
       create: async (identity, scope) => {
-        const rootLease = this.roots.acquire(identity.root);
+        const rootLease = this.roots.acquire(identity);
         scope.add(() => rootLease.release());
-        const resource = new TreeResource({
-          identity,
+        const listings = new RootListings({
           root: await rootLease.ready(),
+          watchFolder: (folder) =>
+            this.acquireResolved(resolveRootIdentity(folder, 'children'), (children) =>
+              this.roots.acquire(children)
+            ),
+          lingerMs: idleTtlMs,
           onError,
         });
-        scope.add(() => resource.dispose());
-        this.activeTrees.add(resource);
+        scope.add(() => listings.dispose());
+        this.activeListings.add(listings);
         scope.add(() => {
-          this.activeTrees.delete(resource);
+          this.activeListings.delete(listings);
         });
-        return resource;
+        return listings;
       },
     });
     this.contents = createResourceCache({
@@ -107,10 +116,27 @@ export class FilesAllocationGraph {
     });
   }
 
-  acquireTree(key: TreeKey): PendingLease<TreeResource> {
-    return this.acquireResolved(resolveRootIdentity(key.root, key.watchScope), (root) =>
-      this.trees.acquire(treeIdentity(root, key))
-    );
+  /** Subscribes to one folder of a workspace root; the listing is read before `ready` resolves. */
+  acquireListing(key: ListingKey): PendingLease<FolderListingHandle> {
+    return this.acquireResolved(resolveRootIdentity(key.root), (root) => {
+      const listingsLease = this.listings.acquire(root);
+      let folderLease: PendingLease<FolderListingHandle> | undefined;
+      let released = false;
+      const ready = listingsLease.ready().then((listings) => {
+        if (released) throw new Error('Folder listing lease was released');
+        folderLease = listings.acquire(key.path);
+        return folderLease.ready();
+      });
+      ready.catch(() => {});
+      return {
+        ready: () => ready,
+        release: once(async () => {
+          released = true;
+          await folderLease?.release();
+          await listingsLease.release();
+        }),
+      };
+    });
   }
 
   /**
@@ -168,11 +194,10 @@ export class FilesAllocationGraph {
    * Reflects a successful stateless fs mutation into the rest of the graph
    * before the mutation acks (spec §3.4) — the fs watcher covers external
    * changes only. Changes are published into every other active root
-   * subscription (content and tree listeners react on their usual async
-   * paths), and affected live tree sessions are additionally reconciled
-   * synchronously so their state reflects the mutation by ack time. Republish
-   * failures are reported, not propagated: the disk mutation already
-   * succeeded.
+   * subscription (content and listing listeners react on their usual async
+   * paths), and affected folder listings are additionally awaited so their
+   * state reflects the mutation by ack time. Republish failures are reported,
+   * not propagated: the disk mutation already succeeded.
    */
   async reflectMutation(origins: RootResource[], changes: AbsoluteChange[]): Promise<void> {
     if (changes.length === 0) return;
@@ -185,9 +210,9 @@ export class FilesAllocationGraph {
       if (relative.length > 0) root.publishKnownChanges(relative);
     }
     await Promise.all(
-      [...this.activeTrees].map((tree) =>
-        tree.applyAbsoluteChanges(changes).catch((error: unknown) => {
-          this.onError(`files tree republish ${tree.identity.treeId}`, error);
+      [...this.activeListings].map((listings) =>
+        listings.applyAbsoluteChanges(changes).catch((error: unknown) => {
+          this.onError('files listing republish', error);
         })
       )
     );
@@ -197,7 +222,7 @@ export class FilesAllocationGraph {
     if (this.disposed) return;
     this.disposed = true;
     await this.contents.dispose();
-    await this.trees.dispose();
+    await this.listings.dispose();
     await this.roots.dispose();
   }
 

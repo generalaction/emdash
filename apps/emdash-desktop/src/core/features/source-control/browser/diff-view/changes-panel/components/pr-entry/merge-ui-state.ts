@@ -1,5 +1,5 @@
+import type { PullRequest, PullRequestCheck } from '@emdash/plugins/pull-requests/schemas';
 import { computeCheckRunsSummary } from '@core/features/github/api/browser/checks';
-import type { PullRequest, PullRequestCheck } from '@core/services/pull-requests/api';
 
 export type MergeSeverity = 'success' | 'warning' | 'error' | 'neutral';
 export type MergeCheckState = 'pending' | 'failed' | 'passing' | 'unknown';
@@ -22,12 +22,15 @@ export function deriveMergeCheckState(checks: PullRequestCheck[]): MergeCheckSta
 }
 
 export function computeMergeUiState(pr: PullRequest): MergeUiState {
+  const providerName = pr.provider === 'gitlab' ? 'GitLab' : 'GitHub';
+  const short = pr.provider === 'gitlab' ? 'MR' : 'PR';
+  const canBypass = pr.provider !== 'gitlab';
   if (pr.status !== 'open') {
     return {
       kind: 'unknown',
       severity: 'neutral',
       title: 'Merge status unknown',
-      detail: 'Refresh PR status and try again.',
+      detail: `Refresh ${short} status and try again.`,
       canMerge: false,
       canBypassRequirements: false,
     };
@@ -36,7 +39,7 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
     return {
       kind: 'draft',
       severity: 'neutral',
-      title: 'Draft pull request',
+      title: pr.provider === 'gitlab' ? 'Draft merge request' : 'Draft pull request',
       detail: 'Mark ready for review to enable merging.',
       canMerge: false,
       canBypassRequirements: false,
@@ -66,9 +69,12 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
         kind: 'behind',
         severity: 'warning',
         title: 'Branch is out-of-date',
-        detail: 'Update the branch, or merge without waiting if your account can bypass rules.',
+        detail:
+          pr.provider === 'gitlab'
+            ? 'Rebase the source branch before merging.'
+            : 'Update the branch, or merge without waiting if your account can bypass rules.',
         canMerge: false,
-        canBypassRequirements: true,
+        canBypassRequirements: canBypass,
       };
     case 'BLOCKED':
       return {
@@ -77,7 +83,7 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
         title: 'Merging is blocked',
         detail: 'Required reviews, checks, or branch rules are not satisfied.',
         canMerge: false,
-        canBypassRequirements: true,
+        canBypassRequirements: canBypass,
       };
     case 'HAS_HOOKS':
       return {
@@ -86,7 +92,7 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
         title: 'Merging is blocked',
         detail: 'Required checks are not satisfied.',
         canMerge: false,
-        canBypassRequirements: true,
+        canBypassRequirements: canBypass,
       };
     case 'UNSTABLE':
       switch (
@@ -105,9 +111,9 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
             kind: 'unstable',
             severity: 'warning',
             title: 'Checks still running',
-            detail: 'Waiting for GitHub checks to finish.',
+            detail: `Waiting for ${providerName} checks to finish.`,
             canMerge: false,
-            canBypassRequirements: true,
+            canBypassRequirements: canBypass,
           };
         case 'failed':
           return {
@@ -116,26 +122,25 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
             title: 'Checks not passing',
             detail: 'Review failing checks before merging.',
             canMerge: false,
-            canBypassRequirements: true,
+            canBypassRequirements: canBypass,
           };
         case 'passing':
           return {
             kind: 'unstable',
             severity: 'warning',
-            title: 'Checks passing, but PR is unstable',
-            detail:
-              'GitHub still reports the branch as unstable. Review branch rules before merging.',
+            title: `Checks passing, but ${short} is unstable`,
+            detail: `${providerName} still reports the branch as unstable. Review branch rules before merging.`,
             canMerge: false,
-            canBypassRequirements: true,
+            canBypassRequirements: canBypass,
           };
         case 'unknown':
           return {
             kind: 'unstable',
             severity: 'warning',
             title: 'Checks pending or not passing',
-            detail: 'Review GitHub checks before merging.',
+            detail: `Review ${providerName} checks before merging.`,
             canMerge: false,
-            canBypassRequirements: true,
+            canBypassRequirements: canBypass,
           };
       }
     default:

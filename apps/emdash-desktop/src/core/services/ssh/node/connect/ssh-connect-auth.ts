@@ -102,6 +102,9 @@ async function readIdentityKeys(paths: string[], deps: SshConnectDeps): Promise<
     const publicKey = await readIdentityKey(`${path}.pub`, deps);
     const key = publicKey ?? (await readIdentityKey(path, deps));
     if (key) keys.push(key);
+    // Like OpenSSH, also allow the IdentityFile's certificate held by the agent.
+    const certificate = await readIdentityKey(`${path}-cert.pub`, deps);
+    if (certificate) keys.push(certificate);
   }
   return keys;
 }

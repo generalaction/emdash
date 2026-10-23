@@ -7,9 +7,14 @@ const uri = resourceUri('/repo/worktree/src/index.ts');
 const rootUri = resourceUri('/repo/worktree');
 
 describe('editorContract', () => {
-  it('owns only the crash-recovery buffer surface', () => {
+  it('owns crash-recovery buffers and host language services', () => {
     expect(editorDomain).toBe('editor');
-    expect(Object.keys(editorContract)).toEqual(['saveBuffer', 'clearBuffer', 'listBuffers']);
+    expect(Object.keys(editorContract)).toEqual([
+      'lsp',
+      'saveBuffer',
+      'clearBuffer',
+      'listBuffers',
+    ]);
   });
 
   it('keys buffers by ResourceUri with no workspace identity', () => {

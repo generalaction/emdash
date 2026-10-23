@@ -40,39 +40,8 @@ export type GitHubImportCliAccountsResponse =
   | { success: true; importedAccountIds: string[] }
   | { success: false; error: string };
 
-export type GitHubAuthResponse =
-  | { success: true; account: GitHubAccountSummary }
-  | { success: false; error: string };
-
-export interface GitHubRepo {
-  id: number;
-  name: string;
-  nameWithOwner: string;
-  description: string | null;
-  url: string;
-  cloneUrl: string;
-  sshUrl: string;
-  defaultBranch: string;
-  isPrivate: boolean;
-  updatedAt: string | null;
-  language: string | null;
-  stargazersCount: number;
-  forksCount: number;
-}
-
 export interface GitHubOwner {
   login: string;
   type: 'User' | 'Organization';
   avatarUrl: string;
 }
-
-export type GitHubEvent =
-  | {
-      type: 'device-code';
-      userCode: string;
-      verificationUri: string;
-      expiresIn: number;
-      interval: number;
-    }
-  | { type: 'auth-success'; user: GitHubUser }
-  | { type: 'auth-error'; error: string; message: string };

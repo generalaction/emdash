@@ -1,8 +1,5 @@
-import type {
-  AttachmentMimeType,
-  AttachmentRef,
-  ImageAttachmentMimeType,
-} from '@emdash/core/runtimes/acp/api/client';
+import type { ImageAttachmentMimeType } from '@emdash/core/runtimes/acp/api/client';
+import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/services/attachments/api';
 import type { AcpAttachmentUploadInput } from './acp-chat-store';
 
 const UNKNOWN_FILE_MIME_TYPE = 'application/octet-stream';

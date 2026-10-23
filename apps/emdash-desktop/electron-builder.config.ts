@@ -2,6 +2,7 @@ import type { Configuration } from 'electron-builder';
 import {
   APP_ID,
   ARTIFACT_PREFIX,
+  LINUX_DESKTOP_ID,
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
@@ -11,6 +12,7 @@ const config: Configuration = {
   appId: APP_ID,
   productName: PRODUCT_NAME,
   executableName: PRODUCT_NAME,
+  extraMetadata: { desktopName: `${LINUX_DESKTOP_ID}.desktop` },
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
@@ -33,7 +35,19 @@ const config: Configuration = {
     'node_modules/better-sqlite3/**',
     'node_modules/node-pty/**',
     'node_modules/@parcel/watcher/**',
+    'node_modules/typescript/**',
+    'node_modules/typescript-language-server/**',
+    'node_modules/pyright/**',
     '**/*.node',
+  ],
+  // electron-builder removes .d.ts files from node_modules even when unpacked.
+  // tsserver reads these standard libraries as runtime data.
+  extraResources: [
+    {
+      from: 'node_modules/typescript/lib',
+      to: 'app.asar.unpacked/node_modules/typescript/lib',
+      filter: ['*.d.ts'],
+    },
   ],
   mac: {
     category: 'public.app-category.developer-tools',
@@ -65,6 +79,10 @@ const config: Configuration = {
   linux: {
     category: 'Development',
     icon: 'src/assets/images/emdash/emdash.png',
+    syncDesktopName: true,
+    desktop: {
+      entry: { StartupWMClass: PRODUCT_NAME },
+    },
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },

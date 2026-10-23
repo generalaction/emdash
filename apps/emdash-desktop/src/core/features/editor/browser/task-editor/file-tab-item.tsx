@@ -1,9 +1,10 @@
-import { FolderOpen, Loader2 } from 'lucide-react';
+import { Code, FolderOpen, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { ContentStatus } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { openModal } from '@core/manifests/browser/modal-api';
 import { useDelayedBoolean } from '@core/primitives/react-hooks/browser/use-delay-boolean';
 import type {
   TabBarItemProps,
@@ -13,6 +14,8 @@ import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
+import type { TabCommand } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-commands';
+import { getLanguageServices } from '../lsp/language-services';
 
 function fileTabErrorTooltip(status: ContentStatus): string | undefined {
   if (status.kind !== 'error') return undefined;
@@ -38,6 +41,28 @@ export const FileTabBarItem = observer(function FileTabBarItem({
   const resource = tab.resource;
   const taskView = useTaskComposition();
   const fileName = resource.path.split('/').pop() ?? 'Untitled';
+  const commands: TabCommand[] = [];
+  if (resource.inWorkspace)
+    commands.push({
+      id: 'file:reveal',
+      label: 'Reveal File',
+      icon: FolderOpen,
+      group: 'file',
+      run: () => {
+        taskView.revealWorkspaceFile(resource.path);
+      },
+    });
+  const file = resource.ref;
+  if (file && getLanguageServices()?.status(file))
+    commands.push({
+      id: 'file:language-services',
+      label: 'Language services…',
+      icon: Code,
+      group: 'file',
+      run: () => {
+        void openModal('languageServicesDialog', { file });
+      },
+    });
 
   const status = resource.contentStatus;
   const showSpinner = useDelayedBoolean(status.kind === 'loading', 200);
@@ -62,21 +87,7 @@ export const FileTabBarItem = observer(function FileTabBarItem({
         </span>
       }
       hasError={status.kind === 'error'}
-      kindCommands={
-        resource.inWorkspace
-          ? [
-              {
-                id: 'file:reveal',
-                label: 'Reveal File',
-                icon: FolderOpen,
-                group: 'file',
-                run: () => {
-                  taskView.revealWorkspaceFile(resource.path);
-                },
-              },
-            ]
-          : undefined
-      }
+      kindCommands={commands}
       statusSlot={
         resource.isDirty ? (
           <div

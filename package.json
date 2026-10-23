@@ -47,6 +47,9 @@
       "cpu-features",
       "ssh2"
     ],
+    "patchedDependencies": {
+      "ssh2@1.17.0": "patches/ssh2@1.17.0.patch"
+    },
     "ignoredOptionalDependencies": [
       "@anthropic-ai/claude-agent-sdk-darwin-arm64",
       "@anthropic-ai/claude-agent-sdk-darwin-x64",

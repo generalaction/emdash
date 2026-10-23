@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { stopReasonSchema } from '#runtimes/acp/api/models/stop-reason';
-import { transcriptMessageSchema } from './messages';
+import { transcriptMessageSchema, transcriptNotificationSchema } from './messages';
 import { transcriptThinkingSchema } from './thinking';
 import { toolNodeSchema } from './tool-calls';
 
 export const transcriptItemSchema = z.union([
   transcriptMessageSchema,
+  transcriptNotificationSchema,
   transcriptThinkingSchema,
   toolNodeSchema,
 ]);
@@ -32,7 +33,6 @@ export const errorTurnReasonSchema = z.enum([
   'load_session_failed',
   'cancel_failed',
   'set_config_failed',
-  'set_mode_failed',
 ]);
 export type ErrorTurnReason = z.infer<typeof errorTurnReasonSchema>;
 

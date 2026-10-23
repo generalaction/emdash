@@ -1,4 +1,4 @@
-import { ToggleGroup } from '@emdash/ui/react/primitives';
+import { Button, ToggleGroup } from '@emdash/ui/react/primitives';
 import { IssueComboboxField } from './issue-combobox-field';
 import { PrComboboxField } from './pr-combobox-field';
 import type { LinkedType, CreateTaskState } from './use-create-task-state';
@@ -7,6 +7,8 @@ interface LinkedEntitySectionProps {
   state: CreateTaskState;
   hasAnyIssueIntegration: boolean;
   hasPrSupport: boolean;
+  requestProvider?: string;
+  issueLabel: string;
   projectId?: string;
   repositoryUrl?: string;
   projectPath?: string;
@@ -16,6 +18,8 @@ export function LinkedEntitySection({
   state,
   hasAnyIssueIntegration,
   hasPrSupport,
+  requestProvider,
+  issueLabel,
   projectId,
   repositoryUrl,
   projectPath,
@@ -34,24 +38,40 @@ export function LinkedEntitySection({
           }}
         >
           <ToggleGroup.Item className="text-xs" value="issue" disabled={!hasAnyIssueIntegration}>
-            Issue
+            {issueLabel}
           </ToggleGroup.Item>
           <ToggleGroup.Item className="text-xs" value="pr" disabled={!hasPrSupport}>
-            Pull Request
+            {requestProvider === 'gitlab' ? 'Merge Request' : 'Pull Request'}
           </ToggleGroup.Item>
         </ToggleGroup.Root>
       </div>
       {state.linkedType === 'issue' && (
-        <IssueComboboxField
-          value={state.linkedIssue}
-          onValueChange={state.setLinkedIssue}
-          projectId={projectId}
-          repositoryUrl={repositoryUrl}
-          projectPath={projectPath}
-        />
+        <>
+          <IssueComboboxField
+            value={state.linkedIssue}
+            onValueChange={state.setLinkedIssue}
+            projectId={projectId}
+            repositoryUrl={repositoryUrl}
+            projectPath={projectPath}
+          />
+          {state.issueContextPending && (
+            <p role="status" className="px-3 pb-2 text-xs text-foreground-muted">
+              Loading ticket context…
+            </p>
+          )}
+          {state.issueContextError && (
+            <div role="alert" className="flex items-center gap-2 px-3 pb-2 text-xs">
+              <span>{state.issueContextError}</span>
+              <Button type="button" variant="link" size="sm" onClick={state.retryIssueContext}>
+                Retry
+              </Button>
+            </div>
+          )}
+        </>
       )}
       {state.linkedType === 'pr' && (
         <PrComboboxField
+          provider={requestProvider}
           value={state.linkedPR}
           onValueChange={state.setLinkedPR}
           projectId={projectId}

@@ -10,14 +10,16 @@ import { repositorySelectorSchema } from '#runtimes/git/api/selectors';
 
 export const fetchPrForReviewOptionsSchema = z.object({
   prNumber: z.number().int(),
+  /** Request head ref fetched from configuredRemote, including for fork requests. */
+  sourceRef: z.string().optional(),
   headRefName: z.string(),
   headRepositoryUrl: z.string(),
   localBranch: z.string(),
   isFork: z.boolean(),
   /**
    * The effective base remote, resolved by the caller (blessed resolver;
-   * spec: github-git-settings §2) — this layer never invents one. Unused for
-   * fork PRs, which fetch through a dedicated fork remote.
+   * spec: github-git-settings §2) — this layer never invents one. Fork requests
+   * without sourceRef fetch through a dedicated fork remote.
    */
   configuredRemote: z.string(),
 });

@@ -220,9 +220,6 @@ function createProjectsWire() {
   const creationProvider = expose(projectsWireContract.creation, {
     state: () => cell({ phase: 'error' as const, message: 'unused' }),
   });
-  const directoryTreeProvider = expose(projectsWireContract.directoryTree, {
-    tree: () => cell(undefined as never),
-  });
   const attachmentsProvider = expose(projectsWireContract.attachments, {
     state: () => cell({ kind: 'absent' as const }),
   });
@@ -232,7 +229,6 @@ function createProjectsWire() {
     projectList: projectListProvider,
     attachments: attachmentsProvider,
     creation: creationProvider,
-    directoryTree: directoryTreeProvider,
     getProjectSettingsPage,
     recoverAttachment: async () => ({ success: true as const, data: undefined }),
     create: {

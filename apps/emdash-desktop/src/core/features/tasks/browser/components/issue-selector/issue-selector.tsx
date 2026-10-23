@@ -9,6 +9,7 @@ import {
 } from '@core/features/integrations/api/account-reporting';
 import {
   getIntegrationName,
+  issueTerms,
   isIssueIntegration,
 } from '@core/features/integrations/api/browser/integration-display';
 import { ProviderAccountStateEmpty } from '@core/features/integrations/contributions/browser/account-state';
@@ -156,6 +157,7 @@ export const IssueSelector = observer(function IssueSelector({
     handleSetSearchTerm,
     setSelectedIssueProvider,
   } = useIssueSearch(repositoryUrl, projectPath, projectId);
+  const entityName = issueTerms(issueProvider);
 
   // §7 reporting matrix over the resolver provenance the Wire payload
   // carries (spec: github-git-settings §7). Silent rows never cross the
@@ -242,7 +244,7 @@ export const IssueSelector = observer(function IssueSelector({
     renderPlaceholder(triggerContext)
   ) : (
     <div className="hover:bg-muted/30 flex h-6 w-full items-center justify-center gap-1 rounded-md border border-dashed border-border p-3 text-center text-sm text-foreground-passive hover:shadow-xs">
-      Click to link an issue
+      Click to link {entityName.article} {entityName.singular}
     </div>
   );
 
@@ -307,7 +309,7 @@ export const IssueSelector = observer(function IssueSelector({
                 />
               ) : (
                 <span className={cn(error && 'text-foreground-error')}>
-                  {error ?? 'No issues found'}
+                  {error ?? `No ${entityName.plural} found`}
                 </span>
               )}
             </Combobox.Empty>

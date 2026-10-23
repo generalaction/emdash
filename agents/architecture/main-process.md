@@ -52,6 +52,18 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 
 ## When Editing Here
 
+Open-in app detection (`src/main/core/app/installed-apps.ts`) checks exactly what launch uses,
+in the environment launch uses: LaunchServices for `open -a`/`open -b` targets, an in-process PATH
+lookup after the login-shell env capture for CLIs, and vswhere/Spotlight only for the apps that
+launch through them. `app-path-lookup.ts` owns the shared vswhere/Spotlight path resolution and
+30-second timeout for both detection and launch; LaunchServices retains its 5-second timeout.
+Keep renderer request deadlines longer than the lookups they await. Keep every lookup
+noninteractive; never use AppleScript's `id of application`,
+which prompts, beeps, and blocks for a missing app. When adding an app, its `checkCommands`,
+`bundleIds`, and `appNames` must name exactly what its `openCommands` launch;
+`open-in-apps.test.ts` enforces this. Detection and launch log with the `[open-in]` prefix;
+complete scan results log at info level (`--debug-logs`).
+
 The menu bar/system tray icon is controlled by the desktop app setting
 `interface.showTrayIcon` (Settings → Interface → Application icon, enabled by default).
 Create it only after settings load in the services boot phase; Wire settings updates and resets
@@ -62,3 +74,9 @@ activation or launching the app again restores the main window.
 - Check `agents/conventions/ipc.md` for the RPC controller pattern and typing rules.
 - Check `agents/risky-areas/pty.md` before touching PTY or provider spawn behavior.
 - Check `agents/risky-areas/database.md` before changing persistence or migrations.
+
+Project attachment initialization has a 60-second total deadline, including at most one retry for
+a local Wire timeout. Remote connection recovery remains owned by the Host supervisor. Cancellation
+stops initialization at stage boundaries and releases partial repo-facts subscriptions and fetch
+services without tearing down task sessions. Failed initialization logs its stage and elapsed time;
+late completion must never publish or leave an unowned background fetch running.

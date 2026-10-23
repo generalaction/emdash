@@ -9,6 +9,7 @@ describe('workspaceRegistryWorkerSpec', () => {
       env,
       dependencies: {} as WorkspaceRegistryWorkerSpecInput['dependencies'],
       databasePath: '/data/workspace-registry.db',
+      attachmentsDir: '/data/attachments',
     });
     expect(component.id).toBe('workspace-registry');
     expect(options.name).toBe('workspace-registry');
@@ -18,6 +19,7 @@ describe('workspaceRegistryWorkerSpec', () => {
     expect(options.shutdownGraceMs).toBe(3_000);
     expect(component.configSchema.parse(options.config)).toEqual({
       databasePath: '/data/workspace-registry.db',
+      attachmentsDir: '/data/attachments',
     });
   });
 });

@@ -41,8 +41,10 @@ export class ConversationTabResource implements TabResource {
 
   dispose(): void {
     for (const d of this._disposers) d();
-    // Mark conversation as seen on close (mirrors old onClose behavior).
-    this.store.markSeen();
+  }
+
+  onClose(): void {
+    if (!this.store.seen) this.store.markSeen();
   }
 
   onActivate(): void {

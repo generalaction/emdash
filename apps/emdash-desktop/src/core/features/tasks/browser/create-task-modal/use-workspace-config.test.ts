@@ -1,9 +1,9 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
-import type { PullRequest } from '@core/services/pull-requests/api';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -323,6 +323,24 @@ describe('useWorkspaceConfig branch selection', () => {
     ]);
     expect(latestState?.setupSteps[0]?.description).toBe(
       'Fetch refs/pull/7/head from origin into pr/7/fix/thing'
+    );
+  });
+
+  it('previews a GitLab fork checkout with the MR head ref and branch namespace', async () => {
+    await renderProbe(
+      { mode: 'new-worktree', presetId: 'checkout-pr' },
+      {
+        pr: makePr({
+          provider: 'gitlab',
+          identifier: '!7',
+          url: 'https://gitlab.com/group/sub/repo/-/merge_requests/7',
+          repositoryUrl: 'https://gitlab.com/group/sub/repo',
+          headRepositoryUrl: 'https://gitlab.com/contributor/repo',
+        }),
+      }
+    );
+    expect(latestState?.setupSteps[0]?.description).toBe(
+      'Fetch refs/merge-requests/7/head from origin into mr/7/fix/thing'
     );
   });
 

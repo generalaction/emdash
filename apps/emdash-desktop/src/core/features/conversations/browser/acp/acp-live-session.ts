@@ -6,8 +6,8 @@ import {
   sessionMcpServerSchema,
   sessionStateSchema,
   terminalStateSchema,
-  transcriptTurnSchema,
   type AcpRuntimeError,
+  type AcpSessionStartMode,
   type PromptInput,
   type PromptPlacement,
   type SessionState,
@@ -92,7 +92,6 @@ export class AcpLiveSession {
   readonly config: RemoteValueState<z.infer<typeof sessionConfigStateSchema>>;
   readonly usage: RemoteValueState<z.infer<typeof sessionUsageSchema> | null>;
   readonly plan: RemoteValueState<z.infer<typeof planStateSchema> | null>;
-  readonly activeTurn: RemoteValueState<z.infer<typeof transcriptTurnSchema> | null>;
   readonly terminals: RemoteValueState<TerminalState[]>;
   readonly mcpServers: RemoteValueState<Array<z.infer<typeof sessionMcpServerSchema>>>;
   private readonly scope = createScope({ label: 'acp-live-session' });
@@ -111,7 +110,8 @@ export class AcpLiveSession {
 
   private constructor(
     readonly conversationId: string,
-    private readonly client: ConversationsClient['acp']
+    private readonly client: ConversationsClient['acp'],
+    private startMode: AcpSessionStartMode
   ) {
     const key = { conversationId };
     // Subscribe to individual states: remote(model) waits for *every* state acquisition
@@ -139,12 +139,6 @@ export class AcpLiveSession {
       this.scope,
       null
     );
-    const activeTurn = replicaValueState(
-      client.session.state(key, 'activeTurn'),
-      transcriptTurnSchema.nullable(),
-      this.scope,
-      null
-    );
     const terminals = replicaValueState(
       client.session.state(key, 'terminals'),
       z.array(terminalStateSchema),
@@ -161,7 +155,6 @@ export class AcpLiveSession {
     this.config = config;
     this.usage = usage;
     this.plan = plan;
-    this.activeTurn = activeTurn;
     this.terminals = terminals;
     this.mcpServers = mcpServers;
     this.refreshStates = async () => {
@@ -169,7 +162,6 @@ export class AcpLiveSession {
         void ancillary.refresh().catch(() => {});
       }
       await state.refresh();
-      if (!this.sessionState.current().transcript) await activeTurn.refresh();
     };
   }
 
@@ -182,14 +174,13 @@ export class AcpLiveSession {
     if (!result.success) {
       throw new AcpStartError(result.error);
     }
-    const session = new AcpLiveSession(conversationId, client);
+    const session = new AcpLiveSession(
+      conversationId,
+      client,
+      result.data.sessionId ? 'resume' : 'fresh'
+    );
     try {
-      await withTimeout(
-        session.sessionState.ready.then(async () => {
-          if (!session.sessionState.current().transcript) await session.activeTurn.ready;
-        }),
-        'Timed out connecting ACP live models'
-      );
+      await withTimeout(session.sessionState.ready, 'Timed out connecting ACP live models');
       runInAction(() => session.usableState.set(true));
       return session;
     } catch (error) {
@@ -210,12 +201,22 @@ export class AcpLiveSession {
       );
       if (validation !== this.validation || this.disposed) return;
       if (!result.success) throw new AcpStartError(result.error);
+      this.startMode = result.data.sessionId ? 'resume' : 'fresh';
       await withTimeout(this.refreshStates(), 'Timed out refreshing ACP session', 10_000, signal);
       if (!this.disposed && !signal.aborted && validation === this.validation)
         runInAction(() => this.usableState.set(true));
     } catch (error) {
       if (!this.disposed && validation === this.validation) throw error;
     }
+  }
+
+  async startSession(mode: AcpSessionStartMode = this.startMode) {
+    const result = await this.client.startSession(
+      { conversationId: this.conversationId, mode },
+      { timeoutMs: 0 }
+    );
+    if (result.success) this.startMode = 'resume';
+    return result;
   }
 
   loadHistory(before?: number, limit = 50) {
@@ -268,11 +269,8 @@ export class AcpLiveSession {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
-  setOption(
-    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
-    value: string
-  ): Promise<Result<void, unknown>> {
-    return this.client.setOption({ conversationId: this.conversationId, key, value });
+  setOption(configId: string, value: string | boolean) {
+    return this.client.setOption({ conversationId: this.conversationId, configId, value });
   }
 
   resolvePermission(requestId: string, optionId: string): Promise<Result<void, unknown>> {

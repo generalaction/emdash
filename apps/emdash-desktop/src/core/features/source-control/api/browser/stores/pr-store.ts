@@ -1,6 +1,7 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
 import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import type { PullRequest, PullRequestMergeOptions } from '@emdash/plugins/pull-requests/schemas';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { remote } from '@emdash/wire/state';
 import { comparer, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
@@ -22,14 +23,13 @@ import { projectHostRef } from '@core/primitives/projects/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import { compilePrUpdateInstruction } from '@core/primitives/workspaces/api';
+import { prHeadRef } from '@core/primitives/workspaces/api/pr-source-refs';
 import {
   getPrNumber,
   isForkPr,
   pullRequestErrorMessage,
   selectCurrentPr,
   type PrCheckoutDrift,
-  type PullRequest,
-  type PullRequestMergeOptions,
 } from '@core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { pullRequestsContract } from '@core/services/pull-requests/api/contract';
@@ -231,7 +231,14 @@ export class PrStore {
     }
 
     const prNumber = getPrNumber(pr);
-    if (!prNumber) return { success: false, error: 'Could not determine PR number' };
+    if (!prNumber)
+      return {
+        success: false,
+        error:
+          pr.provider === 'gitlab'
+            ? 'Could not determine MR number'
+            : 'Could not determine PR number',
+      };
 
     const client = await getPullRequestsRuntimeClient();
     const result = await client.mergePullRequest({
@@ -267,13 +274,14 @@ export class PrStore {
     const prNumber = getPrNumber(pr);
     if (!prNumber) return;
     const client = await getPullRequestsRuntimeClient();
-    await client.markReadyForReview({
+    const result = await client.markReadyForReview({
       repositoryUrl: pr.repositoryUrl,
       number: prNumber,
     });
+    if (!result.success) throw new Error(pullRequestErrorMessage(result.error));
   }
 
-  /** Refresh the pull request and its check runs from GitHub. */
+  /** Refresh request metadata and checks from its provider. */
   refresh(id: string): void {
     const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) return;
@@ -337,6 +345,7 @@ export class PrStore {
     if (prNumber) {
       await this.gitRepositoryStore.fetchPrForReview({
         prNumber,
+        ...(pr.provider === 'gitlab' ? { sourceRef: prHeadRef(prNumber, pr.provider) } : {}),
         headRefName: pr.headRefName,
         headRepositoryUrl: pr.headRepositoryUrl,
         localBranch: pr.headRefName,

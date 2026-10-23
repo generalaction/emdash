@@ -1,6 +1,6 @@
 {
   "name": "@emdash/workspace-server",
-  "version": "0.1.5",
+  "version": "0.1.11",
   "private": true,
   "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via wire",
   "license": "Apache-2.0",
@@ -35,11 +35,15 @@
     "@parcel/watcher": "2.5.6",
     "better-sqlite3": "12.10.0",
     "node-pty": "1.1.0",
+    "pyright": "1.1.414",
+    "typescript": "6.0.3",
+    "typescript-language-server": "6.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^24.13.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "acorn": "8.18.0",
     "s3mini": "^0.9.5",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",

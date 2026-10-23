@@ -145,6 +145,7 @@ describe('bindBrowserWebviewEvents', () => {
       errorCode: -105,
       errorDescription: 'Name not resolved',
       validatedURL: 'https://missing.invalid/',
+      isMainFrame: true,
     });
     expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
       isLoading: false,
@@ -168,6 +169,83 @@ describe('bindBrowserWebviewEvents', () => {
         url: 'https://missing.invalid/',
       },
     ]);
+  });
+
+  it.each([false, true])(
+    'only treats main-frame failures as page errors (isMainFrame: %s)',
+    (isMainFrame) => {
+      const session = browserSessionStore.createSession({
+        browserId: 'browser-1',
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        taskId: 'task-1',
+      });
+      const webview = new FakeBrowserWebview();
+      webview.url = 'http://localhost:3000/';
+      webview.titleText = 'Healthy parent';
+      bindTrackedWebviewEvents(session.browserId, asWebview(webview));
+      webview.emit('dom-ready');
+      webview.emit('did-start-loading');
+      webview.emit('did-navigate', { url: webview.url });
+
+      webview.emit('did-fail-load', {
+        errorCode: -102,
+        errorDescription: 'ERR_CONNECTION_REFUSED',
+        validatedURL: 'http://localhost:3001/unavailable',
+        isMainFrame,
+      });
+
+      const loadError = isMainFrame
+        ? {
+            code: -102,
+            description: 'ERR_CONNECTION_REFUSED',
+            url: 'http://localhost:3001/unavailable',
+          }
+        : undefined;
+      expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+        isLoading: !isMainFrame,
+        loadError,
+      });
+
+      webview.emit('did-stop-loading');
+      expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+        currentUrl: 'http://localhost:3000/',
+        title: 'Healthy parent',
+        isLoading: false,
+        loadError,
+      });
+      expect(browserDiagnosticsStore.entriesForBrowser(session.browserId)).toMatchObject([
+        {
+          level: 'error',
+          source: 'navigation',
+          message: 'ERR_CONNECTION_REFUSED',
+          url: 'http://localhost:3001/unavailable',
+        },
+      ]);
+    }
+  );
+
+  it.each([false, true])('ignores cancelled loads (isMainFrame: %s)', (isMainFrame) => {
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    const webview = new FakeBrowserWebview();
+    bindTrackedWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('did-start-loading');
+    const beforeFailure = browserSessionStore.getSnapshot(session.browserId);
+
+    webview.emit('did-fail-load', {
+      errorCode: -3,
+      errorDescription: 'ERR_ABORTED',
+      validatedURL: 'http://localhost:3000/cancelled',
+      isMainFrame,
+    });
+
+    expect(browserSessionStore.getSnapshot(session.browserId)).toEqual(beforeFailure);
+    expect(browserDiagnosticsStore.entriesForBrowser(session.browserId)).toEqual([]);
   });
 
   it('reapplies the session zoom after navigation commits', () => {

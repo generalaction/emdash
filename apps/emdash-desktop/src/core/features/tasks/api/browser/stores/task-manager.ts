@@ -294,6 +294,9 @@ export class TaskManagerStore {
       },
       update: (current, row) => {
         const task = this._taskFromRow(row);
+        if (isRegistered(current) && current.data.archivedAt && !task.archivedAt) {
+          current.restoreOperationalStores();
+        }
         current.setWorkspaceProjection(
           task.workspaceId ? this._taskStats.workspaceById?.[task.workspaceId] : undefined
         );

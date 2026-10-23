@@ -45,6 +45,7 @@ export function useAccounts(
 }
 
 export async function invalidateProviderAccountState(queryClient: QueryClient): Promise<void> {
+  void queryClient.invalidateQueries({ queryKey: ['issues:context'] });
   for (const queryKey of [['issues:initial'], ['issues:search']]) {
     await queryClient.cancelQueries({ queryKey });
     await queryClient.invalidateQueries({ queryKey, refetchType: 'none' });

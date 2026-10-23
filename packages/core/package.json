@@ -35,6 +35,11 @@
     ]
   },
   "exports": {
+    "./primitives/git/api": {
+      "development": "./src/primitives/git/api/index.ts",
+      "types": "./dist/primitives-git-api.d.mts",
+      "default": "./dist/primitives-git-api.mjs"
+    },
     "./primitives/path/api": {
       "development": "./src/primitives/path/api/index.ts",
       "types": "./dist/primitives-path-api.d.mts",
@@ -49,6 +54,11 @@
       "development": "./src/primitives/git-credentials/api/index.ts",
       "types": "./dist/primitives-git-credentials-api.d.mts",
       "default": "./dist/primitives-git-credentials-api.mjs"
+    },
+    "./primitives/repository/api": {
+      "development": "./src/primitives/repository/api/index.ts",
+      "types": "./dist/primitives-repository-api.d.mts",
+      "default": "./dist/primitives-repository-api.mjs"
     },
     "./primitives/exclusion-policy/api": {
       "development": "./src/primitives/exclusion-policy/api/index.ts",
@@ -340,7 +350,47 @@
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./services/attachments/api": {
+      "development": "./src/services/attachments/api/index.ts",
+      "types": "./dist/services-attachments-api.d.mts",
+      "default": "./dist/services-attachments-api.mjs"
+    },
+    "./services/attachments/node": {
+      "development": "./src/services/attachments/node/local-attachment-store.ts",
+      "types": "./dist/services-attachments-node.d.mts",
+      "default": "./dist/services-attachments-node.mjs"
+    },
+    "./primitives/provider-usage/api": {
+      "development": "./src/primitives/provider-usage/api/index.ts",
+      "types": "./dist/primitives-provider-usage-api.d.mts",
+      "default": "./dist/primitives-provider-usage-api.mjs"
+    },
+    "./runtimes/provider-usage/api": {
+      "development": "./src/runtimes/provider-usage/api/index.ts",
+      "types": "./dist/runtimes-provider-usage-api.d.mts",
+      "default": "./dist/runtimes-provider-usage-api.mjs"
+    },
+    "./runtimes/provider-usage/node": {
+      "development": "./src/runtimes/provider-usage/node/index.ts",
+      "types": "./dist/runtimes-provider-usage-node.d.mts",
+      "default": "./dist/runtimes-provider-usage-node.mjs"
+    },
+    "./primitives/exec/node": {
+      "development": "./src/primitives/exec/node/index.ts",
+      "types": "./dist/primitives-exec-node.d.mts",
+      "default": "./dist/primitives-exec-node.mjs"
+    },
+    "./runtimes/lsp/api": {
+      "development": "./src/runtimes/lsp/api/index.ts",
+      "types": "./dist/runtimes-lsp-api.d.mts",
+      "default": "./dist/runtimes-lsp-api.mjs"
+    },
+    "./runtimes/lsp/node": {
+      "development": "./src/runtimes/lsp/node/index.ts",
+      "types": "./dist/runtimes-lsp-node.d.mts",
+      "default": "./dist/runtimes-lsp-node.mjs"
+    }
   },
   "scripts": {
     "dev": "tsdown --watch",
@@ -364,8 +414,12 @@
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.2",
     "minimatch": "^10.2.5",
+    "pyright": "1.1.414",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",
+    "typescript": "6.0.3",
+    "typescript-language-server": "6.0.1",
+    "vscode-languageserver-protocol": "3.17.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -373,11 +427,14 @@
     "@types/node": "^24.13.1",
     "@types/semver": "^7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "bash-language-server": "5.8.1",
     "drizzle-kit": "^0.31.10",
     "node-pty": "1.1.0",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "vscode-langservers-extracted": "4.10.0",
+    "yaml-language-server": "1.24.0"
   },
   "peerDependencies": {
     "node-pty": "1.1.0"

@@ -36,6 +36,8 @@ const gitSetupSchema = z.discriminatedUnion('kind', [
      * `compileWorktreeGitPlan`); no config version bump.
      */
     prUrl: z.string().optional(),
+    /** Forge owning the request; omitted configs use GitHub. */
+    provider: z.string().optional(),
     prNumber: z.number(),
     headBranch: z.string(),
     headRepositoryUrl: z.string(),

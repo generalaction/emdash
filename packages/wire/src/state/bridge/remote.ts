@@ -51,18 +51,77 @@ export function remote<Group extends LiveModelDef>(
       const stateCells: Record<string, Cell<unknown>> = {};
       const remoteStates: Record<string, RemoteState<unknown>> = {};
       const mutations: Record<string, unknown> = {};
-      const lease = replica.acquire(key);
-      const readyInstance = lease.ready();
+      function attach(): Attachment<Group> {
+        const attachmentScope = scope.child('attachment');
+        const lease = replica.acquire(key);
+        attachmentScope.add(() => lease.release());
+        const current: Attachment<Group> = {
+          scope: attachmentScope,
+          ready: lease.ready(),
+          failed: false,
+        };
+        current.ready
+          .then((instance) => {
+            for (const [name, state] of Object.entries(instance.states)) {
+              const target = stateCells[name];
+              if (!target) continue;
+              const replicaState = state as {
+                current(): unknown;
+                cursor?: { generation: number };
+                onChange(
+                  listener: (
+                    value: unknown,
+                    meta: { kind: 'seed' | 'update'; mutationIds?: readonly string[] }
+                  ) => void
+                ): () => void;
+              };
+              target.set(replicaState.current(), {
+                status: 'live',
+                generation: replicaState.cursor?.generation,
+              });
+              attachmentScope.add(
+                replicaState.onChange((value, meta) => {
+                  target.set(value, {
+                    status: 'live',
+                    generation: replicaState.cursor?.generation,
+                    mutationIds: meta.kind === 'update' ? meta.mutationIds : undefined,
+                  });
+                })
+              );
+            }
+          })
+          .catch((error: unknown) => {
+            current.failed = true;
+            for (const target of Object.values(stateCells)) {
+              target.set(peek(target), {
+                status: 'error',
+                error,
+              });
+            }
+          });
+        return current;
+      }
+
+      /** The live replica instance, attaching again first if the last attachment failed. */
+      async function connected(): Promise<{ instance: ReplicaInstance<Group>; fresh: boolean }> {
+        if (!attachment.failed) return { instance: await attachment.ready, fresh: false };
+        void attachment.scope.dispose();
+        for (const target of Object.values(stateCells)) {
+          target.set(peek(target), { status: 'loading' });
+        }
+        attachment = attach();
+        return { instance: await attachment.ready, fresh: true };
+      }
+
       for (const name of Object.keys(contract.states)) {
-        // Member retention while any state cell is observed is provided by the
-        // family's observation-based retention; no hand-wiring needed here.
         const state = cell<unknown>(undefined, {
           name: `${contract.id}.${name}`,
         });
         state.set(undefined, { status: 'loading', notify: false });
         stateCells[name] = state;
         remoteStates[name] = withRefresh(state, async () => {
-          const instance = (await readyInstance) as ReplicaInstance<Group>;
+          const { instance, fresh } = await connected();
+          if (fresh) return;
           await (
             instance.states[name as keyof typeof instance.states] as {
               refresh(): Promise<void>;
@@ -70,56 +129,16 @@ export function remote<Group extends LiveModelDef>(
           ).refresh();
         });
       }
-      scope.add(() => lease.release());
       for (const name of Object.keys(contract.mutations)) {
         mutations[name] = async (input: unknown, options: MutationCallOptions = {}) => {
-          const instance = (await readyInstance) as ReplicaInstance<Group>;
+          const { instance } = await connected();
           return await instance.mutations[name as keyof ReplicaMutations<Group>](
             input as never,
             options
           );
         };
       }
-
-      void lease
-        .ready()
-        .then((instance) => {
-          for (const [name, state] of Object.entries(instance.states)) {
-            const target = stateCells[name];
-            if (!target) continue;
-            const replicaState = state as {
-              current(): unknown;
-              cursor?: { generation: number };
-              onChange(
-                listener: (
-                  value: unknown,
-                  meta: { kind: 'seed' | 'update'; mutationIds?: readonly string[] }
-                ) => void
-              ): () => void;
-            };
-            target.set(replicaState.current(), {
-              status: 'live',
-              generation: replicaState.cursor?.generation,
-            });
-            scope.add(
-              replicaState.onChange((value, meta) => {
-                target.set(value, {
-                  status: 'live',
-                  generation: replicaState.cursor?.generation,
-                  mutationIds: meta.kind === 'update' ? meta.mutationIds : undefined,
-                });
-              })
-            );
-          }
-        })
-        .catch((error: unknown) => {
-          for (const target of Object.values(stateCells)) {
-            target.set(peek(target), {
-              status: 'error',
-              error,
-            });
-          }
-        });
+      let attachment = attach();
 
       return {
         states: remoteStates as unknown as RemoteStates<Group>,
@@ -141,6 +160,12 @@ export function remote<Group extends LiveModelDef>(
   };
   return members;
 }
+
+type Attachment<Group extends LiveModelDef> = {
+  scope: Scope;
+  ready: Promise<ReplicaInstance<Group>>;
+  failed: boolean;
+};
 
 function withRefresh<T>(state: Cell<T | undefined>, refresh: () => Promise<void>): RemoteState<T> {
   return Object.assign(state, { refresh }) as RemoteState<T>;

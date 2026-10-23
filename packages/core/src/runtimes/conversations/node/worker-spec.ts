@@ -11,6 +11,7 @@ export type ConversationsWorkerSpecInput = {
   executable: string;
   env: NodeJS.ProcessEnv;
   databasePath: string;
+  attachmentsDir: string;
 };
 
 /**
@@ -30,7 +31,7 @@ export function conversationsWorkerSpec(
       executable: input.executable,
       env: input.env,
       dependencies: {},
-      config: { databasePath: input.databasePath },
+      config: { databasePath: input.databasePath, attachmentsDir: input.attachmentsDir },
       shutdownGraceMs: 3_000,
     },
   ];

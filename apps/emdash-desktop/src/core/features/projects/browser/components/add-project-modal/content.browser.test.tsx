@@ -2,6 +2,7 @@ import '@emdash/ui/style.css';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import { CreateRepositoryPanel } from './content';
 import type { CreateRepositoryModeState } from './modes';
 import type { ProjectDirectoryPickerClient } from './project-directory-picker';
@@ -70,7 +71,9 @@ describe('CreateRepositoryPanel layout', () => {
           selectedAccount={null}
           defaultAccount={null}
           onAccountChange={vi.fn()}
-          onConnectGithub={vi.fn()}
+          onConnectProvider={vi.fn()}
+          provider="github"
+          onProviderChange={vi.fn()}
           ensureDefaultRoot={false}
         />
       );
@@ -95,5 +98,109 @@ describe('CreateRepositoryPanel layout', () => {
     expect(ownerBox.width).toBeGreaterThan(150);
     expect(repositoryBox.width).toBeGreaterThan(500);
     expect(repositoryBox.right).toBeLessThanOrEqual(rowBox.right + 0.5);
+  });
+
+  it('offers GitLab as a repository provider', async () => {
+    const onProviderChange = vi.fn();
+    const owner = { value: 'parent/nested', label: 'parent/nested', avatarUrl: '' };
+    const state: CreateRepositoryModeState = {
+      repositoryName: 'repo',
+      repositoryOwner: owner,
+      repositoryVisibility: 'private',
+      owners: [owner],
+      repositoryOwnersErrorMessage: null,
+      setRepositoryVisibility: vi.fn(),
+      path: '/tmp/projects',
+      setPath: vi.fn(),
+      handleRepositoryNameChange: vi.fn(),
+      handleOwnerChange: vi.fn(),
+      isValid: true,
+    };
+    await act(async () =>
+      root.render(
+        <CreateRepositoryPanel
+          strategy="local"
+          state={state}
+          getProjectsClient={vi.fn()}
+          accounts={[]}
+          selectedAccount={null}
+          defaultAccount={null}
+          onAccountChange={vi.fn()}
+          onConnectProvider={vi.fn()}
+          provider="gitlab"
+          onProviderChange={onProviderChange}
+          ensureDefaultRoot={false}
+        />
+      )
+    );
+    await expect.element(page.getByText('GitLab', { exact: true }).first()).toBeVisible();
+    const providerTrigger = container.querySelector<HTMLElement>(
+      '[aria-label="Repository provider"]'
+    );
+    expect(providerTrigger).not.toBeNull();
+    await act(async () => providerTrigger!.click());
+    await act(async () => page.getByRole('option', { name: 'GitHub' }).click());
+    expect(onProviderChange).toHaveBeenCalledWith('github');
+  });
+
+  it('explains that a GitLab group path belongs in Owner', async () => {
+    const owner = { value: 'parent/nested', label: 'parent/nested', avatarUrl: '' };
+    const state: CreateRepositoryModeState = {
+      repositoryName: 'nested/fun/excitement',
+      repositoryOwner: owner,
+      repositoryVisibility: 'private',
+      owners: [owner],
+      repositoryOwnersErrorMessage: null,
+      setRepositoryVisibility: vi.fn(),
+      path: '/tmp/projects',
+      setPath: vi.fn(),
+      handleRepositoryNameChange: vi.fn(),
+      handleOwnerChange: vi.fn(),
+      isValid: false,
+    };
+    await act(async () =>
+      root.render(
+        <CreateRepositoryPanel
+          strategy="local"
+          state={state}
+          getProjectsClient={vi.fn()}
+          accounts={[]}
+          selectedAccount={null}
+          defaultAccount={null}
+          onAccountChange={vi.fn()}
+          onConnectProvider={vi.fn()}
+          provider="gitlab"
+          onProviderChange={vi.fn()}
+          ensureDefaultRoot={false}
+        />
+      )
+    );
+    await expect
+      .element(page.getByRole('alert'))
+      .toHaveTextContent(
+        'Project creation is limited to existing groups and subgroups. Select one in Owner and enter only the project name here.'
+      );
+    expect(container.querySelector('[placeholder="Enter a repository name"]')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    );
+    const ownerField = container
+      .querySelector<HTMLElement>('[aria-label="Repository owner"]')
+      ?.closest<HTMLElement>('[data-slot="field"]');
+    const repositoryField = container
+      .querySelector<HTMLElement>('[placeholder="Enter a repository name"]')
+      ?.closest<HTMLElement>('[data-slot="field"]');
+    const error = container.querySelector<HTMLElement>('[role="alert"]');
+    expect(ownerField).not.toBeNull();
+    expect(repositoryField).not.toBeNull();
+    expect(error).not.toBeNull();
+    expect(
+      Math.abs(
+        ownerField!.getBoundingClientRect().top - repositoryField!.getBoundingClientRect().top
+      )
+    ).toBeLessThan(1);
+    expect(error!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      repositoryField!.getBoundingClientRect().bottom
+    );
   });
 });

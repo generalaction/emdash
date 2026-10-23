@@ -12,11 +12,12 @@ export const PROBE_FAST_INTERVAL_MS = 1_000;
 export const PROBE_STEADY_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 500;
 const PROBE_FAILURES_TO_CLOSE = 2;
-const URL_PATTERN = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d{2,5})?(?:\/\S*)?/g;
+const URL_PATTERN =
+  /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[[0-9a-f:]+\])(?::\d{2,5})?(?:\/\S*)?/gi;
 const MAX_BUFFER = 4096;
 
 export type PreviewServerProtocol = 'http:' | 'https:';
-export type DirectPreviewServerHost = 'localhost' | '127.0.0.1';
+export type DirectPreviewServerHost = 'localhost' | '127.0.0.1' | '::1';
 
 export type DetectedPreviewUrl = {
   protocol: PreviewServerProtocol;
@@ -119,6 +120,7 @@ function parsePreviewUrl(raw: string): DetectedPreviewUrl | null {
     const url = new URL(normalizeTerminalHttpUrl(raw));
     const protocol = url.protocol === 'https:' ? 'https:' : 'http:';
     const host = normalizeHost(url.hostname);
+    if (!host) return null;
     const port = Number(url.port) || (protocol === 'https:' ? 443 : 80);
     const urlPath = `${url.pathname || '/'}${url.search}${url.hash}`;
     return { protocol, host, port, urlPath };
@@ -127,8 +129,11 @@ function parsePreviewUrl(raw: string): DetectedPreviewUrl | null {
   }
 }
 
-function normalizeHost(host: string): DirectPreviewServerHost {
-  return host === 'localhost' ? 'localhost' : '127.0.0.1';
+function normalizeHost(host: string): DirectPreviewServerHost | null {
+  if (host === 'localhost') return 'localhost';
+  if (host === '127.0.0.1' || host === '0.0.0.0') return '127.0.0.1';
+  if (host === '[::1]') return '::1';
+  return null;
 }
 
 function detectedKey(server: DetectedPreviewUrl): string {

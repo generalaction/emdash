@@ -23,6 +23,8 @@ function passthrough(kind: SegmentItem['kind']): ItemSegmenter {
 
 const STUB_SEGMENTERS: Record<string, ItemSegmenter> = {
   message: passthrough('message'),
+  notification: passthrough('notification'),
+  working: passthrough('working'),
   tool: passthrough('tool'),
   thinking: passthrough('thinking'),
   'thinking-group': passthrough('thinking-group'),
@@ -280,6 +282,48 @@ describe('flatten — identity stability', () => {
 });
 
 describe('collectUserTurnUnits', () => {
+  it('never pins passive notifications as user prompts', () => {
+    const notice: ChatItem = {
+      kind: 'notification',
+      id: 'notice',
+      seq: 0,
+      title: 'Monitor',
+      text: 'Expired',
+    };
+    const turns = [
+      turn('background', 0, notice),
+      turn('user', 1, userMsg('prompt'), { ...notice, id: 'next-notice', seq: 1 }),
+    ];
+    const units = flattenTier(turns, segCtx, STUB_SEGMENTERS);
+    const view = makeUnitsView(units, []);
+    expect(units.map((unit) => unit.kind)).toEqual(['notification', 'message', 'notification']);
+    expect(collectUserTurnUnits(turns, view)).toEqual([1]);
+  });
+
+  it('keeps the working indicator until foreground content arrives', () => {
+    const notice: ChatItem = {
+      kind: 'notification',
+      id: 'notice',
+      seq: 1,
+      title: 'Monitor',
+      text: 'Expired',
+    };
+    const active = turn('active', 0, userMsg('prompt'), notice);
+    expect(
+      flattenTier([active], { ...segCtx, active: true }, STUB_SEGMENTERS).map((unit) => unit.kind)
+    ).toEqual(['message', 'notification', 'working']);
+    active.items.push({
+      kind: 'message',
+      id: 'reply',
+      seq: 2,
+      role: 'assistant',
+      text: 'Responding',
+    });
+    expect(
+      flattenTier([active], { ...segCtx, active: true }, STUB_SEGMENTERS).map((unit) => unit.kind)
+    ).not.toContain('working');
+  });
+
   it('returns empty array when no user messages', () => {
     const tx = createTranscript();
     tx.history.seed([turn('t1', 0, tool('a'))]);

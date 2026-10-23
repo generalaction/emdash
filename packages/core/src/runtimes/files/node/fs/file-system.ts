@@ -12,25 +12,29 @@ import {
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '#primitives/path/api';
-import type {
-  AbsolutePathKey,
-  CreateDirectoryInput,
-  CreateFileInput,
-  DeleteInput,
-  FileStat,
-  FromToKey,
-  FsError,
-  PathBatch,
-  PathList,
-  ReadBytesMeta,
-  ReadFileKey,
-  ReadTextResult,
-  UploadFileInput,
-  UploadFileResult,
-  WriteFileInput,
+import {
+  isExpandableListingEntry,
+  type AbsolutePathKey,
+  type CreateDirectoryInput,
+  type CreateFileInput,
+  type DeleteInput,
+  type DirectoryListResult,
+  type FileStat,
+  type FromToKey,
+  type FsError,
+  type PathBatch,
+  type PathList,
+  type ReadBytesMeta,
+  type ReadFileKey,
+  type ReadTextResult,
+  type UploadFileInput,
+  type UploadFileResult,
+  type WriteFileInput,
 } from '#runtimes/files/api';
 import type { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
+import { resolveRootIdentity } from '#runtimes/files/node/allocation/identity';
 import { expectedFsError, toFsError } from '#runtimes/files/node/api/errors';
+import { ListingReader, mapWithConcurrency } from '#runtimes/files/node/listing/listing-reader';
 import type {
   AbsoluteChange,
   RootChange,
@@ -46,13 +50,15 @@ import {
   moveBetweenRoots,
   type RootLocation,
 } from './mutation-ops';
+import { RootPathPolicy } from './path-policy';
 import { writeFileContent } from './write-file';
 
 const STREAM_CHUNK_SIZE = 64 * 1024;
+const REPOSITORY_PROBE_CONCURRENCY = 8;
 
 /**
  * The stateless fs plane, keyed by bare host-absolute paths (spec §3.4). Every
- * successful mutation is reflected into affected live tree sessions before it
+ * successful mutation is reflected into affected live folder listings before it
  * resolves (ack-time republish); the fs watcher covers external changes only.
  */
 export class FileSystemRuntime {
@@ -269,6 +275,35 @@ export class FileSystemRuntime {
     );
   }
 
+  /**
+   * Lists a directory once for folder browsers: each child with its size and
+   * modification time, and whether child folders are repositories. Nothing is
+   * watched, so browsing large directories such as a home folder stays cheap.
+   */
+  async listDirectory(input: AbsolutePathKey): Promise<Result<DirectoryListResult, FsError>> {
+    const directory = await resolveRootIdentity(input.path, 'children');
+    if (!directory.success) return directory;
+    const listed = await new ListingReader(new RootPathPolicy(directory.data.rootPath)).readFolder(
+      ROOT_RELATIVE_PATH
+    );
+    if (!listed.success) return listed;
+    const entries = await mapWithConcurrency(
+      listed.data,
+      REPOSITORY_PROBE_CONCURRENCY,
+      async ({ name, entry, size, mtimeMs }) => ({
+        name,
+        kind: entry.kind,
+        ...(entry.symlinkTargetKind ? { symlinkTargetKind: entry.symlinkTargetKind } : {}),
+        size,
+        mtimeMs,
+        isRepository:
+          isExpandableListingEntry(entry) &&
+          (await pathExists(path.join(directory.data.rootPath, name, '.git'))),
+      })
+    );
+    return ok({ entries });
+  }
+
   createFile(input: CreateFileInput): Promise<Result<void, FsError>> {
     return this.mutateAt(input, (root, relative) => createFileInRoot(root, { path: relative }));
   }
@@ -377,7 +412,7 @@ export class FileSystemRuntime {
   /**
    * Runs a single-target mutation in the operational root the target resolves
    * to (the entry's parent directory), publishes the resulting changes to it,
-   * and reflects them into affected live tree sessions before resolving.
+   * and reflects them into affected live folder listings before resolving.
    */
   private mutateAt(
     key: AbsolutePathKey,
@@ -465,4 +500,13 @@ function notRegularFile(entryPath: string): FsError {
     path: entryPath,
     message: 'Path is not a regular file or directory',
   };
+}
+
+async function pathExists(absolutePath: string): Promise<boolean> {
+  try {
+    await lstat(absolutePath);
+    return true;
+  } catch {
+    return false;
+  }
 }

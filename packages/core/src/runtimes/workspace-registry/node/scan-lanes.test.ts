@@ -11,6 +11,7 @@ import {
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { RegistryScanner } from '#runtimes/workspace-registry/node/scan/scanner';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 
 // Scan-lane decoupling (spec: workspace-lifecycle-v2, git concurrency model): scans
 // serialize on their own lane and land results through re-validated mutation blocks,
@@ -55,6 +56,7 @@ describe('workspace registry scan lanes', () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-lanes-')));
     handle = await workspaceRegistryStore.openTemp();
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock: new ManualClock(10_000),
       createScanner: (landing, deps) =>

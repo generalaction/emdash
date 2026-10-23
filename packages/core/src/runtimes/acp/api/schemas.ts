@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
 import { permissionDecisionSchema } from '#runtimes/acp/api/models/permissions';
 import { promptInputSchema, queuedPromptSchema } from '#runtimes/acp/api/models/prompt';
 import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
+import { acpSetOptionErrorSchema } from './errors';
+import { providerOptionValueSchema, providerOptionValuesSchema } from './models/config';
 import { transcriptPositionSchema, transcriptCoverageSchema } from './models/transcript';
 
 export const acpStartInputSchema = z.object({
@@ -10,14 +11,14 @@ export const acpStartInputSchema = z.object({
   providerId: z.string(),
   cwd: z.string(),
   sessionId: z.string().nullable(),
-  model: z.string().nullable(),
-  modeId: z.string().nullable().optional(),
-  effort: z.string().nullable().optional(),
-  collaborationMode: z.string().nullable().optional(),
+  options: providerOptionValuesSchema.optional(),
   initialQueue: z.array(promptInputSchema).optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
+
+export const acpSessionStartModeSchema = z.enum(['resume', 'fresh']);
+export type AcpSessionStartMode = z.infer<typeof acpSessionStartModeSchema>;
 
 export const sendPromptResponseSchema = z.object({ queued: z.boolean() });
 
@@ -48,29 +49,18 @@ export const changeQueuePromptOrderCommandSchema = z.object({
 export const cancelTurnCommandSchema = z.object({ conversationId: z.string() });
 export const setOptionCommandSchema = z.object({
   conversationId: z.string(),
-  key: z.enum(['model', 'mode', 'effort', 'collaborationMode']),
-  value: z.string(),
+  configId: z.string(),
+  value: providerOptionValueSchema,
 });
+export const setOptionResultSchema = z.object({
+  reapplyFailures: z.array(z.object({ configId: z.string(), error: acpSetOptionErrorSchema })),
+});
+export type AcpSetOptionResult = z.infer<typeof setOptionResultSchema>;
 export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
   conversationId: z.string(),
 });
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
-
-export const uploadAttachmentCommandSchema = z.object({
-  /** Attachments belong to their conversation (spec §3.6); a conversation exists at upload time. */
-  conversationId: z.string(),
-});
-export const uploadAttachmentResponseSchema = attachmentRefSchema;
-export const attachmentKeySchema = z.object({
-  conversationId: z.string(),
-  attachmentId: z.string(),
-});
-export const downloadAttachmentCommandSchema = attachmentKeySchema;
-export const deleteAttachmentCommandSchema = attachmentKeySchema;
-export const purgeConversationDataCommandSchema = z.object({
-  conversationId: z.string(),
-});
 
 export const historyPageInputSchema = z.object({
   conversationId: z.string(),
@@ -78,22 +68,17 @@ export const historyPageInputSchema = z.object({
   limit: z.number().int(),
 });
 
-export const historyPageSchema = z.object({
-  turns: z.array(transcriptTurnSchema),
-  nextCursor: z.number().int().nullable(),
-  /** Absent only when unavailable or when talking to an older runtime. */
-  position: transcriptPositionSchema.optional(),
-  coverage: transcriptCoverageSchema.optional(),
-  /** History is activation-local and currently unavailable while the session is suspended. */
-  unavailable: z.literal(true).optional(),
-});
+export const historyPageSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('available'),
+    turns: z.array(transcriptTurnSchema),
+    nextCursor: z.number().int().nullable(),
+    position: transcriptPositionSchema,
+    coverage: transcriptCoverageSchema,
+  }),
+  /** History is activation-local and unavailable before activation or during replay. */
+  z.object({ kind: z.literal('unavailable') }),
+]);
 export type HistoryPage = z.infer<typeof historyPageSchema>;
-
-export const loadHistoryResultSchema = historyPageSchema.extend({
-  clearedConfiguration: z
-    .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
-    .optional(),
-});
-export type LoadHistoryResult = z.infer<typeof loadHistoryResultSchema>;
 
 export { queuedPromptSchema };

@@ -1,5 +1,5 @@
 import '@emdash/ui/style.css';
-import { Button, Dialog } from '@emdash/ui/react/primitives';
+import { Button, Dialog, DirectoryField, Field, ModalLayout } from '@emdash/ui/react/primitives';
 import { page } from '@vitest/browser/context';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -25,6 +25,65 @@ describe('Dialog layout', () => {
     await act(async () => root.unmount());
     host.remove();
   });
+
+  it.each([375, 1024])(
+    'keeps a long directory path inside an animated modal at %ipx',
+    async (width) => {
+      await page.viewport(width, 800);
+
+      const renderPath = async (path: string) => {
+        await act(async () => {
+          root.render(
+            <Dialog.Root open>
+              <Dialog.Content style={{ animation: 'none' }}>
+                <ModalLayout
+                  header={
+                    <Dialog.Header>
+                      <Dialog.Title>Add Project</Dialog.Title>
+                    </Dialog.Header>
+                  }
+                  footer={
+                    <Dialog.Footer>
+                      <Button>Create</Button>
+                    </Dialog.Footer>
+                  }
+                >
+                  <Dialog.Body>
+                    <Field.Group>
+                      <Field.Root>
+                        <Field.Label>Directory</Field.Label>
+                        <DirectoryField path={path} />
+                      </Field.Root>
+                    </Field.Group>
+                  </Dialog.Body>
+                </ModalLayout>
+              </Dialog.Content>
+            </Dialog.Root>
+          );
+        });
+      };
+
+      await renderPath('/Users/developer/emdash');
+      const popup = document.querySelector<HTMLElement>('[data-slot="dialog-content"]')!;
+      const body = popup.querySelector<HTMLElement>('[data-slot="dialog-body"]')!;
+      const field = popup.querySelector<HTMLButtonElement>('[data-slot="directory-field"]')!;
+      const value = field.querySelector('span')!;
+      const choose = field.lastElementChild!;
+      const initialWidth = popup.offsetWidth;
+
+      await renderPath(`/Users/developer/${'deeply-nested-directory/'.repeat(12)}emdash`);
+
+      const popupBounds = popup.getBoundingClientRect();
+      expect(popup.offsetWidth).toBe(initialWidth);
+      expect(popupBounds.left).toBeGreaterThanOrEqual(0);
+      expect(popupBounds.right).toBeLessThanOrEqual(width);
+      expect(body.getBoundingClientRect().right).toBeLessThanOrEqual(popupBounds.right + 0.5);
+      expect(popup.scrollWidth).toBeLessThanOrEqual(popup.clientWidth);
+      expect(choose.getBoundingClientRect().right).toBeLessThanOrEqual(popupBounds.right);
+      expect(value.scrollWidth).toBeGreaterThan(value.clientWidth);
+      expect(getComputedStyle(value).textOverflow).toBe('ellipsis');
+    }
+  );
 
   it('keeps an unconstrained long body scrollable above the footer', async () => {
     await act(async () => {

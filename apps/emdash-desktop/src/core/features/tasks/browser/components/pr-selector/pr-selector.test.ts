@@ -1,9 +1,10 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequest, SyncState } from '@core/services/pull-requests/api';
+import type { SyncState } from '@core/services/pull-requests/api';
 import { PrSelector } from './pr-selector';
 
 (
@@ -16,6 +17,29 @@ const mocks = vi.hoisted(() => ({
   useProjectAccount: vi.fn(),
   useAccounts: vi.fn(),
   syncState: vi.fn(),
+  openIntegrationSetup: vi.fn(),
+}));
+
+vi.mock('@core/features/integrations/contributions/browser/integrations-provider', () => ({
+  useIntegrationsContext: () => ({
+    integrationById: {
+      github: { id: 'github', name: 'GitHub' },
+      gitlab: { id: 'gitlab', name: 'GitLab' },
+      'github-enterprise': { id: 'github-enterprise', name: 'Acme GitHub' },
+    },
+  }),
+}));
+
+vi.mock('@core/features/integrations/contributions/browser/integration-icon', async () => {
+  const React = await import('react');
+  return {
+    IntegrationIcon: ({ provider }: { provider: string }) =>
+      React.createElement('span', { 'data-testid': `integration-icon-${provider}` }),
+  };
+});
+
+vi.mock('@core/manifests/browser/modal-api', () => ({
+  useOpenModal: () => mocks.openIntegrationSetup,
 }));
 
 vi.mock('@core/primitives/wire/browser/use-remote-model-state', () => ({
@@ -362,7 +386,7 @@ describe('PrSelector', () => {
       phase: 'error',
       kind: null,
       error: {
-        type: 'github_not_found_or_no_access',
+        type: 'not_found_or_no_access',
         host: 'github.com',
         message:
           'acme/repo on github.com was not found, or the selected GitHub account does not have access.',
@@ -429,13 +453,48 @@ describe('PrSelector', () => {
     expect(container.textContent).not.toContain('No open pull requests');
   });
 
-  function renderSelector() {
+  it('opens setup for the integration named by an auth error', async () => {
+    mocks.syncState.mockReturnValue({
+      phase: 'error',
+      kind: null,
+      error: {
+        type: 'auth_required',
+        integrationId: 'github-enterprise',
+        host: 'ghe.example.com',
+        hint: 'Run: gh auth login --hostname ghe.example.com',
+      },
+    });
+    mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [] } });
+
+    await renderSelector();
+
+    const connect = await vi.waitFor(() => {
+      const button = [...container.querySelectorAll('button')].find(
+        (candidate) => candidate.textContent === 'Connect Acme GitHub'
+      );
+      expect(button).toBeDefined();
+      return button!;
+    });
+    await act(async () => {
+      connect.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(mocks.openIntegrationSetup).toHaveBeenCalledWith({ integration: 'github-enterprise' });
+    expect(container.textContent).toContain('Connect Acme GitHub to load PRs');
+    expect(container.textContent).not.toContain('Connect GitHub');
+    expect(
+      container.querySelector('[data-testid="integration-icon-github-enterprise"]')
+    ).not.toBeNull();
+  });
+
+  function renderSelector(provider = 'github') {
     return act(async () => {
       root.render(
         React.createElement(
           QueryClientProvider,
           { client: queryClient },
           React.createElement(PrSelector, {
+            provider,
             value: null,
             onValueChange: vi.fn(),
             projectId: PROJECT_ID,
@@ -477,40 +536,49 @@ describe('PrSelector', () => {
     expect(mocks.useAccounts).toHaveBeenCalledWith('github');
   });
 
-  it('renders a quiet disabled state and does not sync when GitHub is explicitly off', async () => {
+  it.each([
+    ['github', 'GitHub'],
+    ['gitlab', 'GitLab'],
+  ])('does not read when %s is explicitly off', async (provider, name) => {
     mocks.useProjectAccount.mockReturnValue({ value: null, provenance: { kind: 'set' } });
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [] } });
 
-    await renderSelector();
+    await renderSelector(provider);
 
     expect(container.querySelector('[data-testid="account-state-disabled"]')).not.toBeNull();
-    expect(container.textContent).toContain('GitHub is disabled for this project.');
+    expect(container.textContent).toContain(`${name} is disabled for this project.`);
     expect(container.querySelector('[data-status="destructive"]')).toBeNull();
     expect(mocks.refreshRepository).not.toHaveBeenCalled();
     expect(mocks.listPullRequests).not.toHaveBeenCalled();
   });
 
-  it('fails closed without syncing when the pinned account is unresolvable', async () => {
+  it.each([
+    ['github', 'GitHub'],
+    ['gitlab', 'GitLab'],
+  ])('fails closed when the pinned %s account is unresolvable', async (provider, name) => {
     mocks.useProjectAccount.mockReturnValue({ value: null, provenance: { kind: 'unresolvable' } });
 
-    await renderSelector();
+    await renderSelector(provider);
 
     expect(container.querySelector('[data-testid="account-state-unresolvable"]')).not.toBeNull();
-    expect(container.textContent).toContain('The selected GitHub account is no longer connected.');
+    expect(container.textContent).toContain(`The selected ${name} account is no longer connected.`);
     expect(mocks.refreshRepository).not.toHaveBeenCalled();
     expect(mocks.listPullRequests).not.toHaveBeenCalled();
   });
 
-  it('renders the connect state when no GitHub accounts are connected', async () => {
+  it.each([
+    ['github', 'GitHub'],
+    ['gitlab', 'GitLab'],
+  ])('renders the connect state without %s accounts', async (provider, name) => {
     mocks.useProjectAccount.mockReturnValue({
       value: null,
       provenance: { kind: 'inferred', from: 'no host-matching account' },
     });
 
-    await renderSelector();
+    await renderSelector(provider);
 
     expect(container.querySelector('[data-testid="account-state-connect"]')).not.toBeNull();
-    expect(container.textContent).toContain('Connect a GitHub account to get started.');
+    expect(container.textContent).toContain(`Connect a ${name} account to get started.`);
     expect(mocks.refreshRepository).not.toHaveBeenCalled();
   });
 });

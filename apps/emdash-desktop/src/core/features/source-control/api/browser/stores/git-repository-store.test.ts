@@ -159,6 +159,22 @@ describe('GitRepositoryStore', () => {
       store.dispose();
     });
 
+    it('passes an action-selected account to the fetch job', async () => {
+      remotesState.set({ remotes: [origin] });
+      mocks.fetchRun.mockResolvedValue(ok({ output: '' }));
+      const store = await startStore();
+      await store.fetchRemote({ providerId: 'github', accountId: 'selected' });
+      expect(mocks.fetchRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 'project-1',
+          remote: 'origin',
+          credentialAccount: { providerId: 'github', accountId: 'selected' },
+        }),
+        expect.anything()
+      );
+      store.dispose();
+    });
+
     it('still resolves a default branch from well-known local branches', async () => {
       refsState.set(refs({ branches: [localBranch('main', 'a')] }));
       const store = await startStore();

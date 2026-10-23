@@ -32,6 +32,31 @@
       "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
       "default": "./dist/issues.mjs"
+    },
+    "./pull-requests": {
+      "development": "./src/pull-requests/index.ts",
+      "types": "./dist/pull-requests.d.mts",
+      "default": "./dist/pull-requests.mjs"
+    },
+    "./pull-requests/github": {
+      "development": "./src/pull-requests/impl/github/client.ts",
+      "types": "./dist/pull-requests/github.d.mts",
+      "default": "./dist/pull-requests/github.mjs"
+    },
+    "./pull-requests/schemas": {
+      "development": "./src/pull-requests/schemas.ts",
+      "types": "./dist/pull-requests/schemas.d.mts",
+      "default": "./dist/pull-requests/schemas.mjs"
+    },
+    "./pull-requests/types": {
+      "development": "./src/pull-requests/types.ts",
+      "types": "./dist/pull-requests/types.d.mts",
+      "default": "./dist/pull-requests/types.mjs"
+    },
+    "./repository": {
+      "development": "./src/repository/index.ts",
+      "types": "./dist/repository.d.mts",
+      "default": "./dist/repository.mjs"
     }
   },
   "scripts": {
@@ -47,6 +72,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.280",
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
@@ -58,15 +84,17 @@
     "@octokit/rest": "^22.0.1",
     "@team-plain/graphql": "^1.0.1",
     "asana": "^3.1.12",
+    "axios": "^1.20.0",
     "featurebase-node": "^0.14.0",
     "jira.js": "^5.4.0",
     "smol-toml": "^1.6.0",
     "trello.js": "^2.1.4",
+    "youtrack-client": "^0.7.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@agentclientprotocol/claude-agent-acp": "^0.79.0",
-    "@agentclientprotocol/codex-acp": "^1.12.0",
+    "@agentclientprotocol/claude-agent-acp": "^0.81.2",
+    "@agentclientprotocol/codex-acp": "^1.13.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",

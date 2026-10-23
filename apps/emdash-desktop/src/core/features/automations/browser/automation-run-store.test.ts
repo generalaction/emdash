@@ -6,7 +6,6 @@ import type {
 } from '@emdash/core/runtimes/automations/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutomationRunStore } from './automation-run-store';
-
 const mocks = vi.hoisted(() => ({
   getRunOverview: vi.fn(),
   listChangedRuns: vi.fn(),
@@ -16,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
   unsubscribe: vi.fn(),
 }));
-
 vi.mock('@core/features/automations/api/browser/client', () => ({
   getAutomationsClient: async () => ({
     getRunOverview: mocks.getRunOverview,
@@ -25,7 +23,6 @@ vi.mock('@core/features/automations/api/browser/client', () => ({
     runEvents: { subscribe: mocks.subscribe },
   }),
 }));
-
 function runFixture({
   id = 'run-1',
   seq = 1,
@@ -48,7 +45,6 @@ function runFixture({
         type: 'acp',
         start: {
           providerId: 'claude',
-          model: null,
           initialQueue: [{ text: 'Review changes' }],
         },
       },
@@ -83,7 +79,6 @@ function runFixture({
     error: null,
   };
 }
-
 function overview(
   latestRun: AutomationRun | null,
   counts: Partial<GetRunOverviewResult['counts']> = {}
@@ -104,7 +99,6 @@ function overview(
     nextScheduledRun: null,
   };
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.onEvent = undefined;
@@ -112,7 +106,10 @@ beforeEach(() => {
   mocks.subscribe.mockImplementation(
     async (
       _key: unknown,
-      handlers: { onEvent: (event: { run: AutomationRun }) => void; onGap: () => void }
+      handlers: {
+        onEvent: (event: { run: AutomationRun }) => void;
+        onGap: () => void;
+      }
     ) => {
       mocks.onEvent = handlers.onEvent;
       mocks.onGap = handlers.onGap;
@@ -120,7 +117,6 @@ beforeEach(() => {
     }
   );
 });
-
 describe('AutomationRunStore overview', () => {
   it('updates counts from events without refetching the overview', async () => {
     const initialRun = runFixture();
@@ -131,16 +127,12 @@ describe('AutomationRunStore overview', () => {
     const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
-
     mocks.onEvent?.({ run: runFixture({ seq: 2, status: 'failed' }) });
-
     expect(store.counts.done).toBe(0);
     expect(store.counts.failed).toBe(1);
     expect(mocks.getRunOverview).toHaveBeenCalledOnce();
-
     release();
   });
-
   it('catches up and refreshes the authoritative overview after a stream gap', async () => {
     const initialRun = runFixture();
     const changedRun = runFixture({ seq: 2, status: 'failed' });
@@ -153,17 +145,13 @@ describe('AutomationRunStore overview', () => {
     const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
-
     mocks.onGap?.();
-
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledTimes(2));
     expect(mocks.listChangedRuns).toHaveBeenCalledTimes(2);
     expect(store.counts.done).toBe(0);
     expect(store.counts.failed).toBe(1);
-
     release();
   });
-
   it('refreshes counts when an event changes a run that was not in the overview snapshot', async () => {
     const laterRun = runFixture({ id: 'run-2', seq: 2, status: 'skipped' });
     const completedRun = runFixture({ id: 'run-1', seq: 3, status: 'done' });
@@ -179,17 +167,13 @@ describe('AutomationRunStore overview', () => {
     const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
-
     mocks.onEvent?.({ run: completedRun });
-
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledTimes(2));
     expect(store.counts.starting_session).toBe(0);
     expect(store.counts.done).toBe(1);
     expect(store.counts.skipped).toBe(1);
-
     release();
   });
-
   it('clears the next scheduled run when that run leaves the scheduled state', async () => {
     const scheduledRun = runFixture({ status: 'scheduled' });
     mocks.getRunOverview.mockResolvedValue({
@@ -199,14 +183,11 @@ describe('AutomationRunStore overview', () => {
     const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(store.nextScheduledRun?.id).toBe(scheduledRun.id));
-
     mocks.onEvent?.({ run: runFixture({ seq: 2, status: 'skipped' }) });
-
     expect(store.nextScheduledRun).toBeNull();
     expect(mocks.getRunOverview).toHaveBeenCalledOnce();
     release();
   });
-
   it('catches up loaded history after the last consumer releases and reconnects', async () => {
     const firstRun = runFixture();
     const missedRun = runFixture({ id: 'run-2', seq: 2, status: 'failed' });
@@ -225,35 +206,28 @@ describe('AutomationRunStore overview', () => {
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
     await store.loadInitialHistory('all', 25);
     release();
-
     const releaseAgain = store.acquire();
-
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledTimes(2));
     expect(store.history('all').map((run) => run.id)).toEqual(['run-2', 'run-1']);
     expect(mocks.subscribe).toHaveBeenCalledTimes(2);
     releaseAgain();
   });
 });
-
 describe('AutomationRunStore change subscription', () => {
   it('keeps notifying later listeners when an earlier listener throws', async () => {
     mocks.getRunOverview.mockResolvedValue({ success: true, data: overview(null) });
     const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
-
     const throwing = vi.fn(() => {
       throw new Error('listener failed');
     });
     const later = vi.fn();
     const unsubscribeThrowing = store.subscribe(throwing);
     const unsubscribeLater = store.subscribe(later);
-
     mocks.onEvent?.({ run: runFixture() });
-
     expect(throwing).toHaveBeenCalled();
     expect(later).toHaveBeenCalled();
-
     unsubscribeThrowing();
     unsubscribeLater();
     release();

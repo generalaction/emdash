@@ -601,6 +601,58 @@ export const PersistentModels: Story = {
   },
 };
 
+export const WithProviderConfiguration: Story = {
+  render: function ProviderConfigurationStory() {
+    const [model, setModel] = useState('default');
+    const [effort, setEffort] = useState('medium');
+    const [mode, setMode] = useState('full');
+    const [fast, setFast] = useState(false);
+    return (
+      <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+        <ChatComposer
+          modelOptions={{
+            default: { name: 'Default (recommended)' },
+            astra: { name: 'Astra' },
+          }}
+          selectedModel={model}
+          onModelChange={setModel}
+          effortOptions={{ medium: { name: 'Medium' }, high: { name: 'High' } }}
+          selectedEffort={effort}
+          onEffortChange={setEffort}
+          permissionModeOptions={{ full: { name: 'Full access' }, ask: { name: 'Ask' } }}
+          selectedPermissionMode={mode}
+          onPermissionModeChange={setMode}
+          configurationControls={
+            <Button variant="ghost" size="sm" aria-pressed={fast} onClick={() => setFast(!fast)}>
+              Fast mode: {fast ? 'On' : 'Off'}
+            </Button>
+          }
+          onSubmit={() => {}}
+        />
+      </Box>
+    );
+  },
+};
+
+export const CachedConfigurationWhileStarting: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        modelOptions={MOCK_MODELS}
+        selectedModel="claude-sonnet-4-5"
+        effortOptions={{ medium: { name: 'Medium' }, high: { name: 'High' } }}
+        selectedEffort="high"
+        permissionModeOptions={MOCK_PERMISSION_MODES}
+        selectedPermissionMode="default"
+        collaborationModeOptions={MOCK_COLLABORATION_MODES}
+        selectedCollaborationMode="default"
+        canSubmit={false}
+        onSubmit={() => {}}
+      />
+    </Box>
+  ),
+};
+
 export const WithMcpServers: Story = {
   render: () => (
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">

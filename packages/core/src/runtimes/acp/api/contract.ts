@@ -1,16 +1,7 @@
-import {
-  defineContract,
-  downloadFile,
-  fallible,
-  liveLog,
-  liveModel,
-  liveState,
-  uploadFile,
-} from '@emdash/wire/rpc';
+import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { terminalStateSchema } from '#runtimes/acp/api/models';
 import { agentStateSchema } from '#runtimes/acp/api/models/agents';
-import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
 import {
   sessionConfigStateSchema,
   sessionMcpServerSchema,
@@ -18,9 +9,7 @@ import {
 } from '#runtimes/acp/api/models/config';
 import { planStateSchema } from '#runtimes/acp/api/models/plan';
 import { sessionStateSchema, sessionSummarySchema } from '#runtimes/acp/api/models/session';
-import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 import {
-  acpAttachmentErrorSchema,
   acpCancelTurnErrorSchema,
   acpChangeQueuePromptOrderErrorSchema,
   acpDeleteQueuedPromptErrorSchema,
@@ -29,7 +18,6 @@ import {
   acpExportTranscriptErrorSchema,
   acpLaunchErrorSchema,
   acpLoadHistoryErrorSchema,
-  acpPurgeConversationDataErrorSchema,
   acpResolvePermissionErrorSchema,
   acpSendPromptErrorSchema,
   acpSetOptionErrorSchema,
@@ -38,31 +26,25 @@ import {
 } from './errors';
 import {
   acpStartInputSchema,
+  acpSessionStartModeSchema,
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
-  deleteAttachmentCommandSchema,
   deleteQueuedPromptCommandSchema,
-  downloadAttachmentCommandSchema,
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
   historyPageInputSchema,
-  loadHistoryResultSchema,
-  purgeConversationDataCommandSchema,
+  historyPageSchema,
   resolvePermissionCommandSchema,
   sendPromptCommandSchema,
   sendPromptResponseSchema,
   setOptionCommandSchema,
+  setOptionResultSchema,
   terminateCommandSchema,
-  uploadAttachmentCommandSchema,
-  uploadAttachmentResponseSchema,
 } from './schemas';
 
-const launchResultSchema = z.object({
+const startSessionResultSchema = z.object({
   sessionId: z.string(),
-  clearedConfiguration: z
-    .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
-    .optional(),
 });
 const sessionKeySchema = z.object({ conversationId: z.string() });
 const terminalOutputKeySchema = z.object({ terminalId: z.string() });
@@ -70,11 +52,12 @@ const terminalOutputKeySchema = z.object({ terminalId: z.string() });
 export const acpApiContract = defineContract({
   attach: fallible({
     input: acpStartInputSchema,
+    data: z.object({ sessionId: z.string().nullable() }),
     error: acpStartErrorSchema,
   }),
-  launch: fallible({
-    input: acpStartInputSchema,
-    data: launchResultSchema,
+  startSession: fallible({
+    input: acpStartInputSchema.extend({ mode: acpSessionStartModeSchema }),
+    data: startSessionResultSchema,
     error: acpLaunchErrorSchema,
   }),
   /**
@@ -109,6 +92,7 @@ export const acpApiContract = defineContract({
   }),
   setOption: fallible({
     input: setOptionCommandSchema,
+    data: setOptionResultSchema,
     error: acpSetOptionErrorSchema,
   }),
   resolvePermission: fallible({
@@ -125,27 +109,10 @@ export const acpApiContract = defineContract({
     data: z.object({ log: z.string() }),
     error: acpExportRawLogErrorSchema,
   }),
-  uploadAttachment: uploadFile({
-    input: uploadAttachmentCommandSchema,
-    result: uploadAttachmentResponseSchema,
-    error: acpAttachmentErrorSchema,
-  }),
-  downloadAttachment: downloadFile({
-    input: downloadAttachmentCommandSchema,
-    meta: attachmentRefSchema,
-    error: acpAttachmentErrorSchema,
-  }),
-  deleteAttachment: fallible({
-    input: deleteAttachmentCommandSchema,
-    error: acpAttachmentErrorSchema,
-  }),
-  purgeConversationData: fallible({
-    input: purgeConversationDataCommandSchema,
-    error: acpPurgeConversationDataErrorSchema,
-  }),
+
   loadHistory: fallible({
     input: historyPageInputSchema,
-    data: loadHistoryResultSchema,
+    data: historyPageSchema,
     error: acpLoadHistoryErrorSchema,
   }),
   sessions: liveModel({
@@ -162,7 +129,6 @@ export const acpApiContract = defineContract({
       usage: liveState({ data: sessionUsageSchema.nullable() }),
       plan: liveState({ data: planStateSchema.nullable() }),
       agents: liveState({ data: z.array(agentStateSchema) }),
-      activeTurn: liveState({ data: transcriptTurnSchema.nullable() }),
       terminals: liveState({ data: z.array(terminalStateSchema) }),
       mcpServers: liveState({ data: z.array(sessionMcpServerSchema) }),
     },

@@ -1,3 +1,4 @@
+import type { PullRequest, PullRequestComment } from '@emdash/plugins/pull-requests/schemas';
 import { EmptyState } from '@emdash/ui/react/components';
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -10,12 +11,7 @@ import {
   type CheckRunBucket,
 } from '@core/features/github/api/browser/checks';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
-import {
-  pullRequestErrorMessage,
-  type PullRequest,
-  type PullRequestComment,
-  type PullRequestDetails,
-} from '@core/services/pull-requests/api';
+import { pullRequestErrorMessage, type PullRequestDetails } from '@core/services/pull-requests/api';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
 

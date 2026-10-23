@@ -895,6 +895,35 @@ describe('createTask', () => {
       );
     });
 
+    it('provisions a GitLab fork MR with its target ref and canonical association', async () => {
+      const { captured } = setupTransactionMock();
+      await createTask(
+        db,
+        projects,
+        hostIsReachable,
+        prParams({
+          provider: 'gitlab',
+          prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42',
+          headRepositoryUrl: 'https://gitlab.com/fork/repo',
+          isFork: true,
+        })
+      );
+      const wsInsert = captured[1] as Record<string, unknown>;
+      await settleCreation(wsInsert.id);
+      expect(wsInsert.path).toMatch(/\/mr-42-feat-my-pr$/u);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'mr/42/feat/my-pr',
+          gitSetup: {
+            fetchBranch: { remote: 'origin', sourceRef: 'refs/merge-requests/42/head' },
+            upstream: { remote: 'origin', mergeRef: 'refs/merge-requests/42/head' },
+            breadcrumb: { prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42' },
+            followRef: true,
+          },
+        })
+      );
+    });
+
     it('refuses PR checkout when the resolver finds no remotes', async () => {
       // The effective base remote comes from the blessed resolver; null means
       // the repository has no remotes, so a PR-sourced plan cannot compile.

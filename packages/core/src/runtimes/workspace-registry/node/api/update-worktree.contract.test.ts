@@ -13,6 +13,7 @@ import {
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { executeUpdateWorktree } from '#runtimes/workspace-registry/node/update-worktree';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { createWorkspaceRegistryController } from './controller';
 
 // Contract-seam tests for updateWorktree (pr-workspace-model spec, Staleness — manual
@@ -65,6 +66,7 @@ describe('workspace registry updateWorktree', () => {
     handle = await workspaceRegistryStore.openTemp();
     sessionCount = 0;
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock: new ManualClock(10_000),
       countSessions: async () => sessionCount,

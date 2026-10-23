@@ -84,7 +84,7 @@ describe('RuntimeBroker', () => {
     expect(retained.success).toBe(true);
     if (!retained.success) throw new Error('Expected the first Host runtime');
     const reattached = vi.fn();
-    const handle = retained.data.files.tree.model.state({} as never, 'tree');
+    const handle = retained.data.files.listing.state({} as never, 'listing');
     const detach = await handle.attach(vi.fn(), { onReattach: reattached });
 
     current = {
@@ -114,7 +114,7 @@ describe('RuntimeBroker', () => {
     const retained = await broker.client(host);
     expect(retained.success).toBe(true);
     if (!retained.success) throw new Error('Expected the first Host runtime');
-    const handle = retained.data.files.tree.model.state({} as never, 'tree');
+    const handle = retained.data.files.listing.state({} as never, 'listing');
     const pendingAttach = handle.attach(vi.fn());
 
     current = {
@@ -144,7 +144,7 @@ describe('RuntimeBroker', () => {
     const retained = await broker.client(host);
     expect(retained.success).toBe(true);
     if (!retained.success) throw new Error('Expected the first Host runtime');
-    const handle = retained.data.files.tree.model.state({} as never, 'tree');
+    const handle = retained.data.files.listing.state({} as never, 'listing');
     await handle.attach(vi.fn());
 
     broker.rebind(host, {} as HostRuntimesClient);
@@ -165,7 +165,7 @@ describe('RuntimeBroker', () => {
     const retained = await broker.client(host);
     expect(retained.success).toBe(true);
     if (!retained.success) throw new Error('Expected the first Host runtime');
-    const handle = retained.data.files.tree.model.state({} as never, 'tree');
+    const handle = retained.data.files.listing.state({} as never, 'listing');
     await handle.attach(vi.fn());
 
     broker.dispose();

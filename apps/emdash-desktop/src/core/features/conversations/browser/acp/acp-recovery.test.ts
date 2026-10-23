@@ -13,20 +13,53 @@ import { cell, expose } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { conversationsContract } from '../../api';
 import { AcpLiveSession } from './acp-live-session';
-
 const getClient = vi.hoisted(() => vi.fn());
 vi.mock('@core/features/conversations/api/browser/client', () => ({
   getConversationsClient: getClient,
 }));
-
 const contract = defineContract({
   acp: defineContract({
     attach: conversationsContract.acp.attach,
+    startSession: conversationsContract.acp.startSession,
     session: conversationsContract.acp.session,
   }),
 });
-
 describe('ACP attachment recovery over replaceable Wire', () => {
+  it.each([null, 'saved'])(
+    'uses the shared start operation after attaching session %s',
+    async (sessionId) => {
+      const transport = replaceableTransport();
+      const connection = connect(transport, { maxHeldCalls: 0 });
+      getClient.mockResolvedValue(client(contract, connection));
+      const runtime = peer('model', Promise.resolve(), async () => {}, sessionId);
+      transport.install(runtime.transport);
+      const session = await AcpLiveSession.create('conversation');
+      try {
+        expect(runtime.startSession).not.toHaveBeenCalled();
+        await session.startSession();
+        expect(runtime.startSession.mock.calls[0]?.[0]).toEqual({
+          conversationId: 'conversation',
+          mode: sessionId ? 'resume' : 'fresh',
+        });
+        await session.startSession('fresh');
+        expect(runtime.startSession.mock.calls[1]?.[0]).toEqual({
+          conversationId: 'conversation',
+          mode: 'fresh',
+        });
+        await session.startSession();
+        expect(runtime.startSession.mock.calls[2]?.[0]).toEqual({
+          conversationId: 'conversation',
+          mode: 'resume',
+        });
+      } finally {
+        session.dispose();
+        connection.dispose();
+        transport.close();
+        await runtime.dispose();
+      }
+    }
+  );
+
   it.each(['cancel', 'dispose'] as const)(
     'does not restore usability after %s during attachment',
     async (action) => {
@@ -77,14 +110,19 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       const recovery = expect(session.revalidate()).rejects.toThrow(
         'Timed out reattaching ACP session'
       );
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(10000);
       await recovery;
       expect(session.usable).toBe(false);
       gate.resolve();
       await vi.advanceTimersByTimeAsync(0);
-      await expect(rpc.acp.attach({ conversationId: 'conversation' })).resolves.toEqual(ok());
-      await vi.advanceTimersByTimeAsync(60_000);
-      expect(session.config.current().modelOptions?.selected).toBe('new');
+      await expect(rpc.acp.attach({ conversationId: 'conversation' })).resolves.toEqual(
+        ok({ sessionId: 'session-1' })
+      );
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('new');
       expect(session.usable).toBe(false);
       await session.revalidate();
       expect(session.usable).toBe(true);
@@ -98,7 +136,6 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       vi.useRealTimers();
     }
   });
-
   it('recovers optional metadata after its initial acquisition fails without blocking chat', async () => {
     const transport = replaceableTransport();
     const connection = connect(transport, { maxHeldCalls: 0 });
@@ -125,7 +162,6 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       await replacement.dispose();
     }
   });
-
   it('retains the logical session while reattaching and refreshing daemon-owned state', async () => {
     const transport = replaceableTransport();
     const connection = connect(transport, { maxHeldCalls: 0 });
@@ -137,9 +173,15 @@ describe('ACP attachment recovery over replaceable Wire', () => {
     const session = await AcpLiveSession.create('conversation');
     try {
       expect(session.usable).toBe(true);
-      expect(session.config.current().modelOptions?.selected).toBe('old');
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('old');
       transport.detach();
-      expect(session.config.current().modelOptions?.selected).toBe('old');
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('old');
       transport.install(replacement.transport);
       const recovery = session.revalidate();
       expect(session.usable).toBe(false);
@@ -147,7 +189,10 @@ describe('ACP attachment recovery over replaceable Wire', () => {
       await recovery;
       expect(session.usable).toBe(true);
       expect(session.conversationId).toBe('conversation');
-      expect(session.config.current().modelOptions?.selected).toBe('new');
+      expect(
+        session.config.current().options?.find((option) => option.category === 'model')
+          ?.currentValue
+      ).toBe('new');
     } finally {
       gate.resolve();
       session.dispose();
@@ -158,16 +203,17 @@ describe('ACP attachment recovery over replaceable Wire', () => {
     }
   });
 });
-
 function peer(
   model: string,
   attachGate: Promise<void> = Promise.resolve(),
-  loadMetadata: () => Promise<void> = async () => {}
+  loadMetadata: () => Promise<void> = async () => {},
+  sessionId: string | null = 'session-1'
 ) {
   const session = expose(contract.acp.session, {
     state: cell({
       lifecycle: 'ready' as const,
       activeTurnId: null,
+      transcript: null,
       pendingPermissions: [],
       lastStopReason: null,
       lastTurnErrored: false,
@@ -179,27 +225,37 @@ function peer(
       canCancel: false,
     }),
     config: cell({
-      modelOptions: { configId: 'model', selected: model, available: [] },
-      efforts: null,
-      modeOptions: null,
       availableCommands: [],
+      options: [
+        {
+          category: 'model',
+          name: 'model',
+          type: 'select',
+          id: 'model',
+          currentValue: model,
+          options: [],
+        },
+      ],
     }),
     usage: cell(null),
     plan: cell(null),
     agents: cell([]),
-    activeTurn: cell(null),
     terminals: cell([]),
     mcpServers: async () => {
       await loadMetadata();
       return cell([{ name: model }]);
     },
   });
+  const startSession = vi.fn(async (_input: { conversationId: string; mode: 'resume' | 'fresh' }) =>
+    ok({ sessionId: 'session-1' })
+  );
   const controller = createController(contract, {
     acp: {
       attach: async () => {
         await attachGate;
-        return ok();
+        return ok({ sessionId });
       },
+      startSession,
       session,
     },
   });
@@ -208,6 +264,7 @@ function peer(
   hub.open('client', pair.right);
   return {
     transport: pair.left,
+    startSession,
     dispose: async () => {
       await hub.dispose();
       await session.dispose();

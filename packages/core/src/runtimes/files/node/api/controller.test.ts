@@ -15,7 +15,7 @@ import {
 } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createPathProfile } from '#primitives/path/api';
-import { filesContract } from '#runtimes/files/api';
+import { filesContract, listingEntry, type FolderListing } from '#runtimes/files/api';
 import { FilesRuntime } from '#runtimes/files/node/files-runtime';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
 import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 describe('createFilesController', () => {
-  it('serves filesystem, tree, content, mutation, and download behavior through Wire', async () => {
+  it('serves filesystem, listing, content, mutation, and download behavior through Wire', async () => {
     const root = await makeRoot();
     const rootRef = runtimeRoot(root);
     await mkdir(path.join(root, 'src/foo'), { recursive: true });
@@ -36,44 +36,42 @@ describe('createFilesController', () => {
     const watcher = new ManualWatcher();
     const runtime = new FilesRuntime({ watcher, idleTtlMs: 10_000 });
     const connection = makeClient(runtime);
-    const key = { root: rootRef, sessionId: 'session-1' };
-    let detachTree: (() => void) | undefined;
+    const listingKey = (folder: string) => ({ root: rootRef, path: relativePath(folder) });
+    const readyEntries = (listing: FolderListing) =>
+      listing.status === 'ready' ? listing.entries : {};
+    let detachListing: (() => void) | undefined;
 
     try {
       await expect(connection.api.getHomeDir()).resolves.toEqual({
         path: runtimeRoot(await realpath(homedir())),
         profile: createPathProfile({ style: path.sep === '\\' ? 'win32' : 'posix' }),
       });
-      await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
-        data: { entries: { '': { childrenLoaded: false } } },
+      await expect(
+        connection.api.listing.state(listingKey(''), 'listing').snapshot()
+      ).resolves.toMatchObject({
+        data: { status: 'ready', entries: { '/src': { kind: 'directory' } } },
       });
-      for (const entryPath of ['', 'src', 'src/foo']) {
-        const expanded = await connection.api.tree.model.mutate('expand', {
-          key,
-          input: { path: relativePath(entryPath) },
-        });
-        expect(expanded).toMatchObject({ success: true });
-        if (entryPath === '' && expanded.success) {
-          expect(expanded.data.cursors).toEqual([
-            {
-              model: filesContract.tree.model.states.tree.id,
-              key,
-              cursor: expect.objectContaining({ sequence: 1 }),
-            },
-          ]);
-        }
+      const refreshed = await connection.api.listing.mutate('refresh', {
+        key: listingKey(''),
+        input: undefined,
+      });
+      expect(refreshed).toMatchObject({ success: true });
+      if (refreshed.success) {
+        expect(refreshed.data.cursors).toEqual([
+          {
+            model: filesContract.listing.states.listing.id,
+            key: listingKey(''),
+            cursor: expect.objectContaining({ generation: expect.any(Number) }),
+          },
+        ]);
       }
 
-      await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
-        data: {
-          entries: {
-            'src/foo/bar.ts': { kind: 'file', parentPath: 'src/foo' },
-          },
-        },
+      const listingState = connection.api.listing.state(listingKey('src/foo'), 'listing');
+      await expect(listingState.snapshot()).resolves.toMatchObject({
+        data: { status: 'ready', entries: { '/bar.ts': { kind: 'file' } } },
       });
-      const treeState = connection.api.tree.model.state(key, 'tree');
-      const treeUpdates: LiveUpdate[] = [];
-      detachTree = await treeState.attach((update) => treeUpdates.push(update));
+      const listingUpdates: LiveUpdate[] = [];
+      detachListing = await listingState.attach((update) => listingUpdates.push(update));
       await expect(
         connection.api.content
           .state({ path: runtimeRoot(path.join(root, 'src/foo/bar.ts')) }, 'content')
@@ -87,21 +85,21 @@ describe('createFilesController', () => {
         })
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
-        const snapshot = await connection.api.tree.model.state(key, 'tree').snapshot();
+        const entries = readyEntries((await listingState.snapshot()).data);
         return (
-          snapshot.data.entries['src/foo/bar.ts'] === undefined &&
-          snapshot.data.entries['src/foo/baar.ts']?.kind === 'file'
+          listingEntry(entries, 'bar.ts') === undefined &&
+          listingEntry(entries, 'baar.ts')?.kind === 'file'
         );
       });
-      expect(treeUpdates).toContainEqual(
+      expect(listingUpdates).toContainEqual(
         expect.objectContaining({
           delta: expect.arrayContaining([
-            expect.objectContaining({ path: ['entries', 'src/foo/bar.ts'] }),
+            expect.objectContaining({ path: ['entries', '/bar.ts'] }),
           ]),
         })
       );
       expect(
-        treeUpdates.every(
+        listingUpdates.every(
           (update) =>
             Array.isArray(update.delta) &&
             !update.delta.some((patch) => Array.isArray(patch.path) && patch.path.length === 0)
@@ -114,7 +112,7 @@ describe('createFilesController', () => {
       ).resolves.toMatchObject({ data: { kind: 'unavailable', code: 'not-found' } });
 
       // Content sessions watch the file's parent directory, so external edits
-      // are observed there rather than through the tree root's watch.
+      // are observed there rather than through the listing root's watch.
       await writeFile(path.join(root, 'src/foo/baar.ts'), 'external\n');
       watcher.emit(path.join(root, 'src/foo'), [
         { kind: 'update', path: path.join(root, 'src/foo/baar.ts') },
@@ -191,7 +189,7 @@ describe('createFilesController', () => {
         expect(Buffer.from(await download.data.bytes()).toString('utf8')).toBe('newer external\n');
       }
     } finally {
-      detachTree?.();
+      detachListing?.();
       connection.dispose();
       await runtime.dispose();
     }
@@ -224,61 +222,38 @@ describe('createFilesController', () => {
     }
   });
 
-  it('keeps expansion state per session and rebuilds each loaded frontier on resync', async () => {
+  it('rereads every listed folder when the watcher asks for a resync', async () => {
     const root = await makeRoot();
-    const rootRef = runtimeRoot(root);
     await mkdir(path.join(root, 'src/nested'), { recursive: true });
     await writeFile(path.join(root, 'src/nested/file.ts'), 'one');
     const watcher = new ManualWatcher();
     const runtime = new FilesRuntime({ watcher, idleTtlMs: 10_000 });
     const connection = makeClient(runtime);
-    const first = { root: rootRef, sessionId: 'first' };
-    const second = { root: rootRef, sessionId: 'second' };
+    const nested = connection.api.listing.state(
+      { root: runtimeRoot(root), path: relativePath('src/nested') },
+      'listing'
+    );
+    const detach = await nested.attach(() => {});
 
     try {
-      await connection.api.tree.model.state(first, 'tree').snapshot();
-      await connection.api.tree.model.state(second, 'tree').snapshot();
-      await expect(
-        connection.api.tree.model.mutate('reveal', {
-          key: first,
-          input: { path: relativePath('src/nested/file.ts') },
-        })
-      ).resolves.toMatchObject({ success: true });
-
-      await expect(
-        connection.api.tree.model.state(first, 'tree').snapshot()
-      ).resolves.toMatchObject({
-        data: {
-          entries: {
-            src: { childrenLoaded: true },
-            'src/nested': { childrenLoaded: true },
-            'src/nested/file.ts': { kind: 'file' },
-          },
-        },
+      await expect(nested.snapshot()).resolves.toMatchObject({
+        data: { status: 'ready', entries: { '/file.ts': { kind: 'file' } } },
       });
-      await expect(
-        connection.api.tree.model.state(second, 'tree').snapshot()
-      ).resolves.toMatchObject({ data: { entries: { '': { childrenLoaded: false } } } });
-
       await rm(path.join(root, 'src/nested/file.ts'));
       await writeFile(path.join(root, 'src/nested/new.ts'), 'two');
       watcher.resync(root);
       await waitFor(async () => {
-        const snapshot = await connection.api.tree.model.state(first, 'tree').snapshot();
-        return (
-          snapshot.data.entries['src/nested/file.ts'] === undefined &&
-          snapshot.data.entries['src/nested/new.ts']?.kind === 'file'
-        );
+        const listing = (await nested.snapshot()).data;
+        return listing.status === 'ready' && Object.keys(listing.entries).join() === '/new.ts';
       });
-      const secondSnapshot = await connection.api.tree.model.state(second, 'tree').snapshot();
-      expect(Object.keys(secondSnapshot.data.entries)).toEqual(['']);
     } finally {
+      detach();
       connection.dispose();
       await runtime.dispose();
     }
   });
 
-  it('refreshes loaded directory symlinks when their target changes', async () => {
+  it('rereads a listed folder link when its target changes', async () => {
     const root = await makeRoot();
     const rootRef = runtimeRoot(root);
     await mkdir(path.join(root, 'first'));
@@ -293,20 +268,17 @@ describe('createFilesController', () => {
     const watcher = new ManualWatcher();
     const runtime = new FilesRuntime({ watcher, idleTtlMs: 10_000 });
     const connection = makeClient(runtime);
-    const key = { root: rootRef, sessionId: 'symlink-target' };
+    const top = connection.api.listing.state({ root: rootRef, path: relativePath('') }, 'listing');
+    const linked = connection.api.listing.state(
+      { root: rootRef, path: relativePath('linked') },
+      'listing'
+    );
+    const detachTop = await top.attach(() => {});
+    const detachLinked = await linked.attach(() => {});
 
     try {
-      await connection.api.tree.model.state(key, 'tree').snapshot();
-      await connection.api.tree.model.mutate('expand', {
-        key,
-        input: { path: relativePath('') },
-      });
-      await connection.api.tree.model.mutate('expand', {
-        key,
-        input: { path: relativePath('linked') },
-      });
-      await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
-        data: { entries: { 'linked/a.txt': { kind: 'file' } } },
+      await expect(linked.snapshot()).resolves.toMatchObject({
+        data: { status: 'ready', entries: { '/a.txt': { kind: 'file' } } },
       });
 
       await rm(path.join(root, 'linked'));
@@ -314,10 +286,36 @@ describe('createFilesController', () => {
       watcher.emit(root, [{ kind: 'update', path: path.join(root, 'linked') }]);
 
       await waitFor(async () => {
-        const entries = (await connection.api.tree.model.state(key, 'tree').snapshot()).data
-          .entries;
-        return entries['linked/a.txt'] === undefined && entries['linked/b.txt']?.kind === 'file';
+        const listing = (await linked.snapshot()).data;
+        return listing.status === 'ready' && Object.keys(listing.entries).join() === '/b.txt';
       });
+    } finally {
+      detachTop();
+      detachLinked();
+      connection.dispose();
+      await runtime.dispose();
+    }
+  });
+
+  it('lists a directory once with sizes and repository detection', async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, 'project/.git'), { recursive: true });
+    await mkdir(path.join(root, 'plain'));
+    await writeFile(path.join(root, 'notes.md'), 'hello');
+    const runtime = new FilesRuntime({ watcher: new ManualWatcher() });
+    const connection = makeClient(runtime);
+
+    try {
+      const listed = await connection.api.fs.listDirectory({ path: runtimeRoot(root) });
+      expect(listed.success).toBe(true);
+      if (!listed.success) return;
+      const byName = Object.fromEntries(listed.data.entries.map((entry) => [entry.name, entry]));
+      expect(byName.project).toMatchObject({ kind: 'directory', isRepository: true });
+      expect(byName.plain).toMatchObject({ kind: 'directory', isRepository: false });
+      expect(byName['notes.md']).toMatchObject({ kind: 'file', size: 5, isRepository: false });
+      await expect(
+        connection.api.fs.listDirectory({ path: runtimeRoot(path.join(root, 'missing')) })
+      ).resolves.toMatchObject({ success: false, error: { type: 'not-found' } });
     } finally {
       connection.dispose();
       await runtime.dispose();

@@ -29,7 +29,8 @@ interface WorkspaceSettingsSectionProps {
 }
 
 export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettingsSectionProps) {
-  const { workspaceConfig, projectId, isUnborn, hasRepository, hasPR } = useTaskState();
+  const { workspaceConfig, projectId, isUnborn, hasRepository, hasPR, requestProvider } =
+    useTaskState();
 
   const { presetId, branchSelection } = workspaceConfig;
   const { createBranchAndWorktree, setCreateBranchAndWorktree } = branchSelection;
@@ -48,6 +49,7 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
         value={presetId}
         onValueChange={workspaceConfig.setPresetId}
         hasPR={hasPR}
+        requestProvider={requestProvider}
         hasExistingWorkspaces={workspaceConfig.workspaceOptions.some(
           (workspace) => !!workspace.workspaceId && !workspace.disabledReason
         )}
@@ -87,7 +89,12 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
 
         {hasSettings && (
           <Collapsible.Panel className="flex flex-col gap-3">
-            <Panel workspaceConfig={workspaceConfig} projectId={projectId} isUnborn={isUnborn} />
+            <Panel
+              workspaceConfig={workspaceConfig}
+              projectId={projectId}
+              isUnborn={isUnborn}
+              requestProvider={requestProvider}
+            />
           </Collapsible.Panel>
         )}
       </Collapsible.Root>

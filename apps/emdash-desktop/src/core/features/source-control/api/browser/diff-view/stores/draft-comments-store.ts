@@ -105,6 +105,15 @@ export class DraftCommentsStore {
     return this.commentsById.delete(id);
   }
 
+  /** Removes sent comments, keeping any edited since the snapshot was taken. */
+  deleteSent(sent: readonly DraftComment[]): void {
+    for (const comment of sent) {
+      if (this.commentsById.get(comment.id)?.content === comment.content) {
+        this.commentsById.delete(comment.id);
+      }
+    }
+  }
+
   consumeAll(): string {
     const formatted = this.formattedForAgent;
     this.clear();

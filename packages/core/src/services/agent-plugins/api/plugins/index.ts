@@ -19,6 +19,7 @@ import { pluginsCapability } from '#services/agent-plugins/api/plugins/capabilit
 import { promptCapability } from '#services/agent-plugins/api/plugins/capabilities/prompt';
 import { sessionsCapability } from '#services/agent-plugins/api/plugins/capabilities/sessions';
 import { trustCapability } from '#services/agent-plugins/api/plugins/capabilities/trust';
+import { usageLimitsCapability } from '#services/agent-plugins/api/plugins/capabilities/usage-limits';
 
 export const PLUGIN_CAPABILITIES = {
   acp: acpCapability,
@@ -33,6 +34,7 @@ export const PLUGIN_CAPABILITIES = {
   prompt: promptCapability,
   sessions: sessionsCapability,
   trust: trustCapability,
+  usageLimits: usageLimitsCapability,
 } as const;
 
 export type Capabilities = typeof PLUGIN_CAPABILITIES;
@@ -132,3 +134,8 @@ export type {
 
 // Typed registry factory
 export { createPluginRegistry, type PluginRegistry } from '@emdash/shared/plugins';
+
+export type {
+  IUsageLimitsBehavior,
+  UsageProbeContext,
+} from '#services/agent-plugins/api/plugins/capabilities/usage-limits';

@@ -24,8 +24,8 @@ streams, or live jobs — those stay. See
 Today every stateful runtime hand-rolls the same machinery: dirty flags,
 debounce timers, one-in-flight-plus-one-queued refresh collapse, lease
 lifecycles, imperative invalidation fan-out, and per-provider
-`acquireState`/`ready`/`release` plumbing. `TreeResource` spends ~200 lines on
-scheduling; `RepositoryResource` manually fans invalidations out to every
+`acquireState`/`ready`/`release` plumbing. The former file `TreeResource` spent
+~200 lines on scheduling; `RepositoryResource` manually fans invalidations out to every
 checkout; every `LeasedLiveModelProvider` implementation repeats the same ~40
 lines. The kernel moves all of that into one tested core and leaves feature
 code with declarations:

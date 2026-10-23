@@ -159,10 +159,7 @@ export function flattenTier(
 
 function shouldShowWorking(items: readonly ChatItem[]): boolean {
   return !items.some(
-    (item) =>
-      item.kind === 'thinking' ||
-      item.kind !== 'message' ||
-      (item.kind === 'message' && item.role === 'assistant')
+    (item) => item.kind !== 'notification' && (item.kind !== 'message' || item.role === 'assistant')
   );
 }
 

@@ -6,14 +6,9 @@ import { hostFileRef, parseAbsolute } from '#primitives/path/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- exercises the port's registry rewiring (workspaceHost retirement, spec §4.1)
 import type { WorkspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import type { ConversationIndexContract } from '#services/conversation-index/api';
-import type {
-  AcpSessionLaunchContract,
-  TuiSessionStartContract,
-} from '#services/session-start/api';
+import type { AcpSessionStartContract, TuiSessionStartContract } from '#services/session-start/api';
 import { createSessionPortFromDependencies } from './session-start';
-
 const cwd = absolute('/tmp/workspace');
-
 describe('createSessionPortFromDependencies', () => {
   it('creates the index record and registers + activates the workspace before an ACP start', async () => {
     const start = vi.fn(async () => ok({ sessionId: 'provider-session-1' }));
@@ -25,11 +20,10 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace,
         activateWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as ContractClient<AcpSessionStartContract>,
       tui: unusedTuiClient(),
       conversationIndex: { create } as unknown as ContractClient<ConversationIndexContract>,
     });
-
     const result = await port.start({
       conversationId: 'conversation-1',
       cwd,
@@ -37,15 +31,16 @@ describe('createSessionPortFromDependencies', () => {
         type: 'acp',
         start: {
           providerId: 'claude',
-          model: 'opus',
-          modeId: 'agent',
           initialQueue: [{ text: 'Review this repository' }],
+          options: {
+            model: 'opus',
+            mode: 'agent',
+          },
         },
       },
       fallbackTitle: 'Nightly review',
       signal: new AbortController().signal,
     });
-
     expect(result).toEqual(ok({ sessionId: 'provider-session-1' }));
     // Host-side record creation (spec §10.5) precedes everything: the record must
     // exist — dangling — before any session runtime reports against it.
@@ -86,14 +81,54 @@ describe('createSessionPortFromDependencies', () => {
         providerId: 'claude',
         cwd: '/tmp/workspace',
         sessionId: null,
-        model: 'opus',
-        modeId: 'agent',
+        mode: 'fresh',
         initialQueue: [{ text: 'Review this repository' }],
+        options: {
+          model: 'opus',
+          mode: 'agent',
+        },
       },
       { signal: expect.any(AbortSignal) }
     );
   });
-
+  it('passes ACP options through headless startSession and its durable index', async () => {
+    const startSession = vi.fn(async () => ok({ sessionId: 'provider-session' }));
+    const create = vi.fn(async () => ok({ created: true }));
+    const port = createSessionPortFromDependencies({
+      workspaceRegistry: activatingWorkspaceRegistry(),
+      acp: { startSession },
+      tui: unusedTuiClient(),
+      conversationIndex: { create } as unknown as ContractClient<ConversationIndexContract>,
+    });
+    await port.start({
+      conversationId: 'conversation-options',
+      cwd,
+      agent: {
+        type: 'acp',
+        start: {
+          providerId: 'claude',
+          initialQueue: [{ text: 'Review' }],
+          options: { reasoning_effort: 'xhigh', fast: false },
+        },
+      },
+      fallbackTitle: 'Run',
+      signal: new AbortController().signal,
+    });
+    expect(startSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: { reasoning_effort: 'xhigh', fast: false },
+      }),
+      expect.anything()
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          options: { reasoning_effort: 'xhigh', fast: false },
+        }),
+      }),
+      expect.anything()
+    );
+  });
   it('adopts the existing registry record when the path is already registered', async () => {
     const start = vi.fn(async () => ok({ sessionId: 'provider-session-2' }));
     const activateWorkspace = vi.fn(async () => ok({ id: 'existing-workspace' }));
@@ -102,39 +137,35 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace: vi.fn(async () => ok({ id: 'existing-workspace' })),
         activateWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as ContractClient<AcpSessionStartContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
-
     const result = await port.start({
       conversationId: 'conversation-6',
       cwd,
       agent: {
         type: 'acp',
-        start: { providerId: 'claude', model: null, initialQueue: [{ text: 'Go' }] },
+        start: { providerId: 'claude', initialQueue: [{ text: 'Go' }] },
       },
       fallbackTitle: 'Run',
       signal: new AbortController().signal,
     });
-
     expect(result).toEqual(ok({ sessionId: 'provider-session-2' }));
     expect(activateWorkspace).toHaveBeenCalledWith(
       { workspaceId: 'existing-workspace' },
       { signal: expect.any(AbortSignal) }
     );
   });
-
   it('supplies terminal geometry and returns no provider session id for TUI', async () => {
     const start = vi.fn(async () => ok({ outcome: 'started' as const }));
     const create = vi.fn(async () => ok({ created: true }));
     const port = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: unusedAcpClient(),
-      tui: { start } as ContractClient<TuiSessionStartContract>,
+      tui: { startSession: start } as ContractClient<TuiSessionStartContract>,
       conversationIndex: { create } as unknown as ContractClient<ConversationIndexContract>,
     });
-
     const result = await port.start({
       conversationId: 'conversation-2',
       cwd,
@@ -150,7 +181,6 @@ describe('createSessionPortFromDependencies', () => {
       fallbackTitle: 'Nightly review',
       signal: new AbortController().signal,
     });
-
     expect(result).toEqual(ok({ sessionId: null }));
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -175,7 +205,6 @@ describe('createSessionPortFromDependencies', () => {
       { signal: expect.any(AbortSignal) }
     );
   });
-
   it('fails without starting a session when record creation fails', async () => {
     const start = vi.fn();
     const createWorkspace = vi.fn();
@@ -183,20 +212,19 @@ describe('createSessionPortFromDependencies', () => {
       workspaceRegistry: {
         createWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as unknown as ContractClient<AcpSessionStartContract>,
       tui: unusedTuiClient(),
       conversationIndex: {
         create: async () => err({ type: 'invalid-input', message: 'Bad record' }),
       } as unknown as ContractClient<ConversationIndexContract>,
     });
-
     await expect(
       port.start({
         conversationId: 'conversation-5',
         cwd,
         agent: {
           type: 'acp',
-          start: { providerId: 'claude', model: null, initialQueue: [{ text: 'Go' }] },
+          start: { providerId: 'claude', initialQueue: [{ text: 'Go' }] },
         },
         fallbackTitle: 'Run',
         signal: new AbortController().signal,
@@ -205,7 +233,6 @@ describe('createSessionPortFromDependencies', () => {
     expect(createWorkspace).not.toHaveBeenCalled();
     expect(start).not.toHaveBeenCalled();
   });
-
   it('fails without starting a session when workspace registration fails', async () => {
     const start = vi.fn();
     const port = createSessionPortFromDependencies({
@@ -213,18 +240,17 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace: async () => err({ type: 'path-not-found', path: '/tmp/workspace' }),
         activateWorkspace: vi.fn(),
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as unknown as ContractClient<AcpSessionStartContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
-
     await expect(
       port.start({
         conversationId: 'conversation-4',
         cwd,
         agent: {
           type: 'acp',
-          start: { providerId: 'claude', model: null, initialQueue: [{ text: 'Go' }] },
+          start: { providerId: 'claude', initialQueue: [{ text: 'Go' }] },
         },
         fallbackTitle: 'Run',
         signal: new AbortController().signal,
@@ -234,7 +260,6 @@ describe('createSessionPortFromDependencies', () => {
     );
     expect(start).not.toHaveBeenCalled();
   });
-
   it('fails without starting a session when workspace activation fails', async () => {
     const start = vi.fn();
     const port = createSessionPortFromDependencies({
@@ -243,18 +268,17 @@ describe('createSessionPortFromDependencies', () => {
         activateWorkspace: async () =>
           err({ type: 'workspace-missing', workspaceId: 'workspace-1' }),
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
+      acp: { startSession: start } as unknown as ContractClient<AcpSessionStartContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
-
     await expect(
       port.start({
         conversationId: 'conversation-7',
         cwd,
         agent: {
           type: 'acp',
-          start: { providerId: 'claude', model: null, initialQueue: [{ text: 'Go' }] },
+          start: { providerId: 'claude', initialQueue: [{ text: 'Go' }] },
         },
         fallbackTitle: 'Run',
         signal: new AbortController().signal,
@@ -267,12 +291,12 @@ describe('createSessionPortFromDependencies', () => {
     );
     expect(start).not.toHaveBeenCalled();
   });
-
   it('preserves runtime error tags and maps rejected calls to a port error', async () => {
     const unavailable = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: {
-        launch: async () => err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
+        startSession: async () =>
+          err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
       },
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
@@ -280,7 +304,7 @@ describe('createSessionPortFromDependencies', () => {
     const rejected = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: {
-        launch: async () => {
+        startSession: async () => {
           throw new Error('connection closed');
         },
       },
@@ -294,14 +318,12 @@ describe('createSessionPortFromDependencies', () => {
         type: 'acp' as const,
         start: {
           providerId: 'claude',
-          model: null,
           initialQueue: [{ text: 'Review this repository' }],
         },
       },
       fallbackTitle: 'Run',
       signal: new AbortController().signal,
     };
-
     await expect(unavailable.start(input)).resolves.toEqual(
       err({ code: 'runtime-unavailable', message: 'ACP is unavailable' })
     );
@@ -310,28 +332,24 @@ describe('createSessionPortFromDependencies', () => {
     );
   });
 });
-
 function activatingWorkspaceRegistry(): ContractClient<WorkspaceRegistryContract> {
   return {
     createWorkspace: vi.fn(async () => ok({ id: 'workspace-1' })),
     activateWorkspace: vi.fn(async () => ok({ id: 'workspace-1' })),
   } as unknown as ContractClient<WorkspaceRegistryContract>;
 }
-
 function creatingConversationIndex(): ContractClient<ConversationIndexContract> {
   return {
     create: vi.fn(async () => ok({ created: true })),
   } as unknown as ContractClient<ConversationIndexContract>;
 }
 
-function unusedAcpClient(): ContractClient<AcpSessionLaunchContract> {
-  return { launch: vi.fn() };
+function unusedAcpClient(): ContractClient<AcpSessionStartContract> {
+  return { startSession: vi.fn() };
 }
-
 function unusedTuiClient(): ContractClient<TuiSessionStartContract> {
-  return { start: vi.fn() };
+  return { startSession: vi.fn() };
 }
-
 function absolute(input: string) {
   const parsed = parseAbsolute(input);
   if (!parsed.success) throw new Error(parsed.error.message);

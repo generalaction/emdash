@@ -20,6 +20,7 @@ function buildParserOutput(): AcpTranscriptParser {
     configOptions: [
       {
         id: 'model',
+        name: 'model',
         category: 'model',
         type: 'select',
         currentValue: 'sonnet',
@@ -27,6 +28,7 @@ function buildParserOutput(): AcpTranscriptParser {
       },
       {
         id: 'collaboration_mode',
+        name: 'collaboration_mode',
         category: 'collaboration_mode',
         type: 'select',
         currentValue: 'plan',
@@ -94,12 +96,14 @@ describe('ACP zod models', () => {
       parser.activeTurn === null ? null : transcriptTurnSchema.parse(parser.activeTurn)
     ).not.toThrow();
     expect(() => sessionConfigStateSchema.parse(parser.config)).not.toThrow();
-    expect(parser.config.collaborationModeOptions).toEqual({
-      configId: 'collaboration_mode',
-      selected: 'plan',
-      available: [
-        { id: 'default', name: 'Default' },
-        { id: 'plan', name: 'Plan', description: 'Plan before making changes' },
+    expect(
+      parser.config.options?.find((option) => option.category === 'collaboration_mode')
+    ).toMatchObject({
+      id: 'collaboration_mode',
+      currentValue: 'plan',
+      options: [
+        { value: 'default', name: 'Default' },
+        { value: 'plan', name: 'Plan', description: 'Plan before making changes' },
       ],
     });
     expect(() =>

@@ -9,7 +9,6 @@ import {
 } from '@core/features/automations/api/node/run-projection';
 import { automationRuns, automations } from '@core/services/app-db/node/schema';
 import { deleteAutomationDefinition } from './repo';
-
 function runFixture({
   id = 'run-1',
   automationId = 'automation-1',
@@ -42,7 +41,6 @@ function runFixture({
         type: 'acp',
         start: {
           providerId: 'claude',
-          model: null,
           initialQueue: [{ text: 'Review changes' }],
         },
       },
@@ -77,21 +75,16 @@ function runFixture({
     error: null,
   };
 }
-
 describe('automation run projection', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
-
   beforeEach(async () => {
     fixture = await openFixture('empty');
   });
-
   afterEach(() => {
     fixture.close();
   });
-
   it('inserts a projection using the snapshotted automation name', async () => {
     await upsertRunProjection(fixture.db, runFixture());
-
     await expect(fixture.db.select().from(automationRuns)).resolves.toEqual([
       {
         id: 'run-1',
@@ -105,7 +98,6 @@ describe('automation run projection', () => {
       },
     ]);
   });
-
   it('only updates a projection when the incoming sequence is newer', async () => {
     await upsertRunProjection(
       fixture.db,
@@ -125,7 +117,6 @@ describe('automation run projection', () => {
       fixture.db,
       runFixture({ automationName: 'Equal name', status: 'cancelled', seq: 3, finishedAt: 116 })
     );
-
     const [unchanged] = await fixture.db.select().from(automationRuns);
     expect(unchanged).toMatchObject({
       automationName: 'Current name',
@@ -134,7 +125,6 @@ describe('automation run projection', () => {
       finishedAt: 120,
       seq: 3,
     });
-
     await upsertRunProjection(
       fixture.db,
       runFixture({
@@ -145,7 +135,6 @@ describe('automation run projection', () => {
         finishedAt: 130,
       })
     );
-
     const [updated] = await fixture.db.select().from(automationRuns);
     expect(updated).toMatchObject({
       automationName: 'Updated name',
@@ -155,23 +144,19 @@ describe('automation run projection', () => {
       seq: 4,
     });
   });
-
   it('batch-loads projections by run id', async () => {
     await upsertRunProjection(fixture.db, runFixture({ id: 'run-1' }));
     await upsertRunProjection(fixture.db, runFixture({ id: 'run-2', seq: 2 }));
     await upsertRunProjection(fixture.db, runFixture({ id: 'run-3', seq: 3 }));
-
     const rows = await getRunProjectionsByRunIds(fixture.db, [
       'run-3',
       'missing',
       'run-1',
       'run-1',
     ]);
-
     expect(rows.map((row) => row.id).sort()).toEqual(['run-1', 'run-3']);
     await expect(getRunProjectionsByRunIds(fixture.db, [])).resolves.toEqual([]);
   });
-
   it('preserves projections when their automation definition is deleted', async () => {
     await fixture.db.insert(automations).values({
       id: 'automation-1',
@@ -180,9 +165,7 @@ describe('automation run projection', () => {
       updatedAt: 100,
     });
     await upsertRunProjection(fixture.db, runFixture());
-
     await expect(deleteAutomationDefinition(fixture.db, 'automation-1')).resolves.toBe(true);
-
     const [definition] = await fixture.db
       .select()
       .from(automations)

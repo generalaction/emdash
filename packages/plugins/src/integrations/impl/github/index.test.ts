@@ -1,6 +1,7 @@
 import { noopLogger } from '@emdash/shared/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { provider } from './index';
+import type { FetchLike } from '../../helpers/oauth-device';
+import { createGitHubAuthBehavior, GITHUB_OAUTH_CLIENT_ID, provider } from './index';
 
 const auth = provider.behavior.auth;
 if (!auth) throw new Error('GitHub integration plugin has no auth behavior');
@@ -101,5 +102,54 @@ describe('github integration verify', () => {
       error: 'GitHub access token is required.',
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('github device sign-in', () => {
+  it('completes RFC 8628 device authorization against github.com', async () => {
+    const fetch = vi
+      .fn<FetchLike>()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          device_code: 'device',
+          user_code: 'WDJB-MJHT',
+          verification_uri: 'https://github.com/login/device',
+          expires_in: 900,
+          interval: 0.001,
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { error: 'authorization_pending' }))
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'gho_device', scope: 'repo' }));
+
+    const session = await createGitHubAuthBehavior({ fetch }).startDeviceAuthorization();
+    if (!session.success) throw new Error('start failed');
+    expect(session.data).toMatchObject({
+      userCode: 'WDJB-MJHT',
+      verificationUri: 'https://github.com/login/device',
+      expiresIn: 900,
+    });
+    await expect(session.data.complete(new AbortController().signal)).resolves.toEqual({
+      success: true,
+      data: { accessToken: 'gho_device', apiBaseUrl: 'https://api.github.com' },
+    });
+
+    const [codeUrl, codeInit] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(codeUrl).toBe('https://github.com/login/device/code');
+    expect(new URLSearchParams(String(codeInit.body)).get('client_id')).toBe(
+      GITHUB_OAUTH_CLIENT_ID
+    );
+    expect(fetch.mock.calls[1]?.[0]).toBe('https://github.com/login/oauth/access_token');
+  });
+});
+
+describe('github server-issued tokens', () => {
+  it('maps a token to credentials for the account host', () => {
+    const behavior = createGitHubAuthBehavior();
+    expect(
+      behavior.credentialsFromOAuthToken({ accessToken: 'gho_server', host: 'github.com' })
+    ).toEqual({ accessToken: 'gho_server', apiBaseUrl: 'https://api.github.com' });
+    expect(
+      behavior.credentialsFromOAuthToken({ accessToken: 'ghe', host: 'GHE.example.com' })
+    ).toEqual({ accessToken: 'ghe', apiBaseUrl: 'https://ghe.example.com/api/v3' });
   });
 });

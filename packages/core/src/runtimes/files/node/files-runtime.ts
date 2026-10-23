@@ -10,7 +10,7 @@ import type { HomeDirectoryResult } from '#runtimes/files/api';
 import { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
 import { FileContentRuntime } from '#runtimes/files/node/content/content-runtime';
 import { FileSystemRuntime } from '#runtimes/files/node/fs/file-system';
-import { FileTreeRuntime } from '#runtimes/files/node/tree/tree-runtime';
+import { FileListingRuntime } from '#runtimes/files/node/listing/listing-runtime';
 import type { IWatchService } from '#services/fs-watch/api';
 import { createNativeWatchService } from '#services/fs-watch/node';
 
@@ -24,7 +24,7 @@ export type FilesRuntimeOptions = {
 
 export class FilesRuntime {
   readonly fs: FileSystemRuntime;
-  readonly tree: FileTreeRuntime;
+  readonly listing: FileListingRuntime;
   readonly content: FileContentRuntime;
 
   private readonly allocations: FilesAllocationGraph;
@@ -46,7 +46,7 @@ export class FilesRuntime {
       onError,
     });
     this.fs = new FileSystemRuntime(this.allocations);
-    this.tree = new FileTreeRuntime(this.allocations);
+    this.listing = new FileListingRuntime(this.allocations);
     this.content = new FileContentRuntime(this.allocations);
   }
 
@@ -68,7 +68,7 @@ export class FilesRuntime {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    await Promise.all([this.content.dispose(), this.tree.dispose()]);
+    await Promise.all([this.content.dispose(), this.listing.dispose()]);
     await this.allocations.dispose();
     if (this.ownsWatcher) await this.watcher.dispose();
   }

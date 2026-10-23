@@ -48,7 +48,7 @@ describe('wireTerminalUrlDetector', () => {
       '\x1b[32mready\x1b[0m http://localhost:3000/app?tab=1#top and http://0.0.0.0:5173/'
     );
     pty.emitData('duplicate http://localhost:3000/ignored');
-    pty.emitData('later https://127.0.0.1:8443/admin');
+    pty.emitData('later https://127.0.0.1:8443/admin and http://[::1]:4173/ipv6');
     pty.emitExit();
 
     expect(detected).toEqual([
@@ -70,8 +70,57 @@ describe('wireTerminalUrlDetector', () => {
         port: 8443,
         urlPath: '/admin',
       },
+      {
+        protocol: 'http:',
+        host: '::1',
+        port: 4173,
+        urlPath: '/ipv6',
+      },
     ]);
     expect(closed).toEqual([{ reason: 'pty-exit' }]);
+  });
+
+  it('accepts expanded IPv6 loopback but rejects other IPv6 addresses', () => {
+    const pty = fakePty();
+    const detected: DetectedPreviewUrl[] = [];
+
+    wireTerminalUrlDetector({
+      pty,
+      probeLocalPorts: false,
+      onDetected: (server) => {
+        detected.push(server);
+      },
+    });
+
+    pty.emitData('loopback http://[0:0:0:0:0:0:0:1]:5173/');
+    pty.emitData('not loopback http://[2001:db8::1]:5173/');
+
+    expect(detected).toEqual([
+      {
+        protocol: 'http:',
+        host: '::1',
+        port: 5173,
+        urlPath: '/',
+      },
+    ]);
+  });
+
+  it('probes IPv6 loopback without URL brackets', async () => {
+    const pty = fakePty();
+    const probes: Array<{ host: string; port: number }> = [];
+
+    const stop = wireTerminalUrlDetector({
+      pty,
+      portProbe: async (host, port) => {
+        probes.push({ host, port });
+        return true;
+      },
+      onDetected: () => {},
+    });
+
+    pty.emitData('ready http://[::1]:5173/');
+    await vi.waitFor(() => expect(probes).toEqual([{ host: '::1', port: 5173 }]));
+    stop();
   });
 
   it('trims unmatched trailing parentheses from detected preview URLs', () => {

@@ -1,35 +1,47 @@
 import { z } from 'zod';
 
-const configOptionBaseSchema = z.object({
+/** Provider-owned configuration; ids are opaque and never inferred from labels. */
+export const providerOptionValueSchema = z.union([z.string(), z.boolean()]);
+export const providerOptionValuesSchema = z.record(z.string(), providerOptionValueSchema);
+export type ProviderOptionValues = z.infer<typeof providerOptionValuesSchema>;
+const providerChoiceSchema = z.object({
+  value: z.string(),
+  name: z.string(),
+  description: z.string().nullish(),
+});
+const providerGroupSchema = z.object({
+  group: z.string(),
+  name: z.string(),
+  options: z.array(providerChoiceSchema),
+});
+const providerOptionBase = z.object({
   id: z.string(),
   name: z.string(),
-  description: z.string().optional(),
+  description: z.string().nullish(),
+  category: z.string().nullish(),
 });
-
-export const modelScoreSchema = z.object({
-  value: z.number(),
-  max: z.number(),
-});
-export type ModelScore = z.infer<typeof modelScoreSchema>;
-
-export const modelOptionSchema = configOptionBaseSchema.extend({
-  /** Optional model metadata used for ranking/display; absent when provider does not report it. */
-  features: z
-    .object({
-      contextWindowSize: z.number().int().optional(),
-      speed: modelScoreSchema.optional(),
-      intelligence: modelScoreSchema.optional(),
-    })
-    .optional(),
-});
-export type ModelOption = z.infer<typeof modelOptionSchema>;
-export type ModelChoice = ModelOption;
-
-export const effortOptionSchema = configOptionBaseSchema;
-export type EffortOption = z.infer<typeof effortOptionSchema>;
-
-export const modeOptionSchema = configOptionBaseSchema;
-export type ModeOption = z.infer<typeof modeOptionSchema>;
+export const providerConfigOptionSchema = z.discriminatedUnion('type', [
+  providerOptionBase.extend({
+    type: z.literal('select'),
+    currentValue: z.string(),
+    options: z.union([z.array(providerChoiceSchema), z.array(providerGroupSchema)]),
+  }),
+  providerOptionBase.extend({ type: z.literal('boolean'), currentValue: z.boolean() }),
+]);
+export type ProviderConfigOption = z.infer<typeof providerConfigOptionSchema>;
+export function providerChoices(option: ProviderConfigOption) {
+  return option.type === 'select'
+    ? option.options.flatMap((item) => ('group' in item ? item.options : [item]))
+    : [];
+}
+export function acceptsProviderValue(
+  option: ProviderConfigOption,
+  value: string | boolean
+): boolean {
+  return option.type === 'boolean'
+    ? typeof value === 'boolean'
+    : typeof value === 'string' && providerChoices(option).some((choice) => choice.value === value);
+}
 
 export const sessionCommandSchema = z.object({
   name: z.string(),
@@ -49,53 +61,16 @@ export const sessionMcpServerSchema = z.object({
 export type SessionMcpServer = z.infer<typeof sessionMcpServerSchema>;
 
 export const sessionConfigStateSchema = z.object({
-  /** Model selector state; null when the provider has not exposed model configuration. */
-  modelOptions: z
-    .object({
-      /** Provider-owned ACP config option id used when sending config updates. */
-      configId: z.string(),
-      selected: z.string().nullable(),
-      available: z.array(modelOptionSchema),
-    })
-    .nullable(),
-  /** Reasoning/effort selector state; null when unsupported by the provider. */
-  efforts: z
-    .object({
-      /** Provider-owned ACP config option id used when sending config updates. */
-      configId: z.string(),
-      selected: z.string().nullable(),
-      available: z.array(effortOptionSchema),
-    })
-    .nullable(),
-  /** Permission/mode selector state; null when unsupported by the provider. */
-  modeOptions: z
-    .object({
-      /** Provider-owned ACP config option id used when sending config updates. */
-      configId: z.string(),
-      selected: z.string().nullable(),
-      available: z.array(modeOptionSchema),
-    })
-    .nullable(),
-  /** Collaboration style selector state (for example Codex Default / Plan). */
-  collaborationModeOptions: z
-    .object({
-      /** Provider-owned ACP config option id used when sending config updates. */
-      configId: z.string(),
-      selected: z.string().nullable(),
-      available: z.array(modeOptionSchema),
-    })
-    .nullable()
-    .optional(),
+  options: z.array(providerConfigOptionSchema).optional(),
+  configuredOptions: providerOptionValuesSchema.optional(),
+  discoveryContext: z.string().optional(),
+  clearedOptions: providerOptionValuesSchema.optional(),
   /** Slash commands currently advertised by the active ACP session. */
   availableCommands: z.array(sessionCommandSchema),
 });
 export type SessionConfigState = z.infer<typeof sessionConfigStateSchema>;
 
 export const initialSessionConfigState: SessionConfigState = {
-  modelOptions: null,
-  efforts: null,
-  modeOptions: null,
-  collaborationModeOptions: null,
   availableCommands: [],
 };
 

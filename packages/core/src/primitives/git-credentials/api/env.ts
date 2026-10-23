@@ -46,23 +46,34 @@ export type GitCredentialsSessionSpec = z.infer<typeof gitCredentialsSessionSpec
 
 export const GIT_CREDENTIAL_PORT_ENV_VAR = 'EMDASH_GIT_CREDENTIAL_PORT';
 export const GIT_CREDENTIAL_NONCE_ENV_VAR = 'EMDASH_GIT_CREDENTIAL_NONCE';
-export const GIT_CREDENTIAL_HELPER_URL_PATH = '/git-credential/get';
+const GIT_CREDENTIAL_HELPER_PATH_PREFIX = '/git-credential/';
+/**
+ * A credential read may first renew the token: each renewal request is
+ * bounded at 30s, and a read can wait behind one other renewal of the same
+ * account. Stay above that worst case so git receives the renewed token.
+ */
+export const GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS = 90;
+export const GIT_CREDENTIAL_HELPER_URL_PATH = `${GIT_CREDENTIAL_HELPER_PATH_PREFIX}get`;
+/** Git erases a credential the remote rejected, so the desktop can renew it. */
+export const GIT_CREDENTIAL_HELPER_ERASE_URL_PATH = `${GIT_CREDENTIAL_HELPER_PATH_PREFIX}erase`;
 
 /**
  * The credential helper as a git `!shell` helper command (same transport shape
  * as the TUI hook commands: curl to a loopback port with a nonce header). The
  * port and nonce are read from the session env at invocation time so neither
- * appears in git config values or process argv. Only the `get` action is
- * answered; `store`/`erase` are no-ops. A failed proxy request reports its
+ * appears in git config values or process argv. `get` returns the credential;
+ * `erase` reports one the remote rejected (git sends it after an
+ * authentication failure) and prints nothing; `store` is a no-op. Only those
+ * two literal actions reach the URL. A failed proxy request reports its
  * loopback endpoint and preserves curl's nonzero status for git.
  */
 export const GIT_CREDENTIAL_HELPER_COMMAND =
-  '!f() { if [ "$1" = get ]; then ' +
-  'curl -s -f -m 10 -X POST --data-binary @- ' +
+  '!f() { case "$1" in get|erase) ' +
+  `curl -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
   `-H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
-  `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_URL_PATH}" ` +
-  `|| { status=$?; echo "emdash: credential proxy request failed at 127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}" >&2; return "$status"; }; ` +
-  'fi; }; f';
+  `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1" ` +
+  `|| { status=$?; echo "emdash: credential proxy request failed at 127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}" >&2; return "$status"; };; ` +
+  'esac; }; f';
 
 const CREDENTIAL_HELPER_CONFIG_KEY = /^credential(\..+)?\.helper$/i;
 

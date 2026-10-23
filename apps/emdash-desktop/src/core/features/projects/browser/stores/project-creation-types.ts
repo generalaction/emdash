@@ -23,6 +23,8 @@ export interface CreateRepositoryModeData extends BaseModeData {
   repositoryOwner: string;
   repositoryVisibility: 'public' | 'private';
   githubAccountId?: string;
+  repositoryProvider?: 'github' | 'gitlab';
+  repositoryAccountId?: string;
 }
 
 export type ModeData = PickModeData | CloneModeData | CreateRepositoryModeData;

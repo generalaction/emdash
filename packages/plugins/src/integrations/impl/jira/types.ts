@@ -3,13 +3,36 @@ import z from 'zod';
 import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 
-export const jiraCredentialsSchema = z.object({
-  siteUrl: credentialString('Jira site URL is required.')
-    .refine(isHttpUrl, 'Jira site URL must be a valid HTTP(S) URL.')
-    .transform((value) => value.replace(/\/+$/, '')),
+const jiraSiteUrlSchema = credentialString('Jira site URL is required.')
+  .refine(isHttpUrl, 'Jira site URL must be a valid HTTP(S) URL.')
+  .transform((value) => value.replace(/\/+$/, ''));
+
+const basicJiraCredentialsSchema = z.object({
+  authMethod: z.string().trim().pipe(z.literal('basic')).default('basic'),
+  siteUrl: jiraSiteUrlSchema,
   email: credentialString('Jira email is required.'),
   apiToken: credentialString('Jira API token is required.'),
 });
+
+const bearerJiraConnectionInputSchema = z.object({
+  authMethod: z.string().trim().pipe(z.literal('bearer')),
+  siteUrl: jiraSiteUrlSchema,
+  accessToken: credentialString('Jira OAuth 2.0 access token is required.'),
+});
+
+export const jiraConnectionInputSchema = z.union([
+  basicJiraCredentialsSchema,
+  bearerJiraConnectionInputSchema,
+]);
+
+const bearerJiraCredentialsSchema = bearerJiraConnectionInputSchema.extend({
+  cloudId: z.string().trim().min(1),
+});
+
+export const jiraCredentialsSchema = z.union([
+  basicJiraCredentialsSchema,
+  bearerJiraCredentialsSchema,
+]);
 
 export type JiraCredentials = z.infer<typeof jiraCredentialsSchema>;
 

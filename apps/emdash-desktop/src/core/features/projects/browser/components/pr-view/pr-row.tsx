@@ -1,10 +1,11 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { Button, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
-import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { getPrNumber } from '@root/src/core/services/pull-requests/api';
 import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
@@ -29,7 +30,7 @@ export const PrRow = memo(function PrRow({
             <span className="min-w-0 truncate text-sm leading-snug text-foreground">
               {pr.title}
             </span>
-            <PrNumberBadge number={getPrNumber(pr) ?? 0} />
+            <PrNumberBadge number={getPrNumber(pr) ?? 0} provider={pr.provider} />
             <Tooltip.Root>
               <Tooltip.Trigger>
                 <Button
@@ -42,7 +43,9 @@ export const PrRow = memo(function PrRow({
                   <ExternalLink className="size-3.5" />
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content>Open PR on GitHub</Tooltip.Content>
+              <Tooltip.Content>
+                Open {pr.provider === 'gitlab' ? 'MR on GitLab' : 'PR on GitHub'}
+              </Tooltip.Content>
             </Tooltip.Root>
           </div>
           <RelativeTime value={pr.createdAt} className="text-xs text-foreground-passive" compact />
@@ -72,7 +75,10 @@ function PrDiffStat({ pr }: { pr: PullRequest }) {
   if (pr.additions == null && pr.deletions == null) return null;
 
   return (
-    <span className="shrink-0 text-xs tabular-nums" aria-label="Pull request diff lines">
+    <span
+      className="shrink-0 text-xs tabular-nums"
+      aria-label={pr.provider === 'gitlab' ? 'Merge request diff lines' : 'Pull request diff lines'}
+    >
       <span className="text-foreground-success">+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
       <span className="text-foreground-error">-{formatDiffLineCount(pr.deletions ?? 0)}</span>
     </span>

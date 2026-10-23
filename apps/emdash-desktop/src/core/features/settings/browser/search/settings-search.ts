@@ -49,13 +49,6 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Automatically suggests a task name when creating a new task.',
   },
   {
-    id: 'auto-approve-by-default',
-    label: 'Auto-approve by default',
-    tab: 'general',
-    description: 'Skip permission prompts for supported agents when creating new tasks.',
-    keywords: ['permissions', 'yolo'],
-  },
-  {
     id: 'auto-trust-worktree-directories',
     label: 'Auto-trust worktree directories',
     tab: 'general',
@@ -161,7 +154,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     label: 'Integrations',
     tab: 'integrations',
     description: 'Connect issue trackers and source control providers.',
-    keywords: ['github', 'gitlab', 'linear', 'jira', 'issues', 'connect'],
+    keywords: ['github', 'gitlab', 'linear', 'jira', 'youtrack', 'issues', 'connect'],
   },
 
   // Connections
@@ -220,6 +213,14 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     tab: 'prompts',
     description: 'Manage reusable prompts for tasks and conversations.',
     keywords: ['prompt library', 'snippets'],
+  },
+
+  {
+    id: 'usage',
+    label: 'Usage',
+    tab: 'usage',
+    description: 'Subscription limits for Codex and Claude Code accounts on all machines.',
+    keywords: ['limits', 'quota', 'subscription', 'account', 'codex', 'claude', 'reset'],
   },
 
   // System

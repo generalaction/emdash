@@ -9,15 +9,29 @@ describe('remoteOpenIn', () => {
   describe('buildRemoteEditorUrl', () => {
     it('builds VSCodium remote SSH URLs', () => {
       expect(buildRemoteEditorUrl('vscodium', 'example.com', 'alice', '/repo')).toBe(
-        'vscodium://vscode-remote/ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d/repo'
+        'vscodium://vscode-remote/ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d/repo?windowId=_blank'
       );
     });
 
     it('omits ports from VS Code-style remote SSH URLs', () => {
       expect(buildRemoteEditorUrl('vscode', 'localhost', 'dev', '/repo', 2222)).toBe(
-        'vscode://vscode-remote/ssh-remote+7b22686f73744e616d65223a226c6f63616c686f7374222c2275736572223a22646576227d/repo'
+        'vscode://vscode-remote/ssh-remote+7b22686f73744e616d65223a226c6f63616c686f7374222c2275736572223a22646576227d/repo?windowId=_blank'
       );
     });
+
+    it.each(['vscode', 'vscodium', 'cursor'] as const)(
+      'requests a new %s window without treating remote path characters as URL parameters',
+      (scheme) => {
+        const targetPath = '/repo with space/#100%?windowId=7&資料';
+        const url = new URL(buildRemoteEditorUrl(scheme, 'devbox', '', targetPath));
+
+        expect(url.protocol).toBe(`${scheme}:`);
+        expect(url.hostname).toBe('vscode-remote');
+        expect(decodeURIComponent(url.pathname)).toBe(`/ssh-remote+devbox${targetPath}`);
+        expect([...url.searchParams.entries()]).toEqual([['windowId', '_blank']]);
+        expect(url.hash).toBe('');
+      }
+    );
 
     it('builds Zed remote SSH URLs without encoding the SSH authority', () => {
       expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo')).toBe(

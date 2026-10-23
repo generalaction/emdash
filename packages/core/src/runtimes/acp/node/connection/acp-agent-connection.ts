@@ -159,6 +159,7 @@ function initializeAgent(agent: AcpAgentApi, host: AcpAgentProcessHost) {
     protocolVersion: 1,
     clientInfo: { name: 'emdash', version: '1' },
     clientCapabilities: {
+      ...{ session: { configOptions: { boolean: {} } } },
       fs: { readTextFile: true, writeTextFile: true },
       terminal: typeof host.spawnTerminal === 'function',
     },

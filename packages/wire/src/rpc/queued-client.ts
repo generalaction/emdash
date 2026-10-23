@@ -20,8 +20,11 @@ import { encodeTopic } from '../api/topics';
  * can issue calls before the backing worker or connection exists: early calls
  * queue on the readiness promise and complete once it resolves, and a
  * readiness failure (for example a worker spawn error) rejects every queued
- * and future call with that failure. No artificial timeout is introduced —
- * the readiness promise's own lifecycle decides when queued calls settle.
+ * and future call with that failure by default. With retryReadinessOnFailure,
+ * a later call can start another readiness attempt; concurrent calls share
+ * that attempt. Successful readiness stays cached, and procedure failures do
+ * not invalidate it. No artificial timeout is introduced — the readiness
+ * promise's own lifecycle decides when queued calls settle.
  *
  * Live endpoint handles are constructed synchronously with their canonical
  * topics (the same `encodeTopic` scheme the real client uses); only their
@@ -29,14 +32,26 @@ import { encodeTopic } from '../api/topics';
  */
 export function queuedClient<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
-  ready: () => Promise<ContractClient<Defs>>
+  ready: () => Promise<ContractClient<Defs>>,
+  options: { retryReadinessOnFailure?: boolean } = {}
 ): ContractClient<Defs> {
   let memo: Promise<ContractClient<Defs>> | undefined;
-  const readyOnce = (): Promise<ContractClient<Defs>> => (memo ??= ready());
+  const getReady = (): Promise<ContractClient<Defs>> => {
+    if (!memo) {
+      memo = ready();
+      if (options.retryReadinessOnFailure) {
+        memo = memo.catch((error: unknown) => {
+          memo = undefined;
+          throw error;
+        });
+      }
+    }
+    return memo;
+  };
   return buildQueuedContractClient(
     contract,
     [],
-    readyOnce as () => Promise<unknown>
+    getReady as () => Promise<unknown>
   ) as ContractClient<Defs>;
 }
 

@@ -1,6 +1,5 @@
-import { resourceUriSchema } from '@emdash/core/primitives/path/api';
+import { portableRelativePathSchema, resourceUriSchema } from '@emdash/core/primitives/path/api';
 import {
-  exclusionPatternsSchema,
   filesContract,
   MAX_FILE_UPLOAD_BYTES,
   readFileOptionsSchema,
@@ -33,12 +32,11 @@ const contentKeySchema = z.object({
   source: contentSourceSchema,
 });
 
-// `sessionId` keeps two consumers of the same root (e.g. two windows) from
-// sharing one server-side tree resource and its expansion state.
-const treeKeySchema = z.object({
+// A folder of a workspace root. The key names no consumer, so every task and
+// window showing the same folder shares one host listing and one host stream.
+const listingKeySchema = z.object({
   root: resourceUriSchema,
-  sessionId: z.string(),
-  exclusions: exclusionPatternsSchema,
+  path: portableRelativePathSchema,
 });
 
 const readOptionsShape = { options: readFileOptionsSchema.optional() };
@@ -79,14 +77,12 @@ export const filesDomain = 'files' as const;
 
 export const filesWireContract = defineContract({
   fs: filesFsContract,
-  tree: defineContract({
-    model: liveModel({
-      key: treeKeySchema,
-      states: {
-        tree: liveState({ data: filesContract.tree.model.states.tree.dataSchema }),
-      },
-      mutations: runtimeFallibleMutations(filesContract.tree.model.mutations),
-    }),
+  listing: liveModel({
+    key: listingKeySchema,
+    states: {
+      listing: liveState({ data: filesContract.listing.states.listing.dataSchema }),
+    },
+    mutations: runtimeFallibleMutations(filesContract.listing.mutations),
   }),
   content: liveModel({
     key: contentKeySchema,
@@ -100,5 +96,4 @@ export const filesWireContract = defineContract({
 export type FilesWireContract = typeof filesWireContract;
 export type FilesContentKey = z.infer<typeof filesWireContract.content.keySchema>;
 export type FilesContentModel = z.infer<typeof filesWireContract.content.states.content.dataSchema>;
-export type FilesTreeKey = z.infer<typeof filesWireContract.tree.model.keySchema>;
-export type FilesTreeModel = z.infer<typeof filesWireContract.tree.model.states.tree.dataSchema>;
+export type FilesListingKey = z.infer<typeof filesWireContract.listing.keySchema>;

@@ -1,13 +1,18 @@
+import { toast } from '@emdash/ui/react/primitives';
 import React, {
   forwardRef,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
 } from 'react';
-import type { FrontendPty, SessionTheme } from '@core/features/terminals/api/browser/pty/pty';
-import { resolveDroppedFile } from '@core/features/terminals/api/browser/pty/terminal-image-injection';
+import { FrontendPty, type SessionTheme } from '@core/features/terminals/api/browser/pty/pty';
+import type {
+  PreparedTerminalAttachments,
+  TerminalAttachmentTarget,
+} from '@core/features/terminals/api/browser/pty/terminal-attachment-target';
 import {
   buildTerminalImageInjection,
   clipboardDataMayContainImage,
@@ -17,6 +22,7 @@ import {
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import {
   type PasteFromClipboardHandler,
+  type UsePtyOptions,
   usePty,
 } from '@core/features/terminals/browser/pty/use-pty';
 import {
@@ -44,10 +50,10 @@ type Props = {
   pty: FrontendPty;
   className?: string;
   contentFilter?: string;
+  inputContext?: UsePtyOptions['inputContext'];
   mapShiftEnterToCtrlJ?: boolean;
   readOnly?: boolean;
-  /** Remote terminals are served by workspace-server runtimes and are not supported here yet. */
-  remoteConnectionId?: string;
+  attachments: TerminalAttachmentTarget;
   workspaceId: string;
   themeOverride?: SessionTheme['override'];
   /** Overrides only the bottom of xterm's otherwise uniform internal padding. */
@@ -62,39 +68,70 @@ type Props = {
 
 type TerminalInputHelpers = Parameters<PasteFromClipboardHandler>[0];
 
-async function injectTerminalImagePaths(args: {
-  paths: string[];
-  sessionId: string;
-  remoteConnectionId: string | undefined;
-  sendInput: TerminalInputHelpers['sendInput'];
-  focus: TerminalInputHelpers['focus'];
-}): Promise<void> {
-  if (args.paths.length === 0) return;
+type AttachmentTarget = TerminalInputHelpers & {
+  workspaceId: string;
+  attachments: TerminalAttachmentTarget;
+  signal: AbortSignal;
+  isCurrent: () => boolean;
+};
 
-  const platform = await (await getHostClient()).getPlatform();
-  const payload = buildTerminalImageInjection(args.paths, platform);
-  args.sendInput(`${payload} `, { track: false });
-  args.focus();
+async function prepareAndInject(
+  target: AttachmentTarget,
+  prepare: () => Promise<PreparedTerminalAttachments>
+): Promise<boolean> {
+  if (!target.isCurrent()) return false;
+  const notice = toast('Uploading attachments…', { duration: Infinity });
+  const dismiss = () => toast.dismiss(notice);
+  target.signal.addEventListener('abort', dismiss, { once: true });
+  try {
+    const prepared = await prepare();
+    if (!target.isCurrent()) {
+      await prepared.discard();
+      return false;
+    }
+    const payload = buildTerminalImageInjection(prepared.paths, prepared.platform);
+    target.sendInput(payload, { track: false });
+    target.focus();
+    return true;
+  } finally {
+    target.signal.removeEventListener('abort', dismiss);
+    dismiss();
+  }
 }
 
-// Returns true only when an image was injected, so callers can scope their
-// duplicate-paste guard to the image path and leave plain-text pastes unguarded.
+function injectTerminalFilePaths(target: AttachmentTarget, paths: string[]): Promise<boolean> {
+  return prepareAndInject(target, () =>
+    target.attachments.prepareLocalSnapshots(paths, target.signal)
+  );
+}
+function injectFiles(target: AttachmentTarget, files: File[], snapshot = false): Promise<boolean> {
+  return prepareAndInject(target, () =>
+    target.attachments.prepareFiles(files, target.signal, snapshot)
+  );
+}
+
+function reportAttachmentError(target: AttachmentTarget, error: unknown): void {
+  if (!target.isCurrent()) return;
+  log.warn('Terminal attachment failed', { error });
+  toast.error('Failed to attach files', {
+    description: error instanceof Error ? error.message : String(error),
+  });
+}
+
+// Only image pastes participate in duplicate suppression.
 async function pasteClipboardImageOrText(args: {
-  sessionId: string;
-  remoteConnectionId: string | undefined;
-  sendInput: TerminalInputHelpers['sendInput'];
-  focus: TerminalInputHelpers['focus'];
+  target: AttachmentTarget;
+  injectImagePaths?: (paths: string[]) => Promise<boolean>;
   fallbackText?: string;
   preferText?: boolean;
-  // Re-checked right before injecting an image; the image branch resolves
-  // asynchronously, so a competing paste path may have injected in the meantime.
-  shouldInjectImage?: () => boolean;
 }): Promise<boolean> {
+  const { target } = args;
+  if (!target.isCurrent()) return false;
   if (args.preferText) {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        args.sendInput(text);
+        if (target.isCurrent()) target.sendInput(text);
         return false;
       }
     } catch {
@@ -102,25 +139,23 @@ async function pasteClipboardImageOrText(args: {
     }
   }
 
-  try {
-    const result = await (await getHostClient()).persistClipboardImage();
-    if (result.success && result.path) {
-      if (args.shouldInjectImage && !args.shouldInjectImage()) return false;
-      await injectTerminalImagePaths({ ...args, paths: [result.path] });
-      return true;
-    }
-  } catch (error) {
-    log.warn('Terminal clipboard image paste failed', { error });
+  if (!target.isCurrent()) return false;
+  const result = await (await getHostClient()).persistClipboardImage();
+  if (!target.isCurrent()) return false;
+  if (!result.success) throw new Error(result.error ?? 'Could not read the clipboard image');
+  if (result.path) {
+    if (args.injectImagePaths) return args.injectImagePaths([result.path]);
+    return injectTerminalFilePaths(target, [result.path]);
   }
 
   if (args.fallbackText !== undefined) {
-    if (args.fallbackText) args.sendInput(args.fallbackText);
+    if (args.fallbackText) target.sendInput(args.fallbackText);
     return false;
   }
 
   try {
     const text = await navigator.clipboard.readText();
-    if (text) args.sendInput(text);
+    if (text && target.isCurrent()) target.sendInput(text);
   } catch {
     // Clipboard read denied or unavailable.
   }
@@ -134,9 +169,10 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       pty,
       className,
       contentFilter,
+      inputContext,
       mapShiftEnterToCtrlJ,
       readOnly = false,
-      remoteConnectionId,
+      attachments,
       workspaceId,
       themeOverride,
       paddingBottom,
@@ -165,29 +201,81 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       },
       [attachTerminalScope]
     );
-    const lastDomImagePasteAtRef = useRef(0);
-    const lastSystemPasteAtRef = useRef(0);
+    const imagePasteStateRef = useRef({
+      domRevision: 0,
+      lastDomAt: 0,
+      lastSystemAt: 0,
+      pendingDom: 0,
+      pendingSystem: 0,
+    });
+    const attachmentLifetimeRef = useRef<AbortController | null>(null);
+
+    useLayoutEffect(() => {
+      const lifetime = new AbortController();
+      attachmentLifetimeRef.current = lifetime;
+      imagePasteStateRef.current = {
+        domRevision: 0,
+        lastDomAt: 0,
+        lastSystemAt: 0,
+        pendingDom: 0,
+        pendingSystem: 0,
+      };
+      return () => lifetime.abort();
+    }, [pty, sessionId, workspaceId, attachments, readOnly]);
+
+    const captureAttachmentTarget = useCallback(
+      (helpers: TerminalInputHelpers): AttachmentTarget | null => {
+        const signal = attachmentLifetimeRef.current?.signal;
+        if (readOnly || !signal || signal.aborted) return null;
+        return {
+          ...helpers,
+          workspaceId,
+          attachments,
+          signal,
+          isCurrent: () => !signal.aborted && FrontendPty.all.has(pty),
+        };
+      },
+      [pty, readOnly, attachments, workspaceId]
+    );
 
     const theme: SessionTheme = { override: themeOverride, paddingBottom };
 
     const handleSystemPaste = useCallback<PasteFromClipboardHandler>(
       ({ focus, sendInput }) => {
-        if (isNearDuplicatePaste(lastDomImagePasteAtRef.current)) return;
+        const imagePasteState = imagePasteStateRef.current;
+        if (isNearDuplicatePaste(imagePasteState.lastDomAt)) return;
+        const target = captureAttachmentTarget({ focus, sendInput });
+        if (!target) return;
+        const domRevision = imagePasteState.domRevision;
         void (async () => {
-          const injectedImage = await pasteClipboardImageOrText({
-            sessionId,
-            remoteConnectionId,
-            focus,
-            sendInput,
-            preferText: true,
-            shouldInjectImage: () => !isNearDuplicatePaste(lastDomImagePasteAtRef.current),
-          });
-          // Only guard the DOM image path against a system paste that actually
-          // injected an image; plain-text pastes must not block it.
-          if (injectedImage) lastSystemPasteAtRef.current = Date.now();
+          try {
+            await pasteClipboardImageOrText({
+              target,
+              preferText: true,
+              injectImagePaths: async (paths) => {
+                if (
+                  imagePasteState.domRevision !== domRevision ||
+                  imagePasteState.pendingDom > 0 ||
+                  isNearDuplicatePaste(imagePasteState.lastDomAt)
+                ) {
+                  return false;
+                }
+                imagePasteState.pendingSystem += 1;
+                try {
+                  const injected = await injectTerminalFilePaths(target, paths);
+                  if (injected) imagePasteState.lastSystemAt = Date.now();
+                  return injected;
+                } finally {
+                  imagePasteState.pendingSystem -= 1;
+                }
+              },
+            });
+          } catch (error) {
+            reportAttachmentError(target, error);
+          }
         })();
       },
-      [remoteConnectionId, sessionId]
+      [captureAttachmentTarget]
     );
 
     const { focus, sendInput } = usePty(
@@ -195,6 +283,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
         sessionId,
         pty,
         theme,
+        inputContext,
         mapShiftEnterToCtrlJ,
         readOnly,
         onActivity,
@@ -214,30 +303,6 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
 
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
-    const injectImagePaths = useCallback(
-      async (paths: string[]) => {
-        await injectTerminalImagePaths({
-          paths,
-          sessionId,
-          remoteConnectionId,
-          focus,
-          sendInput,
-        });
-      },
-      [focus, remoteConnectionId, sendInput, sessionId]
-    );
-
-    const injectImageFiles = useCallback(
-      async (files: File[]): Promise<boolean> => {
-        const resolved = await Promise.all(files.map((file) => resolveDroppedFile(file)));
-        const paths = resolved.filter((path): path is string => Boolean(path));
-        if (paths.length === 0) return false;
-        await injectImagePaths(paths);
-        return true;
-      },
-      [injectImagePaths]
-    );
-
     const handleFocus = () => {
       focus();
     };
@@ -245,102 +310,68 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
     const handlePaste = useCallback(
       (event: React.ClipboardEvent<HTMLDivElement>) => {
         if (readOnly) return;
+        const imagePasteState = imagePasteStateRef.current;
         const clipboardData = event.clipboardData;
         const fallbackText = clipboardData?.getData('text/plain') ?? '';
         const imageFiles = extractClipboardImageFiles(clipboardData);
-        if (imageFiles.length > 0) {
-          event.preventDefault();
-          event.stopPropagation();
-          event.nativeEvent.stopImmediatePropagation();
-          if (isNearDuplicatePaste(lastSystemPasteAtRef.current)) return;
-          lastDomImagePasteAtRef.current = Date.now();
-          void (async () => {
-            try {
-              const injected = await injectImageFiles(imageFiles);
-              if (injected) return;
-              await pasteClipboardImageOrText({
-                sessionId,
-                remoteConnectionId,
-                focus,
-                sendInput,
-                fallbackText,
-              });
-            } catch (error) {
-              log.warn('Terminal image paste failed', { error });
-            }
-          })();
-          return;
-        }
-
-        if (!clipboardDataMayContainImage(clipboardData)) return;
+        if (imageFiles.length === 0 && !clipboardDataMayContainImage(clipboardData)) return;
 
         event.preventDefault();
         event.stopPropagation();
         event.nativeEvent.stopImmediatePropagation();
-        if (isNearDuplicatePaste(lastSystemPasteAtRef.current)) return;
-        lastDomImagePasteAtRef.current = Date.now();
-        void pasteClipboardImageOrText({
-          sessionId,
-          remoteConnectionId,
-          focus,
-          sendInput,
-          fallbackText,
-        });
+        if (imagePasteState.pendingSystem > 0 || isNearDuplicatePaste(imagePasteState.lastSystemAt))
+          return;
+        const target = captureAttachmentTarget({ focus, sendInput });
+        if (!target) return;
+        imagePasteState.domRevision += 1;
+        imagePasteState.lastDomAt = Date.now();
+        imagePasteState.pendingDom += 1;
+        void (async () => {
+          try {
+            if (imageFiles.length > 0 && (await injectFiles(target, imageFiles, true))) {
+              imagePasteState.lastDomAt = Date.now();
+              return;
+            }
+            if (await pasteClipboardImageOrText({ target, fallbackText })) {
+              imagePasteState.lastDomAt = Date.now();
+            }
+          } catch (error) {
+            reportAttachmentError(target, error);
+          } finally {
+            imagePasteState.pendingDom -= 1;
+          }
+        })();
       },
-      [focus, injectImageFiles, readOnly, remoteConnectionId, sendInput, sessionId]
+      [captureAttachmentTarget, focus, readOnly, sendInput]
     );
 
-    const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
-      if (readOnly) return;
+    const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+      const target = captureAttachmentTarget({ focus, sendInput });
+      if (!target) return;
       try {
         event.preventDefault();
-        const dt = event.dataTransfer;
-        if (!dt) return;
+        const transfer = event.dataTransfer;
 
-        // In-app drag from the editor file tree. The drag payload already
-        // carries the path in the workspace environment where this agent runs.
-        const draggedWorkspaceFile = getDraggedWorkspaceFile(dt);
+        // Workspace-tree drops already carry paths on the target host.
+        const draggedWorkspaceFile = getDraggedWorkspaceFile(transfer);
         if (draggedWorkspaceFile) {
           if (draggedWorkspaceFile.workspaceId !== workspaceId) return;
 
-          void (async () => {
-            try {
-              const platform =
-                draggedWorkspaceFile.targetPlatform ??
-                (await (await getHostClient()).getPlatform());
-              // Plain text, not bracketed paste: Claude Code swallows externally
-              // injected paste markers, and the escaped single-line path needs
-              // no paste protection in shells or other agent TUIs.
-              sendInput(
-                `${formatTerminalImagePaths(draggedWorkspaceFile.targetPaths, platform)} `,
-                {
-                  track: false,
-                }
-              );
-              focus();
-            } catch (error) {
-              log.warn('Terminal drop failed', { error });
-            }
-          })();
+          const platform =
+            draggedWorkspaceFile.targetPlatform ?? (await (await getHostClient()).getPlatform());
+          if (!target.isCurrent()) return;
+          const paths = formatTerminalImagePaths(draggedWorkspaceFile.targetPaths, platform);
+          target.sendInput(`${paths} `, { track: false });
+          target.focus();
           return;
         }
 
-        if (!dt.files?.length) return;
-
-        const files = Array.from(dt.files);
-
-        void (async () => {
-          try {
-            const resolved = await Promise.all(files.map((file) => resolveDroppedFile(file)));
-            const paths = resolved.filter((path): path is string => Boolean(path));
-            if (paths.length === 0) return;
-            await injectImagePaths(paths);
-          } catch (error) {
-            log.warn('Terminal drop failed', { error });
-          }
-        })();
+        if (transfer.files.length === 0) return;
+        const files = Array.from(transfer.files);
+        const injected = await injectFiles(target, files);
+        if (!injected && target.isCurrent()) throw new Error('Could not read the dropped files');
       } catch (error) {
-        log.warn('Terminal drop failed', { error });
+        reportAttachmentError(target, error);
       }
     };
 

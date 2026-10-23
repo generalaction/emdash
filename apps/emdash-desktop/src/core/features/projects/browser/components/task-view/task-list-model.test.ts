@@ -1,9 +1,9 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-pr-association-store';
 import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import type { AgentStatus } from '@core/primitives/agents/api';
-import type { PullRequest } from '@core/services/pull-requests/api';
 import { createTaskListView, type ReadyTask, type TaskListTab } from './task-list-model';
 
 const agentStatuses = new Map<string, AgentStatus>();

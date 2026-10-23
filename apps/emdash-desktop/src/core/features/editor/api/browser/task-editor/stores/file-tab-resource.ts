@@ -36,6 +36,7 @@ export type FileSelection = Readonly<{
   lineNumber: number;
   startColumn: number;
   endColumn: number;
+  endLineNumber?: number;
 }>;
 
 export type FileSelectionRequest = Readonly<{

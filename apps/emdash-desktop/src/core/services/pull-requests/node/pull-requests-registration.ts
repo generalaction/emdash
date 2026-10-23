@@ -1,8 +1,9 @@
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { PullRequestAuthError } from '@emdash/plugins/pull-requests/schemas';
 import { err, ok, type Result } from '@emdash/shared';
 import { KeyedMutex, type Disposable } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
-import { parseRepositoryRef } from '@core/primitives/repository/api';
-import type { GitHubAuthError, PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
+import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { PullRequestSyncIdentity } from './sync-identity';
 
 type PullRequestsRegistrationClient = Pick<
@@ -33,7 +34,10 @@ type PullRequestsRegistrationOptions = {
   onResume(handler: () => void): () => void;
   subscribeToProjectRemotes(projectId: string, handler: () => void): (() => void) | undefined;
   resolveProjectRepositoryUrls(projectId: string): Promise<string[]>;
-  resolveProjectAuthContext(projectId: string): Promise<ProjectAccountResolution>;
+  resolveProjectAuthContext(
+    projectId: string,
+    integrationId: string
+  ): Promise<ProjectAccountResolution>;
 };
 
 /**
@@ -165,8 +169,9 @@ export class PullRequestsRegistration implements Disposable {
    * identity.
    */
   async resolveSyncIdentity(
-    repositoryUrl: string
-  ): Promise<Result<PullRequestSyncIdentity, GitHubAuthError>> {
+    repositoryUrl: string,
+    integrationId: string
+  ): Promise<Result<PullRequestSyncIdentity, PullRequestAuthError>> {
     const host = parseRepositoryRef(repositoryUrl)?.host ?? 'unknown';
     const projectIds = [...this.projectRepositoryUrls.entries()]
       .filter(([, urls]) => urls.includes(repositoryUrl))
@@ -180,11 +185,13 @@ export class PullRequestsRegistration implements Disposable {
     }
     let failure: { type?: string; message: string } | undefined;
     for (const projectId of projectIds) {
-      const resolved = await this.options.resolveProjectAuthContext(projectId);
+      const resolved = await this.options.resolveProjectAuthContext(projectId, integrationId);
       if (resolved.success) {
         // The blessed resolver returns an account on success; treat a missing
         // id defensively as "keep looking" rather than an implicit default.
-        if (resolved.data.accountId) return ok({ accountId: resolved.data.accountId });
+        if (resolved.data.accountId) {
+          return ok({ integrationId, accountId: resolved.data.accountId });
+        }
         continue;
       }
       failure ??= resolved.error;
@@ -260,7 +267,7 @@ export class PullRequestsRegistration implements Disposable {
 function mapProjectAccountError(
   host: string,
   failure: { type?: string; message: string } | undefined
-): GitHubAuthError {
+): PullRequestAuthError {
   switch (failure?.type) {
     case 'unconfigured':
       return {
@@ -270,7 +277,7 @@ function mapProjectAccountError(
         hint: 'Connect a GitHub account from settings.',
       };
     case 'disabled':
-      return { type: 'github_disabled', host, message: failure.message };
+      return { type: 'integration_disabled', host, message: failure.message };
     default:
       return {
         type: 'account_unresolvable',

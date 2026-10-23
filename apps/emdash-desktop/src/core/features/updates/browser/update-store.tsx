@@ -2,7 +2,7 @@ import { toast } from '@emdash/ui/react/primitives';
 import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import type { DesktopUpdateEvent } from '@core/features/updates/api';
+import type { DesktopUpdateEvent, DesktopUpdateState } from '@core/features/updates/api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { getUpdatesClient } from '../api/browser/client';
@@ -25,17 +25,20 @@ export type UpdateState =
   | { status: 'downloading'; progress?: DownloadProgress }
   | { status: 'downloaded' }
   | { status: 'installing' }
-  | { status: 'error'; message: string };
+  | { status: 'error'; message: string; details?: string };
 
 export class UpdateStore {
   state: UpdateState = { status: 'idle' };
   currentVersion = '';
+  downloadRequested = false;
+  private stateRevision = 0;
   availableVersion: string | undefined = undefined;
 
   constructor() {
     makeObservable(this, {
       state: observable,
       currentVersion: observable,
+      downloadRequested: observable,
       availableVersion: observable,
       setState: action,
       hasUpdate: computed,
@@ -49,6 +52,7 @@ export class UpdateStore {
   }
 
   setState(state: UpdateState): void {
+    this.stateRevision++;
     this.state = state;
   }
 
@@ -71,62 +75,60 @@ export class UpdateStore {
     });
   }
 
+  private get hasPendingUpdate(): boolean {
+    return (
+      this.state.status === 'downloading' ||
+      this.state.status === 'downloaded' ||
+      this.state.status === 'installing'
+    );
+  }
+
   async check(): Promise<void> {
-    runInAction(() => {
-      this.state = { status: 'checking' };
-    });
+    if (this.downloadRequested || this.hasPendingUpdate) return;
     try {
       const client = await getUpdatesClient();
       const res = await client.check(undefined);
-      if (!res) {
-        runInAction(() => {
-          this.state = { status: 'error', message: 'Update API unavailable' };
-        });
-        return;
-      }
       if (!res.success) {
-        runInAction(() => {
-          this.state = { status: 'error', message: res.error ?? 'Failed to check for updates' };
-        });
-      } else if (res.result === null) {
-        runInAction(() => {
-          this.state = { status: 'idle' };
-        });
+        await this._recoverAction(res.error);
+      } else {
+        await this._refreshWireState();
       }
     } catch {
-      runInAction(() => {
-        this.state = { status: 'error', message: 'Failed to check for updates' };
-      });
+      await this._recoverAction('Failed to check for updates');
     }
   }
 
   async download(): Promise<void> {
+    if (this.downloadRequested || this.hasPendingUpdate) return;
+    runInAction(() => {
+      this.downloadRequested = true;
+    });
     try {
       const client = await getUpdatesClient();
+      const revision = this.stateRevision;
       const res = await client.download(undefined);
-      if (!res) {
-        runInAction(() => {
-          this.state = { status: 'error', message: 'Update API unavailable' };
-        });
-        return;
-      }
-      if (!res.success) {
-        const message = res.error ?? 'Failed to download update';
-        runInAction(() => {
-          this.state = { status: 'error', message };
-        });
+      if (res.success) {
+        this._applySnapshot(res.data, revision);
+      } else {
+        await this._recoverAction(res.error);
       }
     } catch {
+      await this._recoverAction('Could not confirm the update status. Please check again.');
+    } finally {
       runInAction(() => {
-        this.state = { status: 'error', message: 'Failed to download update' };
+        this.downloadRequested = false;
       });
     }
   }
 
+  private async _recoverAction(message: string): Promise<void> {
+    const refreshed = await this._refreshWireState();
+    if (this.hasPendingUpdate || (refreshed && this.state.status === 'error')) return;
+    this.setState({ status: 'error', message });
+  }
+
   async install(): Promise<void> {
-    runInAction(() => {
-      this.state = { status: 'installing' };
-    });
+    this.setState({ status: 'installing' });
     try {
       const client = await getUpdatesClient();
       const res = await client.quitAndInstall(undefined);
@@ -167,39 +169,57 @@ export class UpdateStore {
     await this.check();
   }
 
-  private async _refreshWireState(): Promise<void> {
-    const client = await getUpdatesClient();
-    const result = await client.getState(undefined);
-    if (!result.success) return;
+  private async _refreshWireState(): Promise<boolean> {
+    try {
+      const client = await getUpdatesClient();
+      const revision = this.stateRevision;
+      const result = await client.getState(undefined);
+      if (!result.success) return false;
+      this._applySnapshot(result.data, revision);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private _applySnapshot(snapshot: DesktopUpdateState, revision: number): void {
     runInAction(() => {
-      this.currentVersion = result.data.currentVersion;
-      this.availableVersion = result.data.availableVersion;
-      switch (result.data.status) {
+      this.currentVersion = snapshot.currentVersion;
+      this.availableVersion ??= snapshot.availableVersion;
+    });
+    if (revision !== this.stateRevision) return;
+    this.stateRevision++;
+    runInAction(() => {
+      this.availableVersion = snapshot.availableVersion;
+      switch (snapshot.status) {
         case 'available':
           this.state = {
             status: 'available',
-            info: result.data.availableVersion
-              ? { version: result.data.availableVersion }
-              : undefined,
+            info: snapshot.availableVersion ? { version: snapshot.availableVersion } : undefined,
           };
           break;
         case 'downloading':
-          this.state = { status: 'downloading', progress: result.data.downloadProgress };
+          this.state = { status: 'downloading', progress: snapshot.downloadProgress };
           break;
         case 'error':
-          this.state = { status: 'error', message: result.data.error ?? 'Update failed' };
+          this.state = {
+            status: 'error',
+            message: snapshot.error ?? 'Update failed',
+            details: snapshot.errorDetails,
+          };
           break;
         case 'idle':
         case 'checking':
         case 'downloaded':
         case 'installing':
-          this.state = { status: result.data.status };
+          this.state = { status: snapshot.status };
           break;
       }
     });
   }
 
   private _applyEvent(event: DesktopUpdateEvent): void {
+    this.stateRevision++;
     runInAction(() => {
       switch (event.type) {
         case 'checking':
@@ -213,7 +233,8 @@ export class UpdateStore {
           this.state = { status: 'not-available' };
           break;
         case 'downloading':
-          this.state = { status: 'downloading', progress: { percent: 0 } };
+          this.availableVersion = event.version;
+          this.state = { status: 'downloading' };
           break;
         case 'progress':
           this.state = {
@@ -233,7 +254,7 @@ export class UpdateStore {
           this.state = { status: 'installing' };
           break;
         case 'error':
-          this.state = { status: 'error', message: event.message };
+          this.state = { status: 'error', message: event.message, details: event.details };
           break;
       }
     });

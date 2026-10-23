@@ -19,6 +19,7 @@ import {
   runtimeFallibleProcedure,
   runtimeResolveErrorUnion,
 } from '@core/primitives/desktop-runtime/api/fallible-contract';
+import { providerAccountRefSchema } from '@core/primitives/provider-accounts/api';
 
 const projectKeySchema = z.object({ projectId: z.string() });
 const workspaceKeySchema = z.object({ workspaceId: z.string() });
@@ -86,7 +87,10 @@ const sourceControlRepositoryContract = defineContract({
     repository.getDefaultBranch.output
   ),
   fetch: liveJob({
-    input: repository.fetch.input.omit({ repository: true }).extend(projectKeySchema.shape),
+    input: repository.fetch.input.omit({ repository: true }).extend({
+      ...projectKeySchema.shape,
+      credentialAccount: providerAccountRefSchema.optional(),
+    }),
     progress: repository.fetch.progress,
     result: repository.fetch.result,
     error: attachmentErrorUnion(repository.fetch.error),
@@ -146,7 +150,10 @@ const sourceControlCheckoutContract = defineContract({
     error: runtimeResolveErrorUnion(checkout.push.error),
   }),
   publish: liveJob({
-    input: checkout.publish.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
+    input: checkout.publish.input.omit({ checkout: true }).extend({
+      ...workspaceKeySchema.shape,
+      credentialAccount: providerAccountRefSchema.optional(),
+    }),
     progress: checkout.publish.progress,
     result: checkout.publish.result,
     error: runtimeResolveErrorUnion(checkout.publish.error),

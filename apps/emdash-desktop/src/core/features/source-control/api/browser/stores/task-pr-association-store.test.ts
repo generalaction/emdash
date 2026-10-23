@@ -1,6 +1,6 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
-import type { PullRequest } from '@core/services/pull-requests/api';
 import { TaskPrAssociationStore } from './task-pr-association-store';
 
 const pullRequest = {

@@ -41,6 +41,10 @@ jobs:
           cpio
           curl
           git
+          libasound2
+          libgbm1
+          libgtk-3-0
+          libnss3
           libsecret-1-dev
           pkg-config
           python-is-python3

@@ -172,6 +172,7 @@ const page = (
   fromSeq: number | null = null,
   beforeSeq: number | null = null
 ) => ({
+  kind: 'available' as const,
   turns,
   nextCursor: fromSeq,
   position: position(historyRevision, turns.at(-1)?.seq ?? null, generation),
@@ -179,6 +180,15 @@ const page = (
 });
 
 describe('versioned transcript reconciliation', () => {
+  it('leaves the first history read to bootstrap and requests catch-up after later changes', () => {
+    const tx = createTranscript();
+    expect(tx.observe({ ...position(0, null), activeTurn: null })).toBe(false);
+    expect(tx.needsHistory).toBe(true);
+    tx.applyPage(page([], 0));
+    expect(tx.needsHistory).toBe(false);
+    expect(tx.observe({ ...position(1, 0), activeTurn: null })).toBe(true);
+  });
+
   it('retains outgoing content without inventing an outcome or completing running tools', () => {
     const tx = createTranscript();
     const first: TranscriptTurn = {
@@ -249,12 +259,32 @@ describe('versioned transcript reconciliation', () => {
     expect(tx.state.committedTurns).toEqual([]);
   });
 
-  it('ignores unavailable history and legacy responses after adopting a version', () => {
+  it('ignores unavailable history without clearing displayed turns', () => {
     const tx = createTranscript();
     tx.applyPage(page([turn('one', 0, msg('first'))]));
-    expect(tx.applyPage({ turns: [], nextCursor: null, unavailable: true })).toBe(false);
-    expect(tx.applyPage({ turns: [], nextCursor: null })).toBe(false);
+    expect(tx.applyPage({ kind: 'unavailable' })).toBe(false);
     expect(tx.state.committedTurns).toHaveLength(1);
+  });
+
+  it('retains observed content during suspension and replaces it after replay', () => {
+    const tx = createTranscript();
+    const active = turn('active', 1, msg('active'));
+    tx.observe({ ...position(1, 0), activeTurn: active });
+    tx.applyPage(page([turn('old', 0, msg('old'))]));
+
+    expect(tx.observe(null)).toBe(false);
+    expect(tx.needsHistory).toBe(false);
+    expect(tx.state.activeTurnSnapshot).toBeNull();
+    expect(tx.state.displayTurns.map((turn) => turn.id)).toEqual(['old', 'active']);
+    // A delayed read cannot resurrect the live turn while the runtime is unavailable.
+    tx.applyPage(page([turn('old', 0, msg('old'))]));
+    expect(tx.state.activeTurnSnapshot).toBeNull();
+
+    expect(tx.observe({ ...position(1, 0, 'replayed'), activeTurn: null })).toBe(true);
+    expect(tx.state.displayTurns.map((turn) => turn.id)).toEqual(['old', 'active']);
+    tx.applyPage(page([turn('restored', 0, msg('restored'))], 1, 'replayed'));
+    expect(tx.state.displayTurns.map((turn) => turn.id)).toEqual(['restored']);
+    expect(tx.needsHistory).toBe(false);
   });
 
   it('replaces generations atomically even when replay recreates identical ids', () => {

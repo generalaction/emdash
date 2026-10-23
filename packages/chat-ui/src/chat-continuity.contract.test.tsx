@@ -1,3 +1,4 @@
+import type { TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
 import { describe, expect, it } from 'vitest';
 import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';
@@ -37,11 +38,13 @@ function setup() {
   const context = createChatContext();
   const state = createChatState(context, { uri: 'conversation-a' });
   const other = createChatState(context, { uri: 'conversation-b' });
-  const activeTurn = source<TranscriptTurn | null>(null);
+  const sessionState = source<{ pendingPermissions: []; transcript: TranscriptSnapshot | null }>({
+    pendingPermissions: [],
+    transcript: null,
+  });
   const disconnect = connectSession(state, {
-    activeTurn,
     plan: source(null),
-    sessionState: source({ pendingPermissions: [] }),
+    sessionState,
   });
   const parent = document.createElement('div');
   parent.style.cssText = 'width:800px;height:600px;position:fixed;top:0;left:0';
@@ -50,7 +53,17 @@ function setup() {
   return {
     state,
     other,
-    activeTurn,
+    publish(activeTurn: TranscriptTurn | null) {
+      sessionState.set({
+        pendingPermissions: [],
+        transcript: {
+          generation: 'test',
+          historyRevision: 0,
+          lastCommittedTurnSeq: null,
+          activeTurn,
+        },
+      });
+    },
     parent,
     away() {
       view?.setModel(other);
@@ -95,11 +108,11 @@ describe('pending submission identity', () => {
             text,
             ...(text === '' && { attachments: [{ id: 'image', name: 'screenshot.png' }] }),
           });
-          h.activeTurn.set(turn('old', 0, text, 'different-prompt'));
+          h.publish(turn('old', 0, text, 'different-prompt'));
           h.state.transcript.history.replace([turn('older', -1, text, 'another-prompt')]);
           await paint();
           expect(h.state.session.state.pendingPrompt).toMatchObject({ id: 'pending', text });
-          if (acknowledgement === 'active') h.activeTurn.set(turn('new', 1, text, 'pending'));
+          if (acknowledgement === 'active') h.publish(turn('new', 1, text, 'pending'));
           else h.state.transcript.history.replace([turn('new', 1, text, 'pending')]);
           await paint();
           expect(h.state.session.state.pendingPrompt).toBeNull();
@@ -140,7 +153,7 @@ describe('pending submission identity', () => {
       try {
         h.state.session.setPendingPrompt({ id: 'pending', text: 'Hello' });
         h.unmount();
-        if (via === 'active') h.activeTurn.set(turn('new', 0, 'Hello', 'pending'));
+        if (via === 'active') h.publish(turn('new', 0, 'Hello', 'pending'));
         else h.state.transcript.history.replace([turn('new', 0, 'Hello', 'pending')]);
         await paint();
         expect(h.state.session.state.pendingPrompt).toBeNull();
@@ -171,7 +184,7 @@ describe('deterministic stream and navigation stress', () => {
         for (let step = 0; step < 160; step++) {
           switch (next() % 5) {
             case 0:
-              h.activeTurn.set(turn('streaming', 1, `Chunk ${step}`, 'older-prompt'));
+              h.publish(turn('streaming', 1, `Chunk ${step}`, 'older-prompt'));
               break;
             case 1:
               h.state.transcript.history.replace([
@@ -193,10 +206,10 @@ describe('deterministic stream and navigation stress', () => {
           );
         }
         h.back();
-        h.activeTurn.set(null);
+        h.publish(null);
         await paint();
         expect(h.parent.querySelector('[data-user-card="pending"]')).not.toBeNull();
-        h.activeTurn.set(turn('accepted', 2, 'continue', 'pending'));
+        h.publish(turn('accepted', 2, 'continue', 'pending'));
         await paint();
         expect(h.state.session.state.pendingPrompt).toBeNull();
       } finally {
@@ -233,7 +246,7 @@ describe('independent pending and live presentation', () => {
                         },
                       ],
               };
-        h.activeTurn.set(live);
+        h.publish(live);
         await paint();
         expect(h.state.session.state.pendingPrompt?.id).toBe('pending');
         expect(h.parent.querySelector('[data-user-card="pending"]')).not.toBeNull();

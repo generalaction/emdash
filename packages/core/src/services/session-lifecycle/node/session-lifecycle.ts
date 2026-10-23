@@ -1,8 +1,10 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import {
   noopConversationLifecycleReporter,
   type ConversationLifecycleReporter,
 } from '#services/conversation-reports/node';
+import type { SessionIntentError } from '#services/session-intents/api';
 import {
   ACTIVITY_OUTPUT_THROTTLE_MS,
   SESSION_IDLE_MS,
@@ -15,6 +17,7 @@ import {
   type SessionLifecycle,
   type SessionLifecycleOptions,
   type SessionSnapshotJudgment,
+  type SessionIntentUpdate,
 } from '#services/session-lifecycle/api';
 
 type ReapDecision = { action: 'keep' } | { action: 'deactivate'; reason: string };
@@ -167,26 +170,34 @@ export function createSessionLifecycle<TResume, TCtx>(
 
   // --- per-key FIFO intent writes (contract 4) ---------------------------------
 
-  function enqueueIntentWrite(key: string, write: () => Promise<void>): void {
+  function enqueueIntentWrite(key: string, write: () => Promise<void>): Promise<void> {
     const tail = intentQueues.get(key) ?? Promise.resolve();
     const next = tail.then(write);
     intentQueues.set(key, next);
     void next.finally(() => {
       if (intentQueues.get(key) === next) intentQueues.delete(key);
     });
+    return next;
   }
 
-  function writeActiveIntent(key: string): void {
-    if (!conversation) return;
-    const active = conversation.activePayload(key);
-    if (!active) return;
-    enqueueIntentWrite(key, async () => {
+  async function writeActiveIntent(
+    key: string,
+    prepare?: () => SessionIntentUpdate | null
+  ): Promise<Result<void, SessionIntentError>> {
+    if (!conversation) return ok();
+    let outcome: Result<void, SessionIntentError> = ok();
+    await enqueueIntentWrite(key, async () => {
       try {
+        const update = prepare?.();
+        const active = prepare ? update : conversation.activePayload(key);
+        if (!active) return;
         const result = await conversation.intents.saveActive({
           conversationId: key,
           payload: active.payload,
           sessionId: active.sessionId,
         });
+        outcome = result;
+        if (result.success) update?.onPersisted();
         if (!result.success) {
           logger.warn(`${name}: failed to persist active session intent`, {
             conversationId: key,
@@ -194,12 +205,14 @@ export function createSessionLifecycle<TResume, TCtx>(
           });
         }
       } catch (error) {
+        outcome = err({ type: 'io', message: String(error) });
         logger.warn(`${name}: failed to persist active session intent`, {
           conversationId: key,
           error: String(error),
         });
       }
     });
+    return outcome;
   }
 
   function writeSuspendedIntent(key: string, cause: string): void {
@@ -443,14 +456,15 @@ export function createSessionLifecycle<TResume, TCtx>(
     },
     started(key, report) {
       if (report) reports.sessionStarted(report);
-      writeActiveIntent(key);
+      void writeActiveIntent(key);
     },
     providerSessionId(_key, input) {
       reports.providerSessionId(input);
     },
     saveIntent(key) {
-      writeActiveIntent(key);
+      void writeActiveIntent(key);
     },
+    persistIntent: writeActiveIntent,
     reconcile,
   };
 }

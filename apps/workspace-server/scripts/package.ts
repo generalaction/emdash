@@ -7,16 +7,15 @@ import {
   mkdir,
   mkdtemp,
   readFile,
-  readdir,
   rename,
   rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { builtinModules } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { inspectBundles } from './bundle-validation.ts';
 import {
   artifactArchiveName,
   artifactChecksumContents,
@@ -38,7 +37,6 @@ import {
   type PackageAdapterAssetInfo,
 } from './package-helpers.ts';
 
-const nativePackages = ['@parcel/watcher', 'better-sqlite3', 'node-pty'] as const;
 const expectedEntryBundleNames = [
   'acp-runtime.mjs',
   'agent-config-runtime.mjs',
@@ -106,7 +104,7 @@ async function main(): Promise<void> {
 
   process.stdout.write('Building platform-independent workspace-server bundles...\n');
   await runCommand('pnpm', ['run', 'build'], { cwd: appDirectory });
-  const bundleNames = await inspectBundles();
+  const bundleNames = await inspectBundles(join(appDirectory, 'dist'), expectedEntryBundleNames);
 
   await mkdir(artifactsDirectory, { recursive: true });
   for (const target of options.targets) {
@@ -299,84 +297,6 @@ function validateTargetHosts(targets: PackageTarget[]): void {
   }
 }
 
-async function inspectBundles(): Promise<string[]> {
-  const distDirectory = join(appDirectory, 'dist');
-  const entries = await readdir(distDirectory, { withFileTypes: true });
-  const bundleNames = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
-    .map((entry) => entry.name)
-    .sort();
-
-  const missingEntryBundles = expectedEntryBundleNames.filter(
-    (bundleName) => !bundleNames.includes(bundleName)
-  );
-  if (missingEntryBundles.length > 0) {
-    throw new Error(
-      `Workspace-server build is missing entry bundles: ${missingEntryBundles.join(', ')}`
-    );
-  }
-
-  const bundleNameSet = new Set(bundleNames);
-  const errors: string[] = [];
-  for (const bundleName of bundleNames) {
-    const source = await readFile(join(distDirectory, bundleName), 'utf8');
-    if (/['"][^'"\n]*\.node['"]/.test(source)) {
-      errors.push(`${bundleName} contains a native .node binding reference`);
-    }
-    if (/\b(?:require|__require)\s*\(\s*(?!['"`])/.test(source)) {
-      errors.push(`${bundleName} contains a dynamic require call`);
-    }
-    for (const specifier of collectModuleSpecifiers(source)) {
-      if (specifier.startsWith('.')) {
-        const importedBundlePath = resolve(distDirectory, dirname(bundleName), specifier);
-        const importedBundleName = relative(distDirectory, importedBundlePath);
-        if (importedBundleName.startsWith('../') || !bundleNameSet.has(importedBundleName)) {
-          errors.push(`${bundleName} imports missing bundle '${specifier}'`);
-        }
-        continue;
-      }
-      if (!isAllowedBundleExternal(specifier)) {
-        errors.push(`${bundleName} contains unexpected external '${specifier}'`);
-      }
-    }
-  }
-  if (errors.length > 0) {
-    throw new Error(`Workspace-server bundles are not self-contained:\n${errors.join('\n')}`);
-  }
-
-  return bundleNames;
-}
-
-function collectModuleSpecifiers(source: string): Set<string> {
-  const specifiers = new Set<string>();
-  for (const line of source.split('\n')) {
-    const importMatch = /^(?:import|export)\s+(?:[^'";]+?\s+from\s+)?['"]([^'"]+)['"];?$/.exec(
-      line
-    );
-    if (importMatch?.[1] !== undefined) {
-      specifiers.add(importMatch[1]);
-      continue;
-    }
-    if (line.length > 0) break;
-  }
-
-  for (const line of source.split('\n')) {
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith('*') || trimmed.startsWith('//')) continue;
-    for (const match of line.matchAll(/\b(?:require|__require)\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
-      if (match[1] !== undefined) specifiers.add(match[1]);
-    }
-  }
-  return specifiers;
-}
-
-function isAllowedBundleExternal(specifier: string): boolean {
-  if (specifier.startsWith('node:') || builtinModules.includes(specifier)) return true;
-  return nativePackages.some(
-    (packageName) => specifier === packageName || specifier.startsWith(`${packageName}/`)
-  );
-}
-
 async function extractNodeDistribution(
   nodeVersion: string,
   target: PackageTarget,
@@ -549,7 +469,17 @@ async function installDarwinRuntimeDependencies(
       },
     }
   );
-  return join(stagingDirectory, 'node_modules');
+  const nodeModules = join(stagingDirectory, 'node_modules');
+  // Upstream node-pty tarballs ship the macOS spawn-helper prebuild without the executable bit;
+  // without it every PTY spawn fails with "posix_spawnp failed".
+  const spawnHelper = join(
+    nodeModules,
+    'node-pty/prebuilds',
+    `darwin-${process.arch}`,
+    'spawn-helper'
+  );
+  await chmod(spawnHelper, 0o755);
+  return nodeModules;
 }
 
 async function buildLinuxRuntimeDependencies(
@@ -632,6 +562,17 @@ async function assembleArtifact(options: {
     );
   }
   await cp(runtimeNodeModules, join(artifactDirectory, 'node_modules'), { recursive: true });
+  // Servers and their standard libraries must be present without a global install.
+  await stat(join(artifactDirectory, 'node_modules/typescript-language-server/lib/cli.mjs'));
+  const compilerLib = join(artifactDirectory, 'node_modules/typescript/lib');
+  await stat(join(compilerLib, 'tsserver.js'));
+  await stat(join(compilerLib, '_tsserver.js'));
+  await stat(join(compilerLib, 'typescript.js'));
+  await stat(join(compilerLib, 'lib.d.ts'));
+  await stat(join(artifactDirectory, 'node_modules/pyright/langserver.index.js'));
+  await stat(
+    join(artifactDirectory, 'node_modules/pyright/dist/typeshed-fallback/stdlib/builtins.pyi')
+  );
 
   for (const bundleName of bundleNames) {
     await copyFile(join(appDirectory, 'dist', bundleName), join(distDirectory, bundleName));
@@ -697,6 +638,11 @@ async function verifyLocalArtifact(extractedArtifact: string): Promise<void> {
       '--quiet',
       'bundled-ripgrep-smoke',
       searchDirectory,
+    ]);
+    await runCommand(join(extractedArtifact, 'node'), [
+      '-e',
+      `require(${JSON.stringify(join(extractedArtifact, 'node_modules/node-pty'))})` +
+        `.spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode));`,
     ]);
     await runCommand(launcherPath, ['start', ...lifecycleArgs]);
     await runCommand(launcherPath, ['status', ...lifecycleArgs]);

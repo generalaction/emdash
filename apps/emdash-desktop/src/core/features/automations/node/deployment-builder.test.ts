@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { buildAutomationDeployment } from './deployment-builder';
-
 const mocks = vi.hoisted(() => ({
   getProjectById: vi.fn(),
   getRepoFacts: vi.fn(),
@@ -13,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   rows: [] as unknown[][],
   resolveWorktreePool: vi.fn(),
 }));
-
 const dependencies = {
   db: { select: mocks.select } as never,
   getProjectById: mocks.getProjectById,
@@ -21,9 +19,7 @@ const dependencies = {
   resolveWorkspace: mocks.resolveWorkspace,
   resolveWorktreePool: mocks.resolveWorktreePool,
 };
-
 const repositoryRef = hostFileRef(LOCAL_HOST_REF, hostPathFromNative('/repo'));
-
 function automationFixture(): Automation {
   return {
     id: 'automation-1',
@@ -37,7 +33,7 @@ function automationFixture(): Automation {
     conversationConfig: {
       prompt: 'Review the latest changes',
       provider: 'claude',
-      model: 'sonnet',
+      options: { model: 'sonnet' },
       autoApprove: false,
       type: 'acp',
     },
@@ -57,7 +53,6 @@ function automationFixture(): Automation {
     },
   };
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.rows = [];
@@ -87,7 +82,6 @@ beforeEach(() => {
   });
   mocks.resolveWorkspace.mockResolvedValue(null);
 });
-
 describe('buildAutomationDeployment', () => {
   it('captures worktree, project, schedule, and ACP session settings', async () => {
     mocks.rows.push([
@@ -96,7 +90,6 @@ describe('buildAutomationDeployment', () => {
         shareable: JSON.stringify({ preservePatterns: ['.env.local'] }),
       },
     ]);
-
     await expect(buildAutomationDeployment(dependencies, automationFixture())).resolves.toEqual({
       success: true,
       data: {
@@ -110,8 +103,10 @@ describe('buildAutomationDeployment', () => {
           title: 'Review changes',
           start: {
             providerId: 'claude',
-            model: 'sonnet',
             initialQueue: [{ text: 'Review the latest changes' }],
+            options: {
+              model: 'sonnet',
+            },
           },
         },
         workspace: {
@@ -129,7 +124,19 @@ describe('buildAutomationDeployment', () => {
       },
     });
   });
-
+  it('includes provider-native options in the ACP deployment', async () => {
+    const automation = automationFixture();
+    automation.conversationConfig!.options = { reasoning_effort: 'xhigh', fast: false };
+    expect(await buildAutomationDeployment(dependencies, automation)).toMatchObject({
+      success: true,
+      data: {
+        agent: {
+          type: 'acp',
+          start: { options: { reasoning_effort: 'xhigh', fast: false } },
+        },
+      },
+    });
+  });
   it('builds remote deployments with the project runtime host', async () => {
     const remote = hostRef('remote', 'ssh-1');
     mocks.getProjectById.mockResolvedValue({
@@ -138,7 +145,6 @@ describe('buildAutomationDeployment', () => {
       path: '/repo',
       connectionId: 'ssh-1',
     });
-
     await expect(buildAutomationDeployment(dependencies, automationFixture())).resolves.toEqual({
       success: true,
       data: {
@@ -152,8 +158,10 @@ describe('buildAutomationDeployment', () => {
           title: 'Review changes',
           start: {
             providerId: 'claude',
-            model: 'sonnet',
             initialQueue: [{ text: 'Review the latest changes' }],
+            options: {
+              model: 'sonnet',
+            },
           },
         },
         workspace: {
@@ -171,7 +179,6 @@ describe('buildAutomationDeployment', () => {
       },
     });
   });
-
   it('degrades a stale stored baseRemote to the inferred remote', async () => {
     mocks.rows.push([
       {
@@ -179,26 +186,20 @@ describe('buildAutomationDeployment', () => {
         shareable: JSON.stringify({}),
       },
     ]);
-
     const result = await buildAutomationDeployment(dependencies, automationFixture());
-
     expect(result).toMatchObject({
       success: true,
       data: { workspace: { baseRemote: 'origin' } },
     });
   });
-
   it('refuses worktree automations when the repository has no remotes', async () => {
     mocks.getRepoFacts.mockResolvedValue({ remotes: [], localBranches: ['main'] });
-
     const result = await buildAutomationDeployment(dependencies, automationFixture());
-
     expect(result).toMatchObject({
       success: false,
       error: { type: 'workspace-not-supported' },
     });
   });
-
   it('uses the resolved workspace host for repository-instance deployments', async () => {
     const remote = hostRef('remote', 'ssh-1');
     const automation = automationFixture();
@@ -218,9 +219,7 @@ describe('buildAutomationDeployment', () => {
       path: '/repo/worktree',
       projectId: 'project-1',
     });
-
     const result = await buildAutomationDeployment(dependencies, automation);
-
     expect(result).toMatchObject({
       success: true,
       data: {

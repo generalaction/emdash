@@ -27,10 +27,9 @@ export function createFilesProcedures(
       move: (input) => runtime.fs.move(input),
       copy: (input) => runtime.fs.copy(input),
       delete: (input) => runtime.fs.delete(input),
+      listDirectory: (input) => runtime.fs.listDirectory(input),
     },
-    tree: {
-      model: runtime.tree.modelHost(contract.tree.model),
-    },
+    listing: runtime.listing.modelHost(contract.listing),
     content: runtime.content.modelHost(contract.content),
   };
 }

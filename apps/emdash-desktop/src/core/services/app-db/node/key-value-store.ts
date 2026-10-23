@@ -20,17 +20,22 @@ export class AppDbKeyValueStore<TSchema extends Record<string, unknown>> {
 
   async get<K extends keyof TSchema & string>(key: K): Promise<TSchema[K] | null> {
     try {
-      const [row] = await this.db
-        .select({ value: kv.value })
-        .from(kv)
-        .where(eq(kv.key, this.prefixed(key)))
-        .limit(1);
-      if (row?.value === undefined || row.value === null) return null;
-      return JSON.parse(row.value) as TSchema[K];
+      return await this.getOrThrow(key);
     } catch (error) {
       this.logger?.error('Failed to read KV', { key, error });
       return null;
     }
+  }
+
+  /** Read failures must not be mistaken for missing values during read-modify-write. */
+  async getOrThrow<K extends keyof TSchema & string>(key: K): Promise<TSchema[K] | null> {
+    const [row] = await this.db
+      .select({ value: kv.value })
+      .from(kv)
+      .where(eq(kv.key, this.prefixed(key)))
+      .limit(1);
+    if (row?.value === undefined || row.value === null) return null;
+    return JSON.parse(row.value) as TSchema[K];
   }
 
   async set<K extends keyof TSchema & string>(key: K, value: TSchema[K]): Promise<void> {
@@ -65,7 +70,8 @@ export class AppDbKeyValueStore<TSchema extends Record<string, unknown>> {
     const rows = await this.db
       .select()
       .from(kv)
-      .where(like(kv.key, `${this.namespace}:%`));
+      .where(like(kv.key, `${this.namespace}:%`))
+      .orderBy(kv.updatedAt, kv.key);
     const result: Record<string, Serializable> = {};
     for (const row of rows) {
       const shortKey = row.key.slice(this.namespace.length + 1);

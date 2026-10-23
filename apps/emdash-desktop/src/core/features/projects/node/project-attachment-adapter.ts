@@ -3,7 +3,8 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err } from '@emdash/shared';
-import { runWithTimeout } from '@emdash/shared/scheduling';
+import { log } from '@emdash/shared/logger';
+import { runWithTimeout, systemClock, throwIfAborted } from '@emdash/shared/scheduling';
 import {
   createProvider,
   type CreateProjectProviderDependencies,
@@ -14,8 +15,7 @@ import type { Project } from '@core/primitives/projects/api';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { getProjectById } from './operations/getProjects';
 
-const SSH_PROVIDER_TIMEOUT_MS = 60_000;
-const LOCAL_PROVIDER_TIMEOUT_MS = 20_000;
+const PROVIDER_TIMEOUT_MS = 60_000;
 
 export function createProjectAttachmentAdapter(
   dependencies: CreateProjectProviderDependencies
@@ -37,10 +37,28 @@ async function openProvider(
   signal: AbortSignal
 ) {
   try {
-    return await runWithTimeout(() => createProvider(dependencies, project), {
-      timeoutMs: project.type === 'ssh' ? SSH_PROVIDER_TIMEOUT_MS : LOCAL_PROVIDER_TIMEOUT_MS,
-      signal,
-    });
+    return await runWithTimeout(
+      async (attemptSignal) => {
+        let result = await createProvider(dependencies, project, attemptSignal);
+        if (project.type === 'local' && !result.success && result.error.type === 'timeout') {
+          log.warn('Retrying Project initialization after a local runtime timeout', {
+            projectId: project.id,
+            error: result.error,
+          });
+          await systemClock.sleep(1_000, { signal: attemptSignal });
+          result = await createProvider(dependencies, project, attemptSignal);
+        }
+        if (attemptSignal.aborted && result.success) await result.data.release();
+        throwIfAborted(attemptSignal);
+        if (result.success) return result;
+        return err(
+          result.error.type === 'timeout'
+            ? { type: 'error' as const, message: result.error.message }
+            : result.error
+        );
+      },
+      { timeoutMs: PROVIDER_TIMEOUT_MS, signal }
+    );
   } catch (error) {
     return err(toProviderOpenError(error));
   }

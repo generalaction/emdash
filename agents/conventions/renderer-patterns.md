@@ -127,6 +127,8 @@ The PTY frontend is owned by the terminals slice:
 - Historical output comes from the main-process ring buffer; do not add renderer-side buffering
 - `sessionId` format: `makePtySessionId(projectId, scopeId, leafId)` from
   `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
+- Agent conversation panes set `PtyPane`'s `inputContext="agent"` to preserve native Alt+arrow
+  sequences. The default shell context maps macOS Option+arrows to shell editing controls.
 
 ## React Query Context Pattern
 

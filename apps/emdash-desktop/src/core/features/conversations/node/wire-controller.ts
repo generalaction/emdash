@@ -1,11 +1,13 @@
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import {
   LOCAL_HOST_REF,
   parseHostRef,
   type HostRef,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
-import { acpErr } from '@emdash/core/runtimes/acp/api/client';
-import { err, ok, toSerializedError, type Result } from '@emdash/shared';
+import { acpErr, providerOptionValuesSchema } from '@emdash/core/runtimes/acp/api/client';
+import { err, ok, type Result } from '@emdash/shared';
+import { createKeyedLanes } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import type { LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
@@ -13,10 +15,6 @@ import { and, eq } from 'drizzle-orm';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import { createConversationOperations } from '@core/features/conversations/node/controller';
 import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
-import {
-  setConversationAcpConfigOption,
-  type AcpPersistedConfigKey,
-} from '@core/features/conversations/node/set-acp-config-option';
 import type { ProjectAttachmentError } from '@core/features/projects/api';
 import {
   requireAttachedProjectOrThrow,
@@ -28,6 +26,10 @@ import type { TaskSessionManager } from '@core/features/tasks/api/node/task-sess
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
+import {
+  prepareTerminalFiles,
+  type TerminalFileSources,
+} from '@core/services/attachments/node/prepare-terminal-files';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { conversationsContract } from '../api';
 import {
@@ -38,6 +40,7 @@ import {
   type ConversationsRuntimeResolveError as RuntimeResolveError,
 } from '../api/runtime-adapter';
 import { conversationWireEvents } from './event-host';
+import { getProviderSettingsService } from './provider-settings-service';
 
 type ConversationRuntimeTarget = Readonly<{
   conversationId: string;
@@ -46,10 +49,6 @@ type ConversationRuntimeTarget = Readonly<{
   conversationType: 'pty' | 'acp';
   providerId: string | null;
   sessionId: string | null;
-  model: string | null;
-  modeId: string | null;
-  effort: string | null;
-  collaborationMode: string | null;
   workspacePath?: string;
   host: HostRef;
   acpInput?: ConversationsAcpStartInput;
@@ -60,16 +59,12 @@ type WorkspaceIdentityResolver = Readonly<{
 }>;
 
 type ConversationRuntimeHooks = Readonly<{
-  persistAcpConfigOption(
-    target: ConversationRuntimeTarget,
-    key: AcpPersistedConfigKey,
-    value: string | null
-  ): Promise<void>;
   recordTuiInput(target: ConversationRuntimeTarget): Promise<void>;
 }>;
 
 export type CreateConversationsWireControllerOptions = Readonly<{
   db: AppDb;
+  terminalFileSources: TerminalFileSources;
   runtimes: ConversationsRuntimeBroker;
   workspaceIdentity: WorkspaceIdentityResolver;
   resolveTarget?: (conversationId: string) => Promise<ConversationRuntimeTarget>;
@@ -98,6 +93,7 @@ export function createConversationsWireController(
         options.sessionLaunchContexts
       ));
   const hooks = options.hooks ?? createDefaultRuntimeHooks(options);
+  const configurationChanges = createKeyedLanes();
   const conversationOperations = createConversationOperations({
     db: options.db,
     taskSessions: options.taskSessions,
@@ -138,7 +134,41 @@ export function createConversationsWireController(
     )
   );
 
+  const settings = getProviderSettingsService(options.db);
   return createController(conversationsContract, {
+    providerSettings: {
+      model: settings.model,
+      patch: ({ patch, ...key }) => settings.patch(key, patch),
+    },
+    attachments: {
+      prepareLocalFiles: ({ conversationId, sources }, meta) =>
+        run(conversationId, (client, target) =>
+          prepareTerminalFiles({
+            host: target.host,
+            sources,
+            localFiles: options.terminalFileSources,
+            upload: (file) =>
+              client.conversations.attachments.upload({ conversationId }, file, callOptions(meta)),
+            remove: (attachmentId) =>
+              client.conversations.attachments.delete({ conversationId, attachmentId }),
+            signal: meta.signal,
+            logger: options.logger,
+          })
+        ),
+      upload: ({ conversationId }, file, meta) =>
+        run(conversationId, (client) =>
+          client.conversations.attachments.upload({ conversationId }, file, callOptions(meta))
+        ),
+      download: ({ conversationId, attachmentId }, meta) =>
+        openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),
+      delete: ({ conversationId, attachmentId }, meta) =>
+        run(conversationId, (client) =>
+          client.conversations.attachments.delete(
+            { conversationId, attachmentId },
+            callOptions(meta)
+          )
+        ),
+    },
     getConversations: () => conversationOperations.getConversations(),
     createConversation: (input) =>
       withAttachedProject(options.projects, input.projectId, async () =>
@@ -175,6 +205,91 @@ export function createConversationsWireController(
       conversationOperations.deleteHostConversation(conversationId),
     events: conversationWireEvents,
     acp: {
+      setOption: (input, meta) =>
+        configurationChanges.run(
+          input.conversationId,
+          meta.signal ?? new AbortController().signal,
+          async () => {
+            const runtimeTarget = await target(input.conversationId);
+            return withConversationRuntime(
+              options,
+              Promise.resolve(runtimeTarget),
+              async (client): ReturnType<ConversationsHostRuntimesClient['acp']['setOption']> => {
+                const records = await client.conversations.records
+                  .state(undefined, 'list')
+                  .snapshot();
+                const record = records.data[input.conversationId];
+                if (!record) return acpErr.conversationNotFound(input.conversationId);
+                const previous = providerOptionValuesSchema.parse(record.config.options ?? {})[
+                  input.configId
+                ];
+                const persisted = await client.conversations.patchConfig({
+                  conversationId: input.conversationId,
+                  patch: {},
+                  mapPatch: {
+                    field: 'options',
+                    entries: { [input.configId]: input.value },
+                    expected: { [input.configId]: previous },
+                  },
+                });
+                if (!persisted.success)
+                  return acpErr.setConfigFailed({
+                    name: 'PersistenceError',
+                    message: persisted.error.message,
+                  });
+                if (persisted.data.skippedKeys.includes(input.configId))
+                  return acpErr.setConfigFailed({
+                    name: 'ConfigurationConflict',
+                    message:
+                      'This setting changed elsewhere. Select it again to apply your choice.',
+                  });
+                const restorePreviousOption = async () => {
+                  const restored = await client.conversations.patchConfig({
+                    conversationId: input.conversationId,
+                    patch: {},
+                    mapPatch: {
+                      field: 'options',
+                      entries: { [input.configId]: previous ?? null },
+                      expected: { [input.configId]: input.value },
+                    },
+                  });
+                  if (!restored.success)
+                    throw new Error(
+                      `Could not restore previous conversation setting: ${restored.error.message}`
+                    );
+                };
+                let result: Awaited<ReturnType<typeof client.acp.setOption>>;
+                try {
+                  result = await client.acp.setOption(input, callOptions(meta));
+                } catch (error) {
+                  await restorePreviousOption();
+                  throw error;
+                }
+                if (!result.success) {
+                  await restorePreviousOption();
+                  return result;
+                }
+                if (runtimeTarget.providerId) {
+                  try {
+                    await settings.patch(
+                      {
+                        host: formatHostRef(runtimeTarget.host),
+                        providerId: runtimeTarget.providerId,
+                      },
+                      { transport: 'acp', options: { [input.configId]: input.value } }
+                    );
+                  } catch (error) {
+                    return ok({
+                      ...result.data,
+                      preferenceSaveError: error instanceof Error ? error.message : String(error),
+                    });
+                  }
+                }
+                return result;
+              }
+            );
+          }
+        ),
       attach: async ({ conversationId }, meta) => {
         const runtimeTarget = await target(conversationId);
         const input = runtimeTarget.acpInput;
@@ -183,14 +298,20 @@ export function createConversationsWireController(
           client.acp.attach(input, callOptions(meta))
         );
       },
-      loadHistory: async (input, meta) => {
-        const runtimeTarget = await target(input.conversationId);
+      startSession: async ({ conversationId, mode }, meta) => {
+        const runtimeTarget = await target(conversationId);
+        const input = runtimeTarget.acpInput;
+        if (!input) throw missingAcpInputError(runtimeTarget);
         return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
-          const result = await client.acp.loadHistory(input, callOptions(meta));
-          await persistClearedConfiguration(hooks, runtimeTarget, result, options.logger);
+          const result = await client.acp.startSession(
+            { ...input, mode },
+            { ...callOptions(meta), timeoutMs: 0 }
+          );
           return result;
         });
       },
+      loadHistory: (input, meta) =>
+        run(input.conversationId, (client) => client.acp.loadHistory(input, callOptions(meta))),
       terminate: (input, meta) =>
         run(input.conversationId, (client) => client.acp.terminate(input, callOptions(meta))),
       sendPrompt: (input, meta) =>
@@ -211,25 +332,6 @@ export function createConversationsWireController(
         ),
       cancelTurn: (input, meta) =>
         run(input.conversationId, (client) => client.acp.cancelTurn(input, callOptions(meta))),
-      setOption: async (input, meta) => {
-        const runtimeTarget = await target(input.conversationId);
-        return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
-          const result = await client.acp.setOption(input, callOptions(meta));
-          if (!result.success) return result;
-          try {
-            await hooks.persistAcpConfigOption(
-              runtimeTarget,
-              input.key === 'mode' ? 'modeId' : input.key,
-              input.value
-            );
-            return result;
-          } catch (error) {
-            return input.key === 'mode'
-              ? acpErr.setModeFailed(toSerializedError(error))
-              : acpErr.setConfigFailed(toSerializedError(error));
-          }
-        });
-      },
       resolvePermission: (input, meta) =>
         run(input.conversationId, (client) =>
           client.acp.resolvePermission(input, callOptions(meta))
@@ -240,16 +342,6 @@ export function createConversationsWireController(
         ),
       exportRawAcpLog: (input, meta) =>
         run(input.conversationId, (client) => client.acp.exportRawAcpLog(input, callOptions(meta))),
-      uploadAttachment: ({ conversationId }, file, meta) =>
-        run(conversationId, (client) =>
-          client.acp.uploadAttachment({ conversationId }, file, callOptions(meta))
-        ),
-      downloadAttachment: ({ conversationId, attachmentId }, meta) =>
-        openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),
-      deleteAttachment: ({ conversationId, attachmentId }, meta) =>
-        run(conversationId, (client) =>
-          client.acp.deleteAttachment({ conversationId, attachmentId }, callOptions(meta))
-        ),
       sessions: acpSessions,
       session: acpSession,
       terminalOutput: async ({ conversationId, terminalId }) =>
@@ -258,8 +350,10 @@ export function createConversationsWireController(
         ),
     },
     tui: {
-      start: (input, meta) =>
-        run(input.conversationId, (client) => client.tuiAgents.start(input, callOptions(meta))),
+      startSession: (input, meta) =>
+        run(input.conversationId, (client) =>
+          client.tuiAgents.startSession(input, callOptions(meta))
+        ),
       resume: (input, meta) =>
         run(input.conversationId, (client) => client.tuiAgents.resume(input, callOptions(meta))),
       stop: (input, meta) =>
@@ -290,38 +384,10 @@ export function createConversationsWireController(
 }
 
 function createDefaultRuntimeHooks(
-  options: Pick<
-    CreateConversationsWireControllerOptions,
-    'db' | 'logger' | 'telemetry' | 'runtimes' | 'hostIsReachable'
-  >
+  options: Pick<CreateConversationsWireControllerOptions, 'telemetry'>
 ): ConversationRuntimeHooks {
-  const { db, logger, telemetry, runtimes, hostIsReachable } = options;
+  const { telemetry } = options;
   return {
-    async persistAcpConfigOption(target, key, value) {
-      const result = await setConversationAcpConfigOption(
-        { db, runtimes, hostIsReachable },
-        target.conversationId,
-        key,
-        value
-      );
-      if (!result.success) {
-        logger.warn('ACP runtime failed to persist selected configuration', {
-          conversationId: target.conversationId,
-          key,
-          error: result.error,
-        });
-        throw new Error(result.error.message ?? result.error.type);
-      }
-      if (!result.data.changed || value === null) return;
-      if (result.data.taskId === null || result.data.projectId === null) return;
-      conversationWireEvents.emit(undefined, {
-        type: 'changed',
-        conversationId: target.conversationId,
-        taskId: result.data.taskId,
-        projectId: result.data.projectId,
-        changes: { [key]: value },
-      });
-    },
     // Recency is a host fact now: the runtime's activity report feeds
     // `lastSessionActivityAt` and convergence caches it — only telemetry stays client-side.
     async recordTuiInput(target) {
@@ -378,14 +444,8 @@ async function resolveConversationRuntimeTarget(
 
   const identity = row.workspaceId ? await workspaceIdentity.resolve(row.workspaceId) : null;
   const acpConfig = row.config?.type === 'acp' ? row.config : undefined;
-  const initialQueue =
-    row.sessionId === null
-      ? acpConfig?.initialQueue?.length
-        ? acpConfig.initialQueue
-        : acpConfig?.initialPrompt?.trim()
-          ? [{ text: acpConfig.initialPrompt }]
-          : undefined
-      : undefined;
+  // The runtime owns consumption. A provider pointer alone does not prove dispatch.
+  const initialQueue = acpConfig?.initialQueue?.length ? acpConfig.initialQueue : undefined;
   const workspacePath = identity?.path;
   // Resolve the ACP agent environment in main from provider and project/task settings. The
   // renderer supplies only a conversation id and cannot inject spawn variables.
@@ -413,10 +473,7 @@ async function resolveConversationRuntimeTarget(
           providerId: row.providerId,
           cwd: workspacePath,
           sessionId: row.sessionId,
-          model: acpConfig?.model ?? null,
-          modeId: acpConfig?.modeId ?? null,
-          effort: acpConfig?.effort ?? null,
-          collaborationMode: acpConfig?.collaborationMode ?? null,
+          options: acpConfig?.options,
           ...(initialQueue && { initialQueue }),
           ...(Object.keys(processEnv).length > 0 ? { env: processEnv } : {}),
         }
@@ -429,10 +486,6 @@ async function resolveConversationRuntimeTarget(
     conversationType: row.type === 'acp' ? 'acp' : 'pty',
     providerId: row.providerId,
     sessionId: row.sessionId,
-    model: acpConfig?.model ?? null,
-    modeId: acpConfig?.modeId ?? null,
-    effort: acpConfig?.effort ?? null,
-    collaborationMode: acpConfig?.collaborationMode ?? null,
     workspacePath,
     host: identity?.host ?? LOCAL_HOST_REF,
     acpInput,
@@ -457,31 +510,6 @@ async function withConversationRuntime<T, E>(
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {
   return meta.signal ? { signal: meta.signal } : {};
-}
-
-async function persistClearedConfiguration(
-  hooks: ConversationRuntimeHooks,
-  target: ConversationRuntimeTarget,
-  result: Result<
-    {
-      clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
-    },
-    unknown
-  >,
-  logger: Logger
-): Promise<void> {
-  if (!result.success) return;
-  for (const key of result.data.clearedConfiguration ?? []) {
-    try {
-      await hooks.persistAcpConfigOption(target, key, null);
-    } catch (error) {
-      logger.warn('ACP runtime failed to clear unsupported stored configuration', {
-        conversationId: target.conversationId,
-        key,
-        error: String(error),
-      });
-    }
-  }
 }
 
 async function resolveConversationRuntimeSource(
@@ -528,7 +556,7 @@ async function openAttachmentDownload(
   return withAttachedProject(options.projects, target.projectId, async () => {
     const runtime = await options.runtimes.client(target.host);
     if (!runtime.success) return err(runtime.error);
-    const result = await runtime.data.acp.downloadAttachment(
+    const result = await runtime.data.conversations.attachments.download(
       { conversationId: target.conversationId, attachmentId },
       call
     );

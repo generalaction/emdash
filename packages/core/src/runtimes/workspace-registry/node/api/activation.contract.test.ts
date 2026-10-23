@@ -22,6 +22,7 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import type { ObservedScriptRun, ScriptRunsObserver } from '../scripts-plane';
 import { createWorkspaceRegistryController } from './controller';
 
@@ -63,6 +64,7 @@ describe('workspace registry activation lifecycle', () => {
 
   function createRegistryRuntime(): WorkspaceRegistryRuntime {
     return new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock,
       killSessions: async (workspacePath) => {
@@ -544,6 +546,7 @@ describe('workspace registry activation lifecycle', () => {
     wire.dispose();
     runtime.dispose();
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock,
       killSessions: async (workspacePath) => {

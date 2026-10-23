@@ -11,6 +11,7 @@ import {
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { RegistryScanner } from '#runtimes/workspace-registry/node/scan/scanner';
 import type { ScanRequest } from '#runtimes/workspace-registry/node/scan/scheduler';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 
 // Self-inflicted scan suppression (spec: workspace-lifecycle-v2, scan minimization):
 // background steps hold the scheduler's mute for exactly the id they write into and
@@ -60,6 +61,7 @@ describe('background steps suppress their own scans', () => {
     muteEvents = [];
     settleScans = [];
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       // Settle scans are the only scanner requests the runtime makes itself here (no
       // scheduler is wired): a recording proxy around the real scanner captures them.

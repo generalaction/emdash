@@ -3,6 +3,7 @@ import {
   browserPreviewSettingsContribution,
   browserSettingsContribution,
 } from '@core/features/browser/contributions/settings';
+import { preferredConversationTypeSettingsContribution } from '@core/features/conversations/contributions/settings';
 import { filesSettingsContribution } from '@core/features/editor/contributions/settings';
 import {
   localProjectSettingsSchemaContribution,
@@ -34,6 +35,7 @@ export const appSettingsSchemaContributions = {
   tasks: taskSettingsContribution,
   files: filesSettingsContribution,
   defaultAgent: defaultAgentSettingsContribution,
+  preferredConversationType: preferredConversationTypeSettingsContribution,
   keyboard: keyboardSettingsContribution,
   notifications: notificationSettingsContribution,
   theme: themeSettingsContribution,

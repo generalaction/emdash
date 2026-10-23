@@ -6,10 +6,12 @@ import { copyPrUrl } from './pr-url-copy';
 
 interface PrUrlCopyButtonProps {
   url: string;
+  provider?: string;
   className?: string;
 }
 
-export function PrUrlCopyButton({ url, className }: PrUrlCopyButtonProps) {
+export function PrUrlCopyButton({ url, provider = 'github', className }: PrUrlCopyButtonProps) {
+  const short = provider === 'gitlab' ? 'MR' : 'PR';
   const [copied, setCopied] = useState(false);
   const resetTimerRef = useRef<number | null>(null);
 
@@ -22,7 +24,7 @@ export function PrUrlCopyButton({ url, className }: PrUrlCopyButtonProps) {
 
   const handleCopy = async (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    const copySucceeded = await copyPrUrl(url);
+    const copySucceeded = await copyPrUrl(url, provider);
     if (!copySucceeded) {
       if (resetTimerRef.current !== null) {
         window.clearTimeout(resetTimerRef.current);
@@ -46,7 +48,7 @@ export function PrUrlCopyButton({ url, className }: PrUrlCopyButtonProps) {
         render={
           <Button
             type="button"
-            aria-label={copied ? 'PR URL copied' : 'Copy PR URL'}
+            aria-label={copied ? `${short} URL copied` : `Copy ${short} URL`}
             variant="ghost"
             size="xs"
             icon
@@ -57,7 +59,7 @@ export function PrUrlCopyButton({ url, className }: PrUrlCopyButtonProps) {
           </Button>
         }
       />
-      <Tooltip.Content>{copied ? 'Copied!' : 'Copy PR URL'}</Tooltip.Content>
+      <Tooltip.Content>{copied ? 'Copied!' : `Copy ${short} URL`}</Tooltip.Content>
     </Tooltip.Root>
   );
 }

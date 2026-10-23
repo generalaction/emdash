@@ -1,10 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeLegacyTmuxSessionName } from '@emdash/core/services/pty/api';
+import { eq } from 'drizzle-orm';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { makePtySessionId } from '@core/primitives/pty/api';
-import { conversations, tasks } from '@core/services/app-db/node/schema';
+import { conversations, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { log } from '@main/lib/logger';
 import { readLegacyRows, toIsoTimestamp, toTrimmedString } from './helpers';
 import { insertWithRegeneratedId } from './insert';
@@ -354,13 +355,32 @@ async function renameLegacyTmuxSession(params: {
   }
 }
 
-function pickConversationIdForInsert(params: {
+function legacyClaudeResumeId(params: {
+  legacyConversationId: string;
+  legacyTaskId: string;
+  legacyProvider: string | null;
+  legacyPtySessionTargets: LegacyPtySessionTargets;
+}): string | undefined {
+  const { legacyConversationId, legacyTaskId, legacyProvider, legacyPtySessionTargets } = params;
+  if (legacyProvider?.toLowerCase() !== 'claude') return undefined;
+  return (
+    legacyPtySessionTargets.chatConversationIdToUuid.get(legacyConversationId) ??
+    legacyPtySessionTargets.mainTaskIdToUuid.get(legacyTaskId) ??
+    (() => {
+      const taskId = parseTaskIdFromConversationId(legacyConversationId);
+      return taskId ? legacyPtySessionTargets.mainTaskIdToUuid.get(taskId) : undefined;
+    })() ??
+    findOptimisticMainResumeUuidForConversation(legacyConversationId, legacyPtySessionTargets)
+  );
+}
+
+function pickClaudeResumeIdForInsert(params: {
   legacyConversationId: string;
   legacyTaskId: string;
   legacyProvider: string | null;
   conversationIds: Set<string>;
   legacyPtySessionTargets: LegacyPtySessionTargets;
-}): string {
+}): string | null {
   const {
     legacyConversationId,
     legacyTaskId,
@@ -370,22 +390,18 @@ function pickConversationIdForInsert(params: {
   } = params;
 
   if (legacyProvider?.toLowerCase() !== 'claude') {
-    return legacyConversationId;
+    return null;
   }
 
-  const candidateResumeUuid =
-    legacyPtySessionTargets.chatConversationIdToUuid.get(legacyConversationId) ??
-    legacyPtySessionTargets.mainTaskIdToUuid.get(legacyTaskId) ??
-    (() => {
-      const taskIdFromConversationId = parseTaskIdFromConversationId(legacyConversationId);
-      return taskIdFromConversationId
-        ? legacyPtySessionTargets.mainTaskIdToUuid.get(taskIdFromConversationId)
-        : undefined;
-    })() ??
-    findOptimisticMainResumeUuidForConversation(legacyConversationId, legacyPtySessionTargets);
+  const candidateResumeUuid = legacyClaudeResumeId({
+    legacyConversationId,
+    legacyTaskId,
+    legacyProvider,
+    legacyPtySessionTargets,
+  });
 
   if (!candidateResumeUuid || !isValidResumeUuid(candidateResumeUuid)) {
-    return legacyConversationId;
+    return null;
   }
 
   if (conversationIds.has(candidateResumeUuid)) {
@@ -394,7 +410,7 @@ function pickConversationIdForInsert(params: {
       legacyTaskId,
       candidateResumeUuid,
     });
-    return legacyConversationId;
+    return null;
   }
 
   return candidateResumeUuid;
@@ -421,11 +437,16 @@ export async function portConversations({
     .select({
       id: tasks.id,
       projectId: tasks.projectId,
+      path: workspaces.path,
+      location: workspaces.location,
+      sshConnectionId: workspaces.sshConnectionId,
     })
     .from(tasks)
+    .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
     .execute();
 
   const taskIdToProjectId = new Map<string, string>();
+  const taskWorkspaces = new Map(taskRows.map((row) => [row.id, row]));
   for (const row of taskRows) {
     taskIdToProjectId.set(row.id, row.projectId);
   }
@@ -474,13 +495,14 @@ export async function portConversations({
     }
 
     const legacyProvider = toTrimmedString(row.provider) ?? null;
-    const preferredConversationId = pickConversationIdForInsert({
+    const providerSessionId = pickClaudeResumeIdForInsert({
       legacyConversationId,
       legacyTaskId,
       legacyProvider,
       conversationIds,
       legacyPtySessionTargets,
     });
+    const preferredConversationId = providerSessionId ?? legacyConversationId;
     const legacyPtyId = pickLegacyPtyIdForConversation({
       legacyConversationId,
       legacyTaskId,
@@ -488,10 +510,7 @@ export async function portConversations({
       legacyPtySessionTargets,
     });
 
-    // Registry shape (spec §10.5): task/project links are annotations; the legacy
-    // authoritative values become the first cached observation. Legacy conversations are
-    // local PTY sessions; rows without a cwd stay stale cached observations (the upgrade
-    // backfill skips them) but keep their links.
+    const workspace = taskWorkspaces.get(mappedTaskId);
     const insertValues = {
       id: preferredConversationId,
       projectId: mappedProjectId,
@@ -502,8 +521,11 @@ export async function portConversations({
       type: 'pty' as const,
       config: null,
       idRegime: 'emdash-chosen' as const,
-      location: 'local' as const,
-      sshConnectionId: null,
+      cwd: workspace?.path ?? null,
+      workspacePath: workspace?.path ?? null,
+      providerSessionId,
+      location: workspace?.location ?? 'local',
+      sshConnectionId: workspace?.sshConnectionId ?? null,
       createdAt: toIsoTimestamp(row.created_at, nowIso),
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
@@ -514,6 +536,7 @@ export async function portConversations({
       uniqueConstraintDetail: 'conversations.id',
       setId: (id) => {
         insertValues.id = id;
+        if (id !== preferredConversationId) insertValues.providerSessionId = null;
       },
       insert: async () => {
         registry.register(insertValues);

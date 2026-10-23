@@ -66,20 +66,67 @@ esac
 
 case "$(uname -s 2>/dev/null || true)" in
   Linux) os=linux ;;
-  *) fail 40 "workspace-server installation is only supported on Linux" ;;
+  Darwin) os=darwin ;;
+  *) fail 40 "workspace-server installation is only supported on Linux and macOS" ;;
 esac
 
-case "$(uname -m 2>/dev/null || true)" in
-  x86_64 | amd64) arch=x64 ;;
-  aarch64 | arm64) arch=arm64 ;;
+machine=$(uname -m 2>/dev/null || true)
+case "$os/$machine" in
+  linux/x86_64 | linux/amd64) arch=x64 ;;
+  linux/aarch64 | linux/arm64) arch=arm64 ;;
+  darwin/arm64) arch=arm64 ;;
+  darwin/*) fail 40 "workspace-server macOS artifacts are only published for Apple silicon (arm64)" ;;
   *) fail 40 "unsupported Linux architecture" ;;
 esac
 
-libc=$(getconf GNU_LIBC_VERSION 2>/dev/null || true)
-case "$libc" in
-  glibc\ *) ;;
-  *) fail 40 "workspace-server Linux artifacts require glibc" ;;
-esac
+if [ "$os" = linux ]; then
+  libc=$(getconf GNU_LIBC_VERSION 2>/dev/null || true)
+  case "$libc" in
+    glibc\ *) ;;
+    *) fail 40 "workspace-server Linux artifacts require glibc" ;;
+  esac
+fi
+
+# Linux hosts are assumed to carry GNU coreutils and GNU tar (the glibc check
+# above already rules out busybox-based distributions). macOS ships BSD tools:
+# no sha256sum, a tar that rejects --warning, and an mv without -T.
+verify_checksum() {
+  if [ "$os" = darwin ]; then
+    printf '%s  %s\n' "$1" "$2" | shasum -a 256 -c - >/dev/null
+  else
+    printf '%s  %s\n' "$1" "$2" | sha256sum -c - >/dev/null
+  fi
+}
+
+extract_archive() {
+  if [ "$os" = darwin ]; then
+    set --
+  else
+    # Darwin archives carry pax headers that GNU tar would otherwise report.
+    set -- --warning=no-unknown-keyword
+  fi
+  tar \
+    --extract \
+    --gzip \
+    --file "$archive" \
+    --strip-components=1 \
+    --directory "$staging" \
+    "$@"
+}
+
+# Atomically point $current_link at $next_link's target. BSD mv has no -T and
+# would move the new link *into* the directory that current already resolves
+# to, so macOS renames through the artifact's own Node runtime instead.
+replace_current_link() {
+  if [ "$os" = darwin ]; then
+    [ -x "$version_dir/node" ] || fail 42 "artifact runtime is missing"
+    "$version_dir/node" \
+      --input-type=module -e 'import { renameSync } from "node:fs"; renameSync(process.argv[1], process.argv[2]);' \
+      "$next_link" "$current_link"
+  else
+    mv -Tf -- "$next_link" "$current_link"
+  fi
+}
 
 download() {
   source_url=$1
@@ -194,7 +241,7 @@ if [ -d "$version_dir" ]; then
     fail 42 "existing workspace-server $version installation is incomplete"
   fi
   ln -s -- "versions/$version" "$next_link"
-  mv -Tf -- "$next_link" "$current_link"
+  replace_current_link
   exit 0
 fi
 
@@ -203,16 +250,10 @@ mkdir -p -- "$staging"
 if ! download "$artifact_url" "$archive"; then
   fail 41 "could not download $artifact"
 fi
-if ! printf '%s  %s\n' "$sha256" "$archive" | sha256sum -c - >/dev/null; then
+if ! verify_checksum "$sha256" "$archive"; then
   fail 41 "checksum verification failed for $artifact"
 fi
-if ! tar \
-  --extract \
-  --gzip \
-  --file "$archive" \
-  --strip-components=1 \
-  --directory "$staging" \
-  --warning=no-unknown-keyword; then
+if ! extract_archive; then
   fail 42 "could not extract $artifact"
 fi
 if [ ! -x "$staging_launcher" ]; then
@@ -221,4 +262,4 @@ fi
 
 mv -- "$staging" "$version_dir"
 ln -s -- "versions/$version" "$next_link"
-mv -Tf -- "$next_link" "$current_link"
+replace_current_link

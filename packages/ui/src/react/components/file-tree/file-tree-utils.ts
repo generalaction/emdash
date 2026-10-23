@@ -1,3 +1,4 @@
+import { compareFileNames } from '@emdash/shared/util';
 import type { TreeNode } from '../../patterns/tree-view';
 
 export type FileTreeNodeType = 'file' | 'directory' | 'symlink';
@@ -13,7 +14,6 @@ export interface FileTreeNode {
   type: FileTreeNodeType;
   symlink?: boolean;
   symlinkTargetKind?: FileTreeSymlinkTargetKind;
-  childrenLoaded?: boolean;
   isHidden?: boolean;
   extension?: string;
 }
@@ -51,7 +51,7 @@ export function sortFileNodes(nodes: readonly FileTreeNode[]): FileTreeNode[] {
     const aDir = isExpandableFileTreeNode(a);
     const bDir = isExpandableFileTreeNode(b);
     if (aDir !== bDir) return aDir ? -1 : 1;
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+    return compareFileNames(a.name, b.name);
   });
 }
 
@@ -66,7 +66,9 @@ export function isOpenableFileTreeNode(node: FileTreeNode): boolean {
 }
 
 export function normalizeFileTreePath(path: string): string {
-  const normalized = path.replaceAll('\\', '/').replace(/\/+/g, '/');
+  const slashPath = path.replaceAll('\\', '/');
+  const unc = slashPath.startsWith('//');
+  const normalized = `${unc ? '//' : ''}${slashPath.slice(unc ? 2 : 0).replace(/\/+/g, '/')}`;
   if (normalized === '.') return '';
   if (normalized.length > 1 && normalized.endsWith('/')) return normalized.slice(0, -1);
   return normalized;

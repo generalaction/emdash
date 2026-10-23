@@ -62,7 +62,9 @@ export function deriveAcpAgentStatusActions(
     return [resetAction(previous.conversationId)];
   }
 
-  if (!previous) return [];
+  if (!previous) {
+    return next.pendingPermissionCount > 0 ? [permissionAction(next)] : [];
+  }
 
   if (next.lifecycle === 'closed') {
     return [resetAction(next.conversationId)];
@@ -75,7 +77,12 @@ export function deriveAcpAgentStatusActions(
   const permissionAppeared =
     previousPendingPermissionCount === 0 && next.pendingPermissionCount > 0;
 
-  if (!wasBusy && nowBusy && !permissionAppeared) {
+  if (
+    nowBusy &&
+    next.lifecycle !== 'cancelling' &&
+    next.pendingPermissionCount === 0 &&
+    (!wasBusy || previousPendingPermissionCount > 0)
+  ) {
     actions.push(eventAction(next, 'start'));
   }
 

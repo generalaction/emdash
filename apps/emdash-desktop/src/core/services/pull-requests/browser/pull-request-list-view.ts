@@ -1,13 +1,9 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { createListView } from '@emdash/ui/react/patterns';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { toJS } from 'mobx';
 import { pullRequestErrorMessage } from '../api';
-import type {
-  PullRequest,
-  PullRequestFilters,
-  PullRequestsContract,
-  PullRequestSort,
-} from '../api';
+import type { PullRequestFilters, PullRequestsContract, PullRequestSort } from '../api';
 
 export type PullRequestListFilterModel = PullRequestFilters & Record<string, unknown>;
 

@@ -24,6 +24,14 @@ const secondaryBackgroundHover = `color-mix(in srgb, ${vars.foreground} 9%, tran
 const secondaryBackgroundSelected = `color-mix(in srgb, ${vars.foreground} 12%, transparent)`;
 const primaryButtonBackgroundPressed = `color-mix(in srgb, black 10%, ${vars.primaryButtonBackground})`;
 
+const inlineControlSize = {
+  height: 'auto',
+  gap: '0.25rem',
+  border: 'none',
+  backgroundColor: 'transparent',
+  padding: 0,
+} as const;
+
 // Pre-create base style so we can attach globalStyle child selectors
 const controlBase = style({
   display: 'inline-flex',
@@ -184,11 +192,7 @@ export const controlVariants = recipe({
         paddingRight: '0.625rem',
       },
       link: {
-        height: 'auto',
-        gap: '0.25rem',
-        border: 'none',
-        backgroundColor: 'transparent',
-        padding: 0,
+        ...inlineControlSize,
         color: vars.foreground,
         selectors: {
           '&:hover': {
@@ -197,6 +201,7 @@ export const controlVariants = recipe({
           },
         },
       },
+      text: inlineControlSize,
     },
 
     icon: {
@@ -210,11 +215,11 @@ export const controlVariants = recipe({
   },
 
   compoundVariants: [
-    // ghost + link: keep transparent background across all interaction states so the ghost
+    // Inline actions: keep transparent background across all interaction states so the ghost
     // hover colour never bleeds through. Compound variants emit after regular variants, giving
     // them the winning source-order position at equal specificity.
-    {
-      variants: { variant: 'ghost', size: 'link' },
+    ...(['link', 'text'] as const).map((size) => ({
+      variants: { variant: 'ghost' as const, size },
       style: {
         backgroundColor: 'transparent',
         selectors: {
@@ -228,7 +233,7 @@ export const controlVariants = recipe({
           '&[data-active="true"]': { backgroundColor: 'transparent' },
         },
       },
-    },
+    })),
     // ghost + destructive
     {
       variants: { variant: 'ghost', tone: 'destructive' },

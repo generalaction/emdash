@@ -16,6 +16,25 @@ import {
   type FileTreeNode,
 } from './file-tree-utils';
 
+describe('file tree host path normalization', () => {
+  it.each([
+    ['//server/share/folder/', '//server/share/folder'],
+    ['\\\\server\\share\\folder', '//server/share/folder'],
+    ['/repo//src/', '/repo/src'],
+    ['C:\\repo\\src\\', 'C:/repo/src'],
+    ['/', '/'],
+    ['.', ''],
+  ])('preserves host identity for %s', (input, expected) => {
+    expect(normalizeFileTreePath(input)).toBe(expected);
+  });
+  it('keeps UNC ancestors under the same root', () => {
+    expect(ancestorPathsFor('//server/share/src/deep/file.ts', '//server/share')).toEqual([
+      '//server/share/src',
+      '//server/share/src/deep',
+    ]);
+  });
+});
+
 const src: FileTreeNode = {
   id: 'src',
   path: 'src',

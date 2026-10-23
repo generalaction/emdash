@@ -1,3 +1,4 @@
+import { pullRequestFileSchema, pullRequestSchema } from '@emdash/plugins/pull-requests/schemas';
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { pullRequestErrorSchema } from './errors';
@@ -8,10 +9,8 @@ import {
   listPullRequestsInputSchema,
   listPullRequestsResultSchema,
   mergePullRequestInputSchema,
-  pullRequestFileSchema,
   pullRequestFilterOptionsSchema,
   pullRequestNumberInputSchema,
-  pullRequestSchema,
   pullRequestUrlInputSchema,
   repositoryInputSchema,
   repositoryListInputSchema,

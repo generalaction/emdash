@@ -1,3 +1,8 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
+import type {
+  PullRequestPage,
+  PullRequestRepositoryClient,
+} from '@emdash/plugins/pull-requests/types';
 import { err, ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { requestPriorities } from '@emdash/shared/requests';
@@ -5,9 +10,9 @@ import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { snapshot } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract, PullRequest, PullRequestError } from '../api';
+import type { GitPlatformAuthContract } from '../api';
+import type { PullRequestError } from '../api/errors';
 import type { PullRequestEngine } from './engine';
-import type { GitHubPullRequestRepository, PullRequestPage } from './engine/observation';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
 
@@ -33,28 +38,28 @@ async function harness(maxSyncCount = 300) {
   const context = {
     identity: 'github.com:account-1',
     repositoryUrl,
-    fetchOpenPage: vi.fn<GitHubPullRequestRepository['fetchOpenPage']>(
+    fetchOpenPage: vi.fn<PullRequestRepositoryClient['fetchOpenPage']>(
       async (_cursor: string | null, _signal: AbortSignal, _priority?: number) => observed(page())
     ),
-    fetchHistoryPage: vi.fn<GitHubPullRequestRepository['fetchHistoryPage']>(
+    fetchHistoryPage: vi.fn<PullRequestRepositoryClient['fetchHistoryPage']>(
       async (_cursor: string | null, _signal: AbortSignal, _priority?: number) => observed(page())
     ),
-    fetchPullRequest: vi.fn<GitHubPullRequestRepository['fetchPullRequest']>(
+    fetchPullRequest: vi.fn<PullRequestRepositoryClient['fetchPullRequest']>(
       async (number: number, _signal: AbortSignal, _priority?: number) =>
         observed(
           pullRequestFixture({ identifier: `#${number}`, url: `${repositoryUrl}/pull/${number}` })
         )
     ),
-    fetchChecks: vi.fn<GitHubPullRequestRepository['fetchChecks']>(
+    fetchChecks: vi.fn<PullRequestRepositoryClient['fetchChecks']>(
       async (_number: number, _signal: AbortSignal) => observed({ headRefOid: 'head', checks: [] })
     ),
-    fetchComments: vi.fn<GitHubPullRequestRepository['fetchComments']>(
+    fetchComments: vi.fn<PullRequestRepositoryClient['fetchComments']>(
       async (_number: number, _signal: AbortSignal) => observed([])
     ),
   };
   const engine = {
     openRepository: vi.fn<PullRequestEngine['openRepository']>(async () =>
-      ok(context as GitHubPullRequestRepository)
+      ok(context as PullRequestRepositoryClient)
     ),
     createPullRequest: vi.fn(async () => ok({ url: `${repositoryUrl}/pull/42`, number: 42 })),
     mergePullRequest: vi.fn(async () => ok({ sha: 'abc', merged: true })),
@@ -84,6 +89,159 @@ async function harness(maxSyncCount = 300) {
 }
 
 describe('PullRequestService ownership', () => {
+  it('stores GitLab details and comments under the merge request web URL', async () => {
+    const h = await harness();
+    const mrUrl = `${repositoryUrl}/-/merge_requests/42`;
+    const mr = pullRequestFixture({ url: mrUrl, provider: 'gitlab', identifier: '!42' });
+    h.store.savePullRequest(mr);
+    h.context.fetchPullRequest.mockResolvedValueOnce(observed(mr));
+    h.context.fetchComments.mockResolvedValueOnce(
+      observed([
+        {
+          id: 'note-1',
+          pullRequestUrl: mrUrl,
+          kind: 'issue',
+          body: 'Comment',
+          url: `${mrUrl}#note_1`,
+          author: null,
+          path: null,
+          line: null,
+          isResolved: false,
+          isOutdated: false,
+          createdAt: mr.createdAt,
+          updatedAt: mr.updatedAt,
+        },
+      ])
+    );
+    expect(
+      await h.service.refreshPullRequest({
+        repositoryUrl,
+        number: 42,
+        comments: true,
+        policy: 'force',
+      })
+    ).toEqual(ok());
+    expect(h.store.getPullRequestByNumber(repositoryUrl, 42)?.url).toBe(mrUrl);
+    expect(h.store.getComments(mrUrl)).toMatchObject([{ id: 'note-1' }]);
+  });
+
+  it('hydrates incomplete MR inventory and preserves freshness only for unchanged observations', async () => {
+    const h = await harness();
+    const mr = pullRequestFixture({
+      provider: 'gitlab',
+      identifier: '!42',
+      url: `${repositoryUrl}/-/merge_requests/42`,
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    const summary = { ...mr, reviewDecision: null, baseRefOid: '' };
+    const inventory = {
+      ...page([summary]),
+      detailOnlyFields: ['reviewDecision', 'baseRefOid'] as ('reviewDecision' | 'baseRefOid')[],
+    };
+    h.context.fetchOpenPage.mockImplementation(async () => observed(inventory));
+    h.context.fetchPullRequest.mockImplementation(async () => observed(mr));
+    expect(await h.service.refreshRepository({ repositoryUrl, policy: 'force' })).toEqual(ok());
+    expect(h.store.getPullRequestByUrl(mr.url)?.metadataFetchedAt).toBeNull();
+    expect(
+      await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' })
+    ).toEqual(ok());
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(1);
+    expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+    expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+      reviewDecision: 'APPROVED',
+      baseRefOid: 'base-detail',
+    });
+    await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' });
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(1);
+    summary.headRefOid = 'new-head';
+    summary.updatedAt = '2026-10-19T00:00:00Z';
+    await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+    expect(h.store.getPullRequestByUrl(mr.url)?.metadataFetchedAt).toBeNull();
+    await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' });
+    expect(h.context.fetchPullRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['title', 'head', 'worker restart'] as const)(
+    'retains omitted cached MR details after %s and a failed detail refresh',
+    async (change) => {
+      const h = await harness();
+      const mr = pullRequestFixture({
+        provider: 'gitlab',
+        identifier: '!42',
+        url: `${repositoryUrl}/-/merge_requests/42`,
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+      });
+      if (change === 'worker restart') {
+        h.store.savePullRequest({ ...mr, metadataFetchedAt: Date.now() });
+      } else {
+        h.context.fetchPullRequest.mockResolvedValueOnce(observed(mr));
+        await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'force' });
+      }
+      const summary = {
+        ...mr,
+        reviewDecision: null,
+        baseRefOid: '',
+        additions: null,
+        deletions: null,
+        changedFiles: null,
+        commitCount: null,
+        ...(change === 'title' ? { title: 'Renamed MR', updatedAt: '2026-10-20T00:00:00Z' } : {}),
+        ...(change === 'head' ? { headRefOid: 'new-head', updatedAt: '2026-10-20T00:00:00Z' } : {}),
+      };
+      const inventory: PullRequestPage = {
+        ...page([summary]),
+        detailOnlyFields: [
+          'reviewDecision',
+          'baseRefOid',
+          'additions',
+          'deletions',
+          'changedFiles',
+          'commitCount',
+        ],
+      };
+      h.context.fetchOpenPage.mockResolvedValueOnce(observed(inventory));
+      await h.service.refreshRepository({ repositoryUrl, policy: 'force' });
+      expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+        title: summary.title,
+        headRefOid: summary.headRefOid,
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+        metadataFetchedAt: null,
+      });
+      h.context.fetchPullRequest.mockClear();
+      h.context.fetchPullRequest.mockResolvedValueOnce(
+        err({ type: 'sync_failed', message: 'Detail endpoint unavailable' })
+      );
+      expect(
+        await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'if-stale' })
+      ).toMatchObject({ success: false });
+      expect(h.context.fetchPullRequest).toHaveBeenCalledOnce();
+      expect(h.store.getPullRequestByUrl(mr.url)).toMatchObject({
+        reviewDecision: 'APPROVED',
+        baseRefOid: 'base-detail',
+        additions: 12,
+        deletions: 3,
+        changedFiles: 2,
+        commitCount: 4,
+        metadataFetchedAt: null,
+      });
+    }
+  );
+
   it('restores history progress after inventory completes, without losing either operation state', async () => {
     const h = await harness();
     let finishHistory!: () => void;
@@ -149,8 +307,28 @@ describe('PullRequestService ownership', () => {
   );
 
   it.each([
-    { type: 'github_account_not_found', message: 'Selected account disconnected' },
-    { type: 'github_disabled', message: 'GitHub disabled' },
+    {
+      type: 'account_not_found',
+      integrationId: 'github',
+      message: 'Selected account disconnected',
+    },
+    { type: 'integration_disabled', integrationId: 'github', message: 'GitHub disabled' },
+    { type: 'auth_required', integrationId: 'github', host: 'github.com', hint: 'Reconnect' },
+    {
+      type: 'account_host_mismatch',
+      integrationId: 'github',
+      message: 'Account belongs to another host',
+      accountId: 'account-1',
+      accountHost: 'ghe.example.com',
+      host: 'github.com',
+    },
+    {
+      type: 'token_missing',
+      integrationId: 'github',
+      message: 'Token missing',
+      accountId: 'account-1',
+      host: 'github.com',
+    },
   ] satisfies PullRequestError[])(
     'rejects a late old-account response after $type',
     async (error) => {
@@ -207,7 +385,7 @@ describe('PullRequestService ownership', () => {
     const pending = h.service.refreshRepository({ repositoryUrl, policy: 'force' });
     await vi.waitFor(() => expect(finish).toBeDefined());
     h.engine.openRepository.mockResolvedValueOnce(
-      err({ type: 'github_disabled', message: 'Disabled' })
+      err({ type: 'integration_disabled', integrationId: 'github', message: 'Disabled' })
     );
     await h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'force' });
     finish();
@@ -222,7 +400,11 @@ describe('PullRequestService ownership', () => {
       await new Promise<void>((resolve) => {
         finish = resolve;
       });
-      return err({ type: 'github_disabled', message: 'Old rejection' });
+      return err({
+        type: 'integration_disabled',
+        integrationId: 'github',
+        message: 'Old rejection',
+      });
     });
     const pending = h.service.refreshPullRequest({ repositoryUrl, number: 42, policy: 'force' });
     await vi.waitFor(() => expect(finish).toBeDefined());
@@ -549,7 +731,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       'next',
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      undefined
     );
     expect(h.store.getCursor(repositoryUrl, 'full')).toMatchObject({ done: true });
     expect(
@@ -596,7 +779,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       'older',
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      '2026-01-02T00:00:00.000Z'
     );
     expect(h.store.getPullRequestByUrl(`${repositoryUrl}/pull/2`)).not.toBeNull();
     expect(h.store.getPullRequestByUrl(`${repositoryUrl}/pull/3`)).toBeNull();
@@ -629,7 +813,8 @@ describe('PullRequestService ownership', () => {
     expect(h.context.fetchHistoryPage).toHaveBeenLastCalledWith(
       null,
       expect.any(AbortSignal),
-      requestPriorities.background
+      requestPriorities.background,
+      undefined
     );
     expect(h.store.getCursor(repositoryUrl, 'full')?.done).toBe(true);
   });
@@ -706,13 +891,13 @@ function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
   };
 }
 
-function fakeGitHubAuth(): ContractClient<GitHubAuthContract> {
+function fakeGitHubAuth(): ContractClient<GitPlatformAuthContract> {
   return {
+    resolveIntegration: async () => ok({ integrationId: 'github' }),
     resolveAuth: async () =>
       ok({
-        token: 'test-token',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
+        integrationId: 'github',
+        credentials: { accessToken: 'test-token', apiBaseUrl: 'https://api.github.com' },
       }),
   };
 }

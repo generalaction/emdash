@@ -15,8 +15,9 @@ export function createAccountWireController(
 ): Controller {
   return createController(accountContract, {
     getSession: () => getSession(service, dependencies.logger),
-    signIn: ({ provider }) => signIn(service, dependencies, provider),
-    linkProviderAccount: ({ provider }) => linkProviderAccount(service, dependencies, provider),
+    signIn: ({ provider, accountId }) => signIn(service, dependencies, provider, accountId),
+    linkProviderAccount: ({ provider, accountId }) =>
+      linkProviderAccount(service, dependencies, provider, accountId),
     signOut: () => signOut(service, dependencies),
     checkHealth: () => service.checkServerHealth(),
   });
@@ -34,9 +35,10 @@ async function getSession(service: EmdashAccountService, logger: Logger) {
 async function signIn(
   service: EmdashAccountService,
   dependencies: AccountControllerDependencies,
-  provider?: string
+  provider?: string,
+  accountId?: string
 ) {
-  const result = await service.signIn(provider);
+  const result = await service.signIn(provider, { accountId });
   if (!result.success) {
     dependencies.logger.error('Account sign-in failed', { error: result.error });
     return {
@@ -53,9 +55,10 @@ async function signIn(
 async function linkProviderAccount(
   service: EmdashAccountService,
   dependencies: AccountControllerDependencies,
-  provider?: string
+  provider?: string,
+  accountId?: string
 ) {
-  const result = await service.linkProviderAccount(provider);
+  const result = await service.linkProviderAccount(provider, { accountId });
   if (!result.success) {
     if (result.error.type !== 'session_expired') {
       dependencies.logger.error('Provider account link failed', { error: result.error });

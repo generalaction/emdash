@@ -21,6 +21,7 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { createWorkspaceRegistryController } from './controller';
 
 const TEST_USER_ENV = Object.fromEntries(
@@ -91,7 +92,12 @@ describe('workspace registry config live model', () => {
       userEnv: async () => TEST_USER_ENV,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
-    runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+      scripts: scriptsWire.client,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
 
@@ -160,7 +166,12 @@ describe('workspace registry config live model', () => {
 
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+      scripts: scriptsWire.client,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const resolved = await wire.client.getProjectConfig({ workspaceId: 'ws-booted' });

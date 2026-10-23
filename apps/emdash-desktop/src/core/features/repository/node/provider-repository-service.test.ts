@@ -1,15 +1,9 @@
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
+import type { RepositoryRouter } from '../api/node/repository-router';
 import { ProviderRepositoryService } from './provider-repository-service';
 
-vi.mock('@core/features/github/api/node/services/github-repository-resolver', () => ({
-  githubRepositoryResolver: {
-    resolve: vi.fn(),
-  },
-}));
-
-const mockRepositoryResolver = vi.mocked(githubRepositoryResolver);
+const router = { route: vi.fn<RepositoryRouter['route']>() };
 const mockProjectManager = { requireAttached: vi.fn() };
 const loadProject = vi.fn<(projectId: string) => Promise<{ id: string } | undefined>>(async () => ({
   id: 'project-1',
@@ -35,6 +29,7 @@ describe('ProviderRepositoryService', () => {
       new ProviderRepositoryService({
         projects: mockProjectManager,
         loadProject,
+        router,
       }).resolveProject('project-1')
     ).resolves.toEqual(err({ type: 'project-missing', projectId: 'project-1' }));
     expect(mockProjectManager.requireAttached).not.toHaveBeenCalled();
@@ -52,6 +47,7 @@ describe('ProviderRepositoryService', () => {
       new ProviderRepositoryService({
         projects: mockProjectManager,
         loadProject,
+        router,
       }).resolveProject('project-1')
     ).resolves.toEqual(err(unavailable));
   });
@@ -63,19 +59,23 @@ describe('ProviderRepositoryService', () => {
       new ProviderRepositoryService({
         projects: mockProjectManager,
         loadProject,
+        router,
       }).resolveProject('project-1')
     ).resolves.toEqual(err({ type: 'invalid_remote' }));
   });
 
-  it('returns GitHub provider capabilities for GHES repositories', async () => {
+  it('derives capabilities from the plugins registered for the routed integration', async () => {
     mockProject({ hasRemote: true, selectedRemoteUrl: 'https://ghe.example.com/acme/repo' });
-    mockRepositoryResolver.resolve.mockResolvedValue(
+    router.route.mockResolvedValue(
       ok({
-        host: 'ghe.example.com',
-        owner: 'acme',
-        repo: 'repo',
-        nameWithOwner: 'acme/repo',
-        repositoryUrl: 'https://ghe.example.com/acme/repo',
+        integrationId: 'github',
+        repository: {
+          host: 'ghe.example.com',
+          owner: 'acme',
+          repo: 'repo',
+          nameWithOwner: 'acme/repo',
+          repositoryUrl: 'https://ghe.example.com/acme/repo',
+        },
       })
     );
 
@@ -83,6 +83,7 @@ describe('ProviderRepositoryService', () => {
       new ProviderRepositoryService({
         projects: mockProjectManager,
         loadProject,
+        router,
       }).resolveProject('project-1')
     ).resolves.toEqual(
       ok({
@@ -90,27 +91,50 @@ describe('ProviderRepositoryService', () => {
         host: 'ghe.example.com',
         repositoryUrl: 'https://ghe.example.com/acme/repo',
         nameWithOwner: 'acme/repo',
-        capabilities: {
-          pullRequests: true,
-          issues: true,
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+    expect(router.route).toHaveBeenCalledWith('https://ghe.example.com/acme/repo');
+  });
+
+  it('enables merge requests for the registered GitLab plugin', async () => {
+    mockProject({ hasRemote: true, selectedRemoteUrl: 'https://gitlab.com/group/sub/proj' });
+    router.route.mockResolvedValue(
+      ok({
+        integrationId: 'gitlab',
+        repository: {
+          host: 'gitlab.com',
+          owner: 'group/sub',
+          repo: 'proj',
+          nameWithOwner: 'group/sub/proj',
+          repositoryUrl: 'https://gitlab.com/group/sub/proj',
         },
       })
     );
+
+    const result = await new ProviderRepositoryService({
+      projects: mockProjectManager,
+      loadProject,
+      router,
+    }).resolveProject('project-1');
+    expect(result).toMatchObject({
+      success: true,
+      data: { provider: 'gitlab', capabilities: { pullRequests: true, issues: true } },
+    });
   });
 
-  it('maps unsupported providers from GitHub resolution', async () => {
-    mockProject({ hasRemote: true, selectedRemoteUrl: 'https://gitlab.example.com/acme/repo' });
-    mockRepositoryResolver.resolve.mockResolvedValue(
-      err({ type: 'not_github', host: 'gitlab.example.com', reason: 'not GitHub' })
+  it('surfaces routing failures instead of assuming GitHub', async () => {
+    mockProject({ hasRemote: true, selectedRemoteUrl: 'https://git.example.com/acme/repo' });
+    router.route.mockResolvedValue(
+      err({ type: 'no_integration_for_host', host: 'git.example.com' })
     );
 
     await expect(
       new ProviderRepositoryService({
         projects: mockProjectManager,
         loadProject,
+        router,
       }).resolveProject('project-1')
-    ).resolves.toEqual(
-      err({ type: 'unsupported_provider', host: 'gitlab.example.com', reason: 'not GitHub' })
-    );
+    ).resolves.toEqual(err({ type: 'no_integration_for_host', host: 'git.example.com' }));
   });
 });

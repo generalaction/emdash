@@ -69,7 +69,7 @@ export function buildRemoteEditorUrl(
     // VS Code-family editors resolve the SSH port via ~/.ssh/config, so the port
     // is intentionally omitted from the vscode-remote URL authority.
     default:
-      return `${scheme}://vscode-remote/ssh-remote+${vscodeAuthority}${encodedTargetPath}`;
+      return `${scheme}://vscode-remote/ssh-remote+${vscodeAuthority}${encodedTargetPath}?windowId=_blank`;
   }
 }
 

@@ -92,6 +92,9 @@ export interface IAcpBehavior {
    */
   enrich?: EnrichHook;
 
+  /** Recognize provider-specific proof that session/load's requested session is missing. */
+  isSessionNotFound?(error: unknown, sessionId: string): boolean;
+
   /** Adapt provider terminal semantics; omitted means literal executable + argv. */
   terminalCommand?(request: Pick<CreateTerminalRequest, 'command' | 'args'>): CommandSpec;
 }

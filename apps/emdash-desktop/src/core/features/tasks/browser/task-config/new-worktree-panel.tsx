@@ -8,6 +8,7 @@ export type WorkspacePanelProps = {
   workspaceConfig: WorkspaceConfigState;
   projectId?: string;
   isUnborn?: boolean;
+  requestProvider?: string;
 };
 
 export function NewWorktreePanel({

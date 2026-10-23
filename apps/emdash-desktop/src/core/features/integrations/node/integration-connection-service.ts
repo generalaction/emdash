@@ -17,6 +17,7 @@ import {
   checkIntegrationConnection,
 } from '../api/node/account-verification';
 import type {
+  IntegrationAccountRecord,
   IntegrationConnectionResult,
   IntegrationConnections,
 } from '../api/node/integration-accounts';
@@ -40,7 +41,22 @@ export class IntegrationConnectionService implements IntegrationConnections {
     const plugin = integrationPluginRegistry.get(integrationId);
     if (!plugin) return { success: false, error: `Unknown integration: ${integrationId}` };
 
-    const result = await plugin.behavior.auth?.verify({ log: this.logger }, credentials);
+    const methods = plugin.capabilities.auth.methods.filter((method) => method.kind === 'form');
+    const method =
+      options.authMethodId === undefined
+        ? methods.length === 1
+          ? methods[0]
+          : undefined
+        : methods.find((candidate) => candidate.id === options.authMethodId);
+    if (!method && (options.authMethodId !== undefined || methods.length > 1)) {
+      return { success: false, error: 'Select a valid authentication method.' };
+    }
+
+    const result = await plugin.behavior.auth?.verify(
+      { log: this.logger },
+      credentials,
+      method?.id
+    );
     if (!result?.connected) {
       return {
         success: false,
@@ -55,7 +71,7 @@ export class IntegrationConnectionService implements IntegrationConnections {
   async connectVerified(
     integrationId: string,
     result: Extract<VerifyResult, { connected: true }>,
-    options: IntegrationConnectOptions & { credentialSource?: string } = {}
+    options: IntegrationConnectOptions & { credentialSource?: string; signal?: AbortSignal } = {}
   ): Promise<IntegrationConnectionResult> {
     const plugin = integrationPluginRegistry.get(integrationId);
     if (!plugin) return { success: false, error: `Unknown integration: ${integrationId}` };
@@ -110,15 +126,20 @@ export class IntegrationConnectionService implements IntegrationConnections {
       (result.account
         ? `${identityScope(integrationId, result.account)}:${result.account.id}`
         : `${integrationId}:${randomUUID()}`);
-    const saved = await this.credentials.upsertAccount(integrationId, {
-      accountId,
-      ...(verifiedDisplayName ? { displayName: verifiedDisplayName } : {}),
-      ...(label ? { label } : {}),
-      ...(result.displayDetail ? { displayDetail: result.displayDetail } : {}),
-      ...(result.account ? { identity: result.account } : {}),
-      credentials: result.credentials,
-      credentialSource: options.credentialSource ?? existing?.meta?.credentialSource,
-    });
+    const saved = await this.credentials.upsertAccount(
+      integrationId,
+      {
+        accountId,
+        ...(verifiedDisplayName ? { displayName: verifiedDisplayName } : {}),
+        ...(label ? { label } : {}),
+        ...(result.displayDetail ? { displayDetail: result.displayDetail } : {}),
+        ...(result.account ? { identity: result.account } : {}),
+        credentials: result.credentials,
+        credentialSource: options.credentialSource ?? existing?.meta?.credentialSource,
+      },
+      options.signal
+    );
+    if (!saved) return { success: false, error: 'The connection was cancelled.' };
     this.telemetry.capture('integration_connected', { provider: integrationId });
     this.onAccountsChanged?.(integrationId);
 
@@ -137,9 +158,27 @@ export class IntegrationConnectionService implements IntegrationConnections {
     capabilities: ConnectionStatus['capabilities'],
     accountId?: string
   ): Promise<ConnectionStatus> {
-    return checkIntegrationConnection(integrationId, capabilities, this.logger, () =>
-      this.credentials.getAccount(integrationId, accountId)
+    const checked: { account?: IntegrationAccountRecord | null } = {};
+    const loadAccount = async () =>
+      (checked.account = await this.credentials.getAccount(integrationId, accountId));
+    const status = await checkIntegrationConnection(
+      integrationId,
+      capabilities,
+      this.logger,
+      loadAccount
     );
+    const account = checked.account;
+    if (status.connected || !account) return status;
+    // Another device may have rotated a token they share; check once more with
+    // renewed credentials.
+    const retry = await this.credentials.reportRejected(
+      integrationId,
+      account.accountId,
+      account.credentials
+    );
+    return retry
+      ? checkIntegrationConnection(integrationId, capabilities, this.logger, loadAccount)
+      : status;
   }
 }
 

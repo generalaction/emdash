@@ -6,11 +6,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
 
-const KIND_LABELS: Record<string, string> = {
-  repository: 'Pull requests',
-  history: 'PR history',
-};
-
 interface SyncStatusCardProps {
   icon: ReactNode;
   label?: ReactNode;
@@ -57,14 +52,21 @@ function SyncErrorStatusCard({
 
 interface Props {
   repositoryUrl: string;
+  provider?: string;
   manualError?: string | null;
 }
 
 export const PrSyncStatusCard = observer(function PrSyncStatusCard({
   repositoryUrl,
+  provider = 'github',
   manualError,
 }: Props) {
   const store = usePullRequestsStore();
+  const shortPlural = provider === 'gitlab' ? 'MRs' : 'PRs';
+  const kindLabels: Record<string, string> = {
+    repository: provider === 'gitlab' ? 'Merge requests' : 'Pull requests',
+    history: provider === 'gitlab' ? 'MR history' : 'PR history',
+  };
   const state = store.syncState(repositoryUrl);
   const canCancelHistory = store.canCancelHistory(repositoryUrl);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -95,9 +97,9 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
   if ((!state || state.phase === 'idle') && !canCancelHistory) return null;
 
   const kindLabel = canCancelHistory
-    ? KIND_LABELS.history
+    ? kindLabels.history
     : state?.kind
-      ? KIND_LABELS[state.kind]
+      ? kindLabels[state.kind]
       : undefined;
 
   if (state?.phase === 'running' || canCancelHistory) {
@@ -109,8 +111,8 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
         label={kindLabel}
         content={
           hasProgress
-            ? `Refreshing PRs: ${state?.synced ?? 0} / ${state?.total}`
-            : 'Refreshing PRs…'
+            ? `Refreshing ${shortPlural}: ${state?.synced ?? 0} / ${state?.total}`
+            : `Refreshing ${shortPlural}…`
         }
         actions={
           canCancelHistory ? (

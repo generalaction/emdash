@@ -108,7 +108,7 @@ export async function prepareCreateTask(
     if (baseRemote === null && workspaceConfig.git.kind === 'pr-branch') {
       return err({
         type: 'provision-failed',
-        message: 'The repository has no git remotes, so a pull request cannot be checked out.',
+        message: `The repository has no git remotes, so a ${workspaceConfig.git.provider === 'gitlab' ? 'merge request' : 'pull request'} cannot be checked out.`,
       });
     }
     try {
@@ -262,6 +262,7 @@ export async function prepareCreateTask(
         ? {
             version: '1',
             type: 'acp',
+            ...(ic.options && { options: ic.options }),
             ...(ic.autoApprove !== undefined && { autoApprove: ic.autoApprove }),
             ...(initialQueue?.length && { initialQueue }),
             ...(ic.model && { model: ic.model }),

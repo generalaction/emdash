@@ -2,6 +2,7 @@ import path from 'node:path';
 import { observe, remote } from '@emdash/wire/state';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { fsWatchContract } from '#services/fs-watch/api';
 import { createProcessWatchServiceFromDependency } from '#services/fs-watch/node/process-watch-service';
 import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
@@ -22,6 +23,7 @@ export const workspaceRegistryComponentConfigSchema = z.object({
     .refine((value) => value === ':memory:' || path.isAbsolute(value), {
       message: 'Workspace registry database path must be absolute or :memory:',
     }),
+  attachmentsDir: z.string().min(1).refine(path.isAbsolute),
   watchIgnore: z.array(z.string()).optional(),
 });
 
@@ -46,7 +48,7 @@ export const workspaceRegistryComponent = defineWireComponent({
     userEnv: requireContract(userShellEnvContract),
   },
   configSchema: workspaceRegistryComponentConfigSchema,
-  create: ({ config, dependencies, instance, logger, scope }) => {
+  create: ({ config, dependencies, fatal, instance, logger, scope }) => {
     const handle = workspaceRegistryStore.open(config.databasePath);
     scope.add(() => handle.close());
 
@@ -56,8 +58,12 @@ export const workspaceRegistryComponent = defineWireComponent({
       tuiAgents: dependencies.tuiAgents,
     };
     const killSessions = createSessionKiller(sessionClients, logger);
+    const attachments = new LocalAttachmentStore(config.attachmentsDir);
+    const attachmentInitialization = attachments.initialize('workspace').catch(fatal);
+    scope.add(() => attachmentInitialization);
     const runtime = new WorkspaceRegistryRuntime({
       handle,
+      attachments,
       logger,
       killSessions,
       countSessions: createSessionCounter(sessionClients),

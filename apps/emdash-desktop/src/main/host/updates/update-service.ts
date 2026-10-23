@@ -8,7 +8,7 @@ import { updateEvents } from '@core/features/updates/node';
 import { IS_CANARY, UPDATE_CHANNEL } from '@core/primitives/app-identity/api/app-identity';
 import { resolveAppVersion } from '@main/core/app/utils';
 import { log } from '@main/lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
+import { formatUpdaterError, getUpdaterErrorDetails, sanitizeUpdaterLogArgs } from './utils';
 
 let autoUpdater: typeof _electronUpdater.autoUpdater | undefined;
 
@@ -37,6 +37,7 @@ export interface UpdateState {
     total: number;
   };
   error?: string;
+  errorDetails?: string;
   rollbackVersion?: string;
   releaseNotes?: string;
 }
@@ -47,10 +48,11 @@ export interface UpdateNotificationPublisher {
   error(message: string): void;
 }
 
-class UpdateService implements Disposable {
+export class UpdateService implements Disposable {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
   private currentCheckPromise: Promise<UpdateInfo | null> | null = null;
+  private currentDownloadPromise: Promise<void> | null = null;
   private initialized = false;
   private active = false;
   private installRequested = false;
@@ -108,12 +110,15 @@ class UpdateService implements Disposable {
   private setupEventListeners(): void {
     const autoUpdater = getAutoUpdater();
     autoUpdater.on('checking-for-update', () => {
+      if (this.hasPendingUpdate) return;
       this.updateState.status = 'checking';
       this.updateState.lastCheck = new Date();
       updateEvents.emit(undefined, { type: 'checking' });
     });
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
+      if (this.hasPendingUpdate) return;
+      this.clearError();
       this.updateState.status = 'available';
       this.updateState.availableVersion = info.version;
       this.updateState.updateInfo = info;
@@ -122,36 +127,16 @@ class UpdateService implements Disposable {
     });
 
     autoUpdater.on('update-not-available', () => {
+      if (this.hasPendingUpdate) return;
+      this.clearError();
       this.updateState.status = 'idle';
       updateEvents.emit(undefined, { type: 'not-available' });
     });
 
-    autoUpdater.on('error', (err: Error) => {
-      const errorMessage = formatUpdaterError(err);
-      log.error('Auto-updater error:', errorMessage);
-
-      if (this.updateState.status === 'installing') {
-        log.warn('Ignoring auto-updater error while install is in progress');
-        return;
-      }
-
-      const previousVersion = this.updateState.availableVersion;
-      const previousInfo = this.updateState.updateInfo;
-
-      this.updateState.status = 'error';
-      this.updateState.error = errorMessage;
-
-      if (previousVersion) {
-        this.updateState.availableVersion = previousVersion;
-        this.updateState.updateInfo = previousInfo;
-      }
-
-      updateEvents.emit(undefined, { type: 'error', message: errorMessage });
-      this.publishNotification((publisher) => publisher.error(errorMessage));
-    });
+    autoUpdater.on('error', (err: Error) => this.handleError(err));
 
     autoUpdater.on('download-progress', (progressObj: ProgressInfo) => {
-      this.updateState.status = 'downloading';
+      if (this.updateState.status !== 'downloading') return;
       this.updateState.downloadProgress = {
         bytesPerSecond: progressObj.bytesPerSecond,
         percent: progressObj.percent,
@@ -168,6 +153,7 @@ class UpdateService implements Disposable {
     });
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+      this.clearError();
       this.updateState.status = 'downloaded';
       this.updateState.rollbackVersion = this.updateState.currentVersion;
       updateEvents.emit(undefined, { type: 'downloaded', version: info.version });
@@ -189,6 +175,10 @@ class UpdateService implements Disposable {
 
   async checkForUpdates(): Promise<UpdateInfo | null> {
     if (!this.active) return null;
+    if (this.hasPendingUpdate) {
+      this.scheduleNextCheck();
+      return this.updateState.updateInfo ?? null;
+    }
     if (this.currentCheckPromise) return this.currentCheckPromise;
 
     this.currentCheckPromise = this._performCheck().finally(() => {
@@ -202,7 +192,7 @@ class UpdateService implements Disposable {
   private async _performCheck(): Promise<UpdateInfo | null> {
     if (this.updateState.status === 'error') {
       this.updateState.status = 'idle';
-      this.updateState.error = undefined;
+      this.clearError();
     }
 
     log.info('Checking for updates...', {
@@ -214,44 +204,70 @@ class UpdateService implements Disposable {
     return result?.updateInfo ?? null;
   }
 
-  async downloadUpdate(): Promise<void> {
+  downloadUpdate(): void {
     if (!this.active) throw new Error('Update service is not active');
+    if (this.hasPendingUpdate) return;
+
     if (this.updateState.status === 'error' && this.updateState.availableVersion) {
       this.updateState.status = 'available';
     }
-
     if (this.updateState.status !== 'available') {
       throw new Error(`Cannot download: status is "${this.updateState.status}", not "available"`);
     }
-
     if (!this.updateState.availableVersion) {
       throw new Error('No version information available for download');
     }
 
+    this.clearError();
+    this.updateState.downloadProgress = undefined;
     this.updateState.status = 'downloading';
+    this.currentDownloadPromise = Promise.resolve()
+      .then(async () => {
+        await getAutoUpdater().downloadUpdate();
+      })
+      .catch((error: unknown) => this.handleError(error))
+      .finally(() => {
+        this.currentDownloadPromise = null;
+      });
     updateEvents.emit(undefined, {
       type: 'downloading',
       version: this.updateState.availableVersion,
     });
+  }
 
-    try {
-      await getAutoUpdater().downloadUpdate();
-    } catch (error: unknown) {
-      const errorMessage = formatUpdaterError(error);
-      log.error('Update download failed:', errorMessage, error);
+  private get hasPendingUpdate(): boolean {
+    return (
+      this.currentDownloadPromise !== null ||
+      this.updateState.status === 'downloading' ||
+      this.updateState.status === 'downloaded' ||
+      this.updateState.status === 'installing'
+    );
+  }
 
-      const version = this.updateState.availableVersion;
-      const info = this.updateState.updateInfo;
+  private clearError(): void {
+    this.updateState.error = undefined;
+    this.updateState.errorDetails = undefined;
+  }
 
-      this.updateState.status = 'error';
-      this.updateState.error = errorMessage;
-      this.updateState.availableVersion = version;
-      this.updateState.updateInfo = info;
-
-      updateEvents.emit(undefined, { type: 'error', message: errorMessage });
-      this.publishNotification((publisher) => publisher.error(errorMessage));
-      throw error;
+  private handleError(error: unknown): void {
+    if (this.updateState.status === 'installing') {
+      log.warn('Ignoring auto-updater error while install is in progress');
+      return;
     }
+    const message = formatUpdaterError(error);
+    const details = getUpdaterErrorDetails(error);
+    if (
+      this.updateState.status === 'error' &&
+      this.updateState.error === message &&
+      this.updateState.errorDetails === details
+    )
+      return;
+    log.error('Auto-updater error:', message);
+    this.updateState.status = 'error';
+    this.updateState.error = message;
+    this.updateState.errorDetails = details;
+    updateEvents.emit(undefined, { type: 'error', message, details });
+    this.publishNotification((publisher) => publisher.error(message));
   }
 
   quitAndInstall(): void {

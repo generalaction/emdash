@@ -8,7 +8,11 @@ import type {
   ReportSessionStartedInput,
 } from '#services/conversation-reports/api';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
-import type { SessionIntent, SessionIntentStore } from '#services/session-intents/api';
+import type {
+  SessionIntent,
+  SessionIntentError,
+  SessionIntentStore,
+} from '#services/session-intents/api';
 
 export const idlePolicyConfigSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -76,6 +80,13 @@ export interface ConversationOptions<TResume, TCtx> {
   reports?: ConversationLifecycleReporter;
   reconcile?: ReconcileOptions<TResume, TCtx>;
 }
+
+/** A proposed intent; publish its owner state only after the write succeeds. */
+export type SessionIntentUpdate = {
+  payload: Serializable;
+  sessionId?: string | null;
+  onPersisted(): void;
+};
 
 export interface SessionLifecycleOptions<TResume, TCtx> {
   /** Log prefix, e.g. 'SessionManager'. */
@@ -158,5 +169,10 @@ export interface ConversationSessionLifecycle extends SessionLifecycle {
   providerSessionId(key: string, input: ReportProviderSessionIdInput): void;
   /** Re-persist the active intent from activePayload. */
   saveIntent(key: string): void;
+  /** Prepare and commit an intent within the same FIFO slot, before later background writes. */
+  persistIntent(
+    key: string,
+    prepare?: () => SessionIntentUpdate | null
+  ): Promise<Result<void, SessionIntentError>>;
   reconcile(): Promise<void>;
 }

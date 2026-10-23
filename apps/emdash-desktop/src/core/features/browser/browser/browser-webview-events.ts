@@ -1,7 +1,7 @@
 import { browserDiagnosticsStore } from '@core/features/browser/api/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 import { BROWSER_DEFAULT_URL, normalizeBrowserZoomFactor } from '@core/primitives/browser/api';
-import type { BrowserWebviewElement } from './browser-webview-types';
+import type { BrowserWebviewElement, BrowserWebviewEventMap } from './browser-webview-types';
 
 export function bindBrowserWebviewEvents(
   browserId: string,
@@ -90,20 +90,18 @@ export function bindBrowserWebviewEvents(
     scheduleHistoryStateSync();
   };
 
-  const onFailLoad = (event: {
-    errorCode: number;
-    errorDescription: string;
-    validatedURL: string;
-  }) => {
+  const onFailLoad = (event: BrowserWebviewEventMap['did-fail-load']) => {
     if (event.errorCode === -3) return;
-    browserSessionStore.updateSession(browserId, {
-      isLoading: false,
-      loadError: {
-        code: event.errorCode,
-        description: event.errorDescription,
-        url: event.validatedURL,
-      },
-    });
+    if (event.isMainFrame) {
+      browserSessionStore.updateSession(browserId, {
+        isLoading: false,
+        loadError: {
+          code: event.errorCode,
+          description: event.errorDescription,
+          url: event.validatedURL,
+        },
+      });
+    }
     browserDiagnosticsStore.append({
       browserId,
       level: 'error',

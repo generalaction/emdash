@@ -46,6 +46,7 @@ function usePullRequestsSectionModel() {
   const prStore = taskView.prStore;
   const repository = getGitRepositoryStore(projectId);
   const repositoryUrl = repository?.pullRequestRepositoryUrl ?? null;
+  const provider = repository?.providerRepository?.provider ?? 'github';
   const providerRepositoryObservation = repository?.providerRepositoryObservation ?? {
     kind: 'unavailable' as const,
   };
@@ -77,6 +78,7 @@ function usePullRequestsSectionModel() {
     taskId,
     workspaceId,
     repositoryUrl,
+    provider,
     providerRepositoryObservation,
     taskBranch,
     pullRequests,
@@ -84,7 +86,11 @@ function usePullRequestsSectionModel() {
     currentPr,
     branchCommitRange,
     showBranchCommits,
-    sectionLabel: showBranchCommits ? 'Branch Commits' : 'Pull Requests',
+    sectionLabel: showBranchCommits
+      ? 'Branch Commits'
+      : provider === 'gitlab'
+        ? 'Merge Requests'
+        : 'Pull Requests',
     sectionCount: showBranchCommits ? (branchCommitCount ?? 0) : pullRequests.length,
   };
 }
@@ -102,9 +108,11 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
     taskId,
     workspaceId,
     repositoryUrl,
+    provider,
     taskBranch,
     pullRequests,
     currentPr,
+    showBranchCommits,
     sectionLabel,
     sectionCount,
   } = usePullRequestsSectionModel();
@@ -112,12 +120,15 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
+  const { mode: commitsViewMode, setMode: setCommitsViewMode } = useChangesViewMode('commits');
   const context = asAvailableProject(getProjectStore(projectId));
   const hostActionReason = context
     ? projectAvailabilityUi.getLiveActionDisabledReason(projectId)
     : 'Unavailable until access to this Project is restored.';
   const hostActionDisabled = hostActionReason !== null;
 
+  const short = provider === 'gitlab' ? 'MR' : 'PR';
+  const noun = provider === 'gitlab' ? 'merge request' : 'pull request';
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
 
   const onCreatePr =
@@ -149,8 +160,8 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
       : undefined;
 
   const prActions = [
-    { id: 'create-pr', label: 'Create PR', action: () => onCreatePr?.() },
-    { id: 'create-draft-pr', label: 'Create draft PR', action: () => onCreateDraftPr?.() },
+    { id: 'create-pr', label: `Create ${short}`, action: () => onCreatePr?.() },
+    { id: 'create-draft-pr', label: `Create draft ${short}`, action: () => onCreateDraftPr?.() },
   ];
   const [selectedPrActionId, setSelectedPrActionId] = useState<string | undefined>(undefined);
 
@@ -164,10 +175,10 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
       if (!result.success) {
         const message = pullRequestErrorMessage(result.error);
         onSyncError(message);
-        toast.error('Failed to refresh pull requests', { description: message });
+        toast.error(`Failed to refresh ${noun}s`, { description: message });
       }
     } catch (error) {
-      toast.error('Failed to refresh pull requests', {
+      toast.error(`Failed to refresh ${noun}s`, {
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -176,12 +187,12 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
   };
 
   const createPrTooltip = !repositoryUrl
-    ? 'Pull requests unavailable'
+    ? `${provider === 'gitlab' ? 'Merge' : 'Pull'} requests unavailable`
     : hostActionReason
       ? hostActionReason
       : hasOpenPr
-        ? 'A pull request is already open'
-        : 'Create a pull request';
+        ? `A ${noun} is already open`
+        : `Create a ${noun}`;
 
   if (!changesView) return null;
 
@@ -197,31 +208,40 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
             <ChangesViewModeToggle
               value={viewMode}
               onChange={setViewMode}
-              label="Pull request files"
+              label={provider === 'gitlab' ? 'Merge request files' : 'Pull request files'}
             />
           )}
-          <Tooltip.Root>
-            <Tooltip.Trigger
-              render={
-                <SplitButton
-                  variant="secondary"
-                  size="xs"
-                  options={prActions.map(({ id, label }) => ({ id, label }))}
-                  selectedId={selectedPrActionId}
-                  onSelectedChange={setSelectedPrActionId}
-                  commitOnSelect={false}
-                  onAction={(id) => {
-                    if (!hostActionDisabled) prActions.find((a) => a.id === id)?.action();
-                  }}
-                  disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
-                  aria-disabled={hostActionDisabled}
-                  aria-description={hostActionReason ?? undefined}
-                  icon={<Plus className="size-3" />}
-                />
-              }
+          {showBranchCommits && (
+            <ChangesViewModeToggle
+              value={commitsViewMode}
+              onChange={setCommitsViewMode}
+              label="Branch commits"
             />
-            <Tooltip.Content>{createPrTooltip}</Tooltip.Content>
-          </Tooltip.Root>
+          )}
+          {
+            <Tooltip.Root>
+              <Tooltip.Trigger
+                render={
+                  <SplitButton
+                    variant="secondary"
+                    size="xs"
+                    options={prActions.map(({ id, label }) => ({ id, label }))}
+                    selectedId={selectedPrActionId}
+                    onSelectedChange={setSelectedPrActionId}
+                    commitOnSelect={false}
+                    onAction={(id) => {
+                      if (!hostActionDisabled) prActions.find((a) => a.id === id)?.action();
+                    }}
+                    disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
+                    aria-disabled={hostActionDisabled}
+                    aria-description={hostActionReason ?? undefined}
+                    icon={<Plus className="size-3" />}
+                  />
+                }
+              />
+              <Tooltip.Content>{createPrTooltip}</Tooltip.Content>
+            </Tooltip.Root>
+          }
           <Tooltip.Root>
             <Tooltip.Trigger
               render={
@@ -238,7 +258,10 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
                 </Button>
               }
             />
-            <Tooltip.Content>{hostActionReason ?? 'Refresh pull requests'}</Tooltip.Content>
+            <Tooltip.Content>
+              {hostActionReason ??
+                (provider === 'gitlab' ? 'Refresh merge requests' : 'Refresh pull requests')}
+            </Tooltip.Content>
           </Tooltip.Root>
         </>
       }
@@ -254,6 +277,7 @@ export const PullRequestsSectionBody = observer(function PullRequestsSectionBody
 }) {
   const {
     repositoryUrl,
+    provider,
     providerRepositoryObservation,
     pullRequests,
     pullRequestsObservation,
@@ -269,7 +293,7 @@ export const PullRequestsSectionBody = observer(function PullRequestsSectionBody
           role="status"
           className="border-t border-border px-2.5 py-2 text-xs text-foreground-muted"
         >
-          Showing previously observed pull requests
+          Showing previously observed {provider === 'gitlab' ? 'merge requests' : 'pull requests'}
         </p>
       ) : null}
       {currentPr ? (
@@ -283,18 +307,39 @@ export const PullRequestsSectionBody = observer(function PullRequestsSectionBody
         />
       ) : !repositoryUrl ? (
         <EmptyState
-          label="Pull requests unavailable"
-          description="Pull requests are currently available only for configured GitHub remotes."
+          label={provider === 'gitlab' ? 'Merge requests unavailable' : 'Pull requests unavailable'}
+          description={
+            provider === 'gitlab'
+              ? 'Merge requests are unavailable for this remote.'
+              : 'Pull requests are currently available only for configured GitHub remotes.'
+          }
         />
       ) : pullRequestsObservation.kind === 'unavailable' ? (
         <EmptyState
-          label="Pull requests unavailable"
-          description="Pull request data has not been observed for this Project yet."
+          label={provider === 'gitlab' ? 'Merge requests unavailable' : 'Pull requests unavailable'}
+          description={
+            provider === 'gitlab'
+              ? 'Merge request data has not been observed for this Project yet.'
+              : 'Pull request data has not been observed for this Project yet.'
+          }
         />
       ) : pullRequests.length === 0 ? (
         <EmptyState
-          label={syncError ? 'Could not load pull requests' : 'No pull requests'}
-          description={syncError ?? 'Push your branch and create a PR to start a review.'}
+          label={
+            provider === 'gitlab'
+              ? syncError
+                ? 'Could not load merge requests'
+                : 'No merge requests'
+              : syncError
+                ? 'Could not load pull requests'
+                : 'No pull requests'
+          }
+          description={
+            syncError ??
+            (provider === 'gitlab'
+              ? 'Push your branch and create an MR to start a review.'
+              : 'Push your branch and create a PR to start a review.')
+          }
         />
       ) : null}
     </div>
@@ -302,10 +347,15 @@ export const PullRequestsSectionBody = observer(function PullRequestsSectionBody
 });
 
 function BranchCommitsEntry({ range }: { range: CommitRange }) {
+  const { mode: viewMode } = useChangesViewMode('commits');
   return (
     <div className="flex min-h-0 flex-1 flex-col border-t border-border">
       <div className="min-h-0 flex-1 px-2.5">
-        <CommitRangeCommitsList range={range} emptyState={BRANCH_COMMITS_EMPTY_STATE} />
+        <CommitRangeCommitsList
+          range={range}
+          emptyState={BRANCH_COMMITS_EMPTY_STATE}
+          viewMode={viewMode}
+        />
       </div>
     </div>
   );

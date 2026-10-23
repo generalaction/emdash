@@ -8,6 +8,8 @@ import { providerAccountReportingState } from '@core/features/integrations/api/a
 import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
 import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
 import { ProviderAccountStateEmpty } from '@core/features/integrations/contributions/browser/account-state';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
+import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import type { UserItem } from '@core/features/projects/browser/components/pr-view/pr-filter-items';
 import {
   usePrViewState,
@@ -199,16 +201,29 @@ export const PullRequestView = observer(function PullRequestView() {
   } = useCurrentViewParams(projectViewDef);
   const repositoryStore = getGitRepositoryStore(projectId);
   const repositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? null;
-  // §7 reporting matrix (spec: github-git-settings §7): explicit none is a
-  // quiet disabled state, an unresolvable pin fails closed with a fix
-  // affordance, and the zero-account case offers the connect flow. The
-  // silent-default row renders the normal PR list.
-  const account = useProjectAccount(projectId ?? '', 'github', { repository: { kind: 'project' } });
-  const { data: accounts } = useAccounts('github');
+  const provider = repositoryStore?.providerRepository?.provider ?? 'github';
+  const { integrationById } = useIntegrationsContext();
+  const providerName =
+    integrationById[provider]?.name ?? (provider === 'gitlab' ? 'GitLab' : 'GitHub');
+  const account = useProjectAccount(projectId ?? '', provider, { repository: { kind: 'project' } });
+  const { data: accounts } = useAccounts(provider);
   const accountState =
     projectId && account?.value === null && accounts
-      ? providerAccountReportingState('GitHub', account.provenance, accounts.length > 0)
+      ? providerAccountReportingState(providerName, account.provenance, accounts.length > 0)
       : null;
+
+  if (!repositoryUrl) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <p className="text-muted-foreground py-4 text-center text-sm">
+          {provider === 'gitlab'
+            ? 'Merge requests are unavailable for this remote.'
+            : 'Pull requests are currently available only for configured GitHub remotes.'}{' '}
+          You can change the remote in the project settings.
+        </p>
+      </div>
+    );
+  }
 
   if (accountState && accountState.kind !== 'silent') {
     return (
@@ -216,28 +231,27 @@ export const PullRequestView = observer(function PullRequestView() {
         <ProviderAccountStateEmpty
           state={accountState}
           projectId={projectId}
-          providerId="github"
-          providerName="GitHub"
-          icon={<Github className="size-4 text-foreground-muted" />}
+          providerId={provider}
+          providerName={providerName}
+          icon={
+            provider === 'github' ? (
+              <Github className="size-4 text-foreground-muted" />
+            ) : (
+              <IntegrationIcon provider={provider} />
+            )
+          }
         />
       </div>
     );
   }
 
-  if (!repositoryUrl) {
-    return (
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <p className="text-muted-foreground py-4 text-center text-sm">
-          Pull requests are currently available only for configured GitHub remotes. You can change
-          the remote in the project settings.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <ProjectPullRequestsProvider repositoryUrls={[repositoryUrl]}>
-      <PullRequestViewContent projectId={projectId} repositoryUrl={repositoryUrl} />
+    <ProjectPullRequestsProvider repositoryUrls={[repositoryUrl]} provider={provider}>
+      <PullRequestViewContent
+        projectId={projectId}
+        repositoryUrl={repositoryUrl}
+        provider={provider}
+      />
     </ProjectPullRequestsProvider>
   );
 });
@@ -248,10 +262,12 @@ const PrSortSelect = observer(function PrSortSelect({ view }: { view: PullReques
   return <SortSelect sort={sort} />;
 });
 
-function PrErrorState({ error }: { error: string | null }) {
+function PrErrorState({ error, provider }: { error: string | null; provider: string }) {
   return (
     <div className="flex flex-col items-center gap-1 p-6 text-center">
-      <p className="text-sm font-medium">Could not load pull requests</p>
+      <p className="text-sm font-medium">
+        Could not load {provider === 'gitlab' ? 'merge requests' : 'pull requests'}
+      </p>
       {error && <p className="text-sm text-foreground-muted">{error}</p>}
     </div>
   );
@@ -260,9 +276,11 @@ function PrErrorState({ error }: { error: string | null }) {
 const PullRequestViewContent = observer(function PullRequestViewContent({
   projectId,
   repositoryUrl,
+  provider,
 }: {
   projectId: string;
   repositoryUrl: string;
+  provider: string;
 }) {
   const store = usePullRequestsStore();
   const view = store.listView;
@@ -288,10 +306,11 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
     selectedAssigneeItem,
     selectedLabelItems,
     hasPills,
-  } = usePrViewState(projectId, repositoryUrl);
+  } = usePrViewState(projectId, repositoryUrl, provider);
 
   const toolbar = (
     <PrToolbar
+      provider={provider}
       view={view}
       statusFilter={statusFilter}
       syncing={syncing}
@@ -328,19 +347,23 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
         toolbar={toolbar}
         footer={
           <PrSyncStatusCard
+            provider={provider}
             repositoryUrl={repositoryUrl}
             manualError={prs.length > 0 ? error : null}
           />
         }
-        errorSlot={<PrErrorState error={error} />}
+        errorSlot={<PrErrorState error={error} provider={provider} />}
         emptySlot={
           error ? (
-            <PrErrorState error={error} />
+            <PrErrorState error={error} provider={provider} />
           ) : (
             <div className="flex flex-col items-center gap-1 p-6 text-center">
-              <p className="text-sm font-medium">No pull requests</p>
+              <p className="text-sm font-medium">
+                No {provider === 'gitlab' ? 'merge requests' : 'pull requests'}
+              </p>
               <p className="text-sm text-foreground-muted">
-                No pull requests available or none that match this filter
+                No {provider === 'gitlab' ? 'merge requests' : 'pull requests'} available or none
+                that match this filter
               </p>
             </div>
           )
@@ -351,6 +374,7 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
 });
 
 const PrToolbar = observer(function PrToolbar({
+  provider,
   view,
   statusFilter,
   syncing,
@@ -372,6 +396,7 @@ const PrToolbar = observer(function PrToolbar({
   hasPills,
   onRemoveLabel,
 }: {
+  provider: string;
   view: PullRequestListView;
   statusFilter: StatusFilter;
   syncing: boolean;
@@ -432,7 +457,7 @@ const PrToolbar = observer(function PrToolbar({
             <ContextMenu.Content>
               <ContextMenu.Item onClick={onRefreshHistory} disabled={syncing}>
                 <RefreshCw className="size-4" />
-                Refresh PR history
+                Refresh {provider === 'gitlab' ? 'MR' : 'PR'} history
               </ContextMenu.Item>
             </ContextMenu.Content>
           </ContextMenu.Root>

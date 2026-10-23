@@ -1,306 +1,62 @@
+import { GitHubPullRequestClient } from '@emdash/plugins/pull-requests/github';
+import type {
+  PullRequestClient,
+  PullRequestHostContext,
+} from '@emdash/plugins/pull-requests/types';
 import { err, ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import {
-  requestPriorities,
-  type CreateRequestSchedulerOptions,
-  type RateGate,
-  type RequestScheduler,
-  type ScheduledRequest,
-} from '@emdash/shared/requests';
-import { retrySchedules } from '@emdash/shared/scheduling';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract } from '../../api';
+import type { GitPlatformAuthContract } from '../../api';
 import { PullRequestEngine, type PullRequestEngineOptions } from './pull-request-engine';
 
 const scopes: Scope[] = [];
 const repositoryUrl = 'https://github.com/emdash/emdash';
+
 afterEach(async () => {
   await Promise.all(scopes.splice(0).map(async (scope) => await scope.dispose()));
-  vi.useRealTimers();
 });
-async function repository(engine: PullRequestEngine) {
-  const result = await engine.openRepository(repositoryUrl, new AbortController().signal);
-  if (!result.success) throw new Error(result.error.type);
-  return result.data;
+
+function createEngine({
+  githubAuth,
+  logger,
+  createOctokit,
+}: Pick<PullRequestEngineOptions, 'logger'> & {
+  githubAuth: PullRequestEngineOptions['auth'];
+  createOctokit: (options: { token: string; baseUrl: string }) => Octokit;
+}): PullRequestEngine {
+  const scope = createScope({ label: 'pull-request-engine-test' });
+  scopes.push(scope);
+  return new PullRequestEngine({
+    auth: githubAuth,
+    logger,
+    scope,
+    createClient: (_integrationId, host) => new GitHubPullRequestClient(host, { createOctokit }),
+  });
 }
 
-describe('GitHub pull request adapter (without persistence)', () => {
-  it('returns mapped metadata and pagination evidence without a cache', async () => {
-    const graphql = vi.fn(async () => ({
-      repository: {
-        pullRequests: {
-          totalCount: 101,
-          pageInfo: { hasNextPage: true, endCursor: 'next' },
-          nodes: [gqlPullRequest()],
-        },
-      },
-    }));
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    expect(
-      await (await repository(engine)).fetchOpenPage(null, new AbortController().signal)
-    ).toMatchObject({
-      success: true,
-      data: {
-        fetchedAt: expect.any(Number),
-        data: {
-          pageInfo: { hasNextPage: true, endCursor: 'next' },
-          prs: [
-            { title: 'Worker-owned PR', identifier: '#42', author: { userId: 'github.com:1' } },
-          ],
-        },
-      },
-    });
-    expect(graphql).toHaveBeenCalledTimes(1);
-  });
-  it.each([
-    ['account_unresolvable', 'github_account_not_found'],
-    ['github_disabled', 'github_disabled'],
-  ])('surfaces %s before making requests', async (authType, expectedType) => {
-    const graphql = vi.fn();
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: {
-        resolveAuth: async () =>
-          err({ type: authType, host: 'github.com', message: 'Account unavailable' }),
-      } as ContractClient<GitHubAuthContract>,
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    expect(await engine.openRepository(repositoryUrl, new AbortController().signal)).toMatchObject({
-      success: false,
-      error: { type: expectedType, message: 'Account unavailable' },
-    });
-    expect(graphql).not.toHaveBeenCalled();
-  });
-  it('does not mutate shared provider responses while completing nested pagination', async () => {
-    const node = {
-      ...gqlPullRequest(),
-      labels: {
-        nodes: [{ name: 'first', color: '00ff00' }],
-        pageInfo: { hasNextPage: true, endCursor: 'labels-next' },
-      },
-    };
-    const graphql = vi.fn(async (query: string) =>
-      query.includes('pullRequestCollections')
-        ? {
-            repository: {
-              pullRequest: {
-                labels: {
-                  nodes: [{ name: 'second', color: 'ff0000' }],
-                  pageInfo: { hasNextPage: false, endCursor: null },
-                },
-                assignees: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
-              },
-            },
-          }
-        : { repository: { pullRequest: node } }
-    );
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    const context = await repository(engine);
-    const observations = await Promise.all([
-      context.fetchPullRequest(42, new AbortController().signal),
-      context.fetchPullRequest(42, new AbortController().signal),
-    ]);
-    for (const observation of observations) {
-      expect(observation).toMatchObject({
-        success: true,
-        data: {
-          data: {
-            labels: [{ name: 'first' }, { name: 'second' }],
-          },
-        },
-      });
-    }
-    expect(node.labels.nodes).toHaveLength(1);
-  });
+function fakeGitHubAuth(): ContractClient<GitPlatformAuthContract> {
+  return {
+    resolveIntegration: async () => ok({ integrationId: 'github' }),
+    resolveAuth: async () =>
+      ok({
+        integrationId: 'github',
+        credentials: { accessToken: 'test-token', apiBaseUrl: 'https://api.github.com' },
+      }),
+  };
+}
 
-  it('captures request-start rather than completion time', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(1_000);
-    let resolve!: (value: unknown) => void;
-    const graphql = vi.fn(
-      () =>
-        new Promise((done) => {
-          resolve = done;
-        })
-    );
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    const context = await repository(engine);
-    const pending = context.fetchPullRequest(42, new AbortController().signal);
-    await vi.advanceTimersByTimeAsync(0);
-    vi.setSystemTime(10_000);
-    resolve({ repository: { pullRequest: gqlPullRequest() } });
-    expect(await pending).toMatchObject({ success: true, data: { fetchedAt: 1_000 } });
-  });
-  it('returns a missing PR failure', async () => {
-    const graphql = vi.fn(async () => ({ repository: { pullRequest: null } }));
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    expect(
-      await (await repository(engine)).fetchPullRequest(42, new AbortController().signal)
-    ).toMatchObject({
-      success: false,
-      error: { type: 'github_not_found_or_no_access' },
-    });
-  });
-  it('does not return an observation after cancellation', async () => {
-    const controller = new AbortController();
-    const graphql = vi.fn(async () => {
-      controller.abort();
-      return { repository: { pullRequest: gqlPullRequest() } };
-    });
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    const context = await repository(engine);
-    expect(await context.fetchPullRequest(42, controller.signal)).toMatchObject({ success: false });
-  });
-  it('fetches actual comment collections every time and host-qualifies authors', async () => {
-    const github = fakeCommentsOctokit({ issueComments: [restIssueComment()] });
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => github.octokit,
-    });
-    const context = await repository(engine);
-    for (let i = 0; i < 2; i++) {
-      expect(await context.fetchComments(42, new AbortController().signal)).toMatchObject({
-        success: true,
-        data: {
-          fetchedAt: expect.any(Number),
-          data: [{ author: { userId: 'github.com:1' }, body: 'Comment' }],
-        },
-      });
-    }
-    expect(github.paginate).toHaveBeenCalledTimes(6);
-    expect(github.get).not.toHaveBeenCalled();
-  });
-  it('returns no partial comments observation when a collection fails', async () => {
-    const github = fakeCommentsOctokit({});
-    github.paginate.mockRejectedValueOnce(new Error('Unavailable'));
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => github.octokit,
-      retrySchedule: retrySchedules.fixed(0, 0),
-    });
-    expect(
-      await (await repository(engine)).fetchComments(42, new AbortController().signal)
-    ).toMatchObject({ success: false });
-  });
-  it('returns head evidence and stable check IDs', async () => {
-    const graphql = vi.fn(async () => checkResponse('head'));
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    const context = await repository(engine);
-    const first = await context.fetchChecks(42, new AbortController().signal);
-    const second = await context.fetchChecks(42, new AbortController().signal);
-    expect(first).toMatchObject({
-      success: true,
-      data: {
-        data: {
-          headRefOid: 'head',
-          checks: [
-            {
-              id: expect.any(String),
-              status: 'REQUESTED',
-            },
-          ],
-        },
-      },
-    });
-    if (!first.success || !second.success) throw new Error('Checks failed');
-    expect(first.data.data.checks).toEqual(second.data.data.checks);
-  });
-  it('rejects check pagination across different heads', async () => {
-    const graphql = vi
-      .fn()
-      .mockResolvedValueOnce(checkResponse('old-head', true, 'next'))
-      .mockResolvedValueOnce(checkResponse('new-head'));
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth(),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-    });
-    expect(
-      await (await repository(engine)).fetchChecks(42, new AbortController().signal)
-    ).toMatchObject({ success: false });
-  });
-  it('schedules background sync pages with retry through one account lane', async () => {
-    const graphql = vi
-      .fn()
-      .mockRejectedValueOnce(Object.assign(new Error('Unavailable'), { status: 503 }))
-      .mockResolvedValueOnce({
-        repository: {
-          pullRequests: {
-            totalCount: 0,
-            pageInfo: { hasNextPage: false, endCursor: null },
-            nodes: [],
-          },
-        },
-      });
-    const requests: ScheduledRequest<unknown>[] = [];
-    const scheduler = immediateScheduler(requests);
-    const createScheduler = vi.fn((_options: CreateRequestSchedulerOptions) => scheduler);
-    const { logger } = createStubLogger();
-    const engine = createEngine({
-      githubAuth: fakeGitHubAuth('account-1'),
-      logger,
-      createOctokit: () => fakeOctokit(graphql),
-      createScheduler,
-      retrySchedule: retrySchedules.fixed(0, 1),
-    });
+function fakeOctokit(graphql: (...args: never[]) => Promise<unknown>) {
+  return { graphql, rest: {}, paginate: vi.fn() };
+}
 
-    await expect(
-      (await repository(engine)).fetchHistoryPage(
-        null,
-        new AbortController().signal,
-        requestPriorities.background
-      )
-    ).resolves.toMatchObject({ success: true });
-
-    expect(graphql).toHaveBeenCalledTimes(2);
-    expect(createScheduler).toHaveBeenCalledTimes(1);
-    expect(requests).toHaveLength(2);
-    expect(requests.every((request) => request.priority === requestPriorities.background)).toBe(
-      true
-    );
-  });
-
-  it('feeds GraphQL and HTTP rate-limit observations into the lane gate', async () => {
-    const resetAt = '2026-01-03T00:00:00.000Z';
+// Assertions on GitHub-specific Octokit shapes live in
+// @emdash/plugins pull-requests/impl/github/client.test.ts. These smoke tests only confirm the
+// engine forwards each public method to its underlying provider unchanged.
+describe('PullRequestEngine (delegates to the pull-requests plugin client)', () => {
+  it('forwards openRepository and its fetch* methods through to the provider', async () => {
     const graphql = vi.fn(async () => ({
       repository: {
         pullRequests: {
@@ -309,267 +65,281 @@ describe('GitHub pull request adapter (without persistence)', () => {
           nodes: [],
         },
       },
-      rateLimit: { cost: 2, remaining: 98, resetAt },
     }));
-    type HookOptions = {
-      url?: string;
-      request?: { signal?: AbortSignal };
-    };
-    let beforeHook: ((options: HookOptions) => Promise<void>) | undefined;
-    let afterHook:
-      | ((
-          response: { headers: Record<string, string | number | undefined> },
-          options: HookOptions
-        ) => void)
-      | undefined;
-    let errorHook: ((error: unknown, options: HookOptions) => never) | undefined;
-    const octokit = {
-      graphql,
-      rest: {},
-      paginate: vi.fn(),
-      hook: {
-        before: vi.fn((_name: string, callback: (options: HookOptions) => Promise<void>) => {
-          beforeHook = callback;
-        }),
-        after: vi.fn(
-          (
-            _name: string,
-            callback: (
-              response: { headers: Record<string, string | number | undefined> },
-              options: HookOptions
-            ) => void
-          ) => {
-            afterHook = callback;
-          }
-        ),
-        error: vi.fn((_name: string, callback: (error: unknown, options: HookOptions) => never) => {
-          errorHook = callback;
-        }),
-      },
-    } as unknown as Octokit;
-    const gates = {
-      graphql: fakeRateGate(),
-      rest: fakeRateGate(),
-    };
     const { logger } = createStubLogger();
     const engine = createEngine({
       githubAuth: fakeGitHubAuth(),
       logger,
-      createOctokit: () => octokit,
-      createScheduler: () => immediateScheduler([]),
-      createRateGate: (resource) => gates[resource],
+      createOctokit: () => fakeOctokit(graphql) as never,
     });
+    const result = await engine.openRepository(repositoryUrl, new AbortController().signal);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(await result.data.fetchOpenPage(null, new AbortController().signal)).toMatchObject({
+      success: true,
+      data: { data: { prs: [] } },
+    });
+    expect(graphql).toHaveBeenCalledTimes(1);
+  });
 
-    await expect(
-      (await repository(engine)).fetchOpenPage(null, new AbortController().signal)
-    ).resolves.toMatchObject({ success: true });
-    expect(gates.graphql.observe).toHaveBeenCalledWith({
-      cost: 2,
-      remaining: 98,
-      resetAtMs: Date.parse(resetAt),
+  it('forwards createPullRequest to the provider', async () => {
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () =>
+        ({
+          graphql: vi.fn(),
+          paginate: vi.fn(),
+          rest: {
+            pulls: {
+              create: vi.fn(async () => ({
+                data: { html_url: `${repositoryUrl}/pull/1`, number: 1 },
+              })),
+            },
+          },
+        }) as never,
     });
-    expect(gates.rest.observe).not.toHaveBeenCalled();
-
-    const requestSignal = new AbortController().signal;
-    await beforeHook?.({
-      url: 'https://api.github.com/graphql',
-      request: { signal: requestSignal },
-    });
-    expect(gates.graphql.acquire).toHaveBeenLastCalledWith(0, requestSignal);
-    await beforeHook?.({
-      url: 'https://api.github.com/repos/emdash/emdash/pulls',
-      request: { signal: requestSignal },
-    });
-    expect(gates.rest.acquire).toHaveBeenLastCalledWith(1, requestSignal);
-
-    afterHook?.(
-      {
-        headers: {
-          'x-ratelimit-resource': 'core',
-          'x-ratelimit-remaining': '17',
-          'x-ratelimit-reset': '100',
-          'retry-after': '3',
-        },
-      },
-      { url: 'https://api.github.com/graphql' }
+    const result = await engine.createPullRequest(
+      { repositoryUrl, head: 'feature', base: 'main', title: 'Title', draft: false },
+      new AbortController().signal
     );
-    expect(gates.rest.observe).toHaveBeenLastCalledWith({
-      remaining: 17,
-      resetAtMs: 100_000,
-      retryAfterMs: 3_000,
+    expect(result).toMatchObject({
+      success: true,
+      data: { url: `${repositoryUrl}/pull/1`, number: 1 },
     });
+  });
 
-    const rateError = Object.assign(new Error('rate limited'), {
-      response: { headers: { 'retry-after': '2' } },
+  it('forwards mergePullRequest to the provider', async () => {
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () =>
+        ({
+          graphql: vi.fn(),
+          paginate: vi.fn(),
+          rest: { pulls: { merge: vi.fn(async () => ({ data: { sha: 'abc', merged: true } })) } },
+        }) as never,
     });
-    expect(() =>
-      errorHook?.(rateError, {
-        url: 'https://api.github.com/repos/emdash/emdash/pulls',
-      })
-    ).toThrow(rateError);
-    expect(gates.rest.observe).toHaveBeenLastCalledWith({
-      remaining: undefined,
-      resetAtMs: undefined,
-      retryAfterMs: 2_000,
+    const result = await engine.mergePullRequest(
+      repositoryUrl,
+      1,
+      { strategy: 'merge' },
+      new AbortController().signal
+    );
+    expect(result).toMatchObject({ success: true, data: { sha: 'abc', merged: true } });
+  });
+
+  it('forwards markReadyForReview to the provider', async () => {
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () =>
+        ({
+          graphql: vi.fn(async () => ({
+            markPullRequestReadyForReview: { pullRequest: { isDraft: false } },
+          })),
+          paginate: vi.fn(),
+          rest: { pulls: { get: vi.fn(async () => ({ data: { node_id: 'node-1' } })) } },
+        }) as never,
+    });
+    const result = await engine.markReadyForReview(repositoryUrl, 1, new AbortController().signal);
+    expect(result).toMatchObject({ success: true });
+  });
+
+  it('forwards getPullRequestFiles to the provider', async () => {
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () =>
+        ({
+          graphql: vi.fn(),
+          paginate: vi.fn(async () => [
+            { filename: 'a.ts', status: 'modified', additions: 1, deletions: 0, patch: '@@' },
+          ]),
+          rest: { pulls: { listFiles: vi.fn() } },
+        }) as never,
+    });
+    const result = await engine.getPullRequestFiles(repositoryUrl, 1, new AbortController().signal);
+    expect(result).toMatchObject({
+      success: true,
+      data: [{ filename: 'a.ts', status: 'modified' }],
     });
   });
 });
 
-function createEngine(options: Omit<PullRequestEngineOptions, 'scope'>): PullRequestEngine {
-  const scope = createScope({ label: 'pull-request-engine-test' });
-  scopes.push(scope);
-  return new PullRequestEngine({ ...options, scope });
-}
+describe('PullRequestEngine (client dispatch)', () => {
+  function fakeClient(): PullRequestClient {
+    return {
+      openRepository: vi.fn(async () => err({ type: 'sync_failed' as const, message: 'unused' })),
+      createPullRequest: vi.fn(),
+      mergePullRequest: vi.fn(),
+      markReadyForReview: vi.fn(async () => ok(undefined)),
+      getPullRequestFiles: vi.fn(async () => ok([])),
+    };
+  }
 
-function immediateScheduler(requests: ScheduledRequest<unknown>[]): RequestScheduler {
-  return {
-    stats: { pending: 0, inFlight: 0 },
-    async submit<T>(
-      request: ScheduledRequest<T>,
-      options: { signal?: AbortSignal } = {}
-    ): Promise<T> {
-      requests.push(request as ScheduledRequest<unknown>);
-      return await request.run(options.signal ?? new AbortController().signal);
-    },
-    async dispose(): Promise<void> {},
-  };
-}
+  function createDispatchEngine(
+    options: Partial<Omit<PullRequestEngineOptions, 'scope' | 'logger'>>
+  ): PullRequestEngine {
+    const scope = createScope({ label: 'pull-request-engine-dispatch-test' });
+    scopes.push(scope);
+    return new PullRequestEngine({
+      auth: fakeGitHubAuth(),
+      logger: createStubLogger().logger,
+      scope,
+      ...options,
+    });
+  }
 
-function fakeRateGate(): RateGate {
-  return {
-    acquire: vi.fn(async () => {}),
-    observe: vi.fn(),
-  };
-}
+  it('creates one client per integration and reuses it across repositories', async () => {
+    const client = fakeClient();
+    const createClient = vi.fn(() => client);
+    const engine = createDispatchEngine({ createClient });
+    const signal = new AbortController().signal;
 
-function fakeGitHubAuth(accountId?: string): ContractClient<GitHubAuthContract> {
-  return {
-    resolveAuth: async () =>
-      ok({
-        token: 'test-token',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
-        accountId,
-      }),
-  };
-}
+    await engine.getPullRequestFiles(repositoryUrl, 1, signal);
+    await engine.markReadyForReview('https://github.com/emdash/other', 2, signal);
 
-function fakeOctokit(graphql: (...args: never[]) => Promise<unknown>): Octokit {
-  return {
-    graphql,
-    rest: {},
-    paginate: vi.fn(),
-  } as unknown as Octokit;
-}
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(createClient).toHaveBeenCalledWith('github', expect.anything());
+    expect(client.getPullRequestFiles).toHaveBeenCalledWith(repositoryUrl, 1, signal);
+    expect(client.markReadyForReview).toHaveBeenCalledWith(
+      'https://github.com/emdash/other',
+      2,
+      signal
+    );
+  });
 
-function fakeCommentsOctokit(options: {
-  etag?: string;
-  getError?: unknown;
-  issueComments?: Array<ReturnType<typeof restIssueComment>>;
-}) {
-  const get = options.getError
-    ? vi.fn(async () => {
-        throw options.getError;
-      })
-    : vi.fn(async () => ({ headers: { etag: options.etag ?? '"etag"' }, data: {} }));
-  const listComments = vi.fn();
-  const listReviewComments = vi.fn();
-  const listReviews = vi.fn();
-  const paginate = vi.fn(async (method: unknown) =>
-    method === listComments ? (options.issueComments ?? []) : []
-  );
-  const octokit = {
-    graphql: vi.fn(),
-    paginate,
-    rest: {
-      issues: { listComments },
-      pulls: { get, listReviewComments, listReviews },
-    },
-  } as unknown as Octokit;
-  return { octokit, get, paginate };
-}
-
-function restIssueComment(overrides: { id?: number; body?: string } = {}) {
-  return {
-    id: overrides.id ?? 7,
-    body: overrides.body ?? 'Comment',
-    html_url: `https://github.com/emdash/emdash/pull/42#issuecomment-${overrides.id ?? 7}`,
-    created_at: '2026-01-01T00:00:00.000Z',
-    updated_at: '2026-01-01T00:00:00.000Z',
-    user: {
-      id: 1,
-      login: 'octocat',
-      avatar_url: 'https://github.com/images/octocat.png',
-      html_url: 'https://github.com/octocat',
-    },
-  };
-}
-
-function gqlPullRequest(overrides: { number?: number; title?: string; updatedAt?: string } = {}) {
-  return {
-    number: overrides.number ?? 42,
-    title: overrides.title ?? 'Worker-owned PR',
-    url: `https://github.com/emdash/emdash/pull/${overrides.number ?? 42}`,
-    state: 'OPEN',
-    isDraft: false,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: overrides.updatedAt ?? '2026-01-02T00:00:00.000Z',
-    headRefName: 'feature',
-    headRefOid: 'head',
-    baseRefName: 'main',
-    baseRefOid: 'base',
-    commitCount: { totalCount: 1 },
-    body: 'Description',
-    additions: 10,
-    deletions: 1,
-    changedFiles: 2,
-    mergeable: 'MERGEABLE',
-    mergeStateStatus: 'CLEAN',
-    author: {
-      databaseId: 1,
-      login: 'octocat',
-      avatarUrl: '',
-      url: 'https://github.com/octocat',
-    },
-    headRepository: { url: 'https://github.com/emdash/emdash' },
-    baseRepository: { url: 'https://github.com/emdash/emdash' },
-    labels: { nodes: [{ name: 'feature', color: '00ff00' }] },
-    assignees: { nodes: [] },
-    reviewDecision: null,
-  };
-}
-
-function checkResponse(oid: string, hasNextPage = false, endCursor: string | null = null) {
-  return {
-    repository: {
-      pullRequest: {
-        commits: {
-          nodes: [
-            {
-              commit: {
-                oid,
-                statusCheckRollup: {
-                  contexts: {
-                    nodes: [
-                      {
-                        __typename: 'CheckRun',
-                        name: 'CI',
-                        status: 'REQUESTED',
-                        conclusion: null,
-                        detailsUrl: null,
-                        startedAt: null,
-                        completedAt: null,
-                        checkSuite: null,
-                      },
-                    ],
-                    pageInfo: { hasNextPage, endCursor },
-                  },
-                },
-              },
-            },
-          ],
-        },
+  it('dispatches each repository to the client of the integration it routes to', async () => {
+    const clients = { github: fakeClient(), gitlab: fakeClient() };
+    const createClient = vi.fn((integrationId: string) =>
+      integrationId === 'github' || integrationId === 'gitlab' ? clients[integrationId] : null
+    );
+    const engine = createDispatchEngine({
+      auth: {
+        ...fakeGitHubAuth(),
+        resolveIntegration: async ({ repositoryUrl: url }) =>
+          ok({ integrationId: url.includes('gitlab.com') ? 'gitlab' : 'github' }),
       },
-    },
-  };
-}
+      createClient,
+    });
+    const signal = new AbortController().signal;
+
+    await engine.getPullRequestFiles(repositoryUrl, 1, signal);
+    await engine.getPullRequestFiles('https://gitlab.com/group/sub/project', 2, signal);
+
+    expect(createClient).toHaveBeenCalledTimes(2);
+    expect(clients.github.getPullRequestFiles).toHaveBeenCalledWith(repositoryUrl, 1, signal);
+    expect(clients.gitlab.getPullRequestFiles).toHaveBeenCalledWith(
+      'https://gitlab.com/group/sub/project',
+      2,
+      signal
+    );
+  });
+
+  it('fails without creating a client when the repository routes to no integration', async () => {
+    const createClient = vi.fn(() => fakeClient());
+    const engine = createDispatchEngine({
+      auth: {
+        ...fakeGitHubAuth(),
+        resolveIntegration: async () =>
+          err({
+            type: 'unsupported_provider' as const,
+            host: 'git.example.com',
+            reason: 'No connected integration handles git.example.com.',
+          }),
+      },
+      createClient,
+    });
+
+    expect(
+      await engine.getPullRequestFiles(
+        'https://git.example.com/acme/repo',
+        1,
+        new AbortController().signal
+      )
+    ).toEqual(
+      err({
+        type: 'unsupported_provider',
+        host: 'git.example.com',
+        reason: 'No connected integration handles git.example.com.',
+      })
+    );
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it('fails without a request when the integration has no pull-requests plugin', async () => {
+    const engine = createDispatchEngine({ createClient: () => null });
+
+    expect(
+      await engine.getPullRequestFiles(repositoryUrl, 1, new AbortController().signal)
+    ).toEqual({
+      success: false,
+      error: {
+        type: 'unsupported_provider',
+        host: 'github.com',
+        reason: 'github has no pull-request support.',
+      },
+    });
+  });
+
+  it('refuses credentials resolved for a different integration', async () => {
+    let host: PullRequestHostContext | undefined;
+    const engine = createDispatchEngine({
+      auth: {
+        resolveIntegration: async () => ok({ integrationId: 'github' }),
+        resolveAuth: async () =>
+          ok({ integrationId: 'gitlab', accountId: 'account-1', credentials: { token: 't' } }),
+      },
+      createClient: (_integrationId, context) => {
+        host = context;
+        return fakeClient();
+      },
+    });
+    await engine.getPullRequestFiles(repositoryUrl, 1, new AbortController().signal);
+
+    expect(await host?.resolveCredentials(repositoryUrl, new AbortController().signal)).toEqual({
+      success: false,
+      error: {
+        type: 'account_unresolvable',
+        host: 'github.com',
+        message: 'Repository is connected through gitlab, not github.',
+      },
+    });
+  });
+
+  it('passes the resolved account and credential record to the client', async () => {
+    let host: PullRequestHostContext | undefined;
+    const resolveAuth = vi.fn(async (_input: { repositoryUrl: string; integrationId: string }) =>
+      ok({
+        integrationId: 'github',
+        accountId: 'account-1',
+        credentials: { accessToken: 'token', apiBaseUrl: 'https://api.github.com' },
+      })
+    );
+    const engine = createDispatchEngine({
+      auth: {
+        resolveIntegration: async () => ok({ integrationId: 'github' }),
+        resolveAuth: async (input) => await resolveAuth(input),
+      },
+      createClient: (_integrationId, context) => {
+        host = context;
+        return fakeClient();
+      },
+    });
+    await engine.getPullRequestFiles(repositoryUrl, 1, new AbortController().signal);
+
+    expect(await host?.resolveCredentials(repositoryUrl, new AbortController().signal)).toEqual({
+      success: true,
+      data: {
+        accountId: 'account-1',
+        credentials: { accessToken: 'token', apiBaseUrl: 'https://api.github.com' },
+      },
+    });
+    expect(resolveAuth).toHaveBeenCalledWith({ repositoryUrl, integrationId: 'github' });
+  });
+});

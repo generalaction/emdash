@@ -1,5 +1,4 @@
 import { UpdateCard as UpdateCardUi, type UpdateStatus } from '@emdash/ui/react/components';
-import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type React from 'react';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
@@ -15,12 +14,23 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
 
   let status: UpdateStatus;
   switch (state.status) {
-    case 'available':
+    case 'checking':
+      status = { type: 'checking' };
+      break;
     case 'downloading':
+      status = {
+        type: 'update-downloading',
+        version: downloadVersion,
+        progress: state.progress?.percent,
+      };
+      break;
+    case 'available':
       status = buildDownloadAvailable(downloadVersion);
       break;
-    case 'downloaded':
     case 'installing':
+      status = { type: 'update-installing' };
+      break;
+    case 'downloaded':
       status = { type: 'update-install-available', onInstall: () => update.install() };
       break;
     case 'error':
@@ -30,12 +40,20 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       status = { type: 'up-to-date' };
   }
 
+  if (update.downloadRequested && (state.status === 'available' || state.status === 'error')) {
+    status = { type: 'update-downloading', version: downloadVersion };
+  }
+
   return (
     <UpdateCardUi
       currentVersion={update.currentVersion}
       appName={PRODUCT_NAME}
       status={status}
-      error={state.status === 'error' ? { message: state.message } : undefined}
+      error={
+        state.status === 'error' && !update.downloadRequested
+          ? { message: state.message, details: state.details }
+          : undefined
+      }
       onCheckForUpdates={() => update.check()}
     />
   );
@@ -45,20 +63,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       type: 'update-download-available',
       version,
       size: 0,
-      onDownload: async (onProgress) => {
-        const dispose = autorun(() => {
-          const nextState = update.state;
-          if (nextState.status === 'downloading' && nextState.progress?.percent != null) {
-            onProgress(nextState.progress.percent);
-          }
-        });
-
-        try {
-          await update.download();
-        } finally {
-          dispose();
-        }
-      },
+      onDownload: () => update.download(),
     };
   }
 });

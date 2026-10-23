@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { compileDrizzleSchemaToSql } from '@emdash/core/primitives/sqlite-store/codegen';
 import { fingerprintDerivedSchema } from '@emdash/core/primitives/sqlite-store/node';
+import type { PullRequest, PullRequestComment } from '@emdash/plugins/pull-requests/schemas';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { PullRequest, PullRequestComment } from '../../api';
 import { PullRequestStore } from './pull-request-store';
 import * as schema from './schema';
 import { schemaFingerprint, schemaSqlStatements } from './schema-sql.generated';
@@ -54,6 +54,39 @@ describe('pull request schema', () => {
 });
 
 describe('PullRequestStore', () => {
+  it('finds GitLab merge requests by IID while keeping their web URL as the cache key', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://gitlab.com/acme/platform/app';
+    const url = `${repositoryUrl}/-/merge_requests/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(
+      pullRequestFixture({ repositoryUrl, url, provider: 'gitlab', identifier: '!42' })
+    );
+    expect(store.getPullRequestByNumber(repositoryUrl, 42)?.url).toBe(url);
+    expect(store.getOpenPullRequestNumbers(repositoryUrl)).toContain(42);
+  });
+
+  it('keeps an MR with an unknown source visible without matching the target branch', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://gitlab.com/acme/app';
+    const mr = pullRequestFixture({
+      repositoryUrl,
+      url: `${repositoryUrl}/-/merge_requests/42`,
+      provider: 'gitlab',
+      identifier: '!42',
+      headRepositoryUrl: '',
+      headRefName: 'feature',
+    });
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(mr);
+    expect(store.getPullRequestByNumber(repositoryUrl, 42)?.url).toBe(mr.url);
+    expect(store.getPullRequestsForHead(repositoryUrl, repositoryUrl, 'feature')).toEqual([]);
+  });
+
   it('commits check observations only for the current head, including empty results', async () => {
     const handle = await pullRequestSqliteStore.openTemp();
     cleanups.push(() => handle.close());

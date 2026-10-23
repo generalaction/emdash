@@ -10,6 +10,7 @@ export type TaskStateContextValue = {
   isUnborn: boolean;
   hasRepository: boolean;
   hasPR: boolean;
+  requestProvider?: string;
   linkedIssue?: LinkedIssue;
   includeIssueContextByDefault: boolean;
 };

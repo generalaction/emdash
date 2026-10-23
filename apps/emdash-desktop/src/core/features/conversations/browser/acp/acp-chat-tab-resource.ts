@@ -21,6 +21,13 @@ export class AcpChatTabResource implements TabResource {
     // The manager disposes the store after grace when the last tab is closed.
   }
 
+  onClose(): void {
+    const conversation = conversationRegistry
+      .get(this.store.taskId)
+      ?.conversations.get(this.store.conversationId);
+    if (conversation && !conversation.seen) conversation.markSeen();
+  }
+
   onActivate(): void {
     // Lazy bootstrap: safe to call repeatedly (idempotent).
     this.store.bootstrap();

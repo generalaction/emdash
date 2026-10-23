@@ -16,6 +16,8 @@ const plugin = defineIntegrationPlugin(
       methods: [
         {
           kind: 'form',
+          id: 'basic',
+          label: 'Email + API token',
           fields: [
             {
               id: 'siteUrl',
@@ -40,6 +42,27 @@ const plugin = defineIntegrationPlugin(
           help: 'Create an API token from your Atlassian account security settings.',
           helpUrl: 'https://id.atlassian.com/manage-profile/security/api-tokens',
         },
+        {
+          kind: 'form',
+          id: 'bearer',
+          label: 'Bearer token',
+          fields: [
+            {
+              id: 'siteUrl',
+              label: 'Site URL',
+              required: true,
+              placeholder: 'https://your-domain.atlassian.net',
+            },
+            {
+              id: 'accessToken',
+              label: 'OAuth 2.0 access token',
+              secret: true,
+              required: true,
+              placeholder: 'Jira OAuth 2.0 access token',
+            },
+          ],
+          help: 'Use an OAuth 2.0 access token for Jira Cloud. Atlassian API tokens are not supported by this method.',
+        },
       ],
     },
   },
@@ -49,8 +72,8 @@ const plugin = defineIntegrationPlugin(
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
     credentialsSchema: jiraCredentialsSchema,
-    async verify(_host, credentials): Promise<VerifyResult> {
-      const result = await verifyJiraCredentials(credentials);
+    async verify(_host, credentials, methodId): Promise<VerifyResult> {
+      const result = await verifyJiraCredentials(credentials, methodId);
       if (!result.success)
         return {
           connected: false,

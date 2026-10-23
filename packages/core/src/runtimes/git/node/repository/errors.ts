@@ -75,15 +75,6 @@ export const repositoryFailures = {
     return commandFailure(failure);
   },
 
-  isNotRepository(error: unknown): boolean {
-    const message = gitFailure(error).message.toLowerCase();
-    return (
-      message.includes('not a git repository') ||
-      message.includes('not a git directory') ||
-      message.includes('must be run in a work tree')
-    );
-  },
-
   isMissingSymbolicRef(error: unknown): boolean {
     const failure = gitFailure(error);
     return (

@@ -8,6 +8,7 @@ import { createPortSummary, type PortContext, type PortSummary } from './types';
 export type TaskPortResult = {
   summary: PortSummary;
   mergedLegacyTaskIds: Set<string>;
+  workspacePaths: Map<string, string>;
 };
 
 function coerceTaskStatus(
@@ -57,6 +58,7 @@ function inferLegacyTaskLayout(args: {
 export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promise<TaskPortResult> {
   const summary = createPortSummary('tasks');
   const mergedLegacyTaskIds = new Set<string>();
+  const workspacePaths = new Map<string, string>();
   const nowIso = new Date().toISOString();
 
   const existingTaskRows = await appDb
@@ -183,11 +185,12 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
     remap.taskId.set(legacyTaskId, insertResult.id);
     existingTaskIds.add(insertResult.id);
     summary.inserted += 1;
+    if (taskPath) workspacePaths.set(insertResult.id, taskPath);
 
     if (taskBranch) {
       branchKeyToTaskId.set(`${mappedProjectId}::${taskBranch}`, insertResult.id);
     }
   }
 
-  return { summary, mergedLegacyTaskIds };
+  return { summary, mergedLegacyTaskIds, workspacePaths };
 }

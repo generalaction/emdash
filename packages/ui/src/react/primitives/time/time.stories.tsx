@@ -1,5 +1,6 @@
 import { Box } from '@react/primitives/box';
 import { AbsoluteTime } from '@react/primitives/time/absolute-time';
+import { CountdownTime } from '@react/primitives/time/countdown-time';
 import { RelativeTime } from '@react/primitives/time/relative-time';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
@@ -12,6 +13,16 @@ export default meta;
 type Story = StoryObj;
 
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000);
+
+export const Countdown: Story = {
+  render: () => (
+    <Box display="flex" flexDirection="column" gap="2">
+      <CountdownTime value={Date.now() + 59 * 60_000} />
+      <CountdownTime value={Date.now() + 164 * 3_600_000} />
+      <CountdownTime value={Date.now() - 1_000} expiredLabel="Reset pending" />
+    </Box>
+  ),
+};
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (

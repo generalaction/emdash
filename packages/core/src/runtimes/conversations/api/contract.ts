@@ -1,5 +1,6 @@
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { conversationAttachmentsContract } from '#services/attachments/api';
 import {
   conversationMutationErrorSchema,
   createConversationErrorSchema,
@@ -10,12 +11,13 @@ import {
   conversationRecordsSchema,
   createConversationInputSchema,
   deleteConversationInputSchema,
+  patchConversationConfigInputSchema,
+  patchConversationConfigResultSchema,
   renameConversationInputSchema,
   reportProviderSessionIdInputSchema,
   reportSessionActivityInputSchema,
   reportSessionEndedInputSchema,
   reportSessionStartedInputSchema,
-  updateConversationConfigInputSchema,
 } from './schemas';
 
 const conversationReportsSubContract = defineContract({
@@ -48,6 +50,7 @@ const conversationReportsSubContract = defineContract({
  * client-facing feeder of the sole-writer index component (conv.sole-writer).
  */
 export const conversationsContract = defineContract({
+  attachments: conversationAttachmentsContract.attachments,
   records: liveModel({
     key: z.void().optional(),
     states: {
@@ -64,9 +67,9 @@ export const conversationsContract = defineContract({
     data: conversationRecordSchema,
     error: conversationMutationErrorSchema,
   }),
-  updateConfig: fallible({
-    input: updateConversationConfigInputSchema,
-    data: conversationRecordSchema,
+  patchConfig: fallible({
+    input: patchConversationConfigInputSchema,
+    data: patchConversationConfigResultSchema,
     error: conversationMutationErrorSchema,
   }),
   delete: fallible({

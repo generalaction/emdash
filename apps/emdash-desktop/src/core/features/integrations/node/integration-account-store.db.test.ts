@@ -106,6 +106,7 @@ describe('IntegrationAccountStore', () => {
         store.getAccount('jira').then((account) => account?.credentials ?? null)
       ).resolves.toEqual({
         apiToken: 'legacy',
+        authMethod: 'basic',
         siteUrl: 'https://acme.atlassian.net',
         email: 'a@b.co',
       });
@@ -137,6 +138,7 @@ describe('IntegrationAccountStore', () => {
       integrationId: string;
       seed: () => void;
       expectedCredentials: Record<string, unknown>;
+      expectedStoredCredentials?: Record<string, unknown>;
       legacyKeys: string[];
     };
 
@@ -157,6 +159,12 @@ describe('IntegrationAccountStore', () => {
           });
         },
         expectedCredentials: {
+          authMethod: 'basic',
+          siteUrl: 'https://acme.atlassian.net',
+          email: 'a@b.co',
+          apiToken: 'jira-token',
+        },
+        expectedStoredCredentials: {
           siteUrl: 'https://acme.atlassian.net',
           email: 'a@b.co',
           apiToken: 'jira-token',
@@ -244,7 +252,13 @@ describe('IntegrationAccountStore', () => {
 
     it.each(cases)(
       'migrates $integrationId legacy credentials into a provider account row',
-      async ({ integrationId, seed, expectedCredentials, legacyKeys }) => {
+      async ({
+        integrationId,
+        seed,
+        expectedCredentials,
+        expectedStoredCredentials,
+        legacyKeys,
+      }) => {
         seed();
 
         const credentials = await store
@@ -257,7 +271,7 @@ describe('IntegrationAccountStore', () => {
         expect(accounts[0].accountId).toBe(DEFAULT_INTEGRATION_ACCOUNT_ID);
         await expect(
           fixture.registry.resolveSecret(integrationId, DEFAULT_INTEGRATION_ACCOUNT_ID)
-        ).resolves.toBe(JSON.stringify(expectedCredentials));
+        ).resolves.toBe(JSON.stringify(expectedStoredCredentials ?? expectedCredentials));
         for (const key of legacyKeys) {
           expect(legacySecrets.secrets.has(key)).toBe(false);
         }

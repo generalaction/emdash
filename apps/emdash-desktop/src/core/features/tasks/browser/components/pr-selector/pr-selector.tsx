@@ -1,14 +1,18 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { ListPopoverCard } from '@emdash/ui/react/components';
 import { Button, Combobox, Select } from '@emdash/ui/react/primitives';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Github } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useState } from 'react';
 import { providerAccountReportingState } from '@core/features/integrations/api/account-reporting';
+import { getIntegrationName } from '@core/features/integrations/api/browser/integration-display';
 import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
 import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
 import { ProviderAccountStateEmpty } from '@core/features/integrations/contributions/browser/account-state';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
+import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -16,7 +20,6 @@ import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-mo
 import {
   pullRequestErrorMessage,
   pullRequestsContract,
-  type PullRequest,
 } from '@root/src/core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@root/src/core/services/pull-requests/api/client';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
@@ -37,6 +40,7 @@ export interface PrSelectorProps {
   onValueChange: (pr: PullRequest | null) => void;
   projectId?: string;
   repositoryUrl?: string;
+  provider?: string;
   disabled?: boolean;
   renderSelectedValue?: (pr: PullRequest) => ReactNode;
   renderPlaceholder?: () => ReactNode;
@@ -80,11 +84,15 @@ export const PrSelector = observer(function PrSelector({
   onValueChange,
   projectId,
   repositoryUrl = '',
+  provider = 'github',
   disabled,
   renderSelectedValue,
   renderPlaceholder,
 }: PrSelectorProps) {
   const openIntegrationSetup = useOpenModal('integrationSetupModal');
+  const { integrationById } = useIntegrationsContext();
+  const providerName = getIntegrationName(integrationById, provider);
+  const requestsName = provider === 'gitlab' ? 'merge requests' : 'pull requests';
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query.trim(), 200);
@@ -94,11 +102,11 @@ export const PrSelector = observer(function PrSelector({
   // github-git-settings §7): an explicitly disabled project or an
   // unresolvable pin must not trigger syncs — fail closed instead of
   // proceeding as another identity.
-  const account = useProjectAccount(projectId ?? '', 'github', { repository: { kind: 'project' } });
-  const { data: accounts } = useAccounts('github');
+  const account = useProjectAccount(projectId ?? '', provider, { repository: { kind: 'project' } });
+  const { data: accounts } = useAccounts(provider);
   const accountState =
     projectId && account?.value === null && accounts
-      ? providerAccountReportingState('GitHub', account.provenance, accounts.length > 0)
+      ? providerAccountReportingState(providerName, account.provenance, accounts.length > 0)
       : null;
   const enabled =
     !!projectId && !!repositoryUrl && (!accountState || accountState.kind === 'silent');
@@ -139,25 +147,31 @@ export const PrSelector = observer(function PrSelector({
   const listError = listResult && !listResult.success ? listResult.error : null;
   const error = syncError ?? listError;
   const errorMessage = error ? pullRequestErrorMessage(error) : null;
-  const isGitHubAuthError =
-    error?.type === 'github_auth_required' ||
-    error?.type === 'ghes_auth_required' ||
-    error?.type === 'github_account_not_found' ||
-    error?.type === 'github_account_host_mismatch' ||
-    error?.type === 'github_token_missing' ||
-    error?.type === 'github_sso_required';
-  const githubAuthDescription =
-    error?.type === 'github_account_not_found'
-      ? 'The selected GitHub account is no longer connected. Reconnect GitHub to show pull requests for this repository.'
-      : 'Emdash needs a connected GitHub account before it can show pull requests for this repository.';
-  const connectGitHubButton = (
+  const authError =
+    error?.type === 'auth_required' ||
+    error?.type === 'account_not_found' ||
+    error?.type === 'account_host_mismatch' ||
+    error?.type === 'token_missing' ||
+    error?.type === 'sso_required'
+      ? error
+      : null;
+  const authIntegrationName = authError
+    ? (integrationById[authError.integrationId]?.name ?? authError.integrationId)
+    : '';
+  const authDescription =
+    error?.type === 'account_not_found'
+      ? `The selected ${authIntegrationName} account is no longer connected. Reconnect ${authIntegrationName} to show ${requestsName} for this repository.`
+      : `Emdash needs a connected ${authIntegrationName} account before it can show ${requestsName} for this repository.`;
+  const connectButton = (
     <Button
       type="button"
       variant="secondary"
       size="xs"
-      onClick={() => void openIntegrationSetup({ integration: 'github' })}
+      onClick={() =>
+        authError && void openIntegrationSetup({ integration: authError.integrationId })
+      }
     >
-      Connect GitHub
+      Connect {authIntegrationName}
     </Button>
   );
 
@@ -173,7 +187,7 @@ export const PrSelector = observer(function PrSelector({
     renderPlaceholder()
   ) : (
     <div className="hover:bg-muted/30 flex h-6 w-full items-center justify-center gap-1 rounded-md border border-dashed border-border p-3 text-center text-sm text-foreground-passive hover:shadow-xs">
-      Click to select a pull request
+      Click to select a {provider === 'gitlab' ? 'merge request' : 'pull request'}
     </div>
   );
 
@@ -238,7 +252,7 @@ export const PrSelector = observer(function PrSelector({
             rightAddon={statusAddon}
             showClear={!!value}
             showTrigger={false}
-            placeholder="Search pull requests…"
+            placeholder={`Search ${requestsName}…`}
             disabled={disabled}
           />
           <Combobox.Empty>
@@ -246,29 +260,36 @@ export const PrSelector = observer(function PrSelector({
               <ProviderAccountStateEmpty
                 state={accountState}
                 projectId={projectId}
-                providerId="github"
-                providerName="GitHub"
-                icon={<Github className="size-4 text-foreground-muted" />}
+                providerId={provider}
+                providerName={providerName}
+                icon={
+                  <IntegrationIcon provider={provider} className="size-4 text-foreground-muted" />
+                }
               />
-            ) : isGitHubAuthError ? (
+            ) : authError ? (
               <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
                 <span className="flex size-8 items-center justify-center rounded-full bg-background-2">
-                  <Github className="size-4 text-foreground-muted" />
+                  <IntegrationIcon
+                    provider={authError.integrationId}
+                    className="size-4 text-foreground-muted"
+                  />
                 </span>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">Connect GitHub to load PRs</p>
-                  <p className="max-w-64 text-xs text-foreground-muted">{githubAuthDescription}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    Connect {authIntegrationName} to load {provider === 'gitlab' ? 'MRs' : 'PRs'}
+                  </p>
+                  <p className="max-w-64 text-xs text-foreground-muted">{authDescription}</p>
                 </div>
-                {connectGitHubButton}
+                {connectButton}
               </div>
             ) : (
               <span className={cn(errorMessage && 'text-foreground-error')}>
                 {errorMessage ??
                   (enabled && (isLoading || sync.isLoading || sync.value?.phase === 'running')
-                    ? 'Loading pull requests…'
+                    ? `Loading ${requestsName}…`
                     : statusFilter === 'open'
-                      ? 'No open pull requests'
-                      : 'No closed pull requests')}
+                      ? `No open ${requestsName}`
+                      : `No closed ${requestsName}`)}
               </span>
             )}
           </Combobox.Empty>
@@ -289,7 +310,7 @@ export const PrSelector = observer(function PrSelector({
               >
                 {errorMessage}
               </span>
-              {isGitHubAuthError && connectGitHubButton}
+              {authError && connectButton}
             </ListPopoverCard>
           )}
         </Combobox.Content>

@@ -1,12 +1,12 @@
-import { JSDOM } from 'jsdom';
-import React, { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   MergeStateStatus,
   PullRequest,
   PullRequestCheck,
-} from '@core/services/pull-requests/api';
+} from '@emdash/plugins/pull-requests/schemas';
+import { JSDOM } from 'jsdom';
+import React, { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MergeFooter } from './merge-footer';
 import { computeMergeUiState, deriveMergeCheckState, type MergeUiState } from './merge-ui-state';
 
@@ -255,5 +255,29 @@ describe('MergeFooter', () => {
     renderFooter(computeMergeUiState(makePr({ mergeStateStatus: 'DIRTY' })));
 
     expect(getMergeButton()?.disabled).toBe(true);
+  });
+});
+
+describe('GitLab merge presentation', () => {
+  it('uses MR terminology for drafts and retains GitHub wording', () => {
+    expect(computeMergeUiState(makePr({ provider: 'gitlab', isDraft: true })).title).toBe(
+      'Draft merge request'
+    );
+    expect(computeMergeUiState(makePr({ isDraft: true })).title).toBe('Draft pull request');
+  });
+  it('never offers a GitLab bypass and names GitLab checks', () => {
+    const mr = makePr({
+      provider: 'gitlab',
+      mergeStateStatus: 'UNSTABLE',
+      checkSummary: 'PENDING',
+    });
+    expect(computeMergeUiState(mr)).toMatchObject({
+      canBypassRequirements: false,
+      detail: 'Waiting for GitLab checks to finish.',
+    });
+    expect(computeMergeUiState({ ...mr, provider: 'github' })).toMatchObject({
+      canBypassRequirements: true,
+      detail: 'Waiting for GitHub checks to finish.',
+    });
   });
 });

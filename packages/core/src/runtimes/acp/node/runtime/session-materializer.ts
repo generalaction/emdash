@@ -4,12 +4,9 @@ import { toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Scope } from '@emdash/shared/concurrency';
 import { redactSecrets, type Logger } from '@emdash/shared/logger';
-import type {
-  AcpStartError,
-  ConversationNotFoundError,
-  InvalidStateError,
-} from '#runtimes/acp/api';
+import type { AcpStartError, ConversationNotFoundError } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
+import { acceptsProviderValue } from '#runtimes/acp/api/models/config';
 import {
   isAcpConnectionError,
   type AcpConnectionEntry,
@@ -28,12 +25,7 @@ export type MaterializationStartError = AcpStartError | ConversationNotFoundErro
 
 export type MaterializedSession = {
   record: SessionRecord;
-  initialQueueConsumed: true;
-};
-
-type UnsupportedSelection = {
-  key: SessionRecord['clearedConfiguration'][number];
-  value: string;
+  unstarted: boolean;
 };
 
 export interface SessionMaterializerCallbacks {
@@ -41,7 +33,7 @@ export interface SessionMaterializerCallbacks {
   onRecordCreated(record: SessionRecord, scope: Scope): void;
   onRecordChanged(record: SessionRecord): void;
   onRecordClosed(record: SessionRecord): void;
-  discardRecord(record: SessionRecord): void;
+  discardRecord(record: SessionRecord): Promise<void>;
   registerRoute(processOwner: string, acpSessionId: string, conversationId: string): void;
   beginLoad(processOwner: string, acpSessionId: string, conversationId: string): () => void;
 }
@@ -93,8 +85,9 @@ export class SessionMaterializer {
     const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
     const processOwner = routeOwnerId(connection.key, connection.generation);
     let record: SessionRecord | null = null;
-    let resumeOutcome: SessionRecord['resumeOutcome'] = null;
-    let unsupportedSelections: UnsupportedSelection[] = [];
+    let resumeOutcome: SessionRecord['resumeOutcome'] =
+      entry.isStartingFresh && entry.descriptor.sessionId !== null ? 'replaced-by-new' : null;
+    let unstarted = true;
 
     try {
       if (input.sessionId && (!connection.supportsLoadSession || !connection.agent.loadSession)) {
@@ -118,9 +111,15 @@ export class SessionMaterializer {
           epoch,
           scope
         );
+        const wasUntouched = entry.canStartFresh;
         let loaded = false;
+        let replaceUntouched = false;
         let endLoad = () => {};
         try {
+          if (wasUntouched) {
+            const preserved = await entry.preserveSession(record);
+            if (!preserved.success) return preserved;
+          }
           endLoad = this.callbacks.beginLoad(processOwner, input.sessionId, input.conversationId);
           record.cell.beginReplay();
           const response = await abortable(
@@ -133,23 +132,18 @@ export class SessionMaterializer {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           record.cell.applySessionLoaded({
-            modes: response.modes,
             configOptions: response.configOptions,
           });
-          unsupportedSelections = await this.applyDesiredConfiguration(
-            record,
-            entry,
-            response.configOptions !== undefined
-          );
-          const queueResult = this.queueInitialPrompts(record, input);
-          if (!queueResult.success) return queueResult;
-          record.cell.endReplay();
+          await this.applyDesiredConfiguration(record, entry);
+          const history = record.cell.history();
+          unstarted = wasUntouched && history.committed.length === 0 && !history.active;
           loaded = true;
           resumeOutcome = 'loaded';
         } catch (error) {
           if (!this.callbacks.isCurrent(entry, epoch)) {
             return acpErr.conversationNotFound(entry.conversationId);
           }
+          const history = record.cell.history();
           if (isAuthRequiredError(error)) throw error;
           this.deps.logger.warn('SessionMaterializer: failed to restore existing session', {
             conversationId: input.conversationId,
@@ -158,13 +152,24 @@ export class SessionMaterializer {
             error: toSerializedError(error),
             ...providerErrorDetails(error),
           });
-          return acpErr.invalidState(
-            'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
-          );
+          if (isSessionNotFound(error, input.sessionId, binding.behavior.isSessionNotFound)) {
+            if (!wasUntouched || history.committed.length > 0 || history.active) {
+              return acpErr.sessionNotFound();
+            }
+            replaceUntouched = true;
+          } else {
+            return acpErr.invalidState(
+              'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
+            );
+          }
         } finally {
           endLoad();
           releaseHandshake();
-          if (!loaded) this.callbacks.discardRecord(record);
+          if (!loaded) await this.callbacks.discardRecord(record);
+        }
+        if (replaceUntouched) {
+          record = null;
+          resumeOutcome = 'replaced-by-new';
         }
       }
 
@@ -195,17 +200,9 @@ export class SessionMaterializer {
           scope
         );
         record.cell.applySessionMeta({
-          modes: response.modes,
           configOptions: response.configOptions,
         });
-        unsupportedSelections = await this.applyDesiredConfiguration(
-          record,
-          entry,
-          response.configOptions !== undefined
-        );
-        const queueResult = this.queueInitialPrompts(record, input);
-        if (!queueResult.success) return queueResult;
-        record.cell.applySessionReady();
+        await this.applyDesiredConfiguration(record, entry);
       }
 
       if (!this.callbacks.isCurrent(entry, epoch) || record.disposed) {
@@ -218,17 +215,7 @@ export class SessionMaterializer {
       );
       record.mcpServers = mcpServerSummary;
       record.resumeOutcome = resumeOutcome;
-      for (const { key, value } of unsupportedSelections) {
-        if (key === 'modeId') {
-          if (entry.descriptor.modeId !== value) continue;
-          entry.clearMode();
-        } else {
-          if (entry.configOverrides[key] !== value) continue;
-          entry.clearConfig(key);
-        }
-        record.clearedConfiguration.push(key);
-      }
-      return { success: true, data: { record, initialQueueConsumed: true } };
+      return { success: true, data: { record, unstarted } };
     } catch (error) {
       if (isAuthRequiredError(error)) return acpErr.authRequired(toSerializedError(error));
       return acpErr.initializeFailed(toSerializedError(error));
@@ -308,7 +295,6 @@ export class SessionMaterializer {
       epoch,
       input,
       resumeOutcome: null,
-      clearedConfiguration: [],
       processKey: connection.key,
       processGeneration: connection.generation,
       connectionLeaseState,
@@ -326,66 +312,33 @@ export class SessionMaterializer {
     return record;
   }
 
-  private queueInitialPrompts(
-    record: SessionRecord,
-    input: AcpStartInput
-  ): Result<void, InvalidStateError> {
-    for (const prompt of input.initialQueue ?? []) {
-      const result = record.cell.queuePrompt(prompt);
-      if (!result.success) return result;
-    }
-    return { success: true, data: undefined };
-  }
-
-  private async applyConfigOverrides(
-    record: SessionRecord,
-    entry: ConversationHandle,
-    hasAuthoritativeCatalog: boolean
-  ): Promise<UnsupportedSelection[]> {
-    const unsupported: UnsupportedSelection[] = [];
-    for (const dimension of ['model', 'effort', 'collaborationMode'] as const) {
-      const value = entry.configOverrides[dimension];
-      if (!value) continue;
-      const catalog =
-        dimension === 'model'
-          ? record.cell.config.modelOptions
-          : dimension === 'effort'
-            ? record.cell.config.efforts
-            : record.cell.config.collaborationModeOptions;
-      if (
-        (!catalog && hasAuthoritativeCatalog) ||
-        (catalog && !catalog.available.some((option) => option.id === value))
-      ) {
-        unsupported.push({ key: dimension, value });
-        continue;
-      }
-      const result = await record.cell.setConfigOption(dimension, value);
-      if (!result.success) {
-        this.deps.logger.warn('SessionMaterializer: failed to apply retained config option', {
-          conversationId: entry.conversationId,
-          providerId: entry.descriptor.providerId,
-          dimension,
-          error: result.error,
-        });
-      }
-    }
-    return unsupported;
-  }
-
-  private async applyDesiredConfiguration(
-    record: SessionRecord,
-    entry: ConversationHandle,
-    hasAuthoritativeCatalog: boolean
-  ): Promise<UnsupportedSelection[]> {
+  async applyDesiredConfiguration(record: SessionRecord, entry: ConversationHandle): Promise<void> {
     let revision: number;
-    let unsupported: UnsupportedSelection[];
     do {
       revision = entry.desiredRevision;
-      unsupported = await this.applyConfigOverrides(record, entry, hasAuthoritativeCatalog);
-      const unsupportedMode = await this.applyInitialMode(record, entry);
-      if (unsupportedMode) unsupported.push({ key: 'modeId', value: unsupportedMode });
+      const configured = entry.descriptor.options ?? {};
+      const ids = Object.keys(configured).sort((a, b) => {
+        const options = record.cell.config.options ?? [];
+        return (
+          Number(options.find((o) => o.id === b)?.category === 'model') -
+          Number(options.find((o) => o.id === a)?.category === 'model')
+        );
+      });
+      const cleared: Record<string, string | boolean> = {};
+      for (const id of ids) {
+        const value = configured[id]!;
+        const option = record.cell.config.options?.find((o) => o.id === id);
+        if (!option || !acceptsProviderValue(option, value)) {
+          if (record.cell.configCatalog.kind === 'ready') cleared[id] = value;
+          continue;
+        }
+        if (option.currentValue === value) continue;
+        const applied = await record.cell.setOption(id, value);
+        if (!applied.success)
+          throw new Error(`Could not apply ${id}: ${JSON.stringify(applied.error)}`);
+      }
+      record.clearedOptions = cleared;
     } while (entry.desiredRevision !== revision);
-    return unsupported;
   }
 
   private async resolveSessionMcpServers(providerId: string, connection: AcpConnectionEntry) {
@@ -406,35 +359,6 @@ export class SessionMaterializer {
       });
       return [];
     }
-  }
-
-  private async applyInitialMode(
-    record: SessionRecord,
-    entry: ConversationHandle
-  ): Promise<string | null> {
-    const modeId = entry.descriptor.modeId;
-    if (!modeId) return null;
-    const modeOptions = record.cell.config.modeOptions;
-    if (!modeOptions) return null;
-    if (!modeOptions.available.some((mode) => mode.id === modeId)) {
-      this.deps.logger.debug('SessionMaterializer: persisted mode not advertised, skipping', {
-        conversationId: entry.conversationId,
-        providerId: entry.descriptor.providerId,
-        modeId,
-      });
-      return modeId;
-    }
-    if (modeOptions.selected === modeId) return null;
-    const result = await record.cell.setMode(modeId);
-    if (!result.success) {
-      this.deps.logger.warn('SessionMaterializer: failed to apply initial mode', {
-        conversationId: entry.conversationId,
-        providerId: entry.descriptor.providerId,
-        modeId,
-        error: result.error,
-      });
-    }
-    return null;
   }
 
   private buildNewSessionRequest(
@@ -478,9 +402,35 @@ function providerErrorDetails(error: unknown): { code?: number; providerMessage?
       ? data
       : data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
         ? data.message
-        : undefined;
+        : data && typeof data === 'object' && 'details' in data && typeof data.details === 'string'
+          ? data.details
+          : undefined;
   return {
     ...(code !== undefined && { code }),
     ...(message !== undefined && { providerMessage: redactSecrets(message).slice(0, 2_000) }),
   };
+}
+
+function isSessionNotFound(
+  error: unknown,
+  sessionId: string,
+  providerCheck?: (error: unknown, sessionId: string) => boolean
+): boolean {
+  const seen = new Set<object>();
+  while (error && typeof error === 'object' && !seen.has(error)) {
+    seen.add(error);
+    if (providerCheck?.(error, sessionId)) return true;
+    const data = 'data' in error ? error.data : undefined;
+    if (
+      'code' in error &&
+      error.code === -32002 &&
+      data &&
+      typeof data === 'object' &&
+      'uri' in data &&
+      data.uri === sessionId
+    )
+      return true;
+    error = 'cause' in error ? error.cause : undefined;
+  }
+  return false;
 }

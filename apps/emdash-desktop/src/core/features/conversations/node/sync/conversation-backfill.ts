@@ -75,8 +75,11 @@ export class ConversationBackfillService {
         );
         continue;
       }
-      if (row.providerSessionId) {
-        // Seed the last-observed resume handle so convergence does not null it out.
+      if (
+        row.providerSessionId &&
+        created.data.providerSessionId === null &&
+        created.data.lastSpawnedAt === null
+      ) {
         await index.reports.providerSessionId({
           conversationId: row.id,
           providerSessionId: row.providerSessionId,

@@ -12,9 +12,16 @@ import {
   mergeUpdateManifests,
   resolvePublishChannels,
 } from './lib/artifacts.ts';
+import { createReleaseBuildConfig } from './lib/build-config.ts';
 import { GITHUB_OWNER, GITHUB_REPO, requireEnv } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
+import { verifyLanguageServerAssets } from './lib/language-servers.ts';
 import { fail, info, step, warn } from './lib/log.ts';
+import {
+  packagedLanguageServerApp,
+  verifyPackagedLanguageServers,
+  type PackagedLanguageServerApp,
+} from './lib/packaged-language-servers.ts';
 import { releaseHasOwnership } from './lib/release-ownership.ts';
 import { resolveReleaseVersion } from './lib/version.ts';
 import type { ReleaseChannel } from './lib/version.ts';
@@ -105,6 +112,8 @@ exec(`pnpm --filter @emdash/emdash-desktop deploy --legacy --prod ${deployDir}`,
   echo: true,
 });
 
+verifyLanguageServerAssets(deployDir);
+
 step('Copying built assets into deployment directory');
 cpSync('out', join(deployDir, 'out'), { recursive: true });
 cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
@@ -141,24 +150,37 @@ try {
     if (!archEnum) fail(`Unknown arch: ${arch}`);
 
     const buildTargets = ebPlatform.createTarget(targetList, archEnum);
-    // Clone per iteration: electron-builder's normalizeFiles mutates config.files in
-    // place (collapsing strings into a single fileset and leaving null holes), which
-    // crashes the second arch iteration if the same config object is reused.
-    const config: Configuration = {
-      ...structuredClone(baseConfig),
+    const config = createReleaseBuildConfig(
+      baseConfig,
       electronVersion,
-      npmRebuild: false,
-      ...(isCanary ? { extraMetadata: { version: overrideVersion } } : {}),
-    };
+      isCanary ? overrideVersion : undefined
+    );
+    const packagedApps: PackagedLanguageServerApp[] = [];
 
     await electronBuild({
       targets: buildTargets,
-      config,
+      config: {
+        ...config,
+        afterPack: async (context) => {
+          packagedApps.push(packagedLanguageServerApp(context));
+        },
+      },
       projectDir: deployDir,
       // Platform verification and notarization must run against the exact bytes that ship.
       // A later explicit step uploads those final files to the owned GitHub draft.
       publish: 'never',
     });
+
+    if (arch === process.arch && ebPlatform.nodeName === process.platform) {
+      if (packagedApps.length !== 1)
+        fail('Expected one finished app for language-server verification');
+      step('Verifying bundled language servers in the finished app with an empty PATH');
+      await verifyPackagedLanguageServers(packagedApps[0]);
+    } else {
+      warn(
+        `Cannot execute the ${platform}/${arch} app on this host; run verify-language-servers on a matching host`
+      );
+    }
 
     for (const manifest of findManifests(githubChannel, join(deployDir, 'release'))) {
       const name = basename(manifest);

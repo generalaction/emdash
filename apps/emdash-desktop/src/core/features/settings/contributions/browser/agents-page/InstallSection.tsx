@@ -1,4 +1,5 @@
-import { toast } from '@emdash/ui/react/primitives';
+import { Field, Label, toast } from '@emdash/ui/react/primitives';
+import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
@@ -75,16 +76,46 @@ export const InstallSection = observer(function InstallSection({
   hideOverrideOptions,
   compact,
 }: InstallSectionProps) {
-  return (
+  const installationGuide = installDocs ? (
+    <a
+      href={installDocs}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex shrink-0 items-center gap-1 text-xs text-foreground-muted hover:text-foreground"
+    >
+      Installation guide
+      <ExternalLink className="size-3" aria-hidden="true" />
+    </a>
+  ) : null;
+
+  const installation = (
     <LocalInstallSection
       agentId={agentId}
       connectionId={connectionId}
       agentPayload={agentPayload}
       installOptions={installOptions}
-      installDocs={installDocs}
       hideOverrideOptions={hideOverrideOptions}
       compact={compact}
     />
+  );
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        {installation}
+        {installationGuide}
+      </div>
+    );
+  }
+
+  return (
+    <Field.Root>
+      <div className="flex items-center justify-between gap-2">
+        <Label>Installation</Label>
+        {installationGuide}
+      </div>
+      {installation}
+    </Field.Root>
   );
 });
 
@@ -93,7 +124,6 @@ const LocalInstallSection = observer(function LocalInstallSection({
   connectionId,
   agentPayload,
   installOptions,
-  installDocs: _installDocs,
   hideOverrideOptions: _hideOverrideOptions,
   compact = false,
 }: InstallSectionProps) {
@@ -155,13 +185,15 @@ const LocalInstallSection = observer(function LocalInstallSection({
       });
   };
 
-  // For the install command card, narrow to the selected method when concrete.
+  // Show every platform-appropriate option for the initial install flow, even when
+  // the recommended method seeded the source selection. An explicitly chosen method
+  // still narrows the card to preserve the existing source-selection behavior.
   const effectiveInstallOptions = useMemo(() => {
-    if (selectedSource.kind === 'method') {
-      return installOptions.filter((o) => o.method === selectedSource.method);
+    if (sourceDraft?.kind === 'method') {
+      return installOptions.filter((o) => o.method === sourceDraft.method);
     }
     return installOptions;
-  }, [installOptions, selectedSource]);
+  }, [installOptions, sourceDraft]);
 
   if (vm.runtimeError) {
     switch (vm.runtimeError.type) {

@@ -10,6 +10,7 @@ export type DesktopUpdateState = {
   updateInfo?: unknown;
   downloadProgress?: UpdateProgress;
   error?: string;
+  errorDetails?: string;
   rollbackVersion?: string;
   releaseNotes?: string;
 };
@@ -29,7 +30,7 @@ export type DesktopUpdateEvent =
   | ({ type: 'progress' } & UpdateProgress)
   | { type: 'downloaded'; version: string }
   | { type: 'installing' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; details?: string };
 
 export type UpdateActionResult = { success: true } | { success: false; error: string };
 export type UpdateCheckResult =
@@ -48,7 +49,7 @@ export const updatesDomain = 'updates' as const;
 
 export const updatesContract = defineContract({
   check: procedure({ input: voidInput, output: z.custom<UpdateCheckResult>() }),
-  download: procedure({ input: voidInput, output: z.custom<UpdateActionResult>() }),
+  download: procedure({ input: voidInput, output: z.custom<UpdateStateResult>() }),
   quitAndInstall: procedure({ input: voidInput, output: z.custom<UpdateActionResult>() }),
   openLatest: procedure({ input: voidInput, output: z.custom<UpdateActionResult>() }),
   getState: procedure({ input: voidInput, output: z.custom<UpdateStateResult>() }),

@@ -100,47 +100,36 @@ export function createFilesWireController(options: CreateFilesWireControllerOpti
           files.fs.delete({ path: ref.path, recursive: input.recursive }, callOptions(meta))
         ),
     },
-    tree: {
-      model: createTreeModelProvider(options),
-    },
+    listing: createListingModelProvider(options),
     content: createContentModelProvider(options),
   });
 }
 
-function createTreeModelProvider(
+/**
+ * Forwards folder listings to the host runtime. Identical keys from different
+ * tasks or windows become the same host topic, which the host connection
+ * attaches once and fans out.
+ */
+function createListingModelProvider(
   options: CreateFilesWireControllerOptions
-): LiveModelProvider<typeof filesWireContract.tree.model> {
-  const contract = filesWireContract.tree.model;
+): LiveModelProvider<typeof filesWireContract.listing> {
+  const contract = filesWireContract.listing;
   return {
     kind: 'liveModelProvider' as const,
     contract,
     resolveState: (key, name) =>
       resolveRuntimeSource(options, decodeUri(key.root).host, (client) =>
-        client.files.tree.model
-          .state(
-            {
-              root: decodeUri(key.root).path,
-              sessionId: key.sessionId,
-              exclusions: key.exclusions,
-            },
-            name
-          )
+        client.files.listing
+          .state({ root: decodeUri(key.root).path, path: key.path }, name)
           .asLiveSource()
       ),
     async runMutation(name, envelope) {
       const ref = decodeUri(envelope.key.root);
       return withHostRuntime(options, ref.host, (client) =>
-        forwardModelMutation(
-          client.files.tree.model,
-          filesWireContract.tree.model,
-          name,
-          envelope,
-          {
-            root: ref.path,
-            sessionId: envelope.key.sessionId,
-            exclusions: envelope.key.exclusions,
-          }
-        )
+        forwardModelMutation(client.files.listing, filesWireContract.listing, name, envelope, {
+          root: ref.path,
+          path: envelope.key.path,
+        })
       ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };

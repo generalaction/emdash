@@ -237,7 +237,7 @@ describe('scripts runtime contract', () => {
     const model = devServers(undefined);
     try {
       await start('run');
-      spawner.processes[0]!.emitData('Local: http://localhost:5173/app\n');
+      spawner.processes[0]!.emitData('Local: http://[::1]:5173/app\n');
 
       await expect
         .poll(async () => {
@@ -248,7 +248,7 @@ describe('scripts runtime contract', () => {
           {
             key: { workspacePath: WORKSPACE, script: 'run' },
             protocol: 'http:',
-            host: 'localhost',
+            host: '::1',
             port: 5173,
             urlPath: '/app',
           },

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { issueMentionToken } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { resolveTaskBranchName } from '@core/primitives/tasks/api';
 
@@ -42,19 +43,22 @@ export function useBranchName(opts: {
   const [userValue, setUserValue] = useState<string | undefined>(undefined);
   const [isUserModified, setIsUserModified] = useState(false);
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
-  const [prevLinkedIssue, setPrevLinkedIssue] = useState(linkedIssue);
+  const issueSource = linkedIssue
+    ? issueMentionToken(linkedIssue.provider, linkedIssue.identifier, linkedIssue)
+    : null;
+  const [prevIssueSource, setPrevIssueSource] = useState(issueSource);
 
   // Reset when the project changes.
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
-    setPrevLinkedIssue(linkedIssue);
+    setPrevIssueSource(issueSource);
     setUserValue(undefined);
     setIsUserModified(false);
   }
 
   // When the linked issue changes (user selects a different issue), clear user override.
-  if (linkedIssue !== prevLinkedIssue) {
-    setPrevLinkedIssue(linkedIssue);
+  if (issueSource !== prevIssueSource) {
+    setPrevIssueSource(issueSource);
     setUserValue(undefined);
     setIsUserModified(false);
   }

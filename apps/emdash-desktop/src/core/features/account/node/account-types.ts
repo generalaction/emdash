@@ -36,8 +36,17 @@ export interface SessionState {
 
 export interface AuthProviderToken {
   accessToken: string;
+  /** Epoch milliseconds; absent for tokens that do not expire. */
+  expiresAt?: number;
   providerId: string;
   providerAccount?: ProviderAccountIdentity;
+}
+
+/** A replacement access token from the auth server, which keeps the refresh token. */
+export interface RenewedProviderToken {
+  accessToken: string;
+  /** Epoch milliseconds; absent for tokens that do not expire. */
+  expiresAt?: number;
 }
 
 export interface SignInExchange {

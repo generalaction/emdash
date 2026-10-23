@@ -45,13 +45,13 @@ export function createAgentOperations(dependencies: {
 
     list: async (connectionId?: string, manager?: HostDependenciesClient) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return buildAgentPayloads(providerOverrideSettings, snapshot, connectionId);
     },
 
     get: async (id: string, connectionId?: string, manager?: HostDependenciesClient) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return buildAgentPayload(providerOverrideSettings, id, snapshot, connectionId);
     },
 
@@ -62,7 +62,7 @@ export function createAgentOperations(dependencies: {
       manager?: HostDependenciesClient
     ) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return Object.values(snapshot.dependencies)
         .filter((view) => view.definition.category === 'agent')
         .map((view) => toAgentInstallationStatus(view.definition.id, connectionId, view));
@@ -74,7 +74,7 @@ export function createAgentOperations(dependencies: {
       manager?: HostDependenciesClient
     ) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
-      const snapshot = await snapshotFor(mgr, ensureAgentDependenciesProbed);
+      const snapshot = await snapshotFor(mgr);
       return toAgentInstallationStatus(id, connectionId, snapshot.dependencies[id]);
     },
 
@@ -220,11 +220,7 @@ async function resolveDependencyManager(
   return result.data;
 }
 
-async function snapshotFor(
-  manager: HostDependenciesClient,
-  ensureProbed: (manager: HostDependenciesClient) => Promise<void>
-): Promise<HostDependencySnapshot> {
-  await ensureProbed(manager);
+async function snapshotFor(manager: HostDependenciesClient): Promise<HostDependencySnapshot> {
   const snapshot = await manager.snapshot.state(undefined, 'current').snapshot();
   return snapshot.data;
 }

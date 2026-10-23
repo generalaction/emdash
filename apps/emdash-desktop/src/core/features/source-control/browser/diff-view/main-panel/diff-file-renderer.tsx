@@ -31,7 +31,7 @@ import {
   type DraftCommentTarget,
 } from '@core/primitives/line-comments/api';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
+import { MonacoCommentManager } from '../comments/monaco-comment-manager';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 import { ImageDiffView } from './image-diff-view';
 import { useDiffFacets } from './use-diff-facets';
@@ -78,46 +78,31 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
   const diffView = useTaskComposition().diffView;
   const draftComments = getTaskStore(projectId, taskId)?.get(draftCommentsStoreToken);
 
-  const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
-
-  const commentTarget = diffTabToCommentTarget(tab);
-  const commentTargetKey = getDraftCommentTargetKey(commentTarget);
-  const comments = draftComments?.getCommentsForTarget(commentTargetKey) ?? [];
-
-  const handleAddComment = useCallback(
-    (lineNumber: number, content: string, lineContent?: string) => {
-      if (!draftComments) return;
-      draftComments.addComment({
-        target: commentTarget,
-        lineNumber,
-        lineContent: lineContent ?? null,
-        content,
+  const bindComments = useCallback(
+    (editor: monaco.editor.IStandaloneDiffEditor | null) => {
+      if (!editor || !draftComments) return;
+      const manager = new MonacoCommentManager(editor, {
+        getComments: () =>
+          draftComments.getCommentsForTarget(getDraftCommentTargetKey(diffTabToCommentTarget(tab))),
+        onAddComment: (lineNumber, content, lineContent) => {
+          draftComments.addComment({
+            target: diffTabToCommentTarget(tab),
+            lineNumber,
+            lineContent: lineContent ?? null,
+            content,
+          });
+        },
+        onEditComment: (id, content) => {
+          draftComments.updateComment(id, content);
+        },
+        onDeleteComment: (id) => {
+          draftComments.deleteComment(id);
+        },
       });
+      return () => manager.dispose();
     },
-    [commentTarget, draftComments]
+    [draftComments, tab]
   );
-
-  const handleEditComment = useCallback(
-    (id: string, content: string) => {
-      draftComments?.updateComment(id, content);
-    },
-    [draftComments]
-  );
-
-  const handleDeleteComment = useCallback(
-    (id: string) => {
-      draftComments?.deleteComment(id);
-    },
-    [draftComments]
-  );
-
-  useDiffEditorComments({
-    editor,
-    comments,
-    onAddComment: handleAddComment,
-    onEditComment: handleEditComment,
-    onDeleteComment: handleDeleteComment,
-  });
 
   const sides = useDiffFacets({
     workspacePath: workspace.path,
@@ -144,7 +129,7 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
           modified={sides.modified}
           filePath={tab.path}
           diffStyle={diffView.diffStyle}
-          onEditorChange={setEditor}
+          ref={bindComments}
         />
       </div>
     </div>

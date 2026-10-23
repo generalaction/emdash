@@ -51,14 +51,17 @@ workers; production uses it only for desktop-local workers. A remote Host cannot
 that local preparation path. The Host probe and provisioner each own a single Host's cached result
 and current operation; cancelled work is fenced before continuing to another daemon action.
 
-Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
+Managed Linux and macOS installations use `~/.emdash/workspace-server/` with immutable version
+directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under
 `run/`. When the daemon is absent or the user explicitly requests an update, the desktop downloads
 the channel pointer for its protocol major, then downloads and executes that version's immutable
 `apps/workspace-server/install.sh` on the remote with the selected version pinned. Canary desktops
-fall back to the stable pointer when no canary pointer exists. The script detects Linux architecture
-and glibc support, pulls the matching artifact, verifies its SHA-256 sidecar, and extracts it before
-`current` changes. Compatible same-major daemons remain installed until a future explicit update.
+fall back to the stable pointer when no canary pointer exists. The script detects the host OS and
+architecture (glibc Linux on x64 or arm64, and Apple silicon macOS), pulls the matching artifact,
+verifies its SHA-256 sidecar, and extracts it before `current` changes. It relies only on tools each
+platform ships: GNU coreutils and tar on Linux, and BSD tar, `shasum`, and the artifact's own Node
+runtime (for the atomic `current` rename) on macOS. Compatible same-major daemons remain installed until a future explicit update.
 The desktop offers that update only when the channel pointer names a strictly newer SemVer artifact
 version; equal and older pointer versions leave the running daemon alone.
 `EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL` overrides the install-script and artifact base URL for
@@ -69,8 +72,8 @@ selected the exact version named by the resolved channel pointer.
 
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
 
-The daemon is the Electron-free equivalent of the desktop runtime host. Every core runtime is a
-required supervised child worker in both socket and stdio modes: ACP, agent config, automations,
+The daemon is the Electron-free equivalent of the desktop runtime host. Core execution runtimes are
+required supervised child workers in both socket and stdio modes: ACP, agent config, automations,
 conversations, file search, files, Git, host settings, resource usage, scripts, terminals, TUI
 agents, and workspace registry. The filesystem watcher is also a worker because it is the shared
 dependency for files, Git, file search, and the workspace registry. The workspace registry depends
@@ -79,6 +82,10 @@ commands and shell setup, and sends strict execution inputs to scripts. Automati
 depends on the workspace registry: automation workspace activation flows through the registry's
 `createWorkspace` and `activateWorkspace` verbs. Server startup fails if any required worker cannot
 become ready; there are no unavailable-domain fallback implementations in the aggregate controller.
+LSP and provider usage are optional in both hosts: each worker starts on its first request and is
+excluded from required runtime readiness. Startup failures reject that domain's calls without blocking
+other runtimes. Later requests can retry failed startup; concurrent requests share one readiness
+attempt, and successful readiness remains cached.
 
 Interactive TUI processes do not expire after an hour of silence. The worker and runtime use
 the `always` lifecycle policy; explicit stop/delete and workspace teardown still release them.

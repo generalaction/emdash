@@ -305,7 +305,9 @@ export function expose<Group extends LiveModelDef>(
       ? publishLiveState(record, liveState, current)
       : (record.liveState = new LiveStateSource(current.value)).cursor;
     if (!record.liveState) throw new Error('Exposed state failed to initialize');
-    const publishedRevision: Revision = {
+    const publishedRevision: Revision = (record.node instanceof AsyncReadableNode
+      ? record.node.sourceRevision
+      : undefined) ?? {
       nodeId: record.node.__stateNode.id,
       revision: current.revision,
       generation: current.generation,
@@ -372,6 +374,7 @@ export function expose<Group extends LiveModelDef>(
 
 class AsyncReadableNode<T> extends StateNode<T | undefined> implements Readable<T | undefined> {
   private disposed = false;
+  sourceRevision: Revision | undefined;
 
   constructor(
     source: Promise<Readable<T | undefined>>,
@@ -387,6 +390,12 @@ class AsyncReadableNode<T> extends StateNode<T | undefined> implements Readable<
       (node) => {
         if (this.disposed) return;
         const unsubscribe = node.__stateNode.observe((current) => {
+          this.sourceRevision = {
+            nodeId: node.__stateNode.id,
+            revision: current.revision,
+            generation: current.generation,
+            mutationIds: current.mutationIds,
+          };
           this.replaceSnapshot(current as Snapshot<T | undefined>);
         });
         scope.add(unsubscribe);

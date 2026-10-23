@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fileContentModelSchema } from '#runtimes/files/api/content/state';
-import { fileStatSchema, treeKeySchema } from './schemas';
+import { fileStatSchema, listingKeySchema } from './schemas';
 
 describe('files schemas', () => {
   it('uses JSON-safe millisecond timestamps', () => {
@@ -26,17 +26,13 @@ describe('files schemas', () => {
     expect(() => fileContentModelSchema.parse({ ...value, code: 'something-else' })).toThrow();
   });
 
-  it('accepts an optional tree watch scope while preserving recursive-compatible keys', () => {
+  it('keys a folder listing by its root and the folder path within it', () => {
     const key = {
       root: { root: { kind: 'posix' as const }, segments: ['home', 'dev'] },
-      sessionId: 'tree-1',
+      path: 'src/lib',
     };
 
-    expect(treeKeySchema.parse(key)).toEqual(key);
-    expect(treeKeySchema.parse({ ...key, watchScope: 'children' })).toEqual({
-      ...key,
-      watchScope: 'children',
-    });
-    expect(() => treeKeySchema.parse({ ...key, watchScope: 'none' })).toThrow();
+    expect(listingKeySchema.parse(key)).toEqual(key);
+    expect(() => listingKeySchema.parse({ ...key, path: '../outside' })).toThrow();
   });
 });

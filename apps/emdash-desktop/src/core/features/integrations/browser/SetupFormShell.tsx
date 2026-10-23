@@ -1,6 +1,7 @@
 import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import type { IntegrationConnectOptions } from '@core/features/integrations/api/contract';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import type { IntegrationFormInput } from './types';
@@ -13,12 +14,13 @@ export type SetupFormProps = {
 type SetupFormShellProps = {
   providerId: string;
   getInput: () => IntegrationFormInput;
-  getConnectionOptions?: () => { accountId?: string; displayName?: string };
+  getConnectionOptions?: () => IntegrationConnectOptions;
   reconnect?: boolean;
   canSubmit: boolean;
   onSuccess: () => void;
   onClose: () => void;
   children: ReactNode;
+  onBack?: () => void;
 };
 
 export function SetupFormShell({
@@ -30,6 +32,7 @@ export function SetupFormShell({
   onSuccess,
   onClose,
   children,
+  onBack,
 }: SetupFormShellProps) {
   const { connectIntegration, isIntegrationMutating } = useIntegrationsContext();
   const { toast } = useToast();
@@ -64,6 +67,11 @@ export function SetupFormShell({
         ) : null}
       </Dialog.Body>
       <Dialog.Footer>
+        {onBack ? (
+          <Button variant="secondary" className="mr-auto" onClick={onBack} disabled={isMutating}>
+            Back
+          </Button>
+        ) : null}
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>

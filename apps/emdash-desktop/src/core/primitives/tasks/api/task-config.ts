@@ -20,6 +20,7 @@ const v1Schema = z.object({
       autoApprove: z.boolean().optional(),
       initialPrompt: z.string().optional(),
       initialQueue: z.array(initialQueuePromptSchema).optional(),
+      options: z.record(z.string(), z.union([z.string(), z.boolean()])).optional(),
       model: z.string().optional(),
       type: z.enum(['pty', 'acp']).optional(),
     })

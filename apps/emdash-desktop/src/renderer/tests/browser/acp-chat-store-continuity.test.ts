@@ -191,7 +191,7 @@ describe('history response ordering', () => {
         ),
       },
     ]);
-    harness.publish(makeTurn(1), { historyRevision: 1 });
+    harness.publish(makeTurn(1));
     await vi.waitFor(() => expect(harness.loadHistory).toHaveResolvedTimes(2));
     await vi.waitFor(() =>
       expect(harness.store.chatState.transcript.findItemById('old-tool')).toMatchObject({
@@ -303,7 +303,6 @@ describe('history response ordering', () => {
     harness = createContinuityHarness(fixture, [makeTurn(0)]);
     await harness.bootstrap();
     harness.setHistory([], true);
-    harness.publish(null, { historyRevision: 1 });
     await vi.waitFor(() => expect(harness.loadHistory).toHaveResolvedTimes(2));
     expect(harness.committed.map((turn) => turn.id)).toEqual(['turn-0']);
     expect(harness.store.historyKnown).toBe(true);
@@ -423,7 +422,7 @@ describe('reconnection and view lifetime', () => {
       if (phase === 'refresh') await harness.bootstrap();
       const held = harness.holdNextHistory();
       if (phase === 'bootstrap') harness.startBootstrap();
-      else harness.publish(null, { historyRevision: 1 });
+      else harness.setHistory([makeTurn(0)]);
       await held.started;
       const before = harness.committed;
       harness.disposeStore();

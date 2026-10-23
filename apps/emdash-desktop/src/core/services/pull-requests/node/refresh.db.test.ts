@@ -1,3 +1,4 @@
+import { GitHubPullRequestClient } from '@emdash/plugins/pull-requests/github';
 import { ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
@@ -8,7 +9,11 @@ import { defineWireComponent } from '@emdash/wire/worker';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { pullRequestsContract, type GitHubAuthContract, type PullRequestDetails } from '../api';
+import {
+  pullRequestsContract,
+  type GitPlatformAuthContract,
+  type PullRequestDetails,
+} from '../api';
 import { PullRequestEngine } from './engine';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
@@ -147,29 +152,32 @@ async function harness() {
   });
   const { logger } = createStubLogger();
   const auth = {
+    resolveIntegration: async () => ok({ integrationId: 'github' }),
     resolveAuth: async () =>
       ok({
+        integrationId: 'github',
         accountId: 'account',
-        token: 'test',
-        host: 'github.com',
-        apiBaseUrl: 'https://api.github.com',
+        credentials: { accessToken: 'test', apiBaseUrl: 'https://api.github.com' },
       }),
-  } as unknown as ContractClient<GitHubAuthContract>;
+  } as unknown as ContractClient<GitPlatformAuthContract>;
   // Use the real engine, database, service, controller and Wire subscription.
   const engine = new PullRequestEngine({
     scope,
     logger,
-    githubAuth: auth,
-    retrySchedule: retrySchedules.fixed(0, 0),
-    createOctokit: () =>
-      ({
-        graphql,
-        paginate,
-        rest: {
-          issues: { listComments },
-          pulls: { listReviews: vi.fn(), listReviewComments: vi.fn() },
-        },
-      }) as unknown as Octokit,
+    auth,
+    createClient: (_integrationId, host) =>
+      new GitHubPullRequestClient(host, {
+        retrySchedule: retrySchedules.fixed(0, 0),
+        createOctokit: () =>
+          ({
+            graphql,
+            paginate,
+            rest: {
+              issues: { listComments },
+              pulls: { listReviews: vi.fn(), listReviewComments: vi.fn() },
+            },
+          }) as unknown as Octokit,
+      }),
   });
   let service!: PullRequestService;
   const definition = defineWireComponent({

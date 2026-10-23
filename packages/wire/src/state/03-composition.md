@@ -82,9 +82,12 @@ compute the resulting refs state — re-reading is the honest move.
 
 ## Worked example 2: file tree (dynamic deps, cell + query join, settle)
 
-Today: `TreeResource` — a single mutable `FileTreeModel` with expansion state
+Before: `TreeResource` — a single mutable `FileTreeModel` with expansion state
 baked in, ~200 lines of hand-rolled lanes/resync coalescing, and mutations
-that re-read directories they just changed.
+that re-read directories they just changed. Its replacement in
+`runtimes/files/node/listing/` already has the shape below (one shared listing
+per folder, expansion owned by the client) but still hand-writes the per-folder
+update queue that `query` would provide.
 
 Decomposed:
 

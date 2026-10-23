@@ -1,6 +1,6 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceObservedPrFacts } from '@core/primitives/tasks/api';
-import type { PullRequest } from '@core/services/pull-requests/api';
 import { derivePrAssociation, type PrCacheLookups } from './derive-pr-association';
 
 const repositoryUrl = 'https://github.com/emdash/emdash';

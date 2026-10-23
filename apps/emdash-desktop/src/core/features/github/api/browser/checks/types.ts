@@ -1,4 +1,4 @@
-import type { PullRequestCheck } from '@core/services/pull-requests/api';
+import type { PullRequestCheck } from '@emdash/plugins/pull-requests/schemas';
 
 export type CheckRun = PullRequestCheck;
 

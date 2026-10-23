@@ -3,7 +3,7 @@ import type { ChatCommands } from '@core/features/conversations/api/browser/chat
 import { openFileInAdjacentPane } from '@core/features/editor/api/browser/open-file-in-file-editor';
 
 const EXPLICIT_SCHEME_RE = /^[A-Za-z][A-Za-z\d+.-]*:/u;
-const EDITOR_LOCATION_SUFFIX_RE = /(?::\d+(?::\d+)?|#L\d+(?:C\d+)?)$/u;
+const EDITOR_LOCATION_SUFFIX_RE = /(?::(\d+)(?::\d+)?|#L(\d+)(?:C\d+)?)$/u;
 const BASENAME_WITH_LINE_SUFFIX_RE = /^[^/\\:]+\.[^/\\:]+:\d+(?::\d+)?$/u;
 const WINDOWS_ABSOLUTE_PATH_RE = /^[A-Za-z]:[\\/]/u;
 const WINDOWS_UNC_PATH_RE = /^\\\\[^\\]+\\[^\\]+/u;
@@ -32,25 +32,34 @@ export type TranscriptFileCommands = {
  * Classifies markdown links at the Emdash host boundary. A scheme-less href is
  * a file path in a desktop agent transcript; explicit URI schemes, anchors,
  * query-only links, and protocol-relative URLs keep browser behavior. Editor
- * location suffixes are removed because the file opener accepts paths, not
- * line/column annotations.
+ * location suffixes are removed from paths and their line is passed to the
+ * editor. The file opener does not accept a column.
  */
 export function classifyTranscriptLink(href: string): TranscriptLinkClassification {
   const target = href.trim();
   if (!target || target.startsWith('#') || target.startsWith('?') || target.startsWith('//')) {
     return { kind: 'external' };
   }
-  const filePath = target.replace(EDITOR_LOCATION_SUFFIX_RE, '');
+  const locationSuffix = EDITOR_LOCATION_SUFFIX_RE.exec(target);
+  const filePath = locationSuffix ? target.slice(0, -locationSuffix[0].length) : target;
+  const parsedLine = locationSuffix ? Number(locationSuffix[1] ?? locationSuffix[2]) : undefined;
+  const fileLink = {
+    kind: 'workspace-file' as const,
+    path: filePath,
+    ...(parsedLine !== undefined && Number.isSafeInteger(parsedLine) && parsedLine > 0
+      ? { line: parsedLine }
+      : {}),
+  };
   if (
     target.startsWith('/') ||
     WINDOWS_ABSOLUTE_PATH_RE.test(target) ||
     WINDOWS_UNC_PATH_RE.test(target) ||
     BASENAME_WITH_LINE_SUFFIX_RE.test(target)
   ) {
-    return { kind: 'workspace-file', path: filePath };
+    return fileLink;
   }
   if (EXPLICIT_SCHEME_RE.test(target)) return { kind: 'external' };
-  return { kind: 'workspace-file', path: filePath };
+  return fileLink;
 }
 
 /** All file affordances originating in chat preserve the transcript and open to its right. */

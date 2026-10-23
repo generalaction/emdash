@@ -50,28 +50,20 @@ describe('createFilesWireController', () => {
     await lease?.release();
   });
 
-  it('resolves the decoded root host for the tree model', async () => {
-    const source = liveSource({ entries: {} });
+  it('resolves the decoded root host for a folder listing', async () => {
+    const source = liveSource({ status: 'ready', entries: {} });
     const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const client = vi.fn(async () => ok({ files: { tree: { model: { state } } } }));
+    const client = vi.fn(async () => ok({ files: { listing: { state } } }));
     const controller = createFilesWireController({ runtimes: { client } as never });
-    const key = {
-      root: uriFor(remoteHost, '/home/dev/project'),
-      sessionId: 'session-1',
-      exclusions: ['node_modules'],
-    };
-    const topic = encodeTopic(filesWireContract.tree.model.states.tree.id, key);
+    const key = { root: uriFor(remoteHost, '/home/dev/project'), path: 'src' };
+    const topic = encodeTopic(filesWireContract.listing.states.listing.id, key);
 
     const lease = controller.acquireLive(topic);
     await expect(lease?.ready()).resolves.toBe(source);
     expect(client).toHaveBeenCalledWith(remoteHost);
     expect(state).toHaveBeenCalledWith(
-      {
-        root: absolute('/home/dev/project'),
-        sessionId: 'session-1',
-        exclusions: ['node_modules'],
-      },
-      'tree'
+      { root: absolute('/home/dev/project'), path: 'src' },
+      'listing'
     );
 
     await lease?.release();

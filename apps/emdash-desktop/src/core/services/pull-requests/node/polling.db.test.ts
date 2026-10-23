@@ -1,12 +1,16 @@
+import type { PullRequest, PullRequestComment } from '@emdash/plugins/pull-requests/schemas';
+import type {
+  PullRequestPage,
+  PullRequestRepositoryClient,
+} from '@emdash/plugins/pull-requests/types';
 import { ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { snapshot } from '@emdash/wire/state';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract, PullRequest, PullRequestComment } from '../api';
+import type { GitPlatformAuthContract } from '../api';
 import type { PullRequestEngine } from './engine';
-import type { GitHubPullRequestRepository, PullRequestPage } from './engine/observation';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
 
@@ -37,19 +41,19 @@ function repository(url: string) {
   const context = {
     identity: 'github.com:account',
     repositoryUrl: url,
-    fetchOpenPage: vi.fn<GitHubPullRequestRepository['fetchOpenPage']>(async () =>
+    fetchOpenPage: vi.fn<PullRequestRepositoryClient['fetchOpenPage']>(async () =>
       observed(page(pr.status === 'open' ? [structuredClone(pr)] : []))
     ),
-    fetchHistoryPage: vi.fn<GitHubPullRequestRepository['fetchHistoryPage']>(async () =>
+    fetchHistoryPage: vi.fn<PullRequestRepositoryClient['fetchHistoryPage']>(async () =>
       observed(page())
     ),
-    fetchPullRequest: vi.fn<GitHubPullRequestRepository['fetchPullRequest']>(async () =>
+    fetchPullRequest: vi.fn<PullRequestRepositoryClient['fetchPullRequest']>(async () =>
       observed(structuredClone(pr))
     ),
-    fetchChecks: vi.fn<GitHubPullRequestRepository['fetchChecks']>(async () =>
+    fetchChecks: vi.fn<PullRequestRepositoryClient['fetchChecks']>(async () =>
       observed({ headRefOid: pr.headRefOid, checks: structuredClone(pr.checks) })
     ),
-    fetchComments: vi.fn<GitHubPullRequestRepository['fetchComments']>(async () =>
+    fetchComments: vi.fn<PullRequestRepositoryClient['fetchComments']>(async () =>
       observed(structuredClone(comments))
     ),
   };
@@ -77,7 +81,7 @@ async function harness(urls = [repositoryUrl]) {
     store,
     logger,
     engine: engine as unknown as PullRequestEngine,
-    githubAuth: {} as ContractClient<GitHubAuthContract>,
+    githubAuth: {} as ContractClient<GitPlatformAuthContract>,
     incrementalIntervalMs: 60_000,
   });
   const observe = (url = repositoryUrl, comments = false) => {

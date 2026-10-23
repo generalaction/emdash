@@ -6,7 +6,10 @@ import {
   ISSUE_CONNECTION_STATUS_QUERY_KEY,
   useAccounts,
 } from '@core/features/integrations/api/browser/use-provider-accounts';
-import type { IntegrationProviderDescriptor } from '@core/features/integrations/api/contract';
+import type {
+  IntegrationConnectOptions,
+  IntegrationProviderDescriptor,
+} from '@core/features/integrations/api/contract';
 import type { IntegrationFormInput } from '@core/features/integrations/browser/types';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
@@ -32,7 +35,7 @@ type IntegrationsContextValue = {
   connectIntegration: (
     integrationId: string,
     input: IntegrationFormInput,
-    options?: { accountId?: string; displayName?: string }
+    options?: IntegrationConnectOptions
   ) => Promise<ConnectionMutationResult>;
   /** Remove one saved account. */
   disconnectIntegration: (
@@ -138,7 +141,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     async (
       integrationId: string,
       input: IntegrationFormInput,
-      options?: { accountId?: string; displayName?: string }
+      options?: IntegrationConnectOptions
     ) =>
       runConnectionMutation(
         integrationId,

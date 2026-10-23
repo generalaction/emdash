@@ -1,29 +1,29 @@
-import { parseRepositoryRef } from '@core/primitives/repository/api';
-import type { PullRequest } from './schemas';
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 
 export function normalizeRepositoryUrl(repositoryUrl: string): string | null {
   return parseRepositoryRef(repositoryUrl)?.repositoryUrl ?? null;
 }
 
 const ghPrMergeRefPattern = /^refs\/pull\/(\d+)\/head$/;
+const gitLabMrMergeRefPattern = /^refs\/merge-requests\/(\d+)\/head$/;
 
 /**
- * Recognizes gh CLI's PR checkout convention as an implicit PR breadcrumb
- * (pr-workspace-model spec, Association): `branch.<b>.merge = refs/pull/N/head`
- * with the base remote's URL constructs the canonical PR URL — the PR cache's key.
- * Provider knowledge stays desktop-side; the host only reports the raw config
- * values. Returns null for anything that is not the convention (callers fall back
- * to exact head matching); GitLab's `refs/merge-requests/N/head` is a later addition.
+ * Recognizes GitHub PR and GitLab MR head refs as implicit request breadcrumbs.
+ * The base remote supplies the repository URL; ordinary branch refs return null.
  */
 export function recognizePullRequestUrl(
   upstream: { mergeRef: string; remoteUrl: string | null } | null
 ): string | null {
   if (!upstream?.remoteUrl) return null;
-  const match = ghPrMergeRefPattern.exec(upstream.mergeRef);
+  const gitLabMatch = gitLabMrMergeRefPattern.exec(upstream.mergeRef);
+  const match = gitLabMatch ?? ghPrMergeRefPattern.exec(upstream.mergeRef);
   if (!match) return null;
   const repositoryUrl = normalizeRepositoryUrl(upstream.remoteUrl);
   if (!repositoryUrl) return null;
-  return `${repositoryUrl}/pull/${match[1]}`;
+  return gitLabMatch
+    ? `${repositoryUrl}/-/merge_requests/${match[1]}`
+    : `${repositoryUrl}/pull/${match[1]}`;
 }
 
 export function selectCurrentPr(pullRequests: readonly PullRequest[]): PullRequest | undefined {
@@ -44,6 +44,6 @@ export function isForkPr(
 
 export function getPrNumber(pullRequest: { identifier: string | null }): number | null {
   if (!pullRequest.identifier) return null;
-  const number = Number.parseInt(pullRequest.identifier.replace('#', ''), 10);
+  const number = Number.parseInt(pullRequest.identifier.replace(/^[#!]/, ''), 10);
   return Number.isNaN(number) ? null : number;
 }

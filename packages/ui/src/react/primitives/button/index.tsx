@@ -8,7 +8,11 @@ import * as React from 'react';
 import type { ControlVariantProps } from '../../../styles/recipes/control';
 import * as buttonStyles from './button.css';
 
-export type ButtonVariant = NonNullable<ControlVariantProps['variant']> | 'destructive' | 'link';
+export type ButtonVariant =
+  | NonNullable<ControlVariantProps['variant']>
+  | 'destructive'
+  | 'link'
+  | 'text';
 
 export type ButtonProps = ButtonPrimitive.Props &
   Omit<ControlVariantProps, 'variant' | 'kbd'> & {
@@ -32,8 +36,8 @@ export function resolveButtonControlVariant({
     return { variant: 'primary', tone: 'destructive', size };
   }
 
-  if (variant === 'link') {
-    return { variant: 'ghost', tone, size: 'link' };
+  if (variant === 'link' || variant === 'text') {
+    return { variant: 'ghost', tone, size: variant };
   }
 
   return { variant, tone, size };

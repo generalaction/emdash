@@ -61,6 +61,18 @@ describe('ConversationTabResource activation', () => {
     expect(retryHydration).not.toHaveBeenCalled();
     resource.dispose();
   });
+
+  it('keeps cleanup separate from acknowledgement on user close', () => {
+    const store = tuiStore();
+    store.seen = false;
+    const resource = new ConversationTabResource(store, 'task-1', tabHandle());
+
+    resource.dispose();
+    expect(store.markSeen).not.toHaveBeenCalled();
+
+    resource.onClose();
+    expect(store.markSeen).toHaveBeenCalledOnce();
+  });
 });
 
 function tuiStore(): ConversationStore {

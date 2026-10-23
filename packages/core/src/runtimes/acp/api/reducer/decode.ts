@@ -15,6 +15,7 @@
  */
 
 import type { SessionUpdate, ToolCallContent, ToolCallLocation } from '@agentclientprotocol/sdk';
+import { isHiddenContextBlock } from '../models/prompt';
 import type {
   NormalizedDiff,
   NormalizedEvent,
@@ -121,6 +122,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
   switch (update.sessionUpdate) {
     case 'user_message_chunk': {
       if (update.content.type !== 'text' || !update.content.text) return { kind: 'ignored' };
+      if (isHiddenContextBlock(update.content.text)) return { kind: 'ignored' };
       return {
         kind: 'message',
         role: 'user',
@@ -203,12 +205,6 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
       const raw = update as unknown as { configOptions?: unknown };
       const options = Array.isArray(raw.configOptions) ? raw.configOptions : [];
       return { kind: 'config', options };
-    }
-
-    case 'current_mode_update': {
-      const raw = update as unknown as { currentModeId?: string };
-      if (!raw.currentModeId) return { kind: 'ignored' };
-      return { kind: 'mode_selected', modeId: raw.currentModeId };
     }
 
     case 'available_commands_update': {

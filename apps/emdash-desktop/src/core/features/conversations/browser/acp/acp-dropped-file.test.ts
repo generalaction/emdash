@@ -14,6 +14,7 @@ describe('ACP dropped files', () => {
       id: 'attachment-1',
       name: 'notes.txt',
       mimeType: 'text/plain',
+      pathStyle: 'posix' as const,
       targetPath: '/host/state/acp-attachments/objects/attachment-1',
     }));
     const file = {

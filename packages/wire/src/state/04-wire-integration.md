@@ -48,6 +48,13 @@ What the generated provider does, per `(key, stateName)`:
    observation and releasing upstream demand. Provider `dispose()` disposes the
    root scope and rejects pending waiters.
 
+Published values travel as JSON snapshots and Immer patches, so every object
+key must be an ordinary own property. A record keyed by user-controlled strings
+(file names, paths, branch names) must encode its keys so none is `__proto__`:
+assignment, Immer drafts and patch application cannot hold that key as an own
+property and drop it silently. Folder listings prefix every child name with `/`
+(`listingEntryKey` in the files runtime), which no file name contains.
+
 For same-node writes, node revision and the `LiveStateSource` sequence advance
 together (one publish per turn per exposed node). For derived-hop writes,
 `ctx.observed` waits for the exposed snapshot that carries the mutation id;
@@ -146,7 +153,9 @@ Semantics:
 - Each state is query-shaped: `undefined`/`'loading'` before the first
   snapshot, `'stale'` when seeded from a persistent store or after a
   connection gap until resynced, `'live'` when following, `'error'` on
-  attachment failure (with retry per existing replica behavior).
+  attachment failure. A failed attachment is not final: the member's next
+  state `refresh()` or mutation attaches again (going back to `'loading'`), so
+  a source that was briefly unavailable recovers without a new member.
 - `snapshot(state).mutationIds` exposes the tags from `LiveUpdate`, which is
   what the [`optimistic` primitive](./02-primitives.md#optimistic) keys its
   acknowledgment pruning on

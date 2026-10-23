@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import type { PortableRelativePath } from '#primitives/path/api';
@@ -12,6 +13,21 @@ import { createBoundExec } from '#services/exec/api';
 import { GitCheckout } from './git-checkout';
 
 const execFileAsync = promisify(execFile);
+
+const quotedPaths = [
+  'café.txt',
+  ' leading.txt',
+  ...(process.platform === 'win32'
+    ? []
+    : [
+        'literal {old => new}.txt',
+        'tab\tname.txt',
+        'line\nname.txt',
+        'trailing.txt ',
+        'quote"name.txt',
+        'back\\slash.txt',
+      ]),
+];
 
 async function makeRepo(): Promise<string> {
   const repo = await mkdtemp(path.join(tmpdir(), 'emdash-git-checkout-'));
@@ -24,8 +40,8 @@ async function makeRepo(): Promise<string> {
   return realpath(repo);
 }
 
-async function makeCheckout() {
-  const repo = await makeRepo();
+async function makeCheckout(existingRepo?: string) {
+  const repo = existingRepo ?? (await makeRepo());
   const gitDir = path.join(repo, '.git');
   const identity = {
     repositoryId: gitDir,
@@ -229,6 +245,210 @@ describe('GitCheckout', () => {
       await cleanup();
     }
   });
+
+  it.each(['staged', 'commit', 'root commit'] as const)(
+    'preserves quoted paths and reads their content from a %s',
+    async (target) => {
+      const { repo, checkout, cleanup } = await makeCheckout();
+      try {
+        await execFileAsync('git', ['config', 'core.quotepath', 'true'], { cwd: repo });
+        for (const filePath of quotedPaths) {
+          await writeFile(path.join(repo, filePath), `content for ${filePath}\n`, 'utf8');
+        }
+        await execFileAsync('git', ['add', '--', ...quotedPaths], { cwd: repo });
+
+        const expected = quotedPaths.map((filePath) => ({
+          path: gitPath(filePath),
+          status: 'added',
+          additions: filePath.includes('\n') ? 2 : 1,
+          deletions: 0,
+        }));
+        if (target === 'staged') {
+          const changes = await checkout.getChangedFiles({ kind: 'staged' });
+          expect(changes).toHaveLength(expected.length);
+          expect(changes).toEqual(expect.arrayContaining(expected));
+          for (const change of changes) {
+            await expect(
+              checkout.getFile({ path: change.path, source: { kind: 'index' } })
+            ).resolves.toEqual({
+              success: true,
+              data: { content: `content for ${change.path}\n` },
+            });
+          }
+          return;
+        }
+
+        await execFileAsync(
+          'git',
+          ['commit', ...(target === 'root commit' ? ['--amend'] : []), '-m', 'add quoted paths'],
+          { cwd: repo }
+        );
+        const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repo });
+        const hash = stdout.trim();
+        const files = await checkout.getCommitFiles(hash);
+        if (target === 'root commit') {
+          expected.push({
+            path: gitPath('tracked.txt'),
+            status: 'added',
+            additions: 1,
+            deletions: 0,
+          });
+        }
+        expect(files).toHaveLength(expected.length);
+        expect(files).toEqual(expect.arrayContaining(expected));
+        for (const file of files) {
+          await expect(
+            checkout.getFile({
+              path: file.path,
+              source: { kind: 'revision', revision: { kind: 'commit', sha: hash } },
+            })
+          ).resolves.toEqual({
+            success: true,
+            data: {
+              content: file.path === 'tracked.txt' ? 'before\n' : `content for ${file.path}\n`,
+            },
+          });
+        }
+      } finally {
+        await cleanup();
+      }
+    }
+  );
+
+  it('preserves quoted paths and line counts in unstaged changes', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await execFileAsync('git', ['config', 'core.quotepath', 'true'], { cwd: repo });
+      for (const filePath of quotedPaths) {
+        await writeFile(path.join(repo, filePath), 'before\n', 'utf8');
+      }
+      await execFileAsync('git', ['add', '--', ...quotedPaths], { cwd: repo });
+      await execFileAsync('git', ['commit', '-m', 'add quoted paths'], { cwd: repo });
+      for (const filePath of quotedPaths) {
+        await writeFile(path.join(repo, filePath), 'after\nextra\n', 'utf8');
+      }
+
+      const changes = await checkout.getChangedFiles({ kind: 'unstaged' });
+      expect(changes).toHaveLength(quotedPaths.length);
+      expect(changes).toEqual(
+        expect.arrayContaining(
+          quotedPaths.map((filePath) => ({
+            path: gitPath(filePath),
+            status: 'modified',
+            additions: 2,
+            deletions: 1,
+          }))
+        )
+      );
+      for (const change of changes) {
+        await expect(
+          checkout.getFile({ path: change.path, source: { kind: 'head' } })
+        ).resolves.toEqual({ success: true, data: { content: 'before\n' } });
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('lists merge commit files against only the first parent', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    const git = (...args: string[]) => execFileAsync('git', args, { cwd: repo });
+    try {
+      await writeFile(path.join(repo, 'deleted file.txt'), 'delete me\n');
+      await writeFile(path.join(repo, 'old name.txt'), 'one\ntwo\nthree\nfour\nfive\n');
+      await git('add', '.');
+      await git('commit', '--amend', '--no-edit');
+      await git('checkout', '-b', 'topic');
+      await writeFile(path.join(repo, 'added café file.txt'), 'from topic\n');
+      await writeFile(path.join(repo, 'tracked.txt'), 'after\nextra\n');
+      await git('rm', 'deleted file.txt');
+      await git('mv', 'old name.txt', 'new name.txt');
+      await git('add', '.');
+      await git('commit', '-m', 'topic changes');
+      await git('checkout', 'main');
+      await writeFile(path.join(repo, 'main only.txt'), 'first parent change\n');
+      await git('add', '.');
+      await git('commit', '-m', 'main changes');
+      await git('merge', '--no-ff', 'topic', '-m', 'merge topic');
+      const { stdout: mergeHash } = await git('rev-parse', 'HEAD');
+      await expect(checkout.getCommitFiles(mergeHash.trim())).resolves.toEqual([
+        { path: gitPath('added café file.txt'), status: 'added', additions: 1, deletions: 0 },
+        { path: gitPath('deleted file.txt'), status: 'deleted', additions: 0, deletions: 1 },
+        { path: gitPath('new name.txt'), status: 'added', additions: 5, deletions: 0 },
+        { path: gitPath('old name.txt'), status: 'deleted', additions: 0, deletions: 5 },
+        { path: gitPath('tracked.txt'), status: 'modified', additions: 2, deletions: 1 },
+      ]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('returns no files for a merge with an empty first-parent diff', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    const git = (...args: string[]) => execFileAsync('git', args, { cwd: repo });
+    try {
+      await git('checkout', '-b', 'topic');
+      await writeFile(path.join(repo, 'topic.txt'), 'second parent change\n');
+      await git('add', '.');
+      await git('commit', '-m', 'topic changes');
+      await git('checkout', 'main');
+      await git('merge', '--no-ff', '-s', 'ours', 'topic', '-m', 'keep first parent tree');
+      const { stdout: mergeHash } = await git('rev-parse', 'HEAD');
+      await expect(checkout.getCommitFiles(mergeHash.trim())).resolves.toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('does not treat a shallow commit with an unavailable parent as a root', async () => {
+    const repo = await makeRepo();
+    try {
+      await writeFile(path.join(repo, 'tracked.txt'), 'after\n');
+      await execFileAsync('git', ['commit', '-am', 'modify tracked file'], { cwd: repo });
+      const shallowRepo = path.join(repo, 'shallow');
+      await execFileAsync('git', ['clone', '--depth=1', pathToFileURL(repo).href, shallowRepo]);
+      const { checkout } = await makeCheckout(shallowRepo);
+      const { stdout: hash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+        cwd: shallowRepo,
+      });
+
+      await expect(checkout.getCommitFiles(hash.trim())).rejects.toThrow();
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'uses the exact destination path and line counts for an edited rename',
+    async () => {
+      const { repo, checkout, cleanup } = await makeCheckout();
+      const oldPath = 'old café {before => after}.txt';
+      const newPath = 'new café {before => after}.txt';
+      try {
+        await execFileAsync('git', ['config', 'core.quotepath', 'true'], { cwd: repo });
+        await execFileAsync('git', ['config', 'diff.renames', 'true'], { cwd: repo });
+        await writeFile(path.join(repo, oldPath), 'one\ntwo\nthree\nfour\nfive\n', 'utf8');
+        await execFileAsync('git', ['add', '--', oldPath], { cwd: repo });
+        await execFileAsync('git', ['commit', '-m', 'add rename source'], { cwd: repo });
+        await rename(path.join(repo, oldPath), path.join(repo, newPath));
+        await writeFile(path.join(repo, newPath), 'one\ntwo\nthree\nfour\nchanged\n', 'utf8');
+        await execFileAsync('git', ['add', '-A'], { cwd: repo });
+
+        const changes = await checkout.getChangedFiles({ kind: 'staged' });
+        expect(changes).toEqual([
+          { path: gitPath(newPath), status: 'renamed', additions: 1, deletions: 1 },
+        ]);
+        await expect(
+          checkout.getFile({ path: changes[0].path, source: { kind: 'index' } })
+        ).resolves.toEqual({
+          success: true,
+          data: { content: 'one\ntwo\nthree\nfour\nchanged\n' },
+        });
+      } finally {
+        await cleanup();
+      }
+    }
+  );
 
   it('reads one-shot file content for head, index, and revision sources', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();

@@ -1,4 +1,7 @@
-import { isGitHubDotComHost, normalizeRepositoryHost } from '@core/primitives/repository/api';
+import {
+  isGitHubDotComHost,
+  normalizeRepositoryHost,
+} from '@emdash/core/primitives/repository/api';
 
 export function githubApiBaseUrlForHost(host: string): string {
   const normalizedHost = normalizeRepositoryHost(host);

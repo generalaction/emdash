@@ -101,6 +101,63 @@ describe('deriveAcpAgentStatusActions', () => {
     expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'notification' } });
   });
 
+  it('restores working when the last permission request clears during generation', () => {
+    const actions = deriveAcpAgentStatusActions(
+      summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 }),
+      summary({ lifecycle: 'working', isGenerating: true })
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'start' } });
+  });
+
+  it('keeps attention status while another permission request is pending', () => {
+    expect(
+      deriveAcpAgentStatusActions(
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 2 }),
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 })
+      )
+    ).toEqual([]);
+  });
+
+  it('emits attention when a permission request is already present on first observation', () => {
+    const actions = deriveAcpAgentStatusActions(undefined, summary({ pendingPermissionCount: 1 }));
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      kind: 'event',
+      event: { type: 'notification', payload: { notificationType: 'permission_prompt' } },
+    });
+  });
+
+  it('does not repeat attention when generation begins with an existing permission request', () => {
+    expect(
+      deriveAcpAgentStatusActions(
+        summary({ pendingPermissionCount: 1 }),
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 })
+      )
+    ).toEqual([]);
+  });
+
+  it('does not restore working when cancellation clears a pending permission request', () => {
+    expect(
+      deriveAcpAgentStatusActions(
+        summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 }),
+        summary({ lifecycle: 'cancelling', isGenerating: true })
+      )
+    ).toEqual([]);
+  });
+
+  it('emits completion when permission clearance coincides with generation ending', () => {
+    const actions = deriveAcpAgentStatusActions(
+      summary({ lifecycle: 'working', isGenerating: true, pendingPermissionCount: 1 }),
+      summary({ lastStopReason: 'end_turn' })
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'stop' } });
+  });
+
   it('emits stop when busy work ends normally', () => {
     const actions = deriveAcpAgentStatusActions(
       summary({ lifecycle: 'working', isGenerating: true }),

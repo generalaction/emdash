@@ -1,6 +1,7 @@
 import { autorun, observable, runInAction } from 'mobx';
+import { useObserver } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
-import { useEffect, useRef } from 'react';
+import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 import type { Facet } from '@core/features/editor/api/browser/open-file-store/facet-handle';
 import {
   openFileStore,
@@ -35,8 +36,8 @@ export interface StickyDiffEditorProps {
   revealFirstChange?: boolean;
   /** Called whenever the content height changes, for auto-sizing parent containers. */
   onHeightChange?: (height: number) => void;
-  /** Called when the diff editor instance is created/disposed. */
-  onEditorChange?: (editor: monaco.editor.IStandaloneDiffEditor | null) => void;
+  /** Native editor handle; callback refs can return cleanup for editor integrations. */
+  ref?: Ref<monaco.editor.IStandaloneDiffEditor | null>;
 }
 
 const EMPTY_SIDE_URI = 'emdash-diff-empty';
@@ -99,7 +100,7 @@ export function StickyDiffEditor({
   diffStyle,
   revealFirstChange = true,
   onHeightChange,
-  onEditorChange,
+  ref,
 }: StickyDiffEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -128,8 +129,8 @@ export function StickyDiffEditor({
   const onHeightChangeRef = useRef(onHeightChange);
   onHeightChangeRef.current = onHeightChange;
 
-  const onEditorChangeRef = useRef(onEditorChange);
-  onEditorChangeRef.current = onEditorChange;
+  const editor = useObserver(() => editorBox.get());
+  useImperativeHandle<typeof editor, typeof editor>(ref, () => editor, [editor]);
 
   const { effectiveTheme } = useTheme();
 
@@ -144,7 +145,6 @@ export function StickyDiffEditor({
       readOnly: true,
       renderSideBySide: diffStyle === 'split',
     });
-    onEditorChangeRef.current?.(editor);
 
     const modifiedEditor = editor.getModifiedEditor();
     modifiedEditor.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => {
@@ -165,7 +165,6 @@ export function StickyDiffEditor({
 
     const emptyModels = emptyModelsRef.current;
     return () => {
-      onEditorChangeRef.current?.(null);
       heightDisposable.dispose();
       // Save the viewport before disposal. The sides effect's cleanup can't
       // cover unmount: it runs after this one, when editorBox is already null.

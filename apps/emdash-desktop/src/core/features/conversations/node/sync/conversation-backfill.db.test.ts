@@ -20,7 +20,10 @@ describe('ConversationBackfillService', () => {
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
-    create = vi.fn(async () => ({ success: true as const, data: {} }));
+    create = vi.fn(async () => ({
+      success: true as const,
+      data: { providerSessionId: null, lastSpawnedAt: null },
+    }));
     reportProviderSessionId = vi.fn(async () => ({ success: true as const, data: undefined }));
     reachable = true;
     const broker = {
@@ -121,6 +124,16 @@ describe('ConversationBackfillService', () => {
     await run(hostRef('remote', 'conn-1'));
     expect(create).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ conversationId: 'conv-remote' }));
+  });
+
+  it.each([
+    { providerSessionId: 'newer-host-session', lastSpawnedAt: null },
+    { providerSessionId: null, lastSpawnedAt: 123 },
+  ])('preserves existing Host session state during a repeated backfill (%j)', async (record) => {
+    seedRow('conv-1', { providerSessionId: 'old-imported-session' });
+    create.mockResolvedValue({ success: true, data: record });
+    await run();
+    expect(reportProviderSessionId).not.toHaveBeenCalled();
   });
 
   it('resumes after an interrupted sweep; idempotent creates make the replay safe', async () => {

@@ -11,6 +11,8 @@ export interface TreeViewHandle {
 export interface TreeViewProps<T> {
   nodes: readonly TreeNode<T>[];
   expandedIds: ReadonlySet<string>;
+  /** Visible rows the caller already built from `nodes`, so they are not rebuilt here. */
+  rows?: readonly TreeRow<T>[];
   onExpandedChange?: (ids: ReadonlySet<string>) => void;
   renderRow: (row: TreeRow<T>) => React.ReactNode;
   wrapRow?: (row: TreeRow<T>, element: React.ReactNode) => React.ReactNode;
@@ -25,6 +27,7 @@ function TreeViewInner<T>(
   {
     nodes,
     expandedIds,
+    rows: providedRows,
     renderRow,
     wrapRow,
     compactChains = false,
@@ -37,8 +40,8 @@ function TreeViewInner<T>(
 ) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const rows = React.useMemo(
-    () => buildVisibleTreeRows(nodes, expandedIds, { compactChains }),
-    [compactChains, expandedIds, nodes]
+    () => providedRows ?? buildVisibleTreeRows(nodes, expandedIds, { compactChains }),
+    [compactChains, expandedIds, nodes, providedRows]
   );
 
   const getItemKey = React.useCallback((index: number) => treeRowKey(rows[index], index), [rows]);

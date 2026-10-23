@@ -5,7 +5,7 @@ type NavigationListener = (event: { preventDefault(): void }, url: string) => vo
 const mocks = vi.hoisted(() => ({
   checkForUpdates: vi.fn(async () => null),
   clearBootFailureMarker: vi.fn(),
-  downloadUpdate: vi.fn(async () => {}),
+  downloadUpdate: vi.fn(() => {}),
   executeJavaScript: vi.fn(async () => undefined),
   exit: vi.fn(),
   initialize: vi.fn(async () => {}),

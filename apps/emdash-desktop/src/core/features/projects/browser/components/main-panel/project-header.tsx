@@ -1,3 +1,4 @@
+import { isGitHubDotComHost, parseRepositoryRef } from '@emdash/core/primitives/repository/api';
 import { StatusIcon } from '@emdash/ui/react/components';
 import { EntityHeader } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Heading, Separator } from '@emdash/ui/react/primitives';
@@ -21,7 +22,6 @@ import { OpenInMenu } from '@core/features/settings/contributions/browser/open-i
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
-import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
 
 export const ProjectHeader = observer(function ProjectHeader({ projectId }: { projectId: string }) {
   const store = getProjectStore(projectId);

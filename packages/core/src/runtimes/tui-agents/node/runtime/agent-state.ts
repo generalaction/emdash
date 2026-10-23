@@ -111,10 +111,16 @@ export class TuiAgentStates {
   markInputSubmitted(
     conversationId: string,
     provider: Pick<ResolvedTuiProvider, 'hooks'> | null,
-    data: string
+    data: string,
+    /** When false, keep Enter→working even if the provider declares a start hook. */
+    startHooksActive = true
   ): void {
     if (!data.includes('\r')) return;
-    if (provider?.hooks.kind !== 'none' && provider?.hooks.supportedEvents.includes('start'))
+    if (
+      startHooksActive &&
+      provider?.hooks.kind !== 'none' &&
+      provider?.hooks.supportedEvents.includes('start')
+    )
       return;
     this.setStatus(conversationId, { status: 'working', source: 'input' });
   }
@@ -123,10 +129,16 @@ export class TuiAgentStates {
     conversationId: string,
     providerId: string,
     provider: Pick<ResolvedTuiProvider, 'hooks'> | null,
-    initialPrompt: string | undefined
+    initialPrompt: string | undefined,
+    /** When false, keep initial-prompt→working even if the provider declares a start hook. */
+    startHooksActive = true
   ): void {
     if (!initialPrompt?.trim()) return;
-    if (provider?.hooks.kind !== 'none' && provider?.hooks.supportedEvents.includes('start'))
+    if (
+      startHooksActive &&
+      provider?.hooks.kind !== 'none' &&
+      provider?.hooks.supportedEvents.includes('start')
+    )
       return;
     this.setStatus(conversationId, { providerId, status: 'working', source: 'input' });
   }
@@ -157,8 +169,16 @@ export class TuiAgentStates {
   }
 
   restore(state: TuiAgentState): void {
+    // Input-inferred "working" is ephemeral: providers without a start hook
+    // mark working on Enter and only clear on process exit, so long-lived TUI
+    // sessions permanently restore the sidebar spinner. Drop that durable lie;
+    // a live hook (or a fresh Enter on a hookless provider) re-asserts working.
+    const restored =
+      state.status === 'working' && state.source === 'input'
+        ? { ...state, status: 'idle' as const }
+        : state;
     produceCell(this.agentStates.states.list, (draft) => {
-      draft[state.conversationId] = state;
+      draft[restored.conversationId] = restored;
     });
   }
 

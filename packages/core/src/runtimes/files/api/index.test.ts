@@ -6,9 +6,9 @@ describe('@emdash/core/runtimes/files/api public exports', () => {
     const exported = files as Record<string, unknown>;
 
     expect(exported.filesContract).toBeTypeOf('object');
-    expect(exported.fileTreeModelSchema).toBeTypeOf('object');
+    expect(exported.folderListingSchema).toBeTypeOf('object');
     expect(exported.fileContentModelSchema).toBeTypeOf('object');
-    expect(exported.isExpandableFileEntry).toBeTypeOf('function');
+    expect(exported.isExpandableListingEntry).toBeTypeOf('function');
   });
 
   it('does not expose host runtime implementations', () => {

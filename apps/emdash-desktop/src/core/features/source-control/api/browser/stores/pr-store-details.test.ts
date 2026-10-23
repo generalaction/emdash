@@ -1,3 +1,4 @@
+import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createController } from '@emdash/wire/rpc';
 import { cell, expose, snapshot } from '@emdash/wire/state';
@@ -6,13 +7,17 @@ import { observable, reaction, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { pullRequestsContract } from '@core/services/pull-requests/api/contract';
-import type { PullRequest, PullRequestDetails } from '@core/services/pull-requests/api/schemas';
+import type { PullRequestDetails } from '@core/services/pull-requests/api/schemas';
 import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-store';
 import type { GitRepositoryStore } from './git-repository-store';
 import { PrStore } from './pr-store';
 import { TaskPrAssociationStore } from './task-pr-association-store';
 
-const mocks = vi.hoisted(() => ({ client: vi.fn() }));
+const mocks = vi.hoisted(() => ({ client: vi.fn(), sourceClient: vi.fn() }));
+vi.mock('@core/features/source-control/api/browser/client', () => ({
+  getSourceControlClient: mocks.sourceClient,
+  checkoutSelector: (workspaceId: string) => ({ workspaceId }),
+}));
 vi.mock('@core/services/pull-requests/api/client', () => ({
   getPullRequestsRuntimeClient: mocks.client,
 }));
@@ -74,10 +79,16 @@ function harness() {
   mocks.client.mockResolvedValue(component.client);
   const association = new TaskPrAssociationStore();
   association.setAssociation([pr], { kind: 'unknown' });
+  const gitRepository = {
+    baseRemote: { name: 'target' },
+    branches: [],
+    fetchRemote: vi.fn(),
+    fetchPrForReview: vi.fn(),
+  };
   const store = new PrStore(
     'project',
     'workspace',
-    {} as GitRepositoryStore,
+    gitRepository as unknown as GitRepositoryStore,
     {} as GitCheckoutStore,
     association
   );
@@ -89,6 +100,7 @@ function harness() {
     component,
     pr,
     association,
+    gitRepository,
     state,
     acquired,
     released,
@@ -204,5 +216,85 @@ describe('PrStore scoped detail interest', () => {
     });
     await vi.waitFor(() => expect(h.acquired).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(h.store.details?.stale).toBe(false));
+  });
+});
+
+describe('PrStore mark-ready errors', () => {
+  it('surfaces provider scope errors instead of reporting success', async () => {
+    const h = harness();
+    const hint = 'Reconnect GitLab with an api-scoped token.';
+    mocks.client.mockResolvedValue({
+      markReadyForReview: vi.fn(async () => ({
+        success: false,
+        error: { type: 'auth_required', integrationId: 'gitlab', host: 'gitlab.com', hint },
+      })),
+    });
+    await expect(h.store.markReadyForReview(h.pr.url)).rejects.toThrow(hint);
+  });
+  it('completes a successful mark-ready operation', async () => {
+    const h = harness();
+    const markReady = vi.fn(async () => ({ success: true }));
+    mocks.client.mockResolvedValue({ markReadyForReview: markReady });
+    await expect(h.store.markReadyForReview(h.pr.url)).resolves.toBeUndefined();
+    expect(markReady).toHaveBeenCalledWith({ repositoryUrl: h.pr.repositoryUrl, number: 42 });
+  });
+});
+
+describe('PrStore missing review commits', () => {
+  it.each([false, true])(
+    'recovers GitLab file diffs through the target MR ref (fork: %s)',
+    async (isFork) => {
+      const h = harness();
+      const repositoryUrl = 'https://gitlab.com/group/nested/repo';
+      const mr = {
+        ...h.pr,
+        provider: 'gitlab',
+        identifier: '!42',
+        repositoryUrl,
+        url: `${repositoryUrl}/-/merge_requests/42`,
+        headRepositoryUrl: isFork ? 'https://gitlab.com/fork/repo' : repositoryUrl,
+        baseRefOid: 'base',
+        headRefOid: 'head',
+        headRefName: 'feature/review',
+        changedFiles: 1,
+      } as PullRequest;
+      const files = [{ path: 'review.txt', status: 'modified' }];
+      const getChangedFiles = vi
+        .fn()
+        .mockResolvedValueOnce({ success: false, error: { type: 'missing-commit' } })
+        .mockResolvedValueOnce({ success: true, data: { files } });
+      mocks.sourceClient.mockResolvedValue({ checkout: { getChangedFiles } });
+      const resource = h.store.getFiles(mr);
+      await resource.load();
+      expect(h.gitRepository.fetchRemote).toHaveBeenCalledOnce();
+      expect(h.gitRepository.fetchPrForReview).toHaveBeenCalledWith({
+        prNumber: 42,
+        sourceRef: 'refs/merge-requests/42/head',
+        headRefName: 'feature/review',
+        headRepositoryUrl: mr.headRepositoryUrl,
+        localBranch: 'feature/review',
+        isFork,
+        configuredRemote: 'target',
+      });
+      expect(getChangedFiles).toHaveBeenCalledTimes(2);
+      expect(resource.data).toEqual(files);
+    }
+  );
+
+  it('does not fetch a request ref when the diff is already available', async () => {
+    const h = harness();
+    const files = [{ path: 'review.txt', status: 'modified' }];
+    mocks.sourceClient.mockResolvedValue({
+      checkout: { getChangedFiles: vi.fn().mockResolvedValue({ success: true, data: { files } }) },
+    });
+    const resource = h.store.getFiles({
+      ...h.pr,
+      baseRefOid: 'base',
+      headRefOid: 'head',
+      changedFiles: 1,
+    });
+    await resource.load();
+    expect(resource.data).toEqual(files);
+    expect(h.gitRepository.fetchPrForReview).not.toHaveBeenCalled();
   });
 });

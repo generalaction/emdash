@@ -3,9 +3,9 @@
  *
  * Owns the single source of truth for cols/rows within a pane:
  *   1. Reacts to the pane's observable pixel dimensions (PaneDimensionSink) via MobX.
- *   2. Converts px → cols/rows using a cached cell size derived from standalone
- *      canvas measurement (so PTYs resize even when no terminal is mounted).
- *   3. Accepts calibration from a live terminal for maximum accuracy once one mounts.
+ *   2. Converts px → cols/rows using the cell size calibrated by a mounted terminal.
+ *   3. Publishes nothing before that calibration, so xterm grids and PTYs are only
+ *      ever resized together.
  *   4. Broadcasts runtime resize calls to ALL session IDs in the pane.
  *   5. Exposes an observable `controllerDims` box so mounted terminals can call
  *      term.resize() reactively without re-measuring.
@@ -50,8 +50,7 @@ export interface PtyPaneResizeControls {
   calibrateCell(width: number, height: number): void;
   /**
    * Returns the latest known cols/rows synchronously, for pre-mount sizing.
-   * Returns null if neither standalone measurement nor calibration has produced
-   * a result yet.
+   * Returns null until a mounted terminal has calibrated this pane.
    */
   getCurrentDimensions(): { cols: number; rows: number } | null;
 }
@@ -71,23 +70,12 @@ export function usePtyPaneResize(
   }
   const controllerDims = controllerDimsBoxRef.current;
 
-  // ── Cell size: seeded from standalone measurement, refined by calibration ───
+  // ── Cell size: set by calibration from a mounted terminal ───────────────────
   const cellSizeRef = useRef<{ width: number; height: number } | null>(null);
-  if (cellSizeRef.current === null) {
-    // Prime with the default font so the controller can broadcast before any
-    // terminal has mounted in the pane. lineHeight and letterSpacing must match
-    // the Terminal options so the seed rows/cols are correct pre-calibration.
-    cellSizeRef.current = measureTerminalCell(
-      buildTerminalFontFamily(),
-      TERMINAL_FONT_SIZE_DEFAULT,
-      TERMINAL_LINE_HEIGHT,
-      TERMINAL_LETTER_SPACING
-    );
-  }
 
   // ── Calibration guard ────────────────────────────────────────────────────────
-  // Prevents the seed from ever reaching the PTY backend. Backend broadcasts are
-  // suppressed until a real terminal has calibrated the cell size via calibrateCell().
+  // Nothing is published (controllerDims, pre-mount dims or backend broadcasts)
+  // until a real terminal has calibrated the cell size via calibrateCell().
   const hasCalibratedRef = useRef(false);
 
   // ── Broadcast scheduler ─────────────────────────────────────────────────────
@@ -134,16 +122,16 @@ export function usePtyPaneResize(
       padding: { bottom: bottomPaddingRef.current },
     });
     if (!dims) return;
+    // Publish nothing until a mounted terminal has calibrated the cell size. Seed
+    // metrics only estimate the real cell (and ignore custom fonts), so seeded dims
+    // would let a remount resize xterm without its PTY. The running TUI then keeps
+    // painting against a grid that reflowed underneath it (#2985).
+    if (!hasCalibratedRef.current) return;
 
     runInAction(() => {
       controllerDimsBoxRef.current!.set(dims);
     });
-    // Only broadcast to the backend once a real terminal has calibrated the cell
-    // size. The seed is accurate but this prevents any transient seed error from
-    // ever reaching the PTY before calibration confirms the measurements.
-    if (hasCalibratedRef.current) {
-      schedulerRef.current?.schedule(dims);
-    }
+    schedulerRef.current?.schedule(dims);
   }, []);
 
   const recomputeRef = useRef(recompute);
@@ -226,18 +214,10 @@ export function usePtyPaneResize(
   const calibrateCell = useCallback((width: number, height: number) => {
     const alreadyCalibrated = hasCalibratedRef.current;
     hasCalibratedRef.current = true;
-    if (cellSizeRef.current?.width === width && cellSizeRef.current?.height === height) {
-      // Cell metrics unchanged; if this is the first calibration, still flush the
-      // backend broadcast that was suppressed during the seed-only phase.
-      // Guard against a null box value: the pane may have never produced dimensions
-      // (e.g. opened in a collapsed panel or before layout), so recompute() could
-      // have bailed before setting the box. Scheduling null would throw on flush.
-      if (!alreadyCalibrated) {
-        const dims = controllerDimsBoxRef.current!.get();
-        if (dims) schedulerRef.current?.schedule(dims);
-      }
-      return;
-    }
+    const unchanged =
+      cellSizeRef.current?.width === width && cellSizeRef.current?.height === height;
+    // The first calibration always recomputes: nothing was published before it.
+    if (alreadyCalibrated && unchanged) return;
     cellSizeRef.current = { width, height };
     recomputeRef.current();
   }, []);

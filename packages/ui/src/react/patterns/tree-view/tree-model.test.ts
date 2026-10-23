@@ -51,13 +51,29 @@ describe('buildVisibleTreeRows', () => {
     expect(rows[0]?.chain.map((segment) => segment.id)).toEqual(['src', 'src/app']);
     expect(rows.map((row) => row.depth)).toEqual([0, 1, 0]);
   });
+
+  it('keeps branches that cannot compact out of chains', () => {
+    const canCompact = (node: TreeNode<FixtureNode>) => node.id !== 'src/app';
+    const rows = buildVisibleTreeRows(tree, new Set(['src', 'src/app']), {
+      compactChains: true,
+      canCompact,
+    });
+
+    expect(rows.map((row) => row.chain.map((segment) => segment.id))).toEqual([
+      ['src'],
+      ['src/app'],
+      ['src/app/index.ts'],
+      ['README.md'],
+    ]);
+  });
 });
 
 describe('isChainExpanded', () => {
-  it('requires every compacted segment to be expanded', () => {
+  it('keeps a compacted row open while the first segment of its chain is', () => {
     const chain = [tree[0]!, tree[0]!.children![0]!];
 
+    expect(isChainExpanded(chain, new Set(['src']))).toBe(true);
     expect(isChainExpanded(chain, new Set(['src', 'src/app']))).toBe(true);
-    expect(isChainExpanded(chain, new Set(['src']))).toBe(false);
+    expect(isChainExpanded(chain, new Set(['src/app']))).toBe(false);
   });
 });

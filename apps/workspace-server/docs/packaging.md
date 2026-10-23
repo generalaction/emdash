@@ -13,6 +13,12 @@ monorepo installed.
 Darwin artifacts must be built on a matching Darwin host. Linux artifacts are built with Docker
 Buildx, so either Linux architecture can be produced from a supported Docker host.
 
+`install.sh` selects the artifact from `uname`: glibc Linux hosts map to `linux-x64` or
+`linux-arm64`, and Apple silicon Macs map to `darwin-arm64`. Intel Macs and musl-based Linux
+distributions are rejected with exit code 40 because no artifact exists for them. The script
+depends only on tools each platform ships, so a macOS remote needs nothing beyond `curl`, BSD
+`tar`, and `shasum`.
+
 ## Build an Artifact
 
 Run the packaging command from `apps/workspace-server/` and provide one or more targets:
@@ -33,6 +39,15 @@ Darwin verification extracts the archive into a temporary directory and runs the
 `start`, `status`, and `stop` commands with an isolated socket. Linux verification runs the same
 sequence in `debian:bookworm-slim`, where no host Node.js installation is available.
 
+The macOS installer tests also run on an Apple silicon runner in the package-check workflow.
+They use stock macOS tools and real Node in fixture archives to verify fresh installation,
+replacement of an existing `current` symlink, repeat installation, rollback, and checksum-failure
+recovery. Run them locally on an Apple silicon Mac with:
+
+```bash
+pnpm exec vitest run scripts/install.test.ts scripts/install.macos.test.ts
+```
+
 The packaging process:
 
 1. Bundles the server and its ten workers with all pure-JavaScript dependencies emitted into the
@@ -46,6 +61,12 @@ The packaging process:
    Node's published `SHASUMS256.txt`, and copies its `node` executable into the artifact.
 5. Writes the launcher and manifest, then creates the archive under `dist-artifacts/`.
 6. Writes a sibling `<archive>.sha256` file suitable for `sha256sum -c` verification.
+
+Before assembling an artifact, the packager parses every emitted JavaScript bundle with Acorn.
+It validates imports, re-exports, and `require` calls against the bundled chunks, Node builtins,
+and packaged native dependencies, rejecting computed module targets and direct `.node` binding
+references. Parsing avoids mistaking dependency code-generation strings (such as AJV's) for
+executable imports. Acorn is a build-only dependency and is not included in the archive.
 
 Artifact URLs are immutable. Once an archive has been published for a workspace-server version,
 that version must never be rebuilt with different contents. Any change that affects the packaged
@@ -188,3 +209,10 @@ hosts.
 
 See `docker-remote.md` for the bare SSH container used to exercise installation and socket
 forwarding with these artifacts.
+
+The runtime-dependency manifest also pins TypeScript 6, `typescript-language-server`
+and Pyright. These JavaScript servers run with the artifact's Node executable,
+without a global language-server or Node installation. Include TypeScript's
+standard-library declarations and Pyright's type stubs as runtime data. Project
+Python/Rust/Go toolchains remain host-owned. Keep server versions in sync with
+desktop and Core production dependencies.
