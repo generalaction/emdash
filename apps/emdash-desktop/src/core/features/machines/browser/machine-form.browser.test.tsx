@@ -79,6 +79,30 @@ async function resolveTarget(target = 'work-dev') {
   await expect.element(page.getByText('Username', { exact: true })).toBeVisible();
 }
 
+it('tests and saves Kerberos without asking for a password or private key', async () => {
+  await render();
+  await resolveTarget();
+  await selectAuthentication('Kerberos (system SSH)');
+  await expect.element(page.getByText(/Run kinit/)).toBeVisible();
+  await expect.element(page.getByLabelText('Password', { exact: true })).not.toBeInTheDocument();
+  await expect.element(page.getByLabelText('Private key', { exact: true })).not.toBeInTheDocument();
+  await page.getByRole('button', { name: 'Test Connection', exact: true }).click();
+  await expect.poll(() => store.testConnection.mock.calls.length).toBe(1);
+  expect(store.testConnection).toHaveBeenCalledWith(
+    expect.objectContaining({
+      authType: 'gssapi',
+      sshConfigAlias: 'work-dev',
+      password: undefined,
+      privateKeyPath: undefined,
+    })
+  );
+  await page.getByRole('button', { name: 'Add host', exact: true }).click();
+  await expect.poll(() => store.saveConnection.mock.calls.length).toBe(1);
+  expect(store.saveConnection).toHaveBeenCalledWith(
+    expect.objectContaining({ authType: 'gssapi' })
+  );
+});
+
 it('keeps an accessible host name without a visible label and does not open on focus', async () => {
   await render();
   const input = page.getByRole('combobox', { name: 'Host', exact: true });

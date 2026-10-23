@@ -40,7 +40,7 @@ export function createMachineFormSchema(previous?: SshConfig) {
         .min(1, 'Port must be at least 1')
         .max(65535, 'Port must be at most 65535'),
       username: z.string(),
-      authType: z.enum(['password', 'key', 'agent']),
+      authType: z.enum(['password', 'key', 'agent', 'gssapi']),
       password: z.string(),
       privateKeyPath: z.string(),
       passphrase: z.string(),

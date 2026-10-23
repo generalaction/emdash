@@ -1,7 +1,7 @@
 import type { SshConfig, SshConfigHost } from '@core/primitives/ssh/api';
 import { createMachineFormSchema, type MachineFormValues } from './machine-form-schema';
 
-export type MachineAuthType = 'password' | 'key' | 'agent';
+export type MachineAuthType = 'password' | 'key' | 'agent' | 'gssapi';
 export type MachineFormMode = 'manual' | 'config';
 export type MachineAuthenticationDraft = Pick<
   MachineFormValues,

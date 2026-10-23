@@ -84,13 +84,16 @@ export function MachineAuthenticationFields({
                       ? 'SSH Key'
                       : field.state.value === 'agent'
                         ? 'Agent'
-                        : 'Password'}
+                        : field.state.value === 'gssapi'
+                          ? 'Kerberos (system SSH)'
+                          : 'Password'}
                   </Select.Value>
                 </Select.Trigger>
                 <Select.Content>
                   <Select.Item value="key">SSH Key</Select.Item>
                   <Select.Item value="agent">Agent</Select.Item>
                   <Select.Item value="password">Password</Select.Item>
+                  <Select.Item value="gssapi">Kerberos (system SSH)</Select.Item>
                 </Select.Content>
               </Select.Root>
             )}
@@ -130,6 +133,12 @@ export function MachineAuthenticationFields({
                 />
               )}
             </form.AppField>
+          ) : authType === 'gssapi' ? (
+            <p className="text-sm text-foreground-muted">
+              Uses system OpenSSH on macOS or Linux. Run kinit and connect with ssh in a terminal
+              first to obtain a ticket and verify the host key. No password or private key is
+              stored.
+            </p>
           ) : (
             <p className="text-sm text-foreground-muted">Uses keys available in your SSH agent.</p>
           )

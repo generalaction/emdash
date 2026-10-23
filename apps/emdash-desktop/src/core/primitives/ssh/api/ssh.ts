@@ -9,7 +9,7 @@ export interface SshConfig {
   port: number;
   username: string;
   sshConfigAlias?: string;
-  authType: 'password' | 'key' | 'agent';
+  authType: 'password' | 'key' | 'agent' | 'gssapi';
   privateKeyPath?: string;
   useAgent?: boolean;
   forwardAgent?: boolean;

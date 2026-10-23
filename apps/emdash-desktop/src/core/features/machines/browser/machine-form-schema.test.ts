@@ -16,6 +16,10 @@ const baseValues: MachineFormValues = {
 };
 
 describe('machineFormSchema', () => {
+  it('accepts Kerberos authentication without a password or private key', () => {
+    expect(machineFormSchema.safeParse({ ...baseValues, authType: 'gssapi' }).success).toBe(true);
+  });
+
   it.each([
     ['name', ' Conn', 'Connection name cannot start or end with spaces'],
     ['host', 'dev.internal ', 'Host cannot start or end with spaces'],

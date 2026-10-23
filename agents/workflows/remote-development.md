@@ -26,6 +26,20 @@ or shell-profile code.
 
 ## Authentication And Storage
 
+For Kerberos hosts on macOS or Linux, select **Kerberos (system SSH)** in the
+connection's Authentication menu. Run `kinit`, then `ssh <alias>` in a terminal
+first to obtain a ticket and verify the host key. Select that same SSH config
+alias in Emdash. Emdash invokes local OpenSSH with GSSAPI authentication, so no
+password or private key needs to be saved in the app. Renew expired tickets in
+the terminal and reconnect. Windows is not supported by this transport yet.
+
+Kerberos connections use a private OpenSSH multiplexing socket. Host keys must
+already be trusted; unknown or changed keys fail closed. Configured jump hosts
+and proxy commands are honored, but unrelated configured port forwards are not
+opened. Emdash does not enable Kerberos credential delegation. The foreground
+SSH process and its channels are closed when the connection is retired. Runtime
+files, terminals, and agents still use the existing workspace-server contract.
+
 - SSH credentials are managed through the SSH services and OS-backed secret storage
 - host key handling is implemented under `src/main/core/ssh/`
 - runtime dependency state for remote hosts belongs to the workspace-server

@@ -25,6 +25,24 @@ function baseConfig(partial: Partial<SshConfig> = {}): SshConfig {
 }
 
 describe('testing edited credentials', () => {
+  it('resolves Kerberos without reading stored secrets, private keys or an SSH agent', async () => {
+    const readFile = vi.fn();
+    const getPassword = vi.fn();
+    const getPassphrase = vi.fn();
+    const result = await resolveSshConnectConfig(
+      { kind: 'transient', config: baseConfig({ authType: 'gssapi', sshConfigAlias: 'corp-dev' }) },
+      deps({ readFile, getPassword, getPassphrase, env: {} })
+    );
+    expect(result.client).toBeDefined();
+    expect(result.config.password).toBeUndefined();
+    expect(result.config.privateKey).toBeUndefined();
+    expect(result.config.agent).toBeUndefined();
+    expect(readFile).not.toHaveBeenCalled();
+    expect(getPassword).not.toHaveBeenCalled();
+    expect(getPassphrase).not.toHaveBeenCalled();
+    result.cleanup();
+  });
+
   it.each([{ hostname: 'replacement.example.com' }, { user: 'other' }, { port: 2222 }])(
     'rejects a stale alias destination before retrieving a password: %j',
     async (change) => {

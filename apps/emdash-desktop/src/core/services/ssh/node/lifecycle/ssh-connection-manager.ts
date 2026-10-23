@@ -177,7 +177,7 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
       resolved.cleanup();
       throw new SshConnectionError('SSH connection was disconnected before connecting');
     }
-    const client = this.deps.createClient?.() ?? new ssh2.Client();
+    const client = resolved.client ?? this.deps.createClient?.() ?? new ssh2.Client();
     entry.client = client;
     let cleaned = false;
     const cleanup = () => {

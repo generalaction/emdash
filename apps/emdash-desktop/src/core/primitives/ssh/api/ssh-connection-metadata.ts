@@ -256,7 +256,7 @@ export function sshConfigFromRow(row: SshConnectionConfigRow): SshConfig {
     host: row.host,
     port: row.port,
     username: row.username,
-    authType: row.authType as 'password' | 'key' | 'agent',
+    authType: row.authType as 'password' | 'key' | 'agent' | 'gssapi',
     privateKeyPath: row.privateKeyPath ?? undefined,
     useAgent: row.useAgent === 1,
     sshConfigAlias: metadata.sshConfigAlias,

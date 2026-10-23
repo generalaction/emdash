@@ -3,12 +3,14 @@ import type { Secret } from '@emdash/shared';
 import ssh2, { type BaseAgent, type ConnectConfig } from 'ssh2';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { sshConfigFromRow } from '@core/primitives/ssh/api';
+import type { SshTransportClient } from '@core/primitives/ssh/api/node/ssh-transport-client';
 import type { SshConnectionRow } from '@core/services/app-db/node/schema';
 import {
   resolveSshConfig as defaultResolveSshConfig,
   type ResolvedSshConfig,
 } from '../config/resolve-ssh-config';
 import { findSshConfigHostByHostName, parseSshConfigFile } from '../config/sshConfigParser';
+import { OpenSshClient } from '../transport/openssh-client';
 import {
   spawnProxyCommand as defaultSpawnProxyCommand,
   spawnProxyJump as defaultSpawnProxyJump,
@@ -22,6 +24,7 @@ const { createAgent } = ssh2;
 
 export interface SshConnectResult {
   config: ConnectConfig;
+  client?: SshTransportClient;
   cleanup: () => void;
   debugLogs: string[];
 }
@@ -85,6 +88,7 @@ export async function resolveSshConnectConfig(
   const base = baseConfigForInput(input);
   const alias = base.sshConfigAlias;
   const resolved = alias ? await deps.resolveSshConfig(alias) : undefined;
+  if (base.authType === 'gssapi') return resolveGssapiConfig(base, resolved, input.kind);
   const shouldResolveHostForAgent = !alias && base.authType === 'agent';
   const agentResolved = shouldResolveHostForAgent
     ? await resolveManualAgentSshConfig(base.host, deps)
@@ -139,4 +143,29 @@ export async function resolveSshConnectConfig(
 export function createSshConnectConfigResolver(deps: SshConnectDeps) {
   return async (input: SshConnectInput): Promise<SshConnectResult> =>
     await resolveSshConnectConfig(input, deps);
+}
+
+function resolveGssapiConfig(
+  base: SshConfig,
+  resolved: ResolvedSshConfig | undefined,
+  kind: SshConnectInput['kind']
+): SshConnectResult {
+  const client = new OpenSshClient(base);
+  return {
+    client,
+    config: {
+      readyTimeout: resolved?.connectTimeout
+        ? resolved.connectTimeout * 1000
+        : kind === 'transient'
+          ? 10_000
+          : 20_000,
+      keepaliveInterval: resolved?.serverAliveInterval
+        ? resolved.serverAliveInterval * 1000
+        : 60_000,
+      keepaliveCountMax: resolved?.serverAliveCountMax ?? 3,
+    },
+    // 原生客户端在 connect 时分配资源，由连接管理器调用 destroy 统一回收。
+    cleanup: () => {},
+    debugLogs: ['Using system OpenSSH with GSSAPI/Kerberos authentication'],
+  };
 }

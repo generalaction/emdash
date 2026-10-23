@@ -6,6 +6,8 @@ export function authLabel(connection: SshConfig): string {
       return 'Password';
     case 'key':
       return connection.privateKeyPath ? `SSH key ${connection.privateKeyPath}` : 'SSH key';
+    case 'gssapi':
+      return 'Kerberos';
     case 'agent':
       return 'SSH agent';
   }

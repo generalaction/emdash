@@ -132,6 +132,8 @@ export async function buildAuthConfig(
   const previous = input.kind === 'transient' ? input.previous : base;
   assertPasswordDestination(base, effective);
   switch (base.authType) {
+    case 'gssapi':
+      throw new Error('Kerberos authentication must use system OpenSSH');
     case 'password': {
       const credentials = await resolveCredentialDraft(effective, previous, deps);
       const password = credentials.password?.expose();
