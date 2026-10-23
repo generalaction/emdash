@@ -15,6 +15,20 @@ describe('buildAllowlistedAgentEnv', () => {
         localappdata: 'C:\\Users\\ada\\AppData\\Local',
         userprofile: 'C:\\Users\\ada',
         username: 'ada',
+        systemdrive: 'C:',
+        programdata: 'C:\\ProgramData',
+        allusersprofile: 'C:\\ProgramData',
+        public: 'C:\\Users\\Public',
+        programfiles: 'C:\\Program Files',
+        'programfiles(x86)': 'C:\\Program Files (x86)',
+        programw6432: 'C:\\Program Files',
+        commonprogramfiles: 'C:\\Program Files\\Common Files',
+        'commonprogramfiles(x86)': 'C:\\Program Files (x86)\\Common Files',
+        commonprogramw6432: 'C:\\Program Files\\Common Files',
+        homedrive: 'C:',
+        homepath: '\\Users\\ada',
+        os: 'Windows_NT',
+        userdomain: 'WORKGROUP',
         anthropic_api_key: 'secret',
         https_proxy: 'https://proxy.test',
         unsafe_env: 'excluded',
@@ -34,6 +48,20 @@ describe('buildAllowlistedAgentEnv', () => {
       PATHEXT: '.COM;.EXE;.CMD',
       LOCALAPPDATA: 'C:\\Users\\ada\\AppData\\Local',
       USERPROFILE: 'C:\\Users\\ada',
+      SystemDrive: 'C:',
+      ProgramData: 'C:\\ProgramData',
+      ALLUSERSPROFILE: 'C:\\ProgramData',
+      PUBLIC: 'C:\\Users\\Public',
+      ProgramFiles: 'C:\\Program Files',
+      'ProgramFiles(x86)': 'C:\\Program Files (x86)',
+      ProgramW6432: 'C:\\Program Files',
+      CommonProgramFiles: 'C:\\Program Files\\Common Files',
+      'CommonProgramFiles(x86)': 'C:\\Program Files (x86)\\Common Files',
+      CommonProgramW6432: 'C:\\Program Files\\Common Files',
+      HOMEDRIVE: 'C:',
+      HOMEPATH: '\\Users\\ada',
+      OS: 'Windows_NT',
+      USERDOMAIN: 'WORKGROUP',
       ANTHROPIC_API_KEY: 'secret',
       HTTPS_PROXY: 'https://proxy.test',
     });
@@ -136,6 +164,21 @@ describe('buildAllowlistedAgentEnv', () => {
       RLM_MAX_DEPTH: '3',
     });
     expect(env.PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN).toBeUndefined();
+  });
+
+  it('forwards SystemDrive and ProgramData to prevent stray directories on Windows', () => {
+    const env = buildAllowlistedAgentEnv(
+      {
+        SystemDrive: 'C:',
+        ProgramData: 'C:\\ProgramData',
+        PUBLIC: 'C:\\Users\\Public',
+      },
+      { platform: 'windows' }
+    );
+
+    expect(env.SystemDrive).toBe('C:');
+    expect(env.ProgramData).toBe('C:\\ProgramData');
+    expect(env.PUBLIC).toBe('C:\\Users\\Public');
   });
 });
 

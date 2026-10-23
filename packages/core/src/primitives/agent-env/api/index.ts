@@ -126,14 +126,30 @@ export const AGENT_ENV_VARS = [
 ] as const;
 
 const WINDOWS_AGENT_ENV_VARS = [
+  'ALLUSERSPROFILE',
+  'CommonProgramFiles',
+  'CommonProgramFiles(x86)',
+  'CommonProgramW6432',
+  'ComSpec',
+  'HOMEDRIVE',
+  'HOMEPATH',
+  'LOCALAPPDATA',
+  'OS',
+  'PATHEXT',
+  'ProgramData',
+  'ProgramFiles',
+  'ProgramFiles(x86)',
+  'ProgramW6432',
+  'PUBLIC',
+  'SystemDrive',
+  'SystemRoot',
   'TEMP',
   'TMP',
-  'SystemRoot',
-  'windir',
-  'ComSpec',
-  'PATHEXT',
-  'LOCALAPPDATA',
+  'USERDNSDOMAIN',
+  'USERDOMAIN',
+  'USERDOMAIN_ROAMINGPROFILE',
   'USERPROFILE',
+  'windir',
 ] as const;
 
 const DISPLAY_ENV_VARS = [
