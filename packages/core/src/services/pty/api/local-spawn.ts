@@ -245,20 +245,6 @@ function resolvePosixSpawn(
   const setupWrapperArgs = getSetupWrapperArgs(intent);
 
   if (intent.kind === 'interactive-shell') {
-    if (intent.tmux) {
-      const commandLine = intent.shellSetup
-        ? `${intent.shellSetup} && exec ${quoteArg(shell, 'posix')} ${interactiveArgs.join(' ')}`
-        : `exec ${quoteArg(shell, 'posix')} ${interactiveArgs.join(' ')}`;
-      return {
-        invocation: argvInvocation(shell, [
-          ...(intent.shellSetup ? setupWrapperArgs : commandArgs),
-          buildTmuxShellLine(intent.tmux.name, commandLine, intent.tmux.identity),
-        ]),
-        cwd: intent.cwd,
-        warnings: [],
-      };
-    }
-
     if (intent.shellSetup) {
       return {
         invocation: argvInvocation(shell, [
@@ -287,7 +273,7 @@ function resolvePosixSpawn(
     );
   }
 
-  if (intent.command.kind === 'argv' && !intent.shellSetup && !intent.tmux) {
+  if (intent.command.kind === 'argv' && !intent.shellSetup) {
     const plan = planExecutableLaunch({
       platform,
       command: intent.command.command,
@@ -305,17 +291,6 @@ function resolvePosixSpawn(
   const fullCommandLine = intent.shellSetup
     ? `${intent.shellSetup} && ${commandLine}`
     : commandLine;
-
-  if (intent.tmux) {
-    return {
-      invocation: argvInvocation(shell, [
-        ...commandArgs,
-        buildTmuxShellLine(intent.tmux.name, fullCommandLine, intent.tmux.identity),
-      ]),
-      cwd: intent.cwd,
-      warnings: [],
-    };
-  }
 
   return {
     invocation: planShellLaunch({
@@ -344,9 +319,25 @@ export function resolveLocalPtySpawn({
   env: NodeJS.ProcessEnv;
   fileExists?: FileExists;
 }): ResolvedLocalPtySpawn {
-  return platform === 'win32'
-    ? resolveWindowsSpawn(intent, env, fileExists)
-    : resolvePosixSpawn(intent, env, platform);
+  if (platform === 'win32') return resolveWindowsSpawn(intent, env, fileExists);
+
+  const resolved = resolvePosixSpawn(intent, env, platform);
+  if (!intent.tmux) return resolved;
+  const { invocation } = resolved;
+  if (invocation.kind !== 'argv') throw new Error('tmux requires a POSIX argv invocation');
+
+  return {
+    ...resolved,
+    invocation: argvInvocation('/bin/sh', [
+      '-c',
+      buildTmuxShellLine(
+        intent.tmux.name,
+        { command: invocation.executable, args: [...invocation.argv] },
+        env,
+        intent.tmux.identity
+      ),
+    ]),
+  };
 }
 
 export function logLocalPtySpawnWarnings(

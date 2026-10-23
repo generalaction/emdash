@@ -95,13 +95,17 @@ async function attach(answerOnHost: boolean) {
   const hostReplies: string[] = [];
   const held: string[] = [];
   let holding = answerOnHost;
-  const proc = spawn('/bin/sh', ['-c', buildTmuxShellLine('probe', 'exit 99')], {
-    name: 'xterm-256color',
-    cols: 100,
-    rows: 24,
-    cwd: directory,
-    env,
-  });
+  const proc = spawn(
+    '/bin/sh',
+    ['-c', buildTmuxShellLine('probe', { command: '/bin/sh', args: ['-c', 'exit 99'] }, env)],
+    {
+      name: 'xterm-256color',
+      cols: 100,
+      rows: 24,
+      cwd: directory,
+      env,
+    }
+  );
   const session = new PtySession(
     'probe',
     {
