@@ -2,7 +2,7 @@ import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
-import { projects } from '@core/services/app-db/node/schema';
+import { projects, sshConnections } from '@core/services/app-db/node/schema';
 import { createWorkspaceIdentityService } from './workspace-identity-source';
 
 describe('workspace identity database source', () => {
@@ -94,5 +94,35 @@ describe('workspace identity database source', () => {
 
     expect(await resolveTarget()).toMatchObject({ workspaceId: 'target' });
     expect(prepare).toHaveBeenCalledTimes(baselineQueries);
+  });
+
+  it('refuses an adopted worktree whose parent belongs to a different host or is unavailable', async () => {
+    registerDirectory('repo', '/repo');
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.refresh('repo', { kind: 'repository' });
+    fixture.db
+      .insert(sshConnections)
+      .values({
+        id: 'other-host',
+        name: 'Other host',
+        host: 'other.example',
+        username: 'test',
+      })
+      .run();
+    registry.recordCreationIntent({
+      id: 'child',
+      kind: 'worktree',
+      type: 'project-ssh',
+      location: 'remote',
+      sshConnectionId: 'other-host',
+      parentId: 'repo',
+      path: '/repo/child',
+    });
+    const service = createWorkspaceIdentityService({ db: fixture.db });
+    expect(await service.resolve('child')).toBeNull();
+    registry.refresh('child', { location: 'local', sshConnectionId: null });
+    expect(await service.resolve('child')).toMatchObject({ projectId: 'project-repo' });
+    registry.untrack(['repo'], new Date().toISOString());
+    expect(await service.resolve('child')).toBeNull();
   });
 });

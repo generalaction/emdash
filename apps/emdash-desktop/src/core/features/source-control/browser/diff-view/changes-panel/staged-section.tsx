@@ -23,7 +23,8 @@ import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 /** Always-visible header row; rendered as a direct child of the sections group. */
 export const StagedSectionHeader = observer(function StagedSectionHeader() {
   const taskView = useTaskComposition();
-  const workspace = useWorkspace();
+  const taskWorkspace = useWorkspace();
+  const workspace = taskView.diffView?.workspace ?? taskWorkspace;
   const git = workspace.get(gitCheckoutStoreToken);
   const changesView = taskView.diffView?.changesView;
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('staged');
@@ -35,7 +36,7 @@ export const StagedSectionHeader = observer(function StagedSectionHeader() {
       label="Staged"
       count={git.stagedFileChanges.length}
       selectionState={changesView.stagedSelectionState}
-      onToggleAll={() => changesView.toggleAllStaged()}
+      onToggleAll={taskView.diffView?.readOnly ? undefined : () => changesView.toggleAllStaged()}
       actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Staged" />}
       collapsed={!changesView.expandedSections.staged}
       onToggleCollapsed={() => changesView.toggleExpanded('staged')}
@@ -46,7 +47,8 @@ export const StagedSectionHeader = observer(function StagedSectionHeader() {
 /** Section body; mounted inside a Resizable.Panel only while the section is expanded. */
 export const StagedSectionBody = observer(function StagedSectionBody() {
   const taskView = useTaskComposition();
-  const workspace = useWorkspace();
+  const taskWorkspace = useWorkspace();
+  const workspace = taskView.diffView?.workspace ?? taskWorkspace;
   const git = workspace.get(gitCheckoutStoreToken);
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView;
@@ -55,7 +57,10 @@ export const StagedSectionBody = observer(function StagedSectionBody() {
   const hasChanges = changes.length > 0;
 
   const _activeDiff = activeDiffEntry(taskView.activePane);
-  const activePath = _activeDiff?.diffGroup === 'staged' ? _activeDiff.path : undefined;
+  const activePath =
+    _activeDiff?.workspaceId === workspace.workspaceId && _activeDiff.diffGroup === 'staged'
+      ? _activeDiff.path
+      : undefined;
 
   const prefetch = usePrefetchDiffModels('staged', HEAD_REF);
 
@@ -68,6 +73,7 @@ export const StagedSectionBody = observer(function StagedSectionBody() {
       'diff',
       {
         activeFile: {
+          workspaceId: workspace.workspaceId,
           path: change.path,
           type: 'git',
           group: 'staged',
@@ -84,6 +90,7 @@ export const StagedSectionBody = observer(function StagedSectionBody() {
       'diff',
       {
         activeFile: {
+          workspaceId: workspace.workspaceId,
           path: change.path,
           type: 'git',
           group: 'staged',
@@ -123,7 +130,7 @@ export const StagedSectionBody = observer(function StagedSectionBody() {
         />
       )}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {hasChanges && changesView.stagedSelection.size > 0 && (
+        {hasChanges && changesView.stagedSelection.size > 0 && !diffView.readOnly && (
           <ActionCard
             selectedCount={changesView.stagedSelection.size}
             selectionActions={
@@ -157,14 +164,16 @@ export const StagedSectionBody = observer(function StagedSectionBody() {
             changes={changes}
             rootPath={workspace.path}
             isSelected={(path) => changesView.stagedSelection.has(path)}
-            onToggleSelect={(path) => changesView.toggleStagedItem(path)}
+            onToggleSelect={
+              diffView.readOnly ? undefined : (path) => changesView.toggleStagedItem(path)
+            }
             activePath={activePath}
             onSelectChange={handleSelectChange}
             onDoubleClickChange={handleDoubleClickChange}
             onPrefetch={(change) => prefetch(change.path)}
           />
         </div>
-        {hasChanges && <CommitCard />}
+        {hasChanges && !diffView.readOnly && <CommitCard />}
       </div>
     </>
   );

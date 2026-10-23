@@ -41,6 +41,10 @@ Task children have two explicit lifetimes: lightweight persistent stores survive
 for as long as the task row exists (`task-persistent-stores.ts`), while operational task stores are
 disposed when the task session is torn down (`task-scoped-stores.ts`).
 
+Diff tab managers and inspection selection are task-owned, even when tasks share
+a checkout. Workspace-scoped Git stores share status and file metadata; each
+task's manager keeps its tab sources, comments, and preferences isolated.
+
 Task attention indicators aggregate unseen events from saved Conversations, independently of open
 tabs. A successful user close of either an ACP or terminal conversation tab acknowledges its
 existing notification through the resource's `onClose` hook; later background events can notify
