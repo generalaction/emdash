@@ -62,6 +62,7 @@ function createRegistryGitExec(
     file: 'git',
     cwd,
     env: async () => registryGitEnv(await env(), tier === 'probe'),
+    git: true,
   });
   return {
     get file() {

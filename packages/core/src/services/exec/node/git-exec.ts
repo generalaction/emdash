@@ -23,6 +23,7 @@ export function createNonInteractiveGitExec(cwd: string): BoundExec {
       SSH_ASKPASS: '',
       ...(process.env.GIT_SSH_COMMAND ? {} : { GIT_SSH_COMMAND: 'ssh -o BatchMode=yes' }),
     },
+    git: true,
   });
 }
 

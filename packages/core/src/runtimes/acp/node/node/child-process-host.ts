@@ -162,6 +162,7 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
       detached: platform !== 'win32',
       env: spec.env,
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
       windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
     if (!child.stdin || !child.stdout) {
@@ -194,6 +195,7 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
       detached: platform !== 'win32',
       env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
       windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
     if (!child.stdout) {

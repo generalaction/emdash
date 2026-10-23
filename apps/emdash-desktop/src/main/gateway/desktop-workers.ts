@@ -195,6 +195,9 @@ export async function startDesktopWorkers(
     scope: workerScope,
     processSpawner: vitalsSpawner,
     logger: log,
+    defaults: {
+      readyTimeoutMs: 30_000,
+    },
   });
   try {
     const handle = startDesktopWorkersWithHost(deps, workerScope, host);

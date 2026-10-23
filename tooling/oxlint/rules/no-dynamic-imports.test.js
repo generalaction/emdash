@@ -36,11 +36,16 @@ test('reports dynamic imports and allows static imports', async () => {
   }
 });
 
+function quoteArg(arg) {
+  return process.platform === 'win32' ? `"${arg}"` : arg;
+}
+
 function runOxlint(config, file) {
   return new Promise((resolve, reject) => {
-    const child = spawn('pnpm', ['exec', 'oxlint', '--config', config, file], {
+    const child = spawn('pnpm', ['exec', 'oxlint', '--config', quoteArg(config), quoteArg(file)], {
       cwd: repoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
     });
     let output = '';
     child.stdout.on('data', (chunk) => {
