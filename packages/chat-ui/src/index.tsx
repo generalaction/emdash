@@ -47,6 +47,7 @@ export type {
   ChatViewOptions,
   ComposerPlacement,
   ComposerPlacementOptions,
+  UserMessageNavigation,
 } from './chat-view';
 
 // ── Data types ────────────────────────────────────────────────────────────────
