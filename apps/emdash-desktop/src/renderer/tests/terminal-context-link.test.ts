@@ -79,15 +79,25 @@ describe('terminal context link detection', () => {
     expect(getTerminalLinkAtBufferCell(buffer, 1, 9)).toBe('/tmp/output/report.md');
   });
 
-  it('resolves a URL split across a hard line break', () => {
+  it('resolves a URL split across a soft line break', () => {
     const buffer = makeBuffer([
       new MockBufferLine('Investigate KAI-1044 (https://'),
-      new MockBufferLine('linear.app/kairoslive/issue/KAI-1044)'),
+      new MockBufferLine('linear.app/kairoslive/issue/KAI-1044)', true),
     ]);
     const url = 'https://linear.app/kairoslive/issue/KAI-1044';
 
     expect(getTerminalLinkAtBufferCell(buffer, 1, 23)).toBe(url);
     expect(getTerminalLinkAtBufferCell(buffer, 2, 1)).toBe(url);
+  });
+
+  it.each([
+    ['see https://example.com/', '    started successfully', 'https://example.com/'],
+    ['see https://example.com/docs.', 'Then continue.', 'https://example.com/docs'],
+  ])('keeps Copy Link within the logical line: %s', (first, second, url) => {
+    const buffer = makeBuffer([new MockBufferLine(first), new MockBufferLine(second)]);
+
+    expect(getTerminalLinkAtBufferCell(buffer, 1, 8)).toBe(url);
+    expect(getTerminalLinkAtBufferCell(buffer, 2, 5)).toBeNull();
   });
 
   it('does not treat the space after a wide character as part of a wrapped URL', () => {

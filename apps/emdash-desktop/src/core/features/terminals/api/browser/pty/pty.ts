@@ -1,5 +1,5 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { Terminal, type ITerminalOptions } from '@xterm/xterm';
+import { Terminal, type IBufferRange, type ITerminalOptions } from '@xterm/xterm';
 import {
   FileLinkProvider,
   isPrimaryMouseButton,
@@ -10,7 +10,7 @@ import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-
 import { log } from '@core/primitives/logging/browser/logger';
 import { cssColorToHex, cssVar } from '@core/primitives/styling/browser/cssVars';
 import { decodeOsc52ClipboardData } from '../../../browser/pty/pty-clipboard';
-import { isHttpUrl } from '../../../browser/pty/url-link-detection';
+import { isTerminalLinkAtMouseEvent } from '../../../browser/pty/terminal-context-link';
 import { ensureXtermHost } from '../../../browser/pty/xterm-host';
 
 /**
@@ -70,6 +70,8 @@ export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
 
 // ── FrontendPty ───────────────────────────────────────────────────────────────
 
+type HoveredLink = { text: string; range: IBufferRange };
+
 /**
  * Frontend counterpart to the main-process Pty interface.
  *
@@ -97,8 +99,9 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
-  private hoveredOscLink: string | null = null;
-  private swallowLinkMouseUp = false;
+  private hoveredOscLink: HoveredLink | null = null;
+  private readonly linkMouseListeners = new AbortController();
+  private cancelLinkClick: (() => void) | null = null;
 
   constructor(
     readonly sessionId: string,
@@ -131,15 +134,10 @@ export class FrontendPty {
       scrollOnUserInput: false,
       linkHandler: {
         activate: (event: MouseEvent, text: string) => {
-          if (!isPrimaryMouseButton(event)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          confirmOpenExternalLink(text, (error) => {
-            log.warn('FrontendPty: failed to open external link', { text, error });
-          });
+          this.activateOscLink(event, text);
         },
-        hover: (_event: MouseEvent, text: string) => {
-          this.hoveredOscLink = text;
+        hover: (_event, text, range) => {
+          this.hoveredOscLink = { text, range };
         },
         leave: () => {
           this.hoveredOscLink = null;
@@ -154,7 +152,6 @@ export class FrontendPty {
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       if (!isPrimaryMouseButton(event)) return;
       event.preventDefault();
-      event.stopPropagation();
       confirmOpenExternalLink(uri);
     });
 
@@ -194,8 +191,29 @@ export class FrontendPty {
     FrontendPty.bySession.set(this.sessionId, this);
   }
 
-  getHoveredOscLink(): string | null {
-    return this.hoveredOscLink;
+  getHoveredOscLink(event?: MouseEvent): string | null {
+    const link = this.hoveredOscLink;
+    if (!link || (event && !isTerminalLinkAtMouseEvent(this.terminal, event, link.range))) {
+      return null;
+    }
+    return link.text;
+  }
+
+  private activateOscLink(event: MouseEvent, text: string): void {
+    if (!isPrimaryMouseButton(event) || this.isForcedSelection(event)) return;
+    // Let the release propagate: when xterm saw the press, its document listeners
+    // must still finish the selection or mouse report.
+    event.preventDefault();
+    confirmOpenExternalLink(text, (error) => {
+      log.warn('FrontendPty: failed to open external link', { text, error });
+    });
+  }
+
+  private isForcedSelection(event: MouseEvent): boolean {
+    // Match xterm's platform-specific override of application mouse reporting.
+    return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+      ? event.altKey && !!this.terminal.options.macOptionClickForcesSelection
+      : event.shiftKey;
   }
 
   private attachLinkClickShield(element: HTMLElement): void {
@@ -203,20 +221,72 @@ export class FrontendPty {
       'mousedown',
       (event) => {
         if (!isPrimaryMouseButton(event)) return;
-        if (!this.hoveredOscLink || !isHttpUrl(this.hoveredOscLink)) return;
-        this.swallowLinkMouseUp = true;
+        if (this.terminal.modes.mouseTrackingMode === 'none' || this.isForcedSelection(event))
+          return;
+        // xterm only hovers http(s) OSC 8 links, so this matches what it would activate.
+        const link = this.hoveredOscLink;
+        if (!link || !this.getHoveredOscLink(event)) return;
+
+        // Consuming the press also bypasses xterm's linkifier. Own the entire
+        // gesture and activate on release, while keeping it out of the PTY.
+        event.preventDefault();
         event.stopImmediatePropagation();
+        this.terminal.focus();
+        const gesture = new AbortController();
+        const options = { capture: true, signal: gesture.signal };
+        const cancel = () => {
+          gesture.abort();
+          this.cancelLinkClick = null;
+        };
+        this.cancelLinkClick = cancel;
+        let dragged = false;
+        const moved = (current: MouseEvent) =>
+          Math.hypot(current.clientX - event.clientX, current.clientY - event.clientY) > 4;
+        // If the release never reaches us, stop owning the pointer as soon as that
+        // shows: on a move without the primary button, or on the next primary press
+        // anywhere (this capture listener runs before the press is handled).
+        element.ownerDocument.addEventListener(
+          'mousedown',
+          (press) => {
+            if (isPrimaryMouseButton(press)) cancel();
+          },
+          options
+        );
+        element.ownerDocument.addEventListener(
+          'mousemove',
+          (move) => {
+            if (!(move.buttons & 1)) {
+              cancel();
+              return;
+            }
+            dragged ||= moved(move);
+            // No mouse-down was sent, so sending a drag would orphan the gesture.
+            move.stopImmediatePropagation();
+          },
+          options
+        );
+        element.ownerDocument.addEventListener(
+          'mouseup',
+          (release) => {
+            if (!isPrimaryMouseButton(release)) return;
+            release.preventDefault();
+            release.stopImmediatePropagation();
+            cancel();
+            if (
+              !dragged &&
+              !moved(release) &&
+              this.hoveredOscLink &&
+              isSameLink(this.hoveredOscLink, link) &&
+              isTerminalLinkAtMouseEvent(this.terminal, release, link.range)
+            ) {
+              this.activateOscLink(release, link.text);
+            }
+          },
+          options
+        );
+        element.ownerDocument.defaultView?.addEventListener('blur', cancel, options);
       },
-      true
-    );
-    element.addEventListener(
-      'mouseup',
-      (event) => {
-        if (!this.swallowLinkMouseUp) return;
-        this.swallowLinkMouseUp = false;
-        event.stopImmediatePropagation();
-      },
-      true
+      { capture: true, signal: this.linkMouseListeners.signal }
     );
   }
 
@@ -295,6 +365,8 @@ export class FrontendPty {
    * buffer stays intact for an instant, pixel-faithful restore.
    */
   unmount(): void {
+    // Keep hoveredOscLink: it mirrors xterm's linkifier, which keeps its link across reparenting.
+    this.cancelLinkClick?.();
     ensureXtermHost().appendChild(this.ownedContainer);
   }
 
@@ -306,8 +378,9 @@ export class FrontendPty {
   dispose(): void {
     FrontendPty.all.delete(this);
     FrontendPty.bySession.delete(this.sessionId);
+    this.cancelLinkClick?.();
+    this.linkMouseListeners.abort();
     this.hoveredOscLink = null;
-    this.swallowLinkMouseUp = false;
     this.offData?.();
     this.offData = null;
     try {
@@ -325,6 +398,19 @@ function noopConnector(): FrontendPtyConnector {
       return () => {};
     },
   };
+}
+
+// xterm recreates the hovered link whenever it repaints the link's rows, so
+// compare by value, as its linkifier does before activating.
+function isSameLink(a: HoveredLink, b: HoveredLink): boolean {
+  const { start, end } = a.range;
+  return (
+    a.text === b.text &&
+    start.x === b.range.start.x &&
+    start.y === b.range.start.y &&
+    end.x === b.range.end.x &&
+    end.y === b.range.end.y
+  );
 }
 
 // ── Session lookup ────────────────────────────────────────────────────────────

@@ -3,13 +3,11 @@ import type { ILink } from '@xterm/xterm';
 import type { BufferLike, BufferLineLike } from './file-link-detection';
 
 const URL_PATTERN = /https?:\/\/[^\s"'<>`]+/gi;
-const URL_CONTINUATION_CHARS_PATTERN = /[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]/;
-const URL_SEGMENT_BREAK_PATTERN = /[-._~:/?#[\]@!$&'()*+,;=%]/;
-const INCOMPLETE_HTTP_URL_PATTERN = /https?:\/\/[^\s"'<>`]*$/i;
-const LABELED_LINE_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*:\s/;
-const URL_PATH_FRAGMENT_PATTERN = /^[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+$/;
-const MAX_WRAPPED_LINE_LENGTH = 4096;
-const HTTP_URL_PREFIX = /^https?:\/\//i;
+const URL_BREAK_PATTERN = /[\s"'<>`]/;
+// Per direction from the target row, so any URL up to this length is found from
+// every row it covers. URLs cannot contain whitespace, so the scan is bounded by
+// URL length rather than by the length of the logical line.
+const MAX_WRAPPED_SCAN_LENGTH = 4096;
 const HAS_HTTP_URL = /https?:\/\//i;
 
 export type UrlLinkMatch = {
@@ -27,170 +25,124 @@ type BufferLineWithCells = BufferLineLike & {
   getCell(index: number): CellLike | undefined;
 };
 
-type LogicalLine = {
+type Row = {
+  line: BufferLineLike;
+  text: string;
+};
+
+type WrappedSpan = {
   startBufferIndex: number;
   lineTexts: string[];
   columnForOffsetOnLine: Array<(offset: number) => number>;
   text: string;
+  /** The scan stopped at the length cap while the soft-wrapped line continued. */
+  truncatedStart: boolean;
+  truncatedEnd: boolean;
 };
 
 export function findUrlLinks(buffer: BufferLike, bufferLineNumber: number): UrlLinkMatch[] {
-  const logicalLine = getUrlLogicalLine(buffer, bufferLineNumber - 1);
-  if (!logicalLine || !HAS_HTTP_URL.test(logicalLine.text)) return [];
+  const span = getUrlSpan(buffer, bufferLineNumber - 1);
+  if (!span || !HAS_HTTP_URL.test(span.text)) return [];
 
   const links: UrlLinkMatch[] = [];
   const regex = new RegExp(URL_PATTERN.source, 'gi');
   let match: RegExpExecArray | null;
-  while ((match = regex.exec(logicalLine.text)) !== null) {
+  while ((match = regex.exec(span.text)) !== null) {
+    // A match running into a cut-off edge may belong to a longer URL; never copy a fragment.
+    if (span.truncatedStart && !URL_BREAK_PATTERN.test(span.text.slice(0, match.index))) continue;
+    if (span.truncatedEnd && regex.lastIndex === span.text.length) continue;
+
     const text = normalizeTerminalHttpUrl(match[0]);
-    if (!HTTP_URL_PREFIX.test(text)) continue;
+    if (!URL.canParse(text)) continue;
     const startOffset = match.index;
     const endOffset = startOffset + text.length;
-    const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
+    const range = mapOffsetRangeToBufferRange(span, startOffset, endOffset);
     if (!range) continue;
 
-    const visibleRanges = mapOffsetRangeToVisibleBufferRanges(logicalLine, startOffset, endOffset);
-    const linkRanges = shouldUseVisibleRanges(visibleRanges) ? visibleRanges : [range];
-    for (const linkRange of linkRanges) {
-      if (!rangeContainsBufferLine(linkRange, bufferLineNumber)) continue;
-      links.push({ range: linkRange, text });
+    if (rangeContainsBufferLine(range, bufferLineNumber)) {
+      links.push({ range, text });
     }
   }
   return links;
 }
 
-export function copyableTerminalSelection(text: string): string {
-  if (!text.includes('\n') && !text.includes('\r')) return text;
-  if (selectionLooksLikeSeparateUrls(text)) return text;
-  const joined = text.replace(/\r?\n[ \t]*/g, '');
-  const normalized = normalizeTerminalHttpUrl(joined);
-  if (!HTTP_URL_PREFIX.test(normalized)) return text;
-  const trimmedJoined = joined.replace(/[),.;:!?]+$/, '');
-  if (normalized === joined || normalized === trimmedJoined) return normalized;
-  return text;
-}
+/**
+ * Rows of the target's soft-wrapped line that a URL touching the target row can
+ * span. Only xterm's soft-wrap metadata joins rows, and since URLs cannot contain
+ * whitespace, expansion stops after the first neighbouring row that has any.
+ */
+function getUrlSpan(buffer: BufferLike, bufferIndex: number): WrappedSpan | null {
+  const target = readRow(buffer, bufferIndex);
+  if (!target) return null;
+  const canContinue = (row: Row) => row === target || !/\s/.test(row.text);
 
-export function isHttpUrl(text: string): boolean {
-  return HTTP_URL_PREFIX.test(text);
-}
-
-function selectionLooksLikeSeparateUrls(text: string): boolean {
-  const lines = text.split(/\r?\n/);
-  return lines.slice(1).some((line, index) => {
-    if (!HTTP_URL_PREFIX.test(line.trimStart())) return false;
-    const previousChar = lines[index]?.[lines[index].length - 1];
-    return !previousChar || !URL_SEGMENT_BREAK_PATTERN.test(previousChar);
-  });
-}
-
-function getUrlLogicalLine(buffer: BufferLike, bufferIndex: number): LogicalLine | null {
-  const line = buffer.getLine(bufferIndex);
-  if (!line) return null;
-
+  const rows = [target];
   let startBufferIndex = bufferIndex;
-  while (startBufferIndex > 0 && buffer.getLine(startBufferIndex)?.isWrapped) {
-    startBufferIndex -= 1;
-  }
-
-  while (startBufferIndex > 0) {
-    const previousLine = buffer.getLine(startBufferIndex - 1);
-    const currentLine = buffer.getLine(startBufferIndex);
-    if (!previousLine || !currentLine || previousLine.isWrapped) break;
-    if (
-      !shouldJoinUrlContinuation(
-        previousLine.translateToString(true),
-        currentLine.translateToString(true)
-      )
-    ) {
+  let top = target;
+  let scannedAbove = 0;
+  let truncatedStart = false;
+  while (canContinue(top) && top.line.isWrapped) {
+    const previous = readRow(buffer, startBufferIndex - 1);
+    if (!previous) break;
+    scannedAbove += previous.text.length;
+    if (scannedAbove > MAX_WRAPPED_SCAN_LENGTH) {
+      truncatedStart = true;
       break;
     }
+    rows.unshift(previous);
     startBufferIndex -= 1;
+    top = previous;
   }
 
-  const lineTexts: string[] = [];
-  const columnForOffsetOnLine: Array<(offset: number) => number> = [];
-  let currentIndex = startBufferIndex;
-  let totalLength = 0;
-  while (true) {
-    const currentLine = buffer.getLine(currentIndex);
-    if (!currentLine) break;
-
-    const raw = currentLine.translateToString(true);
-    const isHardContinuation = currentIndex > startBufferIndex && !currentLine.isWrapped;
-    const indent = isHardContinuation ? countLeadingWhitespace(raw) : 0;
-    const text = isHardContinuation ? raw.slice(indent) : raw;
-    lineTexts.push(text);
-    columnForOffsetOnLine.push(columnMapForLine(currentLine, indent));
-    totalLength += text.length;
-    if (totalLength > MAX_WRAPPED_LINE_LENGTH) return null;
-
-    const nextLine = buffer.getLine(currentIndex + 1);
-    if (!nextLine) break;
-    if (nextLine.isWrapped) {
-      currentIndex += 1;
-      continue;
+  let bottom = target;
+  let scannedBelow = 0;
+  let truncatedEnd = false;
+  while (canContinue(bottom)) {
+    const next = readRow(buffer, startBufferIndex + rows.length);
+    if (!next?.line.isWrapped) break;
+    scannedBelow += next.text.length;
+    if (scannedBelow > MAX_WRAPPED_SCAN_LENGTH) {
+      truncatedEnd = true;
+      break;
     }
-    if (shouldJoinUrlContinuation(lineTexts.join(''), nextLine.translateToString(true))) {
-      currentIndex += 1;
-      continue;
-    }
-    break;
+    rows.push(next);
+    bottom = next;
   }
 
+  const lineTexts = rows.map((row) => row.text);
   return {
     startBufferIndex,
     lineTexts,
-    columnForOffsetOnLine,
+    columnForOffsetOnLine: rows.map((row) => columnMapForLine(row.line)),
     text: lineTexts.join(''),
+    truncatedStart,
+    truncatedEnd,
   };
 }
 
-function shouldJoinUrlContinuation(previousText: string, nextText: string): boolean {
-  const trimmedNext = nextText.trimStart();
-  if (HTTP_URL_PREFIX.test(trimmedNext) || LABELED_LINE_PATTERN.test(trimmedNext)) return false;
-  const previousChar = previousText[previousText.length - 1];
-  const nextChar = trimmedNext[0];
-  if (!previousChar || !nextChar || !URL_CONTINUATION_CHARS_PATTERN.test(nextChar)) return false;
-  if (!URL_SEGMENT_BREAK_PATTERN.test(previousChar)) return false;
-  return (
-    INCOMPLETE_HTTP_URL_PATTERN.test(previousText) || isUrlPathFragment(trailingToken(previousText))
-  );
+function readRow(buffer: BufferLike, bufferIndex: number): Row | null {
+  const line = bufferIndex >= 0 ? buffer.getLine(bufferIndex) : undefined;
+  // xterm trims only empty cells (e.g. padding left when a wide character wraps),
+  // so a printed space at the wrap boundary still separates a URL from prose.
+  return line ? { line, text: line.translateToString(true) } : null;
 }
 
-function trailingToken(text: string): string {
-  const match = /[^\s]+$/.exec(text);
-  return match?.[0] ?? '';
-}
-
-function isUrlPathFragment(token: string): boolean {
-  return token.length > 0 && !HAS_HTTP_URL.test(token) && URL_PATH_FRAGMENT_PATTERN.test(token);
-}
-
-function countLeadingWhitespace(text: string): number {
-  return text.length - text.trimStart().length;
-}
-
-function columnMapForLine(
-  line: BufferLineLike,
-  textStartIndex: number
-): (offset: number) => number {
+function columnMapForLine(line: BufferLineLike): (offset: number) => number {
   if (!hasCellAccess(line)) {
-    return (offset) => textStartIndex + offset + 1;
+    return (offset) => offset + 1;
   }
 
   const offsetColumns: number[] = [];
-  let stringOffset = 0;
   for (let cellIndex = 0; cellIndex < line.length; cellIndex += 1) {
     const cell = line.getCell(cellIndex);
     if (!cell || cell.getWidth() === 0) continue;
     const chars = cell.getChars() || ' ';
     const column = cellIndex + 1;
     for (let i = 0; i < chars.length; i += 1) {
-      if (stringOffset >= textStartIndex) offsetColumns.push(column);
-      stringOffset += 1;
+      offsetColumns.push(column);
     }
   }
-  return (offset) => offsetColumns[offset] ?? textStartIndex + offset + 1;
+  return (offset) => offsetColumns[offset] ?? offset + 1;
 }
 
 function hasCellAccess(line: BufferLineLike): line is BufferLineWithCells {
@@ -203,51 +155,14 @@ function hasCellAccess(line: BufferLineLike): line is BufferLineWithCells {
 }
 
 function mapOffsetRangeToBufferRange(
-  logicalLine: LogicalLine,
+  span: WrappedSpan,
   startOffset: number,
   endOffset: number
 ): ILink['range'] | null {
-  const start = mapOffsetToBufferPosition(logicalLine, startOffset);
-  const end = mapOffsetToBufferPosition(logicalLine, endOffset - 1);
+  const start = mapOffsetToBufferPosition(span, startOffset);
+  const end = mapOffsetToBufferPosition(span, endOffset - 1);
   if (!start || !end) return null;
   return { start, end };
-}
-
-function mapOffsetRangeToVisibleBufferRanges(
-  logicalLine: LogicalLine,
-  startOffset: number,
-  endOffset: number
-): ILink['range'][] {
-  const ranges: ILink['range'][] = [];
-  let lineStartOffset = 0;
-  for (let lineIndex = 0; lineIndex < logicalLine.lineTexts.length; lineIndex += 1) {
-    const lineLength = logicalLine.lineTexts[lineIndex]?.length ?? 0;
-    const lineEndOffset = lineStartOffset + lineLength;
-    const segmentStartOffset = Math.max(startOffset, lineStartOffset);
-    const segmentEndOffset = Math.min(endOffset, lineEndOffset);
-    if (segmentStartOffset < segmentEndOffset) {
-      const columnForOffset = logicalLine.columnForOffsetOnLine[lineIndex];
-      const y = logicalLine.startBufferIndex + lineIndex + 1;
-      ranges.push({
-        start: {
-          x: columnForOffset?.(segmentStartOffset - lineStartOffset) ?? segmentStartOffset + 1,
-          y,
-        },
-        end: {
-          x:
-            columnForOffset?.(segmentEndOffset - lineStartOffset - 1) ??
-            segmentEndOffset - lineStartOffset,
-          y,
-        },
-      });
-    }
-    lineStartOffset = lineEndOffset;
-  }
-  return ranges;
-}
-
-function shouldUseVisibleRanges(ranges: ILink['range'][]): boolean {
-  return ranges.some((range, index) => index > 0 && range.start.x > 1);
 }
 
 function rangeContainsBufferLine(range: ILink['range'], bufferLineNumber: number): boolean {
@@ -255,16 +170,16 @@ function rangeContainsBufferLine(range: ILink['range'], bufferLineNumber: number
 }
 
 function mapOffsetToBufferPosition(
-  logicalLine: LogicalLine,
+  span: WrappedSpan,
   offset: number
 ): ILink['range']['start'] | null {
   let remaining = offset;
-  for (let lineIndex = 0; lineIndex < logicalLine.lineTexts.length; lineIndex += 1) {
-    const lineLength = logicalLine.lineTexts[lineIndex]?.length ?? 0;
+  for (let lineIndex = 0; lineIndex < span.lineTexts.length; lineIndex += 1) {
+    const lineLength = span.lineTexts[lineIndex]?.length ?? 0;
     if (remaining < lineLength) {
       return {
-        x: logicalLine.columnForOffsetOnLine[lineIndex]?.(remaining) ?? remaining + 1,
-        y: logicalLine.startBufferIndex + lineIndex + 1,
+        x: span.columnForOffsetOnLine[lineIndex]?.(remaining) ?? remaining + 1,
+        y: span.startBufferIndex + lineIndex + 1,
       };
     }
     remaining -= lineLength;

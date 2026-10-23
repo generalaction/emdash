@@ -129,6 +129,15 @@ The PTY frontend is owned by the terminals slice:
   `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
 - Agent conversation panes set `PtyPane`'s `inputContext="agent"` to preserve native Alt+arrow
   sequences. The default shell context maps macOS Option+arrows to shell editing controls.
+- Terminal selection copy preserves xterm's selected text (xterm already joins soft wraps).
+  Copy Link uses the OSC 8 destination or URLs within a soft-wrapped logical line; never infer
+  a continuation across hard newlines from punctuation or indentation. Intercepted OSC 8 mouse
+  gestures must activate locally once while sending no mouse reports to the PTY. Keep that
+  decision in step with xterm's linkifier: same cell rounding, links compared by destination and
+  range (xterm recreates them on repaint), and hover state only from its callbacks. Never stop
+  propagation of a release when xterm saw the press; it must finish selection and mouse reports.
+  An intercepted gesture must also end on a move without the primary button or on the next
+  primary press, so a lost release never leaves the shield swallowing input.
 
 ## React Query Context Pattern
 

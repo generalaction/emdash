@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  copyableTerminalSelection,
-  findUrlLinks,
-} from '@core/features/terminals/browser/pty/url-link-detection';
+import { findUrlLinks } from '@core/features/terminals/browser/pty/url-link-detection';
 
 type MockCell = {
   chars: string;
@@ -16,7 +13,7 @@ class MockBufferLine {
   constructor(
     private readonly text: string,
     readonly isWrapped = false,
-    cells?: MockCell[]
+    private readonly cells?: MockCell[]
   ) {
     this.length = cells?.length ?? text.length;
     if (cells) {
@@ -31,9 +28,28 @@ class MockBufferLine {
     }
   }
 
-  translateToString(): string {
-    return this.text;
+  // Like xterm, trimRight drops only trailing empty cells; printed spaces are content.
+  translateToString(trimRight = false): string {
+    if (!this.cells) return this.text;
+    let end = this.cells.length;
+    while (trimRight && end > 0 && this.cells[end - 1]?.chars === '') end -= 1;
+    return this.cells
+      .slice(0, end)
+      .filter((cell) => cell.width > 0)
+      .map((cell) => cell.chars || ' ')
+      .join('');
   }
+}
+
+function cellsFor(text: string): MockCell[] {
+  return Array.from(text).flatMap((chars) =>
+    /\p{Script=Han}/u.test(chars)
+      ? [
+          { chars, width: 2 },
+          { chars: '', width: 0 },
+        ]
+      : [{ chars, width: 1 }]
+  );
 }
 
 function makeBuffer(lines: MockBufferLine[]) {
@@ -42,6 +58,14 @@ function makeBuffer(lines: MockBufferLine[]) {
       return lines[index];
     },
   };
+}
+
+function softWrap(text: string, width: number): MockBufferLine[] {
+  const rows: MockBufferLine[] = [];
+  for (let offset = 0; offset < text.length; offset += width) {
+    rows.push(new MockBufferLine(text.slice(offset, offset + width), offset > 0));
+  }
+  return rows;
 }
 
 describe('findUrlLinks', () => {
@@ -56,10 +80,10 @@ describe('findUrlLinks', () => {
     ]);
   });
 
-  it('joins a URL split by a TUI hard wrap', () => {
+  it('joins a URL whose protocol is split by a soft wrap', () => {
     const buffer = makeBuffer([
       new MockBufferLine('Investigate KAI-1044 (https://'),
-      new MockBufferLine('linear.app/kairoslive/issue/KAI-1044)'),
+      new MockBufferLine('linear.app/kairoslive/issue/KAI-1044)', true),
     ]);
     const url = 'https://linear.app/kairoslive/issue/KAI-1044';
 
@@ -97,17 +121,91 @@ describe('findUrlLinks', () => {
     expect(findUrlLinks(buffer, 2)).toEqual([]);
   });
 
-  it('resolves a URL from later hard-wrapped continuation rows', () => {
+  it('resolves a URL from every soft-wrapped continuation row', () => {
     const buffer = makeBuffer([
       new MockBufferLine('https://example.com/'),
-      new MockBufferLine('foo/bar/'),
-      new MockBufferLine('baz'),
+      new MockBufferLine('foo/bar/', true),
+      new MockBufferLine('baz', true),
     ]);
     const url = 'https://example.com/foo/bar/baz';
 
     expect(findUrlLinks(buffer, 1)[0]?.text).toBe(url);
     expect(findUrlLinks(buffer, 2)[0]?.text).toBe(url);
     expect(findUrlLinks(buffer, 3)[0]?.text).toBe(url);
+  });
+
+  it('keeps separate hard lines separate even when the first URL ends in a slash', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('https://example.com/'),
+      new MockBufferLine('https://other.example/'),
+    ]);
+    expect(findUrlLinks(buffer, 1)[0]?.text).toBe('https://example.com/');
+    expect(findUrlLinks(buffer, 2)[0]?.text).toBe('https://other.example/');
+  });
+
+  it('preserves a space separating a URL from prose at a soft wrap', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('https://example.com/ '),
+      new MockBufferLine('started successfully', true),
+    ]);
+    expect(findUrlLinks(buffer, 1)[0]?.text).toBe('https://example.com/');
+    expect(findUrlLinks(buffer, 2)).toEqual([]);
+  });
+
+  it('ignores the empty padding cell left when a wide character soft-wraps', () => {
+    const head = 'https://example.com/abc';
+    const buffer = makeBuffer([
+      new MockBufferLine(head, false, [...cellsFor(head), { chars: '', width: 1 }]),
+      new MockBufferLine('界面tail', true, cellsFor('界面tail')),
+    ]);
+    const link = {
+      range: { start: { x: 1, y: 1 }, end: { x: 8, y: 2 } },
+      text: 'https://example.com/abc界面tail',
+    };
+
+    expect(findUrlLinks(buffer, 1)).toEqual([link]);
+    expect(findUrlLinks(buffer, 2)).toEqual([link]);
+  });
+
+  it('keeps the closing bracket of an IPv6 host', () => {
+    const buffer = makeBuffer([new MockBufferLine('Listening on http://[::1] now')]);
+    expect(findUrlLinks(buffer, 1)).toEqual([
+      { range: { start: { x: 14, y: 1 }, end: { x: 25, y: 1 } }, text: 'http://[::1]' },
+    ]);
+  });
+
+  it('finds a short URL after thousands of characters on its soft-wrapped line', () => {
+    // 4160 + ' see '.length puts the URL at row 42, columns 66-90.
+    const line = `${'x'.repeat(4160)} see https://example.com/short ok`;
+    const buffer = makeBuffer(softWrap(line, 100));
+
+    expect(findUrlLinks(buffer, 42)).toEqual([
+      {
+        range: { start: { x: 66, y: 42 }, end: { x: 90, y: 42 } },
+        text: 'https://example.com/short',
+      },
+    ]);
+  });
+
+  it('finds the whole URL or nothing when a URL outruns the scan limit', () => {
+    const url = `https://a.example/r?next=${'x'.repeat(4200)}&to=https://b.example/path`;
+    const rows = softWrap(url, 100);
+    const buffer = makeBuffer(rows);
+    const texts = rows.map((_, index) => findUrlLinks(buffer, index + 1).map((link) => link.text));
+
+    // From the first row the scan cannot reach the end, and from the last row it
+    // cannot reach the start, where it would otherwise yield https://b.example/path.
+    expect(texts[0]).toEqual([]);
+    expect(texts[rows.length - 1]).toEqual([]);
+    // Middle rows see both ends, so they find the whole URL; no row yields a fragment.
+    expect(texts[rows.length >> 1]).toEqual([url]);
+    expect(texts.flat().every((text) => text === url)).toBe(true);
+  });
+
+  it('does not infer a URL destination from an incomplete hard-wrapped protocol', () => {
+    const buffer = makeBuffer([new MockBufferLine('https://'), new MockBufferLine('example.com/')]);
+    expect(findUrlLinks(buffer, 1)).toEqual([]);
+    expect(findUrlLinks(buffer, 2)).toEqual([]);
   });
 
   it('maps URL columns through wide characters', () => {
@@ -125,41 +223,5 @@ describe('findUrlLinks', () => {
     expect(match?.text).toBe(url);
     expect(match?.range.start.x).toBe(4);
     expect(match?.range.end.x).toBe(27);
-  });
-});
-
-describe('copyableTerminalSelection', () => {
-  it('joins a wrapped URL selection', () => {
-    expect(copyableTerminalSelection('https://\nlinear.app/kairoslive/issue/KAI-1044)')).toBe(
-      'https://linear.app/kairoslive/issue/KAI-1044'
-    );
-  });
-
-  it('leaves non-URL selections unchanged', () => {
-    expect(copyableTerminalSelection('https://example.com/path\nStatus: Todo')).toBe(
-      'https://example.com/path\nStatus: Todo'
-    );
-  });
-
-  it('leaves single-line text unchanged', () => {
-    expect(copyableTerminalSelection('https://example.com/path')).toBe('https://example.com/path');
-  });
-
-  it('joins a mid-segment hard wrap', () => {
-    expect(copyableTerminalSelection('https://example.com/longpat\nh/to/resource')).toBe(
-      'https://example.com/longpath/to/resource'
-    );
-  });
-
-  it('leaves separate URLs on different lines unchanged', () => {
-    expect(copyableTerminalSelection('https://example.com/one\nhttps://example.com/two')).toBe(
-      'https://example.com/one\nhttps://example.com/two'
-    );
-  });
-
-  it('joins a wrapped URL whose next line starts with https://', () => {
-    expect(
-      copyableTerminalSelection('https://example.com/redirect?next=\nhttps://example.com/target')
-    ).toBe('https://example.com/redirect?next=https://example.com/target');
   });
 });
