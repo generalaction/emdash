@@ -10,6 +10,7 @@ import { provider as claude } from './impl/claude';
 import { provider as cline } from './impl/cline';
 import { provider as codebuddy } from './impl/codebuddy';
 import { provider as codebuff } from './impl/codebuff';
+import { provider as codewhale } from './impl/codewhale';
 import { provider as codex } from './impl/codex';
 import { provider as commandcode } from './impl/commandcode';
 import { provider as continueCli } from './impl/continue';
@@ -69,6 +70,7 @@ for (const p of [
   codebuddy,
   continueCli,
   codebuff,
+  codewhale,
   freebuff,
   mistral,
   jules,

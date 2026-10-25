@@ -7,13 +7,13 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (37)
+## Current Providers (38)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, codewhale, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
 
-## Current ACP-Capable Providers (23)
+## Current ACP-Capable Providers (24)
 
-codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, prime-agent, codebuddy
+codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, prime-agent, codebuddy, codewhale
 
 ## Provider Metadata Includes
 
@@ -83,6 +83,18 @@ resolves `orcarouter/*` models through its models.dev catalog, so setting `ORCAR
 you select an OrcaRouter model from the OpenCode model picker.
 
 ## Provider Runtime Notes
+
+- Codewhale is detected through `codewhale` on PATH and installed with
+  `npm install -g codewhale`. Configure model access in Codewhale before sending
+  prompts. Its terminal command uses `--fresh --prompt` to isolate new tasks from
+  workspace auto-resume. Terminal session-ID capture and lifecycle hooks are not
+  integrated, so terminal sessions are stateless in Emdash. Native ACP uses
+  `codewhale serve --acp`; published 0.10.2 supports session creation and loading
+  and advertises terminal credential setup through `auth set --provider <provider>`.
+  It rejects nonempty client-supplied `mcpServers`, so MCP provisioning and
+  MCP-backed team integration are not declared. Approval and sandbox settings are
+  left to Codewhale; Emdash does not enable approval bypass. The agent env allows
+  `CODEWHALE_HOME`, `CODEWHALE_CONFIG_PATH`, and `CODEWHALE_TELEMETRY` overrides.
 
 - Host dependencies are resolved by the host-scoped `HostDependencies` Wire component.
   Provider plugins declare PATH-only definitions (`binaryNames`, install guidance, and optional
