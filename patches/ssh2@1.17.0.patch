@@ -1,8 +1,30 @@
 diff --git a/lib/agent.js b/lib/agent.js
-index bb495d1b191433c1be51929bb551bba1a8b03c1f..ea23486875ebc802b1bb81ec4d1f2e873727a8a4 100644
+index bb495d1b191433c1be51929bb551bba1a8b03c1f..0cb92294f8ecdf0b4d9b067fed5ee493ffc02cef 100644
 --- a/lib/agent.js
 +++ b/lib/agent.js
-@@ -781,7 +781,8 @@ const AgentProtocol = (() => {
+@@ -215,7 +215,9 @@ const PageantAgent = (() => {
+       this.buffer = null;
+ 
+       let error;
+-      const proc = this.proc = spawn(EXEPATH, [ data.length ]);
++      const proc = this.proc = spawn(EXEPATH, [ data.length ], {
++        windowsHide: true,
++      });
+       proc.stdout.on('data', (data) => {
+         this.push(data);
+       });
+@@ -281,7 +283,9 @@ const CygwinAgent = (() => {
+ 
+           // Try using `cygpath` to convert a possible *nix-style path to the
+           // real Windows path before giving up ...
+-          execFile('cygpath', ['-w', socketPath], (err, stdout, stderr) => {
++          const args = ['-w', socketPath];
++          const opts = { windowsHide: true };
++          execFile('cygpath', args, opts, (err, stdout, stderr) => {
+             if (err || stdout.length === 0)
+               return cb(new Error('Invalid cygwin unix socket path'));
+ 
+@@ -781,7 +785,8 @@ const AgentProtocol = (() => {
        if (pubKey instanceof Error)
          throw new Error('Invalid public key argument');
  
