@@ -122,7 +122,10 @@ describe('measureProjectWorkspaces', () => {
     );
 
     expect(client).toHaveBeenCalledWith({ type: 'remote', id: 'ssh-1' });
-    expect(measureUsage).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
+    expect(measureUsage).toHaveBeenCalledWith(
+      { workspaceId: 'workspace-1' },
+      { signal: undefined, timeoutMs: 0 }
+    );
     expect(result.results).toEqual([
       {
         path: '/srv/repo',
@@ -162,10 +165,39 @@ describe('measureProjectWorkspaces', () => {
     );
 
     expect(measureUsage.mock.calls).toEqual([
-      [{ workspaceId: 'ws-root', excludeWorkspaceIds: ['ws-a'] }],
-      [{ workspaceId: 'ws-a' }],
-      [{ workspaceId: 'ws-sibling' }],
+      [
+        { workspaceId: 'ws-root', excludeWorkspaceIds: ['ws-a'] },
+        { signal: undefined, timeoutMs: 0 },
+      ],
+      [{ workspaceId: 'ws-a' }, { signal: undefined, timeoutMs: 0 }],
+      [{ workspaceId: 'ws-sibling' }, { signal: undefined, timeoutMs: 0 }],
     ]);
+  });
+
+  it('stops measuring once the request is cancelled', async () => {
+    listRows([
+      workspaceRow({ kind: 'root', workspaceId: 'ws-root', path: '/srv/repo' }),
+      workspaceRow({ workspaceId: 'ws-other', path: '/srv/other' }),
+    ]);
+    const controller = new AbortController();
+    const measureUsage = vi.fn(async () => {
+      controller.abort(new Error('view closed'));
+      throw new Error('Wire call cancelled');
+    });
+    const client = vi.fn(async () => ok({ workspaceRegistry: { measureUsage } } as never));
+
+    await expect(
+      measureProjectWorkspaces(
+        { db: {} as never, runtimes: { client }, taskSessions: { getTask: vi.fn() } },
+        { projectId: 'project-1', paths: ['/srv/repo', '/srv/other'] },
+        controller.signal
+      )
+    ).rejects.toThrow('view closed');
+    expect(measureUsage).toHaveBeenCalledTimes(1);
+    expect(measureUsage).toHaveBeenCalledWith(
+      { workspaceId: 'ws-root' },
+      { signal: controller.signal, timeoutMs: 0 }
+    );
   });
 
   it('fails a row without a registered workspace id instead of calling the host', async () => {
