@@ -54,6 +54,13 @@ can use the Nx cache.
   omits the Playwright-backed `browser` project locally; CI omits it automatically.
 - Tests use per-file `vi.mock()` setup.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
+- `tooling/vitest/setup-isolated-home.mjs` (repo root) gives every test file in the app's
+  `node`, `main-db`, `fixtures`, and `migrations` projects, `@emdash/core`, and
+  `@emdash/workspace-server` its own empty `HOME` with a minimal global git config, and drops
+  inherited `GIT_*` and XDG home variables. Tests there never see the developer's git config or
+  write to `~/.emdash`, `~/.ssh`, and the like. A test that is about home-directory behavior
+  builds its own environment. The app's `scripts` project and `@emdash/plugins` run the real
+  pnpm/Nx toolchain and keep the developer's home.
 
 ## CI Notes
 
