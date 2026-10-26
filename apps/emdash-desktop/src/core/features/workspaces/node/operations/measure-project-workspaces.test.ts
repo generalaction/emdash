@@ -124,7 +124,7 @@ describe('measureProjectWorkspaces', () => {
     expect(client).toHaveBeenCalledWith({ type: 'remote', id: 'ssh-1' });
     expect(measureUsage).toHaveBeenCalledWith(
       { workspaceId: 'workspace-1' },
-      { signal: undefined, timeoutMs: 0 }
+      { signal: undefined }
     );
     expect(result.results).toEqual([
       {
@@ -165,12 +165,9 @@ describe('measureProjectWorkspaces', () => {
     );
 
     expect(measureUsage.mock.calls).toEqual([
-      [
-        { workspaceId: 'ws-root', excludeWorkspaceIds: ['ws-a'] },
-        { signal: undefined, timeoutMs: 0 },
-      ],
-      [{ workspaceId: 'ws-a' }, { signal: undefined, timeoutMs: 0 }],
-      [{ workspaceId: 'ws-sibling' }, { signal: undefined, timeoutMs: 0 }],
+      [{ workspaceId: 'ws-root', excludeWorkspaceIds: ['ws-a'] }, { signal: undefined }],
+      [{ workspaceId: 'ws-a' }, { signal: undefined }],
+      [{ workspaceId: 'ws-sibling' }, { signal: undefined }],
     ]);
   });
 
@@ -196,7 +193,7 @@ describe('measureProjectWorkspaces', () => {
     expect(measureUsage).toHaveBeenCalledTimes(1);
     expect(measureUsage).toHaveBeenCalledWith(
       { workspaceId: 'ws-root' },
-      { signal: controller.signal, timeoutMs: 0 }
+      { signal: controller.signal }
     );
   });
 

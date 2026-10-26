@@ -185,10 +185,11 @@ describe('deleteProject', () => {
     // Only the provenance worktree removes host-side; the adopted row and the
     // repository root untrack without a host call.
     expect(registry.deleteWorktree).toHaveBeenCalledTimes(1);
-    expect(registry.deleteWorktree).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      deleteBranch: false,
-    });
+    // A bounded wait: a slower removal hands off to the deletion tombstone.
+    expect(registry.deleteWorktree).toHaveBeenCalledWith(
+      { workspaceId: 'workspace-1', deleteBranch: false },
+      { timeoutMs: 30_000 }
+    );
     const workspaceRegistry = createWorkspaceRegistry(fixture.db);
     expect(workspaceRegistry.getLive('workspace-1')).toBeUndefined();
     expect(workspaceRegistry.getLive('workspace-2')).toBeUndefined();

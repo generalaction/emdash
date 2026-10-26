@@ -50,20 +50,25 @@ export const workspacesWireContract = defineContract({
     result: workspaceProvisionResultSchema,
     error: workspaceSliceErrorSchema,
   }),
+  // The verbs below wait for host work with no fixed bound — worktree creation, teardown
+  // scripts, worktree removal, artifact cleaning — so they carry no call deadline.
   reprovision: fallible({
     input: workspaceIdInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
   removeAndReprovision: fallible({
     input: workspaceIdInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
   delete: fallible({
     input: workspaceIdInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
   /**
    * Removes the workspace's artifacts in place (the host registry's cleanArtifacts):
@@ -73,6 +78,7 @@ export const workspacesWireContract = defineContract({
     input: cleanWorkspaceArtifactsInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
 });
 

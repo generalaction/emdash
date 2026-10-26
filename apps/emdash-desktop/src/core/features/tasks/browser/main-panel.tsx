@@ -214,10 +214,9 @@ async function reprovisionWorkspace(
   }
   try {
     const client = await getWorkspacesWireClient();
-    // Re-provisioning awaits the host's worktree creation, which has no fixed bound.
     const result = removeFirst
-      ? await client.removeAndReprovision({ workspaceId }, { timeoutMs: 0 })
-      : await client.reprovision({ workspaceId }, { timeoutMs: 0 });
+      ? await client.removeAndReprovision({ workspaceId })
+      : await client.reprovision({ workspaceId });
     if (!result.success) throw new Error(result.error.message);
     await getTaskManagerStore(projectId)?.provisionTask(taskId);
   } catch (error) {
@@ -232,9 +231,11 @@ const PROVISION_LOADER_DELAY_MS = 300;
 /** Human labels for the host createWorktree stages streamed via the records overlay. */
 const CREATION_STAGE_LABELS: Record<string, string> = {
   inspect: 'Inspecting the repository',
+  'fetch-branch': 'Fetching the branch',
   'resolve-base': 'Resolving the base branch',
   'fetch-base': 'Fetching the base branch',
   'add-worktree': 'Creating the worktree',
+  'configure-branch': 'Configuring the branch',
   verify: 'Verifying the worktree',
 };
 

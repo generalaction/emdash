@@ -146,10 +146,10 @@ describe('WorkspaceDetailPage Clean Artifacts', () => {
     expect(dialog.description).toContain("project's preserve patterns");
     expect(dialog.description).toContain('the worktree and its tasks');
     expect(dialog.description).not.toMatch(/teardown|stops/i);
-    expect(mocks.cleanArtifacts).toHaveBeenCalledWith(
-      { projectId: 'project-1', workspaceId: 'workspace-1' },
-      { timeoutMs: 0 }
-    );
+    expect(mocks.cleanArtifacts).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
     expect(mocks.toast).toHaveBeenCalledWith('Cleaned artifacts for feature');
     expect(mocks.invalidateQueries).toHaveBeenCalled();
   });

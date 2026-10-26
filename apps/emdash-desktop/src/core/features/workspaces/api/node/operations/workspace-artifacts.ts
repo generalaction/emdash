@@ -12,8 +12,9 @@ export async function cleanWorkspaceArtifactsThroughRegistry(
   registry: Pick<WorkspaceRegistryRuntimeClient, 'cleanArtifacts'>,
   workspaceId: string
 ): Promise<Result<MutationAck, MutationError>> {
-  // Removing a large dependency tree can outlast the default call deadline.
-  const cleaned = await registry.cleanArtifacts({ workspaceId }, { timeoutMs: 0 });
+  // Waits for the whole removal: the contract gives cleanArtifacts no call deadline, since
+  // removing a large dependency tree has no fixed bound.
+  const cleaned = await registry.cleanArtifacts({ workspaceId });
   if (cleaned.success) return ok({});
   return err({ type: cleaned.error.type, message: cleanArtifactsErrorMessage(cleaned.error) });
 }
