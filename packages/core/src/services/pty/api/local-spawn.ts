@@ -44,8 +44,12 @@ export type LocalPtySpawnWarning = 'tmux_unsupported_on_windows';
 export type ResolvedLocalPtySpawn = {
   invocation: NativeInvocation;
   cwd: string;
+  /** The environment to spawn the invocation with. */
+  env: Record<string, string>;
   warnings: LocalPtySpawnWarning[];
 };
+
+type ResolvedPlatformSpawn = Omit<ResolvedLocalPtySpawn, 'env'>;
 
 function argvInvocation(executable: string, argv: readonly string[]): NativeInvocation {
   return { kind: 'argv', executable, argv: [...argv] };
@@ -133,7 +137,7 @@ function windowsShellLineSpawn({
   env: NodeJS.ProcessEnv;
   shellProfile: PtySpawnIntent['shellProfile'];
   warnings: LocalPtySpawnWarning[];
-}): ResolvedLocalPtySpawn {
+}): ResolvedPlatformSpawn {
   return {
     invocation: planShellLaunch({ platform: 'win32', commandLine, env, shellProfile }),
     cwd,
@@ -145,7 +149,7 @@ function resolveWindowsSpawn(
   intent: PtySpawnIntent,
   env: NodeJS.ProcessEnv,
   fileExists?: FileExists
-): ResolvedLocalPtySpawn {
+): ResolvedPlatformSpawn {
   const warnings = windowsWarnings(intent);
   const shell = intent.shellProfile?.executable ?? getWindowsShell(env);
 
@@ -238,7 +242,7 @@ function resolvePosixSpawn(
   intent: PtySpawnIntent,
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform
-): ResolvedLocalPtySpawn {
+): ResolvedPlatformSpawn {
   const shell = getResolvedShell(intent, env);
   const interactiveArgs = getInteractiveArgs(intent);
   const commandArgs = getCommandArgs(intent);
@@ -316,27 +320,26 @@ export function resolveLocalPtySpawn({
 }: {
   intent: PtySpawnIntent;
   platform: NodeJS.Platform;
-  env: NodeJS.ProcessEnv;
+  env: Record<string, string>;
   fileExists?: FileExists;
 }): ResolvedLocalPtySpawn {
-  if (platform === 'win32') return resolveWindowsSpawn(intent, env, fileExists);
+  if (platform === 'win32') return { ...resolveWindowsSpawn(intent, env, fileExists), env };
 
   const resolved = resolvePosixSpawn(intent, env, platform);
-  if (!intent.tmux) return resolved;
+  if (!intent.tmux) return { ...resolved, env };
   const { invocation } = resolved;
   if (invocation.kind !== 'argv') throw new Error('tmux requires a POSIX argv invocation');
 
+  const launch = buildTmuxShellLine(
+    intent.tmux.name,
+    { command: invocation.executable, args: [...invocation.argv] },
+    env,
+    intent.tmux.identity
+  );
   return {
     ...resolved,
-    invocation: argvInvocation('/bin/sh', [
-      '-c',
-      buildTmuxShellLine(
-        intent.tmux.name,
-        { command: invocation.executable, args: [...invocation.argv] },
-        env,
-        intent.tmux.identity
-      ),
-    ]),
+    invocation: argvInvocation('/bin/sh', ['-c', launch.shellLine]),
+    env: launch.env,
   };
 }
 

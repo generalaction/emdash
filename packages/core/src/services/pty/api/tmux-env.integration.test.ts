@@ -1,5 +1,5 @@
 import { execFile, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
@@ -86,6 +86,64 @@ describe.skipIf(!hasTmux)('tmux task environment isolation', () => {
     }
   );
 
+  it('never passes task values through process arguments', async () => {
+    const fixture = await createFixture();
+    const secrets = ['synthetic-argv-nonce', 'synthetic-argv-key', '"q\'uoted;'];
+    const sampler = sampleProcessArguments(secrets);
+    try {
+      const overrides = {
+        EMDASH_GIT_CREDENTIAL_NONCE: secrets[0],
+        EMDASH_TEST_API_KEY: secrets[1],
+        EMDASH_TEST_VALUE: secrets[2],
+      };
+      const [command, shell] = await Promise.all([
+        fixture.launch('argv-command', 'run-command', overrides),
+        fixture.launch('argv-shell', 'interactive-shell', overrides),
+      ]);
+      expect(command.env).toMatchObject(overrides);
+      expect(shell.env).toMatchObject(overrides);
+
+      const tmuxArguments = await readFile(fixture.tmuxArgumentLog, 'utf8');
+      expect(tmuxArguments).toContain('new-session');
+      for (const secret of secrets) expect(tmuxArguments).not.toContain(secret);
+      expect(await sampler.stop()).toEqual([]);
+    } finally {
+      await sampler.stop();
+      await fixture.dispose();
+    }
+  });
+
+  it('transfers large environments and removes its private channel', async () => {
+    const fixture = await createFixture();
+    try {
+      // Together these exceed Linux's 128 KiB limit for a single environment string.
+      const large = {
+        EMDASH_TEST_LARGE_A: 'a'.repeat(60_000),
+        EMDASH_TEST_LARGE_B: 'b'.repeat(60_000),
+        EMDASH_TEST_LARGE_LINES: 'line\n'.repeat(2_000),
+        EMDASH_TEST_LARGE_QUOTES: "it's ".repeat(2_000),
+      };
+      // Short names like the launcher's own variables must round-trip unchanged.
+      const shortNames = { d: 'd\n', l: 'l\n', n: 'n\n', p: 'p', s: 's', t: 't' };
+      const result = await fixture.launch('large', 'run-command', {
+        ...large,
+        ...shortNames,
+        EMDASH_TMUX_ENV: 'reserved',
+        // Readonly in bash; the restore must continue past it.
+        UID: '0',
+        EMDASH_TASK_NAME: 'large',
+      });
+      expect(result.env).toMatchObject({ ...large, ...shortNames, EMDASH_TASK_NAME: 'large' });
+      expect(Object.keys(result.env).filter((key) => key.startsWith('EMDASH_TMUX_ENV'))).toEqual(
+        []
+      );
+      const entries = await readdir(fixture.directory);
+      expect(entries.filter((name) => name.startsWith('emdash-tmux.'))).toEqual([]);
+    } finally {
+      await fixture.dispose();
+    }
+  }, 20_000);
+
   it('keeps removed credential channels absent and empty askpass values intact', async () => {
     const fixture = await createFixture();
     try {
@@ -148,13 +206,54 @@ describe.skipIf(!hasTmux)('tmux task environment isolation', () => {
 
 type Observation = { env: Record<string, string>; cwd: string; pid: number };
 
+/** Best-effort: records any process whose arguments show a secret while launches run. */
+function sampleProcessArguments(secrets: string[]) {
+  const hits = new Set<string>();
+  let running = true;
+  const readArguments = async () => {
+    if (process.platform !== 'linux') {
+      return (await exec('ps', ['-A', '-ww', '-o', 'args='], { maxBuffer: 1 << 26 })).stdout;
+    }
+    const entries = (await readdir('/proc')).filter((entry) => /^\d+$/.test(entry));
+    const args = await Promise.all(
+      entries.map((pid) => readFile(`/proc/${pid}/cmdline`, 'utf8').catch(() => ''))
+    );
+    return args.map((value) => value.replaceAll('\0', ' ')).join('\n');
+  };
+  const loop = (async () => {
+    while (running) {
+      for (const line of (await readArguments()).split('\n')) {
+        if (secrets.some((secret) => line.includes(secret))) hits.add(line.slice(0, 200));
+      }
+    }
+  })();
+  return {
+    async stop() {
+      running = false;
+      await loop;
+      return [...hits];
+    },
+  };
+}
+
 async function createFixture() {
   // Keep the socket path short enough for macOS's Unix socket limit.
   const directory = await mkdtemp('/tmp/emdash-tmux-env-');
   const cwd = await realpath(directory);
+  // Record every tmux client's arguments before running the real tmux.
+  const tmuxArgumentLog = join(directory, 'tmux-arguments');
+  const bin = join(directory, 'bin');
+  const realTmux = spawnSync('/bin/sh', ['-c', 'command -v tmux'], { encoding: 'utf8' });
+  await mkdir(bin);
+  await writeFile(
+    join(bin, 'tmux'),
+    `#!/bin/sh\nfor arg in "$@"; do printf '%s\\n' "$arg"; done >> ${quoteArg(tmuxArgumentLog, 'posix')}\nexec ${quoteArg(realTmux.stdout.trim(), 'posix')} "$@"\n`,
+    { mode: 0o700 }
+  );
   const baseEnv = {
-    PATH: process.env.PATH ?? '/usr/bin:/bin',
+    PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
     SHELL: '/bin/sh',
+    TMPDIR: directory,
     TMUX_TMPDIR: directory,
     EMDASH_TEST_TOKEN: 'synthetic-base-token',
   };
@@ -184,6 +283,7 @@ async function createFixture() {
     directory,
     cwd,
     tmux,
+    tmuxArgumentLog,
     async launch(
       name: string,
       kind: 'run-command' | 'interactive-shell',
@@ -210,8 +310,11 @@ async function createFixture() {
               shellSetup: options.shellSetup,
             }
           : { ...common, kind, shellSetup: formatCommandLine(command, 'posix') };
-      const env = buildTerminalEnv({ baseEnv, overrides, ...options });
-      const { invocation } = resolveLocalPtySpawn({ intent, env, platform: process.platform });
+      const { invocation, env } = resolveLocalPtySpawn({
+        intent,
+        env: buildTerminalEnv({ baseEnv, overrides, ...options }),
+        platform: process.platform,
+      });
       if (invocation.kind !== 'argv') throw new Error('Expected POSIX argv invocation');
       // No client TTY is needed: creation succeeds and attachment reports that
       // stdin is not a terminal. The actual pane process remains running.

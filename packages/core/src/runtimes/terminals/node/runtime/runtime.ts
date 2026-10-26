@@ -378,7 +378,7 @@ export class TerminalsRuntime {
       {
         invocation: resolved.invocation,
         cwd: resolved.cwd,
-        env,
+        env: resolved.env,
         cols: spec.cols ?? DEFAULT_COLS,
         rows: spec.rows ?? DEFAULT_ROWS,
       },

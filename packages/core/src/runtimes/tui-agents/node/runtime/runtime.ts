@@ -561,7 +561,7 @@ export class TuiAgentsRuntime {
         {
           invocation: spawnSpec.invocation,
           cwd: config.input.cwd,
-          env,
+          env: spawnSpec.env,
           cols: config.input.cols,
           rows: config.input.rows,
         },
@@ -959,7 +959,7 @@ export class TuiAgentsRuntime {
     command: AgentCommand,
     input: TuiAgentStartInput,
     env: Record<string, string>
-  ): Promise<Pick<PtySpawnSpec, 'invocation'>> {
+  ): Promise<Pick<PtySpawnSpec, 'invocation' | 'env'>> {
     const platform = this.deps.platform ?? process.platform;
     const shellProfile = await resolveTerminalShell({
       intent: 'system',
@@ -995,7 +995,7 @@ export class TuiAgentsRuntime {
       { conversationId: input.conversationId },
       this.deps.logger
     );
-    return { invocation: resolved.invocation };
+    return { invocation: resolved.invocation, env: resolved.env };
   }
 
   private maybeRespawnAfterUnexpectedExit(
