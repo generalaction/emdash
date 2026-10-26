@@ -303,15 +303,20 @@ export class TuiAgentsRuntime {
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
     input = this.normalizePlatformInput(input);
+    return this.gitCredentialChannels.handIn(input.gitCredentials, () =>
+      this.startSessionExclusive(input)
+    );
+  }
+
+  private async startSessionExclusive(
+    input: TuiAgentStartInput
+  ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
     return this.launchMutex.runExclusive(input.conversationId, async () => {
       const active = this.sessions.get(input.conversationId);
-      if (active?.pty) {
-        await this.gitCredentialChannels.releaseUnheld(input.conversationId, input.gitCredentials);
-        return ok({ outcome: 'attached' });
-      }
+      if (active?.pty) return ok({ outcome: 'attached' });
 
       const preparedInput = await this.preparePromptInput(input);
       const config: TuiSessionConfig = { input: preparedInput, intent: 'fresh' };
@@ -340,15 +345,20 @@ export class TuiAgentsRuntime {
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
     input = this.normalizePlatformInput(input);
+    return this.gitCredentialChannels.handIn(input.gitCredentials, () =>
+      this.resumeSessionExclusive(input)
+    );
+  }
+
+  private async resumeSessionExclusive(
+    input: TuiAgentStartInput
+  ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
     return this.launchMutex.runExclusive(input.conversationId, async () => {
       const active = this.sessions.get(input.conversationId);
-      if (active?.pty) {
-        await this.gitCredentialChannels.releaseUnheld(input.conversationId, input.gitCredentials);
-        return ok({ outcome: 'attached' });
-      }
+      if (active?.pty) return ok({ outcome: 'attached' });
 
       const intent = input.sessionId ? 'resume' : 'fresh';
       const preparedInput = intent === 'fresh' ? await this.preparePromptInput(input) : input;

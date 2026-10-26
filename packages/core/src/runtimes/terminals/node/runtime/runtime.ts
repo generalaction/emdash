@@ -203,7 +203,9 @@ export class TerminalsRuntime {
     // Hydrates can overlap; one start at a time decides whether to attach or spawn, so a
     // second spawn never replaces the shell the first just started.
     const sessionKey = sessionKeyFor(input.key);
-    return this.startMutex.runExclusive(sessionKey, () => this.startExclusive(sessionKey, input));
+    return this.gitCredentialChannels.handIn(input.spec.gitCredentials, () =>
+      this.startMutex.runExclusive(sessionKey, () => this.startExclusive(sessionKey, input))
+    );
   }
 
   private async startExclusive(
@@ -211,11 +213,8 @@ export class TerminalsRuntime {
     input: StartTerminalInput
   ): Promise<Result<void, TerminalStartFailedError>> {
     const existing = this.registry.get(sessionKey);
-    if (existing && !existing.exited) {
-      // Attached: the live shell keeps the channel it started with.
-      await this.gitCredentialChannels.releaseUnheld(sessionKey, input.spec.gitCredentials);
-      return ok(undefined);
-    }
+    // Attached: the live shell keeps the channel it started with.
+    if (existing && !existing.exited) return ok(undefined);
     if (existing) {
       // Restart of a retained exited terminal: evict-then-create. The start
       // count survives eviction so the renderer still sees a restart, and so

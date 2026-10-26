@@ -37,9 +37,10 @@
 - do not weaken quoting or spawn behavior casually
 - validate both direct spawn and shell-wrapped spawn cases when changing PTY startup logic
 - confirm renderer event flow if hook/plugin payload or agent status behavior changes
-- a Git credential channel handed in with a start request belongs to the session runtime:
-  hold it for the session that spawns with it, release it at once when nothing spawns, and
-  release it when that session's process ends or the session is evicted
+- a Git credential channel handed in with a start request belongs to the session runtime from
+  the moment the request arrives, queued or not: hold it for the session that spawns with it,
+  release it once nothing holds it and no start carrying it is pending, and release it when
+  that session's process ends or the session is evicted
   (`SessionGitCredentialChannels`); a tmux client's exit does not end the tmux session, so a
   tmux-backed session keeps its channel until it is killed or evicted; the desktop server
   reuses a live session's channel and never evicts one to make room

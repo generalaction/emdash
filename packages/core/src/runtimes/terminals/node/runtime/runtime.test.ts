@@ -457,6 +457,38 @@ describe('TerminalsRuntime', () => {
       await scope.dispose();
     });
 
+    it('keeps the channel for a queued start when the start ahead of it fails', async () => {
+      let resolveEnv!: () => void;
+      const envReady = new Promise<void>((resolve) => {
+        resolveEnv = resolve;
+      });
+      const spawner = new FakePtySpawner();
+      const spawn = spawner.spawn.bind(spawner);
+      let spawns = 0;
+      spawner.spawn = (spec) => {
+        spawns += 1;
+        if (spawns === 1) throw new Error('spawn failed');
+        return spawn(spec);
+      };
+      const { scope, runtime, released, key, start } = credentialHarness(spawner, {
+        userEnv: async () => {
+          await envReady;
+          return testUserEnv();
+        },
+      });
+
+      const first = start('channel-1');
+      const second = start('channel-1');
+      resolveEnv();
+      const results = await Promise.all([first, second]);
+
+      expect(results.map((result) => result.success)).toEqual([false, true]);
+      expect(released).toEqual([]);
+      await runtime.kill(key);
+      expect(released).toEqual(['channel-1']);
+      await scope.dispose();
+    });
+
     it.skipIf(process.platform === 'win32')(
       'keeps a tmux session on its channel when the client exits and reattaches',
       async () => {
