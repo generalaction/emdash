@@ -211,6 +211,25 @@ describe('GitCredentialServer', () => {
         await server.channelForSession('p:t:terminal-1', { ...project, providerId: 'gitlab' })
       ).toEqual(gitlab);
     });
+
+    it('never evicts a live channel, however many sessions come and go', async () => {
+      const { server, logLines } = track(makeHarness());
+      const longLived = await server.channelForSession('p:t:long-lived', project);
+
+      for (let index = 0; index < 1_000; index += 1) {
+        const channel = await server.channelForSession(`p:t:short-${index}`, project);
+        server.revokeSession(channel.nonce);
+      }
+      const concurrent = [];
+      for (let index = 0; index < 600; index += 1) {
+        concurrent.push(await server.channelForSession(`p:t:live-${index}`, project));
+      }
+
+      expect((await requestCredential(longLived, request)).status).toBe(200);
+      expect((await requestCredential(concurrent[0]!, request)).status).toBe(200);
+      // Past the warning count the leak is logged once, never resolved by eviction.
+      expect(logLines.filter((line) => line.includes('unusually many'))).toHaveLength(1);
+    });
   });
 
   it('denies non-https requests and host mismatches', async () => {

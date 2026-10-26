@@ -40,6 +40,7 @@
 - a Git credential channel handed in with a start request belongs to the session runtime:
   hold it for the session that spawns with it, release it at once when nothing spawns, and
   release it when that session's process ends or the session is evicted
-  (`SessionGitCredentialChannels`); the desktop server reuses a live session's channel
+  (`SessionGitCredentialChannels`); the desktop server reuses a live session's channel and
+  never evicts one to make room
 - shell commands that call an Emdash loopback endpoint build curl with `loopbackCurlCommand`
   so proxies and the user's curlrc cannot reroute them and the nonce never enters argv

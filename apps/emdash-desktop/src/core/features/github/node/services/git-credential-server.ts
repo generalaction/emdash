@@ -48,8 +48,14 @@ export type GitCredentialServerDeps = {
 };
 
 const MAX_BODY_BYTES = 64 * 1024;
-/** PTY-session channels live as long as the session; cap to bound the map. */
-const MAX_SESSIONS = 512;
+/**
+ * Channels are revoked when their operation or session ends, so the live count stays
+ * near the number of running sessions. There is deliberately no cap: evicting would
+ * break a live session, and refusing would break a new one. Crossing this count (and
+ * each doubling after it) is logged instead, as a sign that something stopped
+ * releasing its channels.
+ */
+const LIVE_CHANNELS_WARNING_COUNT = 512;
 
 type Channel = {
   target: GitCredentialSessionTarget;
@@ -64,6 +70,7 @@ export class GitCredentialServer implements GitCredentialChannelServer {
   private readonly channels = new Map<string, Channel>();
   /** PTY session id -> nonce of the newest channel minted for that session. */
   private readonly sessionChannels = new Map<string, string>();
+  private nextLiveChannelsWarning = LIVE_CHANNELS_WARNING_COUNT;
 
   constructor(private readonly deps: GitCredentialServerDeps) {}
 
@@ -110,11 +117,13 @@ export class GitCredentialServer implements GitCredentialChannelServer {
 
   private register(channel: Channel): string {
     const nonce = crypto.randomBytes(24).toString('hex');
-    if (this.channels.size >= MAX_SESSIONS) {
-      const oldest = this.channels.keys().next().value;
-      if (oldest !== undefined) this.revokeSession(oldest);
-    }
     this.channels.set(nonce, channel);
+    if (this.channels.size >= this.nextLiveChannelsWarning) {
+      this.deps.logger.warn('GitCredentialServer: unusually many live credential channels', {
+        count: this.channels.size,
+      });
+      this.nextLiveChannelsWarning *= 2;
+    }
     return nonce;
   }
 
