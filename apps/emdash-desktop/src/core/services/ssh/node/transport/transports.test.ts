@@ -3,7 +3,7 @@ import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildProxyJumpArgs,
   childToDuplex,
@@ -292,6 +292,27 @@ describe('terminateProxyChild', () => {
       },
     });
     expect(signals).toEqual(['SIGTERM', 'SIGKILL']);
+  });
+
+  it('force-kills the whole process tree once on Windows', async () => {
+    const signals: string[] = [];
+    const child = {
+      pid: 4321,
+      exitCode: null,
+      signalCode: null,
+      kill(signal: string) {
+        signals.push(signal);
+        return true;
+      },
+    };
+    const taskkill = vi.fn(async (_args: string[]) => {});
+
+    terminateProxyChild(child, undefined, { platform: 'win32', taskkill });
+    terminateProxyChild(child, undefined, { platform: 'win32', taskkill });
+
+    await vi.waitFor(() => expect(signals).toEqual(['SIGKILL']));
+    expect(taskkill).toHaveBeenCalledOnce();
+    expect(taskkill).toHaveBeenCalledWith(['/PID', '4321', '/T', '/F']);
   });
 });
 

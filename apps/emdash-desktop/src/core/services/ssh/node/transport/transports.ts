@@ -1,5 +1,9 @@
 import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { Duplex, type Readable, type Writable } from 'node:stream';
+import {
+  ProcessTreeTerminator,
+  type ProcessTreeTerminatorOptions,
+} from '@emdash/core/primitives/exec/node';
 
 type SshChild = ChildProcessByStdio<Writable, Readable, Readable>;
 
@@ -24,6 +28,7 @@ export type SpawnProcess = (
 ) => SshChild;
 
 type TerminableProcess = {
+  pid?: number;
   exitCode: number | null;
   signalCode?: NodeJS.Signals | null;
   kill(signal: NodeJS.Signals): boolean;
@@ -47,15 +52,39 @@ const SAFE_USERNAME = /^[a-zA-Z0-9._\-@]+$/;
 const SAFE_SSH_ALIAS = /^[A-Za-z0-9._@%+:/[\]-]+$/;
 const MAX_DEBUG_LOG_LINES = 64;
 
+const windowsTreeTerminators = new WeakMap<TerminableProcess, ProcessTreeTerminator>();
+
 function hasExited(child: TerminableProcess): boolean {
   return child.exitCode !== null || child.signalCode !== null;
 }
 
 export function terminateProxyChild(
   child: TerminableProcess,
-  timerApi: TimerApi = { setTimeout }
+  timerApi: TimerApi = { setTimeout },
+  options: Pick<ProcessTreeTerminatorOptions, 'platform' | 'taskkill'> = {}
 ): void {
   if (hasExited(child)) return;
+  if ((options.platform ?? process.platform) === 'win32') {
+    // Windows signals end only the direct child, but a ProxyCommand runs under cmd.exe and
+    // earlier ProxyJump hops are nested ssh.exe processes. One blocked on a hidden prompt never
+    // notices its parent is gone, so kill the whole tree.
+    let terminator = windowsTreeTerminators.get(child);
+    if (!terminator) {
+      terminator = new ProcessTreeTerminator(
+        {
+          pid: child.pid,
+          isExited: () => hasExited(child),
+          kill: (signal) => {
+            child.kill(signal);
+          },
+        },
+        options
+      );
+      windowsTreeTerminators.set(child, terminator);
+    }
+    void terminator.terminate('SIGKILL');
+    return;
+  }
   child.kill('SIGTERM');
   const timer = timerApi.setTimeout(() => {
     if (!hasExited(child)) child.kill('SIGKILL');

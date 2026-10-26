@@ -41,7 +41,8 @@
 - Local proxy children (ProxyJump `ssh -W`, ProxyCommand) and `ssh -G` run with `windowsHide`
   and piped stdio, so nobody can answer their prompts. ProxyJump passes `BatchMode=yes`, but
   OpenSSH does not forward it to earlier `-J` hops, and a ProxyCommand can prompt. On Windows such
-  a prompt waits on a hidden console until the connect timeout instead of opening a window.
+  a prompt waits on a hidden console until the connect timeout, so proxy cleanup must kill the
+  whole process tree there (signals end only `cmd.exe` or the outer `ssh.exe`).
 - Expand user-relative SSH key paths with the OS home-directory helper, not HOME alone;
   Windows environments may provide USERPROFILE without HOME.
 - `ssh2` is patched (`patches/ssh2@<version>.patch` via `pnpm.patchedDependencies`) to keep
