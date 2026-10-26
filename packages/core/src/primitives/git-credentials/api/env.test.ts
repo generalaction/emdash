@@ -214,6 +214,50 @@ describe.skipIf(process.platform === 'win32')('GIT_CREDENTIAL_HELPER_COMMAND wit
       }
     );
   });
+
+  it('reports an unreachable credential service instead of failing silently', async () => {
+    const port = await unusedLoopbackPort();
+    const result = await runGitCredential('fill', helperEnvFor(port), credentialRequest);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      `emdash: cannot reach the Emdash Git credential service at 127.0.0.1:${port};`
+    );
+  });
+
+  it('reports a credential the service did not return', async () => {
+    await withCredentialService(
+      (response) => {
+        response.writeHead(403);
+        response.end();
+      },
+      async (port) => {
+        const result = await runGitCredential('fill', helperEnvFor(port), credentialRequest);
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(
+          'emdash: Emdash did not return a Git credential for this session;'
+        );
+      }
+    );
+  });
+
+  it('reports a session that lost its credential channel', async () => {
+    const env = applyGitCredentialsToEnv({}, helperSpec);
+    delete env.EMDASH_GIT_CREDENTIAL_PORT;
+    delete env.EMDASH_GIT_CREDENTIAL_NONCE;
+    const result = await runGitCredential('fill', env, credentialRequest);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('emdash: this session has no Emdash Git credential channel;');
+  });
+
+  it('keeps erase best-effort and quiet when the service is unreachable', async () => {
+    const port = await unusedLoopbackPort();
+    const result = await runGitCredential(
+      'reject',
+      helperEnvFor(port),
+      `${credentialRequest.trimEnd()}\nusername=emdash-test\npassword=stale\n\n`
+    );
+    expect(result).toMatchObject({ status: 0, stderr: '' });
+  });
 });
 
 describe('applyGitCredentialsToEnv', () => {
