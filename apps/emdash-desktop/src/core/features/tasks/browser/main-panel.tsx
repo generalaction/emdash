@@ -214,9 +214,10 @@ async function reprovisionWorkspace(
   }
   try {
     const client = await getWorkspacesWireClient();
+    // Re-provisioning awaits the host's worktree creation, which has no fixed bound.
     const result = removeFirst
-      ? await client.removeAndReprovision({ workspaceId })
-      : await client.reprovision({ workspaceId });
+      ? await client.removeAndReprovision({ workspaceId }, { timeoutMs: 0 })
+      : await client.reprovision({ workspaceId }, { timeoutMs: 0 });
     if (!result.success) throw new Error(result.error.message);
     await getTaskManagerStore(projectId)?.provisionTask(taskId);
   } catch (error) {
