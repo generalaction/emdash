@@ -231,9 +231,11 @@ const PROVISION_LOADER_DELAY_MS = 300;
 /** Human labels for the host createWorktree stages streamed via the records overlay. */
 const CREATION_STAGE_LABELS: Record<string, string> = {
   inspect: 'Inspecting the repository',
+  'fetch-branch': 'Fetching the branch',
   'resolve-base': 'Resolving the base branch',
   'fetch-base': 'Fetching the base branch',
   'add-worktree': 'Creating the worktree',
+  'configure-branch': 'Configuring the branch',
   verify: 'Verifying the worktree',
 };
 
