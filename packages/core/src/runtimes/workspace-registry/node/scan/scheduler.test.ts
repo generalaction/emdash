@@ -2,7 +2,12 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { deferred, type Deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
+import {
+  gitMetadataWatchProfile,
+  type IWatchService,
+  type WatchEvent,
+  type WatchOptions,
+} from '#services/fs-watch/api';
 import {
   DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS,
   DEFAULT_SCAN_DEBOUNCE_MS,
@@ -18,6 +23,7 @@ import {
 type FakeWatchAttempt = {
   root: string;
   ignore: string[] | undefined;
+  backend: WatchOptions['backend'];
   onEvents: (events: WatchEvent[]) => void;
   onError: ((error: unknown) => void) | undefined;
   ready: Deferred<Result<void, unknown>>;
@@ -35,6 +41,7 @@ class FakeWatchService implements IWatchService {
     const attempt: FakeWatchAttempt = {
       root,
       ignore: options?.ignore,
+      backend: options?.backend,
       onEvents,
       onError: options?.onError,
       ready,
@@ -180,10 +187,13 @@ describe('WorkspaceScanScheduler', () => {
       void scheduler.start();
       expect(watcher.roots.get('/repos/main')?.ignore).toEqual(['.git/**', '**/dist/**']);
       expect(watcher.roots.get('/repos/wt')?.ignore).toEqual(['.git/**', '**/dist/**']);
-      expect(watcher.roots.get(path.join('/repos/main', '.git'))?.ignore).toEqual([
-        'objects/**',
-        'subtree-cache/**',
-      ]);
+      expect(watcher.roots.get('/repos/main')?.backend).toBeUndefined();
+      expect(watcher.roots.get('/repos/wt')?.backend).toBeUndefined();
+      const gitDirWatch = watcher.roots.get(path.join('/repos/main', '.git'));
+      expect({ ignore: gitDirWatch?.ignore, backend: gitDirWatch?.backend }).toEqual(
+        gitMetadataWatchProfile()
+      );
+      expect(gitDirWatch?.backend).toBe('os');
     } finally {
       await scheduler.dispose();
     }
