@@ -19,6 +19,7 @@ import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runt
 import { WorkspaceScanScheduler } from '#runtimes/workspace-registry/node/scan/scheduler';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import * as execApi from '#services/exec/api';
+import { measureAbsolutePathUsage } from '#services/fs-usage/node';
 import { nativeWatchBackend } from '#services/fs-watch/impl/native-backend';
 import { createWatchService } from '#services/fs-watch/impl/watch-service';
 import { createWorkspaceRegistryController } from './controller';
@@ -838,6 +839,35 @@ describe('workspace registry contract', () => {
     if (!measured.success) throw new Error('expected success');
     expect(measured.data.artifactBytes).toBeGreaterThan(0);
     expect(measured.data.totalBytes).toBeGreaterThanOrEqual(measured.data.artifactBytes);
+  });
+
+  it('measureUsage skips nested workspaces measured alongside, so each byte counts once', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreeRoot = path.join(repoPath, '.claude', 'worktrees');
+    await fs.mkdir(worktreeRoot, { recursive: true });
+    const nestedPath = await makeWorktree(repoPath, worktreeRoot, 'nested');
+    await fs.writeFile(path.join(nestedPath, 'build.bin'), 'x'.repeat(64_000));
+    const toolsPath = path.join(repoPath, 'tools');
+    await fs.mkdir(toolsPath);
+    await fs.writeFile(path.join(toolsPath, 'tool.bin'), 'x'.repeat(16_000));
+    const elsewherePath = await makeRepo(root, 'elsewhere');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-nested', path: nestedPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-tools', path: toolsPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-elsewhere', path: elsewherePath });
+
+    const repository = await wire.client.measureUsage({
+      workspaceId: 'ws-repo',
+      // Self, unknown, and non-nested ids are ignored; only measured-alongside rows are skipped.
+      excludeWorkspaceIds: ['ws-repo', 'ws-nested', 'ws-elsewhere', 'unknown'],
+    });
+    const nested = await wire.client.measureUsage({ workspaceId: 'ws-nested' });
+    const fullTree = await measureAbsolutePathUsage(repoPath, '');
+
+    if (!repository.success || !nested.success) throw new Error('expected usage');
+    // The unlisted `tools` workspace stays in the repository's count; the worktree moves out.
+    expect(repository.data.totalBytes + nested.data.totalBytes).toBe(fullTree.exclusiveDiskBytes);
+    expect(nested.data.totalBytes).toBeGreaterThanOrEqual(64_000);
   });
 
   it('measureUsage of an unknown workspaceId is a typed not-found error', async () => {

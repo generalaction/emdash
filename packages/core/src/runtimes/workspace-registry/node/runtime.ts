@@ -84,7 +84,7 @@ import {
   withLifecycleStep,
   type CreationStageTimeline,
 } from './lifecycle';
-import { measureWorkspaceUsage } from './measure-usage';
+import { measureWorkspaceUsage, nestedWorkspacePaths } from './measure-usage';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
@@ -863,7 +863,8 @@ export class WorkspaceRegistryRuntime {
   /**
    * On-demand git-aware disk observation; the path resolves from the registry's own
    * record. Runs off both lanes deliberately — a slow `du` over a large workspace must
-   * never block mutations or scans, and it writes nothing.
+   * never block mutations or scans, and it writes nothing. Workspaces measured
+   * alongside that sit inside this one are skipped so their bytes count once.
    */
   async measureUsage(
     input: MeasureUsageInput,
@@ -873,7 +874,15 @@ export class WorkspaceRegistryRuntime {
     if (!record) {
       return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
     }
-    return measureWorkspaceUsage({ workspacePath: record.path, signal });
+    const alongside = (input.excludeWorkspaceIds ?? []).flatMap((workspaceId) => {
+      const other = workspaceId === record.id ? undefined : this.store.get(workspaceId);
+      return other ? [other.path] : [];
+    });
+    return measureWorkspaceUsage({
+      workspacePath: record.path,
+      excludePaths: nestedWorkspacePaths(record.path, alongside),
+      signal,
+    });
   }
 
   /**

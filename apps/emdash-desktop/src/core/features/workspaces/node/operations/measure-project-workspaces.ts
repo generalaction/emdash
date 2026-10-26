@@ -33,6 +33,10 @@ export async function measureProjectWorkspaces(
   const rowsByPath = new Map(
     listed.rows.map((row) => [workspacePathIdentityKey(row.path), row] as const)
   );
+  const measuredRows = input.paths.flatMap((targetPath) => {
+    const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
+    return row?.pathState === 'measured' && row.workspaceId ? [row] : [];
+  });
   const results = await mapWithConcurrency(input.paths, MEASURE_CONCURRENCY, async (targetPath) => {
     const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
     if (!row) {
@@ -42,7 +46,7 @@ export async function measureProjectWorkspaces(
         message: 'Workspace was not found.',
       } satisfies ProjectWorkspaceUsageResult;
     }
-    return await measureRow(dependencies, project, row);
+    return await measureRow(dependencies, project, row, nestedWorkspaceIds(row, measuredRows));
   });
 
   return {
@@ -55,7 +59,8 @@ export async function measureProjectWorkspaces(
 async function measureRow(
   dependencies: { runtimes: Pick<RuntimeBroker, 'client'> },
   project: Awaited<ReturnType<typeof getProjectWorkspaceProject>>,
-  row: ProjectWorkspaceRow
+  row: ProjectWorkspaceRow,
+  excludeWorkspaceIds: string[]
 ): Promise<ProjectWorkspaceUsageResult> {
   if (row.pathState === 'missing') {
     return { path: row.path, success: false, message: 'Workspace path is missing.' };
@@ -73,6 +78,7 @@ async function measureRow(
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
     const usage = await runtime.data.workspaceRegistry.measureUsage({
       workspaceId: row.workspaceId,
+      ...(excludeWorkspaceIds.length > 0 ? { excludeWorkspaceIds } : {}),
     });
     if (!usage.success) {
       const message = measureUsageErrorMessage(usage.error);
@@ -99,6 +105,21 @@ async function measureRow(
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * The other measured rows inside `row`, so the host skips them and each byte counts
+ * once, in its most specific row. A lenient prefix check over identity keys; the host
+ * re-checks containment against its own records.
+ */
+function nestedWorkspaceIds(row: ProjectWorkspaceRow, measuredRows: ProjectWorkspaceRow[]) {
+  const parentKey = workspacePathIdentityKey(row.path);
+  const prefix = parentKey.endsWith('/') ? parentKey : `${parentKey}/`;
+  return measuredRows.flatMap((other) =>
+    other !== row && other.workspaceId && workspacePathIdentityKey(other.path).startsWith(prefix)
+      ? [other.workspaceId]
+      : []
+  );
 }
 
 function measureUsageErrorMessage(error: MeasureUsageError): string {

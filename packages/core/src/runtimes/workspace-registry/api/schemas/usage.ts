@@ -6,6 +6,11 @@ import { z } from 'zod';
  */
 export const measureUsageInputSchema = z.object({
   workspaceId: z.string().min(1),
+  /**
+   * Workspaces measured alongside this one: any nested inside it are skipped, so a
+   * worktree under its repository counts once, in its own row, and is walked once.
+   */
+  excludeWorkspaceIds: z.array(z.string().min(1)).optional(),
 });
 export type MeasureUsageInput = z.infer<typeof measureUsageInputSchema>;
 

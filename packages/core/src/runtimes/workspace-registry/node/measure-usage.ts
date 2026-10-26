@@ -14,6 +14,8 @@ export type MeasureWorkspaceUsageError = Exclude<
 export type MeasureWorkspaceUsageOptions = {
   /** Absolute native path, as stored on the registry record. */
   workspacePath: string;
+  /** Absolute paths of nested workspaces measured on their own; their bytes are skipped. */
+  excludePaths?: string[];
   signal?: AbortSignal;
   createGitExec?: GitExecFactory;
 };
@@ -31,6 +33,7 @@ export async function measureWorkspaceUsage(
   try {
     const measured = await measureAbsolutePathUsage(options.workspacePath, '', {
       artifactRoots: artifactRoots.data,
+      excludePaths: options.excludePaths,
     });
     return ok({
       totalBytes: measured.exclusiveDiskBytes,
@@ -88,7 +91,18 @@ function parseGitCleanDryRunLine(line: string): string | undefined {
   return normalized;
 }
 
+/** The candidates strictly inside `workspacePath`: nested workspaces its walk can skip. */
+export function nestedWorkspacePaths(workspacePath: string, candidates: string[]): string[] {
+  const root = path.resolve(workspacePath);
+  return candidates.filter((candidate) => isContainedBy(root, path.resolve(candidate)));
+}
+
 function isContainedBy(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
