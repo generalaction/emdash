@@ -249,6 +249,9 @@ describe('GitRepository', () => {
         await git(repo, ['remote', 'add', remoteName, remoteRepo]);
         await git(repo, ['fetch', remoteName]);
         await git(repo, ['remote', 'set-head', remoteName, '--auto']);
+        // Newer Git can recreate a dangling remote HEAD during fetch
+        // (`followRemoteHEAD` defaults to `create`); keep the stale pointer.
+        await git(repo, ['config', `remote.${remoteName}.followRemoteHEAD`, 'never']);
         await git(remoteRepo, ['branch', '-m', 'main', 'prod']);
         await git(repo, ['fetch', '--prune', remoteName]);
 

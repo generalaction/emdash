@@ -15,6 +15,7 @@ import {
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
+import { MISSING_BRANCH_REASON } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { ConversationField } from '@core/features/tasks/contributions/browser/task-config/conversation-field';
@@ -129,7 +130,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     : createAvailability.kind === 'disabled'
       ? (projectAvailabilityUi.getLiveActionDisabledReason(selectedProjectId) ??
         projectAvailabilityUi.defaultLiveActionDisabledReason)
-      : undefined;
+      : state.workspaceConfig.missingBranch
+        ? MISSING_BRANCH_REASON
+        : undefined;
 
   return (
     <>
