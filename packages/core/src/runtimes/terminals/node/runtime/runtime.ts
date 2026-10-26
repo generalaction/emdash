@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { createScope, KeyedMutex, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource } from '@emdash/wire/live';
@@ -26,6 +26,10 @@ import {
   type TerminalSessionState,
   type TerminalStartFailedError,
 } from '#runtimes/terminals/api';
+import {
+  SessionGitCredentialChannels,
+  type ReleaseGitCredentialChannel,
+} from '#services/git-credential-channels/node';
 import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
@@ -82,6 +86,8 @@ export type TerminalsRuntimeOptions = {
   lifecycle?: TerminalsRuntimeLifecycleOptions;
   shellResolver?: TerminalShellResolver;
   createShellResolver?: (env: UserShellEnv) => TerminalShellResolver;
+  /** Returns a session's Git credential channel to the desktop once no session holds it. */
+  releaseGitCredentialChannel?: ReleaseGitCredentialChannel;
   logger?: Logger;
 };
 
@@ -120,6 +126,8 @@ export class TerminalsRuntime {
   private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
   private readonly startCounts = new Map<string, number>();
   private readonly previewSources = new Map<string, PreviewOutputSource>();
+  private readonly gitCredentialChannels: SessionGitCredentialChannels;
+  private readonly startMutex = new KeyedMutex();
 
   constructor(options: TerminalsRuntimeOptions) {
     this.registry = new PtyRegistry(options.spawner, {
@@ -134,6 +142,10 @@ export class TerminalsRuntime {
     this.shellResolver = options.shellResolver;
     this.createShellResolver = options.createShellResolver;
     this.logger = options.logger ?? noopLogger;
+    this.gitCredentialChannels = new SessionGitCredentialChannels(
+      options.releaseGitCredentialChannel ?? (async () => {}),
+      this.logger
+    );
     this.lifecycle = createSessionLifecycle({
       name: 'TerminalsRuntime',
       logger: this.logger,
@@ -156,6 +168,7 @@ export class TerminalsRuntime {
             this.registry.dispose(key);
           },
         },
+        { name: 'git-credential-channel', run: (key) => this.gitCredentialChannels.release(key) },
         {
           name: 'output-log',
           run: (key) => {
@@ -186,20 +199,37 @@ export class TerminalsRuntime {
     this.scope.add(() => this.dispose());
   }
 
-  async start(input: StartTerminalInput): Promise<Result<void, TerminalStartFailedError>> {
+  start(input: StartTerminalInput): Promise<Result<void, TerminalStartFailedError>> {
+    // Hydrates can overlap; one start at a time decides whether to attach or spawn, so a
+    // second spawn never replaces the shell the first just started.
     const sessionKey = sessionKeyFor(input.key);
+    return this.gitCredentialChannels.handIn(input.spec.gitCredentials, () =>
+      this.startMutex.runExclusive(sessionKey, () => this.startExclusive(sessionKey, input))
+    );
+  }
+
+  private async startExclusive(
+    sessionKey: string,
+    input: StartTerminalInput
+  ): Promise<Result<void, TerminalStartFailedError>> {
     const existing = this.registry.get(sessionKey);
+    // Attached: the live shell keeps the channel it started with.
     if (existing && !existing.exited) return ok(undefined);
     if (existing) {
       // Restart of a retained exited terminal: evict-then-create. The start
-      // count survives eviction so the renderer still sees a restart.
+      // count survives eviction so the renderer still sees a restart, and so
+      // does a tmux session's credential channel: the shell inside it may still
+      // run with it, and `hold` below replaces it only if the start hands another.
       const startCount = this.startCounts.get(sessionKey) ?? 0;
-      await this.lifecycle.evict(sessionKey, { cause: 'restart' });
+      await this.gitCredentialChannels.keepThrough(sessionKey, () =>
+        this.lifecycle.evict(sessionKey, { cause: 'restart' })
+      );
       if (startCount > 0) this.startCounts.set(sessionKey, startCount);
     }
 
     this.sessionKeys.set(sessionKey, input.key);
     this.interactiveConfigs.set(sessionKey, { key: input.key, spec: input.spec });
+    await this.gitCredentialChannels.hold(sessionKey, input.spec.gitCredentials);
 
     try {
       await this.spawnInteractiveTerminal(sessionKey, input.key, input.spec);
@@ -373,6 +403,7 @@ export class TerminalsRuntime {
       env,
     });
 
+    const tmuxBacked = Boolean(tmux) && process.platform !== 'win32';
     return await this.registry.create(
       sessionKey,
       {
@@ -384,18 +415,29 @@ export class TerminalsRuntime {
       },
       {
         output: log,
-        tmux: Boolean(tmux) && process.platform !== 'win32',
+        tmux: tmuxBacked,
         onData: (chunk) => {
           this.lifecycle.recordOutput(sessionKey);
           this.previewSourceFor(sessionKey, key).emitData(chunk);
         },
-        onExit: () => this.handleInteractiveExit(sessionKey),
+        onExit: () => this.handleInteractiveExit(sessionKey, spec, tmuxBacked),
       }
     );
   }
 
-  private handleInteractiveExit(sessionKey: string): void {
+  private handleInteractiveExit(
+    sessionKey: string,
+    spec: StartTerminalSpec,
+    tmuxBacked: boolean
+  ): void {
     this.closePreviewSource(sessionKey);
+    // The exited entry is retained for its scrollback, but no process uses the
+    // channel anymore; a restart starts with a new one. A tmux client's exit
+    // (e.g. a detach) leaves the shell inside running with it, so the session
+    // keeps it until it is killed or evicted.
+    if (!tmuxBacked) {
+      void this.gitCredentialChannels.releaseExited(sessionKey, spec.gitCredentials);
+    }
   }
 
   private async resolveShellProfile(

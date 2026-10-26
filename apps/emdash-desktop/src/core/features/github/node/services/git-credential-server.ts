@@ -13,6 +13,7 @@ import type { IntegrationCredentials } from '@emdash/plugins/integrations';
 import type { Logger } from '@emdash/shared/logger';
 import type {
   GitCredentialChannelServer,
+  GitCredentialProjectTarget,
   GitCredentialSessionTarget,
 } from '@core/features/github/api/node/services/git-credentials-service';
 import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
@@ -47,39 +48,83 @@ export type GitCredentialServerDeps = {
 };
 
 const MAX_BODY_BYTES = 64 * 1024;
-/** PTY-session channels live as long as the session; cap to bound the map. */
-const MAX_SESSIONS = 512;
+/**
+ * Channels are revoked when their operation or session ends, so the live count stays
+ * near the number of running sessions. There is deliberately no cap: evicting would
+ * break a live session, and refusing would break a new one. Crossing this count (and
+ * each doubling after it) is logged instead, as a sign that something stopped
+ * releasing its channels.
+ */
+const LIVE_CHANNELS_WARNING_COUNT = 512;
+
+type Channel = {
+  target: GitCredentialSessionTarget;
+  /** The PTY session this channel was minted for; operation channels have none. */
+  sessionId?: string;
+};
 
 export class GitCredentialServer implements GitCredentialChannelServer {
   private server: http.Server | null = null;
   private port = 0;
   private starting: Promise<number> | null = null;
-  private readonly sessions = new Map<string, GitCredentialSessionTarget>();
+  private readonly channels = new Map<string, Channel>();
+  /** PTY session id -> nonce of the newest channel minted for that session. */
+  private readonly sessionChannels = new Map<string, string>();
+  private nextLiveChannelsWarning = LIVE_CHANNELS_WARNING_COUNT;
 
   constructor(private readonly deps: GitCredentialServerDeps) {}
 
   async mintSession(target: GitCredentialSessionTarget): Promise<GitCredentialChannel> {
     const port = await this.ensureStarted();
-    const nonce = crypto.randomBytes(24).toString('hex');
-    if (this.sessions.size >= MAX_SESSIONS) {
-      const oldest = this.sessions.keys().next().value;
-      if (oldest !== undefined) this.sessions.delete(oldest);
+    return { port, nonce: this.register({ target }) };
+  }
+
+  async channelForSession(
+    sessionId: string,
+    target: GitCredentialProjectTarget
+  ): Promise<GitCredentialChannel> {
+    const port = await this.ensureStarted();
+    const current = this.sessionChannels.get(sessionId);
+    const currentTarget = current === undefined ? undefined : this.channels.get(current)?.target;
+    if (current !== undefined && currentTarget && sameProjectTarget(currentTarget, target)) {
+      return { port, nonce: current };
     }
-    this.sessions.set(nonce, target);
+    // A changed target needs a new channel. The old one stays valid while a live
+    // session still runs with it; its runtime releases it when that session ends.
+    const nonce = this.register({ target, sessionId });
+    this.sessionChannels.set(sessionId, nonce);
     return { port, nonce };
   }
 
   revokeSession(nonce: string): void {
-    this.sessions.delete(nonce);
+    const channel = this.channels.get(nonce);
+    if (!channel) return;
+    this.channels.delete(nonce);
+    if (channel.sessionId !== undefined && this.sessionChannels.get(channel.sessionId) === nonce) {
+      this.sessionChannels.delete(channel.sessionId);
+    }
   }
 
   stop(): void {
-    this.sessions.clear();
+    this.channels.clear();
+    this.sessionChannels.clear();
     if (this.server) {
       this.server.close();
       this.server = null;
       this.port = 0;
     }
+  }
+
+  private register(channel: Channel): string {
+    const nonce = crypto.randomBytes(24).toString('hex');
+    this.channels.set(nonce, channel);
+    if (this.channels.size >= this.nextLiveChannelsWarning) {
+      this.deps.logger.warn('GitCredentialServer: unusually many live credential channels', {
+        count: this.channels.size,
+      });
+      this.nextLiveChannelsWarning *= 2;
+    }
+    return nonce;
   }
 
   private ensureStarted(): Promise<number> {
@@ -121,7 +166,7 @@ export class GitCredentialServer implements GitCredentialChannelServer {
       return;
     }
     const nonce = String(req.headers['x-emdash-token'] ?? '');
-    const target = nonce ? this.sessions.get(nonce) : undefined;
+    const target = nonce ? this.channels.get(nonce)?.target : undefined;
     if (!target) {
       this.deps.logger.warn('GitCredentialServer: rejected request with unknown session nonce');
       res.writeHead(403);
@@ -288,4 +333,15 @@ export class GitCredentialServer implements GitCredentialChannelServer {
     if (normalizeRepositoryHost(account.host) !== requestHost) return null;
     return account;
   }
+}
+
+function sameProjectTarget(
+  current: GitCredentialSessionTarget,
+  target: GitCredentialProjectTarget
+): boolean {
+  return (
+    current.kind === 'project' &&
+    current.projectId === target.projectId &&
+    current.providerId === target.providerId
+  );
 }

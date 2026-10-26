@@ -166,6 +166,72 @@ describe('GitCredentialServer', () => {
     expect(revoked.status).toBe(403);
   });
 
+  describe('session channels', () => {
+    const request = 'protocol=https\nhost=github.com\n';
+    const project = { kind: 'project', projectId: 'project-1', providerId: 'github' } as const;
+
+    it('hands a session the channel it already runs with', async () => {
+      const { server } = track(makeHarness());
+      const first = await server.channelForSession('p:t:terminal-1', project);
+
+      const again = await server.channelForSession('p:t:terminal-1', project);
+      const other = await server.channelForSession('p:t:terminal-2', project);
+
+      expect(again).toEqual(first);
+      expect(other.nonce).not.toBe(first.nonce);
+      expect((await requestCredential(first, request)).status).toBe(200);
+    });
+
+    it('mints a new channel once the session has released its own', async () => {
+      const { server } = track(makeHarness());
+      const first = await server.channelForSession('p:t:terminal-1', project);
+
+      server.revokeSession(first.nonce);
+      const next = await server.channelForSession('p:t:terminal-1', project);
+
+      expect(next.nonce).not.toBe(first.nonce);
+      expect((await requestCredential(first, request)).status).toBe(403);
+      expect((await requestCredential(next, request)).status).toBe(200);
+    });
+
+    it('mints a new channel for a changed target and keeps the old one for its live holder', async () => {
+      const { server } = track(makeHarness());
+      const github = await server.channelForSession('p:t:terminal-1', project);
+
+      const gitlab = await server.channelForSession('p:t:terminal-1', {
+        ...project,
+        providerId: 'gitlab',
+      });
+
+      expect(gitlab.nonce).not.toBe(github.nonce);
+      expect((await requestCredential(github, request)).status).toBe(200);
+      // Releasing the replaced channel leaves the session's current one in place.
+      server.revokeSession(github.nonce);
+      expect(
+        await server.channelForSession('p:t:terminal-1', { ...project, providerId: 'gitlab' })
+      ).toEqual(gitlab);
+    });
+
+    it('never evicts a live channel, however many sessions come and go', async () => {
+      const { server, logLines } = track(makeHarness());
+      const longLived = await server.channelForSession('p:t:long-lived', project);
+
+      for (let index = 0; index < 1_000; index += 1) {
+        const channel = await server.channelForSession(`p:t:short-${index}`, project);
+        server.revokeSession(channel.nonce);
+      }
+      const concurrent = [];
+      for (let index = 0; index < 600; index += 1) {
+        concurrent.push(await server.channelForSession(`p:t:live-${index}`, project));
+      }
+
+      expect((await requestCredential(longLived, request)).status).toBe(200);
+      expect((await requestCredential(concurrent[0]!, request)).status).toBe(200);
+      // Past the warning count the leak is logged once, never resolved by eviction.
+      expect(logLines.filter((line) => line.includes('unusually many'))).toHaveLength(1);
+    });
+  });
+
   it('denies non-https requests and host mismatches', async () => {
     const { server } = track(makeHarness());
     const channel = await server.mintSession({ kind: 'project', projectId: 'project-1' });

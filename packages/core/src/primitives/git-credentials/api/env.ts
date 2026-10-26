@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { loopbackCurlCommand } from '#primitives/exec/api';
 
 /**
  * Session-env construction for the emdash git credential helper
@@ -69,23 +70,27 @@ const NEW_SESSION_HINT = 'open a new terminal or agent session';
  * authentication failure) and prints nothing; `store` is a no-op. Only those
  * two literal actions reach the URL.
  *
- * The request always goes straight to the loopback: `-q` (which must be curl's
- * first argument) skips the user's curlrc and `--noproxy` ignores proxy
- * variables, so neither can reroute the channel or reshape the output git
- * parses. A failed `get` explains itself on stderr before git falls through to
- * prompting, whose "could not read Username" would otherwise be the only
- * symptom; a session can outlive the desktop process that minted its channel
- * (e.g. a reattached tmux session after a restart). Failing closed still means
- * no other helper answers for the host. A failed `erase` stays quiet.
+ * The request goes straight to the loopback with the nonce kept off argv
+ * ({@link loopbackCurlCommand}), so neither proxy variables nor the user's
+ * curlrc can reroute the channel or reshape the output git parses, and other
+ * local users cannot read the nonce. A failed `get` explains itself on stderr
+ * before git falls through to prompting, whose "could not read Username" would
+ * otherwise be the only symptom; a session can outlive the desktop process that
+ * minted its channel (e.g. a reattached tmux session after a restart). Failing
+ * closed still means no other helper answers for the host. A failed `erase`
+ * stays quiet.
  */
 export const GIT_CREDENTIAL_HELPER_COMMAND =
   '!f() { case "$1" in get|erase) ' +
   `if [ -z "${HELPER_PORT}" ] || [ -z "${HELPER_NONCE}" ]; then ` +
   `[ "$1" = get ] && echo "emdash: this session has no Emdash Git credential channel; ` +
   `${NEW_SESSION_HINT}." >&2; return 1; fi; ` +
-  `curl -q --noproxy "*" -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} ` +
-  `-X POST --data-binary @- -H "X-Emdash-Token: ${HELPER_NONCE}" ` +
-  `"http://127.0.0.1:${HELPER_PORT}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1" || { rc=$?; ` +
+  loopbackCurlCommand(
+    GIT_CREDENTIAL_NONCE_ENV_VAR,
+    `-s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
+      `"http://127.0.0.1:${HELPER_PORT}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1"`
+  ) +
+  ' || { rc=$?; ' +
   '[ "$1" = get ] && case $rc in ' +
   `7) echo "emdash: cannot reach the Emdash Git credential service at 127.0.0.1:${HELPER_PORT}; ` +
   `if Emdash restarted since this session started, ${NEW_SESSION_HINT}." >&2;; ` +

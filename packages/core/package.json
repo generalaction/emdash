@@ -135,6 +135,11 @@
       "types": "./dist/services-exec-api.d.mts",
       "default": "./dist/services-exec-api.mjs"
     },
+    "./services/git-credential-channels/api": {
+      "development": "./src/services/git-credential-channels/api/index.ts",
+      "types": "./dist/services-git-credential-channels-api.d.mts",
+      "default": "./dist/services-git-credential-channels-api.mjs"
+    },
     "./services/shell-env/api": {
       "development": "./src/services/shell-env/api/index.ts",
       "types": "./dist/services-shell-env-api.d.mts",
