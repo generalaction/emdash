@@ -338,6 +338,110 @@ describe('TerminalsRuntime', () => {
     await scope.dispose();
   });
 
+  describe('git credential channels', () => {
+    function credentialHarness(spawner = new FakePtySpawner()) {
+      const scope = createScope({ label: 'test-terminals-credentials' });
+      const released: string[] = [];
+      const runtime = new TerminalsRuntime({
+        spawner,
+        scope,
+        userEnv: async () => testUserEnv(),
+        releaseGitCredentialChannel: async (nonce) => {
+          released.push(nonce);
+        },
+      });
+      const key = { workspace: testWorkspace(), id: 'terminal-1' };
+      const start = (nonce: string) =>
+        runtime.start({
+          key,
+          spec: {
+            cwd: '/repo',
+            env: {},
+            gitCredentials: {
+              mode: 'effective-account',
+              channel: { port: 4000, nonce },
+              hosts: ['github.com'],
+            },
+          },
+        });
+      return { spawner, scope, runtime, released, key, start };
+    }
+
+    it('keeps a live shell on its channel when a hydrate hands it in again', async () => {
+      const { spawner, scope, released, start } = credentialHarness();
+      await start('channel-1');
+
+      await start('channel-1');
+
+      expect(spawner.processes).toHaveLength(1);
+      expect(spawner.specs[0]!.env?.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-1');
+      expect(released).toEqual([]);
+      await scope.dispose();
+    });
+
+    it('releases a channel handed to a live shell that started with another', async () => {
+      const { spawner, scope, released, start } = credentialHarness();
+      await start('channel-1');
+
+      await start('channel-2');
+
+      expect(spawner.processes).toHaveLength(1);
+      expect(released).toEqual(['channel-2']);
+      await scope.dispose();
+    });
+
+    it('releases the channel when the shell exits, and holds the new one on restart', async () => {
+      const { spawner, scope, released, start } = credentialHarness();
+      await start('channel-1');
+
+      spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+      await waitFor(() => released.length === 1);
+      await start('channel-2');
+
+      expect(released).toEqual(['channel-1']);
+      expect(spawner.specs[1]!.env?.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-2');
+      await scope.dispose();
+    });
+
+    it('releases the channel when the terminal is killed', async () => {
+      const { scope, runtime, released, key, start } = credentialHarness();
+      await start('channel-1');
+
+      await runtime.kill(key);
+
+      expect(released).toEqual(['channel-1']);
+      expectNoSessionResidue(`${workspaceKey(key.workspace)}:${key.id}`, leakContainers(runtime));
+      await scope.dispose();
+    });
+
+    it("does not release a restarted shell's channel when the killed shell exits late", async () => {
+      const { spawner, scope, runtime, released, key, start } = credentialHarness(
+        new FakePtySpawner({ exitOnKill: false })
+      );
+      await start('channel-1');
+      await runtime.kill(key);
+      await start('channel-2');
+
+      spawner.processes[0]!.emitExit({ exitCode: null, signal: 'SIGTERM' });
+      await runtime.kill(key);
+
+      expect(released).toEqual(['channel-1', 'channel-2']);
+      await scope.dispose();
+    });
+
+    it('releases the channel of a shell that fails to start', async () => {
+      const spawner = new FakePtySpawner();
+      spawner.failWith = new Error('spawn failed');
+      const { scope, released, start } = credentialHarness(spawner);
+
+      const result = await start('channel-1');
+
+      expect(result.success).toBe(false);
+      expect(released).toEqual(['channel-1']);
+      await scope.dispose();
+    });
+  });
+
   it('workspace deactivation (kill per session) evicts every terminal under the workspace', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
@@ -758,6 +862,7 @@ function fakeExec(): IExecutionContext & { exec: ReturnType<typeof vi.fn> } {
 }
 
 type RuntimeInternals = {
+  gitCredentialChannels: { held: Map<string, unknown> };
   logs: Map<string, unknown>;
   sessionKeys: Map<string, unknown>;
   interactiveConfigs: Map<string, unknown>;
@@ -770,6 +875,7 @@ type RuntimeInternals = {
 function leakContainers(runtime: TerminalsRuntime): LeakCheckContainer[] {
   const internals = runtime as unknown as RuntimeInternals;
   return [
+    mapContainer('gitCredentialChannels', internals.gitCredentialChannels.held),
     mapContainer('logs', internals.logs),
     mapContainer('sessionKeys', internals.sessionKeys),
     mapContainer('interactiveConfigs', internals.interactiveConfigs),

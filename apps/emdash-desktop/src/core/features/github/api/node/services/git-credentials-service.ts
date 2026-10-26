@@ -26,7 +26,9 @@ import type {
  * (spec: github-git-settings §4):
  *
  * - agent/terminal PTY sessions get a session spec derived from the
- *   per-project "agent git credentials" setting and the effective account;
+ *   per-project "agent git credentials" setting and the effective account.
+ *   A session keeps one channel while it runs (hydrating it again reuses it),
+ *   and its session runtime releases the channel when the session ends;
  * - emdash's own git operations get operation-scoped credentials for the
  *   effective account on its host, revoked when the operation finishes.
  *
@@ -38,11 +40,27 @@ import type {
 
 /** Project sessions follow settings; explicit account sessions retain their selection. */
 export type GitCredentialSessionTarget =
-  | { kind: 'project'; projectId: string; providerId?: 'github' | 'gitlab' }
+  | GitCredentialProjectTarget
   | { kind: 'account'; accountId: string; host: string; providerId?: 'github' | 'gitlab' };
 
+export type GitCredentialProjectTarget = {
+  kind: 'project';
+  projectId: string;
+  providerId?: 'github' | 'gitlab';
+};
+
 export type GitCredentialChannelServer = {
+  /** A new operation-scoped channel; the caller revokes it when the operation ends. */
   mintSession(target: GitCredentialSessionTarget): Promise<GitCredentialChannel>;
+  /**
+   * The channel for PTY session `sessionId`: the one it already has while that is live
+   * and serves `target`, so reattaching never mints; otherwise a new one. The session
+   * runtime revokes it once no session runs with it.
+   */
+  channelForSession(
+    sessionId: string,
+    target: GitCredentialProjectTarget
+  ): Promise<GitCredentialChannel>;
   revokeSession(nonce: string): void;
 };
 
@@ -52,8 +70,12 @@ export type GitOperationCredentialsLease = {
 };
 
 export type GitCredentialsService = {
-  /** Session-env spec for agent/terminal PTY sessions of a project workspace. */
+  /**
+   * Session-env spec for an agent/terminal PTY session of a project workspace, keyed
+   * by its PTY session id so a live session keeps its credential channel.
+   */
   resolveSessionSpec(params: {
+    sessionId: string;
     projectId: string;
     host: HostRef;
   }): Promise<GitCredentialsSessionSpec | undefined>;
@@ -141,7 +163,7 @@ export function createGitCredentialsService(
   };
 
   return {
-    async resolveSessionSpec({ projectId, host }) {
+    async resolveSessionSpec({ sessionId, projectId, host }) {
       const setting = await deps.getAgentGitCredentialsSetting(projectId);
       if (setting === 'none') return { mode: 'none' };
       if (setting === 'system') return { mode: 'system' };
@@ -149,7 +171,7 @@ export function createGitCredentialsService(
 
       const account = await resolveEffectiveAccount(projectId);
       if (!account) return undefined;
-      const channel = await deps.channels.mintSession({
+      const channel = await deps.channels.channelForSession(sessionId, {
         kind: 'project',
         projectId,
         providerId: account.providerId,

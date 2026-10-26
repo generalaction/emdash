@@ -42,6 +42,7 @@ function createRuntime(
     commandEnv?: Record<string, string>;
     command?: string;
     args?: string[];
+    releaseGitCredentialChannel?: (nonce: string) => Promise<void>;
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -92,6 +93,7 @@ function createRuntime(
     platform: options.platform,
     lifecycle: options.lifecycle,
     spillPrompt: options.spillPrompt,
+    releaseGitCredentialChannel: options.releaseGitCredentialChannel,
     logger: noopLogger,
   });
   return { runtime, spawner, agentHost, exec };
@@ -842,6 +844,94 @@ describe('TuiAgentsRuntime', () => {
 // Property conv.sole-writer / spec §7.4: session facts (spawn, hook-captured provider id,
 // activity, end, resume outcome) flow from the TUI runtime into the conversation index via
 // lifecycle reports.
+describe('TuiAgentsRuntime git credential channels', () => {
+  function credentialRuntime() {
+    const released: string[] = [];
+    const created = createRuntime({
+      releaseGitCredentialChannel: async (nonce) => {
+        released.push(nonce);
+      },
+    });
+    return { ...created, released };
+  }
+
+  function withChannel(nonce: string, overrides: Partial<TuiAgentStartInput> = {}) {
+    return startInput({
+      gitCredentials: {
+        mode: 'effective-account',
+        channel: { port: 4000, nonce },
+        hosts: ['github.com'],
+      },
+      ...overrides,
+    });
+  }
+
+  it('keeps a live session on its channel and releases one it did not start with', async () => {
+    const { runtime, spawner, released } = credentialRuntime();
+    await runtime.startSession(withChannel('channel-1'));
+
+    await runtime.startSession(withChannel('channel-1'));
+    await runtime.resumeSession(withChannel('channel-2', { sessionId: 'provider-session' }));
+
+    expect(spawner.processes).toHaveLength(1);
+    expect(spawner.specs[0]!.env?.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-1');
+    expect(released).toEqual(['channel-2']);
+    await runtime.dispose();
+  });
+
+  it('releases the channel when the session is stopped, and holds the next on resume', async () => {
+    const { runtime, released } = credentialRuntime();
+    await runtime.startSession(withChannel('channel-1'));
+
+    await runtime.stopSession('conversation-1');
+    await runtime.resumeSession(withChannel('channel-2', { sessionId: 'provider-session' }));
+    await runtime.deleteSession('conversation-1');
+
+    expect(released).toEqual(['channel-1', 'channel-2']);
+    expectNoSessionResidue('conversation-1', leakContainers(runtime));
+    await runtime.dispose();
+  });
+
+  it('keeps the channel across an unexpected-exit respawn and releases it on the final exit', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const clock = createManualClock();
+    const released: string[] = [];
+    const { runtime, spawner } = createRuntime({
+      clock,
+      releaseGitCredentialChannel: async (nonce) => {
+        released.push(nonce);
+      },
+    });
+    try {
+      await runtime.startSession(withChannel('channel-1'));
+      await clock.advanceBy(4_000);
+      spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawner.processes).toHaveLength(2);
+      expect(spawner.specs[1]!.env?.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-1');
+      expect(released).toEqual([]);
+
+      spawner.processes[1]!.emitExit({ exitCode: 0, signal: null });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(released).toEqual(['channel-1']);
+    } finally {
+      await runtime.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('releases the channel of a session that fails to spawn', async () => {
+    const { runtime, spawner, released } = credentialRuntime();
+    spawner.failWith = new Error('spawn failed');
+
+    await runtime.startSession(withChannel('channel-1'));
+
+    expect(released).toEqual(['channel-1']);
+    await runtime.dispose();
+  });
+});
+
 describe('TuiAgentsRuntime conversation lifecycle reports', () => {
   it('reports a fresh session start with no provider session id and no resume outcome', async () => {
     const reports = createRecordingConversationLifecycleReporter();
@@ -934,6 +1024,7 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
 });
 
 type RuntimeInternals = {
+  gitCredentialChannels: { held: Map<string, unknown> };
   sessions: Map<string, unknown>;
   logs: Map<string, unknown>;
   configs: Map<string, unknown>;
@@ -946,6 +1037,7 @@ type RuntimeInternals = {
 function leakContainers(runtime: TuiAgentsRuntime): LeakCheckContainer[] {
   const internals = runtime as unknown as RuntimeInternals;
   return [
+    mapContainer('gitCredentialChannels', internals.gitCredentialChannels.held),
     mapContainer('sessions', internals.sessions),
     mapContainer('logs', internals.logs),
     mapContainer('configs', internals.configs),

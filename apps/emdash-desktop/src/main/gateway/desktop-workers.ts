@@ -74,6 +74,7 @@ import { app } from 'electron';
 import { createAutomationCreationAdmissionController } from '@core/features/automations/node/creation-admission';
 import { automationRuntimePaths } from '@core/features/automations/node/runtime-paths';
 import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
+import { createGitCredentialChannelsController } from '@core/features/github/node/services/git-credential-channels-controller';
 import { createIntegrationCredentialReader } from '@core/features/integrations/api/node/integration-credential-reader';
 import { getIntegrationAccountStore } from '@core/features/integrations/node/integration-account-store-instance';
 import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
@@ -216,6 +217,7 @@ function startDesktopWorkersWithHost(
 ): Omit<DesktopWorkersHandle, 'startVitalsSampling' | 'setSpawnLogging'> {
   const workersStartedAt = Date.now();
   const userShellEnv = createUserShellEnvController(() => userShellEnvManager.current());
+  const gitCredentialChannels = createGitCredentialChannelsController();
   // Logs readiness timing and observes rejection so a background readiness
   // failure never surfaces as an unhandled rejection: the failure reaches
   // callers through the queued clients' per-call rejections.
@@ -342,6 +344,7 @@ function startDesktopWorkersWithHost(
       executable: desktopWorkerPath('terminals'),
       env: process.env,
       userEnv: userShellEnv,
+      gitCredentialChannels,
       lifecycle: {
         terminal: { kind: 'always' },
       },
@@ -449,6 +452,7 @@ function startDesktopWorkersWithHost(
             hostDependencies: hostDependencies.client.resolver,
             conversations,
             userEnv: userShellEnv,
+            gitCredentialChannels,
           },
           intentsFilePath: sessionIntentFilePaths().tuiAgents,
         })

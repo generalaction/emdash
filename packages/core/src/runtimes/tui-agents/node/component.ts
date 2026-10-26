@@ -12,6 +12,7 @@ import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers
 import { conversationReportsContract } from '#services/conversation-reports/api';
 import { createConversationLifecycleReporter } from '#services/conversation-reports/node';
 import { NodeExecutionContext } from '#services/exec/api';
+import { gitCredentialChannelsContract } from '#services/git-credential-channels/api';
 import {
   createHostDependencyResolverFromDependency,
   hostDependencyResolverContract,
@@ -47,6 +48,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
       hostDependencies: requireContract(hostDependencyResolverContract),
       conversations: requireContract(conversationReportsContract),
       userEnv: requireContract(userShellEnvContract),
+      gitCredentialChannels: requireContract(gitCredentialChannelsContract),
     },
     configSchema: tuiAgentsComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -79,6 +81,8 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
           logger: runtimeLogger,
         }),
         spawner: new NodePtySpawner(),
+        releaseGitCredentialChannel: (nonce) =>
+          dependencies.gitCredentialChannels.release({ nonce }),
         lifecycle: config.lifecycle,
         logger: runtimeLogger,
       });

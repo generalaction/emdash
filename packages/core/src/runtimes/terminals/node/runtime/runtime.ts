@@ -27,6 +27,10 @@ import {
   type TerminalStartFailedError,
 } from '#runtimes/terminals/api';
 import {
+  SessionGitCredentialChannels,
+  type ReleaseGitCredentialChannel,
+} from '#services/git-credential-channels/node';
+import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
   type TerminalPortProbe,
@@ -82,6 +86,8 @@ export type TerminalsRuntimeOptions = {
   lifecycle?: TerminalsRuntimeLifecycleOptions;
   shellResolver?: TerminalShellResolver;
   createShellResolver?: (env: UserShellEnv) => TerminalShellResolver;
+  /** Returns a session's Git credential channel to the desktop once no session holds it. */
+  releaseGitCredentialChannel?: ReleaseGitCredentialChannel;
   logger?: Logger;
 };
 
@@ -120,6 +126,7 @@ export class TerminalsRuntime {
   private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
   private readonly startCounts = new Map<string, number>();
   private readonly previewSources = new Map<string, PreviewOutputSource>();
+  private readonly gitCredentialChannels: SessionGitCredentialChannels;
 
   constructor(options: TerminalsRuntimeOptions) {
     this.registry = new PtyRegistry(options.spawner, {
@@ -134,6 +141,10 @@ export class TerminalsRuntime {
     this.shellResolver = options.shellResolver;
     this.createShellResolver = options.createShellResolver;
     this.logger = options.logger ?? noopLogger;
+    this.gitCredentialChannels = new SessionGitCredentialChannels(
+      options.releaseGitCredentialChannel ?? (async () => {}),
+      this.logger
+    );
     this.lifecycle = createSessionLifecycle({
       name: 'TerminalsRuntime',
       logger: this.logger,
@@ -156,6 +167,7 @@ export class TerminalsRuntime {
             this.registry.dispose(key);
           },
         },
+        { name: 'git-credential-channel', run: (key) => this.gitCredentialChannels.release(key) },
         {
           name: 'output-log',
           run: (key) => {
@@ -189,7 +201,11 @@ export class TerminalsRuntime {
   async start(input: StartTerminalInput): Promise<Result<void, TerminalStartFailedError>> {
     const sessionKey = sessionKeyFor(input.key);
     const existing = this.registry.get(sessionKey);
-    if (existing && !existing.exited) return ok(undefined);
+    if (existing && !existing.exited) {
+      // Attached: the live shell keeps the channel it started with.
+      await this.gitCredentialChannels.releaseUnheld(sessionKey, input.spec.gitCredentials);
+      return ok(undefined);
+    }
     if (existing) {
       // Restart of a retained exited terminal: evict-then-create. The start
       // count survives eviction so the renderer still sees a restart.
@@ -200,6 +216,7 @@ export class TerminalsRuntime {
 
     this.sessionKeys.set(sessionKey, input.key);
     this.interactiveConfigs.set(sessionKey, { key: input.key, spec: input.spec });
+    await this.gitCredentialChannels.hold(sessionKey, input.spec.gitCredentials);
 
     try {
       await this.spawnInteractiveTerminal(sessionKey, input.key, input.spec);
@@ -389,13 +406,16 @@ export class TerminalsRuntime {
           this.lifecycle.recordOutput(sessionKey);
           this.previewSourceFor(sessionKey, key).emitData(chunk);
         },
-        onExit: () => this.handleInteractiveExit(sessionKey),
+        onExit: () => this.handleInteractiveExit(sessionKey, spec),
       }
     );
   }
 
-  private handleInteractiveExit(sessionKey: string): void {
+  private handleInteractiveExit(sessionKey: string, spec: StartTerminalSpec): void {
     this.closePreviewSource(sessionKey);
+    // The exited entry is retained for its scrollback, but no process uses the
+    // channel anymore; a restart starts with a new one.
+    void this.gitCredentialChannels.releaseExited(sessionKey, spec.gitCredentials);
   }
 
   private async resolveShellProfile(
