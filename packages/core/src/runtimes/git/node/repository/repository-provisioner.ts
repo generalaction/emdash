@@ -1,7 +1,13 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ok, type Result } from '@emdash/shared';
-import { isGitDiscoveryMiss } from '#primitives/git/api';
+import { KeyedMutex } from '@emdash/shared/concurrency';
+import {
+  isGitDiscoveryMiss,
+  parseGitDubiousOwnership,
+  safeDirectoryValueProblem,
+  type GitDubiousOwnership,
+} from '#primitives/git/api';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import {
   computeBaseRef,
@@ -12,6 +18,8 @@ import {
   type GitPathInspection,
   type GitRepositoryInfo,
   type InspectPathError,
+  type TrustRepositoryError,
+  type TrustRepositoryResult,
 } from '#runtimes/git/api';
 import { toHostAbsolutePath, toNativeAbsolutePath } from '#runtimes/git/node/allocation/paths';
 import { gitFailure } from '#runtimes/git/node/exec/errors';
@@ -22,6 +30,9 @@ import { repositoryFailures } from './errors';
 
 /** Executes Git operations that happen before a canonical repository mount exists. */
 export class GitRepositoryProvisioner {
+  // Serializes trust requests so concurrent ones never add the same entry twice.
+  private readonly globalConfig = new KeyedMutex();
+
   constructor(private readonly exec: BoundExec) {}
 
   inspectPath(
@@ -34,6 +45,79 @@ export class GitRepositoryProvisioner {
         gitErr.inspectFailed(pathToInspect, error instanceof Error ? error.message : String(error))
       );
     }
+  }
+
+  /**
+   * Adds the `safe.directory` entry Git suggests for a repository it refuses for its ownership,
+   * once the user confirmed exactly that value. Git is asked again rather than trusting the
+   * caller, at most one exact path is written to the global config of the user running Git, and
+   * an entry that does not make Git accept the repository is removed again.
+   */
+  async trustRepository(
+    pathToTrust: HostAbsolutePath,
+    safeDirectory: string
+  ): Promise<Result<TrustRepositoryResult, TrustRepositoryError>> {
+    const problem = safeDirectoryValueProblem(safeDirectory);
+    if (problem) return gitErr.trustFailed(pathToTrust, 'invalid-value', problem);
+    let nativePath: string;
+    try {
+      nativePath = toNativeAbsolutePath(pathToTrust);
+    } catch (error) {
+      return gitErr.trustFailed(
+        pathToTrust,
+        'invalid-value',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
+    return this.globalConfig.runExclusive('safe.directory', async () => {
+      const refused = await this.ownershipRefusal(nativePath);
+      if (!refused) return ok({ added: false });
+      if (refused.safeDirectory !== safeDirectory) {
+        return gitErr.trustFailed(
+          pathToTrust,
+          'repository-changed',
+          `Git now asks to trust ${refused.safeDirectory} instead. Check the directory and try again.`
+        );
+      }
+
+      try {
+        if ((await this.globalSafeDirectories()).includes(safeDirectory)) {
+          return gitErr.trustFailed(
+            pathToTrust,
+            'still-refused',
+            `Your global Git config already trusts ${safeDirectory}, but Git still refuses this repository.`
+          );
+        }
+        // Config commands run from the executor's cwd, never inside the refused repository.
+        await this.exec.exec(['config', '--global', '--add', 'safe.directory', safeDirectory]);
+      } catch (error) {
+        return gitErr.trustFailed(pathToTrust, 'config-failed', gitFailure(error).message);
+      }
+      if (!(await this.ownershipRefusal(nativePath))) return ok({ added: true });
+
+      let removed = true;
+      try {
+        await this.exec.exec([
+          'config',
+          '--global',
+          '--fixed-value',
+          '--unset',
+          'safe.directory',
+          safeDirectory,
+        ]);
+      } catch (error) {
+        if (!(error instanceof ExecError)) throw error;
+        removed = false;
+      }
+      return gitErr.trustFailed(
+        pathToTrust,
+        'still-refused',
+        removed
+          ? `Git still refuses this repository with safe.directory ${safeDirectory}, so the entry was removed again.`
+          : `Git still refuses this repository with safe.directory ${safeDirectory}, and the entry could not be removed from your global Git config.`
+      );
+    });
   }
 
   async ensureRepository(
@@ -147,14 +231,46 @@ export class GitRepositoryProvisioner {
         baseRef: computeBaseRef(undefined, remoteName, branch),
       });
     } catch (error) {
+      if (error instanceof ExecError) {
+        return gitErr.inspectFailed(
+          requestedPath,
+          gitFailure(error).message,
+          parseGitDubiousOwnership(error)
+        );
+      }
       return gitErr.inspectFailed(
         requestedPath,
-        error instanceof ExecError
-          ? gitFailure(error).message
-          : error instanceof Error
-            ? error.message
-            : String(error)
+        error instanceof Error ? error.message : String(error)
       );
+    }
+  }
+
+  /** Git's ownership refusal for a directory, or null when Git does not refuse it. */
+  private async ownershipRefusal(nativePath: string): Promise<GitDubiousOwnership | null> {
+    try {
+      await this.exec.exec(['-C', nativePath, 'rev-parse', '--is-inside-work-tree']);
+      return null;
+    } catch (error) {
+      if (!(error instanceof ExecError)) throw error;
+      return parseGitDubiousOwnership(error);
+    }
+  }
+
+  private async globalSafeDirectories(): Promise<string[]> {
+    try {
+      const { stdout } = await this.exec.exec([
+        'config',
+        '--global',
+        '--null',
+        '--get-all',
+        'safe.directory',
+      ]);
+      // --null terminates every value with NUL, so the last element is always empty.
+      return stdout.split('\0').slice(0, -1);
+    } catch (error) {
+      // Exit 1: the key is not set (or the global config does not exist yet).
+      if (error instanceof ExecError && error.exitCode === 1) return [];
+      throw error;
     }
   }
 }

@@ -34,6 +34,17 @@ export const gitPathInspectionSchema = z.discriminatedUnion('kind', [
 ]);
 export type GitPathInspection = z.infer<typeof gitPathInspectionSchema>;
 
+export const trustRepositoryInputSchema = z.object({
+  path: hostAbsolutePathSchema,
+  /** The value Git suggested for `path` and the user confirmed; the host re-derives it. */
+  safeDirectory: z.string(),
+});
+export type TrustRepositoryInput = z.infer<typeof trustRepositoryInputSchema>;
+
+// `added` is false when Git already accepts the repository and nothing was written.
+export const trustRepositoryResultSchema = z.object({ added: z.boolean() });
+export type TrustRepositoryResult = z.infer<typeof trustRepositoryResultSchema>;
+
 export const cloneRepositoryJobInputSchema = z.object({
   repositoryUrl: z.string(),
   targetPath: hostAbsolutePathSchema,

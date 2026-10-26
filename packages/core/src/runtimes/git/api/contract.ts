@@ -7,6 +7,7 @@ import {
   cloneRepositoryErrorSchema,
   ensureRepositoryErrorSchema,
   inspectPathErrorSchema,
+  trustRepositoryErrorSchema,
 } from './errors';
 import {
   cloneRepositoryJobInputSchema,
@@ -14,6 +15,8 @@ import {
   gitPathInspectionSchema,
   gitRepositoryInfoSchema,
   transferProgressSchema,
+  trustRepositoryInputSchema,
+  trustRepositoryResultSchema,
 } from './schemas';
 
 export const gitContract = defineContract({
@@ -21,6 +24,15 @@ export const gitContract = defineContract({
     input: z.object({ path: hostAbsolutePathSchema }),
     data: gitPathInspectionSchema,
     error: inspectPathErrorSchema,
+  }),
+  /**
+   * Adds the one `safe.directory` entry Git suggests for a repository it refuses for its
+   * ownership to the global Git config of the user running Git on this host.
+   */
+  trustRepository: fallible({
+    input: trustRepositoryInputSchema,
+    data: trustRepositoryResultSchema,
+    error: trustRepositoryErrorSchema,
   }),
   ensureRepository: fallible({
     input: z.object({

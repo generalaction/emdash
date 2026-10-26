@@ -6,6 +6,7 @@
 
 import { err, type Err } from '@emdash/shared';
 import { z } from 'zod';
+import type { GitDubiousOwnership } from '#primitives/git/api';
 import {
   hostAbsolutePathSchema,
   portableRelativePathSchema,
@@ -67,10 +68,16 @@ export const notRepositoryErrorSchema = z.object({
   type: z.literal('not-repository'),
   path: hostAbsolutePathSchema,
 });
+export const gitDubiousOwnershipSchema = z.object({
+  repositoryPath: z.string(),
+  safeDirectory: z.string(),
+}) satisfies z.ZodType<GitDubiousOwnership>;
 export const inspectFailedErrorSchema = z.object({
   type: z.literal('inspect-failed'),
   path: hostAbsolutePathSchema,
   message: z.string(),
+  /** Set when Git refused the repository for its ownership (`safe.directory`). */
+  dubiousOwnership: gitDubiousOwnershipSchema.optional(),
 });
 export const initFailedErrorSchema = z.object({
   type: z.literal('init-failed'),
@@ -80,6 +87,14 @@ export const initFailedErrorSchema = z.object({
 
 export const inspectPathErrorSchema = inspectFailedErrorSchema;
 export type InspectPathError = z.infer<typeof inspectPathErrorSchema>;
+
+export const trustRepositoryErrorSchema = z.object({
+  type: z.literal('trust-failed'),
+  reason: z.enum(['invalid-value', 'repository-changed', 'config-failed', 'still-refused']),
+  path: hostAbsolutePathSchema,
+  message: z.string(),
+});
+export type TrustRepositoryError = z.infer<typeof trustRepositoryErrorSchema>;
 
 export const cloneRepositoryErrorSchema = z.discriminatedUnion('type', [
   targetExistsErrorSchema,
@@ -248,8 +263,24 @@ export const gitErr = {
   notRepository(path: HostAbsolutePath): Err<TaggedError<'not-repository'>> {
     return failure({ type: 'not-repository', path });
   },
-  inspectFailed(path: HostAbsolutePath, message: string): Err<TaggedError<'inspect-failed'>> {
-    return failure({ type: 'inspect-failed', path, message });
+  inspectFailed(
+    path: HostAbsolutePath,
+    message: string,
+    dubiousOwnership?: GitDubiousOwnership | null
+  ): Err<TaggedError<'inspect-failed'>> {
+    return failure({
+      type: 'inspect-failed',
+      path,
+      message,
+      ...(dubiousOwnership ? { dubiousOwnership } : {}),
+    });
+  },
+  trustFailed(
+    path: HostAbsolutePath,
+    reason: TrustRepositoryError['reason'],
+    message: string
+  ): Err<TrustRepositoryError> {
+    return failure({ type: 'trust-failed', reason, path, message });
   },
   initFailed(path: HostAbsolutePath, message: string): Err<TaggedError<'init-failed'>> {
     return failure({ type: 'init-failed', path, message });
