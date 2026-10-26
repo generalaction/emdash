@@ -56,6 +56,9 @@ export const GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS = 90;
 export const GIT_CREDENTIAL_HELPER_URL_PATH = `${GIT_CREDENTIAL_HELPER_PATH_PREFIX}get`;
 /** Git erases a credential the remote rejected, so the desktop can renew it. */
 export const GIT_CREDENTIAL_HELPER_ERASE_URL_PATH = `${GIT_CREDENTIAL_HELPER_PATH_PREFIX}erase`;
+const HELPER_PORT = `$${GIT_CREDENTIAL_PORT_ENV_VAR}`;
+const HELPER_NONCE = `$${GIT_CREDENTIAL_NONCE_ENV_VAR}`;
+const NEW_SESSION_HINT = 'open a new terminal or agent session';
 
 /**
  * The credential helper as a git `!shell` helper command (same transport shape
@@ -64,15 +67,32 @@ export const GIT_CREDENTIAL_HELPER_ERASE_URL_PATH = `${GIT_CREDENTIAL_HELPER_PAT
  * appears in git config values or process argv. `get` returns the credential;
  * `erase` reports one the remote rejected (git sends it after an
  * authentication failure) and prints nothing; `store` is a no-op. Only those
- * two literal actions reach the URL. Failures print nothing, so git falls
- * through to its normal prompting behavior.
+ * two literal actions reach the URL.
+ *
+ * The request always goes straight to the loopback: `-q` (which must be curl's
+ * first argument) skips the user's curlrc and `--noproxy` ignores proxy
+ * variables, so neither can reroute the channel or reshape the output git
+ * parses. A failed `get` explains itself on stderr before git falls through to
+ * prompting, whose "could not read Username" would otherwise be the only
+ * symptom; a session can outlive the desktop process that minted its channel
+ * (e.g. a reattached tmux session after a restart). Failing closed still means
+ * no other helper answers for the host. A failed `erase` stays quiet.
  */
 export const GIT_CREDENTIAL_HELPER_COMMAND =
   '!f() { case "$1" in get|erase) ' +
-  `curl -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
-  `-H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
-  `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1" ` +
-  '2>/dev/null || true;; esac; }; f';
+  `if [ -z "${HELPER_PORT}" ] || [ -z "${HELPER_NONCE}" ]; then ` +
+  `[ "$1" = get ] && echo "emdash: this session has no Emdash Git credential channel; ` +
+  `${NEW_SESSION_HINT}." >&2; return 1; fi; ` +
+  `curl -q --noproxy "*" -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} ` +
+  `-X POST --data-binary @- -H "X-Emdash-Token: ${HELPER_NONCE}" ` +
+  `"http://127.0.0.1:${HELPER_PORT}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1" || { rc=$?; ` +
+  '[ "$1" = get ] && case $rc in ' +
+  `7) echo "emdash: cannot reach the Emdash Git credential service at 127.0.0.1:${HELPER_PORT}; ` +
+  `if Emdash restarted since this session started, ${NEW_SESSION_HINT}." >&2;; ` +
+  '22) echo "emdash: Emdash did not return a Git credential for this session; ' +
+  `check the GitHub or GitLab account in the project settings, or ${NEW_SESSION_HINT}." >&2;; ` +
+  '*) echo "emdash: the Git credential request to Emdash failed (curl exit $rc)." >&2;; ' +
+  'esac; return $rc; };; esac; }; f';
 
 const CREDENTIAL_HELPER_CONFIG_KEY = /^credential(\..+)?\.helper$/i;
 
