@@ -1,3 +1,4 @@
+import type { GitDubiousOwnership } from '@emdash/core/primitives/git/api';
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
 import type { Result } from '@emdash/shared';
@@ -8,10 +9,18 @@ export function projectHostRef(project: Project): HostRef {
   return project.type === 'ssh' ? hostRef('remote', project.connectionId) : LOCAL_HOST_REF;
 }
 
+export type ProjectPathInspectFailure = {
+  type: 'inspect-failed';
+  path: string;
+  message: string;
+  /** Git refused the repository for its ownership; trusting it may resolve the failure. */
+  dubiousOwnership?: GitDubiousOwnership;
+};
+
 export type ProjectPathStatus = {
   isDirectory: boolean;
   isGitRepo: boolean;
-  error?: { type: 'inspect-failed'; path: string; message: string } | RuntimeResolveError;
+  error?: ProjectPathInspectFailure | RuntimeResolveError;
 };
 
 export const localProjectSchema = z.object({
