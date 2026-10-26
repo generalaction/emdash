@@ -90,7 +90,13 @@ export type InspectPathError = z.infer<typeof inspectPathErrorSchema>;
 
 export const trustRepositoryErrorSchema = z.object({
   type: z.literal('trust-failed'),
-  reason: z.enum(['invalid-value', 'repository-changed', 'config-failed', 'still-refused']),
+  reason: z.enum([
+    'invalid-value',
+    'check-failed',
+    'repository-changed',
+    'config-failed',
+    'still-refused',
+  ]),
   path: hostAbsolutePathSchema,
   message: z.string(),
 });

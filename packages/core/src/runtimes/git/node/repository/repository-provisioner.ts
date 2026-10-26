@@ -28,6 +28,11 @@ import { execGitWithProgress } from '#runtimes/git/node/exec/transfer-progress';
 import { ExecError, type BoundExec } from '#services/exec/api';
 import { repositoryFailures } from './errors';
 
+type OwnershipCheck =
+  | { kind: 'not-refused' }
+  | { kind: 'refused'; refusal: GitDubiousOwnership }
+  | { kind: 'failed'; message: string };
+
 /** Executes Git operations that happen before a canonical repository mount exists. */
 export class GitRepositoryProvisioner {
   // Serializes trust requests so concurrent ones never add the same entry twice.
@@ -71,13 +76,20 @@ export class GitRepositoryProvisioner {
     }
 
     return this.globalConfig.runExclusive('safe.directory', async () => {
-      const refused = await this.ownershipRefusal(nativePath);
-      if (!refused) return ok({ added: false });
-      if (refused.safeDirectory !== safeDirectory) {
+      const before = await this.checkOwnership(nativePath);
+      if (before.kind === 'failed') {
+        return gitErr.trustFailed(
+          pathToTrust,
+          'check-failed',
+          `Git could not check this directory: ${before.message}`
+        );
+      }
+      if (before.kind === 'not-refused') return ok({ added: false });
+      if (before.refusal.safeDirectory !== safeDirectory) {
         return gitErr.trustFailed(
           pathToTrust,
           'repository-changed',
-          `Git now asks to trust ${refused.safeDirectory} instead. Check the directory and try again.`
+          `Git now asks to trust ${before.refusal.safeDirectory} instead. Check the directory and try again.`
         );
       }
 
@@ -94,7 +106,18 @@ export class GitRepositoryProvisioner {
       } catch (error) {
         return gitErr.trustFailed(pathToTrust, 'config-failed', gitFailure(error).message);
       }
-      if (!(await this.ownershipRefusal(nativePath))) return ok({ added: true });
+      const after = await this.checkOwnership(nativePath);
+      if (after.kind === 'not-refused') return ok({ added: true });
+      if (after.kind === 'failed') {
+        // Git no longer reports the ownership refusal but cannot open the repository either,
+        // for example because the repository's own config is broken, which Git reads only once
+        // the ownership check passes. The entry is the exact value the user confirmed, so it stays.
+        return gitErr.trustFailed(
+          pathToTrust,
+          'check-failed',
+          `Added safe.directory ${safeDirectory} to your global Git config, but Git still cannot open this repository: ${after.message}`
+        );
+      }
 
       let removed = true;
       try {
@@ -245,14 +268,20 @@ export class GitRepositoryProvisioner {
     }
   }
 
-  /** Git's ownership refusal for a directory, or null when Git does not refuse it. */
-  private async ownershipRefusal(nativePath: string): Promise<GitDubiousOwnership | null> {
+  /**
+   * Whether Git refuses a directory for its ownership, or could not answer at all (a missing or
+   * disconnected directory, a broken repository, a failed Git launch). Only a completed
+   * discovery counts as not refused, including one that finds no repository to trust.
+   */
+  private async checkOwnership(nativePath: string): Promise<OwnershipCheck> {
     try {
       await this.exec.exec(['-C', nativePath, 'rev-parse', '--is-inside-work-tree']);
-      return null;
+      return { kind: 'not-refused' };
     } catch (error) {
-      if (!(error instanceof ExecError)) throw error;
-      return parseGitDubiousOwnership(error);
+      const failure = gitFailure(error);
+      if (isGitDiscoveryMiss(failure)) return { kind: 'not-refused' };
+      const refusal = parseGitDubiousOwnership(failure);
+      return refusal ? { kind: 'refused', refusal } : { kind: 'failed', message: failure.message };
     }
   }
 

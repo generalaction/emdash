@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { access, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { access, appendFile, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -180,6 +180,41 @@ describe('trusting a repository Git refuses for its ownership', () => {
       git.trustRepository({ path: hostPath(directory), safeDirectory: directory })
     ).resolves.toEqual({ success: true, data: { added: false } });
     await expect(access(globalConfig)).rejects.toThrow();
+  });
+
+  it('reports a directory Git cannot check instead of treating it as trusted', async () => {
+    const git = connectRuntime();
+    const missing = path.join(root, 'missing');
+
+    await expect(
+      git.trustRepository({ path: hostPath(missing), safeDirectory: missing })
+    ).resolves.toMatchObject({
+      success: false,
+      error: {
+        type: 'trust-failed',
+        reason: 'check-failed',
+        message: expect.stringContaining('cannot change to'),
+      },
+    });
+    await expect(access(globalConfig)).rejects.toThrow();
+  });
+
+  it('keeps the entry but reports a repository Git still cannot open once trusted', async () => {
+    // Git reads the repository's own config only after its ownership check passes.
+    await appendFile(path.join(repository, '.git', 'config'), '[broken\n');
+    const git = connectRuntime();
+
+    await expect(
+      git.trustRepository({ path: hostPath(repository), safeDirectory: repository })
+    ).resolves.toMatchObject({
+      success: false,
+      error: {
+        type: 'trust-failed',
+        reason: 'check-failed',
+        message: expect.stringContaining('bad config line'),
+      },
+    });
+    expect(await globalSafeDirectories()).toEqual([repository]);
   });
 
   describe('when a later protected config entry resets the list', () => {
