@@ -80,6 +80,34 @@ describe('PrSyncStatusCard', () => {
     expect(container.textContent).not.toContain('Cancel');
   });
 
+  it('uses MR terminology for GitLab inventory and history', async () => {
+    mocks.syncState = { phase: 'running', kind: 'repository', synced: 2, total: 3 };
+    await act(async () =>
+      root.render(
+        React.createElement(PrSyncStatusCard, {
+          repositoryUrl: 'https://gitlab.com/acme/app',
+          provider: 'gitlab',
+          key: mocks.syncState?.kind,
+        })
+      )
+    );
+    expect(container.textContent).toContain('Merge requests');
+    expect(container.textContent).toContain('Refreshing MRs: 2 / 3');
+    expect(container.textContent).not.toContain('PR');
+    mocks.syncState = { phase: 'running', kind: 'history' };
+    await act(async () =>
+      root.render(
+        React.createElement(PrSyncStatusCard, {
+          repositoryUrl: 'https://gitlab.com/acme/app',
+          provider: 'gitlab',
+          key: mocks.syncState?.kind,
+        })
+      )
+    );
+    expect(container.textContent).toContain('MR history');
+    expect(container.textContent).not.toContain('PR');
+  });
+
   it('does not report successful completion when history is cancelled after inventory succeeded', async () => {
     mocks.syncState = { phase: 'running', kind: 'history', lastSyncedAt: 1000 };
     await act(async () => {

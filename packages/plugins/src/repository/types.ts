@@ -14,6 +14,7 @@ export type CreateRepositoryOpts = {
   name: string;
   description?: string;
   visibility: RepositoryVisibility;
+  initializeWithReadme?: boolean;
 };
 
 export type CreatedRepository = {

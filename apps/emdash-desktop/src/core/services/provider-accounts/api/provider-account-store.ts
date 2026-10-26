@@ -39,6 +39,12 @@ export interface ProviderAccountStore {
   getDefaultAccountId(providerId: string): Promise<string | null>;
   setDefaultAccount(providerId: string, accountId: string): Promise<ProviderAccount | null>;
   resolveSecret(providerId: string, accountId?: string): Promise<string | null>;
+  /**
+   * Replaces the secret of an existing account without creating one. Resolves
+   * false, leaving no secret behind, when the account does not exist or is
+   * removed during the write.
+   */
+  updateSecret(providerId: string, accountId: string, secret: string): Promise<boolean>;
   removeAccount(providerId: string, accountId: string): Promise<ProviderAccount | null>;
   isConfigured(providerId: string): Promise<boolean>;
 }

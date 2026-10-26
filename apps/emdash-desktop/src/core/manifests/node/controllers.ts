@@ -49,6 +49,7 @@ import type { ProjectSettingsService } from '@core/features/projects/api/node/se
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
 import { getProjectById } from '@core/features/projects/node/operations/getProjects';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
+import type { GitLabRepositoryService } from '@core/features/repository/node/gitlab-repository-service';
 import { createRepositoryWireController } from '@core/features/repository/node/wire-controller';
 import type { SearchService } from '@core/features/search/node/search-service';
 import { createSearchWireController } from '@core/features/search/node/wire-controller';
@@ -129,6 +130,7 @@ export type DesktopControllerContext = {
   readonly devPerfOperations: DevPerfOperations;
   readonly editorBuffer: EditorBufferService;
   readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger'>;
+  readonly gitlabRepositories: GitLabRepositoryService;
   readonly gitCredentials: GitCredentialsService;
   readonly hostAvailability: HostAvailabilityService;
   readonly hostIsReachable: HostReachabilityProbe;
@@ -247,10 +249,11 @@ export const desktopNodeControllers = {
     create: ({ promptLibrary }) => createPromptLibraryWireController(promptLibrary),
   },
   repository: {
-    create: ({ db, projects }) =>
+    create: ({ db, projects, gitlabRepositories }) =>
       createRepositoryWireController({
         projects,
         loadProject: (projectId) => getProjectById(db, projectId),
+        gitlab: gitlabRepositories,
       }),
   },
   search: {

@@ -10,6 +10,7 @@ const REPO_URL = 'https://github.com/acme/app';
 
 function prFacts(overrides: Partial<Parameters<typeof compilePrUpdateInstruction>[0]> = {}) {
   return {
+    provider: 'github',
     identifier: '#42',
     headRefName: 'feature/login',
     repositoryUrl: REPO_URL,
@@ -31,6 +32,22 @@ describe('compilePrUpdateInstruction', () => {
     expect(compilePrUpdateInstruction(pr, { baseRemote: 'origin' })).toEqual({
       remote: 'origin',
       sourceRef: 'refs/pull/42/head',
+    });
+  });
+
+  it.each([
+    ['https://gitlab.com/acme/app', 'refs/heads/feature/login'],
+    ['https://gitlab.com/fork/app', 'refs/merge-requests/42/head'],
+  ])('uses the GitLab source ref for %s', (headRepositoryUrl, sourceRef) => {
+    const mr = prFacts({
+      provider: 'gitlab',
+      identifier: '!42',
+      repositoryUrl: 'https://gitlab.com/acme/app',
+      headRepositoryUrl,
+    });
+    expect(compilePrUpdateInstruction(mr, { baseRemote: 'upstream' })).toEqual({
+      remote: 'upstream',
+      sourceRef,
     });
   });
 

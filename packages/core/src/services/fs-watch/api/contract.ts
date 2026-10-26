@@ -1,9 +1,12 @@
 import { defineContract, resourcedStream } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
+export const watchBackendSchema = z.enum(['auto', 'os']);
+
 export const watchKeySchema = z.object({
   root: z.string(),
   ignore: z.array(z.string()),
+  backend: watchBackendSchema,
 });
 
 export const watchEventSchema = z.object({
@@ -28,6 +31,7 @@ export const fsWatchContract = defineContract({
 });
 
 export type FsWatchKey = z.infer<typeof watchKeySchema>;
+export type WatchBackendPreference = z.infer<typeof watchBackendSchema>;
 export type FsWatchEvent = z.infer<typeof watchEventSchema>;
 export type FsWatchStreamEvent =
   | z.infer<typeof watchEventsBatchSchema>

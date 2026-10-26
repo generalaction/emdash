@@ -214,9 +214,10 @@ async function reprovisionWorkspace(
   }
   try {
     const client = await getWorkspacesWireClient();
+    // Re-provisioning awaits the host's worktree creation, which has no fixed bound.
     const result = removeFirst
-      ? await client.removeAndReprovision({ workspaceId })
-      : await client.reprovision({ workspaceId });
+      ? await client.removeAndReprovision({ workspaceId }, { timeoutMs: 0 })
+      : await client.reprovision({ workspaceId }, { timeoutMs: 0 });
     if (!result.success) throw new Error(result.error.message);
     await getTaskManagerStore(projectId)?.provisionTask(taskId);
   } catch (error) {
@@ -330,13 +331,12 @@ function useDelayedVisible(delayMs: number): boolean {
   return visible;
 }
 
-// Drag-to-close threshold for the right sidebar, in percent of the group.
-// 280px — the old resize floor — is at least 8% of the group on any window up
-// to ~3500px wide, so every width the previous UI let a user settle at stays
-// a plain resize/restore, never a surprise close. Below 8% (~115px at 1440px)
-// the sidebar content is unusable, so a drag settling there reads as intent
-// to close rather than a resize.
-const SIDEBAR_CLOSE_THRESHOLD = 8;
+// Drag-to-close threshold for the right sidebar, in percent of the group. A
+// drag can only settle at the 280px floor or wider, or snap to 0 below half
+// of it, so the threshold only has to catch the snap. The sidebar keeps its
+// pixel width as the window grows, and 280px stays above 1% of any window up
+// to 28000px wide, so a drag that settles at the floor never closes it.
+const SIDEBAR_CLOSE_THRESHOLD = 1;
 
 // Resize floor (the released builds' value): dragging shrinks the sidebar only
 // down to this width; dragging past it snaps the collapsible panel's layout to
@@ -363,6 +363,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
     storage: layoutStorage,
     panelIds: ['task-main-area', 'task-sidebar'],
     collapsiblePanelId: 'task-sidebar',
+    orientation: 'horizontal',
     open: isSidebarOpen,
     onCloseRequest: () => taskView.chrome.commands.collapseSidebar(),
     closeThreshold: SIDEBAR_CLOSE_THRESHOLD,
@@ -370,11 +371,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
 
   return (
     <taskTabView.TabLayoutProvider layout={taskView.paneLayout}>
-      <Resizable.Group
-        orientation="horizontal"
-        id="task-sidebar-layout"
-        {...sidebarBinding.groupProps}
-      >
+      <Resizable.Group id="task-sidebar-layout" {...sidebarBinding.groupProps}>
         <Resizable.Panel id="task-main-area">
           <TaskMainColumn />
         </Resizable.Panel>

@@ -9,7 +9,6 @@ import { pullRequestsPluginRegistry } from '@emdash/plugins/pull-requests';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { peek } from '@emdash/wire/state';
 import { app, powerMonitor } from 'electron';
-import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 import { AccountAuthServerClient } from '@core/features/account/node/services/account-auth-server-client';
 import { AccountOAuthClient } from '@core/features/account/node/services/account-oauth-client';
 import type { AccountKVSchema } from '@core/features/account/node/services/account-session-store';
@@ -31,16 +30,12 @@ import {
 import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
 import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
-import { githubEvents } from '@core/features/github/node/event-host';
 import { GitCredentialServer } from '@core/features/github/node/services/git-credential-server';
-import {
-  defaultGitHubDeviceAuthFactory,
-  GitHubDeviceFlowService,
-} from '@core/features/github/node/services/github-device-flow-service';
 import { githubIdentityClient } from '@core/features/github/node/services/github-identity-client';
 import { LegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store';
 import { clearOctokitCache } from '@core/features/github/node/services/octokit-cache';
 import { createGitHubRepositoryService } from '@core/features/github/node/services/repo-service';
+import { createIntegrationCredentialReader } from '@core/features/integrations/api/node/integration-credential-reader';
 import { createProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/project-integration-account-resolver';
 import { integrationsEvents } from '@core/features/integrations/node/event-host';
 import { IntegrationAccountStore } from '@core/features/integrations/node/integration-account-store';
@@ -49,6 +44,15 @@ import {
   IntegrationConnectionService,
   setIntegrationConnectionService,
 } from '@core/features/integrations/node/integration-connection-service';
+import {
+  IntegrationDeviceFlowService,
+  setIntegrationDeviceFlowService,
+} from '@core/features/integrations/node/integration-device-flow-service';
+import {
+  createEmdashOAuthRenewer,
+  EMDASH_OAUTH_CREDENTIAL_SOURCE,
+  IntegrationOAuthTokens,
+} from '@core/features/integrations/node/integration-oauth-tokens';
 import { migrateGitHubJsonCredentials } from '@core/features/integrations/node/migrations/github-json-credentials';
 import { LegacyIntegrationAccountsMigration } from '@core/features/integrations/node/migrations/legacy-integration-accounts';
 import { createIssueProviderRegistry } from '@core/features/issues/node/registry';
@@ -80,6 +84,7 @@ import {
   resolvePullRequestIntegration,
 } from '@core/features/repository/api/node/pull-request-routing';
 import { repositoryRouter } from '@core/features/repository/api/node/repository-router';
+import { createGitLabRepositoryService } from '@core/features/repository/node/gitlab-repository-service';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
@@ -100,7 +105,6 @@ import type { TaskProviderOpts } from '@core/features/workspaces/api/node/worksp
 import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node/sweep/workspace-deletion-sweep';
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
-import { isGitHubAccountSummary } from '@core/primitives/github/api';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
@@ -163,7 +167,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { appScope } from '../../core/app-scope';
 import { step } from '../../core/phase';
 import { setCoreServiceInstances } from '../../core/service-instances';
-import { registerProviderTokenHandlers, wireAccountTelemetry } from '../wiring';
+import { wireAccountTelemetry } from '../wiring';
 import type { DatabaseBundle } from './database';
 import type { InfrastructureBundle } from './infrastructure';
 
@@ -172,10 +176,10 @@ export type ServicesBundle = {
   readonly automations: AutomationsService;
   readonly github: {
     cliImport: GitHubCliAccountImportService;
-    deviceFlow: GitHubDeviceFlowService;
     legacyTokenImport: GitHubLegacyTokenImportStep;
     repositories: ReturnType<typeof createGitHubRepositoryService>;
   };
+  readonly gitlabRepositories: ReturnType<typeof createGitLabRepositoryService>;
   readonly gitCredentials: GitCredentialsService;
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
   readonly hostIsReachable: HostReachabilityProbe;
@@ -455,14 +459,6 @@ export async function bootServices(
   // Unmigrated string-typed consumers get the documented plaintext view over
   // the Secret-typed secrets store (see toPlaintextSecretStore).
   const plaintextSecrets = toPlaintextSecretStore(encryptedAppSecretsStore);
-  const accountCredentials = new AccountCredentialStore(plaintextSecrets, log);
-  const accountService = createEmdashAccountService({
-    authServerClient: new AccountAuthServerClient(),
-    credentials: accountCredentials,
-    keyValueStore: new AppDbKeyValueStore<AccountKVSchema>(db, 'account', log),
-    oauthClient: new AccountOAuthClient(executeOAuthFlow),
-    providerTokenDispatcher: new ProviderTokenDispatcher(providerTokenRegistry),
-  });
   const promptLibraryService = createPromptLibraryService({
     db,
     keyValueStore: new AppDbKeyValueStore<PromptLibraryKV>(db, 'prompt-library', log),
@@ -505,6 +501,33 @@ export async function bootServices(
     onIntegrationAccountsChanged
   );
   setIntegrationConnectionService(integrationConnections);
+  const accountService = createEmdashAccountService({
+    authServerClient: new AccountAuthServerClient(),
+    credentials: new AccountCredentialStore(plaintextSecrets, log),
+    keyValueStore: new AppDbKeyValueStore<AccountKVSchema>(db, 'account', log),
+    oauthClient: new AccountOAuthClient(executeOAuthFlow),
+    providerTokenDispatcher: new ProviderTokenDispatcher(
+      new IntegrationOAuthTokens(integrationConnections, log)
+    ),
+  });
+  integrationAccountStore.setRenewer(
+    EMDASH_OAUTH_CREDENTIAL_SOURCE,
+    createEmdashOAuthRenewer((provider, providerAccountId) =>
+      accountService.renewProviderToken(provider, providerAccountId)
+    )
+  );
+  // A renewal that failed under one Emdash account (e.g. "not linked") says
+  // nothing about the next one, so retry after every sign-in or sign-out.
+  const forgetEmdashRenewalFailures = () =>
+    integrationAccountStore.forgetRenewalFailures(EMDASH_OAUTH_CREDENTIAL_SOURCE);
+  accountService.on('accountChanged', forgetEmdashRenewalFailures);
+  accountService.on('accountCleared', forgetEmdashRenewalFailures);
+  const integrationDeviceFlow = new IntegrationDeviceFlowService({
+    connections: integrationConnections,
+    logger: log,
+  });
+  setIntegrationDeviceFlowService(integrationDeviceFlow);
+  appScope.add(() => integrationDeviceFlow.dispose());
   const providerAccounts = new ProviderAccountService(providerAccountRegistry, {
     prepare: (providerId) => legacyIntegrationAccounts.run(providerId),
     onAccountsChanged: onIntegrationAccountsChanged,
@@ -543,11 +566,15 @@ export async function bootServices(
   // terminals/source-control controllers and TUI sessions.
   const gitCredentialServer = new GitCredentialServer({
     resolveProjectIntegrationAccount,
-    listAccounts: async () =>
-      (await listProviderAccountSummaries(providerAccountRegistry, 'github')).filter(
-        isGitHubAccountSummary
-      ),
+    listAccounts: (providerId = 'github') =>
+      listProviderAccountSummaries(providerAccountRegistry, providerId),
     readCredentials: readGitHubCredentials,
+    readIntegrationCredentials: createIntegrationCredentialReader(
+      integrationAccountStore,
+      providerAccountRegistry
+    ),
+    reportRejectedCredentials: (integrationId, accountId, credentials) =>
+      integrationAccountStore.reportRejected(integrationId, accountId, credentials),
     logger: log,
   });
   appScope.add(() => {
@@ -559,10 +586,8 @@ export async function bootServices(
       return settings.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
     },
     resolveProjectIntegrationAccount,
-    listAccounts: async () =>
-      (await listProviderAccountSummaries(providerAccountRegistry, 'github')).filter(
-        isGitHubAccountSummary
-      ),
+    listAccounts: (providerId = 'github') =>
+      listProviderAccountSummaries(providerAccountRegistry, providerId),
     channels: gitCredentialServer,
     logger: log,
   });
@@ -621,22 +646,12 @@ export async function bootServices(
     listAccounts: () => providerAccounts.listAccounts('github'),
     readCredentials: readGitHubCredentials,
   });
-  const githubAuthPlugin = integrationPluginRegistry.get('github');
-  const githubDeviceMethod = githubAuthPlugin?.capabilities.auth.methods.find(
-    (candidate) => candidate.kind === 'oauth-device'
-  );
-  if (!githubDeviceMethod || githubDeviceMethod.kind !== 'oauth-device') {
-    throw new Error('GitHub integration plugin does not declare an oauth-device auth method.');
-  }
-  const githubDeviceFlow = new GitHubDeviceFlowService({
-    connections: integrationConnections,
-    identityClient: githubIdentityClient,
-    publishEvent: (event) => githubEvents.emit(undefined, event),
-    createDeviceAuth: defaultGitHubDeviceAuthFactory,
-    config: {
-      clientId: githubDeviceMethod.clientId,
-      scopes: githubDeviceMethod.scopes,
-    },
+  const gitlabRepositories = createGitLabRepositoryService({
+    listAccounts: () => providerAccounts.listAccounts('gitlab'),
+    readCredentials: createIntegrationCredentialReader(
+      integrationAccountStore,
+      providerAccountRegistry
+    ),
   });
   // Run-once upgrade step (spec: github-git-settings §10): the legacy
   // single-token import lives behind an app-DB done-flag instead of a
@@ -649,7 +664,6 @@ export async function bootServices(
   );
   const githubServices = {
     cliImport: githubCliImporter,
-    deviceFlow: githubDeviceFlow,
     legacyTokenImport: githubLegacyTokenImport,
     repositories: githubRepositories,
   };
@@ -835,11 +849,11 @@ export async function bootServices(
   void sessionHygieneSweep.runNow().catch((error) => {
     log.warn('session hygiene sweep failed', { error: String(error) });
   });
-  registerProviderTokenHandlers();
   return {
     account: accountService,
     automations: automationsService,
     github: githubServices,
+    gitlabRepositories,
     gitCredentials,
     hostIsReachable,
     hostAttachments,

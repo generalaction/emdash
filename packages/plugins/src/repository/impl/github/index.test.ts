@@ -140,6 +140,19 @@ describe('GitHub repository plugin', () => {
         expect.objectContaining({ org: 'acme', name: 'new', private: true, auto_init: true })
       );
     });
+
+    it('creates an empty repository for publishing an existing branch', async () => {
+      octokit.rest.repos.createForAuthenticatedUser.mockResolvedValue({ data: createdRepo });
+      await createRepository(connected, {
+        owner: 'testuser',
+        name: 'new',
+        visibility: 'private',
+        initializeWithReadme: false,
+      });
+      expect(octokit.rest.repos.createForAuthenticatedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ auto_init: false })
+      );
+    });
   });
 
   it('deletes a repository', async () => {

@@ -67,7 +67,7 @@ export async function createRepository(
       name: opts.name,
       description: opts.description,
       private: opts.visibility === 'private',
-      auto_init: true,
+      auto_init: opts.initializeWithReadme ?? true,
     };
     const { data } =
       opts.owner === user.login

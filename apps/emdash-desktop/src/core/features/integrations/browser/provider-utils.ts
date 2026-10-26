@@ -1,6 +1,11 @@
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
 
-export type ProviderContext = { projectId?: string; projectPath?: string; repositoryUrl?: string };
+export type ProviderContext = {
+  projectId?: string;
+  projectPath?: string;
+  repositoryUrl?: string;
+  repositoryProvider?: string;
+};
 
 export function isProviderUsable(
   status: ConnectionStatus | undefined,

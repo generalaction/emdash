@@ -1,22 +1,31 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { BoundExec } from '#services/exec/api';
-import { bindGitDir, createGitExec, gitEnv } from './git-exec';
+import { bindGitDir, createGitExec } from './git-exec';
 
-describe('gitEnv', () => {
-  it('pins git output locale for stable parsing and error classification', () => {
-    expect(gitEnv({ LC_ALL: 'de_DE.UTF-8', LANG: 'de_DE.UTF-8' })).toMatchObject({
-      LC_ALL: 'C',
-      LANG: 'C',
-      LANGUAGE: 'C',
-      GIT_TERMINAL_PROMPT: '0',
+describe('createGitExec', () => {
+  it('runs git non-interactively without displacing core.sshCommand', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'emdash-git-home-'));
+    const exec = createGitExec({
+      cwd: process.cwd(),
+      executable: process.execPath,
+      env: { HOME: home, LC_ALL: 'de_DE.UTF-8' },
     });
-  });
 
-  it('defaults SSH to batch mode without overriding caller configuration', () => {
-    expect(gitEnv({ GIT_SSH_COMMAND: undefined }).GIT_SSH_COMMAND).toBe('ssh -o BatchMode=yes');
-    expect(gitEnv({ GIT_SSH_COMMAND: 'ssh -F custom-config' }).GIT_SSH_COMMAND).toBe(
-      'ssh -F custom-config'
-    );
+    const { stdout } = await exec.exec(['-p', 'JSON.stringify(process.env)']).finally(() => {
+      rmSync(home, { recursive: true, force: true });
+    });
+    const env = JSON.parse(stdout) as NodeJS.ProcessEnv;
+
+    expect(env).toMatchObject({
+      LC_ALL: 'C',
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_SSH: expect.stringMatching(/ssh$/),
+    });
+    // GIT_SSH_COMMAND would outrank core.sshCommand; GIT_SSH ranks below it.
+    expect(env).not.toHaveProperty('GIT_SSH_COMMAND');
   });
 
   it('loads the current environment for every git subprocess', async () => {

@@ -6,28 +6,33 @@ import {
   Label,
   ModalLayout,
   RadioGroup,
+  Select,
   ToggleGroup,
 } from '@emdash/ui/react/primitives';
-import { Github } from 'lucide-react';
+import { Github, Gitlab } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef, useState } from 'react';
 import { getGithubClient } from '@core/features/github/api/browser/client';
-import { useGitHubRepositoryOwnerSelect } from '@core/features/github/api/browser/useGithubRepositoryOwners';
 import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
 import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
 import { ProviderIdentityStrip } from '@core/features/integrations/contributions/browser/provider-identity-strip';
 import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { BrokenSettingNotice } from '@core/features/projects/contributions/browser/settings-provenance';
+import { repositoryNameError } from '@core/features/repository/api/browser/repository-name';
+import { useRepositoryOwnerSelect } from '@core/features/repository/api/browser/use-repository-owner-select';
+import { getRepositoryClient } from '@core/features/repository/api/client';
 import {
   getGitCheckoutStore,
   getGitRepositoryStore,
 } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { DEFAULT_REMOTE_NAME } from '@core/primitives/git/api';
-import { isGitHubAccountSummary } from '@core/primitives/github/api';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
+import type {
+  ProviderAccountRef,
+  ProviderAccountSummary,
+} from '@core/primitives/provider-accounts/api';
 
 export type AddRemoteModalArgs = {
   projectId: string;
@@ -51,30 +56,26 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   const { complete } = useModalController('addRemoteModal');
   const openIntegrationSetup = useOpenModal('integrationSetupModal');
   const [tab, setTab] = useState<Tab>('create');
+  const [provider, setProvider] = useState<'github' | 'gitlab'>('github');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [repositoryName, setRepositoryName] = useState(projectName);
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [url, setUrl] = useState('');
-  const [accountOverride, setAccountOverride] = useState<GitHubAccountSummary | null>(null);
+  const [accountOverride, setAccountOverride] = useState<ProviderAccountSummary | null>(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const accountSaveInFlight = useRef(false);
 
-  // The account acting for this modal (spec §9): the identity strip's
-  // per-action override, else the blessed resolver's effective account. The
-  // old hard refusal ("select a GitHub account in project settings first") is
-  // gone — the strip carries both the identity and the fix-it path inline.
-  const resolvedAccount = useProjectAccount(projectId, 'github', {
+  const resolvedAccount = useProjectAccount(projectId, provider, {
     repository: { kind: 'project' },
-    accepts: isGitHubAccountSummary,
   });
-  const { data: accounts } = useAccounts('github', isGitHubAccountSummary);
+  const { data: accounts } = useAccounts(provider);
   const actingAccount = accountOverride ?? resolvedAccount?.value ?? null;
-  const githubAccountId = actingAccount?.accountId ?? null;
+  const accountId = actingAccount?.accountId ?? null;
 
   const handleSelectAccount = async (
-    account: GitHubAccountSummary,
+    account: ProviderAccountSummary,
     { remember }: { remember: boolean }
   ) => {
     if (accountSaveInFlight.current || isSubmitting) return;
@@ -88,7 +89,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
       if (!settings) throw new Error('Project settings are unavailable.');
       const result = await settings.save({
         integrationAccounts: {
-          stored: { github: { kind: 'account', accountId: account.accountId } },
+          stored: { [provider]: { kind: 'account', accountId: account.accountId } },
         },
       });
       if (!result.success) throw new Error('Could not remember the selected account.');
@@ -108,7 +109,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
     isLoading: ownersLoading,
     errorMessage: ownersErrorMessage,
     handleOwnerChange,
-  } = useGitHubRepositoryOwnerSelect(githubAccountId);
+  } = useRepositoryOwnerSelect(provider, accountId);
   const repositoryStore = getGitRepositoryStore(projectId);
   const checkoutStore = getGitCheckoutStore(workspaceId);
   const pushRemoteResolution = repositoryStore?.effectiveGitSettings.pushRemote ?? null;
@@ -117,13 +118,13 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   // conventional name for a brand-new remote (a naming default, not
   // resolution).
   const selectedRemote = repositoryStore?.pushRemote?.name ?? DEFAULT_REMOTE_NAME;
-  // Creating a GitHub repository genuinely requires an account (fail closed);
-  // linking an existing remote proceeds on system credentials (spec §5).
+  const nameError = repositoryNameError(provider, repositoryName);
   const canSubmitCreateRepository =
-    githubAccountId !== null &&
+    accountId !== null &&
     !ownersLoading &&
     !ownersErrorMessage &&
     repositoryName.trim().length > 0 &&
+    !nameError &&
     !!owner;
   const isValid = tab === 'create' ? canSubmitCreateRepository : url.trim().length > 0;
 
@@ -133,34 +134,54 @@ export const AddRemoteModal = observer(function AddRemoteModal({
     setError(null);
 
     try {
+      const credentialAccount: ProviderAccountRef | undefined =
+        tab === 'create' && accountId ? { providerId: provider, accountId } : undefined;
       if (tab === 'create') {
-        if (!githubAccountId) return;
+        if (!accountId) return;
         if (!owner) {
           setError(ownersErrorMessage ?? 'No repository owner available');
           return;
         }
 
-        const result = await (
-          await getGithubClient()
-        ).createRepository({
-          name: repositoryName.trim(),
-          owner: owner.value,
-          isPrivate: visibility === 'private',
-          accountId: githubAccountId,
-        });
+        const result =
+          provider === 'gitlab'
+            ? await (
+                await getRepositoryClient()
+              ).gitLabCreate({
+                name: repositoryName.trim(),
+                owner: owner.value,
+                isPrivate: visibility === 'private',
+                accountId,
+                initializeWithReadme: false,
+              })
+            : await (
+                await getGithubClient()
+              ).createRepository({
+                name: repositoryName.trim(),
+                owner: owner.value,
+                isPrivate: visibility === 'private',
+                accountId,
+                initializeWithReadme: false,
+              });
 
         if (!result.success) {
           setError(result.error ?? 'Failed to create repository');
           return;
         }
 
-        if (!result.repoUrl) {
+        const repositoryUrl =
+          provider === 'gitlab' && 'cloneUrl' in result
+            ? result.cloneUrl
+            : 'repoUrl' in result
+              ? result.repoUrl
+              : undefined;
+        if (typeof repositoryUrl !== 'string' || !repositoryUrl) {
           setError('Created repository did not include a remote URL');
           return;
         }
 
         if (!repositoryStore) throw new Error('Git repository is unavailable');
-        const addRemoteResult = await repositoryStore.addRemote(selectedRemote, result.repoUrl);
+        const addRemoteResult = await repositoryStore.addRemote(selectedRemote, repositoryUrl);
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
@@ -177,14 +198,14 @@ export const AddRemoteModal = observer(function AddRemoteModal({
       }
 
       if (!repositoryStore) throw new Error('Git repository is unavailable');
-      const fetchResult = await repositoryStore.fetchRemote();
+      const fetchResult = await repositoryStore.fetchRemote(credentialAccount);
       if (!fetchResult.success) {
         setError(toErrorMessage(fetchResult.error, 'Failed to fetch remote'));
         return;
       }
 
       if (!checkoutStore) throw new Error('Git checkout is unavailable');
-      const publishResult = await checkoutStore.publishCurrentBranch();
+      const publishResult = await checkoutStore.publishCurrentBranch(credentialAccount);
       if (!publishResult.success) {
         if (publishResult.error.type === 'rejected') {
           repositoryStore?.refreshLocal();
@@ -246,12 +267,40 @@ export const AddRemoteModal = observer(function AddRemoteModal({
         {tab === 'create' && (
           <Field.Group>
             <Field.Root>
+              <Field.Label>Provider</Field.Label>
+              <Select.Root
+                value={provider}
+                onValueChange={(value) => {
+                  setProvider(value as 'github' | 'gitlab');
+                  setAccountOverride(null);
+                }}
+              >
+                <Select.Trigger
+                  appearance="input"
+                  className="w-full"
+                  aria-label="Repository provider"
+                >
+                  {provider === 'github' ? 'GitHub' : 'GitLab'}
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="github">GitHub</Select.Item>
+                  <Select.Item value="gitlab">GitLab</Select.Item>
+                </Select.Content>
+              </Select.Root>
+            </Field.Root>
+            <Field.Root>
               <Field.Label>Repository Name</Field.Label>
               <Input
                 autoFocus
                 value={repositoryName}
+                aria-invalid={!!nameError}
                 onChange={(e) => setRepositoryName(e.target.value)}
               />
+              {nameError && (
+                <p role="alert" className="text-destructive text-xs">
+                  {nameError}
+                </p>
+              )}
             </Field.Root>
             <Field.Root>
               <Field.Label>Owner</Field.Label>
@@ -315,17 +364,23 @@ export const AddRemoteModal = observer(function AddRemoteModal({
 
         {resolvedAccount && accounts ? (
           <ProviderIdentityStrip
-            providerName="GitHub"
-            providerIcon={<Github className="size-4 text-foreground-muted" />}
+            providerName={provider === 'github' ? 'GitHub' : 'GitLab'}
+            providerIcon={
+              provider === 'github' ? (
+                <Github className="size-4 text-foreground-muted" />
+              ) : (
+                <Gitlab className="size-4 text-foreground-muted" />
+              )
+            }
             actionLabel={tab === 'create' ? 'Creating as' : 'Using'}
             emptyState={{
               connect:
                 tab === 'create'
-                  ? 'Connect a GitHub account to continue.'
+                  ? `Connect a ${provider === 'github' ? 'GitHub' : 'GitLab'} account to continue.`
                   : 'Git operations will use your system credentials.',
               unavailable:
                 tab === 'create'
-                  ? 'Choose a GitHub account to continue.'
+                  ? `Choose a ${provider === 'github' ? 'GitHub' : 'GitLab'} account to continue.`
                   : 'Pick an account, or continue with system git credentials.',
               noMatch: 'No connected account matches this repository.',
             }}
@@ -336,7 +391,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
             accountRequired={tab === 'create'}
             disabled={isSavingAccount || isSubmitting}
             onSelect={(account, options) => void handleSelectAccount(account, options)}
-            onConnect={() => void openIntegrationSetup({ integration: 'github' })}
+            onConnect={() => void openIntegrationSetup({ integration: provider })}
           />
         ) : null}
 

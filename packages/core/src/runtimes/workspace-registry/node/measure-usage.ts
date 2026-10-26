@@ -14,6 +14,8 @@ export type MeasureWorkspaceUsageError = Exclude<
 export type MeasureWorkspaceUsageOptions = {
   /** Absolute native path, as stored on the registry record. */
   workspacePath: string;
+  /** Absolute paths of nested workspaces measured on their own; their bytes are skipped. */
+  excludePaths?: string[];
   signal?: AbortSignal;
   createGitExec?: GitExecFactory;
 };
@@ -21,7 +23,8 @@ export type MeasureWorkspaceUsageOptions = {
 /**
  * Measures a workspace's disk footprint. Total bytes are exclusive disk usage;
  * artifact bytes cover git-ignored build output (`git clean -ndX` roots), so
- * callers can show "reclaimable" space separately.
+ * callers can show "reclaimable" space separately. Cancellation rejects with the
+ * signal's reason rather than resolving to a failure.
  */
 export async function measureWorkspaceUsage(
   options: MeasureWorkspaceUsageOptions
@@ -31,6 +34,8 @@ export async function measureWorkspaceUsage(
   try {
     const measured = await measureAbsolutePathUsage(options.workspacePath, '', {
       artifactRoots: artifactRoots.data,
+      excludePaths: options.excludePaths,
+      signal: options.signal,
     });
     return ok({
       totalBytes: measured.exclusiveDiskBytes,
@@ -38,6 +43,7 @@ export async function measureWorkspaceUsage(
       errors: measured.errors,
     });
   } catch (error) {
+    options.signal?.throwIfAborted();
     return err({
       type: 'filesystem-error',
       message: error instanceof Error ? error.message : String(error),
@@ -58,6 +64,7 @@ async function listIgnoredArtifactRoots(
     );
     stdout = result.stdout;
   } catch (error) {
+    options.signal?.throwIfAborted();
     return err({
       type: 'git-command-failed',
       message: error instanceof Error ? error.message : String(error),
@@ -88,7 +95,18 @@ function parseGitCleanDryRunLine(line: string): string | undefined {
   return normalized;
 }
 
+/** The candidates strictly inside `workspacePath`: nested workspaces its walk can skip. */
+export function nestedWorkspacePaths(workspacePath: string, candidates: string[]): string[] {
+  const root = path.resolve(workspacePath);
+  return candidates.filter((candidate) => isContainedBy(root, path.resolve(candidate)));
+}
+
 function isContainedBy(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }

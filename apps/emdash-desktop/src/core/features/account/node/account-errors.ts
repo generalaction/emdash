@@ -10,7 +10,8 @@ export type AccountSignInError =
   | AccountInvalidAuthResponseError
   | AccountOAuthError
   | AccountSessionPersistenceError
-  | AccountProviderTokenPersistenceError;
+  | AccountProviderTokenPersistenceError
+  | AccountUnsupportedProviderError;
 
 export type AccountLinkProviderError =
   | AccountAuthServerError
@@ -29,6 +30,17 @@ export type AccountLinkStartError =
   | AccountInvalidAuthResponseError
   | AccountSessionExpiredError;
 
+export type AccountProviderTokenReadError =
+  | AccountAuthServerError
+  | AccountInvalidAuthResponseError
+  | AccountProviderAccountNotLinkedError
+  | AccountSessionExpiredError;
+
+export type AccountRenewProviderTokenError =
+  | AccountProviderTokenReadError
+  | AccountNotSignedInError
+  | AccountSessionPersistenceError;
+
 export type AccountSessionPersistenceError = {
   type: 'session_persistence_failed';
   message: string;
@@ -42,6 +54,12 @@ export type AccountNotSignedInError = {
 
 export type AccountSessionExpiredError = {
   type: 'session_expired';
+  message: string;
+};
+
+export type AccountProviderAccountNotLinkedError = {
+  type: 'provider_account_not_linked';
+  provider: string;
   message: string;
 };
 
@@ -77,8 +95,7 @@ export type AccountProviderTokenPersistenceError = {
   cause?: SerializedError;
 };
 
-export const SESSION_EXPIRED_MESSAGE =
-  'Your Emdash session expired. Sign in again to connect GitHub.';
+export const SESSION_EXPIRED_MESSAGE = 'Your Emdash session expired. Sign in again.';
 
 export function unknownErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;

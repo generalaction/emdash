@@ -1,5 +1,6 @@
 import type { IIntegrationAuthBehavior } from '@emdash/plugins/integrations';
 import type * as Integrations from '@emdash/plugins/integrations';
+import { ok } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { deferred } from '@emdash/shared/testing';
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
@@ -357,6 +358,34 @@ describe('IntegrationConnectionService account identity', () => {
         .getAccount('linear', first.accountId)
         .then((account) => account?.credentials ?? null)
     ).toEqual({ apiKey: 'one' });
+  });
+
+  it('checks once more with renewed credentials after the provider rejects them', async () => {
+    const expiresAt = Date.now() + 3_600_000;
+    const renewed = { instanceUrl: 'https://gitlab.com', accessToken: 'renewed', expiresAt };
+    const renew = vi.fn(async () => ok(renewed));
+    credentials.setRenewer('emdash_oauth', renew);
+    const gitlabIdentity = { id: '42', host: 'gitlab.com', scope: 'https://gitlab.com' };
+    await credentials.upsertAccount('gitlab', {
+      accountId: 'https://gitlab.com:42',
+      identity: gitlabIdentity,
+      credentialSource: 'emdash_oauth',
+      credentials: { instanceUrl: 'https://gitlab.com', accessToken: 'rotated', expiresAt },
+    });
+    verify.mockImplementation(async (_host, supplied) =>
+      supplied.accessToken === 'renewed'
+        ? { connected: true, account: gitlabIdentity, credentials: supplied }
+        : { connected: false, error: '401 Unauthorized' }
+    );
+
+    const status = await service.checkConnection(
+      'gitlab',
+      { requiresRepositoryUrl: false, supportsIssueContext: true },
+      'https://gitlab.com:42'
+    );
+
+    expect(status.connected).toBe(true);
+    expect(renew).toHaveBeenCalledTimes(1);
   });
 
   it('reports live health without changing saved account metadata or its user label', async () => {

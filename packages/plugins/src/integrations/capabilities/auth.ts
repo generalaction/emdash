@@ -1,6 +1,8 @@
+import type { Result } from '@emdash/shared';
 import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type { IntegrationCredentials, IntegrationHostContext } from '../host';
+import type { IntegrationError } from '../types';
 
 const authFieldSchema = z.object({
   id: z.string(),
@@ -95,6 +97,26 @@ export type VerifyResult =
     }
   | { connected: false; error?: string };
 
+/** A pending OAuth device authorization (RFC 8628) shown to the user. */
+export type DeviceAuthorizationSession = {
+  userCode: string;
+  verificationUri: string;
+  verificationUriComplete?: string;
+  /** Seconds until the user code expires. */
+  expiresIn: number;
+  /** Polls until the user approves; resolves with credentials to pass to `verify`. */
+  complete(signal: AbortSignal): Promise<Result<IntegrationCredentials, IntegrationError>>;
+};
+
+/** An access token issued through the Emdash auth server, which keeps the refresh token. */
+export type OAuthAccessToken = {
+  accessToken: string;
+  /** Epoch milliseconds; absent for tokens that do not expire. */
+  expiresAt?: number;
+  /** Provider host of the account, e.g. `gitlab.com`. */
+  host: string;
+};
+
 export type IIntegrationAuthBehavior = {
   credentialsSchema: z.ZodType<IntegrationCredentials>;
   verify(
@@ -102,7 +124,34 @@ export type IIntegrationAuthBehavior = {
     credentials: IntegrationCredentials,
     methodId?: string
   ): Promise<VerifyResult>;
+  /** Required when the descriptor declares an `oauth-device` method. */
+  startDeviceAuthorization?(
+    host: IntegrationHostContext
+  ): Promise<Result<DeviceAuthorizationSession, IntegrationError>>;
+  /**
+   * Required when the descriptor declares an `oauth` method. Credentials that
+   * expire must carry the token's `expiresAt` so the host renews them in time.
+   */
+  credentialsFromOAuthToken?(token: OAuthAccessToken): IntegrationCredentials;
+  /**
+   * Called by the host when credentials the integration issued itself (e.g. by
+   * device sign-in) expire soon. Returns replacement credentials, or `undefined`
+   * when these credentials cannot be refreshed. The host persists the result
+   * before handing it out and serializes calls per account, so a rotating
+   * refresh token is never used twice.
+   */
+  refreshCredentials?(
+    host: IntegrationHostContext,
+    credentials: IntegrationCredentials,
+    now: number
+  ): Promise<Result<IntegrationCredentials | undefined, IntegrationError>>;
 };
+
+/** Expiring credentials carry `expiresAt` in epoch milliseconds. */
+export function credentialsExpireAt(credentials: IntegrationCredentials): number | undefined {
+  const expiresAt = credentials.expiresAt;
+  return typeof expiresAt === 'number' && Number.isFinite(expiresAt) ? expiresAt : undefined;
+}
 
 export const integrationAuthCapability = definePluginCapability<IIntegrationAuthBehavior>()(
   'auth',

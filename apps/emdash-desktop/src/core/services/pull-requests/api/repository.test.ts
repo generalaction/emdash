@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { recognizePullRequestUrl } from './repository';
+import { getPrNumber, recognizePullRequestUrl } from './repository';
+
+describe('getPrNumber', () => {
+  it('reads GitHub and GitLab identifiers', () => {
+    expect(getPrNumber({ identifier: '#42' })).toBe(42);
+    expect(getPrNumber({ identifier: '!42' })).toBe(42);
+  });
+});
 
 describe('recognizePullRequestUrl', () => {
   it('recognizes the gh CLI convention (refs/pull/N/head + https remote)', () => {
@@ -29,13 +36,13 @@ describe('recognizePullRequestUrl', () => {
     ).toBeNull();
   });
 
-  it('returns null for merge-request style refs it does not recognize', () => {
+  it('recognizes GitLab MR refs with nested groups', () => {
     expect(
       recognizePullRequestUrl({
         mergeRef: 'refs/merge-requests/9/head',
-        remoteUrl: 'https://gitlab.com/emdash/emdash',
+        remoteUrl: 'git@gitlab.com:group/subgroup/repo.git',
       })
-    ).toBeNull();
+    ).toBe('https://gitlab.com/group/subgroup/repo/-/merge_requests/9');
   });
 
   it('returns null without a resolvable remote URL', () => {

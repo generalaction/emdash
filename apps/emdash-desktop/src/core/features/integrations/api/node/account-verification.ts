@@ -39,6 +39,7 @@ export async function checkIntegrationConnection(
     credentials: IntegrationCredentials;
     identity?: Identity;
     label?: string;
+    renewalError?: string;
   } | null>
 ): Promise<ConnectionStatus> {
   const plugin = integrationPluginRegistry.get(integrationId);
@@ -48,7 +49,10 @@ export async function checkIntegrationConnection(
     const account = await loadAccount();
     if (!account) return { connected: false, capabilities };
     const result = await plugin.behavior.auth?.verify({ log: logger }, account.credentials);
-    if (!result?.connected) return { connected: false, error: result?.error, capabilities };
+    if (!result?.connected) {
+      // A failed renewal explains why the credentials stopped working.
+      return { connected: false, error: account.renewalError ?? result?.error, capabilities };
+    }
     if (
       account.identity &&
       (!result.account || !sameIdentity(integrationId, account.identity, result.account))

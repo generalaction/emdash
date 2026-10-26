@@ -373,8 +373,8 @@ pnpm run test
   established. Legacy schemas and readers stay migration-only; destination markers make imports
   idempotent and retryable.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
-  `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`,
-  `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
+  `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`, `EMDASH_AUTH_SERVER_URL` (development
+  builds only), `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
 - App-internal path aliases are defined in `tsconfig.json` (`@/*`, `@core/*`, `@renderer/*`,

@@ -22,6 +22,9 @@ export type ExecBufferResult = {
   stderr: string;
 };
 
+/** Bound on the diagnostic carried in the message; `stderr` keeps the full text. */
+const MESSAGE_DIAGNOSTIC_MAX_CHARS = 2_000;
+
 export class ExecError extends Error {
   constructor(
     readonly file: string,
@@ -31,9 +34,28 @@ export class ExecError extends Error {
     readonly stderr: string,
     options?: ErrorOptions
   ) {
-    super(`${file} ${args.join(' ')} failed (exit ${exitCode ?? 'unknown'})`, options);
+    super(describeExecFailure(file, args, exitCode, stderr), options);
     this.name = 'ExecError';
   }
+}
+
+/**
+ * Callers surface and pattern-match `error.message`, so it carries the process's own
+ * diagnostic (git's "fatal: …" line lives on stderr) — a bare exit code hides the cause.
+ * Long output keeps its tail: tools print the decisive line last.
+ */
+function describeExecFailure(
+  file: string,
+  args: readonly string[],
+  exitCode: number | null,
+  stderr: string
+): string {
+  const summary = `${file} ${args.join(' ')} failed (exit ${exitCode ?? 'unknown'})`;
+  const diagnostic = stderr.trim();
+  if (!diagnostic) return summary;
+  return diagnostic.length > MESSAGE_DIAGNOSTIC_MAX_CHARS
+    ? `${summary}: …${diagnostic.slice(-MESSAGE_DIAGNOSTIC_MAX_CHARS)}`
+    : `${summary}: ${diagnostic}`;
 }
 
 export type BoundExec = {

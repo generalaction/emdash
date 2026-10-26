@@ -12,6 +12,18 @@ describe('checkoutDriftLabel', () => {
     );
   });
 
+  it('uses MR terminology for GitLab checkout drift', () => {
+    expect(checkoutDriftLabel({ kind: 'in-sync', syncedAt: 1 }, 'gitlab')).toBe(
+      'Checkout in sync with MR head'
+    );
+    expect(
+      checkoutDriftLabel(
+        { kind: 'drifted', prMoved: true, localAhead: false, syncedAt: 1 },
+        'gitlab'
+      )
+    ).toBe('Checkout differs from MR head (MR head moved)');
+  });
+
   it('labels drifted with only the flags that are honestly true', () => {
     expect(
       checkoutDriftLabel({ kind: 'drifted', localAhead: false, prMoved: true, syncedAt: 1 })

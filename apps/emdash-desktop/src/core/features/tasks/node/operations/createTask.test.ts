@@ -542,15 +542,18 @@ describe('createTask', () => {
         workspaceId: 'repo-workspace',
         path: '/repo',
       });
-      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith({
-        workspaceId: wsInsert.id,
-        repositoryId: 'repo-workspace',
-        branch: 'feature/test',
-        baseRef: 'main',
-        path: wsInsert.path,
-        preservePatterns: ['.env'],
-        publish: { remote: 'fork' },
-      });
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        {
+          workspaceId: wsInsert.id,
+          repositoryId: 'repo-workspace',
+          branch: 'feature/test',
+          baseRef: 'main',
+          path: wsInsert.path,
+          preservePatterns: ['.env'],
+          publish: { remote: 'fork' },
+        },
+        { timeoutMs: 0 }
+      );
     });
 
     it('does not request a push when pushBranch is not set', async () => {
@@ -630,7 +633,8 @@ describe('createTask', () => {
 
       await settleCreation((captured[1] as Record<string, unknown>).id);
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
-        expect.objectContaining({ preservePatterns: [] })
+        expect.objectContaining({ preservePatterns: [] }),
+        { timeoutMs: 0 }
       );
     });
 
@@ -658,7 +662,8 @@ describe('createTask', () => {
 
       await settleCreation((captured[1] as Record<string, unknown>).id);
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
-        expect.objectContaining({ baseRef: 'origin/main' })
+        expect.objectContaining({ baseRef: 'origin/main' }),
+        { timeoutMs: 0 }
       );
     });
 
@@ -751,7 +756,8 @@ describe('createTask', () => {
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
         expect.objectContaining({
           path: expect.stringMatching(/\/feature-test-2$/u),
-        })
+        }),
+        { timeoutMs: 0 }
       );
     });
 
@@ -851,19 +857,22 @@ describe('createTask', () => {
 
       const wsInsert = captured[1] as Record<string, unknown>;
       await settleCreation(wsInsert.id);
-      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith({
-        workspaceId: wsInsert.id,
-        repositoryId: 'repo-workspace',
-        branch: 'feat/my-pr',
-        path: wsInsert.path,
-        preservePatterns: ['.env'],
-        gitSetup: {
-          fetchBranch: { remote: 'origin', sourceRef: 'refs/heads/feat/my-pr' },
-          upstream: { remote: 'origin', mergeRef: 'refs/heads/feat/my-pr' },
-          breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
-          followRef: true,
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        {
+          workspaceId: wsInsert.id,
+          repositoryId: 'repo-workspace',
+          branch: 'feat/my-pr',
+          path: wsInsert.path,
+          preservePatterns: ['.env'],
+          gitSetup: {
+            fetchBranch: { remote: 'origin', sourceRef: 'refs/heads/feat/my-pr' },
+            upstream: { remote: 'origin', mergeRef: 'refs/heads/feat/my-pr' },
+            breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
+            followRef: true,
+          },
         },
-      });
+        { timeoutMs: 0 }
+      );
       // baseRef is omitted: fetchBranch materializes the branch.
       const verbInput = workspaceRegistry.createWorktree.mock.calls[0][0];
       expect('baseRef' in verbInput).toBe(false);
@@ -891,7 +900,38 @@ describe('createTask', () => {
             breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
             followRef: true,
           },
+        }),
+        { timeoutMs: 0 }
+      );
+    });
+
+    it('provisions a GitLab fork MR with its target ref and canonical association', async () => {
+      const { captured } = setupTransactionMock();
+      await createTask(
+        db,
+        projects,
+        hostIsReachable,
+        prParams({
+          provider: 'gitlab',
+          prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42',
+          headRepositoryUrl: 'https://gitlab.com/fork/repo',
+          isFork: true,
         })
+      );
+      const wsInsert = captured[1] as Record<string, unknown>;
+      await settleCreation(wsInsert.id);
+      expect(wsInsert.path).toMatch(/\/mr-42-feat-my-pr$/u);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'mr/42/feat/my-pr',
+          gitSetup: {
+            fetchBranch: { remote: 'origin', sourceRef: 'refs/merge-requests/42/head' },
+            upstream: { remote: 'origin', mergeRef: 'refs/merge-requests/42/head' },
+            breadcrumb: { prUrl: 'https://gitlab.com/group/nested/repo/-/merge_requests/42' },
+            followRef: true,
+          },
+        }),
+        { timeoutMs: 0 }
       );
     });
 
@@ -937,7 +977,8 @@ describe('createTask', () => {
             breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
             followRef: true,
           },
-        })
+        }),
+        { timeoutMs: 0 }
       );
     });
   });

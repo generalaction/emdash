@@ -112,6 +112,18 @@ export class ProviderAccountRegistry implements ProviderAccountStore {
     return this.secretStore.getSecret(account.credentialRef);
   }
 
+  async updateSecret(providerId: string, accountId: string, secret: string): Promise<boolean> {
+    const row = await this.findRow(providerId, accountId);
+    if (!row) return false;
+    await this.secretStore.setSecret(row.credentialRef, secret);
+    // A removal that finished during the secret write wins; drop what it left behind.
+    if (!(await this.findRow(providerId, accountId))) {
+      await this.secretStore.deleteSecret(row.credentialRef);
+      return false;
+    }
+    return true;
+  }
+
   /**
    * Remove one account and its secret. When the default account is removed,
    * the oldest surviving account is promoted in the same transaction.

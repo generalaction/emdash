@@ -1,33 +1,45 @@
 import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import type {
-  providerTokenRegistry,
   ProviderTokenDispatchResult,
-} from '@core/features/account/api/node/provider-token-registry';
+  ProviderTokenSink,
+  ProviderTokenTarget,
+} from '@core/features/account/api/node/provider-token-sink';
 import { type AccountProviderTokenPersistenceError, unknownErrorMessage } from '../account-errors';
 import type { AuthProviderToken } from '../account-types';
 
 export class ProviderTokenDispatcher {
-  constructor(private readonly registry: Pick<typeof providerTokenRegistry, 'dispatch'>) {}
+  constructor(private readonly sink: ProviderTokenSink) {}
+
+  supports(provider: string): boolean {
+    return this.sink.supports(provider);
+  }
 
   async dispatchOptional(
-    token: AuthProviderToken | undefined
+    token: AuthProviderToken | undefined,
+    target: ProviderTokenTarget = {}
   ): Promise<
     Result<ProviderTokenDispatchResult | undefined, AccountProviderTokenPersistenceError>
   > {
     if (!token) return ok();
-    return this.dispatchRequired(token);
+    return this.dispatchRequired(token, target);
   }
 
   async dispatchRequired(
-    token: AuthProviderToken
+    token: AuthProviderToken,
+    target: ProviderTokenTarget = {}
   ): Promise<
     Result<ProviderTokenDispatchResult | undefined, AccountProviderTokenPersistenceError>
   > {
     try {
-      const result = await this.registry.dispatch(token.providerId, {
-        accessToken: token.accessToken,
-        providerAccount: token.providerAccount,
-      });
+      const result = await this.sink.store(
+        token.providerId,
+        {
+          accessToken: token.accessToken,
+          ...(token.expiresAt !== undefined ? { expiresAt: token.expiresAt } : {}),
+          providerAccount: token.providerAccount,
+        },
+        target
+      );
       return ok(result);
     } catch (error) {
       return err({

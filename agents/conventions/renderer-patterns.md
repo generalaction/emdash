@@ -99,10 +99,14 @@ Workbench layout follows a strict ownership model (see
   drag-below-threshold into a semantic close command. No `panel.collapse()` /
   `expand()` / `resize()` / `setLayout()` calls exist in app code, and no
   `display:none` toggling of workbench surfaces.
-- **Pixel sizes belong to react-resizable-panels alone**, persisted via
-  `useResizableDefaultLayout` with a memento-backed `LayoutStorage` facade
-  (`createLayoutStorage` in `src/core/primitives/mementos/browser/`). Sizes are never
-  MobX observables and never persisted to localStorage. The workspace outer layout is
+- **Pixel sizes belong to react-resizable-panels alone**, persisted with a memento-backed
+  `LayoutStorage` facade (`createLayoutStorage` in `src/core/primitives/mementos/browser/`).
+  Sizes are never MobX observables and never persisted to localStorage. Collapsible
+  surfaces (sidebars, terminal drawer) persist the pixel size the user resized them to
+  through `useCollapsiblePanelBinding`: window resizes go to the other panels and are
+  never persisted, and a clamp in a small window lifts once the window grows again.
+  Proportional splits (split panes, changes-panel sections) persist the library's
+  percentage layout via `useResizableDefaultLayout`. The workspace outer layout is
   app-scoped because it belongs to the workbench shell; task-internal panel layouts are
   task-scoped.
 - **Persisted view state renders below a hydration gate.** The task view gates on
@@ -129,6 +133,15 @@ The PTY frontend is owned by the terminals slice:
   `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
 - Agent conversation panes set `PtyPane`'s `inputContext="agent"` to preserve native Alt+arrow
   sequences. The default shell context maps macOS Option+arrows to shell editing controls.
+- Terminal selection copy preserves xterm's selected text (xterm already joins soft wraps).
+  Copy Link uses the OSC 8 destination or URLs within a soft-wrapped logical line; never infer
+  a continuation across hard newlines from punctuation or indentation. Intercepted OSC 8 mouse
+  gestures must activate locally once while sending no mouse reports to the PTY. Keep that
+  decision in step with xterm's linkifier: same cell rounding, links compared by destination and
+  range (xterm recreates them on repaint), and hover state only from its callbacks. Never stop
+  propagation of a release when xterm saw the press; it must finish selection and mouse reports.
+  An intercepted gesture must also end on a move without the primary button or on the next
+  primary press, so a lost release never leaves the shield swallowing input.
 
 ## React Query Context Pattern
 

@@ -1,4 +1,5 @@
 import { err, ok, Result as ResultUtil, toSerializedError, type Result } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import {
   type AccountNotSignedInError,
   type AccountSessionPersistenceError,
@@ -21,9 +22,13 @@ export type AccountSessionCredentialStore = {
   clear(): Promise<Result<void, AccountSessionPersistenceError>>;
 };
 
+const SESSION_KEY = 'session';
+
 export class AccountSessionStore {
   private cachedProfile: CachedProfile | null = null;
   private sessionToken: string | null = null;
+  /** Serializes session writes, so a conditional clear sees the session it removes. */
+  private readonly writes = new KeyedMutex();
 
   constructor(
     private readonly accountKV: AccountProfileKeyValueStore,
@@ -104,16 +109,20 @@ export class AccountSessionStore {
       lastValidated,
     };
 
-    return await ResultUtil.fromAsync(this.credentials.set(sessionToken)).andThen(async () => {
-      try {
-        await this.accountKV.setOrThrow('profile', profile);
-        this.sessionToken = sessionToken;
-        this.cachedProfile = profile;
-        return ok();
-      } catch (error) {
-        return err(toSessionPersistenceError(error, 'Failed to persist account session'));
-      }
-    });
+    return await this.writes.runExclusive(
+      SESSION_KEY,
+      async () =>
+        await ResultUtil.fromAsync(this.credentials.set(sessionToken)).andThen(async () => {
+          try {
+            await this.accountKV.setOrThrow('profile', profile);
+            this.sessionToken = sessionToken;
+            this.cachedProfile = profile;
+            return ok();
+          } catch (error) {
+            return err(toSessionPersistenceError(error, 'Failed to persist account session'));
+          }
+        })
+    );
   }
 
   async markValidated(
@@ -131,6 +140,25 @@ export class AccountSessionStore {
   }
 
   async clearSessionPreservingAccount(): Promise<Result<void, AccountSessionPersistenceError>> {
+    return await this.writes.runExclusive(SESSION_KEY, () => this.clearSession());
+  }
+
+  /**
+   * Clears the session only while `token` is still the current session, so a
+   * response for an older session cannot sign out a newer one. Resolves whether
+   * it cleared the session.
+   */
+  async clearSessionIfCurrent(
+    token: string
+  ): Promise<Result<boolean, AccountSessionPersistenceError>> {
+    return await this.writes.runExclusive(SESSION_KEY, async () => {
+      if (this.sessionToken !== token) return ok(false);
+      const cleared = await this.clearSession();
+      return cleared.success ? ok(true) : cleared;
+    });
+  }
+
+  private async clearSession(): Promise<Result<void, AccountSessionPersistenceError>> {
     const clearedToken = await this.credentials.clear();
     if (!clearedToken.success) return clearedToken;
     this.sessionToken = null;

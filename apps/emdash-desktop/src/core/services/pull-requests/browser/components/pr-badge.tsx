@@ -29,7 +29,8 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
           >
             <StatusIcon className="size-3" pr={pr} disableTooltip />
             <span className="shrink-0 font-sans text-xs leading-none text-foreground-muted">
-              #{getPrNumber(pr) ?? 0}
+              {pr.provider === 'gitlab' ? '!' : '#'}
+              {getPrNumber(pr) ?? 0}
             </span>
             <span className="truncate text-xs leading-none text-foreground-muted">{pr.title}</span>
           </div>
@@ -56,7 +57,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
               <span className="min-w-0 truncate text-sm leading-snug text-foreground">
                 {pr.title}
               </span>
-              <PrNumberBadge number={getPrNumber(pr) ?? 0} />
+              <PrNumberBadge number={getPrNumber(pr) ?? 0} provider={pr.provider} />
               <Tooltip.Root>
                 <Tooltip.Trigger>
                   <Button
@@ -69,9 +70,11 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                     <ExternalLink className="size-3.5" />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Open PR on GitHub</Tooltip.Content>
+                <Tooltip.Content>
+                  Open {pr.provider === 'gitlab' ? 'MR on GitLab' : 'PR on GitHub'}
+                </Tooltip.Content>
               </Tooltip.Root>
-              <PrUrlCopyButton url={pr.url} />
+              <PrUrlCopyButton url={pr.url} provider={pr.provider} />
             </div>
             <RelativeTime
               value={pr.createdAt}

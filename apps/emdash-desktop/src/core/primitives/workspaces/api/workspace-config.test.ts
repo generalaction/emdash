@@ -21,6 +21,22 @@ const storedPrBranchV2 = {
 };
 
 describe('workspaceConfig versioned schema — additive prUrl', () => {
+  it('preserves the GitLab provider and canonical MR URL', () => {
+    const result = workspaceConfig.safeParse({
+      ...storedPrBranchV2,
+      git: {
+        ...storedPrBranchV2.git,
+        provider: 'gitlab',
+        prUrl: 'https://gitlab.com/group/sub/repo/-/merge_requests/42',
+      },
+    });
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') return;
+    expect(result.data.git).toMatchObject({
+      provider: 'gitlab',
+      prUrl: 'https://gitlab.com/group/sub/repo/-/merge_requests/42',
+    });
+  });
   it('parses an old v2 pr-branch config without prUrl (no version bump)', () => {
     const result = workspaceConfig.safeParse(storedPrBranchV2);
     expect(result.status).toBe('ok');

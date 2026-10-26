@@ -12,6 +12,7 @@ interface PrComboboxFieldProps {
   onValueChange: (pr: PullRequest | null) => void;
   projectId?: string;
   repositoryUrl?: string;
+  provider?: string;
   disabled?: boolean;
   className?: string;
 }
@@ -21,6 +22,7 @@ export function PrComboboxField({
   onValueChange,
   projectId,
   repositoryUrl,
+  provider = 'github',
   disabled,
   className,
 }: PrComboboxFieldProps) {
@@ -28,6 +30,7 @@ export function PrComboboxField({
 
   return (
     <PrSelector
+      provider={provider}
       value={value}
       onValueChange={onValueChange}
       projectId={projectId}
@@ -49,8 +52,8 @@ export function PrComboboxField({
           <span className="flex h-full w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
             {repoRef ? (
               <span className="flex h-8 items-center gap-1 text-foreground-passive">
-                Select a PR from
-                <IntegrationIcon provider="github" size={14} className="opacity-40" />
+                Select {provider === 'gitlab' ? 'an MR' : 'a PR'} from
+                <IntegrationIcon provider={provider} size={14} className="opacity-40" />
                 <span>{repoRef.nameWithOwner}</span>
               </span>
             ) : null}

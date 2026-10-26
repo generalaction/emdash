@@ -31,12 +31,18 @@ vi.mock('@core/features/integrations/contributions/browser/integrations-provider
       name: 'GitHub',
       features: ['issues'],
     },
+    {
+      id: 'gitlab',
+      name: 'GitLab',
+      features: ['issues'],
+    },
   ];
   return {
     useIntegrationsContext: () => ({
       integrations,
       integrationById: {
         github: integrations[0],
+        gitlab: integrations[1],
       },
     }),
   };
@@ -71,7 +77,8 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
         React.createElement('div', {}, children),
       Empty: ({ children }: { children: React.ReactNode }) =>
         React.createElement('div', { 'data-testid': 'empty' }, children),
-      Input: () => React.createElement('input', {}),
+      Input: ({ placeholder }: { placeholder?: string }) =>
+        React.createElement('input', { placeholder }),
       Item: ({ children }: { children: React.ReactNode }) =>
         React.createElement('div', {}, children),
       List: () => React.createElement('div', {}),
@@ -203,6 +210,17 @@ describe('IssueSelector', () => {
       'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
     );
     expect(container.textContent).not.toContain('No issues found');
+  });
+
+  it('uses work item wording for GitLab while keeping the issues selector', async () => {
+    mocks.useIssueSearch.mockReturnValue(
+      issueSearchResult({ issueProvider: 'gitlab', error: null })
+    );
+    await renderSelector();
+
+    expect(container.textContent).toContain('Click to link a work item');
+    expect(container.textContent).toContain('No work items found');
+    expect(container.querySelector('input')?.placeholder).toBe('Search GitLab...');
   });
 
   async function renderSelector() {

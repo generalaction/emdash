@@ -1,26 +1,33 @@
-const TRAILING_URL_CHARS_PATTERN = /[,.!?;:'"<>}\]]+$/;
+const TRAILING_URL_CHARS_PATTERN = /[,.!?;:'"<>}]+$/;
 const URL_CONTINUATION_CHARS_PATTERN = /[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]/;
 
 export function normalizeTerminalHttpUrl(value: string): string {
   let url = value.trim();
   url = joinMultilineUrl(url);
   url = trimTrailingText(url);
-  url = url.replace(TRAILING_URL_CHARS_PATTERN, '');
 
-  while (url.endsWith(')') && hasExtraClosingParen(url)) {
-    url = url.slice(0, -1);
-  }
+  // Closing brackets can belong to the URL, e.g. an IPv6 host, so only trim
+  // unmatched ones, together with any punctuation they expose.
+  let previous: string;
+  do {
+    previous = url;
+    url = url.replace(TRAILING_URL_CHARS_PATTERN, '');
+    if (hasExtraClosing(url, '(', ')') || hasExtraClosing(url, '[', ']')) {
+      url = url.slice(0, -1);
+    }
+  } while (url !== previous);
 
   return url;
 }
 
-function hasExtraClosingParen(value: string): boolean {
+function hasExtraClosing(value: string, open: string, close: string): boolean {
+  if (!value.endsWith(close)) return false;
   let balance = 0;
 
   for (const char of value) {
-    if (char === '(') {
+    if (char === open) {
       balance += 1;
-    } else if (char === ')') {
+    } else if (char === close) {
       balance -= 1;
     }
   }

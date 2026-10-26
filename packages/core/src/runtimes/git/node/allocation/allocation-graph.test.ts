@@ -3,9 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hostPath } from '#runtimes/git/node/testing/paths';
 import type { BoundExec } from '#services/exec/api';
 import {
-  gitMetadataWatchIgnore,
+  gitMetadataWatchProfile,
   workspaceContentWatchIgnore,
   type IWatchService,
+  type WatchOptions,
 } from '#services/fs-watch/api';
 import { GitAllocationGraph } from './allocation-graph';
 import type { CheckoutIdentity, GitIdentityResolver } from './identity';
@@ -125,10 +126,10 @@ describe('GitAllocationGraph', () => {
   });
 
   it('applies the Git-metadata and workspace-content watch profiles', async () => {
-    const ignores = new Map<string, string[] | undefined>();
+    const watches = new Map<string, Pick<WatchOptions, 'ignore' | 'backend'>>();
     const watcher: IWatchService = {
       watch: (root, _onEvents, options) => {
-        ignores.set(root, options?.ignore);
+        watches.set(root, { ignore: options?.ignore, backend: options?.backend });
         return { ready: async () => ok(undefined), release: async () => {} };
       },
       dispose: async () => {},
@@ -142,9 +143,13 @@ describe('GitAllocationGraph', () => {
 
     const lease = graph.acquireCheckout({ checkout: hostPath('/repo') });
     await lease.ready();
-    expect(ignores.get('/repo/.git')).toEqual(gitMetadataWatchIgnore());
-    expect(ignores.get('/repo')).toEqual(workspaceContentWatchIgnore(['**/dist/**']));
-    expect(ignores.get('/repo')).toEqual(['.git/**', '**/dist/**']);
+    expect(watches.get('/repo/.git')).toEqual(gitMetadataWatchProfile());
+    expect(watches.get('/repo/.git')?.backend).toBe('os');
+    expect(watches.get('/repo')).toEqual({
+      ignore: workspaceContentWatchIgnore(['**/dist/**']),
+      backend: undefined,
+    });
+    expect(watches.get('/repo')?.ignore).toEqual(['.git/**', '**/dist/**']);
     await lease.release();
     await graph.dispose();
   });

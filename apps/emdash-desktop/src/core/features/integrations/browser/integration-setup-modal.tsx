@@ -76,7 +76,7 @@ function formMethodId(method: ReturnType<typeof formMethods>[number], index: num
   return method.id ?? `form-${index}`;
 }
 
-function IntegrationSetupForm({
+export function IntegrationSetupForm({
   integration,
   metadata,
   accountId,

@@ -42,6 +42,7 @@ import {
   PtyRegistry,
   type PtySession,
   type PtySpawner,
+  XTERM_PTY_DEFAULT_ENV,
 } from '#services/pty/api';
 import type {
   ActivityFields,
@@ -341,7 +342,8 @@ export class TerminalsRuntime {
     const userEnv = await this.loadUserEnv();
     const shellProfile = await this.resolveShellProfile(key, spec.shellIntent, userEnv);
     const env = buildTerminalEnv({
-      baseEnv: userEnv,
+      // Host env and spec overrides win over the xterm defaults.
+      baseEnv: { ...XTERM_PTY_DEFAULT_ENV, ...userEnv },
       shellProfile,
       overrides: spec.env,
       gitCredentials: spec.gitCredentials,

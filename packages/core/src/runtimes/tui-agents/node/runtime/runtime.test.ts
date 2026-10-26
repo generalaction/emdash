@@ -313,6 +313,7 @@ describe('TuiAgentsRuntime', () => {
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
           TERM_PROGRAM: 'emdash',
+          FORCE_HYPERLINK: '1',
           AGENT: '1',
         },
         cols: 120,
@@ -322,6 +323,14 @@ describe('TuiAgentsRuntime', () => {
 
     await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
     expect(spawner.specs).toHaveLength(1);
+  });
+
+  it('lets provider env override the FORCE_HYPERLINK default', async () => {
+    const { runtime, spawner } = createRuntime();
+
+    await runtime.startSession(startInput({ providerVars: { FORCE_HYPERLINK: '0' } }));
+
+    expect(spawner.specs[0]!.env?.FORCE_HYPERLINK).toBe('0');
   });
 
   it('merges final Windows provider environment overlays case-insensitively', async () => {
