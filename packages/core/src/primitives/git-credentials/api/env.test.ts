@@ -1,10 +1,12 @@
 import { execFile, execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import {
   applyGitCredentialsToEnv,
@@ -76,6 +78,10 @@ function runHelper(action: string, request?: string): string {
 }
 
 describe('GIT_CREDENTIAL_HELPER_COMMAND', () => {
+  it('contains no single quotes, so GIT_CONFIG_PARAMETERS carries it verbatim', () => {
+    expect(GIT_CREDENTIAL_HELPER_COMMAND).not.toContain("'");
+  });
+
   it.skipIf(process.platform === 'win32')('forwards get and erase to their endpoints', () => {
     const request = 'protocol=https\nhost=github.com\n\n';
     expect(runHelper('get', request)).toBe(`http://127.0.0.1:${channel.port}/git-credential/get\n`);
@@ -182,6 +188,12 @@ function helperEnvFor(port: number): Record<string, string> {
   );
 }
 
+/** Every process's argv as `ps` lists it, which any local user can read. */
+async function processArgvs(): Promise<string> {
+  const { stdout } = await promisify(execFile)('ps', ['-A', '-ww', '-o', 'args=']);
+  return stdout;
+}
+
 const credentialRequest = 'protocol=https\nhost=github.com\n\n';
 const credentialResponse = 'username=emdash-test\npassword=synthetic-test-password\n';
 
@@ -213,6 +225,32 @@ describe.skipIf(process.platform === 'win32')('GIT_CREDENTIAL_HELPER_COMMAND wit
         expect(result.stdout).toContain('username=emdash-test');
       }
     );
+  });
+
+  it('keeps the nonce out of every process argv while the request is in flight', async () => {
+    // Unique, so no unrelated process on the machine can carry it.
+    const nonce = randomUUID();
+    let argvs = '';
+    let servicePort = 0;
+    await withCredentialService(
+      async (response) => {
+        argvs = await processArgvs();
+        response.end(credentialResponse);
+      },
+      async (port) => {
+        servicePort = port;
+        const env = applyGitCredentialsToEnv(
+          {},
+          { mode: 'effective-account', channel: { port, nonce }, hosts: ['github.com'] }
+        );
+        const result = await runGitCredential('fill', env, credentialRequest);
+        expect(result.stdout).toContain('username=emdash-test');
+      }
+    );
+    // The listing caught curl mid-request, without its nonce.
+    const curl = argvs.split('\n').find((argv) => argv.includes(`127.0.0.1:${servicePort}/`));
+    expect(curl).toMatch(/^curl -q --noproxy \* -K \/dev\/fd\/3 /);
+    expect(argvs).not.toContain(nonce);
   });
 
   it('reports an unreachable credential service instead of failing silently', async () => {

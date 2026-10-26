@@ -37,3 +37,5 @@
 - do not weaken quoting or spawn behavior casually
 - validate both direct spawn and shell-wrapped spawn cases when changing PTY startup logic
 - confirm renderer event flow if hook/plugin payload or agent status behavior changes
+- shell commands that call an Emdash loopback endpoint build curl with `loopbackCurlCommand`
+  so proxies and the user's curlrc cannot reroute them and the nonce never enters argv
