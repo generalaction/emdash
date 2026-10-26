@@ -17,6 +17,7 @@ import {
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { WorkspaceScanScheduler } from '#runtimes/workspace-registry/node/scan/scheduler';
+import { WORKSPACE_USAGE_TTL_MS } from '#runtimes/workspace-registry/node/usage-cache';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import * as execApi from '#services/exec/api';
 import { measureAbsolutePathUsage } from '#services/fs-usage/node';
@@ -868,6 +869,23 @@ describe('workspace registry contract', () => {
     // The unlisted `tools` workspace stays in the repository's count; the worktree moves out.
     expect(repository.data.totalBytes + nested.data.totalBytes).toBe(fullTree.exclusiveDiskBytes);
     expect(nested.data.totalBytes).toBeGreaterThanOrEqual(64_000);
+  });
+
+  it('measureUsage serves a recent measurement until it expires', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-usage', path: repoPath });
+    const first = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+    await fs.writeFile(path.join(repoPath, 'grown.bin'), 'x'.repeat(64_000));
+
+    const cached = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+    await clock.advanceBy(WORKSPACE_USAGE_TTL_MS);
+    const remeasured = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+
+    if (!first.success || !cached.success || !remeasured.success) {
+      throw new Error('expected usage');
+    }
+    expect(cached.data).toEqual(first.data);
+    expect(remeasured.data.totalBytes).toBeGreaterThanOrEqual(first.data.totalBytes + 64_000);
   });
 
   it('measureUsage of an unknown workspaceId is a typed not-found error', async () => {

@@ -23,7 +23,8 @@ export type MeasureWorkspaceUsageOptions = {
 /**
  * Measures a workspace's disk footprint. Total bytes are exclusive disk usage;
  * artifact bytes cover git-ignored build output (`git clean -ndX` roots), so
- * callers can show "reclaimable" space separately.
+ * callers can show "reclaimable" space separately. Cancellation rejects with the
+ * signal's reason rather than resolving to a failure.
  */
 export async function measureWorkspaceUsage(
   options: MeasureWorkspaceUsageOptions
@@ -34,6 +35,7 @@ export async function measureWorkspaceUsage(
     const measured = await measureAbsolutePathUsage(options.workspacePath, '', {
       artifactRoots: artifactRoots.data,
       excludePaths: options.excludePaths,
+      signal: options.signal,
     });
     return ok({
       totalBytes: measured.exclusiveDiskBytes,
@@ -41,6 +43,7 @@ export async function measureWorkspaceUsage(
       errors: measured.errors,
     });
   } catch (error) {
+    options.signal?.throwIfAborted();
     return err({
       type: 'filesystem-error',
       message: error instanceof Error ? error.message : String(error),
@@ -61,6 +64,7 @@ async function listIgnoredArtifactRoots(
     );
     stdout = result.stdout;
   } catch (error) {
+    options.signal?.throwIfAborted();
     return err({
       type: 'git-command-failed',
       message: error instanceof Error ? error.message : String(error),
