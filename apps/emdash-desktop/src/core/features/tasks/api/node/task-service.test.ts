@@ -4,6 +4,7 @@ import {
   type WorkspaceRecord,
 } from '@emdash/core/runtimes/workspace-registry/api';
 import { err, ok } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import { createManualClock, deferred } from '@emdash/shared/testing';
 import { defineContract } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
@@ -444,10 +445,16 @@ describe('TaskService cleanup and activation ordering', () => {
   });
 });
 
-/** A real Wire host whose activation waits on prepare until the test finishes it. */
+/**
+ * A real Wire host whose activation waits on prepare until the test finishes it. Like
+ * the registry, activation and deactivation of one workspace share an exclusive claim,
+ * so a deactivation waits for prepare.
+ */
 function createPreparingHost() {
   const prepare = deferred();
   const started = deferred();
+  const claims = new KeyedMutex();
+  const events: string[] = [];
   const wire = createTestWire(
     defineContract({
       activateWorkspace: workspaceRegistryContract.activateWorkspace,
@@ -455,15 +462,21 @@ function createPreparingHost() {
     }),
     {
       // `pnpm install` in a prepare script.
-      activateWorkspace: async (input) => {
-        started.resolve();
-        await prepare.promise;
-        return ok(activatedRecord(input.workspaceId));
-      },
-      deactivateWorkspace: async () => ok(undefined),
+      activateWorkspace: (input) =>
+        claims.runExclusive(input.workspaceId, async () => {
+          started.resolve();
+          await prepare.promise;
+          events.push('host:prepared');
+          return ok(activatedRecord(input.workspaceId));
+        }),
+      deactivateWorkspace: (input) =>
+        claims.runExclusive(input.workspaceId, async () => {
+          events.push('host:deactivated');
+          return ok(undefined);
+        }),
     }
   );
-  return { wire, started: started.promise, finishPrepare: () => prepare.resolve() };
+  return { wire, events, started: started.promise, finishPrepare: () => prepare.resolve() };
 }
 
 function activatedRecord(id: string): WorkspaceRecord {
@@ -528,16 +541,30 @@ describe('TaskService host activation', () => {
     await expect(activation).rejects.toThrow('Wire transport disconnected');
   });
 
-  it('stops waiting for prepare once the provision is cancelled', async () => {
+  it('releases the workspace once the provision is cancelled, while the host finishes prepare', async () => {
     const fixture = makeLifecycleService({ workspaceRegistry: host.wire.client });
     const controller = new AbortController();
     const activation = fixture.service.provisionWorkspace('task-1', controller.signal);
     await host.started;
 
     controller.abort();
-
     expect(await activation).toMatchObject({ success: false, error: { type: 'cancelled' } });
-    // The workspace lifecycle is free again: archive does not wait for the host's prepare.
-    expect(await fixture.sessions.teardownTask('task-1', 'archive', 'workspace-1')).toEqual(ok());
+
+    // The desktop no longer holds the workspace: archive starts its teardown right away.
+    let archived = false;
+    const archive = fixture.sessions
+      .teardownTask('task-1', 'archive', 'workspace-1')
+      .finally(() => {
+        archived = true;
+      });
+    await vi.waitFor(() => expect(fixture.deactivateParticipants).toHaveBeenCalledOnce());
+    // The host deactivates only after prepare, under its per-workspace claim.
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(archived).toBe(false);
+    expect(host.events).toEqual([]);
+
+    host.finishPrepare();
+    expect(await archive).toEqual(ok());
+    expect(host.events).toEqual(['host:prepared', 'host:deactivated']);
   });
 });
