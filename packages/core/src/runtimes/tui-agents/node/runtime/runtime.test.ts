@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
-import { createManualClock, type ManualClock } from '@emdash/shared/testing';
+import { createManualClock, deferred, type ManualClock } from '@emdash/shared/testing';
 import { ReplicaLog } from '@emdash/wire/live';
 import { defineContract } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
@@ -810,6 +810,32 @@ describe('TuiAgentsRuntime', () => {
     expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
     await vi.waitFor(() => expect(intents.snapshot()).toEqual([]));
     expectNoSessionResidue('conversation-1', leakContainers(runtime));
+  });
+
+  it('resolves dispose only after background intent writes settle', async () => {
+    const intents = createMemorySessionIntentStore();
+    const entered = deferred<void>();
+    const finish = deferred<void>();
+    const saveActive = intents.saveActive.bind(intents);
+    vi.spyOn(intents, 'saveActive').mockImplementationOnce(async (intent) => {
+      entered.resolve();
+      await finish.promise;
+      return saveActive(intent);
+    });
+    const { runtime } = createRuntime({ intents });
+    const order: string[] = [];
+    await runtime.startSession(startInput());
+    await entered.promise;
+    const disposing = runtime.dispose().then(() => order.push('disposed'));
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      order.push('released');
+    } finally {
+      finish.resolve();
+      await disposing;
+    }
+    expect(order).toEqual(['released', 'disposed']);
+    expect(intents.snapshot()).toHaveLength(1);
   });
 });
 
