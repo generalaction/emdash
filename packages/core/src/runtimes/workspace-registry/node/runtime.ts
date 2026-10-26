@@ -184,6 +184,11 @@ export class WorkspaceRegistryRuntime {
   private mutationQueue: Promise<unknown> = Promise.resolve();
   /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
   private readonly workspaceClaims = new KeyedMutex();
+  /** createWorktree pipelines still running, by workspace id; duplicate requests join. */
+  private readonly worktreeCreations = new Map<
+    string,
+    Promise<Result<WorkspaceRecord, CreateWorktreeError>>
+  >();
   /**
    * The background creation-step chain (copy/push/fetch); runs, retries, and the
    * activation artifact gate all flow through its per-workspace single-flight.
@@ -733,20 +738,47 @@ export class WorkspaceRegistryRuntime {
    * the writer queue; the long-running stage pipeline runs unserialized — concurrent
    * creations against one repository are safe (spec: git concurrency model) and the
    * repo-hold only keeps idle-gated scans away; the durable outcome lands under the
-   * writer queue again. Progress is only visible through the records overlay.
+   * writer queue again. Progress is only visible through the records overlay. A request
+   * for a creation still in flight (a desktop that restarted mid-create and replayed
+   * it) joins that run: same outcome, no second pipeline over the same path.
    */
   async createWorktree(
     input: CreateWorktreeInput
   ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
-    const registration = await this.enqueue(() =>
-      Promise.resolve(this.registerWorktreeCreation(input))
-    );
-    if (!registration.success) return registration;
-    if (registration.data.execute === false) {
-      return ok(this.toWire(registration.data.record));
-    }
-    const repository = registration.data.repository;
+    const admission = await this.enqueue(() => this.admitWorktreeCreation(input));
+    return await admission.run;
+  }
 
+  /**
+   * Admission runs on the writer queue, so a duplicate request always finds the run its
+   * predecessor started. The run is wrapped in an object so the queue does not adopt its
+   * promise and wait for the pipeline.
+   */
+  private admitWorktreeCreation(input: CreateWorktreeInput): {
+    run: Promise<Result<WorkspaceRecord, CreateWorktreeError>>;
+  } {
+    const registration = this.registerWorktreeCreation(input);
+    if (!registration.success) return { run: Promise.resolve(registration) };
+    const admitted = registration.data;
+    switch (admitted.action) {
+      case 'replay':
+        return { run: Promise.resolve(ok(this.toWire(admitted.record))) };
+      case 'join':
+        return { run: admitted.run };
+      case 'execute': {
+        const run = this.runWorktreeCreation(input, admitted.repository).finally(() => {
+          this.worktreeCreations.delete(input.workspaceId);
+        });
+        this.worktreeCreations.set(input.workspaceId, run);
+        return { run };
+      }
+    }
+  }
+
+  private async runWorktreeCreation(
+    input: CreateWorktreeInput,
+    repository: DurableWorkspaceRecord
+  ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
     const created = await this.gitContext.schedule.withRepoHold(repository.path, async () => {
       const startedAt = this.clock.now();
       const stageStarts: CreationStageTimeline = [];
@@ -1125,7 +1157,9 @@ export class WorkspaceRegistryRuntime {
   private registerWorktreeCreation(
     input: CreateWorktreeInput
   ): Result<
-    { execute: boolean; record: DurableWorkspaceRecord; repository: DurableWorkspaceRecord },
+    | { action: 'replay'; record: DurableWorkspaceRecord }
+    | { action: 'join'; run: Promise<Result<WorkspaceRecord, CreateWorktreeError>> }
+    | { action: 'execute'; repository: DurableWorkspaceRecord },
     CreateWorktreeError
   > {
     const repository = this.store.get(input.repositoryId);
@@ -1154,8 +1188,10 @@ export class WorkspaceRegistryRuntime {
       if (existing.lastCreateOutcome?.status === 'succeeded') {
         // Replay of a completed creation: no-op foreground success; incomplete
         // background steps re-run through the caller's post-verb kickoff.
-        return ok({ execute: false, record: existing, repository });
+        return ok({ action: 'replay', record: existing });
       }
+      const inFlight = this.worktreeCreations.get(input.workspaceId);
+      if (inFlight) return ok({ action: 'join', run: inFlight });
       // Failed or interrupted: re-execute under a fresh 'started' outcome. The
       // lifecycle section clears — the fresh attempt writes its own steps at finalize.
       const restarted: DurableWorkspaceRecord = {
@@ -1166,7 +1202,7 @@ export class WorkspaceRegistryRuntime {
       };
       this.store.update(restarted);
       this.publish(restarted);
-      return ok({ execute: true, record: restarted, repository });
+      return ok({ action: 'execute', repository });
     }
 
     const resolvedPath = path.resolve(input.path);
@@ -1202,7 +1238,7 @@ export class WorkspaceRegistryRuntime {
     };
     this.store.insert(record);
     this.publish(record);
-    return ok({ execute: true, record, repository });
+    return ok({ action: 'execute', repository });
   }
 
   /** The durable tail of createWorktree: outcome lands, overlay clears, record settles. */

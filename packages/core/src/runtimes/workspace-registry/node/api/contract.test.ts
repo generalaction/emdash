@@ -1375,6 +1375,52 @@ describe('workspace registry contract', () => {
     });
   });
 
+  it('a duplicate createWorktree joins the creation still in flight', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    // Hold `git worktree add` in its checkout hook, as on a large repository, and count
+    // the checkouts.
+    const gate = path.join(root, 'checkout-gate');
+    const checkouts = path.join(root, 'checkouts.log');
+    await fs.writeFile(
+      path.join(repoPath, '.git', 'hooks', 'post-checkout'),
+      `#!/bin/sh\necho checkout >> '${checkouts}'\nwhile [ ! -f '${gate}' ]; do sleep 0.05; done\n`,
+      { mode: 0o755 }
+    );
+    const input = {
+      workspaceId: 'ws-slow',
+      repositoryId: 'ws-repo',
+      branch: 'feature/slow',
+      baseRef: 'main',
+      path: path.join(root, 'slow-wt'),
+      preservePatterns: [],
+    };
+    const admissions = vi.spyOn(runtime, 'createWorktree');
+
+    const first = wire.client.createWorktree(input);
+    await eventually(async () => {
+      expect(await fs.readFile(checkouts, 'utf8')).toBe('checkout\n');
+    });
+    // A desktop that restarted mid-create replays the same request.
+    const duplicate = wire.client.createWorktree(input);
+    await eventually(async () => expect(admissions).toHaveBeenCalledTimes(2));
+    // Admission is FIFO on the writer queue: once this settles, the duplicate was admitted.
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    await fs.writeFile(gate, '');
+
+    const [created, joined] = await Promise.all([first, duplicate]);
+    expect(created).toMatchObject({
+      success: true,
+      data: { observedStatus: 'present', lastCreateOutcome: { status: 'succeeded' } },
+    });
+    expect(joined).toEqual(created);
+    expect(await fs.readFile(checkouts, 'utf8')).toBe('checkout\n');
+    // Settled runs leave nothing in flight: a later replay is the completed no-op.
+    const replay = await wire.client.createWorktree(input);
+    expect(replay).toMatchObject({ success: true, data: { id: 'ws-slow' } });
+    expect(await fs.readFile(checkouts, 'utf8')).toBe('checkout\n');
+  });
+
   it('fs events refresh observations for an active workspace without an explicit refresh', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-live', path: repoPath });

@@ -20,6 +20,8 @@
   removal, update, step retry, usage) declare `callTimeoutMs: 0` in the contract, so desktop,
   automation, and workspace-server callers wait for the result instead of timing out after 30s;
   a lost connection still fails the call
+- a `createWorktree` for a workspace whose creation is still running joins that run (same
+  result, no second git pipeline); completed and interrupted creations replay as before
 - when a stale git registration (worktree directory deleted out-of-band) blocks the requested
   path or branch, `inspect` runs `git worktree prune`; locked registrations are kept, and
   working-tree files are never deleted (removing by path could hit a concurrent recreation)
