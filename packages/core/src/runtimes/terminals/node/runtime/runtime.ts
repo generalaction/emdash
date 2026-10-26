@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { createScope, KeyedMutex, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource } from '@emdash/wire/live';
@@ -127,6 +127,7 @@ export class TerminalsRuntime {
   private readonly startCounts = new Map<string, number>();
   private readonly previewSources = new Map<string, PreviewOutputSource>();
   private readonly gitCredentialChannels: SessionGitCredentialChannels;
+  private readonly startMutex = new KeyedMutex();
 
   constructor(options: TerminalsRuntimeOptions) {
     this.registry = new PtyRegistry(options.spawner, {
@@ -198,8 +199,17 @@ export class TerminalsRuntime {
     this.scope.add(() => this.dispose());
   }
 
-  async start(input: StartTerminalInput): Promise<Result<void, TerminalStartFailedError>> {
+  start(input: StartTerminalInput): Promise<Result<void, TerminalStartFailedError>> {
+    // Hydrates can overlap; one start at a time decides whether to attach or spawn, so a
+    // second spawn never replaces the shell the first just started.
     const sessionKey = sessionKeyFor(input.key);
+    return this.startMutex.runExclusive(sessionKey, () => this.startExclusive(sessionKey, input));
+  }
+
+  private async startExclusive(
+    sessionKey: string,
+    input: StartTerminalInput
+  ): Promise<Result<void, TerminalStartFailedError>> {
     const existing = this.registry.get(sessionKey);
     if (existing && !existing.exited) {
       // Attached: the live shell keeps the channel it started with.

@@ -339,13 +339,17 @@ describe('TerminalsRuntime', () => {
   });
 
   describe('git credential channels', () => {
-    function credentialHarness(spawner = new FakePtySpawner()) {
+    function credentialHarness(
+      spawner = new FakePtySpawner(),
+      options: { tmux?: boolean; userEnv?: () => Promise<Record<string, string>> } = {}
+    ) {
       const scope = createScope({ label: 'test-terminals-credentials' });
       const released: string[] = [];
       const runtime = new TerminalsRuntime({
         spawner,
         scope,
-        userEnv: async () => testUserEnv(),
+        userEnv: options.userEnv ?? (async () => testUserEnv()),
+        ...(options.tmux ? { exec: fakeExec() } : {}),
         releaseGitCredentialChannel: async (nonce) => {
           released.push(nonce);
         },
@@ -357,6 +361,7 @@ describe('TerminalsRuntime', () => {
           spec: {
             cwd: '/repo',
             env: {},
+            tmux: options.tmux,
             gitCredentials: {
               mode: 'effective-account',
               channel: { port: 4000, nonce },
@@ -426,6 +431,29 @@ describe('TerminalsRuntime', () => {
       await runtime.kill(key);
 
       expect(released).toEqual(['channel-1', 'channel-2']);
+      await scope.dispose();
+    });
+
+    it('starts overlapping hydrates of one terminal once and keeps its channel', async () => {
+      let resolveEnv!: () => void;
+      const envReady = new Promise<void>((resolve) => {
+        resolveEnv = resolve;
+      });
+      const { spawner, scope, released, start } = credentialHarness(new FakePtySpawner(), {
+        userEnv: async () => {
+          await envReady;
+          return testUserEnv();
+        },
+      });
+
+      const first = start('channel-1');
+      const second = start('channel-1');
+      resolveEnv();
+      await Promise.all([first, second]);
+
+      expect(spawner.processes).toHaveLength(1);
+      expect(spawner.processes[0]!.isExited).toBe(false);
+      expect(released).toEqual([]);
       await scope.dispose();
     });
 
