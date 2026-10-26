@@ -6,9 +6,11 @@ import type { SubjectSpace } from './memento-client';
 
 /**
  * Value shape shared by every panel-layouts memento (`tasks.panel-layouts`,
- * `workbench.panel-layouts`): one document per subject mapping the
- * react-resizable-panels internal storage key
- * (`react-resizable-panels:${id}[:${panelIds}]`) to its serialized layout.
+ * `workbench.panel-layouts`): one document per subject mapping a storage key
+ * to its serialized value — the react-resizable-panels internal key
+ * (`react-resizable-panels:${id}[:${panelIds}]`) to its percentage layout, or
+ * a collapsible panel binding's key
+ * (`collapsible-panel-size:${storageKey}:${panelId}`) to its pixel size.
  */
 export interface PanelLayoutsState {
   version: '1';

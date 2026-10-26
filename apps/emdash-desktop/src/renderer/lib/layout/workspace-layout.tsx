@@ -31,6 +31,7 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
     storage: layoutStorage,
     panelIds: ['workspace-left', 'workspace-main'],
     collapsiblePanelId: 'workspace-left',
+    orientation: 'horizontal',
     open: isLeftOpen,
     // Only reachable while open, so toggle is the semantic close command.
     onCloseRequest: () => toggleLeftSidebar(),
@@ -38,7 +39,7 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
   });
 
   return (
-    <Resizable.Group id="workspace-outer" orientation="horizontal" {...binding.groupProps}>
+    <Resizable.Group id="workspace-outer" {...binding.groupProps}>
       {/* Closed = panel AND handle unmounted (sync contract: never program
           the panels). */}
       {isLeftOpen && (

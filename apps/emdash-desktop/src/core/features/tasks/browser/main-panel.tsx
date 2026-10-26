@@ -363,6 +363,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
     storage: layoutStorage,
     panelIds: ['task-main-area', 'task-sidebar'],
     collapsiblePanelId: 'task-sidebar',
+    orientation: 'horizontal',
     open: isSidebarOpen,
     onCloseRequest: () => taskView.chrome.commands.collapseSidebar(),
     closeThreshold: SIDEBAR_CLOSE_THRESHOLD,
@@ -370,11 +371,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
 
   return (
     <taskTabView.TabLayoutProvider layout={taskView.paneLayout}>
-      <Resizable.Group
-        orientation="horizontal"
-        id="task-sidebar-layout"
-        {...sidebarBinding.groupProps}
-      >
+      <Resizable.Group id="task-sidebar-layout" {...sidebarBinding.groupProps}>
         <Resizable.Panel id="task-main-area">
           <TaskMainColumn />
         </Resizable.Panel>

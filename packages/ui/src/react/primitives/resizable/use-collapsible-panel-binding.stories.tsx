@@ -168,8 +168,9 @@ function Filler({ label }: { label: string }) {
 
 // ---------------------------------------------------------------------------
 // Story 1: CollapsibleSidebar (horizontal group + the shared binding hook).
-// Demonstrates drag persistence at pointer-up, threshold drag-to-close without
-// sliver persistence, and reopen restoring the last good size.
+// Demonstrates pixel-size persistence at pointer-up, threshold drag-to-close
+// without sliver persistence, reopen restoring the last good size, and the
+// sidebar keeping its pixel width when the frame resizes.
 // ---------------------------------------------------------------------------
 
 function CollapsibleSidebarDemo() {
@@ -182,6 +183,7 @@ function CollapsibleSidebarDemo() {
     storage,
     panelIds: ['main', 'sidebar'],
     collapsiblePanelId: 'sidebar',
+    orientation: 'horizontal',
     open: sidebarOpen,
     onCloseRequest: () => setSidebarOpen(false),
     closeThreshold: 8,
@@ -200,9 +202,8 @@ function CollapsibleSidebarDemo() {
         </div>
         <Frame>
           <Resizable.Group
-            orientation="horizontal"
             id="story-binding-sidebar-group"
-            defaultLayout={binding.groupProps.defaultLayout}
+            {...binding.groupProps}
             onLayoutChanged={(layout) => {
               setLastLayout(layout);
               binding.groupProps.onLayoutChanged(layout);
@@ -215,7 +216,7 @@ function CollapsibleSidebarDemo() {
             {sidebarOpen && (
               <>
                 <Resizable.Handle />
-                {/* id comes from the binding (generation-suffixed after a threshold close). */}
+                {/* id comes from the binding (generation-suffixed on every reopen). */}
                 <Resizable.Panel maxSize="60%" {...binding.collapsiblePanelProps}>
                   <Filler label="Sidebar" />
                 </Resizable.Panel>
@@ -247,6 +248,7 @@ function TerminalDrawerDemo() {
     storage,
     panelIds: ['content', 'drawer'],
     collapsiblePanelId: 'drawer',
+    orientation: 'vertical',
     open: drawerOpen,
     onCloseRequest: () => setDrawerOpen(false),
     closeThreshold: 8,
@@ -265,9 +267,8 @@ function TerminalDrawerDemo() {
         </div>
         <Frame>
           <Resizable.Group
-            orientation="vertical"
             id="story-binding-drawer-group"
-            defaultLayout={binding.groupProps.defaultLayout}
+            {...binding.groupProps}
             onLayoutChanged={(layout) => {
               setLastLayout(layout);
               binding.groupProps.onLayoutChanged(layout);
