@@ -86,30 +86,92 @@ describe('resolveTmuxSession', () => {
 
 describe('buildTmuxShellLine', () => {
   it('uses exact targets and POSIX quoting', () => {
-    const line = buildTmuxShellLine('workspace-$12', 'printf "$HOME"', 'project:task:leaf');
+    const { shellLine } = buildTmuxShellLine(
+      'workspace-$12',
+      { command: '/bin/sh', args: ['-c', 'printf "$HOME"'] },
+      { HOME: '/home/user' },
+      'project:task:leaf'
+    );
 
-    expect(line).toContain('has-session -t');
-    expect(line).toContain('attach-session -t');
-    expect(line).toContain('new-session -d -s');
-    expect(line).toContain('=workspace-$12');
-    expect(line).not.toContain('"workspace-$12"');
+    expect(shellLine).toContain('has-session -t');
+    expect(shellLine).toContain('attach-session -t');
+    expect(shellLine).toContain('new-session -d -s');
+    expect(shellLine).toContain('=workspace-$12');
+    expect(shellLine).not.toContain('"workspace-$12"');
+  });
+
+  it('keeps environment values out of the command line', () => {
+    const env = {
+      EMDASH_GIT_CREDENTIAL_PORT: '45678',
+      EMDASH_GIT_CREDENTIAL_NONCE: 'synthetic-nonce',
+      QUOTED: 'it\'s "synthetic" $(exit 1)\nline;',
+      EMPTY: '',
+      LARGE_A: 'a'.repeat(40_000),
+      LARGE_B: 'b'.repeat(40_000),
+      TERM: 'xterm-256color',
+      'NOT-A-NAME': 'synthetic-invalid',
+    };
+    const launch = buildTmuxShellLine('task', { command: 'agent', args: ['run'] }, env);
+    const chunks = Object.keys(launch.env).filter((key) => !(key in env));
+
+    for (const value of ['45678', 'synthetic-nonce', 'synthetic', 'a'.repeat(64)]) {
+      expect(launch.shellLine).not.toContain(value);
+    }
+    expect(chunks).toEqual(chunks.map((_, index) => `EMDASH_TMUX_ENV_${index}`));
+    expect(launch.env).toMatchObject(env);
+    const transfer = chunks.map((key) => launch.env[key]).join('');
+    expect(transfer).toContain('command export EMDASH_GIT_CREDENTIAL_NONCE=synthetic-nonce\n');
+    expect(transfer).toContain("command export EMPTY=''\n");
+    expect(transfer).not.toContain('TERM=');
+    expect(transfer).not.toContain('NOT-A-NAME');
+    expect(transfer.endsWith('EMDASH_TMUX_ENV_END=1\n')).toBe(true);
+  });
+
+  it('splits the transfer to fit each environment string within the Linux limit', () => {
+    // Each value fits a direct spawn, but quoting and newline escapes inflate it, and an odd
+    // offset puts a fixed-size boundary inside a surrogate pair.
+    const env = {
+      EMOJIS: '\u{1F600}'.repeat(20_000),
+      QUOTES: "'".repeat(40_000),
+      LINES: '\n'.repeat(10_000),
+    };
+    const launch = buildTmuxShellLine('task', { command: 'agent', args: ['run'] }, env);
+    const chunks = Object.keys(launch.env).filter((key) => !(key in env));
+
+    for (const key of chunks) {
+      const chunk = launch.env[key]!;
+      // MAX_ARG_STRLEN counts NAME=value and its terminating NUL.
+      expect(Buffer.byteLength(`${key}=${chunk}`) + 1).toBeLessThanOrEqual(131_072);
+      expect(Buffer.from(chunk).toString()).toBe(chunk);
+    }
+    const transfer = chunks.map((key) => launch.env[key]).join('');
+    expect(transfer).toContain(`command export EMOJIS='${env.EMOJIS}'\n`);
+    expect(transfer).toContain(`command export QUOTES='${"'\\''".repeat(40_000)}'\n`);
   });
 
   it.skipIf(!TMUX_AVAILABLE)(
     'creates metadata-backed sessions and reattaches legacy sessions without replacing them',
     async () => {
       const cwd = await mkdtemp('/tmp/emdash-tmux-');
-      const env = { ...process.env, TMUX_TMPDIR: cwd };
-      const shell = createBoundExec({ file: '/bin/sh', cwd, env });
+      // Without TMUX, TMUX_TMPDIR selects a private server even when run inside tmux.
+      const env = Object.fromEntries(
+        Object.entries({ ...process.env, TMUX: undefined, TMUX_TMPDIR: cwd }).filter(
+          (entry): entry is [string, string] => entry[1] !== undefined
+        )
+      );
       const tmux = createBoundExec({ file: 'tmux', cwd, env });
+      const launch = async (...args: Parameters<typeof buildTmuxShellLine>) => {
+        const { shellLine, env: launchEnv } = buildTmuxShellLine(...args);
+        await createBoundExec({ file: '/bin/sh', cwd, env: launchEnv })
+          .exec(['-c', shellLine])
+          .catch(() => {});
+      };
       const ctx = stubExecContext((_file, args) => tmux.exec(args ?? []));
       const identity = 'project:task:terminal';
 
       try {
         const created = await resolveTmuxSession(ctx, { identity, label: 'Fix login' });
-        await shell
-          .exec(['-c', buildTmuxShellLine(created.name, 'sleep 30', identity)])
-          .catch(() => {});
+        await launch(created.name, { command: 'sleep', args: ['30'] }, env, identity);
 
         await expect(
           resolveTmuxSession(ctx, { identity, label: 'renamed-workspace' })
@@ -130,7 +192,7 @@ describe('buildTmuxShellLine', () => {
           '#{pane_pid}',
         ]);
         const legacy = await resolveTmuxSession(ctx, { identity, label: 'Fix login' });
-        await shell.exec(['-c', buildTmuxShellLine(legacy.name, 'exit 99')]).catch(() => {});
+        await launch(legacy.name, { command: '/bin/sh', args: ['-c', 'exit 99'] }, env);
         const after = await tmux.exec([
           'display-message',
           '-p',
@@ -152,9 +214,7 @@ describe('buildTmuxShellLine', () => {
           identity: prefixIdentity,
           label: 'prefix',
         });
-        await shell
-          .exec(['-c', buildTmuxShellLine(missingExact.name, 'sleep 30', prefixIdentity)])
-          .catch(() => {});
+        await launch(missingExact.name, { command: 'sleep', args: ['30'] }, env, prefixIdentity);
         const exactSessions = await tmux.exec(['list-sessions', '-F', '#{session_name}']);
         expect(exactSessions.stdout.trim().split('\n').sort()).toEqual(
           [prefixName, `${prefixName}-sibling`].sort()

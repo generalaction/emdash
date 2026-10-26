@@ -10,7 +10,7 @@ vi.mock('@core/services/app-db/node/schema', () => ({
 
 describe('createWorkspacesWireController', () => {
   const mutations = {
-    archive: vi.fn(),
+    cleanArtifacts: vi.fn(),
     delete: vi.fn(),
   };
 
@@ -70,7 +70,7 @@ describe('createWorkspacesWireController', () => {
   });
 
   it('delegates Host-backed mutations to the mutation service', async () => {
-    const archive = vi.fn(async () => ({
+    const cleanArtifacts = vi.fn(async () => ({
       success: false as const,
       error: {
         type: 'project-unavailable',
@@ -79,17 +79,13 @@ describe('createWorkspacesWireController', () => {
     }));
     const controller = createWorkspacesWireController({
       db: {} as never,
-      mutations: { archive, delete: vi.fn() },
+      mutations: { cleanArtifacts, delete: vi.fn() },
       provisionTask: vi.fn(),
       reprovisionWorkspace: vi.fn(),
     });
 
-    const result = await controller.impl.archive?.(
-      {
-        projectId: 'project-1',
-        workspaceId: 'workspace-1',
-        workspacePath: '/repo/worktree',
-      },
+    const result = await controller.impl.cleanArtifacts?.(
+      { projectId: 'project-1', workspaceId: 'workspace-1' },
       {} as never
     );
     expect(result).toEqual({
@@ -99,10 +95,9 @@ describe('createWorkspacesWireController', () => {
         message: 'This action requires live Project access.',
       },
     });
-    expect(archive).toHaveBeenCalledWith({
+    expect(cleanArtifacts).toHaveBeenCalledWith({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
-      workspacePath: '/repo/worktree',
     });
     await controller.dispose();
   });

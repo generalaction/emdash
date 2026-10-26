@@ -17,6 +17,7 @@ export const runLocalCommand: CommandRunner = async (command, args = [], opts = 
   recordSpawn(classifySpawnPurpose(command, args), command);
   const { stdout, stderr } = await execFileAsync(command, args, {
     timeout: opts.timeout,
+    windowsHide: true,
   });
   return { stdout, stderr };
 };

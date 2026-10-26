@@ -1,8 +1,18 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getGitExecutable, GIT_EXECUTABLE, resolveGitBin, setGitExecutableOverride } from './exec';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getGitExecutable,
+  GIT_EXECUTABLE,
+  resolveGitBin,
+  runLocalCommand,
+  setGitExecutableOverride,
+} from './exec';
+
+const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }));
+
+vi.mock('node:child_process', () => ({ execFile: execFileMock }));
 
 const originalPlatform = process.platform;
 let tempDir: string;
@@ -78,5 +88,24 @@ describe('resolveGitBin', () => {
     setGitExecutableOverride(null, 'ssh-a');
     setGitExecutableOverride(null, 'ssh-b');
     expect(getGitExecutable('ssh-a')).toBe('git');
+  });
+});
+
+describe('runLocalCommand', () => {
+  it('runs commands without a Windows console window', async () => {
+    execFileMock.mockImplementation((_file, _args, _options, callback) =>
+      callback(null, { stdout: 'token\n', stderr: '' })
+    );
+
+    await expect(runLocalCommand('gh', ['auth', 'token'], { timeout: 5_000 })).resolves.toEqual({
+      stdout: 'token\n',
+      stderr: '',
+    });
+    expect(execFileMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'token'],
+      expect.objectContaining({ timeout: 5_000, windowsHide: true }),
+      expect.any(Function)
+    );
   });
 });

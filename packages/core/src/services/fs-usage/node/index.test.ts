@@ -75,6 +75,25 @@ describe('measureAbsolutePathUsage', () => {
     expect(withoutNested.apparentBytes).toBeGreaterThan(12_000);
   });
 
+  it.skipIf(process.platform === 'win32')(
+    'matches artifact roots verbatim, spaces and backslashes included',
+    async () => {
+      await writeBytes(path.join(root, ' spaced '), 4_000);
+      await writeBytes(path.join(root, 'back\\slash', 'out.js'), 8_000);
+      await writeBytes(path.join(root, 'back', 'slash'), 16_000);
+
+      const usage = await measureAbsolutePathUsage(root, '', {
+        artifactRoots: [' spaced ', 'back\\slash/'],
+      });
+
+      expect(usage.artifactBytes).toBe(
+        (await diskBytesOf(path.join(root, ' spaced '))) +
+          (await diskBytesOf(path.join(root, 'back\\slash'))) +
+          (await diskBytesOf(path.join(root, 'back\\slash', 'out.js')))
+      );
+    }
+  );
+
   it('counts a hard-linked file once, and as exclusive only when every link is inside', async () => {
     await writeBytes(path.join(root, 'a', 'shared.bin'), 32_000);
     await fs.mkdir(path.join(root, 'b'));

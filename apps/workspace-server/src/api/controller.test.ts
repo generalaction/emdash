@@ -131,6 +131,49 @@ describe('createWorkspaceWireController', () => {
       }
     );
   });
+
+  it('disables the worker deadline while the registry cleans artifacts', async () => {
+    vi.useFakeTimers();
+    let finishCleaning!: () => void;
+    const registryWorker = createTestWire(
+      defineContract({ cleanArtifacts: workspaceRegistryContract.cleanArtifacts }),
+      {
+        // Removing a large dependency tree.
+        cleanArtifacts: () =>
+          new Promise((resolve) => {
+            finishCleaning = () => resolve(ok(undefined));
+          }),
+      }
+    );
+    const workspace = createTestWire(
+      workspaceWireContract,
+      createTestWorkspaceWireController({
+        workspaceRegistry: {
+          ...createTestRuntimeClients().workspaceRegistry,
+          cleanArtifacts: registryWorker.client.cleanArtifacts,
+        },
+      })
+    );
+
+    try {
+      let settled = false;
+      const cleaned = workspace.client.workspaceRegistry
+        .cleanArtifacts({ workspaceId: 'ws-task' }, { timeoutMs: 0 })
+        .finally(() => {
+          settled = true;
+        });
+
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(settled).toBe(false);
+
+      finishCleaning();
+      await expect(cleaned).resolves.toEqual({ success: true, data: undefined });
+    } finally {
+      await workspace.dispose();
+      await registryWorker.dispose();
+      vi.useRealTimers();
+    }
+  });
 });
 
 const worktreeRecord: WorkspaceRecord = {

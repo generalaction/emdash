@@ -1,4 +1,5 @@
 import type { Configuration } from 'electron-builder';
+import { DEB_DEPENDS, RPM_DEPENDS } from './scripts/release/lib/linux-dependencies.ts';
 import {
   APP_ID,
   APP_NAME_LOWER,
@@ -98,9 +99,11 @@ const config: Configuration = {
   },
   deb: {
     packageName: APP_NAME_LOWER,
+    depends: DEB_DEPENDS,
   },
   rpm: {
     packageName: APP_NAME_LOWER,
+    depends: RPM_DEPENDS,
   },
   win: {
     icon: 'src/assets/images/emdash/emdash-canary.png',
