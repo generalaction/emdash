@@ -99,10 +99,14 @@ Workbench layout follows a strict ownership model (see
   drag-below-threshold into a semantic close command. No `panel.collapse()` /
   `expand()` / `resize()` / `setLayout()` calls exist in app code, and no
   `display:none` toggling of workbench surfaces.
-- **Pixel sizes belong to react-resizable-panels alone**, persisted via
-  `useResizableDefaultLayout` with a memento-backed `LayoutStorage` facade
-  (`createLayoutStorage` in `src/core/primitives/mementos/browser/`). Sizes are never
-  MobX observables and never persisted to localStorage. The workspace outer layout is
+- **Pixel sizes belong to react-resizable-panels alone**, persisted with a memento-backed
+  `LayoutStorage` facade (`createLayoutStorage` in `src/core/primitives/mementos/browser/`).
+  Sizes are never MobX observables and never persisted to localStorage. Collapsible
+  surfaces (sidebars, terminal drawer) persist the pixel size the user resized them to
+  through `useCollapsiblePanelBinding`: window resizes go to the other panels and are
+  never persisted, and a clamp in a small window lifts once the window grows again.
+  Proportional splits (split panes, changes-panel sections) persist the library's
+  percentage layout via `useResizableDefaultLayout`. The workspace outer layout is
   app-scoped because it belongs to the workbench shell; task-internal panel layouts are
   task-scoped.
 - **Persisted view state renders below a hydration gate.** The task view gates on
