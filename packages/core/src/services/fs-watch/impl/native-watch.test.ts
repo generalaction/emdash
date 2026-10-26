@@ -46,10 +46,29 @@ describe('NativeWatch', () => {
   }
 
   async function openWatch(resync = vi.fn(), onError = vi.fn()): Promise<NativeWatch> {
-    const watch = new NativeWatch(root, [], vi.fn(), resync, onError, subscribe);
+    const watch = new NativeWatch(root, { ignore: [] }, vi.fn(), resync, onError, subscribe);
     await watch.ready();
     return watch;
   }
+
+  it('subscribes and resubscribes with the configured Parcel options', async () => {
+    queueSubscription({ unsubscribe: vi.fn(async () => {}) });
+    queueSubscription({ unsubscribe: vi.fn(async () => {}) });
+    const options: parcelWatcher.Options = { ignore: ['objects/**'], backend: 'inotify' };
+    const watch = new NativeWatch(root, options, vi.fn(), vi.fn(), vi.fn(), subscribe);
+    await watch.ready();
+
+    callbacks[0](new Error('Watcher failed'), []);
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+
+    for (const call of subscribe.mock.calls) {
+      expect(call[0]).toBe(root);
+      expect(call[2]).toEqual(options);
+    }
+
+    await watch.dispose();
+  });
 
   it('coalesces dropped-event errors into a resync without replacing the subscription', async () => {
     const unsubscribe = vi.fn(async () => {});
@@ -166,7 +185,7 @@ describe('NativeWatch', () => {
     queueSubscription({ unsubscribe: firstUnsubscribe });
     queueSubscription({ unsubscribe: finalUnsubscribe });
     const deliver = vi.fn();
-    const watch = new NativeWatch(root, [], deliver, vi.fn(), vi.fn(), subscribe);
+    const watch = new NativeWatch(root, { ignore: [] }, deliver, vi.fn(), vi.fn(), subscribe);
     await watch.ready();
 
     callbacks[0](new Error('Watcher failed'), []);
@@ -206,7 +225,7 @@ describe('NativeWatch', () => {
   });
 
   it('does not enter the native subscriber when disposed during preflight', async () => {
-    const watch = new NativeWatch(root, [], vi.fn(), vi.fn(), vi.fn(), subscribe);
+    const watch = new NativeWatch(root, { ignore: [] }, vi.fn(), vi.fn(), vi.fn(), subscribe);
 
     await watch.dispose();
 

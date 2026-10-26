@@ -12,7 +12,7 @@ import type { CheckoutId, RepositoryIdentity } from '#runtimes/git/node/allocati
 import type { CheckoutResource } from '#runtimes/git/node/checkout/checkout-resource';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import {
-  gitMetadataWatchIgnore,
+  gitMetadataWatchProfile,
   type IWatchService,
   type WatchHandle,
 } from '#services/fs-watch/api';
@@ -166,7 +166,7 @@ export class RepositoryResource {
       this.identity.gitCommonDir,
       (events) => this.onCommonDirEvents(events),
       {
-        ignore: gitMetadataWatchIgnore(),
+        ...gitMetadataWatchProfile(),
         onResync: () => this.onCommonDirResync(),
       }
     );

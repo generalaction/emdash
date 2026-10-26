@@ -1,5 +1,6 @@
 export {
   fsWatchContract,
+  watchBackendSchema,
   watchEventSchema,
   watchEventsBatchSchema,
   watchKeySchema,
@@ -7,9 +8,14 @@ export {
   type FsWatchEvent,
   type FsWatchKey,
   type FsWatchStreamEvent,
+  type WatchBackendPreference,
 } from './contract';
 export { requireWatchReady } from './models';
-export { gitMetadataWatchIgnore, workspaceContentWatchIgnore } from './profiles';
+export {
+  gitMetadataWatchProfile,
+  workspaceContentWatchIgnore,
+  type GitMetadataWatchProfile,
+} from './profiles';
 export type {
   IWatchService,
   WatchEvent,
