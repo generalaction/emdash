@@ -47,6 +47,7 @@ describe('workspace artifacts', () => {
     const removed = await removeWorkspaceArtifacts({
       workspacePath: workspace,
       preservePatterns: [],
+      nestedWorkspacePaths: [],
       createGitExec: gitListing('Would remove linked/secret.txt', 'Would remove dist/'),
     });
 
@@ -69,6 +70,7 @@ describe('workspace artifacts', () => {
     const removed = await removeWorkspaceArtifacts({
       workspacePath: workspace,
       preservePatterns: [],
+      nestedWorkspacePaths: [],
       createGitExec: gitListing('Would remove dist/', 'Would remove ../sibling/'),
     });
 
@@ -83,6 +85,7 @@ describe('workspace artifacts', () => {
     const removed = await removeWorkspaceArtifacts({
       workspacePath: workspace,
       preservePatterns: [],
+      nestedWorkspacePaths: [],
       createGitExec: gitListing('Would remove ./', 'Would remove .', 'Would remove sub/..'),
     });
 
@@ -90,10 +93,31 @@ describe('workspace artifacts', () => {
     expect(await exists(path.join(workspace, 'tracked.txt'))).toBe(true);
   });
 
+  it('keeps every root that holds, or lies inside, another registered workspace', async () => {
+    const listed = await listWorkspaceArtifacts({
+      workspacePath: workspace,
+      preservePatterns: [],
+      nestedWorkspacePaths: [
+        path.join(workspace, 'config', 'local'),
+        path.join(workspace, 'packages', 'tool'),
+        path.join(root, 'elsewhere'),
+      ],
+      createGitExec: gitListing(
+        'Would remove config/',
+        'Would remove packages/tool/node_modules/',
+        'Would remove packages/app/node_modules/',
+        'Would remove dist/'
+      ),
+    });
+
+    expect(listed).toEqual({ success: true, data: ['packages/app/node_modules', 'dist'] });
+  });
+
   it('decodes C-quoted names exactly and leaves undecodable ones alone', async () => {
     const listed = await listWorkspaceArtifacts({
       workspacePath: workspace,
       preservePatterns: [],
+      nestedWorkspacePaths: [],
       createGitExec: gitListing(
         'Would remove plain name.log',
         'Would remove "caf\\303\\251 \\"q\\" back\\\\slash\\ttab.log"',

@@ -239,8 +239,8 @@ export const workspaceRegistryContract = defineContract({
   /**
    * Removes the workspace's artifacts in place — exactly what measureUsage reports as
    * reclaimable. Tracked files, uncommitted changes, untracked files that are not
-   * ignored, local env files, preserved files, `.emdash.json`, nested repositories and
-   * worktrees, the branch, and the record all stay. Refuses while sessions run under the workspace;
+   * ignored, local env files, preserved files, `.emdash.json`, nested repositories,
+   * worktrees and other registered workspaces, the branch, and the record all stay. Refuses while sessions run under the workspace;
    * it never stops sessions or runs lifecycle scripts. The workspace's cached usage is
    * dropped, so the next measureUsage shows what is left.
    */

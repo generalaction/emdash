@@ -893,6 +893,7 @@ export class WorkspaceRegistryRuntime {
         workspacePath: record.path,
         excludePaths: nestedWorkspacePaths(record.path, alongside),
         preservePatterns: await this.preservePatternsFor(record.id),
+        nestedWorkspacePaths: this.workspacesInside(record),
       },
       signal
     );
@@ -922,6 +923,7 @@ export class WorkspaceRegistryRuntime {
         return await removeWorkspaceArtifacts({
           workspacePath: record.path,
           preservePatterns,
+          nestedWorkspacePaths: this.workspacesInside(record),
           createGitExec: (cwd) => this.gitContext.exec(cwd, { tier: 'activation' }),
         });
       } finally {
@@ -930,6 +932,14 @@ export class WorkspaceRegistryRuntime {
         this.settleScan({ kind: 'workspace', id: record.id, mode: 'full' });
       }
     });
+  }
+
+  /** Every other registered workspace inside this one; none of them is ever its artifact. */
+  private workspacesInside(record: DurableWorkspaceRecord): string[] {
+    return nestedWorkspacePaths(
+      record.path,
+      this.store.list().flatMap((other) => (other.id === record.id ? [] : [other.path]))
+    );
   }
 
   /** The workspace's resolved preserve patterns: the ignored files it never counts as artifacts. */

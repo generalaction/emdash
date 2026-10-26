@@ -12,6 +12,7 @@ const target: WorkspaceUsageTarget = {
   workspacePath: '/srv/repo',
   excludePaths: ['/srv/repo/.claude/worktrees/a'],
   preservePatterns: ['.env'],
+  nestedWorkspacePaths: ['/srv/repo/.claude/worktrees/a'],
 };
 
 function usage(totalBytes: number): WorkspaceUsage {
@@ -84,7 +85,7 @@ describe('WorkspaceUsageCache', () => {
     cache.dispose();
   });
 
-  it('measures again when the preserve patterns that define artifacts change', async () => {
+  it('measures again when what defines artifacts changes', async () => {
     const { calls, measure } = controlledMeasure();
     const cache = new WorkspaceUsageCache({ measure });
 
@@ -93,16 +94,18 @@ describe('WorkspaceUsageCache', () => {
     calls[0]!.walk.resolve(ok(usage(100)));
     await first;
     const reordered = cache.measure({ ...target, preservePatterns: ['.env'] });
-    const changed = cache.measure({ ...target, preservePatterns: ['.env', 'node_modules'] });
+    const preserving = cache.measure({ ...target, preservePatterns: ['.env', 'node_modules'] });
+    const nesting = cache.measure({ ...target, nestedWorkspacePaths: ['/srv/repo/tools'] });
     await flush();
 
     expect(await reordered).toEqual(ok(usage(100)));
-    expect(calls.map((call) => call.options.preservePatterns)).toEqual([
-      ['.env'],
-      ['.env', 'node_modules'],
-    ]);
+    expect(calls).toHaveLength(3);
+    expect(calls[1]!.options.preservePatterns).toEqual(['.env', 'node_modules']);
+    expect(calls[2]!.options.nestedWorkspacePaths).toEqual(['/srv/repo/tools']);
     calls[1]!.walk.resolve(ok(usage(40)));
-    expect(await changed).toEqual(ok(usage(40)));
+    calls[2]!.walk.resolve(ok(usage(60)));
+    expect(await preserving).toEqual(ok(usage(40)));
+    expect(await nesting).toEqual(ok(usage(60)));
     cache.dispose();
   });
 

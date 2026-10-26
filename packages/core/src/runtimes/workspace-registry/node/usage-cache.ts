@@ -19,6 +19,8 @@ export type WorkspaceUsageTarget = {
   excludePaths: string[];
   /** The project's preserve patterns decide what counts as an artifact; part of the identity. */
   preservePatterns: readonly string[];
+  /** Registered workspaces inside this one are never its artifacts; part of the identity. */
+  nestedWorkspacePaths: readonly string[];
 };
 
 /** A target as cached: the workspace's invalidation generation is part of its key. */
@@ -104,5 +106,6 @@ function usageTargetKey(target: CachedTarget): string {
     ...target,
     excludePaths: [...target.excludePaths].sort(),
     preservePatterns: [...target.preservePatterns].sort(),
+    nestedWorkspacePaths: [...target.nestedWorkspacePaths].sort(),
   });
 }

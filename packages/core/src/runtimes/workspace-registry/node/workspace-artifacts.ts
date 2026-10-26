@@ -8,6 +8,7 @@ import {
   formatAbsolute,
   joinAbsolute,
   parseNativeAbsolute,
+  relativeSegmentsFromAbsolute,
   type HostAbsolutePath,
 } from '#primitives/path/api';
 import { defaultGitExecFactory, type GitExecFactory } from '#services/exec/node/git-exec';
@@ -22,6 +23,11 @@ export type WorkspaceArtifactsOptions = {
   workspacePath: string;
   /** The project's resolved preserve patterns: the ignored files it deliberately keeps. */
   preservePatterns: readonly string[];
+  /**
+   * Absolute paths of the other registered workspaces inside this one. Git skips nested
+   * repositories and worktrees on its own, but not a plain directory workspace.
+   */
+  nestedWorkspacePaths: readonly string[];
   signal?: AbortSignal;
   createGitExec?: GitExecFactory;
 };
@@ -40,9 +46,9 @@ const LOCAL_ENV_PATTERNS = ['.env', '.env.*'] as const;
  * reclaimable and `cleanArtifacts` removes. They are the git-ignored roots
  * `git clean -ndX` lists, which never include tracked files, untracked files that
  * are not ignored, local env files, or nested repositories and worktrees. A root is
- * not an artifact when it is, contains, or lies inside an entry the project preserves
- * or emdash's own `.emdash.json`, so a preserved file is never removed alongside its
- * siblings. Returns workspace-relative POSIX paths.
+ * not an artifact when it is, contains, or lies inside an entry the project preserves,
+ * another registered workspace, or emdash's own `.emdash.json`, so none of them is
+ * ever removed alongside its siblings. Returns workspace-relative POSIX paths.
  */
 export async function listWorkspaceArtifacts(
   options: WorkspaceArtifactsOptions
@@ -60,8 +66,28 @@ export async function listWorkspaceArtifacts(
       message: `Could not resolve preserve patterns: ${errorMessage(error)}`,
     });
   }
-  const kept = [...preserved, EMDASH_CONFIG_FILE];
+  const kept = [
+    ...preserved,
+    ...nestedWorkspaceEntries(options.workspacePath, options.nestedWorkspacePaths),
+    EMDASH_CONFIG_FILE,
+  ];
   return ok(ignored.data.filter((root) => !kept.some((entry) => pathsOverlap(root, entry))));
+}
+
+/** The nested workspaces as workspace-relative POSIX paths; anything not inside is dropped. */
+function nestedWorkspaceEntries(
+  workspacePath: string,
+  nestedWorkspacePaths: readonly string[]
+): string[] {
+  const root = parseNativeAbsolute(path.resolve(workspacePath));
+  if (!root.success) return [];
+  return nestedWorkspacePaths.flatMap((nestedPath) => {
+    const nested = parseNativeAbsolute(path.resolve(nestedPath));
+    const segments = nested.success && relativeSegmentsFromAbsolute(root.data, nested.data);
+    return segments && segments.success && segments.data.length > 0
+      ? [segments.data.join('/')]
+      : [];
+  });
 }
 
 /**

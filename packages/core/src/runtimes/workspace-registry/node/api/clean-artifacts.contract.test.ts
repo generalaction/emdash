@@ -235,6 +235,32 @@ describe('workspace registry cleanArtifacts', () => {
     }
   );
 
+  it('never removes or counts another registered workspace nested in an ignored directory', async () => {
+    await registerRepository();
+    const worktree = await createWorktree('outer');
+    // `config/` is ignored as a whole; git sees no repository below it to skip.
+    const nested = path.join(worktree, 'config', 'local');
+    await write(path.join(nested, 'notes.md'), 'x'.repeat(8_192));
+    await write(path.join(worktree, 'config', 'cache.json'), 'x'.repeat(8_192));
+    await write(path.join(worktree, 'dist', 'bundle.js'), 'x'.repeat(8_192));
+    const registered = await wire.client.createWorkspace({
+      workspaceId: 'ws-nested',
+      path: nested,
+    });
+    expect(registered).toMatchObject({ success: true, data: { kind: 'directory' } });
+    const before = await measure('wt-outer');
+
+    expect((await wire.client.cleanArtifacts({ workspaceId: 'wt-outer' })).success).toBe(true);
+
+    // The directory holding the nested workspace stays whole; other artifacts go.
+    expect(await exists(path.join(nested, 'notes.md'))).toBe(true);
+    expect(await exists(path.join(worktree, 'config', 'cache.json'))).toBe(true);
+    expect(await exists(path.join(worktree, 'dist'))).toBe(false);
+    const after = await measure('wt-outer');
+    expect(after.artifactBytes).toBe(0);
+    expect(before.artifactBytes).toBeLessThan(2 * 8_192);
+  });
+
   it('refuses while sessions run under the workspace and touches nothing', async () => {
     await registerRepository();
     const worktree = await createWorktree('busy');
