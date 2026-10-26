@@ -6,6 +6,17 @@ describe('redactSecrets', () => {
     expect(redactSecrets('authorization: Bearer abc123')).toContain('[REDACTED]');
   });
 
+  it('redacts the credential after a Basic or token auth scheme', () => {
+    expect(redactSecrets('Authorization: Basic dXNlcjpzM2NyZXQ=')).toBe(
+      'Authorization: [REDACTED]'
+    );
+    expect(redactSecrets('Proxy-Authorization: basic Zm9vOmJhcg==')).toBe(
+      'Proxy-Authorization: [REDACTED]'
+    );
+    expect(redactSecrets('authorization: token abc123def')).toBe('authorization: [REDACTED]');
+    expect(redactSecrets('authorization: Bearer abc123')).toBe('authorization: [REDACTED]');
+  });
+
   it('redacts api_key= assignment', () => {
     expect(redactSecrets('api_key=super-secret-key')).toContain('[REDACTED]');
   });

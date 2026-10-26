@@ -19,9 +19,13 @@ const SECRET_PATTERNS: Array<[RegExp, RedactionReplacement]> = [
     (_match, openQuote: string, keyName: string, closeQuote: string, separator: string) =>
       `${openQuote}${keyName}${closeQuote}${separator}${openQuote}[REDACTED]${openQuote}`,
   ],
-  // Unquoted: key=value or key: bearer value
+  // Unquoted: key=value or key: <scheme> value. The auth scheme is skipped so the
+  // credential after it is what gets redacted (`Basic <base64 user:password>`).
   [
-    new RegExp(`\\b(${SECRET_KEY_NAMES})(\\s*[:=]\\s*)(?:bearer\\s+)?[^\\s,"'}]+`, 'gi'),
+    new RegExp(
+      `\\b(${SECRET_KEY_NAMES})(\\s*[:=]\\s*)(?:(?:bearer|basic|token)\\s+)?[^\\s,"'}]+`,
+      'gi'
+    ),
     '$1$2[REDACTED]',
   ],
   // PEM blocks (private keys)
