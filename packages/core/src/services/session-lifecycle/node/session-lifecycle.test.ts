@@ -563,6 +563,46 @@ describe('createSessionLifecycle', () => {
       expect(messages).toContain('TestRuntime: failed to mark session intent suspended');
       expect(messages).toContain('TestRuntime: failed to remove session intent');
     });
+
+    it('drains background writes, including ones enqueued while draining', async () => {
+      const harness = makeHarness();
+      const intents = createMemorySessionIntentStore();
+      const first = deferred<void>();
+      const second = deferred<void>();
+      const saveActive = intents.saveActive.bind(intents);
+      vi.spyOn(intents, 'saveActive')
+        .mockImplementationOnce(async (input) => {
+          await first.promise;
+          return saveActive(input);
+        })
+        .mockImplementationOnce(async (input) => {
+          await second.promise;
+          return saveActive(input);
+        });
+      const lifecycle = createSessionLifecycle({
+        ...baseOptions(harness),
+        clock: createManualClock(0),
+        conversation: { intents, activePayload: (key) => ({ payload: { key }, sessionId: null }) },
+      });
+      let drained = false;
+      try {
+        lifecycle.saveIntent('s1');
+        const draining = lifecycle.drainIntents().then(() => {
+          drained = true;
+        });
+        lifecycle.saveIntent('s2');
+        first.resolve();
+        await settle();
+        expect(drained).toBe(false);
+        second.resolve();
+        await draining;
+        expect(intents.snapshot().map((intent) => intent.conversationId)).toEqual(['s1', 's2']);
+      } finally {
+        first.resolve();
+        second.resolve();
+        lifecycle.dispose();
+      }
+    });
   });
 
   describe('eviction (contract 5)', () => {
