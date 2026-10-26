@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { Layout, Orientation } from 'react-resizable-panels';
 
 /**
@@ -68,7 +68,7 @@ export interface CollapsiblePanelBinding {
  *
  * The hook also encapsulates the non-obvious library traps (verified against
  * react-resizable-panels v4.11) so no call site rediscovers them; see the
- * generation-id, sliver, and clamp guard comments below.
+ * generation-id, user-input, sliver, and clamp guard comments below.
  */
 export function useCollapsiblePanelBinding(
   options: CollapsiblePanelBindingOptions
@@ -110,9 +110,29 @@ export function useCollapsiblePanelBinding(
   };
 
   const groupRef = useRef<HTMLDivElement | null>(null);
-  // Panel set and group size at the last reported layout: together they tell
-  // a user resize from a panel (re)registration and from a group resize.
+  // Panel set and group size at the last reported layout: a changed panel set
+  // is a (re)registration; the size tells a growing group from a shrinking one.
   const lastLayoutRef = useRef<{ panelKey: string; groupSize: number } | null>(null);
+
+  // USER-INPUT GUARD: the library reports a user resize synchronously while
+  // it dispatches the input event behind it (a drag ends on pointerup, or on
+  // a pointermove with no button pressed; keyboard resizes on keydown; a
+  // separator double-click resets on dblclick). Group resizes come from its
+  // ResizeObserver, which never runs inside an event dispatch. So a layout
+  // reported while the last of these events is still being dispatched is a
+  // user resize, and nothing else is — no inference from measured sizes,
+  // which cannot tell a drag from a sub-pixel window resize.
+  const inputEventRef = useRef<Event | null>(null);
+  useEffect(() => {
+    const view = groupRef.current?.ownerDocument.defaultView ?? window;
+    const record = (event: Event) => {
+      inputEventRef.current = event;
+    };
+    for (const type of USER_RESIZE_EVENTS) view.addEventListener(type, record, true);
+    return () => {
+      for (const type of USER_RESIZE_EVENTS) view.removeEventListener(type, record, true);
+    };
+  }, []);
 
   const onLayoutChanged = (layout: Layout) => {
     const panelKey = Object.keys(layout).join(',');
@@ -140,7 +160,8 @@ export function useCollapsiblePanelBinding(
       return;
     }
 
-    if (previous.groupSize !== groupSize) {
+    const inputEvent = inputEventRef.current;
+    if (inputEvent === null || inputEvent.eventPhase === Event.NONE) {
       // A group resize (the window, or a tiling WM, resized the app). The
       // library kept the panel's pixel size unless a constraint (a percentage
       // max, the other panels' minimums) clamped it to fit. Never persist or
@@ -221,18 +242,21 @@ function readLegacyPercent(
   }
 }
 
+const USER_RESIZE_EVENTS = ['pointerup', 'pointermove', 'keydown', 'dblclick'] as const;
+
 /**
- * The group size exactly as the library measures it: the sum of its panels'
- * rounded pixel sizes, separators excluded. Layout percentages are relative
- * to it, and it changes only when the group's own box does — never when a
- * drag moves space between panels — so a change between two reported
- * layouts identifies a group resize.
+ * The space the group's panels share, separators excluded: the sum of their
+ * rendered (fractional) sizes. Layout percentages are shares of it, so a
+ * percentage times this is the panel's rendered pixel size, however a drag
+ * splits the space. (Summing rounded `offsetWidth`s instead would not do:
+ * at fractional widths that total depends on the split.)
  */
 function measureGroupSize(group: HTMLElement | null, orientation: Orientation): number {
   let size = 0;
   for (const child of group?.children ?? []) {
     if (!(child instanceof HTMLElement) || !child.hasAttribute('data-panel')) continue;
-    size += orientation === 'horizontal' ? child.offsetWidth : child.offsetHeight;
+    const rect = child.getBoundingClientRect();
+    size += orientation === 'horizontal' ? rect.width : rect.height;
   }
   return size;
 }

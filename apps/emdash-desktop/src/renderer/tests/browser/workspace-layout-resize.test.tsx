@@ -266,6 +266,20 @@ describe('WorkspaceLayout window resize', () => {
     expect(sidebarWidth()).toBeCloseTo(pressed, 0);
   });
 
+  it('persists every drag at fractional window widths', async () => {
+    // At fractional widths the panels' individually rounded sizes sum to
+    // totals that depend on the split, and a sub-pixel window resize may not
+    // reach the library as a layout change at all. Neither may make a drag
+    // read as a window resize.
+    await mountAt(1600.7);
+    const targets = [300, 350.4, 262.8, 410.7, 333.3, 287.6, 377.1, 241.9];
+    for (const [index, target] of targets.entries()) {
+      if (index % 2 === 1) await resizeWindow(1600.7 + index * 0.1);
+      const dragged = await dragSidebarTo(target);
+      expect(storage.map.get(SIZE_KEY)).toBe(`${Math.round(dragged)}px`);
+    }
+  });
+
   it('keeps the size persisted by older builds, then stays in pixels', async () => {
     storage.map.set(LEGACY_KEY, JSON.stringify({ 'workspace-left': 25, 'workspace-main': 75 }));
     await mountAt(1280);
