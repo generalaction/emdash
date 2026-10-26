@@ -1,20 +1,23 @@
-import { err } from '@emdash/shared';
+import { err, type Result } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE } from '@core/features/projects/api/attachments';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
+import { cleanWorkspaceArtifactsThroughRegistry } from '@core/features/workspaces/api/node/operations/workspace-artifacts';
 import {
-  archiveWorkspaceThroughRegistry,
   deleteWorkspaceThroughRegistry,
-  type ArchiveWorkspaceInput,
   type WorkspaceRemovalBroker,
   type WorkspaceRemovalResult,
 } from '@core/features/workspaces/api/node/operations/workspace-removal';
+import type { MutationAck, MutationError } from '@core/primitives/wire/api/mutations';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
 
 export interface WorkspaceMutationOperations {
   delete(input: { workspaceId: string }): Promise<WorkspaceRemovalResult>;
-  archive(input: ArchiveWorkspaceInput): Promise<WorkspaceRemovalResult>;
+  cleanArtifacts(input: {
+    projectId: string;
+    workspaceId: string;
+  }): Promise<Result<MutationAck, MutationError>>;
 }
 
 export type WorkspaceProjectResolver = (workspaceId: string) => Promise<string | undefined>;
@@ -52,10 +55,16 @@ export class WorkspaceMutationService implements WorkspaceMutationOperations {
     );
   }
 
-  async archive(input: ArchiveWorkspaceInput): Promise<WorkspaceRemovalResult> {
+  async cleanArtifacts(input: {
+    projectId: string;
+    workspaceId: string;
+  }): Promise<Result<MutationAck, MutationError>> {
     const attached = this.dependencies.projects.requireAttached(input.projectId);
     if (!attached.success) return err(attachmentMutationError(attached.error.type));
-    return archiveWorkspaceThroughRegistry(this.dependencies.db, this.dependencies.runtimes, input);
+    return cleanWorkspaceArtifactsThroughRegistry(
+      attached.data.workspaceRegistry,
+      input.workspaceId
+    );
   }
 }
 

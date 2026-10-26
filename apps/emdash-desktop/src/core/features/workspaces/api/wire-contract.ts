@@ -32,11 +32,9 @@ const workspaceIdInputSchema = z.object({
   workspaceId: z.string(),
 });
 
-export const archiveWorkspaceInputSchema = z.object({
+export const cleanWorkspaceArtifactsInputSchema = z.object({
   projectId: z.string(),
-  workspaceId: z.string().optional(),
-  workspacePath: z.string().min(1),
-  branchName: z.string().optional(),
+  workspaceId: z.string().min(1),
 });
 
 export const workspacesDomain = 'workspaces' as const;
@@ -67,8 +65,12 @@ export const workspacesWireContract = defineContract({
     data: mutationAckSchema,
     error: mutationErrorSchema,
   }),
-  archive: fallible({
-    input: archiveWorkspaceInputSchema,
+  /**
+   * Removes the workspace's artifacts in place (the host registry's cleanArtifacts):
+   * the worktree, its uncommitted work, and its tasks stay. Refused while sessions run.
+   */
+  cleanArtifacts: fallible({
+    input: cleanWorkspaceArtifactsInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
   }),

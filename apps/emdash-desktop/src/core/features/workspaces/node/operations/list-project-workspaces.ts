@@ -239,7 +239,8 @@ function buildCandidateRow(
   return {
     ...base,
     pathState: 'measured',
-    canCleanArtifacts: !remote && !pendingRemoval,
+    // Cleaning is a registry verb keyed by workspace id, like measuring.
+    canCleanArtifacts: !remote && !pendingRemoval && base.workspaceId !== null,
   };
 }
 
