@@ -32,7 +32,7 @@ export function UntrustedRepositoryNotice({
   const [state, setState] = useState<
     { kind: 'idle' | 'trusting' } | { kind: 'failed'; message: string }
   >({ kind: 'idle' });
-  const command = safeDirectoryCommand(dubiousOwnership.safeDirectory);
+  const { command, requiresPowerShell } = safeDirectoryCommand(dubiousOwnership.safeDirectory);
 
   const handleTrust = async () => {
     const confirmed = await confirm({
@@ -75,7 +75,8 @@ export function UntrustedRepositoryNotice({
           Git won&apos;t open{' '}
           <span className="wrap-anywhere">{dubiousOwnership.repositoryPath}</span> because it
           can&apos;t confirm the folder belongs to the user running Git on {hostLabel}. This often
-          happens with folders in WSL, on network shares, or on external drives. To trust it, run:
+          happens with folders in WSL, on network shares, or on external drives. To trust it, run
+          {requiresPowerShell ? ' this in PowerShell' : ''}:
         </Alert.Description>
         <CommandBlock command={command} />
         {state.kind === 'failed' && <p className="text-destructive">{state.message}</p>}

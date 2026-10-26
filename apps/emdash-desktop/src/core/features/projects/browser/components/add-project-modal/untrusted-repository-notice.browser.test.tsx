@@ -14,7 +14,7 @@ const wslRepository = {
   safeDirectory: '%(prefix)///wsl.localhost/Ubuntu/home/me/my repo',
 };
 const wslCommand =
-  "git config --global --add safe.directory '%(prefix)///wsl.localhost/Ubuntu/home/me/my repo'";
+  'git config --global --add safe.directory "%(prefix)///wsl.localhost/Ubuntu/home/me/my repo"';
 
 beforeAll(() => {
   (
@@ -89,6 +89,24 @@ describe('UntrustedRepositoryNotice', () => {
       .element(page.getByText(/WSL, on network shares, or on external drives/))
       .toBeVisible();
     await expect.element(page.getByText(wslCommand, { exact: true })).toBeVisible();
+  });
+
+  it('names PowerShell when only PowerShell keeps the value intact', async () => {
+    render({
+      dubiousOwnership: {
+        repositoryPath: 'C:/Users/me/$work',
+        safeDirectory: 'C:/Users/me/$work',
+      },
+    });
+
+    await expect.element(page.getByText(/To trust it, run this in PowerShell:/)).toBeVisible();
+    await expect
+      .element(
+        page.getByText("git config --global --add safe.directory 'C:/Users/me/$work'", {
+          exact: true,
+        })
+      )
+      .toBeVisible();
   });
 
   it('asks for confirmation that names the global Git config before trusting', async () => {

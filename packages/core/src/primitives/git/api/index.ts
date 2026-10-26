@@ -21,4 +21,5 @@ export {
   safeDirectoryCommand,
   safeDirectoryValueProblem,
   type GitDubiousOwnership,
+  type SafeDirectoryCommand,
 } from './safe-directory';

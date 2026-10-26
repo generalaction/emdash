@@ -107,8 +107,25 @@ describe('trusting a repository Git refuses for its ownership', () => {
         dubiousOwnership: { repositoryPath: repository, safeDirectory: repository },
       },
     });
-    if (inspected.success) return;
-    expect(inspected.error.message).toContain(safeDirectoryCommand(repository));
+  });
+
+  it('shows a command that adds exactly the suggested value when pasted into a shell', async () => {
+    const tricky = await makeRepository("it's $HOME! a `repo`");
+    const git = connectRuntime();
+    const inspected = await git.inspectPath({ path: hostPath(tricky) });
+    if (inspected.success || !inspected.error.dubiousOwnership) {
+      throw new Error('expected an ownership refusal');
+    }
+    const { command, requiresPowerShell } = safeDirectoryCommand(
+      inspected.error.dubiousOwnership.safeDirectory
+    );
+
+    expect(requiresPowerShell).toBe(false);
+    await execFileAsync('/bin/sh', ['-c', command], { cwd: root, env: gitEnv() });
+    expect(await globalSafeDirectories()).toEqual([tricky]);
+    await expect(git.inspectPath({ path: hostPath(tricky) })).resolves.toMatchObject({
+      success: true,
+    });
   });
 
   it('adds exactly one entry for that repository, then Git opens it', async () => {

@@ -1,3 +1,5 @@
+import { quoteArg } from '#primitives/exec/api';
+
 /**
  * Git's refusal to open a repository it does not consider owned by the current user
  * (the `safe.directory` check, CVE-2022-24765), in Git's own words.
@@ -18,8 +20,15 @@ const DUBIOUS_OWNERSHIP = /^fatal: detected dubious ownership in repository at '
 const LEGACY_UNSAFE_REPOSITORY = /^fatal: unsafe repository \('(.*)' is owned by someone else\)$/m;
 const SUGGESTED_COMMAND = '\tgit config --global --add safe.directory ';
 const PREFIX_INTERPOLATION = '%(prefix)/';
-// Characters `sq_quote_buf_pretty` leaves unquoted (with ASCII alphanumerics).
-const UNQUOTED_ARGUMENT = /^[A-Za-z0-9+,\-./:=@_^]+$/;
+// Characters cmd.exe, PowerShell or Git Bash still expand inside double quotes.
+const EXPANDED_IN_DOUBLE_QUOTES = /[$`%!"]/;
+
+/** A command that adds a `safe.directory` value, quoted for the shells it is pasted into. */
+export type SafeDirectoryCommand = {
+  command: string;
+  /** The command is quoted for PowerShell only; cmd.exe and Git Bash would change the value. */
+  requiresPowerShell: boolean;
+};
 
 /**
  * Recognizes the ownership refusal from a Git command run with the C locale, and reads the
@@ -42,9 +51,28 @@ export function parseGitDubiousOwnership(failure: {
   return { repositoryPath: reported[1], safeDirectory };
 }
 
-/** The command Git suggests for a `safe.directory` value, quoted the way Git quotes it. */
-export function safeDirectoryCommand(safeDirectory: string): string {
-  return `git config --global --add safe.directory ${quoteGitArgument(safeDirectory)}`;
+/**
+ * The command that adds a `safe.directory` value, for users who run it themselves. Git's own
+ * suggestion uses POSIX quoting even on Windows, where cmd.exe (Emdash's default terminal there)
+ * keeps single quotes as part of the value and stores an entry that never matches.
+ *
+ * Values Git for Windows reports (drive paths, and UNC paths behind `%(prefix)/`) are therefore
+ * double-quoted, which groups them identically in cmd.exe, PowerShell and Git Bash; Windows paths
+ * cannot contain `"`. When the path holds a character one of those shells would still expand,
+ * the command falls back to PowerShell's literal single quotes.
+ */
+export function safeDirectoryCommand(safeDirectory: string): SafeDirectoryCommand {
+  const add = 'git config --global --add safe.directory';
+  if (!isGitForWindowsValue(safeDirectory)) {
+    return { command: `${add} ${quoteArg(safeDirectory, 'posix')}`, requiresPowerShell: false };
+  }
+  const path = safeDirectory.startsWith(PREFIX_INTERPOLATION)
+    ? safeDirectory.slice(PREFIX_INTERPOLATION.length)
+    : safeDirectory;
+  if (!EXPANDED_IN_DOUBLE_QUOTES.test(path)) {
+    return { command: `${add} "${safeDirectory}"`, requiresPowerShell: false };
+  }
+  return { command: `${add} ${quoteArg(safeDirectory, 'powershell')}`, requiresPowerShell: true };
 }
 
 /**
@@ -70,10 +98,9 @@ export function safeDirectoryValueProblem(value: string): string | null {
   return null;
 }
 
-/** Mirrors Git's `sq_quote_buf_pretty`. */
-function quoteGitArgument(value: string): string {
-  if (UNQUOTED_ARGUMENT.test(value)) return value;
-  return `'${value.replace(/['!]/g, (char) => `'\\${char}'`)}'`;
+/** Git for Windows reports drive paths, and prefixes the UNC paths it reports with `%(prefix)/`. */
+function isGitForWindowsValue(value: string): boolean {
+  return /^[A-Za-z]:\//.test(value) || value.startsWith(PREFIX_INTERPOLATION);
 }
 
 /** Reverses `sq_quote_buf_pretty`; the first releases with the check printed it unquoted. */

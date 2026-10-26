@@ -75,16 +75,36 @@ describe('parseGitDubiousOwnership', () => {
 });
 
 describe('safeDirectoryCommand', () => {
+  const add = 'git config --global --add safe.directory';
+
   it.each([
-    ['/srv/repo', 'git config --global --add safe.directory /srv/repo'],
-    ['/srv/my repo', "git config --global --add safe.directory '/srv/my repo'"],
-    ["/srv/it's!", "git config --global --add safe.directory '/srv/it'\\''s'\\!''"],
+    ['/srv/repo', `${add} /srv/repo`],
+    ['/srv/my repo', `${add} '/srv/my repo'`],
+    ["/srv/it's $HOME!", `${add} '/srv/it'\\''s $HOME!'`],
+  ])('quotes a POSIX value %j for POSIX shells', (value, command) => {
+    expect(safeDirectoryCommand(value)).toEqual({ command, requiresPowerShell: false });
+  });
+
+  // Git for Windows users paste into cmd.exe (Emdash's default terminal there), PowerShell or
+  // Git Bash. Double quotes group the value in all three; single quotes do not in cmd.exe.
+  it.each([
+    ['C:/Users/me/repo', `${add} "C:/Users/me/repo"`],
+    ["C:/Users/me/it's my (repo) & more", `${add} "C:/Users/me/it's my (repo) & more"`],
     [
-      '%(prefix)///wsl.localhost/Ubuntu/home/me/repo',
-      "git config --global --add safe.directory '%(prefix)///wsl.localhost/Ubuntu/home/me/repo'",
+      '%(prefix)///wsl.localhost/Ubuntu/home/me/my repo',
+      `${add} "%(prefix)///wsl.localhost/Ubuntu/home/me/my repo"`,
     ],
-  ])('quotes %j the way Git suggests it', (value, command) => {
-    expect(safeDirectoryCommand(value)).toBe(command);
+  ])('double-quotes a Git for Windows value %j for every Windows shell', (value, command) => {
+    expect(safeDirectoryCommand(value)).toEqual({ command, requiresPowerShell: false });
+  });
+
+  it.each([
+    ['C:/Users/me/$work', `${add} 'C:/Users/me/$work'`],
+    ["C:/Users/me/50% it's", `${add} 'C:/Users/me/50% it''s'`],
+    ['%(prefix)///server/share/wow!', `${add} '%(prefix)///server/share/wow!'`],
+    ['C:/Users/me/`tick`', `${add} 'C:/Users/me/\`tick\`'`],
+  ])('falls back to PowerShell quoting when a Windows shell would expand %j', (value, command) => {
+    expect(safeDirectoryCommand(value)).toEqual({ command, requiresPowerShell: true });
   });
 });
 
