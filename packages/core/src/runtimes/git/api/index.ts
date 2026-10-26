@@ -43,7 +43,9 @@ export type {
   InspectPathError,
   PullError,
   PushError,
+  TrustRepositoryError,
 } from '#runtimes/git/api/errors';
+export { trustRepositoryErrorSchema } from '#runtimes/git/api/errors';
 export type {
   CloneRepositoryJobInput,
   EnsureRepositoryOptions,
@@ -51,8 +53,13 @@ export type {
   GitPathInspection,
   GitRepositoryInfo,
   GitTransferProgress,
+  TrustRepositoryInput,
+  TrustRepositoryResult,
 } from '#runtimes/git/api/schemas';
-export { gitOperationCredentialsSchema } from '#runtimes/git/api/schemas';
+export {
+  gitOperationCredentialsSchema,
+  trustRepositoryResultSchema,
+} from '#runtimes/git/api/schemas';
 export type {
   BlameHunk,
   BlameResult,

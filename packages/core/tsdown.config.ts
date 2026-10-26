@@ -28,6 +28,7 @@ export default defineConfig({
     'primitives-sqlite-store-codegen': 'src/primitives/sqlite-store/codegen/index.ts',
     'primitives-sqlite-store-node': 'src/primitives/sqlite-store/node/index.ts',
     'services-exec-api': 'src/services/exec/api/index.ts',
+    'services-git-credential-channels-api': 'src/services/git-credential-channels/api/index.ts',
     'services-shell-env-api': 'src/services/shell-env/api/index.ts',
     'services-shell-env-node': 'src/services/shell-env/node/index.ts',
     'services-pty-api': 'src/services/pty/api/index.ts',

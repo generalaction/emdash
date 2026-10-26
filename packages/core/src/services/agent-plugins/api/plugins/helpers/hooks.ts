@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { quoteArg } from '#primitives/exec/api';
+import { loopbackCurlCommand, quoteArg } from '#primitives/exec/api';
 
 export type HookCommandOptions = {
   platform?: NodeJS.Platform;
@@ -30,13 +30,24 @@ function makePosixHookPostCommand(eventType: string, payload: HookPostPayload): 
   const payloadPart =
     payload === 'stdin' ? '-d @- ' : `--data-binary '${JSON.stringify(payload.json)}' `;
   return (
-    `${EMDASH_HOOK_VERSION_MARKER}; ${EMDASH_HOOK_POSIX_GUARD}; curl -sf -X POST ` +
-    '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    `-H "X-Emdash-Event-Type: ${eventType}" ` +
-    payloadPart +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
+    `${EMDASH_HOOK_VERSION_MARKER}; ${EMDASH_HOOK_POSIX_GUARD}; ` +
+    `${makePosixHookCurl(eventType, payloadPart)} || true`
+  );
+}
+
+/**
+ * The hook POST itself, for a payload given as curl data arguments; the nonce stays off
+ * argv (see {@link loopbackCurlCommand}).
+ */
+export function makePosixHookCurl(eventType: string, payloadArgs: string): string {
+  return loopbackCurlCommand(
+    'EMDASH_HOOK_NONCE',
+    '-sf -X POST ' +
+      '-H "Content-Type: application/json" ' +
+      '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
+      `-H "X-Emdash-Event-Type: ${eventType}" ` +
+      payloadArgs +
+      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook"'
   );
 }
 

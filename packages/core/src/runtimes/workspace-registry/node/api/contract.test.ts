@@ -17,8 +17,10 @@ import {
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { WorkspaceScanScheduler } from '#runtimes/workspace-registry/node/scan/scheduler';
+import { WORKSPACE_USAGE_TTL_MS } from '#runtimes/workspace-registry/node/usage-cache';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import * as execApi from '#services/exec/api';
+import { measureAbsolutePathUsage } from '#services/fs-usage/node';
 import { nativeWatchBackend } from '#services/fs-watch/impl/native-backend';
 import { createWatchService } from '#services/fs-watch/impl/watch-service';
 import { createWorkspaceRegistryController } from './controller';
@@ -840,6 +842,52 @@ describe('workspace registry contract', () => {
     expect(measured.data.totalBytes).toBeGreaterThanOrEqual(measured.data.artifactBytes);
   });
 
+  it('measureUsage skips nested workspaces measured alongside, so each byte counts once', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreeRoot = path.join(repoPath, '.claude', 'worktrees');
+    await fs.mkdir(worktreeRoot, { recursive: true });
+    const nestedPath = await makeWorktree(repoPath, worktreeRoot, 'nested');
+    await fs.writeFile(path.join(nestedPath, 'build.bin'), 'x'.repeat(64_000));
+    const toolsPath = path.join(repoPath, 'tools');
+    await fs.mkdir(toolsPath);
+    await fs.writeFile(path.join(toolsPath, 'tool.bin'), 'x'.repeat(16_000));
+    const elsewherePath = await makeRepo(root, 'elsewhere');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-nested', path: nestedPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-tools', path: toolsPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-elsewhere', path: elsewherePath });
+
+    const repository = await wire.client.measureUsage({
+      workspaceId: 'ws-repo',
+      // Self, unknown, and non-nested ids are ignored; only measured-alongside rows are skipped.
+      excludeWorkspaceIds: ['ws-repo', 'ws-nested', 'ws-elsewhere', 'unknown'],
+    });
+    const nested = await wire.client.measureUsage({ workspaceId: 'ws-nested' });
+    const fullTree = await measureAbsolutePathUsage(repoPath, '');
+
+    if (!repository.success || !nested.success) throw new Error('expected usage');
+    // The unlisted `tools` workspace stays in the repository's count; the worktree moves out.
+    expect(repository.data.totalBytes + nested.data.totalBytes).toBe(fullTree.exclusiveDiskBytes);
+    expect(nested.data.totalBytes).toBeGreaterThanOrEqual(64_000);
+  });
+
+  it('measureUsage serves a recent measurement until it expires', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-usage', path: repoPath });
+    const first = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+    await fs.writeFile(path.join(repoPath, 'grown.bin'), 'x'.repeat(64_000));
+
+    const cached = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+    await clock.advanceBy(WORKSPACE_USAGE_TTL_MS);
+    const remeasured = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+
+    if (!first.success || !cached.success || !remeasured.success) {
+      throw new Error('expected usage');
+    }
+    expect(cached.data).toEqual(first.data);
+    expect(remeasured.data.totalBytes).toBeGreaterThanOrEqual(first.data.totalBytes + 64_000);
+  });
+
   it('measureUsage of an unknown workspaceId is a typed not-found error', async () => {
     const measured = await wire.client.measureUsage({ workspaceId: 'unknown' });
     expect(measured).toEqual({
@@ -1326,6 +1374,96 @@ describe('workspace registry contract', () => {
       data: { lastCreateOutcome: { status: 'succeeded' } },
     });
   });
+
+  /**
+   * Holds `git worktree add` in its post-checkout hook, as on a large repository, until
+   * `release`; every checkout appends a line to the log. The hook also gives up once the
+   * test root is removed, so a failing test never leaves git running.
+   */
+  async function holdCheckouts(repoPath: string) {
+    const gate = path.join(root, 'checkout-gate');
+    const log = path.join(root, 'checkouts.log');
+    await fs.writeFile(
+      path.join(repoPath, '.git', 'hooks', 'post-checkout'),
+      `#!/bin/sh\necho checkout >> '${log}'\n` +
+        `while [ ! -f '${gate}' ] && [ -d '${root}' ]; do sleep 0.05; done\n`,
+      { mode: 0o755 }
+    );
+    return {
+      checkouts: () => fs.readFile(log, 'utf8'),
+      release: () => fs.writeFile(gate, ''),
+    };
+  }
+
+  const slowWorktree = () => ({
+    workspaceId: 'ws-slow',
+    repositoryId: 'ws-repo',
+    branch: 'feature/slow',
+    baseRef: 'main',
+    path: path.join(root, 'slow-wt'),
+    preservePatterns: [],
+  });
+
+  it('a duplicate createWorktree joins the creation still in flight', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const hold = await holdCheckouts(repoPath);
+    const input = slowWorktree();
+    const admissions = vi.spyOn(runtime, 'createWorktree');
+
+    const first = wire.client.createWorktree(input);
+    await eventually(async () => expect(await hold.checkouts()).toBe('checkout\n'));
+    // A desktop that restarted mid-create replays the same request.
+    const duplicate = wire.client.createWorktree(input);
+    await eventually(async () => expect(admissions).toHaveBeenCalledTimes(2));
+    // Admission is FIFO on the writer queue: once this settles, the duplicate was admitted.
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    await hold.release();
+
+    const [created, joined] = await Promise.all([first, duplicate]);
+    expect(created).toMatchObject({
+      success: true,
+      data: { observedStatus: 'present', lastCreateOutcome: { status: 'succeeded' } },
+    });
+    expect(joined).toEqual(created);
+    expect(await hold.checkouts()).toBe('checkout\n');
+    // Settled runs leave nothing in flight: a later replay is the completed no-op.
+    const replay = await wire.client.createWorktree(input);
+    expect(replay).toMatchObject({ success: true, data: { id: 'ws-slow' } });
+    expect(await hold.checkouts()).toBe('checkout\n');
+  }, 15_000);
+
+  it('a creation requested after its record was removed mid-run waits for that run', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const hold = await holdCheckouts(repoPath);
+    const input = slowWorktree();
+    const settled: string[] = [];
+
+    const first = wire.client.createWorktree(input).finally(() => settled.push('first'));
+    await eventually(async () => expect(await hold.checkouts()).toBe('checkout\n'));
+    // Remove and re-provision while the first run is still in `git worktree add`.
+    expect(await wire.client.deleteWorkspace({ workspaceId: 'ws-slow' })).toMatchObject({
+      success: true,
+    });
+    const second = wire.client.createWorktree(input).finally(() => settled.push('second'));
+    await Promise.race([second, new Promise((resolve) => setTimeout(resolve, 2_000))]);
+    expect(settled).toEqual([]);
+    await hold.release();
+
+    // The first run lost its record; the second starts only once it has settled.
+    expect(await first).toMatchObject({
+      success: false,
+      error: { type: 'stage-failed', stage: 'finalize' },
+    });
+    expect(await second).toMatchObject({
+      success: true,
+      data: { observedStatus: 'present', lastCreateOutcome: { status: 'succeeded' } },
+    });
+    expect(settled).toEqual(['first', 'second']);
+    // Nothing stays in flight: a replay is the completed no-op.
+    expect(await wire.client.createWorktree(input)).toMatchObject({ success: true });
+  }, 15_000);
 
   it('fs events refresh observations for an active workspace without an explicit refresh', async () => {
     const repoPath = await makeRepo(root, 'repo');

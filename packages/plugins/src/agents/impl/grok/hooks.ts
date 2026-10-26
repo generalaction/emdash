@@ -13,6 +13,7 @@ import {
   filterUserHooks,
   homeConfigRoot,
   hookMapFromConfig,
+  makePosixHookCurl,
   makeWindowsPowerShellHookCommand,
   makeStdinHookCommand,
   readJsonConfig,
@@ -38,14 +39,10 @@ function makeGrokSessionStartCommand(): string {
     ].join('; ');
     return makeWindowsPowerShellHookCommand(script);
   }
+  const payloadArgs = `--data-binary '{"session_id":"'"$GROK_SESSION_ID"'"}' `;
   return (
-    `${EMDASH_HOOK_VERSION_MARKER}; ${EMDASH_HOOK_POSIX_GUARD}; curl -sf -X POST ` +
-    '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    '-H "X-Emdash-Event-Type: session" ' +
-    `--data-binary '{"session_id":"'"$GROK_SESSION_ID"'"}' ` +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
+    `${EMDASH_HOOK_VERSION_MARKER}; ${EMDASH_HOOK_POSIX_GUARD}; ` +
+    `${makePosixHookCurl('session', payloadArgs)} || true`
   );
 }
 

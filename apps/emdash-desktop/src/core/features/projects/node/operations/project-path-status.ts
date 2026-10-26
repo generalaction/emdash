@@ -44,6 +44,9 @@ export async function getProjectPathStatus(
           type: 'inspect-failed',
           path: nativePathFromHost(inspection.error.path),
           message: inspection.error.message,
+          ...(inspection.error.dubiousOwnership
+            ? { dubiousOwnership: inspection.error.dubiousOwnership }
+            : {}),
         },
       };
     }

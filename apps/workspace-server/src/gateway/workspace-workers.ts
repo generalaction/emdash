@@ -37,6 +37,7 @@ import { workspaceRegistryWorkerSpec } from '@emdash/core/runtimes/workspace-reg
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchWorkerSpec } from '@emdash/core/services/fs-watch/node';
+import { gitCredentialChannelsContract } from '@emdash/core/services/git-credential-channels/api';
 import {
   CORE_DEPENDENCIES,
   createHostDependenciesComponent,
@@ -93,6 +94,11 @@ export async function createWorkspaceServerRuntimeHost(
 ): Promise<WorkspaceServerRuntimeHost> {
   const env = options.shellEnv.env;
   const userShellEnv = createUserShellEnvController(() => options.shellEnv.current());
+  // Git credential channels are minted on the desktop loopback, which remote sessions
+  // cannot reach, so sessions here never receive one to release.
+  const gitCredentialChannels = createController(gitCredentialChannelsContract, {
+    release: async () => {},
+  });
   const paths = workspaceServerRuntimePaths(options.socketPath);
   await Promise.all([
     mkdir(paths.stateDirectory, { recursive: true }),
@@ -135,6 +141,7 @@ export async function createWorkspaceServerRuntimeHost(
       executable: workspaceWorkerPath('terminals'),
       env,
       userEnv: userShellEnv,
+      gitCredentialChannels,
       lifecycle: {
         terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
       },
@@ -215,6 +222,7 @@ export async function createWorkspaceServerRuntimeHost(
           hostDependencies: hostDependencies.client.resolver,
           conversations,
           userEnv: userShellEnv,
+          gitCredentialChannels,
         },
         intentsFilePath: paths.tuiAgentsIntentsFile,
       })

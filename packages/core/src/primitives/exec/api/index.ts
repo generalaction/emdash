@@ -5,5 +5,6 @@ export type {
   ExecStreamingResult,
   IExecutionContext,
 } from './execution-context';
+export { loopbackCurlCommand } from './loopback-curl';
 export type { NativeInvocation } from './native-invocation';
 export type { CommandSpec } from './command-spec';

@@ -170,6 +170,18 @@ describe('workspace registry deleteWorktree', () => {
     expect(branches).not.toContain('branch-drop');
   });
 
+  it('a branch that is already gone satisfies deleteBranch', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const worktree = await createWorktree('ws-repo', 'gone');
+    git(repoPath, 'worktree', 'remove', '--force', worktree.path);
+    git(repoPath, 'branch', '-D', 'branch-gone');
+
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'wt-gone', deleteBranch: true })
+    ).toEqual({ success: true, data: undefined });
+  });
+
   it('dirty and unpushed worktrees delete without refusal', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });

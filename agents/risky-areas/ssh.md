@@ -38,9 +38,15 @@
 - An unchanged key with an unbound legacy passphrase must request re-entry before Save, Test,
   or reconnect. A rejected save preserves both the row and secret; never interpret an
   unverified legacy passphrase as absent and silently delete it during a name-only edit.
+- Local proxy children (ProxyJump `ssh -W`, ProxyCommand) and `ssh -G` run with `windowsHide`
+  and piped stdio, so nobody can answer their prompts. ProxyJump passes `BatchMode=yes`, but
+  OpenSSH does not forward it to earlier `-J` hops, and a ProxyCommand can prompt. On Windows such
+  a prompt waits on a hidden console until the connect timeout, so proxy cleanup must kill the
+  whole process tree there (signals end only `cmd.exe` or the outer `ssh.exe`).
 - Expand user-relative SSH key paths with the OS home-directory helper, not HOME alone;
   Windows environments may provide USERPROFILE without HOME.
 - `ssh2` is patched (`patches/ssh2@<version>.patch` via `pnpm.patchedDependencies`) to keep
-  OpenSSH certificates from the agent. When bumping `ssh2`, regenerate the patch, or drop it
-  once upstream releases certificate support (mscdex/ssh2#1495), and keep
-  `ssh-agent-certificate.test.ts` passing.
+  OpenSSH certificates from the agent and to spawn its Windows agent helpers (`pagent.exe`,
+  `cygpath`) with `windowsHide`. When bumping `ssh2`, regenerate the patch, dropping only the
+  parts upstream has released (certificates: mscdex/ssh2#1495), and keep
+  `ssh-agent-certificate.test.ts` and `ssh-agent-windows-helpers.test.ts` passing.

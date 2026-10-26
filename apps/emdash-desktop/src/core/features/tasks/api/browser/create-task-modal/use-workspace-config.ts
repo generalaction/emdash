@@ -26,6 +26,13 @@ import { useProjectWorkspaceOptions } from './use-project-workspace-options';
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Why submission is blocked while {@link WorkspaceConfigState.missingBranch} is
+ * set. The default branch normally fills the picker in; when it can't be
+ * resolved the picker sits behind the Workspace Settings tab, so point there.
+ */
+export const MISSING_BRANCH_REASON = 'Select a branch in Workspace Settings.';
+
 /** Top-level workspace creation mode — drives which detail panel is shown. */
 export type WorkspaceMode = 'new-worktree' | 'existing';
 
@@ -58,6 +65,12 @@ export type WorkspaceConfigState = {
   setupSteps: WorktreeSetupStep[];
   /** Whether enough information is present to submit the form. */
   isValid: boolean;
+  /**
+   * The new-worktree preset has no branch to start from: the repository's
+   * default branch is unresolved (or still resolving) and the user has not
+   * picked one. Surfaces use it to explain why submission is blocked.
+   */
+  missingBranch: boolean;
   /**
    * When the user picks "Checkout branch" in the new-worktree preset and the
    * chosen branch is already checked out in another worktree, this holds the
@@ -356,6 +369,8 @@ export function useWorkspaceConfig(opts: {
 
   // ── Validity ─────────────────────────────────────────────────────────────
 
+  const missingBranch = presetId === 'new-worktree' && branchSelection.selectedBranch === undefined;
+
   const isValid = useMemo((): boolean => {
     if (mode === 'existing') {
       if (presetId === 'repo-root') return !!repositoryWorkspaceId;
@@ -412,6 +427,7 @@ export function useWorkspaceConfig(opts: {
     resolvedConfig,
     setupSteps,
     isValid,
+    missingBranch,
     branchConflict,
   };
 }

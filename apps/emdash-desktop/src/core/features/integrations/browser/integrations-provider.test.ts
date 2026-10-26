@@ -181,9 +181,10 @@ describe('IntegrationsProvider', () => {
 
     await act(async () => {
       initialInventory.reject(unavailable);
-      await flushQueries();
+      // React Query queues the error notification only after the rejection propagates, so a
+      // timer started here can fire first; wait for the rendered error instead.
+      await vi.waitFor(() => expect(latest?.accountsError).toBe(unavailable));
     });
-    expect(latest?.accountsError).toBe(unavailable);
     expect(latest?.isLoadingAccounts).toBe(false);
 
     await act(async () => {

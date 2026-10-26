@@ -159,6 +159,40 @@ describe('AgentPluginHost', () => {
     });
   });
 
+  it('gives Windows TUI agents the system drive and directory variables', async () => {
+    const buildCommand = vi.fn(
+      (ctx: CommandContext): AgentCommand => ({ command: ctx.cli, args: [], env: {} })
+    );
+    const host = createHost(
+      [plugin({ behavior: { prompt: { buildCommand } } })],
+      async () => ({
+        Path: 'C:\\Tools',
+        SYSTEMDRIVE: 'C:',
+        SystemRoot: 'C:\\WINDOWS',
+        ProgramData: 'C:\\ProgramData',
+        ProgramFiles: 'C:\\Program Files',
+        USERPROFILE: 'C:\\Users\\ada',
+      }),
+      { platform: 'windows' }
+    );
+
+    const result = await host.buildPromptCommand('test', { autoApprove: false, model: '' });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        env: expect.objectContaining({
+          PATH: 'C:\\Tools',
+          SystemDrive: 'C:',
+          SystemRoot: 'C:\\WINDOWS',
+          ProgramData: 'C:\\ProgramData',
+          ProgramFiles: 'C:\\Program Files',
+          USERPROFILE: 'C:\\Users\\ada',
+        }),
+      },
+    });
+  });
+
   it('builds ACP spawn with allowlisted env merged under caller env', async () => {
     const buildSpawn = vi.fn(({ cwd, cli }: { cwd: string; cli: string }) => ({
       command: cli,

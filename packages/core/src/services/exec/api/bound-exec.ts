@@ -42,6 +42,12 @@ type StdoutSink =
   | { kind: 'buffer'; chunks: Buffer[] }
   | { kind: 'stream'; onStdout: (chunk: string) => boolean | void };
 
+/**
+ * Every child is a background process with piped stdio, so it is always spawned with
+ * `windowsHide`. Emdash has no console on Windows; without the flag each console program
+ * (git, cmd.exe for `.cmd` shims, where, ...) gets its own console window, which Windows 11
+ * shows as a Windows Terminal tab that stays open when the command fails.
+ */
 class ProcessBoundExec implements BoundExec {
   constructor(
     readonly file: string,
@@ -92,6 +98,7 @@ class ProcessBoundExec implements BoundExec {
       env: composedEnv,
       signal: options.signal,
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
       windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
   }
@@ -121,6 +128,7 @@ class ProcessBoundExec implements BoundExec {
         cwd: plan.cwd,
         env: composedEnv,
         detached: this.platform !== 'win32',
+        windowsHide: true,
         windowsVerbatimArguments: launch.windowsVerbatimArguments,
       };
       recordSpawn(classifySpawnPurpose(this.file, args), launch.executable);

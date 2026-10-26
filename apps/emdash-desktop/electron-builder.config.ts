@@ -1,4 +1,5 @@
 import type { Configuration } from 'electron-builder';
+import { DEB_DEPENDS, RPM_DEPENDS } from './scripts/release/lib/linux-dependencies.ts';
 import {
   APP_ID,
   ARTIFACT_PREFIX,
@@ -88,6 +89,12 @@ const config: Configuration = {
       { target: 'deb', arch: ['x64'] },
       { target: 'rpm', arch: ['x64'] },
     ],
+  },
+  deb: {
+    depends: DEB_DEPENDS,
+  },
+  rpm: {
+    depends: RPM_DEPENDS,
   },
   win: {
     icon: 'src/assets/images/emdash/emdash.png',

@@ -684,6 +684,7 @@ export class SessionManager {
     await Promise.all(entries.map((entry) => entry.dispose()));
     for (const entry of entries) this.removeHandle(entry);
     this.suspendedIntents.clear();
+    await this.lifecycle.drainIntents();
     await Promise.all([this.sessionHost.dispose(), this.sessionsHost.dispose()]);
   }
 

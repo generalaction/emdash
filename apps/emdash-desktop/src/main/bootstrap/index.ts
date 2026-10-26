@@ -4,6 +4,7 @@ import { log } from '@main/lib/logger';
 import { runBootPreflight } from './boot/preflight';
 import { isBootAborted, type BootSignals } from './boot/types';
 import {
+  describeCrashLoop,
   markBootSuccessful,
   observePreviousBoot,
   recordBootFailure,
@@ -32,16 +33,12 @@ export async function main(): Promise<void> {
 
   try {
     await runBootPreflight(config, signals);
-    const { failures: previousFailures } = observePreviousBoot(config);
-    if (previousFailures >= CRASH_LOOP_THRESHOLD) {
+    const previousBoot = observePreviousBoot(config);
+    if (previousBoot.failures >= CRASH_LOOP_THRESHOLD) {
       // A crash-looping install gets the recovery window INSTEAD of the main
       // window — it must never flash the main window first.
       const { enterSafeMode } = await import('./core/recovery');
-      await enterSafeMode(
-        new Error(
-          `Emdash entered recovery mode after ${previousFailures} consecutive failed launches`
-        )
-      );
+      await enterSafeMode(new Error(describeCrashLoop(previousBoot)));
       return;
     }
 
@@ -88,7 +85,7 @@ export async function main(): Promise<void> {
  * teardown happens here, on the boot side.
  */
 async function observeBackendBootFailure(config: AppConfig, error: unknown): Promise<void> {
-  recordBootFailure(config);
+  recordBootFailure(config, error);
   await destroyMainWindowBeforeRecovery('boot failure', { bootError: error });
   try {
     // Idempotent: finishBoot's own failure path already disposed the scope; a

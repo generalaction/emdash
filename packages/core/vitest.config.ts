@@ -12,6 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: [resolve(__dirname, '../../tooling/vitest/setup-isolated-home.mjs')],
     include: ['**/*.test.ts', '**/*.test.tsx'],
   },
 });

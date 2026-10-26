@@ -28,6 +28,7 @@ import { ConfigModel } from '#services/config-model/node';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
   ActivateWorkspaceError,
+  CleanArtifactsError,
   CreateWorkspaceError,
   CreateWorktreeError,
   DeleteWorkspaceError,
@@ -39,6 +40,7 @@ import type {
 } from '../api/errors';
 import type {
   ActivateWorkspaceInput,
+  CleanArtifactsInput,
   CreateWorkspaceInput,
   CreateWorktreeInput,
   DeactivateWorkspaceInput,
@@ -84,7 +86,7 @@ import {
   withLifecycleStep,
   type CreationStageTimeline,
 } from './lifecycle';
-import { measureWorkspaceUsage } from './measure-usage';
+import { nestedWorkspacePaths } from './measure-usage';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
@@ -109,6 +111,8 @@ import {
 } from './scripts-plane';
 import type { SessionCounter, SessionKiller } from './session-cleanup';
 import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './update-worktree';
+import { WorkspaceUsageCache } from './usage-cache';
+import { removeWorkspaceArtifacts } from './workspace-artifacts';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -183,6 +187,11 @@ export class WorkspaceRegistryRuntime {
   private mutationQueue: Promise<unknown> = Promise.resolve();
   /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
   private readonly workspaceClaims = new KeyedMutex();
+  /** createWorktree pipelines still running, by workspace id; duplicate requests join. */
+  private readonly worktreeCreations = new Map<
+    string,
+    Promise<Result<WorkspaceRecord, CreateWorktreeError>>
+  >();
   /**
    * The background creation-step chain (copy/push/fetch); runs, retries, and the
    * activation artifact gate all flow through its per-workspace single-flight.
@@ -203,6 +212,8 @@ export class WorkspaceRegistryRuntime {
     onReadSuccess: (id) => this.clearConfigReadError(id),
   });
   private readonly bootConfigHydration: Promise<void>;
+  /** measureUsage's shared, short-lived walks; never read by mutations or scans. */
+  private readonly usage: WorkspaceUsageCache;
   private disposed = false;
   private readonly killSessions: SessionKiller;
   private readonly countSessions: SessionCounter;
@@ -229,6 +240,7 @@ export class WorkspaceRegistryRuntime {
     const env = options.env ?? (async () => process.env);
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
+    this.usage = new WorkspaceUsageCache({ clock: this.clock });
     this.inspector = options.inspector ?? ((path) => inspectWorkspacePath(path, env));
     this.gitContext = options.gitContext ?? createRegistryGitContext({ env });
     this.onRecordsChanged = options.onRecordsChanged;
@@ -483,6 +495,7 @@ export class WorkspaceRegistryRuntime {
   dispose(): void {
     this.disposed = true;
     this.configs.dispose();
+    this.usage.dispose();
     this.scriptRuns?.dispose();
     this.activationManager.dispose();
     this.projectConfigHost.dispose();
@@ -728,20 +741,58 @@ export class WorkspaceRegistryRuntime {
    * the writer queue; the long-running stage pipeline runs unserialized — concurrent
    * creations against one repository are safe (spec: git concurrency model) and the
    * repo-hold only keeps idle-gated scans away; the durable outcome lands under the
-   * writer queue again. Progress is only visible through the records overlay.
+   * writer queue again. Progress is only visible through the records overlay. A request
+   * for a creation still in flight (a desktop that restarted mid-create and replayed
+   * it) joins that run: same outcome, no second pipeline over the same path.
    */
   async createWorktree(
     input: CreateWorktreeInput
   ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
-    const registration = await this.enqueue(() =>
-      Promise.resolve(this.registerWorktreeCreation(input))
-    );
-    if (!registration.success) return registration;
-    if (registration.data.execute === false) {
-      return ok(this.toWire(registration.data.record));
+    for (;;) {
+      const admission = await this.enqueue(() => this.admitWorktreeCreation(input));
+      if ('run' in admission) return await admission.run;
+      // An earlier run for this workspace is still finishing although its record was
+      // removed (remove and re-provision mid-create): let it settle, then admit afresh.
+      await admission.settling;
     }
-    const repository = registration.data.repository;
+  }
 
+  /**
+   * Admission runs on the writer queue, so a duplicate request always finds the run its
+   * predecessor started. Runs are wrapped in objects so the queue does not adopt their
+   * promises and wait for the pipeline.
+   */
+  private admitWorktreeCreation(
+    input: CreateWorktreeInput
+  ):
+    | { run: Promise<Result<WorkspaceRecord, CreateWorktreeError>> }
+    | { settling: Promise<unknown> } {
+    const registration = this.registerWorktreeCreation(input);
+    if (!registration.success) return { run: Promise.resolve(registration) };
+    const admitted = registration.data;
+    switch (admitted.action) {
+      case 'replay':
+        return { run: Promise.resolve(ok(this.toWire(admitted.record))) };
+      case 'join':
+        return { run: admitted.run };
+      case 'wait':
+        return { settling: admitted.run.catch(() => undefined) };
+      case 'execute': {
+        const run = this.runWorktreeCreation(input, admitted.repository).finally(() => {
+          if (this.worktreeCreations.get(input.workspaceId) === run) {
+            this.worktreeCreations.delete(input.workspaceId);
+          }
+        });
+        this.worktreeCreations.set(input.workspaceId, run);
+        return { run };
+      }
+    }
+  }
+
+  private async runWorktreeCreation(
+    input: CreateWorktreeInput,
+    repository: DurableWorkspaceRecord
+  ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
     const created = await this.gitContext.schedule.withRepoHold(repository.path, async () => {
       const startedAt = this.clock.now();
       const stageStarts: CreationStageTimeline = [];
@@ -863,7 +914,9 @@ export class WorkspaceRegistryRuntime {
   /**
    * On-demand git-aware disk observation; the path resolves from the registry's own
    * record. Runs off both lanes deliberately — a slow `du` over a large workspace must
-   * never block mutations or scans, and it writes nothing.
+   * never block mutations or scans, and it writes nothing. Workspaces measured
+   * alongside that sit inside this one are skipped so their bytes count once, and
+   * results are shared and cached by the usage cache.
    */
   async measureUsage(
     input: MeasureUsageInput,
@@ -873,7 +926,70 @@ export class WorkspaceRegistryRuntime {
     if (!record) {
       return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
     }
-    return measureWorkspaceUsage({ workspacePath: record.path, signal });
+    const alongside = (input.excludeWorkspaceIds ?? []).flatMap((workspaceId) => {
+      const other = workspaceId === record.id ? undefined : this.store.get(workspaceId);
+      return other ? [other.path] : [];
+    });
+    return this.usage.measure(
+      {
+        workspaceId: record.id,
+        workspacePath: record.path,
+        excludePaths: nestedWorkspacePaths(record.path, alongside),
+        preservePatterns: await this.preservePatternsFor(record.id),
+        nestedWorkspacePaths: this.workspacesInside(record),
+      },
+      signal
+    );
+  }
+
+  /**
+   * Removes the workspace's artifacts in place: the same set measureUsage reports as
+   * reclaimable, so what the view shows is what goes. Held under the per-workspace
+   * claim, so activation waits for it; refused while sessions run under the path
+   * (the updateWorktree guard), because tools would lose files mid-run. Nothing is
+   * stopped and no script runs. Scans stay muted while files go and settle with one
+   * deliberate scan; the workspace's cached usage is dropped either way.
+   */
+  cleanArtifacts(input: CleanArtifactsInput): Promise<Result<void, CleanArtifactsError>> {
+    return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+      const record = this.store.get(input.workspaceId);
+      if (!record) return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+      if (record.observedStatus === 'missing' || !(await isDirectory(record.path))) {
+        return err({ type: 'workspace-missing', workspaceId: input.workspaceId });
+      }
+      if ((await this.countSessions(record.path)) > 0) {
+        return err({ type: 'workspace-active', workspaceId: input.workspaceId });
+      }
+      const preservePatterns = await this.preservePatternsFor(record.id);
+      const release = this.muteScans(record.id);
+      try {
+        return await removeWorkspaceArtifacts({
+          workspacePath: record.path,
+          preservePatterns,
+          nestedWorkspacePaths: this.workspacesInside(record),
+          createGitExec: (cwd) => this.gitContext.exec(cwd, { tier: 'activation' }),
+        });
+      } finally {
+        this.usage.invalidate(record.id);
+        release();
+        this.settleScan({ kind: 'workspace', id: record.id, mode: 'full' });
+      }
+    });
+  }
+
+  /** Every other registered workspace inside this one; none of them is ever its artifact. */
+  private workspacesInside(record: DurableWorkspaceRecord): string[] {
+    return nestedWorkspacePaths(
+      record.path,
+      this.store.list().flatMap((other) => (other.id === record.id ? [] : [other.path]))
+    );
+  }
+
+  /** The workspace's resolved preserve patterns: the ignored files it never counts as artifacts. */
+  private async preservePatternsFor(id: string): Promise<string[]> {
+    await this.bootConfigHydration;
+    const config = await this.resolveProjectConfigFor(id);
+    return config?.resolved.preservePatterns.value ?? [];
   }
 
   /**
@@ -1107,7 +1223,9 @@ export class WorkspaceRegistryRuntime {
   private registerWorktreeCreation(
     input: CreateWorktreeInput
   ): Result<
-    { execute: boolean; record: DurableWorkspaceRecord; repository: DurableWorkspaceRecord },
+    | { action: 'replay'; record: DurableWorkspaceRecord }
+    | { action: 'join' | 'wait'; run: Promise<Result<WorkspaceRecord, CreateWorktreeError>> }
+    | { action: 'execute'; repository: DurableWorkspaceRecord },
     CreateWorktreeError
   > {
     const repository = this.store.get(input.repositoryId);
@@ -1136,8 +1254,10 @@ export class WorkspaceRegistryRuntime {
       if (existing.lastCreateOutcome?.status === 'succeeded') {
         // Replay of a completed creation: no-op foreground success; incomplete
         // background steps re-run through the caller's post-verb kickoff.
-        return ok({ execute: false, record: existing, repository });
+        return ok({ action: 'replay', record: existing });
       }
+      const inFlight = this.worktreeCreations.get(input.workspaceId);
+      if (inFlight) return ok({ action: 'join', run: inFlight });
       // Failed or interrupted: re-execute under a fresh 'started' outcome. The
       // lifecycle section clears — the fresh attempt writes its own steps at finalize.
       const restarted: DurableWorkspaceRecord = {
@@ -1148,8 +1268,14 @@ export class WorkspaceRegistryRuntime {
       };
       this.store.update(restarted);
       this.publish(restarted);
-      return ok({ execute: true, record: restarted, repository });
+      return ok({ action: 'execute', repository });
     }
+
+    // No record, yet a run for this id is still going: its record was removed mid-run.
+    // That run ends as "deleted during creation"; a fresh creation waits for it rather
+    // than starting a second pipeline over the same path.
+    const settling = this.worktreeCreations.get(input.workspaceId);
+    if (settling) return ok({ action: 'wait', run: settling });
 
     const resolvedPath = path.resolve(input.path);
     const byPath = this.store.getByPath(resolvedPath);
@@ -1184,7 +1310,7 @@ export class WorkspaceRegistryRuntime {
     };
     this.store.insert(record);
     this.publish(record);
-    return ok({ execute: true, record, repository });
+    return ok({ action: 'execute', repository });
   }
 
   /** The durable tail of createWorktree: outcome lands, overlay clears, record settles. */

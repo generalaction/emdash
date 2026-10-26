@@ -16,6 +16,15 @@
 - worktree creation is managed by the project provider pattern
 - creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
   the base ref is fetched only when it is not locally resolvable
+- registry verbs that wait on host work with no fixed bound (creation, activation, deactivation,
+  removal, update, step retry, usage, artifact cleaning) declare `callTimeoutMs: 0` in the
+  contract, so desktop, automation, and workspace-server callers wait for the result instead
+  of timing out after 30s; a lost connection still fails the call
+- a `createWorktree` for a workspace whose creation is still running joins that run (same
+  result, no second git pipeline); completed and interrupted creations replay as before
+- when a stale git registration (worktree directory deleted out-of-band) blocks the requested
+  path or branch, `inspect` runs `git worktree prune`; locked registrations are kept, and
+  working-tree files are never deleted (removing by path could hit a concurrent recreation)
 - newly created task branches use `git worktree add --no-track`; the selected base ref is a
   starting point, not the branch's upstream
 - gitignored files named in `preservePatterns` are copied from the repository into the new
@@ -30,6 +39,9 @@
   a successful push establishes that remote's same-named branch as upstream
 - branch publication and ref freshening run as durable background steps; a failed push surfaces
   as a "branch not pushed" task state with a manual retry
+- Workspaces-view disk usage is measured by the registry: one walk per workspace, shared by
+  concurrent callers and cached for 5 minutes; a workspace nested inside another one measured in
+  the same request counts only in its own row; closing the view cancels walks still running
 
 ## `.emdash.json`
 

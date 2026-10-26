@@ -84,6 +84,9 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     ),
     terminals: forwardContractImpl(workspaceWireContract.terminals, deps.runtimes.terminals),
     tuiAgents: forwardContractImpl(workspaceWireContract.tuiAgents, deps.runtimes.tuiAgents),
+    // Forwarded calls keep each registry verb's own call deadline: the long-running
+    // ones (worktree creation, activation, removals, artifact cleaning) declare none in
+    // the contract.
     workspaceRegistry: forwardContractImpl(
       workspaceWireContract.workspaceRegistry,
       deps.runtimes.workspaceRegistry

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { workspaceAttachmentsContract } from '#services/attachments/api';
 import {
   activateWorkspaceErrorSchema,
+  cleanArtifactsErrorSchema,
   createWorkspaceErrorSchema,
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
@@ -14,6 +15,7 @@ import {
 } from './errors';
 import {
   activateWorkspaceInputSchema,
+  cleanArtifactsInputSchema,
   createWorkspaceInputSchema,
   createWorktreeInputSchema,
   deactivateWorkspaceInputSchema,
@@ -40,6 +42,12 @@ import {
  * are plain fail-fast RPCs; no outbox, no durable operations, no job objects. Progress
  * and current state are read from `records`, which merges durable rows with the
  * in-memory runtime overlay.
+ *
+ * Verbs that wait on host work with no fixed bound — git, lifecycle scripts, removals,
+ * disk walks, artifact cleaning — carry no call deadline (`callTimeoutMs: 0`). Most of
+ * them finish on the host whether or not the caller is still waiting, so a deadline
+ * would only report work in progress as failed. A lost connection still rejects the
+ * call, and callers that should stop waiting pass a signal.
  */
 export const workspaceRegistryContract = defineContract({
   attachments: workspaceAttachmentsContract.attachments,
@@ -123,6 +131,7 @@ export const workspaceRegistryContract = defineContract({
     input: createWorktreeInputSchema,
     data: workspaceRecordSchema,
     error: createWorktreeErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**
@@ -134,6 +143,7 @@ export const workspaceRegistryContract = defineContract({
     input: retryStepInputSchema,
     data: workspaceRecordSchema,
     error: workspaceNotFoundErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**
@@ -161,6 +171,7 @@ export const workspaceRegistryContract = defineContract({
     input: activateWorkspaceInputSchema,
     data: workspaceRecordSchema,
     error: activateWorkspaceErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**
@@ -176,6 +187,7 @@ export const workspaceRegistryContract = defineContract({
     input: deactivateWorkspaceInputSchema,
     data: z.void(),
     error: workspaceNotFoundErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**
@@ -188,6 +200,7 @@ export const workspaceRegistryContract = defineContract({
     input: deleteWorkspaceInputSchema,
     data: z.void(),
     error: deleteWorkspaceErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**
@@ -204,6 +217,7 @@ export const workspaceRegistryContract = defineContract({
     input: deleteWorktreeInputSchema,
     data: z.void(),
     error: deleteWorktreeErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**
@@ -219,18 +233,36 @@ export const workspaceRegistryContract = defineContract({
     input: updateWorktreeInputSchema,
     data: z.void(),
     error: updateWorktreeErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**
    * On-demand git-aware disk observation, joining the registry's other per-workspace
-   * observations: exclusive total bytes plus reclaimable git-ignored artifact bytes
-   * (`git clean -ndX` roots). Id-keyed like every registry verb — the path resolves
+   * observations: exclusive total bytes plus reclaimable artifact bytes — the
+   * git-ignored `git clean -ndX` roots minus local env files and what the project
+   * preserves, exactly what cleanArtifacts removes. Id-keyed like every registry verb — the path resolves
    * from the record, never from the client.
    */
   measureUsage: fallible({
     input: measureUsageInputSchema,
     data: workspaceUsageSchema,
     error: measureUsageErrorSchema,
+    callTimeoutMs: 0,
+  }),
+
+  /**
+   * Removes the workspace's artifacts in place — exactly what measureUsage reports as
+   * reclaimable. Tracked files, uncommitted changes, untracked files that are not
+   * ignored, local env files, preserved files, `.emdash.json`, nested repositories,
+   * worktrees and other registered workspaces, the branch, and the record all stay. Refuses while sessions run under the workspace;
+   * it never stops sessions or runs lifecycle scripts. The workspace's cached usage is
+   * dropped, so the next measureUsage shows what is left.
+   */
+  cleanArtifacts: fallible({
+    input: cleanArtifactsInputSchema,
+    data: z.void(),
+    error: cleanArtifactsErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**

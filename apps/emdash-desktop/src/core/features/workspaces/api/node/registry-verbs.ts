@@ -89,6 +89,8 @@ export async function createWorktreeThroughRegistry(
   }
   const repositoryId = repository.data.id;
 
+  // Waits for the whole pipeline: the contract gives this verb no call deadline, since
+  // `git worktree add` on a large repository has no fixed bound.
   const created = await registry.createWorktree({
     workspaceId: spec.workspaceId,
     repositoryId,

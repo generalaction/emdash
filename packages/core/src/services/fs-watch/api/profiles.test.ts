@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_WATCHER_EXCLUDE } from '#primitives/exclusion-policy/api';
-import { gitMetadataWatchIgnore, workspaceContentWatchIgnore } from './profiles';
+import { gitMetadataWatchProfile, workspaceContentWatchIgnore } from './profiles';
 
 describe('workspaceContentWatchIgnore', () => {
   it('excludes Git metadata and the built-in high-volume trees by default', () => {
@@ -24,8 +24,24 @@ describe('workspaceContentWatchIgnore', () => {
   });
 });
 
-describe('gitMetadataWatchIgnore', () => {
-  it('skips only the object store and subtree cache', () => {
-    expect(gitMetadataWatchIgnore()).toEqual(['objects/**', 'subtree-cache/**']);
+describe('gitMetadataWatchProfile', () => {
+  it('skips only the object stores', () => {
+    expect(gitMetadataWatchProfile().ignore).toEqual([
+      'lfs/**',
+      'modules/**',
+      'objects/**',
+      'subtree-cache/**',
+      'worktrees/*/modules/**',
+    ]);
+  });
+
+  it('pins the operating-system watcher so the ignore list bounds the initial crawl', () => {
+    expect(gitMetadataWatchProfile().backend).toBe('os');
+  });
+
+  it('returns a fresh ignore list for every consumer', () => {
+    const first = gitMetadataWatchProfile();
+    first.ignore.push('refs/**');
+    expect(gitMetadataWatchProfile().ignore).not.toContain('refs/**');
   });
 });

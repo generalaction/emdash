@@ -50,6 +50,12 @@ import {
   WorkspacesOfflineState,
 } from './workspace-states';
 
+/** Exactly what the registry's cleanArtifacts removes and keeps; it never stops sessions. */
+const CLEAN_ARTIFACTS_DESCRIPTION =
+  'Removes gitignored files, such as dependencies, build output, and caches, from this ' +
+  'worktree. Tracked files, uncommitted changes, untracked files, local .env files, and ' +
+  "files matching the project's preserve patterns stay, and so do the worktree and its tasks.";
+
 /** One durable script failure (overlay lifecycle step) or a live overlay notice. */
 type WorkspaceScriptIssue = {
   script: string;
@@ -296,26 +302,20 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
 
   const handleCleanArtifacts = useCallback(
     async (item: WorkspaceDetailListItem) => {
-      const { row } = item;
+      const { projectId, workspaceId } = item.row;
+      if (!workspaceId) return;
       const outcome = await openConfirm({
         title: `Clean artifacts for ${item.name}?`,
-        description: row.hasActiveSessions
-          ? 'This stops active sessions, runs teardown scripts, and removes gitignored artifacts. Tasks remain restorable, but dependencies may need to be restored.'
-          : 'This runs teardown scripts and removes gitignored dependencies, build output, and caches. The worktree and its tasks stay intact.',
+        description: CLEAN_ARTIFACTS_DESCRIPTION,
         confirmLabel: 'Clean Artifacts',
       });
       if (!outcome.success) return;
 
       try {
         const client = await getWorkspacesWireClient();
-        const result = await client.archive({
-          projectId: row.projectId,
-          workspaceId: row.workspaceId ?? undefined,
-          workspacePath: row.path,
-          branchName: row.branch,
-        });
+        const result = await client.cleanArtifacts({ projectId, workspaceId });
         if (result.success) {
-          toast(`Queued artifact cleanup for ${item.name}`);
+          toast(`Cleaned artifacts for ${item.name}`);
         } else {
           toast.error('Could not clean artifacts', { description: result.error.message });
         }

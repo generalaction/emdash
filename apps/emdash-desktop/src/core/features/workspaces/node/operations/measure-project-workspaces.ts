@@ -20,9 +20,15 @@ import {
 
 const MEASURE_CONCURRENCY = 4;
 
+/**
+ * Measures the requested rows on their host. Host calls have no deadline — a large
+ * tree legitimately takes a while — and are bounded by `signal` instead: cancelling it
+ * (the view closed) stops the walks still running and skips the rows not yet started.
+ */
 export async function measureProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies,
-  input: MeasureProjectWorkspacesInput
+  input: MeasureProjectWorkspacesInput,
+  signal?: AbortSignal
 ): Promise<MeasureProjectWorkspacesResult> {
   if (input.paths.length === 0) {
     return { scannedAt: new Date().toISOString(), projectId: input.projectId, results: [] };
@@ -30,10 +36,16 @@ export async function measureProjectWorkspaces(
 
   const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
   const listed = await listProjectWorkspaces(dependencies, input.projectId);
+  signal?.throwIfAborted();
   const rowsByPath = new Map(
     listed.rows.map((row) => [workspacePathIdentityKey(row.path), row] as const)
   );
+  const measuredRows = input.paths.flatMap((targetPath) => {
+    const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
+    return row?.pathState === 'measured' && row.workspaceId ? [row] : [];
+  });
   const results = await mapWithConcurrency(input.paths, MEASURE_CONCURRENCY, async (targetPath) => {
+    signal?.throwIfAborted();
     const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
     if (!row) {
       return {
@@ -42,7 +54,13 @@ export async function measureProjectWorkspaces(
         message: 'Workspace was not found.',
       } satisfies ProjectWorkspaceUsageResult;
     }
-    return await measureRow(dependencies, project, row);
+    return await measureRow(
+      dependencies,
+      project,
+      row,
+      nestedWorkspaceIds(row, measuredRows),
+      signal
+    );
   });
 
   return {
@@ -55,7 +73,9 @@ export async function measureProjectWorkspaces(
 async function measureRow(
   dependencies: { runtimes: Pick<RuntimeBroker, 'client'> },
   project: Awaited<ReturnType<typeof getProjectWorkspaceProject>>,
-  row: ProjectWorkspaceRow
+  row: ProjectWorkspaceRow,
+  excludeWorkspaceIds: string[],
+  signal: AbortSignal | undefined
 ): Promise<ProjectWorkspaceUsageResult> {
   if (row.pathState === 'missing') {
     return { path: row.path, success: false, message: 'Workspace path is missing.' };
@@ -71,9 +91,13 @@ async function measureRow(
     const host = projectWorkspaceHost(project);
     const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    const usage = await runtime.data.workspaceRegistry.measureUsage({
-      workspaceId: row.workspaceId,
-    });
+    const usage = await runtime.data.workspaceRegistry.measureUsage(
+      {
+        workspaceId: row.workspaceId,
+        ...(excludeWorkspaceIds.length > 0 ? { excludeWorkspaceIds } : {}),
+      },
+      { signal }
+    );
     if (!usage.success) {
       const message = measureUsageErrorMessage(usage.error);
       return {
@@ -93,12 +117,28 @@ async function measureRow(
       },
     };
   } catch (error) {
+    signal?.throwIfAborted();
     return {
       path: row.path,
       success: false,
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * The other measured rows inside `row`, so the host skips them and each byte counts
+ * once, in its most specific row. A lenient prefix check over identity keys; the host
+ * re-checks containment against its own records.
+ */
+function nestedWorkspaceIds(row: ProjectWorkspaceRow, measuredRows: ProjectWorkspaceRow[]) {
+  const parentKey = workspacePathIdentityKey(row.path);
+  const prefix = parentKey.endsWith('/') ? parentKey : `${parentKey}/`;
+  return measuredRows.flatMap((other) =>
+    other !== row && other.workspaceId && workspacePathIdentityKey(other.path).startsWith(prefix)
+      ? [other.workspaceId]
+      : []
+  );
 }
 
 function measureUsageErrorMessage(error: MeasureUsageError): string {

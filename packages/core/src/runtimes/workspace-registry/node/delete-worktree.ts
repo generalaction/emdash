@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import { ExecError } from '#services/exec/api';
 import type { RegistryGitContext } from './git-context';
 import { validateWorktreePath } from './worktree-path-safety';
 
@@ -76,8 +77,9 @@ export async function executeDeleteWorktree(
     try {
       await exec.exec(['branch', '-D', branch]);
     } catch (error) {
-      // A branch that is already gone satisfies the request.
-      if (!/not found/iu.test(error instanceof Error ? error.message : String(error))) {
+      // A branch that is already gone satisfies the request. Git says so on stderr; the
+      // error's message is redacted and truncated for sharing.
+      if (!(error instanceof ExecError && /not found/iu.test(error.stderr))) {
         return {
           status: 'failed',
           class: 'transient',

@@ -3,7 +3,7 @@ import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildProxyJumpArgs,
   childToDuplex,
@@ -104,11 +104,11 @@ describe('buildProxyJumpArgs', () => {
 
 describe('spawnProxyJump', () => {
   it('spawns system ssh with built jump args and returns a cleanup handle', () => {
-    const calls: Array<{ command: string; args: string[] }> = [];
+    const calls: Array<{ command: string; args: string[]; options: object }> = [];
     const child = fakeChild();
 
-    const transport = spawnProxyJump('bastion', 'dest.internal', 22, (command, args) => {
-      calls.push({ command, args });
+    const transport = spawnProxyJump('bastion', 'dest.internal', 22, (command, args, options) => {
+      calls.push({ command, args, options });
       return child;
     });
 
@@ -116,6 +116,7 @@ describe('spawnProxyJump', () => {
       {
         command: 'ssh',
         args: buildProxyJumpArgs('bastion', 'dest.internal', 22),
+        options: { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
       },
     ]);
     transport.cleanup();
@@ -193,7 +194,7 @@ describe('childToDuplex', () => {
 
 describe('spawnProxyCommand', () => {
   it('uses the platform shell instead of hardcoding a Unix shell path', () => {
-    const calls: Array<{ command: string; args: string[]; shell?: boolean }> = [];
+    const calls: Array<{ command: string; args: string[]; options: object }> = [];
     const child = {
       stdin: new PassThrough(),
       stdout: new PassThrough(),
@@ -211,7 +212,7 @@ describe('spawnProxyCommand', () => {
         username: 'alice',
       },
       (command, args, options) => {
-        calls.push({ command, args, shell: options.shell });
+        calls.push({ command, args, options });
         return child as never;
       }
     );
@@ -220,7 +221,7 @@ describe('spawnProxyCommand', () => {
       {
         command: 'ssh bastion -W dest.internal:22',
         args: [],
-        shell: true,
+        options: { shell: true, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
       },
     ]);
   });
@@ -291,6 +292,73 @@ describe('terminateProxyChild', () => {
       },
     });
     expect(signals).toEqual(['SIGTERM', 'SIGKILL']);
+  });
+
+  it('force-kills the whole process tree once on Windows', async () => {
+    const signals: string[] = [];
+    const child = {
+      pid: 4321,
+      exitCode: null,
+      signalCode: null,
+      kill(signal: string) {
+        signals.push(signal);
+        return true;
+      },
+    };
+    const taskkill = vi.fn(async (_args: string[]) => {});
+
+    terminateProxyChild(child, undefined, { platform: 'win32', taskkill });
+    terminateProxyChild(child, undefined, { platform: 'win32', taskkill });
+
+    await vi.waitFor(() => expect(signals).toEqual(['SIGKILL']));
+    expect(taskkill).toHaveBeenCalledOnce();
+    expect(taskkill).toHaveBeenCalledWith(['/PID', '4321', '/T', '/F']);
+  });
+});
+
+describe('silent proxy hint', () => {
+  it('explains a proxy that never answered before cleanup', () => {
+    const child = fakeChild();
+    const transport = spawnProxyJump('bastion', 'dest.internal', 22, () => child);
+
+    transport.cleanup();
+
+    expect(transport.debugLogs).toEqual([
+      expect.stringContaining('waiting for a password or host-key confirmation'),
+    ]);
+  });
+
+  it.each([
+    [
+      'sent data',
+      async (child: FakeChild) => {
+        const data = once(child.stdout, 'data');
+        child.stdout.write('SSH-2.0-OpenSSH\r\n');
+        await data;
+      },
+    ],
+    [
+      'closed stdout',
+      async (child: FakeChild) => {
+        const ended = once(child.stdout, 'end');
+        child.stdout.end();
+        await ended;
+      },
+    ],
+    [
+      'exited',
+      async (child: FakeChild) => {
+        child.exitCode = 255;
+      },
+    ],
+  ])('stays quiet when the proxy %s', async (_label, settle) => {
+    const child = fakeChild();
+    const transport = spawnProxyJump('bastion', 'dest.internal', 22, () => child);
+
+    await settle(child);
+    transport.cleanup();
+
+    expect(transport.debugLogs).toEqual([]);
   });
 });
 

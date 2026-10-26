@@ -125,15 +125,38 @@ export const AGENT_ENV_VARS = [
   'ZAI_API_KEY',
 ] as const;
 
+/**
+ * The Windows baseline: system and profile directories, command resolution, and platform facts.
+ * Windows stores well-known paths as references such as `%SystemDrive%\ProgramData` and expands
+ * them against the agent's own environment; a missing variable leaves a relative path that
+ * resolves under the agent's cwd. APPDATA is in AGENT_ENV_VARS, and USERNAME repeats USER. Machine
+ * and domain identity (COMPUTERNAME, USERDOMAIN, USERDNSDOMAIN, LOGONSERVER) stays out.
+ */
 const WINDOWS_AGENT_ENV_VARS = [
-  'TEMP',
-  'TMP',
+  'SystemDrive',
   'SystemRoot',
   'windir',
+  'ProgramData',
+  'ALLUSERSPROFILE',
+  'PUBLIC',
+  'ProgramFiles',
+  'ProgramFiles(x86)',
+  'ProgramW6432',
+  'CommonProgramFiles',
+  'CommonProgramFiles(x86)',
+  'CommonProgramW6432',
+  'USERPROFILE',
+  'HOMEDRIVE',
+  'HOMEPATH',
+  'USERNAME',
+  'LOCALAPPDATA',
+  'TEMP',
+  'TMP',
   'ComSpec',
   'PATHEXT',
-  'LOCALAPPDATA',
-  'USERPROFILE',
+  'OS',
+  'PROCESSOR_ARCHITECTURE',
+  'NUMBER_OF_PROCESSORS',
 ] as const;
 
 const DISPLAY_ENV_VARS = [

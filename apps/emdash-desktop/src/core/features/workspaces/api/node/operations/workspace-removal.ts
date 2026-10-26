@@ -31,11 +31,15 @@ import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reco
  * `deleteWorktree`/`deleteWorkspace` RPC against an effectively attached Project,
  * then the mirror row is untracked. If attachment disappears, the interactive
  * mutation refuses and leaves the mirror unchanged; it never creates recovery work.
- * Archive differs from delete only in the desktop annotation; host-side both remove
- * the worktree with `deleteBranch: false`.
  */
 
 export type WorkspaceRemovalResult = Result<MutationAck, MutationError>;
+
+/**
+ * How long the project-delete cascade waits for one host removal before handing it to
+ * the deletion tombstone the sweep converges. The verb itself has no call deadline.
+ */
+const PROJECT_DELETE_REMOVAL_WAIT_MS = 30_000;
 
 type DeleteVerbError = { type: string; message?: string };
 
@@ -48,10 +52,10 @@ export type WorkspaceRemovalBroker = {
     Result<
       {
         workspaceRegistry: {
-          deleteWorktree(input: {
-            workspaceId: string;
-            deleteBranch: boolean;
-          }): Promise<Result<void, DeleteVerbError>>;
+          deleteWorktree(
+            input: { workspaceId: string; deleteBranch: boolean },
+            options?: { timeoutMs?: number }
+          ): Promise<Result<void, DeleteVerbError>>;
           deleteWorkspace(input: { workspaceId: string }): Promise<Result<void, DeleteVerbError>>;
         };
       },
@@ -60,7 +64,7 @@ export type WorkspaceRemovalBroker = {
   >;
 };
 
-export type ArchiveWorkspaceInput = {
+export type WorkspacePathRemovalInput = {
   projectId: string;
   workspaceId?: string;
   workspacePath: string;
@@ -102,28 +106,8 @@ export async function deleteWorkspaceThroughRegistry(
 export async function deleteWorkspacePathThroughRegistry(
   db: AppDb,
   runtimes: WorkspaceRemovalBroker,
-  input: ArchiveWorkspaceInput,
+  input: WorkspacePathRemovalInput,
   options: { deleteConversations?: boolean } = {}
-): Promise<WorkspaceRemovalResult> {
-  return removeWorkspacePathThroughRegistry(db, runtimes, input, {
-    requireUnused: true,
-    deleteConversations: options.deleteConversations ?? false,
-  });
-}
-
-export async function archiveWorkspaceThroughRegistry(
-  db: AppDb,
-  runtimes: WorkspaceRemovalBroker,
-  input: ArchiveWorkspaceInput
-): Promise<WorkspaceRemovalResult> {
-  return removeWorkspacePathThroughRegistry(db, runtimes, input, { requireUnused: false });
-}
-
-async function removeWorkspacePathThroughRegistry(
-  db: AppDb,
-  runtimes: WorkspaceRemovalBroker,
-  input: ArchiveWorkspaceInput,
-  options: { requireUnused: boolean; deleteConversations?: boolean }
 ): Promise<WorkspaceRemovalResult> {
   const [project] = await getProjectRemovalRow(db, input.projectId, {
     liveOnly: true,
@@ -160,7 +144,7 @@ async function removeWorkspacePathThroughRegistry(
         sshConnectionId: project.repositorySshConnectionId,
       },
     }),
-    requireUnused: options.requireUnused && input.workspaceId !== undefined,
+    requireUnused: input.workspaceId !== undefined,
     deleteConversations: options.deleteConversations ?? false,
   });
 }
@@ -283,7 +267,10 @@ export async function removeProjectWorkspace(
   const client = await runtimes.client(host);
   if (!client.success) return tombstone();
   const removed = await client.data.workspaceRegistry
-    .deleteWorktree({ workspaceId: workspace.id, deleteBranch: false })
+    .deleteWorktree(
+      { workspaceId: workspace.id, deleteBranch: false },
+      { timeoutMs: PROJECT_DELETE_REMOVAL_WAIT_MS }
+    )
     .catch(() => ({ success: false as const, error: { type: 'remove-failed' as const } }));
   if (!removed.success) return tombstone();
   registry.untrack([workspace.id], new Date(createdAt).toISOString());

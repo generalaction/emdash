@@ -32,11 +32,9 @@ const workspaceIdInputSchema = z.object({
   workspaceId: z.string(),
 });
 
-export const archiveWorkspaceInputSchema = z.object({
+export const cleanWorkspaceArtifactsInputSchema = z.object({
   projectId: z.string(),
-  workspaceId: z.string().optional(),
-  workspacePath: z.string().min(1),
-  branchName: z.string().optional(),
+  workspaceId: z.string().min(1),
 });
 
 export const workspacesDomain = 'workspaces' as const;
@@ -52,25 +50,35 @@ export const workspacesWireContract = defineContract({
     result: workspaceProvisionResultSchema,
     error: workspaceSliceErrorSchema,
   }),
+  // The verbs below wait for host work with no fixed bound — worktree creation, teardown
+  // scripts, worktree removal, artifact cleaning — so they carry no call deadline.
   reprovision: fallible({
     input: workspaceIdInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
   removeAndReprovision: fallible({
     input: workspaceIdInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
   delete: fallible({
     input: workspaceIdInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
-  archive: fallible({
-    input: archiveWorkspaceInputSchema,
+  /**
+   * Removes the workspace's artifacts in place (the host registry's cleanArtifacts):
+   * the worktree, its uncommitted work, and its tasks stay. Refused while sessions run.
+   */
+  cleanArtifacts: fallible({
+    input: cleanWorkspaceArtifactsInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
 });
 

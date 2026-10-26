@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { redactAll, redactPii, redactSecrets } from './redact';
 
+// Shaped like a GitHub token without being one.
+const GITHUB_TOKEN = `ghp_${'a'.repeat(36)}`;
+
 describe('redactSecrets', () => {
   it('redacts authorization headers', () => {
     expect(redactSecrets('authorization: Bearer abc123')).toContain('[REDACTED]');
@@ -39,6 +42,56 @@ describe('redactSecrets', () => {
     const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIEpA\n-----END RSA PRIVATE KEY-----';
     expect(redactSecrets(pem)).toBe('[REDACTED_PEM_BLOCK]');
   });
+
+  it('redacts credentials in DSNs', () => {
+    expect(redactSecrets('postgres://user:pass@host/db')).toBe(
+      'postgres://[REDACTED_CREDENTIALS]@host/db'
+    );
+  });
+
+  it('keeps the host of a credential URL in a Git diagnostic', () => {
+    const stderr = `fatal: unable to access 'https://x-access-token:${GITHUB_TOKEN}@github.com/acme/app.git/': The requested URL returned error: 403`;
+
+    expect(redactSecrets(stderr)).toBe(
+      "fatal: unable to access 'https://[REDACTED_CREDENTIALS]@github.com/acme/app.git/': The requested URL returned error: 403"
+    );
+  });
+
+  it.each([
+    ['classic', `ghp_${'a'.repeat(36)}`],
+    ['OAuth', `gho_${'a'.repeat(36)}`],
+    ['refresh', `ghr_${'a'.repeat(76)}`],
+    ['fine-grained', `github_pat_${'A'.repeat(22)}_${'b'.repeat(59)}`],
+  ])('redacts %s GitHub tokens', (_kind, token) => {
+    expect(redactSecrets(`remote: ${token} rejected`)).toBe(
+      'remote: [REDACTED_GITHUB_TOKEN] rejected'
+    );
+  });
+
+  it('redacts GitLab tokens', () => {
+    expect(redactSecrets(`https://gitlab.com/api/v4?private=glpat-${'x'.repeat(20)}`)).toBe(
+      'https://gitlab.com/api/v4?private=[REDACTED_GITLAB_TOKEN]'
+    );
+  });
+
+  it.each([
+    ['> Authorization: Bearer abc.def', '> Authorization: [REDACTED]'],
+    ['> Authorization: Basic dXNlcjpwYXNz', '> Authorization: [REDACTED]'],
+    ['> Authorization: token abc123', '> Authorization: [REDACTED]'],
+    ['> X-Emdash-Token: 0123abcd', '> X-Emdash-Token: [REDACTED]'],
+  ])('redacts HTTP credential headers: %s', (header, expected) => {
+    expect(redactSecrets(header)).toBe(expected);
+  });
+
+  it('leaves secret-free Git diagnostics intact', () => {
+    const stderr = [
+      'remote: Invalid username or token. Password authentication is not supported for Git operations.',
+      "fatal: Authentication failed for 'https://github.com/acme/app.git/'",
+      "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+    ].join('\n');
+
+    expect(redactSecrets(stderr)).toBe(stderr);
+  });
 });
 
 describe('redactPii', () => {
@@ -56,10 +109,6 @@ describe('redactPii', () => {
 
   it('redacts IPv4 addresses', () => {
     expect(redactPii('192.168.1.25')).toContain('[REDACTED_IP]');
-  });
-
-  it('redacts credentials in DSNs', () => {
-    expect(redactPii('postgres://user:pass@host/db')).toContain('[REDACTED_CREDENTIALS]');
   });
 });
 

@@ -1,3 +1,4 @@
+import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import type { PullRequest } from '@emdash/plugins/pull-requests/schemas';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
@@ -94,6 +95,8 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
 }
 
 let latestState: WorkspaceConfigState | undefined;
+// The resolved default branch; tests clear it to model an unresolvable one.
+let defaultBranch: GitBranchRef | undefined;
 
 function Probe({
   initial,
@@ -108,7 +111,7 @@ function Probe({
 }) {
   latestState = useWorkspaceConfig({
     projectId: 'project-1',
-    defaultBranch: { type: 'local', branch: 'main' },
+    defaultBranch,
     isUnborn,
     hasRepository,
     currentBranch: 'current-branch',
@@ -130,6 +133,7 @@ describe('useWorkspaceConfig branch selection', () => {
 
   beforeEach(() => {
     latestState = undefined;
+    defaultBranch = { type: 'local', branch: 'main' };
     branchNameMock.current = 'generated-task-branch';
     workspaceOptionsMock.current = [];
     projectConfigMock.preservePatterns = ['.env'];
@@ -367,6 +371,36 @@ describe('useWorkspaceConfig branch selection', () => {
 
     expect(latestState?.setupSteps).toEqual([]);
     expect(latestState?.isValid).toBe(false);
+    expect(latestState?.missingBranch).toBe(false);
+  });
+
+  it('reports a missing branch until one is picked when the default branch is unresolved', async () => {
+    // e.g. a dangling remote HEAD while the remote cannot be asked for its HEAD.
+    defaultBranch = undefined;
+    await renderProbe(undefined);
+
+    expect(latestState?.branchSelection.selectedBranch).toBeUndefined();
+    expect(latestState?.missingBranch).toBe(true);
+    expect(latestState?.isValid).toBe(false);
+
+    act(() => {
+      latestState?.branchSelection.setSelectedBranch({
+        type: 'remote',
+        branch: 'prod',
+        remote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+      });
+    });
+
+    expect(latestState?.missingBranch).toBe(false);
+    expect(latestState?.isValid).toBe(true);
+  });
+
+  it('does not report a missing branch for presets that need none', async () => {
+    defaultBranch = undefined;
+    await renderProbe({ mode: 'new-worktree', presetId: 'checkout-pr' }, { pr: makePr() });
+
+    expect(latestState?.missingBranch).toBe(false);
+    expect(latestState?.isValid).toBe(true);
   });
 
   it('defaults non-git projects to the repository root workspace', async () => {

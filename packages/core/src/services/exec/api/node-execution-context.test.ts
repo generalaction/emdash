@@ -1,3 +1,5 @@
+import type * as ChildProcessModule from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -5,7 +7,25 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
 import { NodeExecutionContext } from './node-execution-context';
 
+vi.mock('node:child_process', async (original) => {
+  const actual = await original<typeof ChildProcessModule>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
+
 describe('NodeExecutionContext', () => {
+  it('runs commands without a Windows console window', async () => {
+    const context = new NodeExecutionContext();
+    vi.mocked(spawn).mockClear();
+
+    await context.exec(process.execPath, ['-e', '']);
+    await context.execStreaming(process.execPath, ['-e', ''], () => true);
+
+    expect(vi.mocked(spawn)).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(spawn).mock.calls) {
+      expect(call[2]).toMatchObject({ windowsHide: true });
+    }
+  });
+
   it('delegates shell env refresh when configured', async () => {
     const refreshShellEnv = vi.fn(async () => {});
     const context = new NodeExecutionContext({ refreshShellEnv });

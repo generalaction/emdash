@@ -23,6 +23,14 @@ const systemNodeAlias = {
   electron: resolve(__dirname, 'tooling/vitest/electron-system-node.ts'),
 };
 
+// Node-environment tests get a throwaway home directory before the app config is loaded, so
+// they never touch the developer's git config or other per-user state. The `scripts` project
+// drives the checkout's real pnpm/Nx toolchain and keeps the developer's home.
+const nodeSetupFiles = [
+  resolve(__dirname, '../../tooling/vitest/setup-isolated-home.mjs'),
+  resolve(__dirname, 'tooling/vitest/setup-app-config.ts'),
+];
+
 export default defineConfig({
   resolve: { alias },
   test: {
@@ -38,7 +46,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
+          setupFiles: nodeSetupFiles,
           include: ['src/**/*.test.ts'],
           exclude: [
             '**/_*/**',
@@ -60,7 +68,7 @@ export default defineConfig({
         test: {
           name: 'main-db',
           environment: 'node',
-          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
+          setupFiles: nodeSetupFiles,
           include: [
             'src/core/features/**/*.db.test.ts',
             'src/core/services/**/*.db.test.ts',
@@ -78,7 +86,7 @@ export default defineConfig({
         test: {
           name: 'fixtures',
           environment: 'node',
-          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
+          setupFiles: nodeSetupFiles,
           include: ['tooling/generate-fixtures.ts'],
         },
       },
@@ -89,7 +97,7 @@ export default defineConfig({
         test: {
           name: 'migrations',
           environment: 'node',
-          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
+          setupFiles: nodeSetupFiles,
           include: ['src/main/db/tests/migrations/**/*.test.ts'],
         },
       },

@@ -19,7 +19,9 @@ paths, watchers, or lease ownership.
 
 `GitRuntime` is the host-scoped composition root. It exposes three deep entry points:
 
-- `provisioning` inspects, initializes, and clones paths before a canonical resource exists;
+- `provisioning` inspects, initializes, and clones paths before a canonical resource exists, and
+  trusts a repository Git refuses for its ownership: after user confirmation it adds the exact
+  `safe.directory` value Git suggested to the host user's global Git config (never wildcards);
 - `repository` resolves repository selectors and serves repository procedures, jobs, and live
   models;
 - `checkout` resolves checkout selectors and serves checkout procedures, jobs, and live models.
@@ -99,12 +101,40 @@ Reconciliation is local to the operation that changes external Git state:
 There is no operation classifier or global effect plan. Small shared methods such as
 `historyChanged()` express repeated domain effects without redispatching on operation names.
 
+## Common-Directory Watch
+
+The repository resource and the workspace-registry scan scheduler watch the common Git directory
+with `gitMetadataWatchProfile()` from `packages/core/src/services/fs-watch/api/profiles.ts`; the
+host `watcherExclude` list does not apply. The profile skips the object stores (`objects/`, `lfs/`,
+submodule repositories under `modules/` and `worktrees/*/modules/`, and `subtree-cache/`) and pins
+the operating system's watcher with `backend: 'os'`:
+
+- Parcel's default backend prefers a reachable Watchman daemon on Linux and Windows. Watchman
+  crawls and watches the whole root before ignore globs apply, and a working copy's
+  `.watchmanconfig` does not configure a separately watched `.git` root.
+- inotify skips ignored subtrees during its crawl, so the profile bounds the startup cost. Windows
+  (ReadDirectoryChangesW) and macOS (FSEvents) do not crawl.
+- Working-tree watches keep the default backend, so a running Watchman still serves them and
+  applies the project's `.watchmanconfig`.
+
+inotify reports a new directory but can miss the entries written into it before its watch attaches.
+The watch classifier therefore treats an event on a ref namespace directory such as `refs/remotes`
+as a change inside that namespace.
+
+Releases before this profile registered common Git directories as Watchman roots. Watchman keeps
+roots across daemon restarts until it reaps an idle root (one without triggers or subscriptions)
+after `idle_reap_age_seconds`. Emdash never removes Watchman roots, because other clients may share
+the daemon and the root. Once nothing else uses a stale root, `watchman watch-del <git-common-dir>`
+removes it.
+
 ## Error Model
 
 Declared Git command failures and selector-resolution failures use contract `Result` channels.
 `api/errors.ts` recognizes only `ExecError` and `GitResolutionException` at runtime boundaries.
-Programming errors, broken invariants, unexpected watcher failures, and callback bugs keep
-throwing and are recorded by Wire as causes.
+Failure text reaches Wire results, so `gitFailure` in `exec/errors.ts` redacts secrets from Git's
+diagnostic, as `ExecError.message` does; parsers that need Git's exact output read the raw
+`ExecError.stderr`. Programming errors, broken invariants, unexpected watcher failures, and
+callback bugs keep throwing and are recorded by Wire as causes.
 
 ## Source Organization
 

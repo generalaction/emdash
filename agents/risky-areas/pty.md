@@ -36,4 +36,22 @@
   exactly once per spawn, never as an ambient fallback or immutable worker config
 - do not weaken quoting or spawn behavior casually
 - validate both direct spawn and shell-wrapped spawn cases when changing PTY startup logic
+- tmux must wrap the same resolved invocation as a direct PTY, with the task's explicit
+  environment (including absent and empty variables). Never rely on the shared server's
+  inherited task environment or change its global environment to launch a task. Preserve
+  tmux's terminal metadata.
+- keep environment values out of every process's arguments, which other users can read.
+  The tmux launcher carries them in its own environment and a private FIFO, so spawn with the
+  `env` that `resolveLocalPtySpawn` returns. Do not use `new-session -e` or `set-environment`
+  for task values: their arguments are visible too, and `-e` needs tmux 3.2 and fails beyond
+  tmux's command size limit.
 - confirm renderer event flow if hook/plugin payload or agent status behavior changes
+- a Git credential channel handed in with a start request belongs to the session runtime from
+  the moment the request arrives, queued or not: hold it for the session that spawns with it,
+  release it once nothing holds it and no start carrying it is pending, and release it when
+  that session's process ends or the session is evicted
+  (`SessionGitCredentialChannels`); a tmux client's exit does not end the tmux session, so a
+  tmux-backed session keeps its channel until it is killed or evicted; the desktop server
+  reuses a live session's channel and never evicts one to make room
+- shell commands that call an Emdash loopback endpoint build curl with `loopbackCurlCommand`
+  so proxies and the user's curlrc cannot reroute them and the nonce never enters argv
