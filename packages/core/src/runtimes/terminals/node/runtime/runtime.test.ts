@@ -457,6 +457,27 @@ describe('TerminalsRuntime', () => {
       await scope.dispose();
     });
 
+    it.skipIf(process.platform === 'win32')(
+      'keeps a tmux session on its channel when the client exits and reattaches',
+      async () => {
+        const { spawner, scope, runtime, released, key, start } = credentialHarness(
+          new FakePtySpawner(),
+          { tmux: true }
+        );
+        await start('channel-1');
+
+        // A detach ends the client, not the shell running inside tmux.
+        spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+        await start('channel-1');
+        expect(spawner.processes).toHaveLength(2);
+        expect(released).toEqual([]);
+
+        await runtime.kill(key);
+        expect(released).toEqual(['channel-1']);
+        await scope.dispose();
+      }
+    );
+
     it('releases the channel of a shell that fails to start', async () => {
       const spawner = new FakePtySpawner();
       spawner.failWith = new Error('spawn failed');

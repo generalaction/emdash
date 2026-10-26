@@ -623,7 +623,11 @@ export class TuiAgentsRuntime {
               this.reports.sessionEnded(config.input.conversationId);
             } else {
               void this.cleanupPromptSpill(config.input.conversationId);
-              void this.gitCredentialChannels.release(config.input.conversationId);
+              // A tmux client's exit (e.g. a detach) leaves the agent inside running with
+              // its channel; stop, delete and eviction release it with the tmux session.
+              if (!config.input.tmux) {
+                void this.gitCredentialChannels.release(config.input.conversationId);
+              }
               this.lifecycle.end(config.input.conversationId, 'process-exited');
             }
           },

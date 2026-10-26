@@ -218,9 +218,13 @@ export class TerminalsRuntime {
     }
     if (existing) {
       // Restart of a retained exited terminal: evict-then-create. The start
-      // count survives eviction so the renderer still sees a restart.
+      // count survives eviction so the renderer still sees a restart, and so
+      // does a tmux session's credential channel: the shell inside it may still
+      // run with it, and `hold` below replaces it only if the start hands another.
       const startCount = this.startCounts.get(sessionKey) ?? 0;
-      await this.lifecycle.evict(sessionKey, { cause: 'restart' });
+      await this.gitCredentialChannels.keepThrough(sessionKey, () =>
+        this.lifecycle.evict(sessionKey, { cause: 'restart' })
+      );
       if (startCount > 0) this.startCounts.set(sessionKey, startCount);
     }
 
@@ -400,6 +404,7 @@ export class TerminalsRuntime {
       env,
     });
 
+    const tmuxBacked = Boolean(tmux) && process.platform !== 'win32';
     return await this.registry.create(
       sessionKey,
       {
@@ -411,21 +416,29 @@ export class TerminalsRuntime {
       },
       {
         output: log,
-        tmux: Boolean(tmux) && process.platform !== 'win32',
+        tmux: tmuxBacked,
         onData: (chunk) => {
           this.lifecycle.recordOutput(sessionKey);
           this.previewSourceFor(sessionKey, key).emitData(chunk);
         },
-        onExit: () => this.handleInteractiveExit(sessionKey, spec),
+        onExit: () => this.handleInteractiveExit(sessionKey, spec, tmuxBacked),
       }
     );
   }
 
-  private handleInteractiveExit(sessionKey: string, spec: StartTerminalSpec): void {
+  private handleInteractiveExit(
+    sessionKey: string,
+    spec: StartTerminalSpec,
+    tmuxBacked: boolean
+  ): void {
     this.closePreviewSource(sessionKey);
     // The exited entry is retained for its scrollback, but no process uses the
-    // channel anymore; a restart starts with a new one.
-    void this.gitCredentialChannels.releaseExited(sessionKey, spec.gitCredentials);
+    // channel anymore; a restart starts with a new one. A tmux client's exit
+    // (e.g. a detach) leaves the shell inside running with it, so the session
+    // keeps it until it is killed or evicted.
+    if (!tmuxBacked) {
+      void this.gitCredentialChannels.releaseExited(sessionKey, spec.gitCredentials);
+    }
   }
 
   private async resolveShellProfile(

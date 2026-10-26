@@ -921,6 +921,22 @@ describe('TuiAgentsRuntime git credential channels', () => {
     }
   });
 
+  it('keeps a tmux session on its channel when the client exits and reattaches', async () => {
+    const { runtime, spawner, released } = credentialRuntime();
+    const tmux = { identity: 'project:task:conversation-1' };
+    await runtime.startSession(withChannel('channel-1', { tmux }));
+
+    // A detach ends the client, not the agent running inside tmux.
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+    await runtime.startSession(withChannel('channel-1', { tmux }));
+    expect(spawner.processes).toHaveLength(2);
+    expect(released).toEqual([]);
+
+    await runtime.deleteSession('conversation-1');
+    expect(released).toEqual(['channel-1']);
+    await runtime.dispose();
+  });
+
   it('releases the channel of a session that fails to spawn', async () => {
     const { runtime, spawner, released } = credentialRuntime();
     spawner.failWith = new Error('spawn failed');

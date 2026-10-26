@@ -11,6 +11,10 @@ export type ReleaseGitCredentialChannel = (nonce: string) => Promise<void>;
  * a session holds the channel it spawned with until its process ends or the session is
  * evicted, and a channel that no session holds is released at once. A released channel
  * answers no further credential requests.
+ *
+ * A tmux-backed session's process is a tmux client: its exit (e.g. a detach) can leave the
+ * shell or agent inside running with the channel the tmux session was created with, so
+ * such a session keeps its channel until the runtime ends the session.
  */
 export class SessionGitCredentialChannels {
   private readonly held = new Map<string, string>();
@@ -41,6 +45,17 @@ export class SessionGitCredentialChannels {
     if (!nonce) return;
     this.held.delete(key);
     await this.releaseNonce(nonce);
+  }
+
+  /** Runs `evict` with `key`'s channel kept out of it, so a restart keeps the channel. */
+  async keepThrough(key: string, evict: () => Promise<void>): Promise<void> {
+    const nonce = this.held.get(key);
+    this.held.delete(key);
+    try {
+      await evict();
+    } finally {
+      if (nonce) this.held.set(key, nonce);
+    }
   }
 
   /**
