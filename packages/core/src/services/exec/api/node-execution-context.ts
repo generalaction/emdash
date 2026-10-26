@@ -91,6 +91,7 @@ export class NodeExecutionContext implements IExecutionContext {
         cwd: plan.cwd,
         detached: this.platform !== 'win32',
         env,
+        windowsHide: true,
         windowsVerbatimArguments: launch.windowsVerbatimArguments,
       });
       const terminator = createChildProcessTreeTerminator(child, {

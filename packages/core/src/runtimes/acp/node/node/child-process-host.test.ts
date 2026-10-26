@@ -55,6 +55,24 @@ describe('ChildAcpProcessHost', () => {
     expect(spawnMock.mock.calls[0]?.[2]).not.toHaveProperty('shell');
   });
 
+  it('launches ACP processes and terminals without a Windows console window', async () => {
+    const shim = 'C:\\Program Files\\npm\\provider.cmd';
+    const host = windowsHost(shim);
+    const spec = { cwd: 'C:\\workspace', env: windowsEnv() };
+
+    await host.spawn({ ...spec, command: 'provider', args: ['--acp'] });
+    await host.spawnTerminal({
+      ...spec,
+      command: { kind: 'argv', command: 'provider.cmd', args: ['run'] },
+    });
+    await host.spawnTerminal({ ...spec, command: { kind: 'shell-line', commandLine: 'dir' } });
+
+    expect(spawnMock).toHaveBeenCalledTimes(3);
+    for (const call of spawnMock.mock.calls) {
+      expect(call[2]).toMatchObject({ windowsHide: true });
+    }
+  });
+
   it('terminates ACP primary and terminal Windows process trees', async () => {
     const shim = 'C:\\Program Files\\npm\\provider.cmd';
     const host = windowsHost(shim);

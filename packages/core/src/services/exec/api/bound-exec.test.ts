@@ -1,9 +1,16 @@
+import type * as ChildProcessModule from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBoundExec, ExecError } from './index';
+
+vi.mock('node:child_process', async (original) => {
+  const actual = await original<typeof ChildProcessModule>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
 
 // Shaped like a GitHub token without being one.
 const GITHUB_TOKEN = `ghp_${'a'.repeat(36)}`;
@@ -162,6 +169,29 @@ describe('BoundExec', () => {
     expect(result.stdout).toContain('/d /s /c');
     expect(result.stdout).toContain('provider.cmd');
     expect(result.stdout).toContain('hello world');
+    expect(vi.mocked(spawn)).toHaveBeenLastCalledWith(
+      cmdWrapper,
+      [expect.stringContaining('/d /s /c')],
+      expect.objectContaining({ windowsHide: true, windowsVerbatimArguments: true })
+    );
+  });
+
+  it('spawns every child without a Windows console window', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-hidden-'));
+    const exec = createBoundExec({ file: process.execPath, cwd });
+    vi.mocked(spawn).mockClear();
+
+    await exec.exec(['-e', '']);
+    await exec.execBuffer(['-e', '']);
+    await exec.execStreaming(['-e', ''], () => true);
+    const child = await exec.spawn(['-e', '']);
+    child.stdin.end();
+    await once(child, 'close');
+
+    expect(vi.mocked(spawn)).toHaveBeenCalledTimes(4);
+    for (const call of vi.mocked(spawn).mock.calls) {
+      expect(call[2]).toMatchObject({ windowsHide: true });
+    }
   });
 
   it('rejects timed-out processes with an ExecError', async () => {
