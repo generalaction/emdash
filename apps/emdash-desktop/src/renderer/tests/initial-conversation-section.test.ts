@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   lastChatComposerProps: null as unknown,
   updateAutomation: vi.fn(async () => {}),
   missingBranch: false,
+  branchConflict: false,
   autoApproveKind: 'supported',
   providerId: 'claude',
   acpKind: 'supported',
@@ -68,7 +69,7 @@ vi.mock(
       typeof import('@core/features/tasks/api/browser/create-task-modal/use-workspace-config')
     >()),
     useWorkspaceConfig: () => ({
-      isValid: !mocks.missingBranch,
+      isValid: !mocks.missingBranch && !mocks.branchConflict,
       missingBranch: mocks.missingBranch,
       resolvedConfig: {
         version: '2',
@@ -302,6 +303,7 @@ describe('useInitialConversationState', () => {
     mocks.preferredConversationType = 'pty';
     mocks.preferencesReady = true;
     mocks.missingBranch = false;
+    mocks.branchConflict = false;
     mocks.editorText = '';
     mocks.lastChatComposerProps = null;
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
@@ -699,34 +701,56 @@ describe('useInitialConversationState', () => {
     expect(latestAutomation?.saveBlockedReason).toBeUndefined();
   });
 
-  it('holds schedule autosaves while the base branch is missing and says why', async () => {
-    const automation: Automation = {
-      id: 'automation-1',
-      name: 'Review',
-      projectId: 'project-1',
-      enabled: true,
-      revision: 1,
-      createdAt: 1,
-      updatedAt: 1,
-      conversationConfig: {
-        provider: 'claude',
-        type: 'pty',
-        prompt: 'Review changes',
-        autoApprove: false,
-      },
-    };
+  const scheduledAutomation: Automation = {
+    id: 'automation-1',
+    name: 'Review',
+    projectId: 'project-1',
+    enabled: true,
+    revision: 1,
+    createdAt: 1,
+    updatedAt: 1,
+    conversationConfig: {
+      provider: 'claude',
+      type: 'pty',
+      prompt: 'Review changes',
+      autoApprove: false,
+    },
+  };
+
+  it('saves only the schedule while the base branch is missing and says why', async () => {
     mocks.missingBranch = true;
-    await act(async () => root.render(React.createElement(AutomationEditProbe, { automation })));
+    await act(async () =>
+      root.render(React.createElement(AutomationEditProbe, { automation: scheduledAutomation }))
+    );
+    expect(latestAutoSave?.saveError).toBe(MISSING_BRANCH_REASON);
     mocks.updateAutomation.mockClear();
     await act(async () => latestAutoSave?.setCronExpr('0 9 * * 1'));
-    expect(mocks.updateAutomation).not.toHaveBeenCalled();
-    expect(latestAutoSave?.saveError).toBe(MISSING_BRANCH_REASON);
+    // The fallback workspace config an unresolved branch produces must not be saved.
+    expect(mocks.updateAutomation).toHaveBeenCalledExactlyOnceWith({
+      id: 'automation-1',
+      patch: { triggerConfig: { expr: '0 9 * * 1', tz: expect.any(String) } },
+    });
 
     mocks.missingBranch = false;
-    await act(async () => root.render(React.createElement(AutomationEditProbe, { automation })));
+    await act(async () =>
+      root.render(React.createElement(AutomationEditProbe, { automation: scheduledAutomation }))
+    );
     expect(latestAutoSave?.saveError).toBeNull();
+  });
+
+  it('keeps a schedule change made while the form is invalid', async () => {
+    mocks.branchConflict = true;
+    await act(async () =>
+      root.render(React.createElement(AutomationEditProbe, { automation: scheduledAutomation }))
+    );
     mocks.updateAutomation.mockClear();
     await act(async () => latestAutoSave?.setCronExpr('0 9 * * 1'));
+    // Clearing the conflict changes neither the selection nor the resolved
+    // workspace config, so nothing would save the schedule later.
+    mocks.branchConflict = false;
+    await act(async () =>
+      root.render(React.createElement(AutomationEditProbe, { automation: scheduledAutomation }))
+    );
     expect(mocks.updateAutomation).toHaveBeenCalledWith(
       expect.objectContaining({
         patch: expect.objectContaining({
