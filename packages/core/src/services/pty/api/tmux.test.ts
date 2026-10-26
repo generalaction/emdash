@@ -117,16 +117,36 @@ describe('buildTmuxShellLine', () => {
     for (const value of ['45678', 'synthetic-nonce', 'synthetic', 'a'.repeat(64)]) {
       expect(launch.shellLine).not.toContain(value);
     }
-    // Each large value starts a chunk, and so does the sentinel that follows them.
-    expect(chunks).toEqual([0, 1, 2, 3].map((index) => `EMDASH_TMUX_ENV_${index}`));
+    expect(chunks).toEqual(chunks.map((_, index) => `EMDASH_TMUX_ENV_${index}`));
     expect(launch.env).toMatchObject(env);
-    for (const key of chunks) expect(launch.env[key]!.length).toBeLessThan(65_536);
     const transfer = chunks.map((key) => launch.env[key]).join('');
     expect(transfer).toContain('command export EMDASH_GIT_CREDENTIAL_NONCE=synthetic-nonce\n');
     expect(transfer).toContain("command export EMPTY=''\n");
     expect(transfer).not.toContain('TERM=');
     expect(transfer).not.toContain('NOT-A-NAME');
     expect(transfer.endsWith('EMDASH_TMUX_ENV_END=1\n')).toBe(true);
+  });
+
+  it('splits the transfer to fit each environment string within the Linux limit', () => {
+    // Each value fits a direct spawn, but quoting and newline escapes inflate it, and an odd
+    // offset puts a fixed-size boundary inside a surrogate pair.
+    const env = {
+      EMOJIS: '\u{1F600}'.repeat(20_000),
+      QUOTES: "'".repeat(40_000),
+      LINES: '\n'.repeat(10_000),
+    };
+    const launch = buildTmuxShellLine('task', { command: 'agent', args: ['run'] }, env);
+    const chunks = Object.keys(launch.env).filter((key) => !(key in env));
+
+    for (const key of chunks) {
+      const chunk = launch.env[key]!;
+      // MAX_ARG_STRLEN counts NAME=value and its terminating NUL.
+      expect(Buffer.byteLength(`${key}=${chunk}`) + 1).toBeLessThanOrEqual(131_072);
+      expect(Buffer.from(chunk).toString()).toBe(chunk);
+    }
+    const transfer = chunks.map((key) => launch.env[key]).join('');
+    expect(transfer).toContain(`command export EMOJIS='${env.EMOJIS}'\n`);
+    expect(transfer).toContain(`command export QUOTES='${"'\\''".repeat(40_000)}'\n`);
   });
 
   it.skipIf(!TMUX_AVAILABLE)(

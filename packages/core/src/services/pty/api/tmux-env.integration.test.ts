@@ -116,12 +116,14 @@ describe.skipIf(!hasTmux)('tmux task environment isolation', () => {
   it('transfers large environments and removes its private channel', async () => {
     const fixture = await createFixture();
     try {
-      // Together these exceed Linux's 128 KiB limit for a single environment string.
+      // Together these exceed Linux's 128 KiB limit for a single environment string, and
+      // quoting alone takes the single quotes past it.
       const large = {
         EMDASH_TEST_LARGE_A: 'a'.repeat(60_000),
         EMDASH_TEST_LARGE_B: 'b'.repeat(60_000),
         EMDASH_TEST_LARGE_LINES: 'line\n'.repeat(2_000),
-        EMDASH_TEST_LARGE_QUOTES: "it's ".repeat(2_000),
+        EMDASH_TEST_LARGE_QUOTES: "'".repeat(40_000),
+        EMDASH_TEST_LARGE_EMOJIS: '\u{1F600}'.repeat(20_000),
       };
       // Short names like the launcher's own variables must round-trip unchanged.
       const shortNames = { d: 'd\n', l: 'l\n', n: 'n\n', p: 'p', s: 's', t: 't' };

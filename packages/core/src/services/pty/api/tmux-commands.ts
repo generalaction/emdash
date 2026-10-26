@@ -52,17 +52,17 @@ export function buildTmuxShellLine(
   const exactOptionTarget = quoteArg(`=${sessionName}:`, 'posix');
   const quotedName = quoteArg(sessionName, 'posix');
   const taskEnv = Object.entries(env).filter(([key]) => !key.startsWith(TMUX_TRANSFER_PREFIX));
-  const transfer = chunkTmuxTransfer([
-    ...taskEnv
+  const transfer = chunkTmuxTransfer(
+    taskEnv
       .filter(([key]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && !TMUX_ENV_KEYS.has(key))
       // One statement per line, so quoted newlines are spelled as a variable. `command`
       // keeps a shell-readonly name (e.g. UID in bash) from aborting the restore.
       .map(([key, value]) => {
         const quoted = quoteArg(value, 'posix').replaceAll('\n', `'"$EMDASH_TMUX_ENV_NL"'`);
         return `command export ${key}=${quoted}\n`;
-      }),
-    'EMDASH_TMUX_ENV_END=1\n',
-  ]);
+      })
+      .join('') + 'EMDASH_TMUX_ENV_END=1\n'
+  );
   const chunkKeys = transfer.map(([key]) => key);
   const terminalEnv = [...TMUX_ENV_KEYS].map((key) => `\${${key}+${key}="$${key}"}`);
   const restoreEnv =
@@ -106,16 +106,17 @@ export function buildTmuxShellLine(
   };
 }
 
-function chunkTmuxTransfer(lines: string[]): Array<[string, string]> {
-  const chunks = [''];
-  for (const line of lines) {
-    const last = chunks.length - 1;
-    if (chunks[last] && chunks[last].length + line.length > TMUX_TRANSFER_CHUNK_LENGTH) {
-      chunks.push('');
-    }
-    chunks[chunks.length - 1] += line;
+/** Splits the transfer by size; the launcher joins the chunks before writing them. */
+function chunkTmuxTransfer(transfer: string): Array<[string, string]> {
+  const chunks: Array<[string, string]> = [];
+  for (let start = 0, end = 0; start < transfer.length; start = end) {
+    end = Math.min(start + TMUX_TRANSFER_CHUNK_LENGTH, transfer.length);
+    // Keep surrogate pairs together so each chunk encodes to UTF-8 unchanged.
+    const last = transfer.charCodeAt(end - 1);
+    if (end < transfer.length && last >= 0xd800 && last <= 0xdbff) end -= 1;
+    chunks.push([`EMDASH_TMUX_ENV_${chunks.length}`, transfer.slice(start, end)]);
   }
-  return chunks.map((chunk, index) => [`EMDASH_TMUX_ENV_${index}`, chunk]);
+  return chunks;
 }
 
 export async function listTmuxSessions(
