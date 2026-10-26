@@ -1,5 +1,5 @@
 import type { Stats } from 'node:fs';
-import { lstat, readdir } from 'node:fs/promises';
+import { lstatSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 export type PathUsageError = {
@@ -17,30 +17,52 @@ export type PathUsage = {
   errors: PathUsageError[];
 };
 
-type EntryUsage = {
-  apparentBytes: number;
-  diskBytes: number;
-  inodeKey: string | null;
-  linkCount: number;
-  isDirectory: boolean;
+export type MeasurePathUsageOptions = {
+  /** Root-relative paths (forward slashes) whose subtrees count as artifact bytes. */
+  artifactRoots?: string[];
+  /** Absolute paths skipped entirely, e.g. nested workspaces measured on their own. */
+  excludePaths?: string[];
+  signal?: AbortSignal;
+  /** Longest synchronous stretch before yielding to the event loop; tests shrink it. */
+  sliceBudgetMs?: number;
+};
+
+/**
+ * Synchronous `lstat`/`readdir` cost about a third of the CPU of the promise API on large
+ * trees: the promise API pays a thread-pool round trip per entry, which dominated scans
+ * of big `node_modules` trees. Short slices keep the hosting runtime responsive and are
+ * where cancellation is observed.
+ */
+const DEFAULT_SLICE_BUDGET_MS = 8;
+
+/** A visit still to make; `relativePath` is tracked only while artifact roots may lie below. */
+type PendingEntry = {
+  absolutePath: string;
+  relativePath: string | null;
   isArtifact: boolean;
 };
 
-type ScanState = {
-  root: string;
-  displayPath: string;
-  artifactRoots: string[];
-  entries: EntryUsage[];
-  errors: PathUsageError[];
+type ArtifactMatcher = {
+  roots: Set<string>;
+  /** Every proper ancestor of a root: the only directories whose children need a lookup. */
+  ancestors: Set<string>;
+};
+
+type LinkedInode = {
+  linkCount: number;
+  diskBytes: number;
+  seen: number;
+  seenAsArtifact: number;
 };
 
 export async function measureAbsolutePathUsage(
   absolutePath: string,
   displayPath: string,
-  options: { artifactRoots?: string[] } = {}
+  options: MeasurePathUsageOptions = {}
 ): Promise<PathUsage> {
+  options.signal?.throwIfAborted();
   const root = path.resolve(absolutePath);
-  const rootStats = await lstat(root);
+  const rootStats = lstatSync(root);
 
   if (!rootStats.isDirectory()) {
     const bytes = diskBytes(rootStats);
@@ -55,137 +77,139 @@ export async function measureAbsolutePathUsage(
     };
   }
 
-  const state: ScanState = {
-    root,
-    displayPath,
-    artifactRoots: normalizeArtifactRoots(options.artifactRoots ?? []),
-    entries: [],
-    errors: [],
-  };
-  await scanPath(state, root);
-  return {
-    path: displayPath,
-    type: 'directory',
-    ...aggregateEntries(state.entries),
-    errors: state.errors,
-  };
-}
-
-async function scanPath(state: ScanState, currentPath: string): Promise<void> {
-  const relative = displayRelativePath(state, currentPath);
-  let stats: Stats;
-  try {
-    stats = await lstat(currentPath);
-  } catch (error) {
-    state.errors.push({ path: relative, message: errorMessage(error) });
-    return;
-  }
-
-  const isDirectory = stats.isDirectory();
-  state.entries.push({
-    apparentBytes: stats.size,
-    diskBytes: diskBytes(stats),
-    inodeKey: inodeKey(stats),
-    linkCount: stats.nlink,
-    isDirectory,
-    isArtifact: isArtifactPath(state, relative),
-  });
-  if (!isDirectory) return;
-
-  let children;
-  try {
-    children = await readdir(currentPath, { withFileTypes: true });
-  } catch (error) {
-    state.errors.push({ path: relative, message: errorMessage(error) });
-    return;
-  }
-  for (const child of children) {
-    await scanPath(state, path.join(currentPath, child.name));
-  }
-}
-
-function aggregateEntries(entries: EntryUsage[]) {
+  const sliceBudgetMs = options.sliceBudgetMs ?? DEFAULT_SLICE_BUDGET_MS;
+  const matcher = createArtifactMatcher(options.artifactRoots ?? []);
+  const excluded = new Set(
+    (options.excludePaths ?? []).map((excludedPath) => path.resolve(excludedPath))
+  );
+  const errors: PathUsageError[] = [];
+  const linked = new Map<string, LinkedInode>();
   let apparentBytes = 0;
   let diskBytesTotal = 0;
   let exclusiveDiskBytes = 0;
   let artifactBytes = 0;
-  const linked = new Map<string, { count: number; linkCount: number; diskBytes: number }>();
-  const linkedArtifacts = new Map<
-    string,
-    { count: number; linkCount: number; diskBytes: number }
-  >();
 
-  for (const entry of entries) {
-    apparentBytes += entry.apparentBytes;
-    if (entry.isDirectory || !entry.inodeKey || entry.linkCount <= 1) {
-      diskBytesTotal += entry.diskBytes;
-      exclusiveDiskBytes += entry.diskBytes;
-      if (entry.isArtifact) artifactBytes += entry.diskBytes;
+  const pending: PendingEntry[] = [
+    { absolutePath: root, relativePath: matcher.roots.size > 0 ? '' : null, isArtifact: false },
+  ];
+  let sliceStartedAt = performance.now();
+  while (pending.length > 0) {
+    if (performance.now() - sliceStartedAt >= sliceBudgetMs) {
+      await yieldToEventLoop();
+      options.signal?.throwIfAborted();
+      sliceStartedAt = performance.now();
+    }
+    const entry = pending.pop()!;
+
+    let stats: Stats;
+    try {
+      stats = lstatSync(entry.absolutePath);
+    } catch (error) {
+      errors.push({
+        path: displayRelativePath(root, displayPath, entry),
+        message: errorMessage(error),
+      });
       continue;
     }
-    const existing = linked.get(entry.inodeKey);
-    if (existing) existing.count += 1;
-    else {
-      linked.set(entry.inodeKey, {
-        count: 1,
-        linkCount: entry.linkCount,
-        diskBytes: entry.diskBytes,
-      });
-    }
-    if (entry.isArtifact) {
-      const existingArtifact = linkedArtifacts.get(entry.inodeKey);
-      if (existingArtifact) existingArtifact.count += 1;
-      else {
-        linkedArtifacts.set(entry.inodeKey, {
-          count: 1,
-          linkCount: entry.linkCount,
-          diskBytes: entry.diskBytes,
-        });
+
+    const isDirectory = stats.isDirectory();
+    const bytes = diskBytes(stats);
+    apparentBytes += stats.size;
+    if (isDirectory || stats.nlink <= 1 || stats.ino === 0) {
+      diskBytesTotal += bytes;
+      exclusiveDiskBytes += bytes;
+      if (entry.isArtifact) artifactBytes += bytes;
+    } else {
+      // A hard-linked file is exclusive only when every link lives inside the scan.
+      const key = `${stats.dev}:${stats.ino}`;
+      let inode = linked.get(key);
+      if (!inode) {
+        inode = { linkCount: stats.nlink, diskBytes: bytes, seen: 0, seenAsArtifact: 0 };
+        linked.set(key, inode);
       }
+      inode.seen += 1;
+      if (entry.isArtifact) inode.seenAsArtifact += 1;
+    }
+    if (!isDirectory) continue;
+
+    let names: string[];
+    try {
+      names = readdirSync(entry.absolutePath);
+    } catch (error) {
+      errors.push({
+        path: displayRelativePath(root, displayPath, entry),
+        message: errorMessage(error),
+      });
+      continue;
+    }
+    for (const name of names) {
+      const childPath = path.join(entry.absolutePath, name);
+      if (excluded.has(childPath)) continue;
+      pending.push(childEntry(entry, name, childPath, matcher));
     }
   }
 
-  for (const group of linked.values()) {
-    diskBytesTotal += group.diskBytes;
-    if (group.linkCount <= group.count) exclusiveDiskBytes += group.diskBytes;
+  for (const inode of linked.values()) {
+    diskBytesTotal += inode.diskBytes;
+    if (inode.linkCount <= inode.seen) exclusiveDiskBytes += inode.diskBytes;
+    if (inode.linkCount <= inode.seenAsArtifact) artifactBytes += inode.diskBytes;
   }
-  for (const group of linkedArtifacts.values()) {
-    if (group.linkCount <= group.count) artifactBytes += group.diskBytes;
-  }
-  return { apparentBytes, diskBytes: diskBytesTotal, exclusiveDiskBytes, artifactBytes };
+  return {
+    path: displayPath,
+    type: 'directory',
+    apparentBytes,
+    diskBytes: diskBytesTotal,
+    exclusiveDiskBytes,
+    artifactBytes,
+    errors,
+  };
 }
 
-function displayRelativePath(state: ScanState, currentPath: string): string {
-  const relative = path.relative(state.root, currentPath);
-  if (!relative) return state.displayPath;
+function createArtifactMatcher(artifactRoots: string[]): ArtifactMatcher {
+  const roots = new Set(
+    artifactRoots
+      .map((root) => root.trim().replace(/\\/gu, '/').replace(/\/+$/u, ''))
+      .filter((root) => root && root !== '.' && root !== '..')
+  );
+  const ancestors = new Set<string>();
+  for (const root of roots) {
+    for (let index = root.indexOf('/'); index !== -1; index = root.indexOf('/', index + 1)) {
+      ancestors.add(root.slice(0, index));
+    }
+  }
+  return { roots, ancestors };
+}
+
+function childEntry(
+  parent: PendingEntry,
+  name: string,
+  absolutePath: string,
+  matcher: ArtifactMatcher
+): PendingEntry {
+  if (parent.isArtifact) return { absolutePath, relativePath: null, isArtifact: true };
+  if (parent.relativePath === null) return { absolutePath, relativePath: null, isArtifact: false };
+  const relativePath = parent.relativePath ? `${parent.relativePath}/${name}` : name;
+  const isArtifact = matcher.roots.has(relativePath);
+  return {
+    absolutePath,
+    relativePath: !isArtifact && matcher.ancestors.has(relativePath) ? relativePath : null,
+    isArtifact,
+  };
+}
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+function displayRelativePath(root: string, displayPath: string, entry: PendingEntry): string {
+  const relative = path.relative(root, entry.absolutePath);
+  if (!relative) return displayPath;
   const suffix = relative.split(path.sep).join('/');
-  return state.displayPath ? `${state.displayPath}/${suffix}` : suffix;
+  return displayPath ? `${displayPath}/${suffix}` : suffix;
 }
 
 function diskBytes(stats: Stats): number {
   return stats.blocks > 0 ? stats.blocks * 512 : stats.size;
-}
-
-function normalizeArtifactRoots(roots: string[]): string[] {
-  return Array.from(
-    new Set(
-      roots
-        .map((root) => root.trim().replace(/\\/gu, '/').replace(/\/+$/u, ''))
-        .filter((root) => root && root !== '.' && root !== '..')
-    )
-  );
-}
-
-function isArtifactPath(state: ScanState, relativePath: string): boolean {
-  if (!relativePath) return false;
-  const normalized = relativePath.replace(/\\/gu, '/');
-  return state.artifactRoots.some(
-    (root) => normalized === root || normalized.startsWith(`${root}/`)
-  );
-}
-
-function inodeKey(stats: Stats): string | null {
-  return stats.ino === 0 ? null : `${stats.dev}:${stats.ino}`;
 }
 
 function errorMessage(error: unknown): string {
