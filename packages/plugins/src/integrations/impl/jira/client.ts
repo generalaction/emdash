@@ -55,6 +55,12 @@ export async function verifyJiraCredentials(
     methodId === undefined ? rawCredentials : { ...rawCredentials, authMethod: methodId }
   );
   if (!credentials.success) return err(credentials.error);
+  if (!sendsTokensSecurely(credentials.data.siteUrl)) {
+    return err({
+      type: 'invalid_input',
+      message: 'Use an https:// Jira site URL; over http:// your token would be sent unencrypted.',
+    });
+  }
 
   try {
     const verifiedCredentials: JiraCredentials =
@@ -101,4 +107,10 @@ function authLabel(credentials: JiraCredentials, email: string | undefined): str
   if (credentials.authMethod === 'bearer') return 'Bearer token';
   if (credentials.authMethod === 'pat') return 'Personal access token';
   return email ?? '';
+}
+
+/** Tokens travel as request headers, so only TLS or the local machine keeps them private. */
+function sendsTokensSecurely(siteUrl: string): boolean {
+  const { protocol, hostname } = new URL(siteUrl);
+  return protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(hostname);
 }

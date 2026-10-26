@@ -228,6 +228,24 @@ describe('Jira connection verification', () => {
     });
   });
 
+  it('refuses to send a token to a plain http:// site', async () => {
+    const result = await verifyJiraCredentials(
+      { siteUrl: 'http://jira.example.com', personalAccessToken: 'dc-token' },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mocks.createV2Client).not.toHaveBeenCalled();
+  });
+
+  it('allows http:// for a Jira running on this machine', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const result = await verifyJiraCredentials(
+      { siteUrl: 'http://localhost:8080', personalAccessToken: 'dc-token' },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: true });
+  });
+
   it('rejects an issue filter that brings its own ORDER BY', async () => {
     const result = await verifyJiraCredentials(
       {
