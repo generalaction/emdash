@@ -14,6 +14,12 @@ export const measureUsageInputSchema = z.object({
 });
 export type MeasureUsageInput = z.infer<typeof measureUsageInputSchema>;
 
+/** Keyed by workspace id like measureUsage; the registry resolves the path itself. */
+export const cleanArtifactsInputSchema = z.object({
+  workspaceId: z.string().min(1),
+});
+export type CleanArtifactsInput = z.infer<typeof cleanArtifactsInputSchema>;
+
 /** A non-fatal per-path measurement failure (unreadable directory, vanished file). */
 export const workspaceUsageErrorSchema = z.object({
   path: z.string(),
@@ -25,7 +31,7 @@ export type WorkspaceUsageError = z.infer<typeof workspaceUsageErrorSchema>;
 export const workspaceUsageSchema = z.object({
   /** Exclusive disk bytes for the workspace tree. */
   totalBytes: z.number().int().nonnegative(),
-  /** Disk bytes attributable to git-ignored artifacts (reclaimable). */
+  /** Disk bytes of the artifacts cleanArtifacts would remove (reclaimable). */
   artifactBytes: z.number().int().nonnegative(),
   errors: z.array(workspaceUsageErrorSchema),
 });

@@ -11,6 +11,7 @@ const target: WorkspaceUsageTarget = {
   workspaceId: 'ws-repo',
   workspacePath: '/srv/repo',
   excludePaths: ['/srv/repo/.claude/worktrees/a'],
+  preservePatterns: ['.env'],
 };
 
 function usage(totalBytes: number): WorkspaceUsage {
@@ -80,6 +81,74 @@ describe('WorkspaceUsageCache', () => {
     calls[1]!.walk.resolve(ok(usage(300)));
     expect(await skipping).toEqual(ok(usage(100)));
     expect(await whole).toEqual(ok(usage(300)));
+    cache.dispose();
+  });
+
+  it('measures again when the preserve patterns that define artifacts change', async () => {
+    const { calls, measure } = controlledMeasure();
+    const cache = new WorkspaceUsageCache({ measure });
+
+    const first = cache.measure(target);
+    await flush();
+    calls[0]!.walk.resolve(ok(usage(100)));
+    await first;
+    const reordered = cache.measure({ ...target, preservePatterns: ['.env'] });
+    const changed = cache.measure({ ...target, preservePatterns: ['.env', 'node_modules'] });
+    await flush();
+
+    expect(await reordered).toEqual(ok(usage(100)));
+    expect(calls.map((call) => call.options.preservePatterns)).toEqual([
+      ['.env'],
+      ['.env', 'node_modules'],
+    ]);
+    calls[1]!.walk.resolve(ok(usage(40)));
+    expect(await changed).toEqual(ok(usage(40)));
+    cache.dispose();
+  });
+
+  it('invalidates one workspace, whatever its exclusions, and keeps the others', async () => {
+    const { calls, measure } = controlledMeasure();
+    const cache = new WorkspaceUsageCache({ measure });
+    const whole = { ...target, excludePaths: [] };
+    const other = { ...target, workspaceId: 'ws-other', workspacePath: '/srv/other' };
+
+    const measured = [cache.measure(target), cache.measure(whole), cache.measure(other)];
+    await flush();
+    calls.forEach((call, index) => call.walk.resolve(ok(usage(100 + index))));
+    await Promise.all(measured);
+
+    cache.invalidate('ws-repo');
+    const remeasured = [cache.measure(target), cache.measure(whole)];
+    expect(await cache.measure(other)).toEqual(ok(usage(102)));
+    await flush();
+    expect(calls.slice(3).map((call) => call.options.workspacePath)).toEqual([
+      '/srv/repo',
+      '/srv/repo',
+    ]);
+    calls[3]!.walk.resolve(ok(usage(10)));
+    calls[4]!.walk.resolve(ok(usage(20)));
+    expect(await Promise.all(remeasured)).toEqual([ok(usage(10)), ok(usage(20))]);
+    cache.dispose();
+  });
+
+  it('lets a walk in flight settle for its callers when the workspace is invalidated', async () => {
+    const { calls, measure } = controlledMeasure();
+    const cache = new WorkspaceUsageCache({ measure });
+
+    const before = cache.measure(target);
+    await flush();
+    cache.invalidate('ws-repo');
+    const after = cache.measure(target);
+    await flush();
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.options.signal!.aborted).toBe(false);
+    calls[0]!.walk.resolve(ok(usage(100)));
+    calls[1]!.walk.resolve(ok(usage(10)));
+    expect(await before).toEqual(ok(usage(100)));
+    expect(await after).toEqual(ok(usage(10)));
+    expect(await cache.measure(target)).toEqual(ok(usage(10)));
+    expect(calls).toHaveLength(2);
     cache.dispose();
   });
 

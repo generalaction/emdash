@@ -27,6 +27,10 @@ _Avoid_: Project (that is a desktop grouping), repo root
 **Worktree**:
 A git worktree of a Repository on a host.
 
+**Workspace artifacts**:
+The regenerable git-ignored files inside a Workspace (dependencies, build output, caches): the `git clean -ndX` roots minus local env files (`.env`, `.env.*`), anything the project's preserve patterns name, and `.emdash.json`. Usage reports them as reclaimable and the registry's `cleanArtifacts` removes exactly them in place; tracked and uncommitted work, nested worktrees, and the Workspace itself stay.
+_Avoid_: Artifact for the Worktree itself (that is a host artifact), archive (cleaning keeps the worktree and its tasks)
+
 **Git ref**:
 The canonical full name of a Git reference (`refs/heads/...`, `refs/remotes/...`, or
 `refs/tags/...`). Observed refs store this identity; short names are derived only at display or

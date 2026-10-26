@@ -28,6 +28,7 @@ import { ConfigModel } from '#services/config-model/node';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
   ActivateWorkspaceError,
+  CleanArtifactsError,
   CreateWorkspaceError,
   CreateWorktreeError,
   DeleteWorkspaceError,
@@ -39,6 +40,7 @@ import type {
 } from '../api/errors';
 import type {
   ActivateWorkspaceInput,
+  CleanArtifactsInput,
   CreateWorkspaceInput,
   CreateWorktreeInput,
   DeactivateWorkspaceInput,
@@ -110,6 +112,7 @@ import {
 import type { SessionCounter, SessionKiller } from './session-cleanup';
 import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './update-worktree';
 import { WorkspaceUsageCache } from './usage-cache';
+import { removeWorkspaceArtifacts } from './workspace-artifacts';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -889,9 +892,51 @@ export class WorkspaceRegistryRuntime {
         workspaceId: record.id,
         workspacePath: record.path,
         excludePaths: nestedWorkspacePaths(record.path, alongside),
+        preservePatterns: await this.preservePatternsFor(record.id),
       },
       signal
     );
+  }
+
+  /**
+   * Removes the workspace's artifacts in place: the same set measureUsage reports as
+   * reclaimable, so what the view shows is what goes. Held under the per-workspace
+   * claim, so activation waits for it; refused while sessions run under the path
+   * (the updateWorktree guard), because tools would lose files mid-run. Nothing is
+   * stopped and no script runs. Scans stay muted while files go and settle with one
+   * deliberate scan; the workspace's cached usage is dropped either way.
+   */
+  cleanArtifacts(input: CleanArtifactsInput): Promise<Result<void, CleanArtifactsError>> {
+    return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+      const record = this.store.get(input.workspaceId);
+      if (!record) return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+      if (record.observedStatus === 'missing' || !(await isDirectory(record.path))) {
+        return err({ type: 'workspace-missing', workspaceId: input.workspaceId });
+      }
+      if ((await this.countSessions(record.path)) > 0) {
+        return err({ type: 'workspace-active', workspaceId: input.workspaceId });
+      }
+      const preservePatterns = await this.preservePatternsFor(record.id);
+      const release = this.muteScans(record.id);
+      try {
+        return await removeWorkspaceArtifacts({
+          workspacePath: record.path,
+          preservePatterns,
+          createGitExec: (cwd) => this.gitContext.exec(cwd, { tier: 'activation' }),
+        });
+      } finally {
+        this.usage.invalidate(record.id);
+        release();
+        this.settleScan({ kind: 'workspace', id: record.id, mode: 'full' });
+      }
+    });
+  }
+
+  /** The workspace's resolved preserve patterns: the ignored files it never counts as artifacts. */
+  private async preservePatternsFor(id: string): Promise<string[]> {
+    await this.bootConfigHydration;
+    const config = await this.resolveProjectConfigFor(id);
+    return config?.resolved.preservePatterns.value ?? [];
   }
 
   /**
