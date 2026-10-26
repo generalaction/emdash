@@ -1,7 +1,13 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import {
+  workspaceRegistryContract,
+  type WorkspaceRecord,
+} from '@emdash/core/runtimes/workspace-registry/api';
 import { err, ok } from '@emdash/shared';
 import { createManualClock, deferred } from '@emdash/shared/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defineContract } from '@emdash/wire/rpc';
+import { createTestWire } from '@emdash/wire/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TaskService } from './task-service';
 import { TaskSessionManager } from './task-session-manager';
 
@@ -177,11 +183,16 @@ describe('TaskService workspace activation', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.runtimeWorkspace.path.root.kind).toBe('drive');
-    expect(activateWorkspace).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
+    expect(activateWorkspace).toHaveBeenCalledWith(
+      { workspaceId: 'workspace-1' },
+      { signal: undefined }
+    );
   });
 });
 
-function makeLifecycleService() {
+function makeLifecycleService(
+  options: { workspaceRegistry?: Record<'activateWorkspace' | 'deactivateWorkspace', unknown> } = {}
+) {
   const clock = createManualClock();
   const events: string[] = [];
   const identity = {
@@ -225,7 +236,10 @@ function makeLifecycleService() {
     events.push('participants:deactivate');
   });
   const client = {
-    workspaceRegistry: { activateWorkspace: hostActivate, deactivateWorkspace: hostDeactivate },
+    workspaceRegistry: options.workspaceRegistry ?? {
+      activateWorkspace: hostActivate,
+      deactivateWorkspace: hostDeactivate,
+    },
     tuiAgents: {},
   };
   const runtimes = { client: async () => ok(client) };
@@ -427,5 +441,103 @@ describe('TaskService cleanup and activation ordering', () => {
       cleanup.resolve();
     }
     expect((await teardown).success).toBe(true);
+  });
+});
+
+/** A real Wire host whose activation waits on prepare until the test finishes it. */
+function createPreparingHost() {
+  const prepare = deferred();
+  const started = deferred();
+  const wire = createTestWire(
+    defineContract({
+      activateWorkspace: workspaceRegistryContract.activateWorkspace,
+      deactivateWorkspace: workspaceRegistryContract.deactivateWorkspace,
+    }),
+    {
+      // `pnpm install` in a prepare script.
+      activateWorkspace: async (input) => {
+        started.resolve();
+        await prepare.promise;
+        return ok(activatedRecord(input.workspaceId));
+      },
+      deactivateWorkspace: async () => ok(undefined),
+    }
+  );
+  return { wire, started: started.promise, finishPrepare: () => prepare.resolve() };
+}
+
+function activatedRecord(id: string): WorkspaceRecord {
+  const at = Date.parse('2026-01-01T00:00:00.000Z');
+  return {
+    id,
+    kind: 'worktree',
+    path: '/repo/task',
+    parentId: 'repo',
+    origin: 'registered',
+    gitAdminName: null,
+    observedStatus: 'present',
+    creation: null,
+    lastCreateOutcome: { status: 'succeeded', at },
+    lastRemovalAttempt: null,
+    lifecycle: null,
+    git: null,
+    lastActivatedAt: at,
+    createdAt: at,
+    updatedAt: at,
+    lastObservedAt: at,
+    config: null,
+    runtime: null,
+  };
+}
+
+describe('TaskService host activation', () => {
+  let host: ReturnType<typeof createPreparingHost>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    host = createPreparingHost();
+  });
+
+  afterEach(async () => {
+    await host.wire.dispose();
+    vi.useRealTimers();
+  });
+
+  it('waits for a prepare script that outlasts the default call deadline', async () => {
+    const fixture = makeLifecycleService({ workspaceRegistry: host.wire.client });
+    let settled = false;
+    const activation = fixture.service.provisionWorkspace('task-1').finally(() => {
+      settled = true;
+    });
+    await host.started;
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(settled).toBe(false);
+
+    host.finishPrepare();
+    expect((await activation).success).toBe(true);
+  });
+
+  it('still fails the activation when the host connection drops', async () => {
+    const fixture = makeLifecycleService({ workspaceRegistry: host.wire.client });
+    const activation = fixture.service.provisionWorkspace('task-1');
+    await host.started;
+
+    host.wire.pair.disconnect();
+
+    await expect(activation).rejects.toThrow('Wire transport disconnected');
+  });
+
+  it('stops waiting for prepare once the provision is cancelled', async () => {
+    const fixture = makeLifecycleService({ workspaceRegistry: host.wire.client });
+    const controller = new AbortController();
+    const activation = fixture.service.provisionWorkspace('task-1', controller.signal);
+    await host.started;
+
+    controller.abort();
+
+    expect(await activation).toMatchObject({ success: false, error: { type: 'cancelled' } });
+    // The workspace lifecycle is free again: archive does not wait for the host's prepare.
+    expect(await fixture.sessions.teardownTask('task-1', 'archive', 'workspace-1')).toEqual(ok());
   });
 });
