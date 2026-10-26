@@ -291,6 +291,15 @@ describe('WorkspaceLayout window resize', () => {
     expect(sidebarWidth()).toBeCloseTo(dragged, 0);
   });
 
+  it('keeps the sidebar open when a drag settles at its floor in a very wide window', async () => {
+    await mountAt(3200);
+
+    await dragSidebarTo(150);
+
+    expect(toggleLeftSidebar).not.toHaveBeenCalled();
+    expect(sidebarWidth()).toBeCloseTo(200, 0);
+  });
+
   it('closes the sidebar when a drag goes well past its floor, then reopens at the last width', async () => {
     await mountAt(1280);
     const dragged = await dragSidebarTo(300);
