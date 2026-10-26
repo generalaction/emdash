@@ -1,9 +1,10 @@
 import type { Scope } from '@emdash/shared/concurrency';
-import type { WatchEvent } from '#services/fs-watch/api';
+import type { WatchBackendPreference, WatchEvent } from '#services/fs-watch/api';
 
 export type WatchKey = {
   root: string;
   ignore: string[];
+  backend: WatchBackendPreference;
 };
 
 export type WatchSink = {
