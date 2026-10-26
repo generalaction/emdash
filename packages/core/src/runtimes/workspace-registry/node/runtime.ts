@@ -745,18 +745,25 @@ export class WorkspaceRegistryRuntime {
   async createWorktree(
     input: CreateWorktreeInput
   ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
-    const admission = await this.enqueue(() => this.admitWorktreeCreation(input));
-    return await admission.run;
+    for (;;) {
+      const admission = await this.enqueue(() => this.admitWorktreeCreation(input));
+      if ('run' in admission) return await admission.run;
+      // An earlier run for this workspace is still finishing although its record was
+      // removed (remove and re-provision mid-create): let it settle, then admit afresh.
+      await admission.settling;
+    }
   }
 
   /**
    * Admission runs on the writer queue, so a duplicate request always finds the run its
-   * predecessor started. The run is wrapped in an object so the queue does not adopt its
-   * promise and wait for the pipeline.
+   * predecessor started. Runs are wrapped in objects so the queue does not adopt their
+   * promises and wait for the pipeline.
    */
-  private admitWorktreeCreation(input: CreateWorktreeInput): {
-    run: Promise<Result<WorkspaceRecord, CreateWorktreeError>>;
-  } {
+  private admitWorktreeCreation(
+    input: CreateWorktreeInput
+  ):
+    | { run: Promise<Result<WorkspaceRecord, CreateWorktreeError>> }
+    | { settling: Promise<unknown> } {
     const registration = this.registerWorktreeCreation(input);
     if (!registration.success) return { run: Promise.resolve(registration) };
     const admitted = registration.data;
@@ -765,9 +772,13 @@ export class WorkspaceRegistryRuntime {
         return { run: Promise.resolve(ok(this.toWire(admitted.record))) };
       case 'join':
         return { run: admitted.run };
+      case 'wait':
+        return { settling: admitted.run.catch(() => undefined) };
       case 'execute': {
         const run = this.runWorktreeCreation(input, admitted.repository).finally(() => {
-          this.worktreeCreations.delete(input.workspaceId);
+          if (this.worktreeCreations.get(input.workspaceId) === run) {
+            this.worktreeCreations.delete(input.workspaceId);
+          }
         });
         this.worktreeCreations.set(input.workspaceId, run);
         return { run };
@@ -1158,7 +1169,7 @@ export class WorkspaceRegistryRuntime {
     input: CreateWorktreeInput
   ): Result<
     | { action: 'replay'; record: DurableWorkspaceRecord }
-    | { action: 'join'; run: Promise<Result<WorkspaceRecord, CreateWorktreeError>> }
+    | { action: 'join' | 'wait'; run: Promise<Result<WorkspaceRecord, CreateWorktreeError>> }
     | { action: 'execute'; repository: DurableWorkspaceRecord },
     CreateWorktreeError
   > {
@@ -1204,6 +1215,12 @@ export class WorkspaceRegistryRuntime {
       this.publish(restarted);
       return ok({ action: 'execute', repository });
     }
+
+    // No record, yet a run for this id is still going: its record was removed mid-run.
+    // That run ends as "deleted during creation"; a fresh creation waits for it rather
+    // than starting a second pipeline over the same path.
+    const settling = this.worktreeCreations.get(input.workspaceId);
+    if (settling) return ok({ action: 'wait', run: settling });
 
     const resolvedPath = path.resolve(input.path);
     const byPath = this.store.getByPath(resolvedPath);
