@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { createBoundExec, type BoundExec } from '#services/exec/api';
 import { BATCH_SSH_COMMAND, batchSshProgram } from './git-ssh';
 
@@ -30,7 +31,7 @@ export function nonInteractiveGitEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv
   if (!env.GIT_SSH) delete env.GIT_SSH;
   if (env.GIT_SSH_COMMAND || env.GIT_SSH) return env;
 
-  const program = batchSshProgram();
+  const program = batchSshProgram(env.HOME || homedir());
   if (program) env.GIT_SSH = program;
   // Without the wrapper, stay non-interactive even though this overrides core.sshCommand.
   else env.GIT_SSH_COMMAND = BATCH_SSH_COMMAND;

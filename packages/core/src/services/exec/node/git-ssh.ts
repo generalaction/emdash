@@ -8,19 +8,21 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
+  type Stats,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 /** OpenSSH that fails instead of prompting for passwords, passphrases, or host keys. */
 export const BATCH_SSH_COMMAND = 'ssh -o BatchMode=yes';
 
 const BATCH_SSH_SCRIPT = `#!/bin/sh\nexec ${BATCH_SSH_COMMAND} "$@"\n`;
 
-let wrapper: { root: string; program: string | undefined } | undefined;
+/** Directories below the home directory that hold the wrapper. */
+const WRAPPER_DIRECTORIES = ['.emdash', 'git-ssh'];
 
 /**
  * Absolute path of an executable named `ssh` that runs `ssh -o BatchMode=yes "$@"`, for use
@@ -28,29 +30,25 @@ let wrapper: { root: string; program: string | undefined } | undefined;
  * `-o SendEnv=GIT_PROTOCOL`. Its directory is never on PATH, so the inner `ssh` is the real
  * client.
  *
- * Every Emdash process of the user shares one wrapper in a private directory under the temp
- * root; it is rewritten if missing or stale, e.g. after a temp cleaner ran. Returns undefined
- * when no trustworthy executable wrapper can be set up there, e.g. on a `noexec` mount; that
- * outcome is kept for the process rather than retried on every git call.
+ * The wrapper lives under `home`, the home directory git runs with, never in a shared temp
+ * root: there a temp cleaner can delete it and another user can put their own `ssh` at the
+ * same path, so no check could keep the path trustworthy until git runs it. Git already runs
+ * whatever SSH command the global config in `home` names, so the wrapper adds no new trust.
+ * Every directory from `home` down to the wrapper must still be changeable only by the user or
+ * root, the rule OpenSSH applies to its own config files, and all of it is checked on every
+ * call; the wrapper is rewritten when missing or stale. Returns undefined when no such
+ * wrapper can be set up, e.g. on a `noexec` home.
  */
-export function batchSshProgram(): string | undefined {
-  const root = tmpdir();
-  if (wrapper?.root === root && (!wrapper.program || isExecutable(wrapper.program))) {
-    return wrapper.program;
-  }
-  wrapper = { root, program: ensureWrapper(root) };
-  return wrapper.program;
-}
-
-function ensureWrapper(root: string): string | undefined {
+export function batchSshProgram(home: string): string | undefined {
   try {
-    const dir = join(root, `emdash-git-ssh-${process.getuid?.() ?? 'user'}`);
-    try {
-      mkdirSync(dir, { mode: 0o700 });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    if (!isAbsolute(home)) return undefined;
+    let dir = realpathSync(home);
+    if (!isTrusted(lstatSync(dir))) return undefined;
+    for (const name of WRAPPER_DIRECTORIES) {
+      dir = join(dir, name);
+      createDirectory(dir);
+      if (!isTrusted(lstatSync(dir))) return undefined;
     }
-    if (!isPrivateDirectory(dir)) return undefined;
     const program = join(dir, 'ssh');
     if (!isCurrentWrapper(program)) writeWrapper(dir, program);
     // On Linux, access(2) also rejects execution from a noexec mount.
@@ -61,25 +59,35 @@ function ensureWrapper(root: string): string | undefined {
   }
 }
 
+function createDirectory(dir: string): void {
+  try {
+    mkdirSync(dir, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
+}
+
 /**
- * The temp root may be shared with other users (`/tmp`), so only trust a real directory, not
- * a symlink, that this user owns and nobody else can write to. Windows temp directories are
- * per-user and carry no POSIX ownership.
+ * A real directory, not a symlink, that only this user or root can change. Windows profile
+ * directories are per-user and carry no POSIX ownership.
  */
-function isPrivateDirectory(dir: string): boolean {
-  const stats = lstatSync(dir);
+function isTrusted(stats: Stats): boolean {
   if (!stats.isDirectory()) return false;
   if (process.platform === 'win32') return true;
-  return stats.uid === process.getuid?.() && (stats.mode & 0o077) === 0;
+  return (stats.uid === process.getuid?.() || stats.uid === 0) && (stats.mode & 0o022) === 0;
 }
 
 function isCurrentWrapper(program: string): boolean {
   try {
-    return (
-      lstatSync(program).isFile() &&
-      readFileSync(program, 'utf8') === BATCH_SSH_SCRIPT &&
-      isExecutable(program)
-    );
+    const stats = lstatSync(program);
+    if (!stats.isFile()) return false;
+    if (
+      process.platform !== 'win32' &&
+      (stats.uid !== process.getuid?.() || (stats.mode & 0o777) !== 0o700)
+    ) {
+      return false;
+    }
+    return readFileSync(program, 'utf8') === BATCH_SSH_SCRIPT;
   } catch {
     return false;
   }
@@ -101,14 +109,5 @@ function writeWrapper(dir: string, program: string): void {
   } catch (error) {
     rmSync(staging, { force: true });
     throw error;
-  }
-}
-
-function isExecutable(path: string): boolean {
-  try {
-    accessSync(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
   }
 }
