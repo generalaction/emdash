@@ -15,3 +15,10 @@ export function isGitDiscoveryMiss(failure: { exitCode: number | null; stderr: s
     )
   );
 }
+
+export {
+  parseGitDubiousOwnership,
+  safeDirectoryCommand,
+  safeDirectoryValueProblem,
+  type GitDubiousOwnership,
+} from './safe-directory';
