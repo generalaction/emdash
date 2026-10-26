@@ -34,8 +34,8 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        defaultArgs: ['--fresh'],
-        initialPromptFlag: '--prompt',
+        defaultArgs: ['run', '--fresh'],
+        initialPromptFlag: '--prompt=',
       }),
   },
 });

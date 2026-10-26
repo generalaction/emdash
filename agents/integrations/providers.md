@@ -86,8 +86,9 @@ you select an OrcaRouter model from the OpenCode model picker.
 
 - Codewhale is detected through `codewhale` on PATH and installed with
   `npm install -g codewhale`. Configure model access in Codewhale before sending
-  prompts. Its terminal command uses `--fresh --prompt` to isolate new tasks from
-  workspace auto-resume. Terminal session-ID capture and lifecycle hooks are not
+  prompts. Its terminal command uses `run --fresh --prompt=<text>` to isolate new
+  tasks and preserve flag-like prompts despite the 0.10.2 root parser issue.
+  Terminal session-ID capture and lifecycle hooks are not
   integrated, so terminal sessions are stateless in Emdash. Native ACP uses
   `codewhale serve --acp`; published 0.10.2 supports session creation and loading
   and advertises terminal credential setup through `auth set --provider <provider>`.
