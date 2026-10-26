@@ -71,7 +71,20 @@ describe('BoundExec', () => {
       exitCode: 128,
       file: 'git',
       args: ['rev-parse', '--not-a-real-flag'],
+      message: expect.stringMatching(
+        /^git rev-parse --not-a-real-flag failed \(exit 128\): fatal: not a git repository/
+      ),
     });
+  });
+
+  it("keeps the tail of a long diagnostic in the error's message", () => {
+    const stderr = `${'hint: noise\n'.repeat(500)}fatal: the decisive line`;
+    const error = new ExecError('git', ['status'], 128, '', stderr);
+
+    expect(error.message).toMatch(/^git status failed \(exit 128\): …/);
+    expect(error.message).toMatch(/fatal: the decisive line$/);
+    expect(error.message.length).toBeLessThan(2_100);
+    expect(error.stderr).toBe(stderr);
   });
 
   it('preserves the operating-system error when an executable is missing', async () => {

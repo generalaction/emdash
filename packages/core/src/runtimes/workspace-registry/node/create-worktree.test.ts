@@ -230,7 +230,12 @@ describe('executeCreateWorktree stale registrations', () => {
 
     const result = await create(path.join(root, 'new-wt'), 'feature/locked');
 
-    expect(result).toMatchObject({ status: 'failed', stage: 'add-worktree' });
+    // Git's own refusal reaches the durable outcome, not just an exit code.
+    expect(result).toMatchObject({
+      status: 'failed',
+      stage: 'add-worktree',
+      message: expect.stringMatching(/fatal: 'feature\/locked' is already/),
+    });
     expect(registrations()).toContain('locked offline drive');
   });
 

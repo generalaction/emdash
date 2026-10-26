@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ExecError } from '#services/exec/api';
 import { GitSchedule, isTransientLockError, retryTransientLock } from './git-schedule';
 
 // Unit tests for the host-wide git budget (spec: workspace-lifecycle-v2, git
@@ -284,6 +285,17 @@ describe('transient lock retry', () => {
     ).toBe(true);
     expect(isTransientLockError(new Error('fatal: could not lock ref refs/heads/main'))).toBe(true);
     expect(isTransientLockError(new Error('fatal: not a git repository'))).toBe(false);
+  });
+
+  it('classifies a lock collision git reported on stderr', () => {
+    const error = new ExecError(
+      'git',
+      ['worktree', 'add', '/wt/a', 'main'],
+      128,
+      '',
+      "fatal: Unable to create '/repo/.git/index.lock': File exists."
+    );
+    expect(isTransientLockError(error)).toBe(true);
   });
 
   it('retries a transient collision and succeeds; non-transient errors surface at once', async () => {
