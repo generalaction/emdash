@@ -5,6 +5,7 @@ import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceGitSetup } from '../api/schemas';
 import type { RegistryGitContext } from './git-context';
 import { retryTransientLock } from './git-schedule';
+import { parseWorktreeList, type WorktreeListEntry } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';
 
 export type CreateWorktreeExecution = {
@@ -71,9 +72,11 @@ export async function executeCreateWorktree(
     if (!safe.success) {
       return { status: 'failed', stage: 'inspect', message: safe.error.message };
     }
-    existing = (await listWorktreePaths(exec)).has(
-      nativePathIdentityKey(await canonicalOrResolved(execution.worktreePath))
-    );
+    const target = await pathIdentity(execution.worktreePath);
+    const worktrees = await listWorktrees(exec);
+    await clearStaleRegistrations(exec, worktrees, target, execution.branch);
+    // A prunable registration's directory is gone: there is nothing to reuse.
+    existing = worktrees.some((worktree) => !worktree.prunable && worktree.identity === target);
     if (existing) {
       const current = (
         await execution.git
@@ -209,7 +212,8 @@ export async function executeCreateWorktree(
   let finalPath: string;
   try {
     finalPath = await canonicalOrResolved(execution.worktreePath);
-    if (!(await listWorktreePaths(exec)).has(nativePathIdentityKey(finalPath))) {
+    const identity = nativePathIdentityKey(finalPath);
+    if (!(await listWorktrees(exec)).some((worktree) => worktree.identity === identity)) {
       return await fail(
         'verify',
         new Error(`Worktree was not listed after creation: ${execution.worktreePath}`)
@@ -256,14 +260,40 @@ async function rollback(
   }
 }
 
-async function listWorktreePaths(exec: BoundExec): Promise<Set<string>> {
+type RegisteredWorktree = WorktreeListEntry & { identity: string };
+
+async function listWorktrees(exec: BoundExec): Promise<RegisteredWorktree[]> {
   const result = await exec.exec(['worktree', 'list', '--porcelain']);
-  const paths = new Set<string>();
-  for (const line of result.stdout.split('\n')) {
-    if (!line.startsWith('worktree ')) continue;
-    paths.add(nativePathIdentityKey(await canonicalOrResolved(line.slice('worktree '.length))));
+  return await Promise.all(
+    parseWorktreeList(result.stdout).map(async (entry) => ({
+      ...entry,
+      identity: await pathIdentity(entry.path),
+    }))
+  );
+}
+
+/**
+ * A worktree directory deleted out-of-band leaves its registration behind, and
+ * `worktree add` then refuses the path ("missing but already registered") or the
+ * branch ("already used by worktree") until someone prunes. Only registrations
+ * blocking this creation are cleared: a repository-wide prune would also drop
+ * worktrees that are merely unreachable (unmounted drive). Git never reports locked
+ * registrations as prunable, so a lock keeps its registration — and the refusal.
+ */
+async function clearStaleRegistrations(
+  exec: BoundExec,
+  worktrees: RegisteredWorktree[],
+  target: string,
+  branch: string
+): Promise<void> {
+  for (const worktree of worktrees) {
+    if (!worktree.prunable) continue;
+    if (worktree.identity !== target && worktree.branch !== branch) continue;
+    // Unforced: drops a missing directory's admin entry, yet refuses a dirty checkout
+    // that reappeared since the listing. Best-effort — a concurrent creation may have
+    // cleared it first; anything still blocking surfaces as add-worktree's git error.
+    await exec.exec(['worktree', 'remove', worktree.path]).catch(() => undefined);
   }
-  return paths;
 }
 
 async function branchExists(exec: BoundExec, branch: string): Promise<boolean> {
@@ -284,10 +314,22 @@ async function refResolves(exec: BoundExec, ref: string): Promise<boolean> {
   }
 }
 
+async function pathIdentity(target: string): Promise<string> {
+  return nativePathIdentityKey(await canonicalOrResolved(target));
+}
+
+/**
+ * Canonicalizes a missing path through its deepest existing ancestor, the way git
+ * records worktree paths — otherwise a deleted worktree under a symlinked root never
+ * matches its own stale registration.
+ */
 async function canonicalOrResolved(target: string): Promise<string> {
+  const resolved = path.resolve(target);
   try {
-    return await fs.realpath(target);
+    return await fs.realpath(resolved);
   } catch {
-    return path.resolve(target);
+    const parent = path.dirname(resolved);
+    if (parent === resolved) return resolved;
+    return path.join(await canonicalOrResolved(parent), path.basename(resolved));
   }
 }

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { executeCreateWorktree } from './create-worktree';
-import { createRegistryGitContext } from './git-context';
+import { createRegistryGitContext, type RegistryGitContext } from './git-context';
 
 // Unit tests for the foreground pipeline's resolve-base stage (spec:
 // workspace-activation-speed): creation never fetches when the base ref resolves
@@ -138,6 +138,123 @@ describe('executeCreateWorktree resolve-base', () => {
     });
 
     expect(result).toMatchObject({ status: 'failed', stage: 'resolve-base' });
+  });
+});
+
+// A worktree directory deleted out-of-band leaves its git registration behind; the
+// inspect stage clears exactly the stale registrations that would block this creation.
+describe('executeCreateWorktree stale registrations', () => {
+  let root: string;
+  let repoPath: string;
+
+  beforeEach(async () => {
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-create-stale-')));
+    repoPath = await makeRepo(root, 'repo');
+  });
+
+  afterEach(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  async function addDeletedWorktree(worktreePath: string, ...addArgs: string[]): Promise<void> {
+    git(repoPath, 'worktree', 'add', ...addArgs, worktreePath, 'main');
+    await fs.rm(worktreePath, { recursive: true, force: true });
+  }
+
+  function create(worktreePath: string, branch: string, context = gitContext) {
+    return executeCreateWorktree({
+      git: context,
+      repositoryPath: repoPath,
+      worktreePath,
+      branch,
+      baseRef: 'main',
+      onStage: () => undefined,
+    });
+  }
+
+  function registrations(): string {
+    return git(repoPath, 'worktree', 'list', '--porcelain');
+  }
+
+  it('recreates a worktree at the path of a deleted one', async () => {
+    const worktreePath = path.join(root, 'wt');
+    await addDeletedWorktree(worktreePath, '-b', 'feature/x');
+
+    const result = await create(worktreePath, 'feature/x');
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(git(worktreePath, 'branch', '--show-current')).toBe('feature/x');
+    expect(registrations()).not.toContain('prunable');
+  });
+
+  it('frees a branch still held by a deleted worktree at another path', async () => {
+    const stalePath = path.join(root, 'old-wt');
+    await addDeletedWorktree(stalePath, '-b', 'feature/y');
+    const worktreePath = path.join(root, 'new-wt');
+
+    const result = await create(worktreePath, 'feature/y');
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(git(worktreePath, 'branch', '--show-current')).toBe('feature/y');
+    expect(registrations()).not.toContain(`worktree ${stalePath}\n`);
+  });
+
+  it('matches a stale registration reached through a symlinked worktree root', async () => {
+    // Git records real paths; the missing target must still resolve the symlink.
+    const linkedRoot = path.join(root, 'linked');
+    await fs.symlink(root, linkedRoot, 'dir');
+    const worktreePath = path.join(linkedRoot, 'wt');
+    await addDeletedWorktree(worktreePath, '--detach');
+
+    const result = await create(worktreePath, 'feature/fresh');
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    expect(git(worktreePath, 'branch', '--show-current')).toBe('feature/fresh');
+  });
+
+  it('leaves stale registrations that do not block the creation alone', async () => {
+    const unrelatedPath = path.join(root, 'unrelated-wt');
+    await addDeletedWorktree(unrelatedPath, '-b', 'other');
+
+    const result = await create(path.join(root, 'new-wt'), 'feature/z');
+
+    expect(result).toMatchObject({ status: 'succeeded' });
+    expect(registrations()).toContain(`worktree ${unrelatedPath}\n`);
+  });
+
+  it('keeps a locked registration and its claim on the branch', async () => {
+    const lockedPath = path.join(root, 'locked-wt');
+    git(repoPath, 'worktree', 'add', '-b', 'feature/locked', lockedPath, 'main');
+    git(repoPath, 'worktree', 'lock', '--reason', 'offline drive', lockedPath);
+    await fs.rm(lockedPath, { recursive: true, force: true });
+
+    const result = await create(path.join(root, 'new-wt'), 'feature/locked');
+
+    expect(result).toMatchObject({ status: 'failed', stage: 'add-worktree' });
+    expect(registrations()).toContain('locked offline drive');
+  });
+
+  it('tolerates a stale registration cleared concurrently', async () => {
+    const worktreePath = path.join(root, 'wt');
+    await addDeletedWorktree(worktreePath, '-b', 'feature/race');
+    // Another creation wins the race: the registration is gone before our removal.
+    const racing: RegistryGitContext = {
+      ...gitContext,
+      exec: (cwd, options) => {
+        const inner = gitContext.exec(cwd, options);
+        return {
+          ...inner,
+          exec: (args, execOptions) => {
+            if (args[0] === 'worktree' && args[1] === 'remove') git(repoPath, 'worktree', 'prune');
+            return inner.exec(args, execOptions);
+          },
+        };
+      },
+    };
+
+    const result = await create(worktreePath, 'feature/race', racing);
+
+    expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
   });
 });
 
