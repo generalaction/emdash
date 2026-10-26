@@ -18,7 +18,10 @@ export type PathUsage = {
 };
 
 export type MeasurePathUsageOptions = {
-  /** Root-relative paths (forward slashes) whose subtrees count as artifact bytes. */
+  /**
+   * Root-relative paths whose subtrees count as artifact bytes, taken verbatim: `/` is
+   * the only separator, so names may hold spaces or backslashes.
+   */
   artifactRoots?: string[];
   /** Absolute paths skipped entirely, e.g. nested workspaces measured on their own. */
   excludePaths?: string[];
@@ -168,7 +171,7 @@ export async function measureAbsolutePathUsage(
 function createArtifactMatcher(artifactRoots: string[]): ArtifactMatcher {
   const roots = new Set(
     artifactRoots
-      .map((root) => root.trim().replace(/\\/gu, '/').replace(/\/+$/u, ''))
+      .map((root) => root.replace(/\/+$/u, ''))
       .filter((root) => root && root !== '.' && root !== '..')
   );
   const ancestors = new Set<string>();

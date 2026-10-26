@@ -96,6 +96,12 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
           signal: meta.signal,
           timeoutMs: 0,
         }),
+      // Removing a large dependency tree can outlast the worker call deadline too.
+      cleanArtifacts: (input, meta) =>
+        deps.runtimes.workspaceRegistry.cleanArtifacts(input, {
+          signal: meta.signal,
+          timeoutMs: 0,
+        }),
     },
     hostDependencies: forwardContractImpl(
       workspaceWireContract.hostDependencies,
