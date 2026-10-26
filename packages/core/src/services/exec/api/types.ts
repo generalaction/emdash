@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { redactSecrets } from '@emdash/shared/logger';
 import type { EnvSource } from '#primitives/exec/api';
 
 export type ExecOptions = {
@@ -40,9 +41,13 @@ export class ExecError extends Error {
 }
 
 /**
- * Callers surface and pattern-match `error.message`, so it carries the process's own
- * diagnostic (git's "fatal: …" line lives on stderr) — a bare exit code hides the cause.
- * Long output keeps its tail: tools print the decisive line last.
+ * Callers surface `error.message`, so it carries the process's own diagnostic (git's
+ * "fatal: …" line lives on stderr) — a bare exit code hides the cause. Long output keeps
+ * its tail: tools print the decisive line last.
+ *
+ * The message leaves the process (UI, persisted outcomes, Wire results), so secrets in the
+ * arguments or the diagnostic (credential URLs, tokens, auth headers) are redacted.
+ * `stdout`/`stderr` stay raw: match the process's output there, not in the message.
  */
 function describeExecFailure(
   file: string,
@@ -50,8 +55,9 @@ function describeExecFailure(
   exitCode: number | null,
   stderr: string
 ): string {
-  const summary = `${file} ${args.join(' ')} failed (exit ${exitCode ?? 'unknown'})`;
-  const diagnostic = stderr.trim();
+  const summary = redactSecrets(`${file} ${args.join(' ')} failed (exit ${exitCode ?? 'unknown'})`);
+  // Redact before truncating so a secret cut at the boundary cannot escape its pattern.
+  const diagnostic = redactSecrets(stderr.trim());
   if (!diagnostic) return summary;
   return diagnostic.length > MESSAGE_DIAGNOSTIC_MAX_CHARS
     ? `${summary}: …${diagnostic.slice(-MESSAGE_DIAGNOSTIC_MAX_CHARS)}`

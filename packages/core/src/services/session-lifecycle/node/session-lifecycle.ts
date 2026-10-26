@@ -180,6 +180,13 @@ export function createSessionLifecycle<TResume, TCtx>(
     return next;
   }
 
+  async function drainIntents(): Promise<void> {
+    // Writes enqueued while waiting extend a key's tail, so re-check until every queue is gone.
+    while (intentQueues.size > 0) {
+      await Promise.allSettled(intentQueues.values());
+    }
+  }
+
   async function writeActiveIntent(
     key: string,
     prepare?: () => SessionIntentUpdate | null
@@ -465,6 +472,7 @@ export function createSessionLifecycle<TResume, TCtx>(
       void writeActiveIntent(key);
     },
     persistIntent: writeActiveIntent,
+    drainIntents,
     reconcile,
   };
 }

@@ -125,7 +125,7 @@ export function createExecFileSshConfigRunner(
       execFile(
         sshPath,
         [...extraArgs, '-G', alias],
-        { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer },
+        { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer, windowsHide: true },
         (error, stdout, stderr) => {
           if (error) {
             const execError = error as Error & { killed?: boolean; signal?: string | null };

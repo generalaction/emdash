@@ -159,7 +159,10 @@ export interface SessionLifecycle {
   evict(key: string, opts?: EvictOptions): Promise<void>;
 
   sweepNow(): Promise<void>;
-  /** Stops the sweeper; does NOT evict (component scope owns process teardown). */
+  /**
+   * Stops the sweeper; does NOT evict (component scope owns process teardown) and does not
+   * wait for intent writes (see `drainIntents`).
+   */
   dispose(): void;
 }
 
@@ -174,5 +177,11 @@ export interface ConversationSessionLifecycle extends SessionLifecycle {
     key: string,
     prepare?: () => SessionIntentUpdate | null
   ): Promise<Result<void, SessionIntentError>>;
+  /**
+   * Resolves once every enqueued intent write has settled, including writes enqueued while
+   * waiting. Runtimes await it at the end of teardown so no background write outlives their
+   * dispose: a successor may already own the store.
+   */
+  drainIntents(): Promise<void>;
   reconcile(): Promise<void>;
 }

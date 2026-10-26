@@ -1,9 +1,13 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { desc, gte, inArray, lt } from 'drizzle-orm';
+import { desc, gte, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { notifications } from '@core/services/app-db/node/schema';
 import type { AppNotification } from '../api';
 import type { NotificationStore } from '../api/ports';
+
+// rowid breaks same-millisecond ties by insertion order and, together with created_at, is what
+// idx_notifications_created_at stores, so this ordering is served by the index alone.
+const newestFirst = [desc(notifications.createdAt), desc(sql`rowid`)];
 
 export class SqliteNotificationStore implements NotificationStore {
   constructor(private readonly db: AppDb) {}
@@ -13,7 +17,7 @@ export class SqliteNotificationStore implements NotificationStore {
       .select()
       .from(notifications)
       .where(gte(notifications.createdAt, options.since))
-      .orderBy(desc(notifications.createdAt))
+      .orderBy(...newestFirst)
       .limit(options.maxRows);
 
     return rows
@@ -35,7 +39,7 @@ export class SqliteNotificationStore implements NotificationStore {
           },
         ];
       })
-      .sort((a, b) => a.createdAt - b.createdAt);
+      .reverse();
   }
 
   async insert(notification: AppNotification): Promise<Result<void, string>> {
@@ -115,12 +119,12 @@ export class SqliteNotificationStore implements NotificationStore {
     try {
       await this.db.delete(notifications).where(lt(notifications.createdAt, options.olderThan));
 
-      const overflow = await this.db
+      const newest = this.db
         .select({ id: notifications.id })
         .from(notifications)
-        .orderBy(desc(notifications.createdAt))
-        .offset(options.maxRows);
-      await this.remove(overflow.map((row) => row.id));
+        .orderBy(...newestFirst)
+        .limit(options.maxRows);
+      await this.db.delete(notifications).where(notInArray(notifications.id, newest));
       return ok<void>();
     } catch (error) {
       return err(error instanceof Error ? error.message : String(error));

@@ -468,6 +468,7 @@ export class TuiAgentsRuntime {
     this.sessions.clear();
     this.logs.clear();
     this.configs.clear();
+    await this.lifecycle.drainIntents();
   }
 
   private async spawnInto(

@@ -3,7 +3,12 @@ import {
   portableRelativePathSchema,
 } from '@emdash/core/primitives/path/api';
 import { directoryListResultSchema, fsErrorSchema } from '@emdash/core/runtimes/files/api';
+import {
+  trustRepositoryErrorSchema,
+  trustRepositoryResultSchema,
+} from '@emdash/core/runtimes/git/api';
 import { projectConfigStateSchema } from '@emdash/core/runtimes/workspace-registry/api';
+import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
 import {
   defineContract,
@@ -96,6 +101,21 @@ const projectIdInputSchema = z.object({
   projectId: z.string(),
 });
 
+export const trustProjectRepositoryInputSchema = z.object({
+  host: projectHostParamsSchema,
+  /** The directory whose inspection Git refused, as passed to `inspectProjectPath`. */
+  path: z.string().min(1),
+  /** The `safe.directory` value Git suggested and the user confirmed. */
+  safeDirectory: z.string().min(1),
+});
+
+export const trustProjectRepositoryErrorSchema = z.union([
+  trustRepositoryErrorSchema,
+  z.object({ type: z.literal('invalid-path'), message: z.string() }),
+  z.object({ type: z.literal('unsupported'), message: z.string() }),
+  runtimeResolveErrorSchema,
+]);
+
 export type ProjectListData = {
   projects: Project[];
 };
@@ -110,6 +130,12 @@ export const projectsWireContract = defineContract({
   inspectProjectPath: procedure({
     input: z.custom<InspectProjectPathParams>(),
     output: z.custom<ProjectPathInspection>(),
+  }),
+  /** Adds Git's `safe.directory` entry for one refused repository after user confirmation. */
+  trustRepository: fallible({
+    input: trustProjectRepositoryInputSchema,
+    data: trustRepositoryResultSchema,
+    error: trustProjectRepositoryErrorSchema,
   }),
   initializeRepository: procedure({
     input: projectIdInputSchema,
@@ -237,4 +263,5 @@ export type ProjectCreationJobError = z.infer<typeof projectCreationErrorSchema>
 export type ProjectCreationProgress = z.infer<typeof projectCreationProgressSchema>;
 export type CreateProjectFromRemoteInput = z.infer<typeof createProjectFromRemoteInputSchema>;
 export type ProjectHostParams = z.infer<typeof projectHostParamsSchema>;
+export type TrustProjectRepositoryError = z.output<typeof trustProjectRepositoryErrorSchema>;
 export type ProjectsWireContract = typeof projectsWireContract;
