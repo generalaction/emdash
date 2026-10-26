@@ -31,6 +31,7 @@ describe('resolveLocalPtySpawn', () => {
         argv: ['run', 'hello world'],
       },
       cwd: '/workspace',
+      env: { SHELL: '/bin/zsh' },
       warnings: [],
     });
   });
@@ -110,6 +111,7 @@ describe('resolveLocalPtySpawn', () => {
         ],
       },
       cwd: 'C:\\workspace',
+      env: {},
       warnings: [],
     });
   });

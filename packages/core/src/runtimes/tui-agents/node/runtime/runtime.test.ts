@@ -459,8 +459,9 @@ describe('TuiAgentsRuntime', () => {
     const { invocation } = spawner.specs[0]!;
     expect(invocation.kind).toBe('argv');
     if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
-    expect(invocation.executable).toBe('/bin/bash');
-    expect(invocation.argv[0]).toBe('-lc');
+    expect(invocation.executable).toBe('/bin/sh');
+    expect(invocation.argv[0]).toBe('-c');
+    expect(invocation.argv[1]).toContain('/bin/bash -lc');
     expect(invocation.argv[1]).toContain('tmux -u attach-session');
     expect(invocation.argv[1]).toMatch(/workspace-[a-f0-9]{10}/u);
     expect(invocation.argv[1]).toContain('source ~/.profile && agent run');
