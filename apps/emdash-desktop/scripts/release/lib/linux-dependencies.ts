@@ -32,7 +32,8 @@ const ELECTRON_BUILDER_DEPENDS: Record<LinuxPackageFormat, string[]> = {
 /**
  * System libraries the packaged Electron binaries and native modules link against (their ELF
  * `NEEDED` entries), with the Debian package that provides each. Without a declared dependency
- * for each, the package installs on a minimal system but cannot start.
+ * for each, the package installs on a minimal system but cannot start. Release verification fails
+ * when a payload links a library missing here.
  *
  * Debian names are the pre-t64 ones. Since the 64-bit time_t transition (Debian 13, Ubuntu 24.04)
  * the renamed `*t64` packages provide them, so one name resolves on old and new releases. ALSA is
@@ -77,6 +78,12 @@ const SYSTEM_LIBRARIES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The dynamic loader is named per architecture, while one package config serves every
+ * architecture. glibc ships it alongside libc.so.6, which is declared.
+ */
+const DYNAMIC_LOADERS = new Set(['ld-linux-x86-64.so.2', 'ld-linux-aarch64.so.1']);
+
+/**
  * The dependency a package must declare for a system library. RPM uses the soname capability that
  * rpmbuild generates for every shared library, so it resolves on Fedora and openSUSE alike
  * despite their different package names. All supported architectures are 64-bit.
@@ -94,3 +101,40 @@ function linuxPackageDepends(format: LinuxPackageFormat): string[] {
 
 export const DEB_DEPENDS = linuxPackageDepends('deb');
 export const RPM_DEPENDS = linuxPackageDepends('rpm');
+
+export interface UndeclaredLibrary {
+  library: string;
+  neededBy: string[];
+  /** What the package must declare, or undefined when the library is not in SYSTEM_LIBRARIES. */
+  dependency?: string;
+}
+
+export function parseNeededLibraries(objdumpOutput: string): string[] {
+  return Array.from(objdumpOutput.matchAll(/^\s*NEEDED\s+(\S+)\s*$/gm), (match) => match[1]);
+}
+
+/**
+ * Finds libraries that a package payload links against but neither bundles nor declares as a
+ * dependency.
+ */
+export function findUndeclaredLibraries(
+  format: LinuxPackageFormat,
+  neededByFile: ReadonlyMap<string, readonly string[]>,
+  bundledLibraries: ReadonlySet<string>,
+  declaredDependencies: ReadonlySet<string>
+): UndeclaredLibrary[] {
+  const undeclared = new Map<string, UndeclaredLibrary>();
+  for (const [file, libraries] of neededByFile) {
+    for (const library of libraries) {
+      if (bundledLibraries.has(library) || DYNAMIC_LOADERS.has(library)) continue;
+      const dependency = Object.hasOwn(SYSTEM_LIBRARIES, library)
+        ? libraryDependency(library, format)
+        : undefined;
+      if (dependency !== undefined && declaredDependencies.has(dependency)) continue;
+      const entry = undeclared.get(library);
+      if (entry) entry.neededBy.push(file);
+      else undeclared.set(library, { library, neededBy: [file], dependency });
+    }
+  }
+  return [...undeclared.values()];
+}
