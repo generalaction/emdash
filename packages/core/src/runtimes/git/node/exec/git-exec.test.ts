@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { BoundExec } from '#services/exec/api';
-import { nonInteractiveGitEnv } from '#services/exec/node/git-exec';
 import { bindGitDir, createGitExec } from './git-exec';
 
 describe('createGitExec', () => {
-  it('runs git with the non-interactive environment', async () => {
+  it('runs git non-interactively without displacing core.sshCommand', async () => {
     const exec = createGitExec({
       cwd: process.cwd(),
       executable: process.execPath,
@@ -12,8 +11,15 @@ describe('createGitExec', () => {
     });
 
     const { stdout } = await exec.exec(['-p', 'JSON.stringify(process.env)']);
+    const env = JSON.parse(stdout) as NodeJS.ProcessEnv;
 
-    expect(JSON.parse(stdout)).toMatchObject(nonInteractiveGitEnv({ LC_ALL: 'de_DE.UTF-8' }));
+    expect(env).toMatchObject({
+      LC_ALL: 'C',
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_SSH: expect.stringMatching(/ssh$/),
+    });
+    // GIT_SSH_COMMAND would outrank core.sshCommand; GIT_SSH ranks below it.
+    expect(env).not.toHaveProperty('GIT_SSH_COMMAND');
   });
 
   it('loads the current environment for every git subprocess', async () => {
