@@ -1,22 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { BoundExec } from '#services/exec/api';
-import { bindGitDir, createGitExec, gitEnv } from './git-exec';
+import { nonInteractiveGitEnv } from '#services/exec/node/git-exec';
+import { bindGitDir, createGitExec } from './git-exec';
 
-describe('gitEnv', () => {
-  it('pins git output locale for stable parsing and error classification', () => {
-    expect(gitEnv({ LC_ALL: 'de_DE.UTF-8', LANG: 'de_DE.UTF-8' })).toMatchObject({
-      LC_ALL: 'C',
-      LANG: 'C',
-      LANGUAGE: 'C',
-      GIT_TERMINAL_PROMPT: '0',
+describe('createGitExec', () => {
+  it('runs git with the non-interactive environment', async () => {
+    const exec = createGitExec({
+      cwd: process.cwd(),
+      executable: process.execPath,
+      env: { LC_ALL: 'de_DE.UTF-8' },
     });
-  });
 
-  it('defaults SSH to batch mode without overriding caller configuration', () => {
-    expect(gitEnv({ GIT_SSH_COMMAND: undefined }).GIT_SSH_COMMAND).toBe('ssh -o BatchMode=yes');
-    expect(gitEnv({ GIT_SSH_COMMAND: 'ssh -F custom-config' }).GIT_SSH_COMMAND).toBe(
-      'ssh -F custom-config'
-    );
+    const { stdout } = await exec.exec(['-p', 'JSON.stringify(process.env)']);
+
+    expect(JSON.parse(stdout)).toMatchObject(nonInteractiveGitEnv({ LC_ALL: 'de_DE.UTF-8' }));
   });
 
   it('loads the current environment for every git subprocess', async () => {
