@@ -46,6 +46,13 @@ See [../../examples/api-definition/contract.ts](../../examples/api-definition/co
 accept an optional `{ signal }` call option for cooperative cancellation; see
 [serving](./serving.md#cancellation).
 
+A procedure whose server-side work has no fixed bound (a git operation on a large
+repository, a lifecycle script) declares `callTimeoutMs: 0` so every client of the
+contract waits for it instead of reporting work in progress as a
+[timeout](./errors.md#timeout). The option replaces the connection's default call
+deadline for that procedure, a per-call `timeoutMs` still overrides it, and
+forwarding controllers keep it on their own hop. `fallible()` accepts it too.
+
 ### `fallible`
 
 `fallible({ input, data, error })` defines a procedure whose output is a

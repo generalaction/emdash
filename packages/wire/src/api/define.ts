@@ -12,6 +12,12 @@ export type ProcedureDef<
   kind: 'procedure';
   input: InputSchema;
   output: OutputSchema;
+  /**
+   * Default call deadline for this procedure, replacing the connection's `callTimeoutMs`;
+   * a per-call `timeoutMs` still overrides it. Values <= 0 disable the deadline, for
+   * operations whose duration has no fixed bound.
+   */
+  callTimeoutMs?: number;
 };
 
 export type LiveStateDef<
@@ -257,13 +263,18 @@ export interface LiveModelMutationCtx<Group extends LiveModelDef = LiveModelDef>
 export function procedure<
   InputSchema extends z.ZodTypeAny,
   OutputSchema extends z.ZodTypeAny,
->(def: { input: InputSchema; output: OutputSchema }): ProcedureDef<InputSchema, OutputSchema> {
+>(def: {
+  input: InputSchema;
+  output: OutputSchema;
+  callTimeoutMs?: number;
+}): ProcedureDef<InputSchema, OutputSchema> {
   return { kind: 'procedure', ...def };
 }
 
 export function fallible<InputSchema extends z.ZodTypeAny, ErrorSchema extends z.ZodTypeAny>(def: {
   input: InputSchema;
   error: ErrorSchema;
+  callTimeoutMs?: number;
 }): ProcedureDef<InputSchema, z.ZodType<Result<void, z.output<ErrorSchema>>>>;
 export function fallible<
   InputSchema extends z.ZodTypeAny,
@@ -273,11 +284,13 @@ export function fallible<
   input: InputSchema;
   data: DataSchema;
   error: ErrorSchema;
+  callTimeoutMs?: number;
 }): ProcedureDef<InputSchema, ReturnType<typeof resultSchema<DataSchema, ErrorSchema>>>;
 export function fallible(def: {
   input: z.ZodTypeAny;
   data?: z.ZodTypeAny;
   error: z.ZodTypeAny;
+  callTimeoutMs?: number;
 }): ProcedureDef {
   // JSON transports omit properties whose value is undefined. When the data schema accepts
   // undefined (including the no-data case), the success envelope accepts an absent data property
@@ -291,6 +304,7 @@ export function fallible(def: {
   return procedure({
     input: def.input,
     output,
+    ...(def.callTimeoutMs !== undefined && { callTimeoutMs: def.callTimeoutMs }),
   });
 }
 
