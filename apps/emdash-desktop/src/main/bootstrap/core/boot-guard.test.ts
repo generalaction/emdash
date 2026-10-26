@@ -99,13 +99,13 @@ describe('boot guard', () => {
   it('carries the most recent failure reason into the crash-loop message', () => {
     // Launch 1: the backend fails with a real error.
     writeBootingMarker(productionConfig);
-    recordBootFailure(productionConfig, new Error('better-sqlite3 failed to load'));
-    // Launch 2: boots past the guard and fails the same way.
+    recordBootFailure(productionConfig, new Error('database is locked'));
+    // Launch 2: boots past the guard and fails differently.
     observePreviousBoot(productionConfig);
     writeBootingMarker(productionConfig);
     recordBootFailure(productionConfig, new Error('better-sqlite3 failed to load'));
 
-    // Launch 3: the guard trips and recovery must still show the real cause.
+    // Launch 3: the guard trips and recovery must show the latest real cause.
     const previous = observePreviousBoot(productionConfig);
     expect(previous.failures).toBe(2);
     expect(describeCrashLoop(previous)).toBe(
