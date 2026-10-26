@@ -172,9 +172,11 @@ export const projectsWireContract = defineContract({
     input: z.custom<ResolveRepositoryDestinationParams>(),
     output: z.custom<Result<string, ProjectPlacementError>>(),
   }),
+  // Deleting a project waits for its worktrees' host removals, so no call deadline.
   deleteProject: procedure({
     input: projectIdInputSchema,
     output: z.void(),
+    callTimeoutMs: 0,
   }),
   getProjectSettingsPage: procedure({
     input: projectIdInputSchema,
@@ -251,10 +253,12 @@ export const projectsWireContract = defineContract({
     result: projectSchema,
     error: projectCreationErrorSchema,
   }),
+  // Like `deleteProject`: waits for the worktrees' host removals.
   delete: fallible({
     input: projectIdInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
 });
 

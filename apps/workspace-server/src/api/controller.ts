@@ -84,19 +84,12 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     ),
     terminals: forwardContractImpl(workspaceWireContract.terminals, deps.runtimes.terminals),
     tuiAgents: forwardContractImpl(workspaceWireContract.tuiAgents, deps.runtimes.tuiAgents),
-    workspaceRegistry: {
-      ...forwardContractImpl(
-        workspaceWireContract.workspaceRegistry,
-        deps.runtimes.workspaceRegistry
-      ),
-      // The registry finishes a creation whether or not the call is cancelled, and
-      // `git worktree add` on a large repository can outlast the worker call deadline.
-      createWorktree: (input, meta) =>
-        deps.runtimes.workspaceRegistry.createWorktree(input, {
-          signal: meta.signal,
-          timeoutMs: 0,
-        }),
-    },
+    // Forwarded calls keep each registry verb's own call deadline: the long-running
+    // ones (worktree creation, activation, removals) declare none in the contract.
+    workspaceRegistry: forwardContractImpl(
+      workspaceWireContract.workspaceRegistry,
+      deps.runtimes.workspaceRegistry
+    ),
     hostDependencies: forwardContractImpl(
       workspaceWireContract.hostDependencies,
       deps.hostDependencies

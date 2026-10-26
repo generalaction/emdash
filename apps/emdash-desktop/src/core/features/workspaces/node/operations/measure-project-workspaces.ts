@@ -96,7 +96,7 @@ async function measureRow(
         workspaceId: row.workspaceId,
         ...(excludeWorkspaceIds.length > 0 ? { excludeWorkspaceIds } : {}),
       },
-      { signal, timeoutMs: 0 }
+      { signal }
     );
     if (!usage.success) {
       const message = measureUsageErrorMessage(usage.error);

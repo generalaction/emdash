@@ -89,23 +89,18 @@ export async function createWorktreeThroughRegistry(
   }
   const repositoryId = repository.data.id;
 
-  // No call deadline: the host runs the pipeline to completion whether or not the
-  // caller cancels, and `git worktree add` on a large repository can outlast any
-  // fixed bound. A deadline would only report a creation still in progress as failed;
-  // losing the host connection still rejects the call.
-  const created = await registry.createWorktree(
-    {
-      workspaceId: spec.workspaceId,
-      repositoryId,
-      branch: spec.branch,
-      ...(spec.baseRef !== undefined && { baseRef: spec.baseRef }),
-      path: spec.path,
-      preservePatterns: spec.preservePatterns,
-      ...(spec.publish !== undefined && { publish: spec.publish }),
-      ...(spec.gitSetup !== undefined && { gitSetup: spec.gitSetup }),
-    },
-    { timeoutMs: 0 }
-  );
+  // Waits for the whole pipeline: the contract gives this verb no call deadline, since
+  // `git worktree add` on a large repository has no fixed bound.
+  const created = await registry.createWorktree({
+    workspaceId: spec.workspaceId,
+    repositoryId,
+    branch: spec.branch,
+    ...(spec.baseRef !== undefined && { baseRef: spec.baseRef }),
+    path: spec.path,
+    preservePatterns: spec.preservePatterns,
+    ...(spec.publish !== undefined && { publish: spec.publish }),
+    ...(spec.gitSetup !== undefined && { gitSetup: spec.gitSetup }),
+  });
   if (!created.success) {
     const error = created.error;
     switch (error.type) {

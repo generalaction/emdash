@@ -29,7 +29,7 @@ import {
 } from '@emdash/wire/rpc';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestRuntimeClients, createTestWorkspaceWireController } from '../testing/controller';
 
 describe('createWorkspaceWireController', () => {
@@ -79,86 +79,166 @@ describe('createWorkspaceWireController', () => {
     expect(acp.sendPrompt).toHaveBeenCalledWith(input, { signal, timeoutMs: 0 });
   });
 
-  it('disables the worker deadline while the registry creates a worktree', async () => {
-    vi.useFakeTimers();
-    let finishWorktree!: () => void;
-    const registryWorker = createTestWire(
-      defineContract({ createWorktree: workspaceRegistryContract.createWorktree }),
-      {
-        // `git worktree add` on a large repository.
-        createWorktree: (input) =>
-          new Promise((resolve) => {
-            finishWorktree = () => resolve(ok(worktreeRecord(input.workspaceId, input.path)));
-          }),
+  describe('workspace registry forwarding', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each(Object.keys(longRunningRegistryVerbs) as LongRunningRegistryVerb[])(
+      'waits for %s past the worker call deadline',
+      async (verb) => {
+        const { workspace, registryWorker, finish } = forwardedRegistry();
+        try {
+          let settled = false;
+          const pending = callRegistry(workspace.client.workspaceRegistry, verb).finally(() => {
+            settled = true;
+          });
+
+          // `git worktree add` on a large repository, a slow prepare or teardown script.
+          await vi.advanceTimersByTimeAsync(10 * 60_000);
+          expect(settled).toBe(false);
+
+          finish(verb);
+          await expect(pending).resolves.toEqual(ok(longRunningRegistryVerbs[verb].output));
+        } finally {
+          await workspace.dispose();
+          await registryWorker.dispose();
+        }
       }
     );
-    const workspace = createTestWire(
-      workspaceWireContract,
-      createTestWorkspaceWireController({
-        workspaceRegistry: {
-          ...createTestRuntimeClients().workspaceRegistry,
-          createWorktree: registryWorker.client.createWorktree,
-        },
-      })
+
+    it.each(Object.keys(longRunningRegistryVerbs) as LongRunningRegistryVerb[])(
+      'still fails %s when the registry worker connection drops',
+      async (verb) => {
+        const { workspace, registryWorker } = forwardedRegistry();
+        try {
+          const pending = callRegistry(workspace.client.workspaceRegistry, verb).catch(
+            (error: unknown) => error
+          );
+          await vi.advanceTimersByTimeAsync(60_000);
+
+          registryWorker.pair.disconnect();
+
+          expect(await pending).toMatchObject({ code: 'DISCONNECTED' });
+        } finally {
+          await workspace.dispose();
+          await registryWorker.dispose();
+        }
+      }
     );
-
-    try {
-      let settled = false;
-      const created = workspace.client.workspaceRegistry
-        .createWorktree(
-          {
-            workspaceId: 'ws-task',
-            repositoryId: 'ws-repo',
-            branch: 'emdash/task',
-            baseRef: 'origin/main',
-            path: '/worktrees/task',
-            preservePatterns: [],
-          },
-          // The desktop waits for the creation; only the server's worker hop is under test.
-          { timeoutMs: 0 }
-        )
-        .finally(() => {
-          settled = true;
-        });
-
-      await vi.advanceTimersByTimeAsync(10 * 60_000);
-      expect(settled).toBe(false);
-
-      finishWorktree();
-      await expect(created).resolves.toMatchObject({
-        success: true,
-        data: { id: 'ws-task', path: '/worktrees/task' },
-      });
-    } finally {
-      await workspace.dispose();
-      await registryWorker.dispose();
-      vi.useRealTimers();
-    }
   });
 });
 
-function worktreeRecord(id: string, path: string): WorkspaceRecord {
-  const at = Date.parse('2026-01-01T00:00:00.000Z');
+const worktreeRecord: WorkspaceRecord = {
+  id: 'ws-task',
+  kind: 'worktree',
+  path: '/worktrees/task',
+  parentId: 'ws-repo',
+  origin: 'registered',
+  gitAdminName: null,
+  observedStatus: 'present',
+  creation: null,
+  lastCreateOutcome: { status: 'succeeded', at: Date.parse('2026-01-01T00:00:00.000Z') },
+  lastRemovalAttempt: null,
+  lifecycle: null,
+  git: null,
+  lastActivatedAt: null,
+  createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
+  updatedAt: Date.parse('2026-01-01T00:00:00.000Z'),
+  lastObservedAt: Date.parse('2026-01-01T00:00:00.000Z'),
+  config: null,
+  runtime: null,
+};
+
+/** Registry verbs that wait on host work with no fixed bound, with an input and a result. */
+const longRunningRegistryVerbs = {
+  createWorktree: {
+    input: {
+      workspaceId: 'ws-task',
+      repositoryId: 'ws-repo',
+      branch: 'emdash/task',
+      baseRef: 'origin/main',
+      path: '/worktrees/task',
+      preservePatterns: [],
+    },
+    output: worktreeRecord,
+  },
+  activateWorkspace: { input: { workspaceId: 'ws-task' }, output: worktreeRecord },
+  deactivateWorkspace: { input: { workspaceId: 'ws-task' }, output: undefined },
+  deleteWorkspace: { input: { workspaceId: 'ws-task' }, output: undefined },
+  deleteWorktree: { input: { workspaceId: 'ws-task', deleteBranch: false }, output: undefined },
+  updateWorktree: {
+    input: { workspaceId: 'ws-task', remote: 'origin', sourceRef: 'refs/pull/7/head' },
+    output: undefined,
+  },
+  retryStep: { input: { workspaceId: 'ws-task', step: 'push-branch' }, output: worktreeRecord },
+  measureUsage: {
+    input: { workspaceId: 'ws-task' },
+    output: { totalBytes: 1_024, artifactBytes: 0, errors: [] },
+  },
+} as const;
+
+type LongRunningRegistryVerb = keyof typeof longRunningRegistryVerbs;
+
+/**
+ * The workspace server in front of a registry worker whose long-running verbs settle
+ * only when the test finishes them; the desktop calls the server with each verb's own
+ * deadline, so only the server's hop to the worker is under test.
+ */
+function forwardedRegistry() {
+  const finishers = new Map<LongRunningRegistryVerb, () => void>();
+  const working = (verb: LongRunningRegistryVerb) => () =>
+    new Promise<never>((resolve) => {
+      finishers.set(verb, () => resolve(ok(longRunningRegistryVerbs[verb].output) as never));
+    });
+  const registryWorker = createTestWire(
+    defineContract({
+      createWorktree: workspaceRegistryContract.createWorktree,
+      activateWorkspace: workspaceRegistryContract.activateWorkspace,
+      deactivateWorkspace: workspaceRegistryContract.deactivateWorkspace,
+      deleteWorkspace: workspaceRegistryContract.deleteWorkspace,
+      deleteWorktree: workspaceRegistryContract.deleteWorktree,
+      updateWorktree: workspaceRegistryContract.updateWorktree,
+      retryStep: workspaceRegistryContract.retryStep,
+      measureUsage: workspaceRegistryContract.measureUsage,
+    }),
+    {
+      createWorktree: working('createWorktree'),
+      activateWorkspace: working('activateWorkspace'),
+      deactivateWorkspace: working('deactivateWorkspace'),
+      deleteWorkspace: working('deleteWorkspace'),
+      deleteWorktree: working('deleteWorktree'),
+      updateWorktree: working('updateWorktree'),
+      retryStep: working('retryStep'),
+      measureUsage: working('measureUsage'),
+    }
+  );
+  const workspace = createTestWire(
+    workspaceWireContract,
+    createTestWorkspaceWireController({
+      workspaceRegistry: {
+        ...createTestRuntimeClients().workspaceRegistry,
+        ...registryWorker.client,
+      },
+    })
+  );
   return {
-    id,
-    kind: 'worktree',
-    path,
-    parentId: 'ws-repo',
-    origin: 'registered',
-    gitAdminName: null,
-    observedStatus: 'present',
-    creation: null,
-    lastCreateOutcome: { status: 'succeeded', at },
-    lastRemovalAttempt: null,
-    lifecycle: null,
-    git: null,
-    lastActivatedAt: null,
-    createdAt: at,
-    updatedAt: at,
-    lastObservedAt: at,
-    config: null,
-    runtime: null,
+    workspace,
+    registryWorker,
+    finish: (verb: LongRunningRegistryVerb) => finishers.get(verb)?.(),
   };
+}
+
+function callRegistry(
+  registry: ContractClient<typeof workspaceWireContract>['workspaceRegistry'],
+  verb: LongRunningRegistryVerb
+): Promise<unknown> {
+  const invoke = registry[verb] as (input: unknown) => Promise<unknown>;
+  return invoke(longRunningRegistryVerbs[verb].input);
 }
 
 function createFakeAcpClient(): ContractClient<AcpApiContract> {
