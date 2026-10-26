@@ -1,7 +1,9 @@
+import type * as ChildProcessModule from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createExecFileSshConfigRunner,
   parseSshGOutput,
@@ -9,6 +11,11 @@ import {
   resolveIdentityAgentFromSshConfig,
   resolveSshConfig,
 } from './resolve-ssh-config';
+
+vi.mock('node:child_process', async (original) => {
+  const actual = await original<typeof ChildProcessModule>();
+  return { ...actual, execFile: vi.fn(actual.execFile) };
+});
 
 describe('parseSshGOutput', () => {
   it('parses effective OpenSSH config output including repeated and none values', () => {
@@ -191,5 +198,25 @@ identityagent \${MISSING_AGENT}
         }),
       })
     ).resolves.toEqual({ kind: 'unset' });
+  });
+});
+
+describe('createExecFileSshConfigRunner', () => {
+  it('resolves config without a Windows console window', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-config-hidden-'));
+    const sshPath = join(dir, 'ssh');
+    await writeFile(sshPath, '#!/bin/sh\nprintf "hostname dev.internal\\n"\n');
+    await chmod(sshPath, 0o755);
+    vi.mocked(execFile).mockClear();
+
+    await expect(createExecFileSshConfigRunner({ sshPath })('corp-dev')).resolves.toMatchObject({
+      stdout: 'hostname dev.internal\n',
+    });
+    expect(vi.mocked(execFile)).toHaveBeenCalledWith(
+      sshPath,
+      ['-G', 'corp-dev'],
+      expect.objectContaining({ windowsHide: true }),
+      expect.any(Function)
+    );
   });
 });

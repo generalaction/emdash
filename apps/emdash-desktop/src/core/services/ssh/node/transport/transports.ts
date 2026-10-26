@@ -20,7 +20,7 @@ export interface TransportResult {
 export type SpawnProcess = (
   command: string,
   args: string[],
-  options: { shell?: boolean; stdio: ['pipe', 'pipe', 'pipe'] }
+  options: { shell?: boolean; stdio: ['pipe', 'pipe', 'pipe']; windowsHide: boolean }
 ) => SshChild;
 
 type TerminableProcess = {
@@ -249,6 +249,12 @@ function createTransport(child: SshChild): TransportResult {
   return { sock, cleanup, process: child, debugLogs };
 }
 
+/**
+ * Proxies are background processes with piped stdio that live as long as the connection, so they
+ * run with `windowsHide`; otherwise Windows gives each one a console window. Nobody can answer
+ * their prompts: ProxyJump passes BatchMode, but OpenSSH does not forward it to earlier hops, and
+ * on Windows a hop or ProxyCommand that prompts anyway waits until the connection times out.
+ */
 export function spawnProxyJump(
   jumpSpec: string,
   destHost: string,
@@ -256,7 +262,9 @@ export function spawnProxyJump(
   spawnProcess: SpawnProcess = spawn as SpawnProcess
 ): TransportResult {
   const args = buildProxyJumpArgs(jumpSpec, destHost, destPort);
-  return createTransport(spawnProcess('ssh', args, { stdio: ['pipe', 'pipe', 'pipe'] }));
+  return createTransport(
+    spawnProcess('ssh', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  );
 }
 
 export function spawnProxyCommand(
@@ -274,6 +282,6 @@ export function spawnProxyCommandWithShell(
 ): TransportResult {
   const expanded = expandProxyCommandTokens(command, tokens);
   return createTransport(
-    spawnProcess(expanded, [], { shell: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    spawnProcess(expanded, [], { shell: true, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
   );
 }

@@ -104,11 +104,11 @@ describe('buildProxyJumpArgs', () => {
 
 describe('spawnProxyJump', () => {
   it('spawns system ssh with built jump args and returns a cleanup handle', () => {
-    const calls: Array<{ command: string; args: string[] }> = [];
+    const calls: Array<{ command: string; args: string[]; options: object }> = [];
     const child = fakeChild();
 
-    const transport = spawnProxyJump('bastion', 'dest.internal', 22, (command, args) => {
-      calls.push({ command, args });
+    const transport = spawnProxyJump('bastion', 'dest.internal', 22, (command, args, options) => {
+      calls.push({ command, args, options });
       return child;
     });
 
@@ -116,6 +116,7 @@ describe('spawnProxyJump', () => {
       {
         command: 'ssh',
         args: buildProxyJumpArgs('bastion', 'dest.internal', 22),
+        options: { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
       },
     ]);
     transport.cleanup();
@@ -193,7 +194,7 @@ describe('childToDuplex', () => {
 
 describe('spawnProxyCommand', () => {
   it('uses the platform shell instead of hardcoding a Unix shell path', () => {
-    const calls: Array<{ command: string; args: string[]; shell?: boolean }> = [];
+    const calls: Array<{ command: string; args: string[]; options: object }> = [];
     const child = {
       stdin: new PassThrough(),
       stdout: new PassThrough(),
@@ -211,7 +212,7 @@ describe('spawnProxyCommand', () => {
         username: 'alice',
       },
       (command, args, options) => {
-        calls.push({ command, args, shell: options.shell });
+        calls.push({ command, args, options });
         return child as never;
       }
     );
@@ -220,7 +221,7 @@ describe('spawnProxyCommand', () => {
       {
         command: 'ssh bastion -W dest.internal:22',
         args: [],
-        shell: true,
+        options: { shell: true, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
       },
     ]);
   });
