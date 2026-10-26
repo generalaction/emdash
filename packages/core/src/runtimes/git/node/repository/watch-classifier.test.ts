@@ -78,6 +78,32 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.worktrees.get('main')).toEqual({ status: false, head: true });
   });
 
+  it('treats a new ref namespace directory as a ref change inside it', () => {
+    const gitCommonDir = path.join(path.sep, 'repo', '.git');
+    const worktree = path.join(path.sep, 'repo');
+    const layout = { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] };
+
+    // inotify reports the directory a first fetch creates, not always the refs written into it.
+    const remotes = classifyGitWatchEvents(
+      [{ kind: 'create', path: path.join(gitCommonDir, 'refs', 'remotes') }],
+      layout
+    );
+    expect(remotes.repo.refs).toBe(true);
+    expect(remotes.worktrees.get('main')).toEqual({ status: false, head: true });
+
+    const tags = classifyGitWatchEvents(
+      [{ kind: 'create', path: path.join(gitCommonDir, 'refs', 'tags') }],
+      layout
+    );
+    expect(tags.repo.refs).toBe(true);
+
+    const heads = classifyGitWatchEvents(
+      [{ kind: 'create', path: path.join(gitCommonDir, 'refs', 'heads') }],
+      layout
+    );
+    expect(heads.worktrees.get('main')).toEqual({ status: true, head: true });
+  });
+
   it('does not treat reflog writes as worktree head or status staleness', () => {
     const gitCommonDir = path.join(path.sep, 'repo', '.git');
     const worktree = path.join(path.sep, 'repo');

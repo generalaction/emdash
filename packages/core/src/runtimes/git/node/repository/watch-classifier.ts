@@ -57,7 +57,7 @@ export function classifyGitWatchEvents(
       if (commonGitPathAffectsWorktreeHead(commonRel)) {
         addAllWorktreeEffects({
           status:
-            commonRel.startsWith('refs/heads/') ||
+            inRefNamespace(commonRel, 'refs/heads') ||
             commonRel === 'HEAD' ||
             commonRel === 'packed-refs',
           head: true,
@@ -86,10 +86,10 @@ export function classifyGitWatchEvents(
 }
 
 function classifyCommonGitPath(rel: string, repo: RepoWatchEffects): void {
-  if (rel.startsWith('refs/heads/') || rel === 'HEAD') {
+  if (inRefNamespace(rel, 'refs/heads') || rel === 'HEAD') {
     repo.refs = true;
   }
-  if (rel.startsWith('refs/remotes/') || rel.startsWith('refs/tags/')) {
+  if (inRefNamespace(rel, 'refs/remotes') || inRefNamespace(rel, 'refs/tags')) {
     repo.refs = true;
   }
   if (rel === 'packed-refs') {
@@ -103,12 +103,20 @@ function classifyCommonGitPath(rel: string, repo: RepoWatchEffects): void {
 
 function commonGitPathAffectsWorktreeHead(rel: string): boolean {
   return (
-    rel.startsWith('refs/heads/') ||
-    rel.startsWith('refs/remotes/') ||
+    inRefNamespace(rel, 'refs/heads') ||
+    inRefNamespace(rel, 'refs/remotes') ||
     rel === 'HEAD' ||
     rel === 'config' ||
     rel === 'packed-refs'
   );
+}
+
+/**
+ * A namespace directory event counts as a change inside it: inotify reports a new directory but
+ * can miss the refs written into it before the watcher attaches to that directory.
+ */
+function inRefNamespace(rel: string, namespace: string): boolean {
+  return rel === namespace || rel.startsWith(`${namespace}/`);
 }
 
 function relativeInside(root: string, child: string): string | null {
