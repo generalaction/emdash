@@ -20,6 +20,7 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
     triggerConfig,
     cronTz,
     canSave,
+    saveBlockedReason,
     buildTaskConfig,
     name,
     workspaceConfig,
@@ -53,7 +54,8 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
 
   function setCronExpr(expr: string) {
     formState.setCronExpr(expr);
-    savePatch({ expr, tz: cronTz });
+    // Saving an invalid form would persist the fallback workspace config.
+    if (canSave) savePatch({ expr, tz: cronTz });
   }
 
   // These controls live inside the initialConversation sub-hook. Persist changes
@@ -105,7 +107,8 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
     ? formatAutomationError(update.error)
     : availability.data?.available === false
       ? availability.data.reason
-      : null;
+      : // Edits only autosave while the form can be saved; say why they stopped.
+        (saveBlockedReason ?? null);
 
   return {
     formState,
