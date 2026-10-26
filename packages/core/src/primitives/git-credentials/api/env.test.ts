@@ -1,5 +1,8 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { once } from 'node:events';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -90,6 +93,126 @@ describe('GIT_CREDENTIAL_HELPER_COMMAND', () => {
     for (const action of ['store', 'get;id', 'get erase', '']) {
       expect(runHelper(action)).toBe('');
     }
+  });
+});
+
+type GitCredentialRun = { status: number | null; stdout: string; stderr: string };
+
+/**
+ * Runs `git credential <action>` through the real helper and curl in an isolated
+ * home, so only the given `curlrc` and env reach the request.
+ */
+async function runGitCredential(
+  action: 'fill' | 'reject',
+  helperEnv: Record<string, string>,
+  input: string,
+  options: { env?: Record<string, string>; curlrc?: string } = {}
+): Promise<GitCredentialRun> {
+  const home = mkdtempSync(join(tmpdir(), 'emdash-helper-home-'));
+  try {
+    if (options.curlrc !== undefined) writeFileSync(join(home, '.curlrc'), options.curlrc);
+    return await new Promise((resolve) => {
+      const child = execFile(
+        'git',
+        ['credential', action],
+        {
+          cwd: home,
+          env: {
+            PATH: process.env.PATH,
+            HOME: home,
+            CURL_HOME: home,
+            GIT_CONFIG_NOSYSTEM: '1',
+            GIT_CONFIG_GLOBAL: devNull,
+            GIT_TERMINAL_PROMPT: '0',
+            ...helperEnv,
+            ...options.env,
+          },
+          encoding: 'utf8',
+          timeout: 10_000,
+        },
+        (error, stdout, stderr) => {
+          const status = error ? (typeof error.code === 'number' ? error.code : null) : 0;
+          resolve({ status, stdout, stderr });
+        }
+      );
+      child.stdin?.end(input);
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+}
+
+/** A loopback credential service that records each request it answers. */
+async function withCredentialService(
+  respond: (response: ServerResponse) => void,
+  run: (port: number, requests: string[]) => Promise<void>
+): Promise<void> {
+  const requests: string[] = [];
+  const server = createServer((request, response) => {
+    requests.push(`${request.method} ${request.url} ${request.headers['x-emdash-token']}`);
+    request.resume();
+    request.on('end', () => respond(response));
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    await run((server.address() as AddressInfo).port, requests);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve()))
+    );
+  }
+}
+
+async function unusedLoopbackPort(): Promise<number> {
+  const server = createServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))
+  );
+  return port;
+}
+
+function helperEnvFor(port: number): Record<string, string> {
+  return applyGitCredentialsToEnv(
+    {},
+    { mode: 'effective-account', channel: { ...channel, port }, hosts: ['github.com'] }
+  );
+}
+
+const credentialRequest = 'protocol=https\nhost=github.com\n\n';
+const credentialResponse = 'username=emdash-test\npassword=synthetic-test-password\n';
+
+describe.skipIf(process.platform === 'win32')('GIT_CREDENTIAL_HELPER_COMMAND with git', () => {
+  it('reaches the loopback service directly when proxy variables are set', async () => {
+    const proxy = `http://127.0.0.1:${await unusedLoopbackPort()}`;
+    await withCredentialService(
+      (response) => response.end(credentialResponse),
+      async (port, requests) => {
+        const result = await runGitCredential('fill', helperEnvFor(port), credentialRequest, {
+          env: { http_proxy: proxy, HTTP_PROXY: proxy, all_proxy: proxy, ALL_PROXY: proxy },
+        });
+        expect(result.stdout).toContain('username=emdash-test');
+        expect(requests).toEqual([`POST /git-credential/get ${channel.nonce}`]);
+      }
+    );
+  });
+
+  it('ignores curlrc options that would reroute the request or reshape its output', async () => {
+    const proxy = `http://127.0.0.1:${await unusedLoopbackPort()}`;
+    await withCredentialService(
+      (response) => response.end(credentialResponse),
+      async (port) => {
+        const result = await runGitCredential('fill', helperEnvFor(port), credentialRequest, {
+          // `include` would prepend response headers to the lines git parses.
+          curlrc: `proxy = "${proxy}"\ninclude\n`,
+        });
+        expect(result.stderr).toBe('');
+        expect(result.stdout).toContain('username=emdash-test');
+      }
+    );
   });
 });
 

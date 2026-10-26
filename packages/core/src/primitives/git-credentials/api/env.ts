@@ -66,11 +66,16 @@ export const GIT_CREDENTIAL_HELPER_ERASE_URL_PATH = `${GIT_CREDENTIAL_HELPER_PAT
  * authentication failure) and prints nothing; `store` is a no-op. Only those
  * two literal actions reach the URL. Failures print nothing, so git falls
  * through to its normal prompting behavior.
+ *
+ * The request always goes straight to the loopback: `-q` (which must be curl's
+ * first argument) skips the user's curlrc and `--noproxy` ignores proxy
+ * variables, so neither can reroute the channel or reshape the output git
+ * parses.
  */
 export const GIT_CREDENTIAL_HELPER_COMMAND =
   '!f() { case "$1" in get|erase) ' +
-  `curl -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
-  `-H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
+  `curl -q --noproxy "*" -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} ` +
+  `-X POST --data-binary @- -H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
   `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1" ` +
   '2>/dev/null || true;; esac; }; f';
 
