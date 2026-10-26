@@ -316,6 +316,52 @@ describe('terminateProxyChild', () => {
   });
 });
 
+describe('silent proxy hint', () => {
+  it('explains a proxy that never answered before cleanup', () => {
+    const child = fakeChild();
+    const transport = spawnProxyJump('bastion', 'dest.internal', 22, () => child);
+
+    transport.cleanup();
+
+    expect(transport.debugLogs).toEqual([
+      expect.stringContaining('waiting for a password or host-key confirmation'),
+    ]);
+  });
+
+  it.each([
+    [
+      'sent data',
+      async (child: FakeChild) => {
+        const data = once(child.stdout, 'data');
+        child.stdout.write('SSH-2.0-OpenSSH\r\n');
+        await data;
+      },
+    ],
+    [
+      'closed stdout',
+      async (child: FakeChild) => {
+        const ended = once(child.stdout, 'end');
+        child.stdout.end();
+        await ended;
+      },
+    ],
+    [
+      'exited',
+      async (child: FakeChild) => {
+        child.exitCode = 255;
+      },
+    ],
+  ])('stays quiet when the proxy %s', async (_label, settle) => {
+    const child = fakeChild();
+    const transport = spawnProxyJump('bastion', 'dest.internal', 22, () => child);
+
+    await settle(child);
+    transport.cleanup();
+
+    expect(transport.debugLogs).toEqual([]);
+  });
+});
+
 describe('bounded proxy debug logs', () => {
   it('keeps only the newest stderr lines', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emdash-proxy-logs-'));

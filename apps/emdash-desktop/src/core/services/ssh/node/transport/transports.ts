@@ -51,6 +51,10 @@ const SAFE_HOSTNAME = /^[a-zA-Z0-9._\-[\]:]+$/;
 const SAFE_USERNAME = /^[a-zA-Z0-9._\-@]+$/;
 const SAFE_SSH_ALIAS = /^[A-Za-z0-9._@%+:/[\]-]+$/;
 const MAX_DEBUG_LOG_LINES = 64;
+const SILENT_PROXY_HINT =
+  'Proxy sent no data before the connection closed. Proxies run without a terminal, so one ' +
+  'waiting for a password or host-key confirmation cannot be answered; use key or agent ' +
+  'authentication and accept new host keys from a terminal first.';
 
 const windowsTreeTerminators = new WeakMap<TerminableProcess, ProcessTreeTerminator>();
 
@@ -252,7 +256,11 @@ function createTransport(child: SshChild): TransportResult {
   const debugLogs: string[] = [];
   const sock = childToDuplex(child);
   let cleanedUp = false;
+  let receivedData = false;
 
+  child.stdout.once('data', () => {
+    receivedData = true;
+  });
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk: string) => {
     const lines = chunk
@@ -268,6 +276,9 @@ function createTransport(child: SshChild): TransportResult {
   const cleanup = () => {
     if (cleanedUp) return;
     cleanedUp = true;
+    if (!receivedData && !child.stdout.readableEnded && !hasExited(child)) {
+      debugLogs.push(SILENT_PROXY_HINT);
+    }
     sock.destroy();
     child.stdin.destroy();
     child.stdout.destroy();
