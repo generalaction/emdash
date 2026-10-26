@@ -1,22 +1,27 @@
 import type { Err } from '@emdash/shared';
+import { redactSecrets } from '@emdash/shared/logger';
 import { gitErr, type GitCommandError, type PushError } from '#runtimes/git/api';
 import { ExecError } from '#services/exec/api';
 
+/**
+ * Git's diagnostic as the Git runtime shares it: the text becomes Wire error messages, so
+ * secrets are redacted. Redaction keeps Git's wording, so phrase checks still apply; parsers
+ * that need Git's exact output read the raw `ExecError.stderr`.
+ */
 export type GitFailure = Readonly<{
   exitCode: number | null;
   message: string;
   stderr: string;
-  stdout: string;
 }>;
 
 /** Normalizes an expected Git process failure and rethrows every other exception. */
 export function gitFailure(error: unknown): GitFailure {
   if (!(error instanceof ExecError)) throw error;
+  const stderr = redactSecrets(error.stderr);
   return {
     exitCode: error.exitCode,
-    message: error.stderr.trim() || error.stdout.trim() || error.message,
-    stderr: error.stderr,
-    stdout: error.stdout,
+    message: stderr.trim() || redactSecrets(error.stdout.trim()) || error.message,
+    stderr,
   };
 }
 
