@@ -131,8 +131,10 @@ removes it.
 
 Declared Git command failures and selector-resolution failures use contract `Result` channels.
 `api/errors.ts` recognizes only `ExecError` and `GitResolutionException` at runtime boundaries.
-Programming errors, broken invariants, unexpected watcher failures, and callback bugs keep
-throwing and are recorded by Wire as causes.
+Failure text reaches Wire results, so `gitFailure` in `exec/errors.ts` redacts secrets from Git's
+diagnostic, as `ExecError.message` does; parsers that need Git's exact output read the raw
+`ExecError.stderr`. Programming errors, broken invariants, unexpected watcher failures, and
+callback bugs keep throwing and are recorded by Wire as causes.
 
 ## Source Organization
 

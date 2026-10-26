@@ -5,6 +5,9 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createBoundExec, ExecError } from './index';
 
+// Shaped like a GitHub token without being one.
+const GITHUB_TOKEN = `ghp_${'a'.repeat(36)}`;
+
 describe('BoundExec', () => {
   it('runs a configured executable from a fixed cwd', async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-'));
@@ -85,6 +88,29 @@ describe('BoundExec', () => {
     expect(error.message).toMatch(/fatal: the decisive line$/);
     expect(error.message.length).toBeLessThan(2_100);
     expect(error.stderr).toBe(stderr);
+  });
+
+  it('redacts secrets from the message and keeps the raw output', () => {
+    const url = `https://ci:${GITHUB_TOKEN}@github.com/acme/app.git`;
+    const stderr = `fatal: unable to access '${url}/': The requested URL returned error: 403`;
+    const error = new ExecError('git', ['clone', url, 'app'], 128, '', stderr);
+
+    expect(error.message).toBe(
+      'git clone https://[REDACTED_CREDENTIALS]@github.com/acme/app.git app failed (exit 128): ' +
+        "fatal: unable to access 'https://[REDACTED_CREDENTIALS]@github.com/acme/app.git/': " +
+        'The requested URL returned error: 403'
+    );
+    expect(error.stack).not.toContain(GITHUB_TOKEN);
+    expect(error.stderr).toBe(stderr);
+  });
+
+  it('redacts a secret that straddles the truncation boundary', () => {
+    // The last 2000 characters start inside the token.
+    const stderr = `remote: ${GITHUB_TOKEN}\n${'hint: noise\n'.repeat(165)}fatal: done`;
+    const error = new ExecError('git', ['push'], 128, '', stderr);
+
+    expect(error.message).toMatch(/fatal: done$/);
+    expect(error.message).not.toContain('aaaa');
   });
 
   it('preserves the operating-system error when an executable is missing', async () => {
