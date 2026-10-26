@@ -84,7 +84,7 @@ import {
   withLifecycleStep,
   type CreationStageTimeline,
 } from './lifecycle';
-import { measureWorkspaceUsage } from './measure-usage';
+import { nestedWorkspacePaths } from './measure-usage';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
@@ -109,6 +109,7 @@ import {
 } from './scripts-plane';
 import type { SessionCounter, SessionKiller } from './session-cleanup';
 import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './update-worktree';
+import { WorkspaceUsageCache } from './usage-cache';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -203,6 +204,8 @@ export class WorkspaceRegistryRuntime {
     onReadSuccess: (id) => this.clearConfigReadError(id),
   });
   private readonly bootConfigHydration: Promise<void>;
+  /** measureUsage's shared, short-lived walks; never read by mutations or scans. */
+  private readonly usage: WorkspaceUsageCache;
   private disposed = false;
   private readonly killSessions: SessionKiller;
   private readonly countSessions: SessionCounter;
@@ -229,6 +232,7 @@ export class WorkspaceRegistryRuntime {
     const env = options.env ?? (async () => process.env);
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
+    this.usage = new WorkspaceUsageCache({ clock: this.clock });
     this.inspector = options.inspector ?? ((path) => inspectWorkspacePath(path, env));
     this.gitContext = options.gitContext ?? createRegistryGitContext({ env });
     this.onRecordsChanged = options.onRecordsChanged;
@@ -483,6 +487,7 @@ export class WorkspaceRegistryRuntime {
   dispose(): void {
     this.disposed = true;
     this.configs.dispose();
+    this.usage.dispose();
     this.scriptRuns?.dispose();
     this.activationManager.dispose();
     this.projectConfigHost.dispose();
@@ -863,7 +868,9 @@ export class WorkspaceRegistryRuntime {
   /**
    * On-demand git-aware disk observation; the path resolves from the registry's own
    * record. Runs off both lanes deliberately — a slow `du` over a large workspace must
-   * never block mutations or scans, and it writes nothing.
+   * never block mutations or scans, and it writes nothing. Workspaces measured
+   * alongside that sit inside this one are skipped so their bytes count once, and
+   * results are shared and cached by the usage cache.
    */
   async measureUsage(
     input: MeasureUsageInput,
@@ -873,7 +880,18 @@ export class WorkspaceRegistryRuntime {
     if (!record) {
       return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
     }
-    return measureWorkspaceUsage({ workspacePath: record.path, signal });
+    const alongside = (input.excludeWorkspaceIds ?? []).flatMap((workspaceId) => {
+      const other = workspaceId === record.id ? undefined : this.store.get(workspaceId);
+      return other ? [other.path] : [];
+    });
+    return this.usage.measure(
+      {
+        workspaceId: record.id,
+        workspacePath: record.path,
+        excludePaths: nestedWorkspacePaths(record.path, alongside),
+      },
+      signal
+    );
   }
 
   /**

@@ -58,13 +58,16 @@ export function useProjectWorkspaceUsage(
 ) {
   return useQuery({
     queryKey: [PROJECT_WORKSPACE_USAGE_QUERY_KEY, projectId, paths],
-    queryFn: async (): Promise<MeasureProjectWorkspacesResult> => {
+    // Bounded by the view rather than a call deadline: large trees can take longer than
+    // the default timeout, and a timed-out call would be retried from scratch. The signal
+    // cancels the host walks when the view closes or the measured paths change.
+    queryFn: async ({ signal }): Promise<MeasureProjectWorkspacesResult> => {
       if (!projectId) return { scannedAt: new Date().toISOString(), projectId: '', results: [] };
       const client = await getProjectWorkspacesClient();
-      return await client.measureProjectWorkspaces({
-        projectId,
-        paths: Array.from(paths),
-      });
+      return await client.measureProjectWorkspaces(
+        { projectId, paths: Array.from(paths) },
+        { signal, timeoutMs: 0 }
+      );
     },
     enabled: enabled && !!projectId && paths.length > 0,
     refetchOnWindowFocus: false,
