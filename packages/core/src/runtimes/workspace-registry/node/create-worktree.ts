@@ -74,7 +74,7 @@ export async function executeCreateWorktree(
     }
     const target = await pathIdentity(execution.worktreePath);
     const worktrees = await listWorktrees(exec);
-    await clearStaleRegistrations(exec, worktrees, target, execution.branch);
+    await pruneBlockingRegistrations(exec, worktrees, target, execution.branch);
     // A prunable registration's directory is gone: there is nothing to reuse.
     existing = worktrees.some((worktree) => !worktree.prunable && worktree.identity === target);
     if (existing) {
@@ -275,25 +275,28 @@ async function listWorktrees(exec: BoundExec): Promise<RegisteredWorktree[]> {
 /**
  * A worktree directory deleted out-of-band leaves its registration behind, and
  * `worktree add` then refuses the path ("missing but already registered") or the
- * branch ("already used by worktree") until someone prunes. Only registrations
- * blocking this creation are cleared: a repository-wide prune would also drop
- * worktrees that are merely unreachable (unmounted drive). Git never reports locked
- * registrations as prunable, so a lock keeps its registration — and the refusal.
+ * branch ("already used by worktree") until someone prunes — so prune, but only when
+ * a stale registration blocks this creation.
+ *
+ * Prune, never `worktree remove <path>`: the listing is stale by the time cleanup
+ * runs, and a concurrent creation may have recreated that path; removing by path
+ * would delete its fresh checkout. Prune re-checks inside git that the directory is
+ * gone, skips locked registrations (including the lock `worktree add` holds while
+ * initializing), and never deletes working-tree files. The cost: other stale
+ * registrations go too, as they already do on every deleteWorktree.
  */
-async function clearStaleRegistrations(
+async function pruneBlockingRegistrations(
   exec: BoundExec,
   worktrees: RegisteredWorktree[],
   target: string,
   branch: string
 ): Promise<void> {
-  for (const worktree of worktrees) {
-    if (!worktree.prunable) continue;
-    if (worktree.identity !== target && worktree.branch !== branch) continue;
-    // Unforced: drops a missing directory's admin entry, yet refuses a dirty checkout
-    // that reappeared since the listing. Best-effort — a concurrent creation may have
-    // cleared it first; anything still blocking surfaces as add-worktree's git error.
-    await exec.exec(['worktree', 'remove', worktree.path]).catch(() => undefined);
-  }
+  const blocked = worktrees.some(
+    (worktree) => worktree.prunable && (worktree.identity === target || worktree.branch === branch)
+  );
+  if (!blocked) return;
+  // Best-effort: anything still blocking surfaces as add-worktree's git error.
+  await exec.exec(['worktree', 'prune']).catch(() => undefined);
 }
 
 async function branchExists(exec: BoundExec, branch: string): Promise<boolean> {

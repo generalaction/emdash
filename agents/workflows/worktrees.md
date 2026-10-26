@@ -16,8 +16,9 @@
 - worktree creation is managed by the project provider pattern
 - creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
   the base ref is fetched only when it is not locally resolvable
-- `inspect` clears stale git registrations (worktree directory deleted out-of-band) that block
-  the requested path or branch; unrelated and locked registrations are left alone
+- when a stale git registration (worktree directory deleted out-of-band) blocks the requested
+  path or branch, `inspect` runs `git worktree prune`; locked registrations are kept, and
+  working-tree files are never deleted (removing by path could hit a concurrent recreation)
 - newly created task branches use `git worktree add --no-track`; the selected base ref is a
   starting point, not the branch's upstream
 - gitignored files named in `preservePatterns` are copied from the repository into the new

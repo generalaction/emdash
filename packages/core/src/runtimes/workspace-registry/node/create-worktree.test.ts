@@ -239,27 +239,56 @@ describe('executeCreateWorktree stale registrations', () => {
     expect(registrations()).toContain('locked offline drive');
   });
 
-  it('tolerates a stale registration cleared concurrently', async () => {
-    const worktreePath = path.join(root, 'wt');
-    await addDeletedWorktree(worktreePath, '-b', 'feature/race');
-    // Another creation wins the race: the registration is gone before our removal.
-    const racing: RegistryGitContext = {
+  /** A context whose first cleanup (a `worktree` mutation besides add) waits on `race`. */
+  function racingCleanup(race: () => unknown): RegistryGitContext {
+    let raced = false;
+    return {
       ...gitContext,
       exec: (cwd, options) => {
         const inner = gitContext.exec(cwd, options);
         return {
           ...inner,
-          exec: (args, execOptions) => {
-            if (args[0] === 'worktree' && args[1] === 'remove') git(repoPath, 'worktree', 'prune');
+          exec: async (args, execOptions) => {
+            if (!raced && args[0] === 'worktree' && !['list', 'add'].includes(args[1] ?? '')) {
+              raced = true;
+              await race();
+            }
             return inner.exec(args, execOptions);
           },
         };
       },
     };
+  }
 
-    const result = await create(worktreePath, 'feature/race', racing);
+  it('tolerates a stale registration cleared concurrently', async () => {
+    const worktreePath = path.join(root, 'wt');
+    await addDeletedWorktree(worktreePath, '-b', 'feature/race');
+
+    const result = await create(
+      worktreePath,
+      'feature/race',
+      racingCleanup(() => git(repoPath, 'worktree', 'prune'))
+    );
 
     expect(result).toMatchObject({ status: 'succeeded', createdWorktree: true });
+  });
+
+  it('never deletes a checkout a concurrent creation recreated at the stale path', async () => {
+    const stalePath = path.join(root, 'wt');
+    await addDeletedWorktree(stalePath, '-b', 'feature/contested');
+    // Both creations see the stale registration; the one recreating its path lands
+    // before the other's cleanup runs, and wins the branch.
+    let first: Awaited<ReturnType<typeof create>> | undefined;
+    const racing = racingCleanup(async () => {
+      first = await create(stalePath, 'feature/contested');
+    });
+
+    const second = await create(path.join(root, 'other-wt'), 'feature/contested', racing);
+
+    expect(first).toMatchObject({ status: 'succeeded', createdWorktree: true });
+    await expect(fs.access(stalePath)).resolves.toBeUndefined();
+    expect(git(stalePath, 'branch', '--show-current')).toBe('feature/contested');
+    expect(second).toMatchObject({ status: 'failed', stage: 'add-worktree' });
   });
 });
 
