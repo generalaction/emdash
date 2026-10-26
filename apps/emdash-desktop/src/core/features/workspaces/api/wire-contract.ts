@@ -51,7 +51,7 @@ export const workspacesWireContract = defineContract({
     error: workspaceSliceErrorSchema,
   }),
   // The verbs below wait for host work with no fixed bound — worktree creation, teardown
-  // scripts, worktree removal — so they carry no call deadline.
+  // scripts, worktree removal, artifact cleaning — so they carry no call deadline.
   reprovision: fallible({
     input: workspaceIdInputSchema,
     data: mutationAckSchema,

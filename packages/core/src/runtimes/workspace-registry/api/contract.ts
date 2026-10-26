@@ -44,10 +44,10 @@ import {
  * in-memory runtime overlay.
  *
  * Verbs that wait on host work with no fixed bound — git, lifecycle scripts, removals,
- * disk walks — carry no call deadline (`callTimeoutMs: 0`). Most of them finish on the
- * host whether or not the caller is still waiting, so a deadline would only report work
- * in progress as failed. A lost connection still rejects the call, and callers that
- * should stop waiting pass a signal.
+ * disk walks, artifact cleaning — carry no call deadline (`callTimeoutMs: 0`). Most of
+ * them finish on the host whether or not the caller is still waiting, so a deadline
+ * would only report work in progress as failed. A lost connection still rejects the
+ * call, and callers that should stop waiting pass a signal.
  */
 export const workspaceRegistryContract = defineContract({
   attachments: workspaceAttachmentsContract.attachments,
@@ -262,6 +262,7 @@ export const workspaceRegistryContract = defineContract({
     input: cleanArtifactsInputSchema,
     data: z.void(),
     error: cleanArtifactsErrorSchema,
+    callTimeoutMs: 0,
   }),
 
   /**

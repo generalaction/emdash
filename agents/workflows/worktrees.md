@@ -17,9 +17,9 @@
 - creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
   the base ref is fetched only when it is not locally resolvable
 - registry verbs that wait on host work with no fixed bound (creation, activation, deactivation,
-  removal, update, step retry, usage) declare `callTimeoutMs: 0` in the contract, so desktop,
-  automation, and workspace-server callers wait for the result instead of timing out after 30s;
-  a lost connection still fails the call
+  removal, update, step retry, usage, artifact cleaning) declare `callTimeoutMs: 0` in the
+  contract, so desktop, automation, and workspace-server callers wait for the result instead
+  of timing out after 30s; a lost connection still fails the call
 - a `createWorktree` for a workspace whose creation is still running joins that run (same
   result, no second git pipeline); completed and interrupted creations replay as before
 - when a stale git registration (worktree directory deleted out-of-band) blocks the requested

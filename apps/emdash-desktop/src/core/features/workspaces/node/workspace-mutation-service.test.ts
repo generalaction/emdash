@@ -51,7 +51,7 @@ describe('WorkspaceMutationService', () => {
     await expect(
       service.cleanArtifacts({ projectId: 'project-1', workspaceId: 'workspace-1' })
     ).resolves.toEqual({ success: true, data: {} });
-    expect(cleanArtifacts).toHaveBeenCalledWith({ workspaceId: 'workspace-1' }, { timeoutMs: 0 });
+    expect(cleanArtifacts).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
     expect(deleteWorktree).not.toHaveBeenCalled();
   });
 

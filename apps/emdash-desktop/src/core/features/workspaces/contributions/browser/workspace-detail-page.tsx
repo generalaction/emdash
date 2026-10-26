@@ -313,8 +313,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
 
       try {
         const client = await getWorkspacesWireClient();
-        // Removing a large dependency tree can outlast the default call deadline.
-        const result = await client.cleanArtifacts({ projectId, workspaceId }, { timeoutMs: 0 });
+        const result = await client.cleanArtifacts({ projectId, workspaceId });
         if (result.success) {
           toast(`Cleaned artifacts for ${item.name}`);
         } else {
