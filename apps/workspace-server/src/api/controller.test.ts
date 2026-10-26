@@ -12,15 +12,25 @@ import { gitContract } from '@emdash/core/runtimes/git/api';
 import { createGitController, GitRuntime } from '@emdash/core/runtimes/git/node';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createTerminalsController, TerminalsRuntime } from '@emdash/core/runtimes/terminals/node';
+import {
+  workspaceRegistryContract,
+  type WorkspaceRecord,
+} from '@emdash/core/runtimes/workspace-registry/api';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import type { PtySpawner } from '@emdash/core/services/pty/api';
 import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
 import { ok } from '@emdash/shared';
-import { client as createClient, connect, serve, streamTransport } from '@emdash/wire/rpc';
+import {
+  client as createClient,
+  connect,
+  defineContract,
+  serve,
+  streamTransport,
+} from '@emdash/wire/rpc';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { createTestWorkspaceWireController } from '../testing/controller';
+import { createTestRuntimeClients, createTestWorkspaceWireController } from '../testing/controller';
 
 describe('createWorkspaceWireController', () => {
   it('forwards ACP procedures to the mounted runtime client', async () => {
@@ -68,7 +78,88 @@ describe('createWorkspaceWireController', () => {
 
     expect(acp.sendPrompt).toHaveBeenCalledWith(input, { signal, timeoutMs: 0 });
   });
+
+  it('disables the worker deadline while the registry creates a worktree', async () => {
+    vi.useFakeTimers();
+    let finishWorktree!: () => void;
+    const registryWorker = createTestWire(
+      defineContract({ createWorktree: workspaceRegistryContract.createWorktree }),
+      {
+        // `git worktree add` on a large repository.
+        createWorktree: (input) =>
+          new Promise((resolve) => {
+            finishWorktree = () => resolve(ok(worktreeRecord(input.workspaceId, input.path)));
+          }),
+      }
+    );
+    const workspace = createTestWire(
+      workspaceWireContract,
+      createTestWorkspaceWireController({
+        workspaceRegistry: {
+          ...createTestRuntimeClients().workspaceRegistry,
+          createWorktree: registryWorker.client.createWorktree,
+        },
+      })
+    );
+
+    try {
+      let settled = false;
+      const created = workspace.client.workspaceRegistry
+        .createWorktree(
+          {
+            workspaceId: 'ws-task',
+            repositoryId: 'ws-repo',
+            branch: 'emdash/task',
+            baseRef: 'origin/main',
+            path: '/worktrees/task',
+            preservePatterns: [],
+          },
+          // The desktop waits for the creation; only the server's worker hop is under test.
+          { timeoutMs: 0 }
+        )
+        .finally(() => {
+          settled = true;
+        });
+
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(settled).toBe(false);
+
+      finishWorktree();
+      await expect(created).resolves.toMatchObject({
+        success: true,
+        data: { id: 'ws-task', path: '/worktrees/task' },
+      });
+    } finally {
+      await workspace.dispose();
+      await registryWorker.dispose();
+      vi.useRealTimers();
+    }
+  });
 });
+
+function worktreeRecord(id: string, path: string): WorkspaceRecord {
+  const at = Date.parse('2026-01-01T00:00:00.000Z');
+  return {
+    id,
+    kind: 'worktree',
+    path,
+    parentId: 'ws-repo',
+    origin: 'registered',
+    gitAdminName: null,
+    observedStatus: 'present',
+    creation: null,
+    lastCreateOutcome: { status: 'succeeded', at },
+    lastRemovalAttempt: null,
+    lifecycle: null,
+    git: null,
+    lastActivatedAt: null,
+    createdAt: at,
+    updatedAt: at,
+    lastObservedAt: at,
+    config: null,
+    runtime: null,
+  };
+}
 
 function createFakeAcpClient(): ContractClient<AcpApiContract> {
   const liveSource = {
