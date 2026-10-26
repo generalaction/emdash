@@ -19,7 +19,9 @@ paths, watchers, or lease ownership.
 
 `GitRuntime` is the host-scoped composition root. It exposes three deep entry points:
 
-- `provisioning` inspects, initializes, and clones paths before a canonical resource exists;
+- `provisioning` inspects, initializes, and clones paths before a canonical resource exists, and
+  trusts a repository Git refuses for its ownership: after user confirmation it adds the exact
+  `safe.directory` value Git suggested to the host user's global Git config (never wildcards);
 - `repository` resolves repository selectors and serves repository procedures, jobs, and live
   models;
 - `checkout` resolves checkout selectors and serves checkout procedures, jobs, and live models.
