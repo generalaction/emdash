@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,6 +19,7 @@ vi.mock('electron', () => ({
 import {
   clearBootFailureMarker,
   clearBootMarkerIfStillBooting,
+  describeCrashLoop,
   observePreviousBoot,
   recordBootFailure,
   writeBootingMarker,
@@ -27,6 +28,7 @@ import {
 const productionConfig = {
   isDev: false,
 } as AppConfig;
+const unfinishedLaunch = expect.stringContaining('ended before startup finished');
 
 describe('boot guard', () => {
   beforeEach(() => {
@@ -38,8 +40,9 @@ describe('boot guard', () => {
   it('counts a dirty marker from a crashed boot once', () => {
     writeBootingMarker(productionConfig);
 
-    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 1 });
-    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 1 });
+    const crashed = { booting: false, failures: 1, lastFailure: unfinishedLaunch };
+    expect(observePreviousBoot(productionConfig)).toEqual(crashed);
+    expect(observePreviousBoot(productionConfig)).toEqual(crashed);
   });
 
   it('counts consecutive dirty boots', () => {
@@ -47,7 +50,11 @@ describe('boot guard', () => {
     observePreviousBoot(productionConfig);
     writeBootingMarker(productionConfig);
 
-    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 2 });
+    expect(observePreviousBoot(productionConfig)).toEqual({
+      booting: false,
+      failures: 2,
+      lastFailure: unfinishedLaunch,
+    });
   });
 
   it('clears the persisted state after success or a manual retry', () => {
@@ -60,29 +67,78 @@ describe('boot guard', () => {
 
   it('counts an observed backend failure without waiting for the next launch', () => {
     writeBootingMarker(productionConfig);
-    recordBootFailure(productionConfig);
+    recordBootFailure(productionConfig, new Error('database disk image is malformed'));
 
     // The failure is already counted; the next launch must not double count.
-    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 1 });
+    expect(observePreviousBoot(productionConfig)).toEqual({
+      booting: false,
+      failures: 1,
+      lastFailure: 'database disk image is malformed',
+    });
   });
 
   it('keeps recorded failures across a quit but clears an in-progress marker', () => {
     // Launch 1: backend fails, failure recorded, user quits the recovery window.
     writeBootingMarker(productionConfig);
-    recordBootFailure(productionConfig);
+    recordBootFailure(productionConfig, new Error('boom'));
     clearBootMarkerIfStillBooting();
-    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 1 });
+    expect(observePreviousBoot(productionConfig)).toMatchObject({ booting: false, failures: 1 });
 
     // Launch 2: same again — two consecutive failures survive the quits.
     writeBootingMarker(productionConfig);
-    recordBootFailure(productionConfig);
+    recordBootFailure(productionConfig, new Error('boom'));
     clearBootMarkerIfStillBooting();
-    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 2 });
+    expect(observePreviousBoot(productionConfig)).toMatchObject({ booting: false, failures: 2 });
 
     // A quit while still booting is a user abort, not a failure.
     writeBootingMarker(productionConfig);
     clearBootMarkerIfStillBooting();
     expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 0 });
+  });
+
+  it('carries the most recent failure reason into the crash-loop message', () => {
+    // Launch 1: the backend fails with a real error.
+    writeBootingMarker(productionConfig);
+    recordBootFailure(productionConfig, new Error('better-sqlite3 failed to load'));
+    // Launch 2: boots past the guard and fails the same way.
+    observePreviousBoot(productionConfig);
+    writeBootingMarker(productionConfig);
+    recordBootFailure(productionConfig, new Error('better-sqlite3 failed to load'));
+
+    // Launch 3: the guard trips and recovery must still show the real cause.
+    const previous = observePreviousBoot(productionConfig);
+    expect(previous.failures).toBe(2);
+    expect(describeCrashLoop(previous)).toBe(
+      'Emdash entered recovery mode after 2 consecutive failed launches.\n\n' +
+        'Most recent failure:\nbetter-sqlite3 failed to load'
+    );
+  });
+
+  it('reports the most recent failure when a crash follows a recorded error', () => {
+    writeBootingMarker(productionConfig);
+    recordBootFailure(productionConfig, new Error('first launch error'));
+    observePreviousBoot(productionConfig);
+    // Launch 2 dies without reaching the failure handler.
+    writeBootingMarker(productionConfig);
+
+    expect(observePreviousBoot(productionConfig)).toEqual({
+      booting: false,
+      failures: 2,
+      lastFailure: unfinishedLaunch,
+    });
+  });
+
+  it('reads boot state written before failure reasons were recorded', () => {
+    writeFileSync(
+      join(mocks.userDataPath, 'boot-state.json'),
+      JSON.stringify({ booting: false, failures: 2 })
+    );
+
+    const previous = observePreviousBoot(productionConfig);
+    expect(previous).toEqual({ booting: false, failures: 2 });
+    expect(describeCrashLoop(previous)).toBe(
+      'Emdash entered recovery mode after 2 consecutive failed launches'
+    );
   });
 
   it('is disabled in development', () => {
