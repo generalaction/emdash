@@ -17,6 +17,7 @@ export const execCommand = (
         maxBuffer: opts?.maxBuffer ?? 8 * 1024 * 1024,
         timeout: opts?.timeout ?? 30_000,
         env: buildExternalToolEnv(),
+        windowsHide: true,
       },
       (error, stdout) => {
         if (error) return reject(error);
