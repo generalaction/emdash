@@ -7,10 +7,19 @@ import { getAppConfig, type AppConfig } from './config';
 type BootState = {
   booting: boolean;
   failures: number;
+  /**
+   * Why the most recent counted launch failed. Once the crash-loop guard trips,
+   * recovery opens without booting, so this is the only place the original
+   * cause survives to be shown there.
+   */
+  lastFailure?: string;
 };
 
 const EMPTY_BOOT_STATE: BootState = { booting: false, failures: 0 };
 const BOOT_STATE_FILENAME = 'boot-state.json';
+const UNFINISHED_BOOT_FAILURE =
+  'The previous launch ended before startup finished: it crashed, was force-quit, or was ' +
+  'restarted while still starting.';
 let quitCleanupRegistered = false;
 
 export function observePreviousBoot(config: AppConfig): BootState {
@@ -22,15 +31,22 @@ export function observePreviousBoot(config: AppConfig): BootState {
   const observed = {
     booting: false,
     failures: state.failures + 1,
+    lastFailure: UNFINISHED_BOOT_FAILURE,
   };
   writeBootState(observed);
   return observed;
 }
 
+export function describeCrashLoop(state: BootState): string {
+  const summary = `Emdash entered recovery mode after ${state.failures} consecutive failed launches`;
+  if (!state.lastFailure) return summary;
+  return `${summary}.\n\nMost recent failure:\n${state.lastFailure}`;
+}
+
 export function writeBootingMarker(config: AppConfig): void {
   if (config.isDev) return;
   const state = readBootState();
-  writeBootState({ booting: true, failures: state.failures });
+  writeBootState({ ...state, booting: true });
   registerQuitCleanup();
 }
 
@@ -47,10 +63,14 @@ export function markBootSuccessful(): void {
  * the quit cleanup, and an unguarded cleanup would erase the evidence the
  * crash-loop guard needs to open recovery instead of the main window.
  */
-export function recordBootFailure(config: AppConfig): void {
+export function recordBootFailure(config: AppConfig, error: unknown): void {
   if (config.isDev) return;
   const state = readBootState();
-  writeBootState({ booting: false, failures: state.failures + 1 });
+  writeBootState({
+    booting: false,
+    failures: state.failures + 1,
+    lastFailure: error instanceof Error ? error.message : String(error),
+  });
 }
 
 /**
@@ -76,6 +96,7 @@ function readBootState(): BootState {
     const parsed = JSON.parse(readFileSync(bootStatePath(), 'utf8')) as {
       booting?: unknown;
       failures?: unknown;
+      lastFailure?: unknown;
     };
     if (typeof parsed.booting !== 'boolean' || typeof parsed.failures !== 'number') {
       return EMPTY_BOOT_STATE;
@@ -83,6 +104,10 @@ function readBootState(): BootState {
     return {
       booting: parsed.booting,
       failures: Math.max(0, Math.trunc(parsed.failures)),
+      lastFailure:
+        typeof parsed.lastFailure === 'string' && parsed.lastFailure
+          ? parsed.lastFailure
+          : undefined,
     };
   } catch (error) {
     if (isMissingFileError(error)) return EMPTY_BOOT_STATE;
