@@ -937,6 +937,31 @@ describe('TuiAgentsRuntime git credential channels', () => {
     await runtime.dispose();
   });
 
+  it('releases the channel when an unexpected-exit respawn fails to spawn', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const clock = createManualClock();
+    const released: string[] = [];
+    const { runtime, spawner } = createRuntime({
+      clock,
+      releaseGitCredentialChannel: async (nonce) => {
+        released.push(nonce);
+      },
+    });
+    try {
+      await runtime.startSession(withChannel('channel-1'));
+      await clock.advanceBy(4_000);
+      spawner.failWith = new Error('spawn failed');
+      spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawner.processes).toHaveLength(1);
+      expect(released).toEqual(['channel-1']);
+    } finally {
+      await runtime.dispose();
+      vi.useRealTimers();
+    }
+  });
+
   it('releases the channel of a session that fails to spawn', async () => {
     const { runtime, spawner, released } = credentialRuntime();
     spawner.failWith = new Error('spawn failed');

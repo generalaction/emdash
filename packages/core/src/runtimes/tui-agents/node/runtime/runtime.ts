@@ -811,6 +811,7 @@ export class TuiAgentsRuntime {
       if (result.success) return;
 
       await this.cleanupPromptSpill(conversationId);
+      await this.gitCredentialChannels.release(conversationId);
       this.lifecycle.end(conversationId, 'spawn-failed');
       this.deps.logger.warn('TuiAgentsRuntime: respawn/fallback failed', {
         conversationId,
