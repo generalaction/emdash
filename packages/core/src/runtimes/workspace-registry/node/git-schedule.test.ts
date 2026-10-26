@@ -298,6 +298,18 @@ describe('transient lock retry', () => {
     expect(isTransientLockError(error)).toBe(true);
   });
 
+  it("classifies git's raw stderr, not the shortened message", () => {
+    const error = new ExecError(
+      'git',
+      ['worktree', 'add', '/wt/a', 'main'],
+      128,
+      '',
+      `fatal: Unable to create '/repo/.git/index.lock': File exists.\n${'hint: noise\n'.repeat(500)}`
+    );
+    expect(error.message).not.toContain('index.lock');
+    expect(isTransientLockError(error)).toBe(true);
+  });
+
   it('retries a transient collision and succeeds; non-transient errors surface at once', async () => {
     let attempts = 0;
     const result = await retryTransientLock(
