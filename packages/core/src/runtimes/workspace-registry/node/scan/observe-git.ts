@@ -76,21 +76,31 @@ export async function listRepositoryWorktrees(
   const commonDir = resolveGitPath(repoPath, commonDirResult.stdout.trim());
   const adminNames = await readAdminNames(commonDir);
 
-  const listings: WorktreeListing[] = [];
-  let current: Partial<{ path: string; branch: string; locked: boolean; prunable: boolean }> = {};
+  return parseWorktreeList(listResult.stdout).map((entry, index) => ({
+    ...entry,
+    isMain: index === 0,
+    adminName: adminNames.get(entry.path),
+  }));
+}
+
+/** One `git worktree list --porcelain` record; branch is the short name. */
+export type WorktreeListEntry = Pick<WorktreeListing, 'path' | 'branch' | 'locked' | 'prunable'>;
+
+/** Parses `git worktree list --porcelain` output; the main worktree comes first. */
+export function parseWorktreeList(stdout: string): WorktreeListEntry[] {
+  const entries: WorktreeListEntry[] = [];
+  let current: Partial<WorktreeListEntry> = {};
   const flush = () => {
     if (!current.path) return;
-    listings.push({
+    entries.push({
       path: current.path,
-      isMain: listings.length === 0,
       branch: current.branch ?? null,
       locked: current.locked ?? false,
       prunable: current.prunable ?? false,
-      adminName: adminNames.get(current.path),
     });
     current = {};
   };
-  for (const line of listResult.stdout.split('\n')) {
+  for (const line of stdout.split('\n')) {
     if (line === '') {
       flush();
       continue;
@@ -102,7 +112,7 @@ export async function listRepositoryWorktrees(
     else if (line === 'prunable' || line.startsWith('prunable ')) current.prunable = true;
   }
   flush();
-  return listings;
+  return entries;
 }
 
 /**
