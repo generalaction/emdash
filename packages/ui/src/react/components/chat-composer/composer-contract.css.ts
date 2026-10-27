@@ -7,7 +7,7 @@
  * portaled dropdown) to a var(--composer-*, <polarity default>) expression.
  *
  * This makes the full composer subtree re-themeable by the host via a small,
- * documented --composer-* set, without the host importing @agent/ui's color
+ * documented --composer-* set, without the host importing @emdash/ui's color
  * theme sheets (theme.css / semantic.css).
  *
  * SCOPING
@@ -22,7 +22,7 @@
  * (Host --composer-* inputs are typically set on the theme root and inherit
  * into the portaled surfaces just fine.)
  *
- * The defaults mirror the generated light/dark @agent/ui theme so the composer
+ * The defaults mirror the generated light/dark @emdash/ui theme so the composer
  * renders correctly in Storybook (where the theme sheets ARE imported) and in any
  * host that does not override the --composer-* vars.
  *
@@ -101,7 +101,7 @@ const lightScope = `:where(.emlight) :where(${composerThemeScope})`;
 const darkScope = `:where(.emdark) :where(${composerThemeScope})`;
 
 // ── Light defaults ─────────────────────────────────────────────────────────────
-// Values mirror the generated @agent/ui emlight theme (semantic.css + theme.css).
+// Values mirror the generated @emdash/ui emlight theme (semantic.css + theme.css).
 
 globalStyle(lightScope, {
   vars: {
@@ -174,7 +174,7 @@ globalStyle(lightScope, {
 });
 
 // ── Dark defaults ──────────────────────────────────────────────────────────────
-// Values mirror the generated @agent/ui emdark theme (semantic.css + theme.css).
+// Values mirror the generated @emdash/ui emdark theme (semantic.css + theme.css).
 
 globalStyle(darkScope, {
   vars: {

@@ -1,6 +1,6 @@
-import type { Logger } from '@agent/shared/logger';
-import { createController } from '@agent/wire/rpc';
-import { defineWireComponent } from '@agent/wire/worker';
+import type { Logger } from '@emdash/shared/logger';
+import { createController } from '@emdash/wire/rpc';
+import { defineWireComponent } from '@emdash/wire/worker';
 import { z } from 'zod';
 import type { IExecutionContext } from '#primitives/exec/api';
 import {

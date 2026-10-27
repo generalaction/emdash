@@ -1,4 +1,4 @@
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import * as jiraClient from '../../../integrations/impl/jira/client';

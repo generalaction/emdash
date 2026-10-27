@@ -1,4 +1,4 @@
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import { describe, expect, it, vi } from 'vitest';
 import type { ResolvedTuiProvider } from '#services/agent-plugins/api/plugins';
 import { TuiHookPipeline } from './hook-pipeline';

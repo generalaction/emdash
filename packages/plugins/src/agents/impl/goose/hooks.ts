@@ -1,7 +1,7 @@
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
-import type { HookRegistration } from '@agent/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { HookRegistration } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
-  AGENT_MARKER,
+  EMDASH_MARKER,
   buildNestedEntry,
   configRoots,
   filterUserHooks,
@@ -10,15 +10,15 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const GOOSE_PLUGIN_MANIFEST_PATH = 'plugins/agent/plugin.json';
-export const GOOSE_HOOKS_PATH = 'plugins/agent/hooks/hooks.json';
+export const GOOSE_PLUGIN_MANIFEST_PATH = 'plugins/emdash/plugin.json';
+export const GOOSE_HOOKS_PATH = 'plugins/emdash/hooks/hooks.json';
 
 const GOOSE_PLUGIN_MANIFEST = {
-  name: 'agent',
+  name: 'emdash',
   version: '0.1.0',
-  description: 'Agent lifecycle hooks for Goose sessions',
+  description: 'Emdash lifecycle hooks for Goose sessions',
 };
 
 const GOOSE_HOOK_SPECS = [
@@ -52,7 +52,7 @@ export function buildGooseHookConfig() {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, GOOSE_HOOKS_PATH);
       return hasAllManagedHooks(hookMapFromConfig(config, GOOSE_HOOKS_PATH))
-        ? [{ event: 'agent', command: AGENT_MARKER }]
+        ? [{ event: 'emdash', command: EMDASH_MARKER }]
         : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {

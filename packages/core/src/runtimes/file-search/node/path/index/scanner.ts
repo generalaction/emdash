@@ -1,6 +1,6 @@
 import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { throwIfAborted } from '@agent/shared/scheduling';
+import { throwIfAborted } from '@emdash/shared/scheduling';
 import {
   joinPortableRelativePath,
   portableRelativePathParts,

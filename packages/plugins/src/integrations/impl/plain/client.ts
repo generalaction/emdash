@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { PlainClient as PlainSdkClient } from '@team-plain/graphql';
 import { parseCredentials } from '../../helpers/credentials';
 import type { IntegrationCredentials } from '../../host';

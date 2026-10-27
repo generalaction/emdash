@@ -2,7 +2,7 @@
 
 ## Why versioned schemas?
 
-Agent is a desktop app. Users may run an older version for weeks or months before
+Emdash is a desktop app. Users may run an older version for weeks or months before
 updating. JSON blobs stored in SQLite columns must remain readable by any app version
 that could encounter them, so schema evolution must be explicit and backward compatible.
 
@@ -32,7 +32,7 @@ a serialized non-JSON value), a versioned schema is not necessary.
 
 | File | Purpose |
 |------|---------|
-| `packages/core/src/primitives/versioned-schema/api/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` (imported as `@agent/core/primitives/versioned-schema/api`) |
+| `packages/core/src/primitives/versioned-schema/api/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` (imported as `@emdash/core/primitives/versioned-schema/api`) |
 | `src/core/services/app-db/node/versioned-column.ts` | Drizzle integration: `versionedJsonColumn`, `parseVersionedColumn`, `serializeVersionedColumn` |
 
 ## Defining a versioned schema
@@ -47,7 +47,7 @@ Use `.initial()` if the stored JSON always had a `version` field from the start:
 ```ts
 // src/core/primitives/my-domain/api/my-config.ts
 import z from 'zod';
-import { defineVersionedSchema } from '@agent/core/primitives/versioned-schema/api';
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 
 const v1Schema = z.object({
   version: z.literal('1'),

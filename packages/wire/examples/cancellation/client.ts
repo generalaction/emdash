@@ -6,7 +6,7 @@ import {
   memoryTransportPair,
   procedure,
   serve,
-} from '@agent/wire/rpc';
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 const api = defineContract({

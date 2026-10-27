@@ -175,7 +175,7 @@ exports[`OpenCode ACP fixture parsing > transcript 1`] = `
           "kind": "message",
           "role": "user",
           "seq": 0,
-          "text": "In one sentence, without reading any files, what is agent?",
+          "text": "In one sentence, without reading any files, what is emdash?",
         },
       ],
       "seq": 0,

@@ -1,4 +1,4 @@
-import { noopLogger } from '@agent/shared/logger';
+import { noopLogger } from '@emdash/shared/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as featurebaseClient from '../../../integrations/impl/featurebase/client';
 import { createFeaturebaseClient } from '../../../integrations/impl/featurebase/client';
@@ -33,7 +33,7 @@ describe('featurebase issues plugin', () => {
     vi.clearAllMocks();
   });
 
-  it('maps Featurebase posts to Agent issues', async () => {
+  it('maps Featurebase posts to Emdash issues', async () => {
     const list = mockClient(
       vi.fn().mockResolvedValue({
         data: [

@@ -18,19 +18,19 @@ shelling out.
 Nx derives this graph from `workspace:*` dependency references:
 
 ```
-@agent/shared    (leaf)
-@agent/theme     (leaf)
-@agent/wire      -> shared
-@agent/core      -> shared, wire
-@agent/plugins   -> core, shared
-@agent/chat-ui   -> core, shared
-@agent/ui        -> chat-ui, shared, theme
-@agent/workspace-server -> core, plugins, shared, wire
-@agent/agent-desktop   -> chat-ui, core, plugins, shared, ui, wire
+@emdash/shared    (leaf)
+@emdash/theme     (leaf)
+@emdash/wire      -> shared
+@emdash/core      -> shared, wire
+@emdash/plugins   -> core, shared
+@emdash/chat-ui   -> core, shared
+@emdash/ui        -> chat-ui, shared, theme
+@emdash/workspace-server -> core, plugins, shared, wire
+@emdash/emdash-desktop   -> chat-ui, core, plugins, shared, ui, wire
 ```
 
 The `dependsOn: ["^build"]` default in `nx.json` means "build all upstream packages
-before running this target." A bare `nx build @agent/agent-desktop` therefore
+before running this target." A bare `nx build @emdash/emdash-desktop` therefore
 builds shared, core, plugins, and ui first, in dependency order, with parallelism
 where the graph allows.
 
@@ -73,12 +73,12 @@ pnpm run graph          # opens nx graph in the browser
 **Address a single project or target directly:**
 
 ```bash
-nx build @agent/core
-nx test @agent/shared
-nx typecheck @agent/agent-desktop
-nx package:mac @agent/agent-desktop
-nx db:reset @agent/agent-desktop
-nx build:theme @agent/ui
+nx build @emdash/core
+nx test @emdash/shared
+nx typecheck @emdash/emdash-desktop
+nx package:mac @emdash/emdash-desktop
+nx db:reset @emdash/emdash-desktop
+nx build:theme @emdash/ui
 ```
 
 **Run affected with a custom base:**
@@ -96,8 +96,8 @@ nx show projects
 **Inspect a project's resolved targets:**
 
 ```bash
-nx show project @agent/core
-nx show project @agent/agent-desktop
+nx show project @emdash/core
+nx show project @emdash/emdash-desktop
 ```
 
 ## Task Ordering
@@ -127,7 +127,7 @@ instantly without re-running the task.
 
 Cached output directories per project:
 - `packages/*/dist/` — tsdown output
-- `apps/agent-desktop/out/` — electron-vite build output
+- `apps/emdash-desktop/out/` — electron-vite build output
 
 **What is NOT cached** (intentionally, due to platform/environment sensitivity):
 - `package`, `package:mac`, `package:linux`, `package:win` — electron-builder
@@ -156,7 +156,7 @@ pnpm nx affected -t format:check typecheck lint test
 
 The test gate omits the Playwright-backed `browser` Vitest projects when Vitest
 detects CI and runs after an explicit
-`pnpm --dir apps/agent-desktop/tooling/node-deps install`, since the workflow's
+`pnpm --dir apps/emdash-desktop/tooling/node-deps install`, since the workflow's
 `--ignore-scripts` install skips the postinstall that normally provisions the
 native side project.
 

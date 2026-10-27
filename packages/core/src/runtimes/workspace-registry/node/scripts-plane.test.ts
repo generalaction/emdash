@@ -1,11 +1,11 @@
-import { deferred } from '@agent/shared/testing';
-import { createController } from '@agent/wire/rpc';
-import { cell, expose, family, type Cell } from '@agent/wire/state';
-import { createTestWire, type TestWire } from '@agent/wire/testing';
+import { deferred } from '@emdash/shared/testing';
+import { createController } from '@emdash/wire/rpc';
+import { cell, expose, family, type Cell } from '@emdash/wire/state';
+import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// oxlint-disable-next-line agent/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
+// oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import { scriptsContract } from '#runtimes/scripts/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import type { ScriptRuns, ScriptRunState } from '#runtimes/scripts/api';
 import { ScriptRunsObserver, type ObservedScriptRun } from './scripts-plane';
 

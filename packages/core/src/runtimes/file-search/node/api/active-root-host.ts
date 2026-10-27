@@ -1,6 +1,6 @@
-import type { Scope } from '@agent/shared/concurrency';
-import type { LeasedLiveModelProvider } from '@agent/wire/rpc';
-import { cell, derived, expose, snapshot, type Readable } from '@agent/wire/state';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, derived, expose, snapshot, type Readable } from '@emdash/wire/state';
 import {
   fileSearchContract,
   type ActiveRootAvailability,

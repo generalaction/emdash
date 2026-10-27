@@ -1,5 +1,4 @@
 import type { Readable, Writable } from 'node:stream';
-import { definePluginCapability } from '@agent/shared/plugins';
 import type {
   CancelNotification,
   Client,
@@ -19,6 +18,7 @@ import type {
   SetSessionModeRequest,
   SetSessionModeResponse,
 } from '@agentclientprotocol/sdk';
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type { EnrichHook } from '#primitives/acp-transcript/api';
 import type { CommandSpec } from '#primitives/exec/api';
@@ -46,7 +46,7 @@ export interface AcpProcessIo {
 
 /**
  * Narrow agent surface the manager calls. ClientSideConnection satisfies this
- * structurally — only the methods agent actually uses are required here.
+ * structurally — only the methods emdash actually uses are required here.
  */
 export interface AcpAgentApi {
   initialize(params: InitializeRequest): Promise<InitializeResponse>;

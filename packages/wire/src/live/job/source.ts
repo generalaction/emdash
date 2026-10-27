@@ -1,6 +1,6 @@
-import { toSerializedError, type Result } from '@agent/shared';
-import { createScope, type Run, type Scope } from '@agent/shared/concurrency';
-import { systemClock, type Clock, type TimerHandle } from '@agent/shared/scheduling';
+import { toSerializedError, type Result } from '@emdash/shared';
+import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import type { LiveSnapshot, LiveSource } from '../../api/channel';
 import type { LiveJobState } from '../protocol';
 import { LiveStateSource } from '../state';

@@ -7,7 +7,7 @@
  * classes.
  *
  * Usage:
- *   import { row, stack, fill, truncate } from '@agent/ui/styles/utilities';
+ *   import { row, stack, fill, truncate } from '@emdash/ui/styles/utilities';
  *   <div className={cx(row, 'gap-2')} />
  */
 

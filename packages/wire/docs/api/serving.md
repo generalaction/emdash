@@ -307,7 +307,7 @@ before their owner reports disposed.
 For the full middleware pattern, including handler middleware versus controller
 middleware, see [composable middleware](./middleware.md).
 
-`compose(target, middlewares)` from `@agent/shared/requests` applies target-first
+`compose(target, middlewares)` from `@emdash/shared/requests` applies target-first
 middleware arrays to handlers or controllers. The first array entry is outermost:
 it sees the request first and settles last.
 
@@ -332,7 +332,7 @@ shape. Procedure handlers receive `(input, meta)` and middleware should preserve
 all `meta` fields while deriving a replacement `meta.signal` when it needs
 cooperative cancellation.
 
-`deduplicate(options?)` from `@agent/shared/requests` wraps procedure
+`deduplicate(options?)` from `@emdash/shared/requests` wraps procedure
 implementations to share one in-flight promise for identical inputs:
 
 ```ts

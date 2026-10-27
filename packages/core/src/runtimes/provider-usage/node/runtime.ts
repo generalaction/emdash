@@ -1,6 +1,6 @@
-import type { Scope } from '@agent/shared/concurrency';
-import { runWithTimeout, systemClock, type Clock } from '@agent/shared/scheduling';
-import { cell, expose } from '@agent/wire/state';
+import type { Scope } from '@emdash/shared/concurrency';
+import { runWithTimeout, systemClock, type Clock } from '@emdash/shared/scheduling';
+import { cell, expose } from '@emdash/wire/state';
 import {
   USAGE_CACHE_MS,
   type HostUsage,

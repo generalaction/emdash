@@ -4,7 +4,7 @@ import { playwright } from '@vitest/browser-playwright';
 import solid from 'vite-plugin-solid';
 import { defineConfig } from 'vitest/config';
 
-const skipBrowserProjects = Boolean(process.env.CI || process.env.AGENT_TEST_SKIP_BROWSER);
+const skipBrowserProjects = Boolean(process.env.CI || process.env.EMDASH_TEST_SKIP_BROWSER);
 
 export default defineConfig({
   plugins: [vanillaExtractPlugin(), solid()],
@@ -46,7 +46,7 @@ export default defineConfig({
         },
       },
       // CI omits the browser project until Playwright provisioning is proven
-      // stable there. AGENT_TEST_SKIP_BROWSER provides the same escape hatch
+      // stable there. EMDASH_TEST_SKIP_BROWSER provides the same escape hatch
       // for local runs.
       ...(skipBrowserProjects
         ? []
@@ -80,7 +80,7 @@ export default defineConfig({
           ]),
       {
         // Performance + memory tests — informational only, excluded from `pnpm test`.
-        // Run with `pnpm --filter @agent/chat-ui run test:perf`.
+        // Run with `pnpm --filter @emdash/chat-ui run test:perf`.
         extends: true,
         test: {
           name: 'perf',

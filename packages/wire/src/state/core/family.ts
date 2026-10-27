@@ -1,5 +1,5 @@
-import type { Scope } from '@agent/shared/concurrency';
-import type { Clock } from '@agent/shared/scheduling';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Clock } from '@emdash/shared/scheduling';
 import { keyedRetention, type RetainedEntry } from './keyed-retention';
 import type { StateNode } from './node';
 import { addObservedChangeListener, withObservationRegistrar } from './observed-registry';

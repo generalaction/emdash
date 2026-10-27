@@ -3,7 +3,7 @@ import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { ok } from '@agent/shared';
+import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { gitContract } from '#runtimes/git/api';
 import { hostPath } from '#runtimes/git/node/testing/paths';
@@ -14,7 +14,7 @@ import { GitRuntime } from './index';
 const execFileAsync = promisify(execFile);
 
 async function makeRepo(): Promise<string> {
-  const repo = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-'));
+  const repo = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-'));
   await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repo });
@@ -25,7 +25,7 @@ async function makeRepo(): Promise<string> {
 }
 
 async function makeRecordingGitExecutable(): Promise<{ executable: string; logPath: string }> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-git-bin-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-git-bin-'));
   const executable = path.join(dir, 'git-wrapper.sh');
   const logPath = path.join(dir, 'git-calls.log');
   await writeFile(
@@ -98,7 +98,7 @@ describe('GitRuntime', () => {
   });
 
   it('inspects repository and non-repository paths without opening live models', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-plain-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-plain-'));
     const repo = await makeRepo();
     const runtime = new GitRuntime();
 
@@ -170,7 +170,7 @@ describe('GitRuntime', () => {
   });
 
   it('does not classify bare repositories as project worktrees', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-bare-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-bare-'));
     await execFileAsync('git', ['init', '--bare'], { cwd: directory });
     const runtime = new GitRuntime();
 
@@ -185,7 +185,7 @@ describe('GitRuntime', () => {
   });
 
   it('does not offer initialization for a broken gitfile', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'agent-broken-gitfile-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-broken-gitfile-'));
     const gitfile = 'gitdir: missing-git-directory\n';
     await writeFile(path.join(directory, '.git'), gitfile);
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
@@ -273,7 +273,7 @@ describe('GitRuntime', () => {
   });
 
   it('returns selector resolution failures through the declared result channel', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-non-repo-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-non-repo-'));
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
 
     try {
@@ -309,7 +309,7 @@ describe('GitRuntime', () => {
   });
 
   it('can initialize a missing repository when explicitly requested', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-init-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-init-'));
     const runtime = new GitRuntime();
 
     try {
@@ -347,7 +347,7 @@ describe('GitRuntime', () => {
     await execFileAsync('git', ['add', 'README.md'], { cwd: source });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: source });
 
-    const parent = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-clone-'));
+    const parent = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-clone-'));
     const target = path.join(parent, 'repo');
     const runtime = new GitRuntime();
 
@@ -369,7 +369,7 @@ describe('GitRuntime', () => {
 
   it('creates a missing destination parent before cloning', async () => {
     const source = await makeRepo();
-    const root = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-clone-parent-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-clone-parent-'));
     const target = path.join(root, 'missing', 'nested', 'repo');
     const runtime = new GitRuntime();
 
@@ -390,7 +390,7 @@ describe('GitRuntime', () => {
 
   it('deduplicates repositories by common git dir across linked checkout leases', async () => {
     const repo = await makeRepo();
-    const linked = await mkdtemp(path.join(tmpdir(), 'agent-shared-runtime-linked-'));
+    const linked = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-linked-'));
     await execFileAsync('git', ['worktree', 'add', linked, '-b', 'feature'], { cwd: repo });
 
     const watcher = createNoopWatcher();

@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { ok, type Result } from '@agent/shared';
+import { ok, type Result } from '@emdash/shared';
 import { isGitDiscoveryMiss } from '#primitives/git/api';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import {

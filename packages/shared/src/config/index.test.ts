@@ -29,8 +29,8 @@ describe('parseConfig', () => {
 
   it('layers defaults, env files, env, and args in precedence order', async () => {
     const envFile = await writeTempEnvFile(`
-AGENT_TEST_APP_VERSION=from-file
-AGENT_TEST_SOCKET_PATH=/tmp/from-file.sock
+EMDASH_TEST_APP_VERSION=from-file
+EMDASH_TEST_SOCKET_PATH=/tmp/from-file.sock
 `);
 
     const config = expectParsed(
@@ -38,10 +38,10 @@ AGENT_TEST_SOCKET_PATH=/tmp/from-file.sock
         schema: testConfigSchema,
         argv: ['--socket-path', '/tmp/from-args.sock'],
         env: {
-          AGENT_TEST_APP_VERSION: 'from-env',
+          EMDASH_TEST_APP_VERSION: 'from-env',
         },
         envFiles: [envFile],
-        envPrefix: 'AGENT_TEST_',
+        envPrefix: 'EMDASH_TEST_',
         defaults: {
           appVersion: 'from-defaults',
         },
@@ -126,7 +126,7 @@ AGENT_TEST_SOCKET_PATH=/tmp/from-file.sock
 });
 
 async function writeTempEnvFile(contents: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'agent-config-'));
+  const dir = await mkdtemp(join(tmpdir(), 'emdash-config-'));
   const path = join(dir, '.env');
   await writeFile(path, contents);
   return path;

@@ -11,8 +11,8 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { deferred } from '@agent/shared/testing';
-import type { WireFile } from '@agent/wire/rpc';
+import { deferred } from '@emdash/shared/testing';
+import type { WireFile } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_ATTACHMENT_BYTES, type AttachmentOwner } from '../api';
 import { LocalAttachmentStore } from './local-attachment-store';
@@ -22,7 +22,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), 'agent-owned-attachments-'));
+  const root = await mkdtemp(join(tmpdir(), 'emdash-owned-attachments-'));
   roots.push(root);
   return { root, store: new LocalAttachmentStore(root) };
 }

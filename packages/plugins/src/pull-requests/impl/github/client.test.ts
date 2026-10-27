@@ -1,15 +1,15 @@
-import { err, ok, type Result } from '@agent/shared';
-import { createScope, type Scope } from '@agent/shared/concurrency';
-import type { Logger } from '@agent/shared/logger';
+import { err, ok, type Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import {
   requestPriorities,
   type CreateRequestSchedulerOptions,
   type RateGate,
   type RequestScheduler,
   type ScheduledRequest,
-} from '@agent/shared/requests';
-import { retrySchedules } from '@agent/shared/scheduling';
-import { createStubLogger } from '@agent/shared/testing';
+} from '@emdash/shared/requests';
+import { retrySchedules } from '@emdash/shared/scheduling';
+import { createStubLogger } from '@emdash/shared/testing';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PullRequestAuthError } from '../../schemas';
@@ -21,7 +21,7 @@ type FakeAuth = {
 };
 
 const scopes: Scope[] = [];
-const repositoryUrl = 'https://github.com/agent/agent';
+const repositoryUrl = 'https://github.com/emdash/emdash';
 afterEach(async () => {
   await Promise.all(scopes.splice(0).map(async (scope) => await scope.dispose()));
   vi.useRealTimers();
@@ -437,7 +437,7 @@ describe('GitHub pull request provider (without persistence)', () => {
     });
     expect(gates.graphql.acquire).toHaveBeenLastCalledWith(0, requestSignal);
     await beforeHook?.({
-      url: 'https://api.github.com/repos/agent/agent/pulls',
+      url: 'https://api.github.com/repos/emdash/emdash/pulls',
       request: { signal: requestSignal },
     });
     expect(gates.rest.acquire).toHaveBeenLastCalledWith(1, requestSignal);
@@ -464,7 +464,7 @@ describe('GitHub pull request provider (without persistence)', () => {
     });
     expect(() =>
       errorHook?.(rateError, {
-        url: 'https://api.github.com/repos/agent/agent/pulls',
+        url: 'https://api.github.com/repos/emdash/emdash/pulls',
       })
     ).toThrow(rateError);
     expect(gates.rest.observe).toHaveBeenLastCalledWith({
@@ -561,7 +561,7 @@ function restIssueComment(overrides: { id?: number; body?: string } = {}) {
   return {
     id: overrides.id ?? 7,
     body: overrides.body ?? 'Comment',
-    html_url: `https://github.com/agent/agent/pull/42#issuecomment-${overrides.id ?? 7}`,
+    html_url: `https://github.com/emdash/emdash/pull/42#issuecomment-${overrides.id ?? 7}`,
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
     user: {
@@ -577,7 +577,7 @@ function gqlPullRequest(overrides: { number?: number; title?: string; updatedAt?
   return {
     number: overrides.number ?? 42,
     title: overrides.title ?? 'Worker-owned PR',
-    url: `https://github.com/agent/agent/pull/${overrides.number ?? 42}`,
+    url: `https://github.com/emdash/emdash/pull/${overrides.number ?? 42}`,
     state: 'OPEN',
     isDraft: false,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -599,8 +599,8 @@ function gqlPullRequest(overrides: { number?: number; title?: string; updatedAt?
       avatarUrl: '',
       url: 'https://github.com/octocat',
     },
-    headRepository: { url: 'https://github.com/agent/agent' },
-    baseRepository: { url: 'https://github.com/agent/agent' },
+    headRepository: { url: 'https://github.com/emdash/emdash' },
+    baseRepository: { url: 'https://github.com/emdash/emdash' },
     labels: { nodes: [{ name: 'feature', color: '00ff00' }] },
     assignees: { nodes: [] },
     reviewDecision: null,

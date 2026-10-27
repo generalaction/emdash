@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import type { AgentPluginHost, ITrustBehavior } from '#services/agent-plugins/api/plugins';
 import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers';
 

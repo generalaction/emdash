@@ -64,8 +64,8 @@ export const LongDirectoryPath: Story = {
           <DirectoryField
             path={
               longPath
-                ? `/Users/developer/${'deeply-nested-directory/'.repeat(12)}agent`
-                : '/Users/developer/agent'
+                ? `/Users/developer/${'deeply-nested-directory/'.repeat(12)}emdash`
+                : '/Users/developer/emdash'
             }
           />
         </AnimatedHeight>

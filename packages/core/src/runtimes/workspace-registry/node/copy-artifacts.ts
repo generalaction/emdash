@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { cp, glob, lstat, mkdir, readlink, rename, rm, stat, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { AGENT_CONFIG_FILE } from '#primitives/agent-config/api';
+import { EMDASH_CONFIG_FILE } from '#primitives/emdash-config/api';
 import type { RegistryGitContext } from './git-context';
 
 const execFileAsync = promisify(execFile);
@@ -30,7 +30,7 @@ export type CopyArtifactsOutcome =
   | { status: 'failed'; message: string };
 
 /** Staging suffix for entry-level rename idempotency; replays clean and redo these. */
-const STAGING_SUFFIX = '.agent-clone-tmp';
+const STAGING_SUFFIX = '.emdash-clone-tmp';
 
 /**
  * The copy-artifacts background step: materializes exactly the gitignored entries the
@@ -126,7 +126,7 @@ async function resolvePatternMatches(
   const matched = new Set<string>();
   for await (const match of glob(patterns, { cwd: repositoryPath })) {
     const relative = match.split(path.sep).join('/');
-    if (relative === AGENT_CONFIG_FILE || relative === '.git' || relative.startsWith('.git/')) {
+    if (relative === EMDASH_CONFIG_FILE || relative === '.git' || relative.startsWith('.git/')) {
       continue;
     }
     matched.add(relative);

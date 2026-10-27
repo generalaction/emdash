@@ -1,11 +1,11 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@agent/core/services/agent-plugins/api/plugins';
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   npmDependency,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -35,7 +35,7 @@ export const plugin = definePlugin(
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
     // Jules is PTY-only for prompts: `jules <text>` is parsed as an unknown subcommand,
-    // so Agent opens the TUI and lets the user type manually.
+    // so Emdash opens the TUI and lets the user type manually.
     buildCommand: (ctx) => buildStandardCommand(ctx, {}),
   },
 });

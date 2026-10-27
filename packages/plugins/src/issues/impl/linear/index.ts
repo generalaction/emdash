@@ -1,4 +1,4 @@
-import { err, ok } from '@agent/shared';
+import { err, ok } from '@emdash/shared';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import {
   createLinearClient,

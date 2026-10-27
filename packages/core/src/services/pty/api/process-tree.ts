@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import { recordSpawn } from '@agent/shared/perf';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { recordSpawn } from '@emdash/shared/perf';
 
 export interface PidPpidPair {
   pid: number;

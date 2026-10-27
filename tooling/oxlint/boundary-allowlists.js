@@ -34,7 +34,7 @@ function normalizeEntry(entry, repoRoot) {
  * the full violation set against the allowlist files.
  */
 export function isBoundaryAllowlistingDisabled(env = process.env) {
-  return env.AGENT_DISABLE_BOUNDARY_ALLOWLISTS === '1';
+  return env.EMDASH_DISABLE_BOUNDARY_ALLOWLISTS === '1';
 }
 
 /**

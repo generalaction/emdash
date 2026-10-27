@@ -2,18 +2,18 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ManualClock } from '@agent/shared/testing';
-import { remote, snapshot } from '@agent/wire/state';
-import { createTestWire, type TestWire } from '@agent/wire/testing';
+import { ManualClock } from '@emdash/shared/testing';
+import { remote, snapshot } from '@emdash/wire/state';
+import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
+// oxlint-disable-next-line emdash/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
 import { scriptsContract } from '#runtimes/scripts/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { createScriptsController } from '#runtimes/scripts/node/api/controller';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import {
@@ -28,7 +28,7 @@ const TEST_USER_ENV = Object.fromEntries(
   Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
 );
 
-// Contract-seam tests for the `.agent.json` config live model (spec:
+// Contract-seam tests for the `.emdash.json` config live model (spec:
 // workspace-lifecycle-v2). The model is internal — behavior is asserted through the
 // registry verbs and records, never by inspecting the cache: activation gates which
 // script steps exist on the model (a disk edit without a scan is invisible to the
@@ -123,7 +123,7 @@ describe('workspace registry config live model', () => {
 
   async function writeConfig(dir: string, config: unknown): Promise<void> {
     await fs.writeFile(
-      path.join(dir, '.agent.json'),
+      path.join(dir, '.emdash.json'),
       typeof config === 'string' ? config : JSON.stringify(config)
     );
   }
@@ -322,7 +322,7 @@ describe('workspace registry config live model', () => {
 
   it('retains the last valid config across a transient read failure and clears the notice', async () => {
     const workspacePath = path.join(root, 'transient-read');
-    const configPath = path.join(workspacePath, '.agent.json');
+    const configPath = path.join(workspacePath, '.emdash.json');
     await fs.mkdir(workspacePath, { recursive: true });
     await writeConfig(workspacePath, { scripts: { run: 'first' } });
     expect(
@@ -344,7 +344,7 @@ describe('workspace registry config live model', () => {
     ]);
 
     await fs.rm(configPath, { recursive: true });
-    const replacement = path.join(workspacePath, '.agent.json.replacement');
+    const replacement = path.join(workspacePath, '.emdash.json.replacement');
     await fs.writeFile(replacement, JSON.stringify({ scripts: { run: 'second' } }));
     await fs.rename(replacement, configPath);
     expect((await wire.client.refresh({ workspaceId: 'ws-transient' })).success).toBe(true);
@@ -395,7 +395,7 @@ describe('workspace registry config live model', () => {
       (await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath })).success
     ).toBe(true);
 
-    // The caller passes no patterns; the source repository's `.agent.json` entry
+    // The caller passes no patterns; the source repository's `.emdash.json` entry
     // still drives the copy (spec: patterns resolve against the source checkout).
     const created = await wire.client.createWorktree({
       workspaceId: 'wt-carried',

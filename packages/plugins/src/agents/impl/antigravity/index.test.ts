@@ -1,17 +1,17 @@
-import type { CommandContext } from '@agent/core/services/agent-plugins/api/plugins';
+import type { CommandContext } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { provider } from './index';
 
 const baseContext: CommandContext = {
   cli: 'agy',
   autoApprove: false,
-  sessionId: 'agent-conversation-id',
+  sessionId: 'emdash-conversation-id',
   isResuming: false,
   model: '',
 };
 
 describe('antigravity provider', () => {
-  it('starts fresh with the initial prompt without passing the agent conversation id', () => {
+  it('starts fresh with the initial prompt without passing the emdash conversation id', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
       initialPrompt: 'Fix the bug',

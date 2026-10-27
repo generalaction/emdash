@@ -1,5 +1,5 @@
-import { createScope, type Scope } from '@agent/shared/concurrency';
-import { systemClock, type Clock } from '@agent/shared/scheduling';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { observe, snapshot, weakerStatus, type Readable, type StateStatus } from './core';
 
 export type PinSet = {

@@ -1,20 +1,20 @@
 import path from 'node:path';
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
   configRoots,
   defaultHookEventParser,
-  AGENT_MARKER,
+  EMDASH_MARKER,
   extractProviderSessionId,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
   xdgConfigRoot,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
 export const MUSE_SETTINGS_PATH = 'settings.json';
-export const MUSE_HOOKS_PATH = 'agent-hooks.json';
-export const MUSE_HOOK_ENV_VARS = ['AGENT_HOOK_PORT', 'AGENT_HOOK_NONCE', 'AGENT_PTY_ID'];
+export const MUSE_HOOKS_PATH = 'emdash-hooks.json';
+export const MUSE_HOOK_ENV_VARS = ['EMDASH_HOOK_PORT', 'EMDASH_HOOK_NONCE', 'EMDASH_PTY_ID'];
 
 async function readSettings(fs: PluginFs) {
   const settings = await readJsonConfig(fs, MUSE_SETTINGS_PATH);
@@ -27,7 +27,7 @@ async function readSettings(fs: PluginFs) {
   }
   const hooksPath = settings.managed_hooks_path ?? MUSE_HOOKS_PATH;
   // PluginFs is confined to the provider config root. Never replace an external
-  // managed hook source or copy its contents into an Agent-owned file.
+  // managed hook source or copy its contents into an Emdash-owned file.
   if (
     typeof hooksPath !== 'string' ||
     !hooksPath.trim() ||
@@ -69,7 +69,7 @@ export function buildMuseHookConfig() {
     resolveConfigRoots: configRoots(xdgConfigRoot('muse')),
     getHooksInstalled,
     async readHooks(fs: PluginFs) {
-      return (await getHooksInstalled(fs)) ? [{ event: 'agent', command: AGENT_MARKER }] : [];
+      return (await getHooksInstalled(fs)) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs) {
       const { settings, envVars, hooksPath } = await readSettings(fs);

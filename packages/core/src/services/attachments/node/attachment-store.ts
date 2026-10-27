@@ -1,4 +1,4 @@
-import type { WireFile } from '@agent/wire/rpc';
+import type { WireFile } from '@emdash/wire/rpc';
 import type { AttachmentOwner, AttachmentRef } from '../api';
 
 export interface StoredAttachment {

@@ -1,5 +1,5 @@
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import { systemClock, type Clock } from '@agent/shared/scheduling';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceLifecycleStep, WorkspaceLifecycleStepId } from '../api/schemas';
 import { executeCopyArtifacts, type CopyArtifactsOutcome } from './copy-artifacts';

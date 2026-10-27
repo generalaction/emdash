@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveLog, liveModel, liveState } from '@agent/wire/rpc';
+import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { terminalShellAvailabilityListSchema } from '#primitives/terminal-shell/api';
 import {

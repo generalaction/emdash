@@ -1,5 +1,5 @@
-import { err, ok, type Result } from '@agent/shared';
-import { ManualClock } from '@agent/shared/testing';
+import { err, ok, type Result } from '@emdash/shared';
+import { ManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConversationReportError } from '../api/schemas';
 import { createConversationLifecycleReporter } from './reporter';

@@ -1,4 +1,4 @@
-import { log } from '@agent/shared/logger';
+import { log } from '@emdash/shared/logger';
 
 export type Unsubscribe = () => void;
 

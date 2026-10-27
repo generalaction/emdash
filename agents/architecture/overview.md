@@ -1,6 +1,6 @@
 # Architecture Overview
 
-All paths are relative to `apps/agent-desktop/`.
+All paths are relative to `apps/emdash-desktop/`.
 
 ## Process Model
 
@@ -23,7 +23,7 @@ All paths are relative to `apps/agent-desktop/`.
 
 - `electron.vite.config.ts` — electron-vite config for main, preload, and renderer builds.
 - `vitest.config.ts` — Vitest config with five test projects: `node`, `main-db`, `fixtures`, `migrations`, and `browser` (Playwright-backed renderer tests).
-- Single `tsconfig.json` (in `apps/agent-desktop/`) for all app targets.
+- Single `tsconfig.json` (in `apps/emdash-desktop/`) for all app targets.
 
 ## Read Next
 

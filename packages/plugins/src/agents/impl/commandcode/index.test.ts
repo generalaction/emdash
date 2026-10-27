@@ -1,8 +1,8 @@
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedEntry,
   makeStdinHookCommand,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { COMMANDCODE_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
@@ -11,7 +11,7 @@ const baseContext = {
   cli: 'command-code',
   autoApprove: false,
   initialPrompt: undefined,
-  sessionId: 'agent-session-id',
+  sessionId: 'emdash-session-id',
   providerSessionId: undefined,
   isResuming: false,
   model: '',
@@ -77,8 +77,8 @@ describe('commandcode provider', () => {
     ]);
 
     const stopHooksJson = JSON.stringify(settings.hooks.Stop);
-    expect(stopHooksJson).toContain('AGENT_HOOK_NONCE');
-    expect(stopHooksJson).not.toContain('AGENT_HOOK_TOKEN');
+    expect(stopHooksJson).toContain('EMDASH_HOOK_NONCE');
+    expect(stopHooksJson).not.toContain('EMDASH_HOOK_TOKEN');
   });
 
   it('treats partial hook installs as incomplete', async () => {

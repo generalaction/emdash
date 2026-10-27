@@ -1,4 +1,4 @@
-import type { CommandContext, PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { CommandContext, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { provider } from './index';
 
@@ -6,7 +6,7 @@ const baseContext: CommandContext = {
   cli: 'prime-agent',
   autoApprove: false,
   initialPrompt: undefined,
-  sessionId: 'agent-conversation-id',
+  sessionId: 'emdash-conversation-id',
   providerSessionId: undefined,
   isResuming: false,
   model: '',
@@ -114,14 +114,14 @@ describe('prime-agent provider', () => {
 
     const fs = createMemoryFs();
     expect(await provider.behavior.plugins!.installPlugin(fs, { kind: 'global' })).toEqual([
-      'extensions/agent-hook.ts',
+      'extensions/emdash-hook.ts',
     ]);
-    const content = await fs.read('extensions/agent-hook.ts');
+    const content = await fs.read('extensions/emdash-hook.ts');
     expect(content).toContain("pi.on('session_start'");
     expect(content).toContain("pi.on('agent_start'");
     expect(content).toContain("pi.on('agent_end'");
     expect(content).toContain("event.reason !== 'quit'");
-    expect(content).toContain("notifyAgent('session', { providerSessionId: sessionFile })");
+    expect(content).toContain("notifyEmdash('session', { providerSessionId: sessionFile })");
   });
 
   it('writes Prime HTTP MCP config and preserves its skill-specific fields', async () => {
@@ -160,7 +160,7 @@ describe('prime-agent provider', () => {
         transport: 'http',
         type: 'http',
         url: 'https://new.example.com/mcp',
-        headers: { 'X-Tenant': 'agent' },
+        headers: { 'X-Tenant': 'emdash' },
         oauth: {},
       },
     ]);
@@ -174,7 +174,7 @@ describe('prime-agent provider', () => {
           oauth: true,
           bearerTokenEnvVar: 'DOCS_TOKEN',
           enabledTools: ['search'],
-          headers: { 'X-Tenant': 'agent' },
+          headers: { 'X-Tenant': 'emdash' },
         },
       },
     });

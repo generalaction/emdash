@@ -39,7 +39,7 @@ export const Project: Story = {
     icon: projectIcon,
     title: (
       <Heading level={1} tone="default">
-        Agent
+        Emdash
       </Heading>
     ),
     actions: actionButton,

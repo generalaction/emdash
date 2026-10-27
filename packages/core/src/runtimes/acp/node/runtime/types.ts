@@ -1,5 +1,5 @@
-import type { Logger } from '@agent/shared/logger';
-import type { Clock } from '@agent/shared/scheduling';
+import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
 import type {
   AcpStartInputWire,
   PromptAttachment,

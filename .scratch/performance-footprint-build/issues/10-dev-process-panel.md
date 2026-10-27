@@ -1,6 +1,6 @@
 # 10 — Dev process panel and tracing capture
 
-**What to build:** a developer diagnosing a hot or bloated agent can open an in-app process
+**What to build:** a developer diagnosing a hot or bloated emdash can open an in-app process
 panel — VS Code-style — showing the live process tree (main, renderer, workers, and spawned
 grandchildren like git) with CPU and memory per process, refreshed at 1 Hz via `ps` polling
 that runs only while the panel is open. Alongside it: a command that captures a
@@ -31,7 +31,7 @@ Specs: [measurement decision](../../performance-footprint/issues/07-measurement-
   open, re-arms 1 s after each response, and `stop()` on unmount cancels the timer and
   drops in-flight results; the main process runs `ps` only when asked.
 - `devPerf.captureTrace` (palette) and the panel button record a 10 s `contentTracing`
-  trace to `<userData>/traces/agent-trace-<timestamp>.json` and surface the path.
+  trace to `<userData>/traces/emdash-trace-<timestamp>.json` and surface the path.
 - Verbose spawn logging flips the ticket-02 spawn observer to a log line
   (`perf.spawn` with purpose + command) in the main process and broadcasts a
   `spawn-log` toggle over the worker vitals channel to every live and future worker.

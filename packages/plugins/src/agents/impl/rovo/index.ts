@@ -1,8 +1,8 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@agent/core/services/agent-plugins/api/plugins';
-import { buildStandardCommand } from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(

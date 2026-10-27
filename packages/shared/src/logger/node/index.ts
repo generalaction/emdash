@@ -1,7 +1,7 @@
 /**
  * Node-only logger surface: process logging bootstrap, the pino-backed Logger,
  * the file transport, and the AsyncLocalStorage log context.
- * Import from '@agent/shared/logger/node' in Node deployments only.
+ * Import from '@emdash/shared/logger/node' in Node deployments only.
  */
 
 import pinoLib from 'pino';
@@ -30,7 +30,7 @@ export type InitProcessLoggingOptions = {
 export function initProcessLogging(options: InitProcessLoggingOptions): Logger {
   const env = options.env ?? process.env;
   const logger = createPinoLogger({
-    envLevel: env.AGENT_LOG_LEVEL ?? env.LOG_LEVEL,
+    envLevel: env.EMDASH_LOG_LEVEL ?? env.LOG_LEVEL,
     debugFlag: options.debugFlag,
     bindings: {
       proc: options.name,

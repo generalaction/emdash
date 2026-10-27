@@ -21,8 +21,8 @@
  * so a status room inside any elevation context reads with the correct lightness.
  */
 
-import { SURFACE_STATUSES } from '@agent/theme';
-import { THEME_MANIFEST } from '@agent/theme/manifest';
+import { SURFACE_STATUSES } from '@emdash/theme';
+import { THEME_MANIFEST } from '@emdash/theme/manifest';
 import { globalStyle } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
 

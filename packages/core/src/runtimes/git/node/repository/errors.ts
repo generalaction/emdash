@@ -1,4 +1,4 @@
-import type { Err } from '@agent/shared';
+import type { Err } from '@emdash/shared';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import {
   gitErr,

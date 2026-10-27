@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { noopLogger } from '@agent/shared/logger';
+import { noopLogger } from '@emdash/shared/logger';
 import { describe, expect, it, vi } from 'vitest';
 import type { BundledMigration, MigrationInterop } from '../api';
 import { betterSqlite3Driver } from './better-sqlite3-driver';
@@ -74,8 +74,9 @@ describe('durable SQLite migrations', () => {
 
       const second = store.open(path);
       expect(
-        second.connection.get<{ count: number }>('SELECT count(*) AS count FROM __agent_migrations')
-          ?.count
+        second.connection.get<{ count: number }>(
+          'SELECT count(*) AS count FROM __emdash_migrations'
+        )?.count
       ).toBe(2);
       second.close();
     } finally {
@@ -118,7 +119,7 @@ describe('durable SQLite migrations', () => {
         connection.get(`SELECT 1 FROM sqlite_schema WHERE type='table' AND name='rolled_back'`)
       ).toBeUndefined();
       expect(
-        connection.all<{ tag: string }>('SELECT tag FROM __agent_migrations ORDER BY tag')
+        connection.all<{ tag: string }>('SELECT tag FROM __emdash_migrations ORDER BY tag')
       ).toEqual([{ tag: '0000_stable' }]);
     } finally {
       connection.close();
@@ -208,7 +209,7 @@ describe('durable SQLite migrations', () => {
       const downgraded = olderStore.open(path);
       expect(
         downgraded.connection.get<{ count: number }>(
-          'SELECT count(*) AS count FROM __agent_migrations'
+          'SELECT count(*) AS count FROM __emdash_migrations'
         )?.count
       ).toBe(2);
       downgraded.close();

@@ -10,7 +10,7 @@ import {
   sessionConfigStateSchema,
   sessionUsageSchema,
   transcriptTurnSchema,
-} from '@agent/core/runtimes/acp/api';
+} from '@emdash/core/runtimes/acp/api';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { driveParser, loadFixture } from '../../../../tooling/fixtures/acp/drive-parser';
 import { enrichCodexUpdate } from './acp-enrich';

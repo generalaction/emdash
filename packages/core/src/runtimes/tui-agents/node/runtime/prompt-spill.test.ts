@@ -22,22 +22,22 @@ describe('TUI prompt spilling', () => {
     const removeTempDir = vi.fn(async () => undefined);
     const result = await spillLargePrompt('large prompt', {
       maxChars: 5,
-      createTempDir: async () => '/host/tmp/agent-tui-prompt-abc',
+      createTempDir: async () => '/host/tmp/emdash-tui-prompt-abc',
       writeContextFile,
       removeTempDir,
     });
 
     expect(result.prompt).toBe(
-      buildPromptPointerMessage('/host/tmp/agent-tui-prompt-abc/task-context.md')
+      buildPromptPointerMessage('/host/tmp/emdash-tui-prompt-abc/task-context.md')
     );
     expect(result.spilled).toBe(true);
     expect(writeContextFile).toHaveBeenCalledWith(
-      '/host/tmp/agent-tui-prompt-abc/task-context.md',
+      '/host/tmp/emdash-tui-prompt-abc/task-context.md',
       'large prompt'
     );
 
     await result.cleanup();
-    expect(removeTempDir).toHaveBeenCalledWith('/host/tmp/agent-tui-prompt-abc');
+    expect(removeTempDir).toHaveBeenCalledWith('/host/tmp/emdash-tui-prompt-abc');
   });
 
   it('falls back to the inline prompt when Host storage fails', async () => {
@@ -60,10 +60,10 @@ describe('TUI prompt spilling', () => {
     await cleanupStalePromptSpills({
       now: () => 100_000_000,
       listTempEntries: async () => [
-        { name: 'agent-tui-prompt-stale', isDirectory: true },
-        { name: 'agent-tui-prompt-active', isDirectory: true },
+        { name: 'emdash-tui-prompt-stale', isDirectory: true },
+        { name: 'emdash-tui-prompt-active', isDirectory: true },
         { name: 'unrelated', isDirectory: true },
-        { name: 'agent-tui-prompt-file', isDirectory: false },
+        { name: 'emdash-tui-prompt-file', isDirectory: false },
       ],
       statTempEntry: async (name) => ({
         mtimeMs: name.endsWith('stale') ? 0 : 100_000_000,
@@ -72,6 +72,6 @@ describe('TUI prompt spilling', () => {
     });
 
     expect(removeTempEntry).toHaveBeenCalledOnce();
-    expect(removeTempEntry).toHaveBeenCalledWith('agent-tui-prompt-stale');
+    expect(removeTempEntry).toHaveBeenCalledWith('emdash-tui-prompt-stale');
   });
 });

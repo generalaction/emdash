@@ -194,7 +194,7 @@ Semantics:
   is instant and refreshes if dirty.
 
 Implementation note: retention/TTL semantics match
-`createResourceCache` (`@agent/shared/concurrency`), which the
+`createResourceCache` (`@emdash/shared/concurrency`), which the
 implementation should reuse or mirror.
 
 Replaces: per-key instance maps in providers (`createLiveModelHost`'s

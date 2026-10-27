@@ -1,4 +1,4 @@
-import type { Result } from '@agent/shared';
+import type { Result } from '@emdash/shared';
 import type { IntegrationError } from '../integrations/types';
 
 export type RepositoryOwner = {

@@ -1,5 +1,5 @@
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
-import { makeStdinHookCommand } from '@agent/core/services/agent-plugins/api/plugins/helpers';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import { makeStdinHookCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { QWEN_HOOKS_PATH } from './hooks';
 import { provider } from './index';
@@ -8,7 +8,7 @@ const baseContext = {
   cli: 'qwen',
   autoApprove: false,
   initialPrompt: undefined,
-  sessionId: 'agent-session-id',
+  sessionId: 'emdash-session-id',
   providerSessionId: undefined,
   isResuming: false,
   model: '',

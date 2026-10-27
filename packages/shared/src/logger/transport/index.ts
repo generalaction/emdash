@@ -17,7 +17,7 @@
  * defense layers apply (`Secret` replacement, key-path redaction, and this
  * string scan); message text is prose.
  *
- * Node-only — reach it through '@agent/shared/logger/node'.
+ * Node-only — reach it through '@emdash/shared/logger/node'.
  */
 
 import { appendFile, mkdir, rename, stat, unlink } from 'node:fs/promises';

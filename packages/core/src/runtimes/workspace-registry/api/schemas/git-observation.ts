@@ -31,7 +31,7 @@ export const workspaceGitObservationsSchema = z.object({
   headOid: z.string().nullable().default(null),
   /** Null when detached, untracked, or the config probe failed. */
   upstream: workspaceGitUpstreamSchema.nullable().default(null),
-  /** Raw value of `branch.<branch>.agent-pr-url` config; never interpreted here. */
+  /** Raw value of `branch.<branch>.emdash-pr-url` config; never interpreted here. */
   prBreadcrumb: z.string().nullable().default(null),
 });
 export type WorkspaceGitObservations = z.infer<typeof workspaceGitObservationsSchema>;

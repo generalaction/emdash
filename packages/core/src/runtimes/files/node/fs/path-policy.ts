@@ -1,6 +1,6 @@
 import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   parsePortableRelativePath,
   ROOT_RELATIVE_PATH,

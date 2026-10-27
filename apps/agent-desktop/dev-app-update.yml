@@ -1,4 +1,0 @@
-provider: github
-owner: generalaction
-repo: agent
-updaterCacheDirName: agent-updater

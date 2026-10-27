@@ -1,4 +1,4 @@
-import { createScope, type Scope } from '@agent/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, flushStateTurn, type Readable, type Snapshot } from './core';
 import type { QueryLane } from './query';
 

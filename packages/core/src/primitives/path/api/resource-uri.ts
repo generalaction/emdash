@@ -1,11 +1,11 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { hostRef, type HostRef } from '#primitives/host/api';
 import { invalidUri, type PathError } from './errors';
 import { hostFileRef } from './resource';
 import { validateSegment } from './segments';
 import type { HostAbsolutePath, HostFileRef, HostPathRoot, ResourceUri } from './types';
 
-const URI_PREFIX = 'agent-file://';
+const URI_PREFIX = 'emdash-file://';
 const URI_VERSION = 'v2';
 const LEGACY_URI_VERSION = 'v1';
 
@@ -23,7 +23,7 @@ export function encodeResourceUri(ref: HostFileRef): ResourceUri {
 
 export function decodeResourceUri(input: string): Result<HostFileRef, PathError> {
   if (!input.startsWith(URI_PREFIX)) {
-    return err(invalidUri(input, 'Resource URI must use the agent-file scheme'));
+    return err(invalidUri(input, 'Resource URI must use the emdash-file scheme'));
   }
   const parts = input.slice(URI_PREFIX.length).split('/');
   if (parts.length < 3) return err(invalidUri(input, 'Resource URI is incomplete'));

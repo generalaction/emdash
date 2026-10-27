@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@agent/shared';
+import type { Unsubscribe } from '@emdash/shared';
 import type { LiveLogSnapshotData } from '../../api/channel';
 import { LIVE_LOG_DEFAULT_MAX_BUFFER_BYTES } from './source';
 

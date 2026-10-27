@@ -32,7 +32,7 @@ in `behavior.auth`, which must register both:
 Three behaviors are optional:
 
 - `credentialsFromOAuthToken({ accessToken, expiresAt?, host })`: required when the descriptor
-  declares an `oauth` method (sign-in through the Agent auth server). It maps an access token
+  declares an `oauth` method (sign-in through the Emdash auth server). It maps an access token
   issued by the server into the provider's credential shape. The server keeps the refresh token.
 - `startDeviceAuthorization`: required when the descriptor declares an `oauth-device` method.
   It returns the user code, verification URL, and lifetime, plus `complete(signal)`, which polls
@@ -46,14 +46,14 @@ Three behaviors are optional:
 
 Credentials that expire carry `expiresAt` (epoch milliseconds); `credentialsExpireAt` reads it.
 
-### Sign-in through the Agent auth server (`oauth`)
+### Sign-in through the Emdash auth server (`oauth`)
 
 The desktop runs the browser PKCE flow against the auth server for any integration whose
-descriptor declares `{ kind: 'oauth', providerId }`. Agent accounts are created and signed into
-only with `AGENT_SIGN_IN_PROVIDER` (GitHub); the auth server enforces this too. When signed in,
+descriptor declares `{ kind: 'oauth', providerId }`. Emdash accounts are created and signed into
+only with `EMDASH_SIGN_IN_PROVIDER` (GitHub); the auth server enforces this too. When signed in,
 the desktop links the provider account (`account-link/start?provider_id=...`). When signed out,
 it signs in with GitHub for GitHub itself; for any other provider (GitLab) it signs in with GitHub
-first and then links, so another provider never creates an Agent account.
+first and then links, so another provider never creates an Emdash account.
 The exchange returns the provider access token, its expiry, and the account identity.
 `IntegrationOAuthTokens` (`core/features/integrations/node/integration-oauth-tokens.ts`) maps the
 token with `credentialsFromOAuthToken`, verifies it with the plugin's `verify` (so an account has
@@ -70,9 +70,9 @@ account. The store decides when; the account's current credential source decides
 reread under the account lock, because a reconnect can replace them during a read:
 
 - `emdash_oauth`: the renewer registered with `setRenewer` asks the auth server for the linked
-  account's current token (`POST /api/v1/auth/electron/provider-token` with the Agent session).
+  account's current token (`POST /api/v1/auth/electron/provider-token` with the Emdash session).
   The server refreshes tokens that expire within ten minutes, so it always returns a token that
-  outlives the desktop window. Every client of an Agent account shares that token, and GitLab
+  outlives the desktop window. Every client of an Emdash account shares that token, and GitLab
   revokes the previous token pair on refresh.
 - any other source: the integration's `refreshCredentials`, if it has one.
 - no `expiresAt` (access tokens, GitHub OAuth tokens): never renewed.
@@ -81,11 +81,11 @@ Renewals are serialized per account and the new credentials are written (secret 
 unchanged) before they are returned, because rotating refresh tokens are single-use. A failed
 renewal logs and returns the stored credentials with `renewalError`; the provider's 401 then
 fails the API call, and the connection status shows `renewalError` (for example, "Sign in to
-Agent to keep GitLab connected."). A renewal the provider or server rejected (`auth_failed`,
-or an account no longer linked to the Agent account) is not retried until the credentials
+Emdash to keep GitLab connected."). A renewal the provider or server rejected (`auth_failed`,
+or an account no longer linked to the Emdash account) is not retried until the credentials
 change (for example on reconnect) or, for `emdash_oauth`, until the user signs in or out of
-Agent, since another Agent account may have the provider account linked. Other failures,
-including a missing or expired Agent session, are retried on the next read. A session the
+Emdash, since another Emdash account may have the provider account linked. Other failures,
+including a missing or expired Emdash session, are retried on the next read. A session the
 server rejects is cleared, so later reads fail without a request until the user signs in again;
 a response for an older session never clears a newer one. Renewed credentials that fail to save
 are kept in memory, returned, and written again on the next read, since the provider has already
@@ -109,7 +109,7 @@ The desktop drives device sign-in for any integration through the integrations W
 denies, or the code expires, then verifies and saves the account with credential source
 `device_flow`, and `cancelDeviceFlow` aborts it; a flow cancelled before the save saves nothing.
 A failed verification is retried once after a second (`verifyFreshCredentials`, also used when
-linking through Agent), because a provider can briefly reject a token it has just issued (seen on
+linking through Emdash), because a provider can briefly reject a token it has just issued (seen on
 GitLab.com). Cancelling while the save waits behind a renewal of the same account saves nothing.
 Each flow completes at most once.
 `completeDeviceFlow` waits for the user, so the renderer calls it with a deadline longer than the
@@ -126,8 +126,8 @@ identity fails.
 ### Connection UI
 
 `StandardIntegrationAuth` (`core/features/integrations/contributions/browser/standard-integration-auth.tsx`)
-offers the declared `oauth`, `oauth-device`, and `form` methods. With an Agent account, signing
-in through Agent replaces device sign-in, except when reconnecting an account. Integrations
+offers the declared `oauth`, `oauth-device`, and `form` methods. With an Emdash account, signing
+in through Emdash replaces device sign-in, except when reconnecting an account. Integrations
 register it, or a wrapper that adds provider-specific methods (GitHub adds CLI import), in
 `core/manifests/browser/integration-auth-contributions.ts`.
 
@@ -135,7 +135,7 @@ Credentials include connection configuration needed to create a client, such as 
 `apiBaseUrl`, Jira's `siteUrl`, or Plane's workspace slug. The schema remains backend-only;
 it is not embedded in the renderer descriptor. Register schemas for every integration,
 including GitHub. GitHub additionally exposes its credential schema and TypeScript type
-through `@agent/plugins/integrations/github` for GitHub-specific client consumers.
+through `@emdash/plugins/integrations/github` for GitHub-specific client consumers.
 
 ## Identity And Host Ownership
 
@@ -148,7 +148,7 @@ their local account ID and user label.
 
 The desktop owns account selection, deduplication, project preferences, persistence,
 secret references, and credential-format migrations. Public host interfaces live in
-`apps/agent-desktop/src/core/features/integrations/api/node/integration-accounts.ts`:
+`apps/emdash-desktop/src/core/features/integrations/api/node/integration-accounts.ts`:
 credential consumers use `IntegrationAccountReader`; authentication adapters complete
 verified connections through `IntegrationConnections`.
 
@@ -287,8 +287,8 @@ best-effort renderer save that can lose the intended account pin.
 A pull-request plugin's behavior is a stateful factory, `createClient(host)`, returning a
 `PullRequestClient`. Unlike stateless issue behaviors, a client owns its platform's request lanes
 and rate model, so the pull-requests worker creates one per integration and reuses it. Canonical
-PR schemas and types live in `@agent/plugins/pull-requests/schemas` and
-`@agent/plugins/pull-requests/types`; the app imports them from there.
+PR schemas and types live in `@emdash/plugins/pull-requests/schemas` and
+`@emdash/plugins/pull-requests/types`; the app imports them from there.
 
 Clients run in the pull-requests worker, not main. `PullRequestHostContext.resolveCredentials`
 calls `gitPlatformAuthContract.resolveAuth` per repository with the client's `integrationId`; the
@@ -329,7 +329,7 @@ and error types are in `types.ts` beside it.
 
 GitLab declares `gitlab.com` and has no host probe. A self-hosted GitLab remote routes through a
 connected account for its host. GitLab owner listings include the user's namespace and groups where
-their role permits project creation; existing nested groups use their full path as the owner. Agent
+their role permits project creation; existing nested groups use their full path as the owner. Emdash
 creates projects in those groups but does not create subgroups. Repository
 creation resolves that owner's namespace ID before calling GitLab, and deletion uses the full path.
 Create Repository lists GitLab user and group owners for the selected account. It clones the
@@ -339,7 +339,7 @@ Add Remote creates an empty GitHub or GitLab repository before publishing the cu
 The selected account is used for creation, fetch, and publish in that action. Create Repository
 initializes a README before cloning.
 GitLab continues to use the issues plugin and GitLab Issues API. The current GitLab issues plugin
-lists and searches work items. Work-item writes are not yet implemented in Agent.
+lists and searches work items. Work-item writes are not yet implemented in Emdash.
 
 The GitLab pull-requests plugin supports merge request inventory, details, approvals, pipeline
 jobs, discussions, files, creation, merge, and mark-ready actions. GitLab-facing text uses
@@ -348,9 +348,9 @@ MR / merge request; GitHub-facing text retains PR / pull request.
 GitLab credentials are either an access token (`{ instanceUrl, apiToken }`, sent as
 `PRIVATE-TOKEN`) or an OAuth access token (`{ instanceUrl, accessToken, refreshToken?,
 expiresAt? }`, sent as `Authorization: Bearer`). OAuth is gitlab.com only. Signing in through
-Agent is the primary method: the auth server issues the token and keeps the refresh token.
+Emdash is the primary method: the auth server issues the token and keeps the refresh token.
 Device sign-in stores the refresh token on the desktop; GitLab rotates it on every use. Both use
-the same agent GitLab application (scopes `api read_user`, client ID in the GitLab plugin). It is
+the same emdash GitLab application (scopes `api read_user`, client ID in the GitLab plugin). It is
 not confidential, because the desktop cannot keep a secret: the server authenticates with the
 client secret, the desktop with the client ID alone. Access tokens last two hours and are
 renewed as described above. Refresh tokens are only ever sent to `https://gitlab.com`. Git over HTTPS sends OAuth tokens with the username
@@ -395,9 +395,9 @@ the configured target remote, including for fork MRs.
 Focused checks from the repository root:
 
 ```bash
-pnpm --filter @agent/plugins test -- src/pull-requests
-pnpm --filter @agent/agent-desktop test -- --project main-db src/core/services/pull-requests/node
-pnpm --filter @agent/agent-desktop test -- --project node pr-sync-status-card.test.ts merge-ui-state.test.ts
+pnpm --filter @emdash/plugins test -- src/pull-requests
+pnpm --filter @emdash/emdash-desktop test -- --project main-db src/core/services/pull-requests/node
+pnpm --filter @emdash/emdash-desktop test -- --project node pr-sync-status-card.test.ts merge-ui-state.test.ts
 ```
 
 These tests use mocked API responses and temporary SQLite stores. They do not establish live
@@ -405,9 +405,9 @@ GitLab token-scope or write behavior.
 
 ### GitLab token permissions
 
-For a legacy **personal access token**, these are the minimum scopes for each operation. Agent
+For a legacy **personal access token**, these are the minimum scopes for each operation. Emdash
 verifies a connection with `GET /user`, so a token used only for Git over HTTPS also needs
-`read_user` to connect in Agent.
+`read_user` to connect in Emdash.
 
 | Operation | Minimum personal-token scopes |
 | --- | --- |
@@ -436,10 +436,10 @@ user boundary:
 | Create or update work items | Work Item: Create or Update (project); add Read to retrieve them |
 | Read merge requests | Merge Request: Read (project) |
 | Create or update merge requests | Merge Request: Create or Update (project); add Read to retrieve them |
-| Create a project in a nested group | Project: Create (user), Group: Read (user and target group), and Code: Download (containing group) for Agent's follow-up clone |
+| Create a project in a nested group | Project: Create (user), Group: Read (user and target group), and Code: Download (containing group) for Emdash's follow-up clone |
 | Delete a project | Project: Delete (project) |
 
-Agent also reads User: Read for owner identity, Project: Read when resolving a repository for
+Emdash also reads User: Read for owner identity, Project: Read when resolving a repository for
 work items, and Namespace: Read (user) if GitLab does not return the user's namespace ID. Merge,
 approval, and deletion of merge requests need the separate Merge Request: Merge, Approve, and
 Delete permissions. Deleting work items needs Work Item: Delete. For the listed read, create,
@@ -447,14 +447,14 @@ update, push, and project-delete operations together, grant User: Read; Group: R
 target group); Project: Create (user), Read and Delete (project); Code: Download and Push;
 Work Item: Read, Create, and Update; and Merge Request: Read, Create, and Update. Add
 Namespace: Read (user) for the user-namespace fallback. A group boundary covers its projects,
-including a newly created project. Agent has not run a live fine-grained-token test.
+including a newly created project. Emdash has not run a live fine-grained-token test.
 
 GitLab documents [legacy token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/),
 [fine-grained REST permissions](https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens_rest/),
 and [fine-grained Git permissions](https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens_other/).
 The opt-in `packages/plugins/src/repository/impl/gitlab/live.test.ts` checks owner listing,
-repository creation, and deletion against GitLab. Set `AGENT_GITLAB_LIVE_TEST=1`,
-`AGENT_GITLAB_URL`, `AGENT_GITLAB_TOKEN` (`api` scope), and `AGENT_GITLAB_OWNER` (username or full
+repository creation, and deletion against GitLab. Set `EMDASH_GITLAB_LIVE_TEST=1`,
+`EMDASH_GITLAB_URL`, `EMDASH_GITLAB_TOKEN` (`api` scope), and `EMDASH_GITLAB_OWNER` (username or full
 group path) to run it.
 
 ## Remote Routing

@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import z from 'zod';
 import type { IntegrationCredentials } from '../host';
 import type { IntegrationError } from '../types';

@@ -1,6 +1,6 @@
-import { createScope } from '@agent/shared/concurrency';
-import { noopLogger } from '@agent/shared/logger';
-import { createManualClock } from '@agent/shared/testing';
+import { createScope } from '@emdash/shared/concurrency';
+import { noopLogger } from '@emdash/shared/logger';
+import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '#primitives/exec/api';
 import { LOCAL_HOST_REF } from '#primitives/host/api';
@@ -91,12 +91,12 @@ describe('TerminalsRuntime', () => {
     try {
       await runtime.start({
         key: { workspace: testWorkspace(), id: 'terminal-1' },
-        spec: { cwd: '/repo', env: { AGENT_TASK_ID: 'task-1' } },
+        spec: { cwd: '/repo', env: { EMDASH_TASK_ID: 'task-1' } },
       });
 
       expect(spawner.specs[0]!.env).toMatchObject({
         USER_VALUE: 'kept',
-        AGENT_TASK_ID: 'task-1',
+        EMDASH_TASK_ID: 'task-1',
       });
       expect(spawner.specs[0]!.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
       expect(spawner.specs[0]!.env?.NODE_ENV).toBeUndefined();
@@ -610,11 +610,11 @@ describe('TerminalsRuntime', () => {
     expect(invocation.kind).toBe('argv');
     if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
     expect(invocation.argv[1]).toMatch(/fix-login-[a-f0-9]{10}/u);
-    expect(invocation.argv[1]).toContain('@agent_identity');
+    expect(invocation.argv[1]).toContain('@emdash_identity');
     expect(exec.exec).toHaveBeenCalledWith('tmux', [
       'list-sessions',
       '-F',
-      '#{session_name}\t#{session_activity}\t#{@agent_identity}',
+      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
     ]);
     await scope.dispose();
   });

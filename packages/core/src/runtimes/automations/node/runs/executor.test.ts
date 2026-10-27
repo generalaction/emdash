@@ -1,4 +1,4 @@
-import { ok, err } from '@agent/shared';
+import { ok, err } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LOCAL_HOST_REF } from '#primitives/host/api';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
@@ -56,7 +56,7 @@ function claimedRun(
     status: 'scheduled',
     triggerKind: 'cron',
     configSnapshot,
-    generatedName: 'agent-abc',
+    generatedName: 'emdash-abc',
     scheduledAt: 1000,
     deadlineAt: null,
     startedAt: null,
@@ -76,7 +76,7 @@ function claimedRun(
 }
 function fakeWorkspacePort(
   result: () => ReturnType<AutomationWorkspacePort['provision']> = () =>
-    Promise.resolve(ok({ workspace: worktree, branchName: 'agent-abc' }))
+    Promise.resolve(ok({ workspace: worktree, branchName: 'emdash-abc' }))
 ): AutomationWorkspacePort {
   return { provision: vi.fn(result) };
 }
@@ -118,7 +118,7 @@ describe('createAutomationRunExecutor', () => {
     const final = runStore.getRun('run-1');
     expect(final?.status).toBe('done');
     expect(final?.workspace).toEqual(worktree);
-    expect(final?.branchName).toBe('agent-abc');
+    expect(final?.branchName).toBe('emdash-abc');
     expect(final?.conversationId).toBe('conv-1');
     expect(final?.sessionId).toBe('sess-1');
     expect(final?.finishedAt).toBeTypeOf('number');
@@ -167,7 +167,7 @@ describe('createAutomationRunExecutor', () => {
         { step: 'provision_workspace', code: 'external_cancel' },
         5000
       );
-      return ok({ workspace: worktree, branchName: 'agent-abc' });
+      return ok({ workspace: worktree, branchName: 'emdash-abc' });
     });
     const session = fakeSessionPort();
     const executor = createAutomationRunExecutor({

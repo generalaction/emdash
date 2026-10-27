@@ -12,14 +12,14 @@ the binding hook) persist panel sizes through the memento system.
 - Implement the `LayoutStorage` interface exported by the binding
   (`Pick<Storage, 'getItem' | 'setItem'>`, fully synchronous) as a facade over an
   already-hydrated memento. Suggested home: a new module under
-  `apps/agent-desktop/src/core/primitives/mementos/browser/` (e.g.
+  `apps/emdash-desktop/src/core/primitives/mementos/browser/` (e.g.
   `layout-storage.ts`) constructed from a `SubjectSpace` + a panel-layouts memento
   definition.
 - Storage shape: one memento document per subject holding a
   `Record<string, string>` mapping the library's internal keys
   (`react-resizable-panels:${id}[:${panelIds}]`) to serialized layouts. Define a
   task-scoped `tasks.panel-layouts` memento in
-  `apps/agent-desktop/src/core/features/tasks/contributions/mementos.ts` and a
+  `apps/emdash-desktop/src/core/features/tasks/contributions/mementos.ts` and a
   project-scoped equivalent for workspace chrome surfaces (see spec editorial call on
   scoping).
 - `getItem` reads the in-memory value synchronously — it is called on **every

@@ -1,4 +1,4 @@
-import { createPluginRegistry } from '@agent/shared/plugins';
+import { createPluginRegistry } from '@emdash/shared/plugins';
 import { provider as asana } from './impl/asana';
 import { provider as featurebase } from './impl/featurebase';
 import { provider as forgejo } from './impl/forgejo';

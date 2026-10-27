@@ -1,8 +1,8 @@
-import { err, ok, type Result } from '@agent/shared';
-import type { Scope } from '@agent/shared/concurrency';
-import { type LiveJobContext } from '@agent/wire/live';
-import { type LeasedLiveModelProvider } from '@agent/wire/rpc';
-import { expose, type Query } from '@agent/wire/state';
+import { err, ok, type Result } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import { type LiveJobContext } from '@emdash/wire/live';
+import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { expose, type Query } from '@emdash/wire/state';
 import {
   gitContract,
   type gitRepositoryContract,

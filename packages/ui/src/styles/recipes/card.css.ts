@@ -6,7 +6,7 @@
  * abstraction in the design system.
  *
  * Usage:
- *   import { card } from '@agent/ui/styles/recipes/card';
+ *   import { card } from '@emdash/ui/styles/recipes/card';
  *   <div className={card({ padding: 'md', interactive: true })} />
  *
  * Variants:
@@ -21,7 +21,7 @@
  * cascade vars to the canvas-matched tints generated at theme build time.
  */
 
-import { SURFACE_STATUSES } from '@agent/theme';
+import { SURFACE_STATUSES } from '@emdash/theme';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 // Relative import: the dts emitter rewrites aliased imports to a dangling

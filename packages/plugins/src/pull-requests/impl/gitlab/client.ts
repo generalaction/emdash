@@ -1,5 +1,5 @@
-import { parseRepositoryRef } from '@agent/core/primitives/repository/api';
-import { err, ok, type Result } from '@agent/shared';
+import { parseRepositoryRef } from '@emdash/core/primitives/repository/api';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   createRequestScheduler,
   createTokenBucketGate,
@@ -7,7 +7,7 @@ import {
   type CreateRequestSchedulerOptions,
   type RateGate,
   type RequestScheduler,
-} from '@agent/shared/requests';
+} from '@emdash/shared/requests';
 import { resolveInstanceRemote } from '../../../integrations/helpers/repository-remote';
 import { gitLabAuthHeaders, readGitLabCredentials } from '../../../integrations/impl/gitlab/client';
 import { isNetworkError } from '../../helpers/errors';

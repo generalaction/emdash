@@ -1,4 +1,4 @@
-import { createPluginRegistry } from '@agent/shared/plugins';
+import { createPluginRegistry } from '@emdash/shared/plugins';
 import { describe, expect, it } from 'vitest';
 import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
 import { agentConfigWorkerSpec, type AgentConfigWorkerSpecInput } from './worker-spec';

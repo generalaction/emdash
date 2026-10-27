@@ -4,9 +4,9 @@ import type { ScriptWorkspaceFacts } from '../api/schemas';
 /**
  * The host-side script env builder (spec: activation-scripts-via-terminals, env and
  * shellSetup): one builder serves activation and manual runs, so parity holds by
- * construction. The `AGENT_*` vars derive from workspace facts — no desktop-DB
+ * construction. The `EMDASH_*` vars derive from workspace facts — no desktop-DB
  * lookups, no `process.env` merge, and deliberately no `CI=1` (a documented
- * breaking change). `AGENT_DEFAULT_BRANCH` is omitted when the fact is unknown
+ * breaking change). `EMDASH_DEFAULT_BRANCH` is omitted when the fact is unknown
  * rather than invented (spec: github-git-settings §12.1, matching the desktop
  * task-env builder). PATH etc. come from the login shell (`$SHELL -lc`)
  * re-sourcing profiles, not from this map.
@@ -17,12 +17,12 @@ export function buildScriptEnv(
 ): Record<string, string> {
   const taskName = slugify(facts.branch ?? path.basename(workspacePath)) || 'task';
   return {
-    AGENT_TASK_ID: facts.workspaceId,
-    AGENT_TASK_NAME: taskName,
-    AGENT_TASK_PATH: workspacePath,
-    AGENT_ROOT_PATH: facts.repositoryPath ?? workspacePath,
-    ...(facts.defaultBranch !== undefined ? { AGENT_DEFAULT_BRANCH: facts.defaultBranch } : {}),
-    AGENT_PORT: String(basePortFor(workspacePath)),
+    EMDASH_TASK_ID: facts.workspaceId,
+    EMDASH_TASK_NAME: taskName,
+    EMDASH_TASK_PATH: workspacePath,
+    EMDASH_ROOT_PATH: facts.repositoryPath ?? workspacePath,
+    ...(facts.defaultBranch !== undefined ? { EMDASH_DEFAULT_BRANCH: facts.defaultBranch } : {}),
+    EMDASH_PORT: String(basePortFor(workspacePath)),
   };
 }
 

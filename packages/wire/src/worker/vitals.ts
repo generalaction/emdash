@@ -1,4 +1,4 @@
-import type { Scope } from '@agent/shared/concurrency';
+import type { Scope } from '@emdash/shared/concurrency';
 import type { WorkerProcess, WorkerProcessSpawner, WorkerProcessSpec } from './types';
 import { WORKER_NAME_ENV_VAR } from './types';
 

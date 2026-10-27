@@ -7,9 +7,9 @@
 
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { createScope } from '@agent/shared/concurrency';
-import { noopLogger } from '@agent/shared/logger';
 import type { Client } from '@agentclientprotocol/sdk';
+import { createScope } from '@emdash/shared/concurrency';
+import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { CommandSpec } from '#primitives/exec/api';
 import type { HostDependencyResolver } from '#primitives/host-dependencies/api';

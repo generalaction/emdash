@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveModel, liveState } from '@agent/wire/rpc';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { hostAbsolutePathSchema } from '#primitives/path/api';
 import {

@@ -1,4 +1,4 @@
-import { createEventStreamHost } from '@agent/wire/live';
+import { createEventStreamHost } from '@emdash/wire/live';
 import {
   client,
   connect,
@@ -7,7 +7,7 @@ import {
   eventStream,
   memoryTransportPair,
   serve,
-} from '@agent/wire/rpc';
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 const api = defineContract({

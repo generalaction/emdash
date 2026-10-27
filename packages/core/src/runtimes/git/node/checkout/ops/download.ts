@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { PortableRelativePath } from '#primitives/path/api';
 import type { DownloadError, DownloadMeta, GitFileSource } from '#runtimes/git/api';
 import { commandFailed, gitFailure } from '#runtimes/git/node/exec/errors';

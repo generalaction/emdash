@@ -45,6 +45,6 @@ describe('probeDaemon', () => {
 });
 
 async function tempSocketPath(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'agent-workspace-daemon-probe-'));
+  const dir = await mkdtemp(join(tmpdir(), 'emdash-workspace-daemon-probe-'));
   return join(dir, 'workspace.sock');
 }

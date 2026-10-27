@@ -1,5 +1,5 @@
-import { retrySchedule } from '@agent/shared/scheduling';
-import { createManualClock } from '@agent/shared/testing';
+import { retrySchedule } from '@emdash/shared/scheduling';
+import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { LiveSnapshot, LiveUpdate } from '../api/channel';

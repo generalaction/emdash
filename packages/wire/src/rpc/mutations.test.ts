@@ -1,6 +1,6 @@
-import { ok } from '@agent/shared';
-import { retrySchedule } from '@agent/shared/scheduling';
-import { deferred, waitFor } from '@agent/shared/testing';
+import { ok } from '@emdash/shared';
+import { retrySchedule } from '@emdash/shared/scheduling';
+import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { LiveModelClientHandle } from '../api/client';

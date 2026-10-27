@@ -1,5 +1,5 @@
-import { ok } from '@agent/shared';
-import { deferred } from '@agent/shared/testing';
+import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { MutationResultCache } from './result-cache';
 

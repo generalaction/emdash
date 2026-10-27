@@ -1,6 +1,6 @@
-import { isDeepEqual, type Unsubscribe } from '@agent/shared';
-import type { Scope } from '@agent/shared/concurrency';
-import { systemClock, type Clock, type TimerHandle } from '@agent/shared/scheduling';
+import { isDeepEqual, type Unsubscribe } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import {
   StateNode,
   mergeMutationIds,

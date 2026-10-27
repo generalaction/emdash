@@ -1,4 +1,4 @@
-import { defineWireComponent, requireContract } from '@agent/wire/worker';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { hostDependencyResolverContract } from '#services/host-dependencies/api';
 import { createHostDependencyResolverFromDependency } from '#services/host-dependencies/node/process-resolver-client';

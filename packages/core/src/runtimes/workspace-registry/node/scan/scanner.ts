@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import { systemClock, type Clock } from '@agent/shared/scheduling';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import type { WorkspaceGitObservations } from '../../api/schemas';
 import type { RegistryGitContext } from '../git-context';

@@ -1,11 +1,11 @@
-import type { CanonicalHookEvent } from '@agent/core/services/agent-plugins/api/plugins';
+import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
   configRoots,
   defaultHookEventParser,
   homeConfigRoot,
   makeStdinHookCommand,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
 export const QODER_SETTINGS_PATH = 'settings.json';
 

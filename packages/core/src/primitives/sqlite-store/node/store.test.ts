@@ -168,7 +168,7 @@ describe('SQLite store lifecycle', () => {
       ).toBeUndefined();
       expect(
         handle.connection.get(
-          `SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = '__agent_migrations'`
+          `SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = '__emdash_migrations'`
         )
       ).toBeDefined();
 

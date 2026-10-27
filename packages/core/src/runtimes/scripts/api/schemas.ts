@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** The four lifecycle scripts a workspace's `.agent.json` can define. */
+/** The four lifecycle scripts a workspace's `.emdash.json` can define. */
 export const scriptKindSchema = z.enum(['prepare', 'setup', 'run', 'teardown']);
 
 export type ScriptKind = z.infer<typeof scriptKindSchema>;
@@ -25,19 +25,19 @@ export const scriptRunStatusSchema = z.enum([
 export type ScriptRunStatus = z.infer<typeof scriptRunStatusSchema>;
 
 /**
- * Workspace facts the env builder derives `AGENT_*` variables from. Callers pass
+ * Workspace facts the env builder derives `EMDASH_*` variables from. Callers pass
  * what they know (the registry passes record facts; the desktop passes mirror
  * facts); everything but the record id is optional and degrades to path-derived
  * values.
  */
 export const scriptWorkspaceFactsSchema = z.object({
-  /** The workspace record id — becomes AGENT_TASK_ID. */
+  /** The workspace record id — becomes EMDASH_TASK_ID. */
   workspaceId: z.string().min(1),
-  /** The repository root path — becomes AGENT_ROOT_PATH (falls back to the workspace path). */
+  /** The repository root path — becomes EMDASH_ROOT_PATH (falls back to the workspace path). */
   repositoryPath: z.string().min(1).optional(),
-  /** The checked-out branch — AGENT_TASK_NAME derives from it (falls back to the directory name). */
+  /** The checked-out branch — EMDASH_TASK_NAME derives from it (falls back to the directory name). */
   branch: z.string().min(1).optional(),
-  /** The base/default branch — becomes AGENT_DEFAULT_BRANCH (omitted when unknown). */
+  /** The base/default branch — becomes EMDASH_DEFAULT_BRANCH (omitted when unknown). */
   defaultBranch: z.string().min(1).optional(),
 });
 

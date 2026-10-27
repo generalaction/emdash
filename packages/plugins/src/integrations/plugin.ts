@@ -1,4 +1,4 @@
-import { createPluginFramework, iconAsset } from '@agent/shared/plugins';
+import { createPluginFramework, iconAsset } from '@emdash/shared/plugins';
 import z from 'zod';
 import { integrationAuthCapability } from './capabilities/auth';
 

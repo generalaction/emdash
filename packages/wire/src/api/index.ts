@@ -1,5 +1,5 @@
 // Internal core RPC barrel: everything generic on the wire. Live endpoint
-// kinds are composed on top by `../rpc`, which is the public `@agent/wire/rpc`
+// kinds are composed on top by `../rpc`, which is the public `@emdash/wire/rpc`
 // entry. The engine seam (`buildController`, `buildClient`, `./endpoint-kinds`)
 // is deliberately kept out of this barrel.
 export {

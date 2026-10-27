@@ -1,7 +1,7 @@
 # Workspace Server Packaging
 
 The workspace server is distributed as a self-contained archive for each supported operating
-system and architecture. A remote machine does not need Node.js, npm, pnpm, or the Agent
+system and architecture. A remote machine does not need Node.js, npm, pnpm, or the Emdash
 monorepo installed.
 
 ## Supported Targets
@@ -85,12 +85,12 @@ workspace-server/
     canary/protocol-7.json
   <version>/
     install.sh
-    agent-workspace-server-<version>-linux-x64.tar.gz
-    agent-workspace-server-<version>-linux-x64.tar.gz.sha256
-    agent-workspace-server-<version>-linux-arm64.tar.gz
-    agent-workspace-server-<version>-linux-arm64.tar.gz.sha256
-    agent-workspace-server-<version>-darwin-arm64.tar.gz
-    agent-workspace-server-<version>-darwin-arm64.tar.gz.sha256
+    emdash-workspace-server-<version>-linux-x64.tar.gz
+    emdash-workspace-server-<version>-linux-x64.tar.gz.sha256
+    emdash-workspace-server-<version>-linux-arm64.tar.gz
+    emdash-workspace-server-<version>-linux-arm64.tar.gz.sha256
+    emdash-workspace-server-<version>-darwin-arm64.tar.gz
+    emdash-workspace-server-<version>-darwin-arm64.tar.gz.sha256
 ```
 
 The release workflow has `stable` and `canary` channels. Stable uses the version from
@@ -156,24 +156,24 @@ For manual iteration after minio is running, package one Linux target and publis
 matching artifact:
 
 ```bash
-AGENT_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
+EMDASH_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
 pnpm run upload:dev
 ```
 
-`upload:dev` points the S3 uploader at `http://localhost:9000/agent-releases` with the local minio
+`upload:dev` points the S3 uploader at `http://localhost:9000/emdash-releases` with the local minio
 credentials. It defaults to the host's Linux target, picks the newest matching artifact under
 `dist-artifacts/`, uploads `workspace-server/<version>/<artifact>` and its `.sha256` sidecar, then
 advances the selected channel pointer. `pnpm run dev:remote` publishes both channel pointers for its
 dev artifact. Pass `--version` and `--target` when you need an explicit override.
 
-Downloaded Node archives are cached under `~/.cache/agent/workspace-server/`. Set
-`AGENT_WS_PACKAGE_CACHE_DIR` to use another cache directory.
+Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
+`EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.
 
 ## Artifact Layout
 
 ```text
-agent-workspace-server/
-  bin/agent-workspace-server
+emdash-workspace-server/
+  bin/emdash-workspace-server
   bin/rg
   node
   dist/
@@ -191,8 +191,8 @@ agent-workspace-server/
 ```
 
 The POSIX shell launcher resolves the artifact relative to its own path, exports the packaged app
-version as `AGENT_WS_APP_VERSION`, selects the bundled `bin/rg` through
-`AGENT_WS_RIPGREP_PATH`, and executes `dist/index.mjs` with the bundled Node runtime. The archive
+version as `EMDASH_WS_APP_VERSION`, selects the bundled `bin/rg` through
+`EMDASH_WS_RIPGREP_PATH`, and executes `dist/index.mjs` with the bundled Node runtime. The archive
 may therefore be extracted to any directory. Source development runs do not set the ripgrep
 override and continue to resolve `rg` from `PATH`.
 

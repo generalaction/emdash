@@ -1,5 +1,5 @@
-import { toSerializedError, type Unsubscribe } from '@agent/shared';
-import { getCurrentLogger, runWithLogger, type Logger } from '@agent/shared/logger';
+import { toSerializedError, type Unsubscribe } from '@emdash/shared';
+import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
 import {
   createBlobConsumer,
   createBlobProducer,

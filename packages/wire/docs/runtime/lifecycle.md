@@ -2,8 +2,8 @@
 
 `Scope`, `LifecycleRegistry`, and the resource cache primitives are
 dependency-light Shared lifecycle utilities exported from
-`@agent/shared/concurrency`. Scheduling utilities are exported separately from
-`@agent/shared/scheduling`. Wire uses these primitives, but they do not define
+`@emdash/shared/concurrency`. Scheduling utilities are exported separately from
+`@emdash/shared/scheduling`. Wire uses these primitives, but they do not define
 Wire protocol messages.
 
 - `Scope` owns cleanup and async work for a tree of resources.
@@ -23,7 +23,7 @@ Use a scope when a feature creates more than one disposable resource and those
 resources should die together:
 
 ```ts
-import { createScope } from '@agent/shared/concurrency';
+import { createScope } from '@emdash/shared/concurrency';
 
 const scope = createScope({ label: 'conversation:abc', logger });
 
@@ -141,8 +141,8 @@ started and stopped by explicit commands and callers need observable lifecycle
 state:
 
 ```ts
-import { createLifecycleRegistry } from '@agent/shared/concurrency';
-import { ok } from '@agent/shared';
+import { createLifecycleRegistry } from '@emdash/shared/concurrency';
+import { ok } from '@emdash/shared';
 
 const runtimes = createLifecycleRegistry<
   { workspaceId: string },
@@ -196,7 +196,7 @@ handoff. Register it with the owning scope, then run the consumer loop under the
 same scope:
 
 ```ts
-import { createMailbox } from '@agent/shared/concurrency';
+import { createMailbox } from '@emdash/shared/concurrency';
 
 const mailbox = sessionScope.use(createMailbox<Event>({ capacity: 256 }));
 
@@ -236,7 +236,7 @@ using it: a live topic binding, a renderer view model, a preview server, or a
 process-backed session.
 
 ```ts
-import { createResourceCache } from '@agent/shared/concurrency';
+import { createResourceCache } from '@emdash/shared/concurrency';
 
 const sessions = createResourceCache({
   scope: runtimeScope,

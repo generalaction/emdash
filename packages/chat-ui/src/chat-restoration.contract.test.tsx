@@ -1,5 +1,5 @@
-import type { TranscriptSnapshot } from '@agent/core/runtimes/acp/api/client';
 import { DEFAULT_THEME } from '@core/theme';
+import type { TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
 import { describe, expect, it } from 'vitest';
 import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';

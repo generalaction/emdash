@@ -393,7 +393,7 @@ describe('RipgrepContentSearcher', () => {
 });
 
 async function createRoot(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-content-search-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-content-search-'));
   temporaryDirectories.push(directory);
   return realpath(directory);
 }

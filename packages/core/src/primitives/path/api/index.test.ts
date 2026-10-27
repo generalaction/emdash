@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as pathExports from './index';
 
-describe('@agent/core/primitives/path/api public exports', () => {
+describe('@emdash/core/primitives/path/api public exports', () => {
   it('exposes the foundation path API', () => {
     const exported = pathExports as Record<string, unknown>;
 

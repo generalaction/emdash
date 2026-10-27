@@ -1,4 +1,4 @@
-import type { EnrichHook } from '@agent/core/runtimes/acp/api';
+import type { EnrichHook } from '@emdash/core/runtimes/acp/api';
 
 /** codex-acp represents startup diagnostics as synthetic failed tool calls. */
 export const enrichCodexUpdate: EnrichHook = (event, raw) => {

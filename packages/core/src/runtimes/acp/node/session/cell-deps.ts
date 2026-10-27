@@ -1,4 +1,4 @@
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import type { PromptAttachment, QueuedPrompt } from '#runtimes/acp/api';
 import type { AcpAgentApi } from '#services/agent-plugins/api/plugins';
 

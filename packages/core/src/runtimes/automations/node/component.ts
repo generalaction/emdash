@@ -1,6 +1,6 @@
-import { defineWireComponent, requireContract } from '@agent/wire/worker';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
-// oxlint-disable-next-line agent/core-module-boundaries -- runs await the registry's plain createWorktree verb (operation-log retirement §5); the contract has no services-level home yet
+// oxlint-disable-next-line emdash/core-module-boundaries -- runs await the registry's plain createWorktree verb (operation-log retirement §5); the contract has no services-level home yet
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import { conversationIndexContract } from '#services/conversation-index/api';
 import { acpSessionStartContract, tuiSessionStartContract } from '#services/session-start/api';

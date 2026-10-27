@@ -55,7 +55,7 @@ export const Blocks: Story = {
           kind: 'message',
           id: 'm1',
           role: 'assistant',
-          text: '## Installation\n\nRun the following command:\n\n```bash\nnpm install @agent/chat-ui\n```\n\nThen import and mount:\n\n```typescript\nimport { mountChat } from "@agent/chat-ui";\nconst handle = mountChat(container);\n```\n\n> **Note**: The container must have a fixed height for the virtualizer to work correctly.',
+          text: '## Installation\n\nRun the following command:\n\n```bash\nnpm install @emdash/chat-ui\n```\n\nThen import and mount:\n\n```typescript\nimport { mountChat } from "@emdash/chat-ui";\nconst handle = mountChat(container);\n```\n\n> **Note**: The container must have a fixed height for the virtualizer to work correctly.',
         },
       ]}
       height={500}

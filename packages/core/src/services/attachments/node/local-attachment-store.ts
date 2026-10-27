@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { mkdir, open, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { KeyedMutex } from '@agent/shared/concurrency';
-import type { WireFile } from '@agent/wire/rpc';
+import { KeyedMutex } from '@emdash/shared/concurrency';
+import type { WireFile } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   attachmentMetadataSchema,

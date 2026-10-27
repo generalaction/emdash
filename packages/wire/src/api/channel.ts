@@ -1,4 +1,4 @@
-import type { Result, Unsubscribe } from '@agent/shared';
+import type { Result, Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 
 /**

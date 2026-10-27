@@ -1,4 +1,4 @@
-import { defineContract, procedure } from '@agent/wire/rpc';
+import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 export const userShellEnvSchema = z.record(z.string(), z.string());

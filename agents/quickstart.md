@@ -8,11 +8,11 @@
   itself (no nvm or corepack needed).
 - Optional: the committed `mise.toml` pins node + pnpm for mise users; `.nvmrc`
   remains as a compatibility hint.
-- Workspace layout: pnpm monorepo; the Electron app lives in `apps/agent-desktop/`
+- Workspace layout: pnpm monorepo; the Electron app lives in `apps/emdash-desktop/`
 
 ## Core Commands
 
-Run from `apps/agent-desktop/` (the root `package.json` also provides `dev` and `build`
+Run from `apps/emdash-desktop/` (the root `package.json` also provides `dev` and `build`
 aggregates that run through Nx in dependency order):
 
 ```bash
@@ -26,7 +26,7 @@ pnpm run reset
 
 ## Validation Commands
 
-Run from the repo root (they fan out to the workspace) or from `apps/agent-desktop/`:
+Run from the repo root (they fan out to the workspace) or from `apps/emdash-desktop/`:
 
 ```bash
 pnpm run format

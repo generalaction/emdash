@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '#primitives/exec/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- regression exercises the real execution-error adapter behind IExecutionContext; production PTY code imports only the primitive
+// oxlint-disable-next-line emdash/core-module-boundaries -- regression exercises the real execution-error adapter behind IExecutionContext; production PTY code imports only the primitive
 import { createBoundExec } from '#services/exec/api/bound-exec';
-// oxlint-disable-next-line agent/core-module-boundaries -- tests distinguish wrapped execution errors from raw execFile errors at the same primitive boundary
+// oxlint-disable-next-line emdash/core-module-boundaries -- tests distinguish wrapped execution errors from raw execFile errors at the same primitive boundary
 import { ExecError } from '#services/exec/api/types';
 import {
   listTmuxSessionActivity,
@@ -98,7 +98,7 @@ describe('buildTmuxShellLine', () => {
   it.skipIf(!TMUX_AVAILABLE)(
     'creates metadata-backed sessions and reattaches legacy sessions without replacing them',
     async () => {
-      const cwd = await mkdtemp('/tmp/agent-tmux-');
+      const cwd = await mkdtemp('/tmp/emdash-tmux-');
       const env = { ...process.env, TMUX_TMPDIR: cwd };
       const shell = createBoundExec({ file: '/bin/sh', cwd, env });
       const tmux = createBoundExec({ file: 'tmux', cwd, env });
@@ -197,7 +197,7 @@ describe('listTmuxSessionActivity', () => {
     expect(exec).toHaveBeenCalledWith('tmux', [
       'list-sessions',
       '-F',
-      '#{session_name}\t#{session_activity}\t#{@agent_identity}',
+      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
     ]);
     expect(activity).toEqual(new Map([['name', 42_000]]));
   });
@@ -238,7 +238,7 @@ describe('listTmuxSessionActivity', () => {
   });
 
   it('returns an empty map when BoundExec wraps a missing tmux executable', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'agent-tmux-missing-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'emdash-tmux-missing-'));
     try {
       const bound = createBoundExec({ file: join(cwd, 'missing-tmux'), cwd });
       const ctx = stubExecContext((_file, args) => bound.exec(args ?? []));

@@ -6,8 +6,8 @@
  * Electron main-process boot.
  *
  * CLI resolution priority for a given provider:
- *   1. `AGENT_<PROVIDERID_UPPER>_BIN` env var (e.g. AGENT_CLAUDE_BIN)
- *   2. `AGENT_CLI_PATH` env var (generic override)
+ *   1. `EMDASH_<PROVIDERID_UPPER>_BIN` env var (e.g. EMDASH_CLAUDE_BIN)
+ *   2. `EMDASH_CLI_PATH` env var (generic override)
  *   3. `which <binaryName>` via node:child_process
  */
 import { spawn, execSync } from 'node:child_process';
@@ -18,8 +18,8 @@ import type {
   AcpProcessHandle,
   AcpProcessHost,
   AcpTerminalProcess,
-} from '@agent/core/runtimes/acp/api/transport';
-import { ChildAcpProcessHost } from '@agent/core/runtimes/acp/node';
+} from '@emdash/core/runtimes/acp/api/transport';
+import { ChildAcpProcessHost } from '@emdash/core/runtimes/acp/node';
 
 class RecordingProcessHandle implements AcpProcessHandle {
   constructor(private readonly child: ReturnType<typeof spawn>) {}
@@ -69,8 +69,8 @@ const PROVIDER_BINARY_NAMES: Record<string, string[]> = {
 };
 
 function resolveBinary(providerId: string): string {
-  const envKey = `AGENT_${providerId.toUpperCase()}_BIN`;
-  const fromEnv = process.env[envKey] ?? process.env['AGENT_CLI_PATH'];
+  const envKey = `EMDASH_${providerId.toUpperCase()}_BIN`;
+  const fromEnv = process.env[envKey] ?? process.env['EMDASH_CLI_PATH'];
   if (fromEnv) return fromEnv;
 
   // Strip workspace node_modules/.bin directories from PATH before calling
@@ -100,7 +100,7 @@ function resolveBinary(providerId: string): string {
 
   throw new Error(
     `RecordingHost: cannot resolve binary for provider '${providerId}'. ` +
-      `Set ${envKey} or AGENT_CLI_PATH, or ensure the CLI is in PATH.`
+      `Set ${envKey} or EMDASH_CLI_PATH, or ensure the CLI is in PATH.`
   );
 }
 
@@ -109,7 +109,7 @@ function resolveBinary(providerId: string): string {
  *
  * Passes through a minimal, safe env subset to the spawned agent adapter:
  * HOME, PATH, TMPDIR, ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY,
- * TERM, LANG, and any `AGENT_*` / `CLAUDE_CODE_*` vars the caller sets.
+ * TERM, LANG, and any `EMDASH_*` / `CLAUDE_CODE_*` vars the caller sets.
  */
 export class RecordingHost implements AcpProcessHost {
   readonly fs: AcpFs = recordingFs;
@@ -141,8 +141,8 @@ export class RecordingHost implements AcpProcessHost {
       'CLAUDE_CODE_EXECUTABLE',
       'ELECTRON_RUN_AS_NODE',
     ];
-    // Also pass any env vars prefixed with AGENT_ or the provider's uppercase name
-    const prefixes = ['AGENT_', providerId.toUpperCase() + '_'];
+    // Also pass any env vars prefixed with EMDASH_ or the provider's uppercase name
+    const prefixes = ['EMDASH_', providerId.toUpperCase() + '_'];
 
     const agentEnv: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) {

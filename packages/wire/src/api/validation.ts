@@ -1,4 +1,4 @@
-import { resultSchema } from '@agent/shared';
+import { resultSchema } from '@emdash/shared';
 import { z } from 'zod';
 import { isDownloadFileOpenResult, markDownloadFileOpen } from './blob-channel';
 import { liveCursorEntrySchema } from './channel';

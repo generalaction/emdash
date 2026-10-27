@@ -4,7 +4,7 @@
  * constructors the runtime uses to produce declared failures.
  */
 
-import { err, type Err } from '@agent/shared';
+import { err, type Err } from '@emdash/shared';
 import { z } from 'zod';
 import {
   hostAbsolutePathSchema,

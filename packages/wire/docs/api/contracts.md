@@ -218,7 +218,7 @@ workspace API without an extra namespace argument.
 ## Live Model Providers
 
 On the server, implement a live model endpoint with a `LiveModelProvider`. The
-usual way to build one is `expose()` from `@agent/wire/state`, which resolves
+usual way to build one is `expose()` from `@emdash/wire/state`, which resolves
 each contract state to a kernel readable per key:
 
 ```ts

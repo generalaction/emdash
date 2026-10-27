@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { toIntegrationError } from '../../helpers/error';
 import { resolveInstanceRemote } from '../../helpers/repository-remote';
 import type { IntegrationError } from '../../types';

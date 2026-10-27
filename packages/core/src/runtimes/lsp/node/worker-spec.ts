@@ -1,7 +1,7 @@
 import type {
   ProvidedWireComponentRequirements,
   WireComponentWorkerCreateOptions,
-} from '@agent/wire/worker';
+} from '@emdash/wire/worker';
 import { lspComponent } from './component';
 
 export function lspWorkerSpec(input: {

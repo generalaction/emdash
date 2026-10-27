@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import type { HookHandler, HookServerHandle } from './types';
 
 export class TuiHookServer {
@@ -25,7 +25,7 @@ export class TuiHookServer {
         res.end();
         return;
       }
-      if (req.headers['x-agent-token'] !== this.token) {
+      if (req.headers['x-emdash-token'] !== this.token) {
         this.logger.warn('TuiHookServer: rejected request with invalid token');
         res.writeHead(403);
         res.end();
@@ -41,8 +41,8 @@ export class TuiHookServer {
       });
 
       req.on('end', () => {
-        const ptyId = String(req.headers['x-agent-pty-id'] || '');
-        const type = String(req.headers['x-agent-event-type'] || '');
+        const ptyId = String(req.headers['x-emdash-pty-id'] || '');
+        const type = String(req.headers['x-emdash-event-type'] || '');
         if (!ptyId || !type) {
           this.logger.warn('TuiHookServer: malformed request: missing ptyId or type headers');
           res.writeHead(400);

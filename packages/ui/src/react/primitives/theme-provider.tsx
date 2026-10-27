@@ -1,5 +1,5 @@
 /**
- * ThemeProvider — self-contained theme manager for @agent/ui.
+ * ThemeProvider — self-contained theme manager for @emdash/ui.
  *
  * CONTRACT
  * --------
@@ -8,7 +8,7 @@
  * typography, overflow-fade). No separate CSS import is required.
  *
  * mount  = theme applied: mounting the component applies the active theme's
- * selector class. All @agent/ui primitives work immediately within the tree.
+ * selector class. All @emdash/ui primitives work immediately within the tree.
  *
  * THEME APPLICATION TARGET
  * ------------------------
@@ -42,17 +42,17 @@
  */
 
 // ── CSS side-effects ─────────────────────────────────────────────────────────
-// Importing this module loads the full @agent/ui CSS stack.
+// Importing this module loads the full @emdash/ui CSS stack.
 // In Vite/Storybook (dev): the source import graph is followed directly.
 // In a published dist: all CSS is extracted into dist/style.css (referenced
-// in package.json#sideEffects) — apps import @agent/ui/style.css once.
+// in package.json#sideEffects) — apps import @emdash/ui/style.css once.
 //
 // VE barrel: layers order, non-color token contract, surfaces, reset/base
 // element defaults, sx() sprinkles atoms, animation keyframes, SVG helpers.
 import '@styles/global.css';
 // Generated palette ramps + per-theme semantic aliases (wrapped in @layer tokens).
-import '@agent/theme/theme.css';
-import '@agent/theme/semantic.css';
+import '@emdash/theme/theme.css';
+import '@emdash/theme/semantic.css';
 // JetBrains Mono variable font + structural keyframes (accordion, panel-blur).
 import '@styles/theme.base.css';
 // Semantic typography role classes (.text-role-body, .text-role-h1, etc.).
@@ -60,10 +60,10 @@ import '@styles/typography.css';
 // Scroll-aware overflow-fade utility (.scroll-fade / .scroll-fade__viewport).
 import '@styles/effects/overflow-fade.css';
 // ── Component ────────────────────────────────────────────────────────────────
-import { DENSITY_MANIFEST } from '@agent/theme/densities';
-import type { DensityId } from '@agent/theme/densities';
-import { THEME_MANIFEST } from '@agent/theme/manifest';
-import type { ThemeId } from '@agent/theme/manifest';
+import { DENSITY_MANIFEST } from '@emdash/theme/densities';
+import type { DensityId } from '@emdash/theme/densities';
+import { THEME_MANIFEST } from '@emdash/theme/manifest';
+import type { ThemeId } from '@emdash/theme/manifest';
 import { cx } from '@styles/utilities/cx';
 import React, {
   createContext,
@@ -170,7 +170,7 @@ export interface ThemeProviderProps {
    * "none" — context-only mode. No theme class is written to the DOM at all.
    * Use when the host application's own provider is the sole DOM class writer
    * and you only need ThemeContext to be available inside the tree (e.g. when
-   * embedding @agent/ui components inside an app that manages themes itself).
+   * embedding @emdash/ui components inside an app that manages themes itself).
    */
   target?: 'documentElement' | 'wrapper' | 'none';
   /** Element type for the wrapper (only used when target="wrapper" or className/style are supplied). Defaults to 'div'. */

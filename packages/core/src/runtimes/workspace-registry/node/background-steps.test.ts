@@ -1,4 +1,4 @@
-import { ManualClock } from '@agent/shared/testing';
+import { ManualClock } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import type { WorkspaceLifecycleStep, WorkspaceLifecycleStepId } from '../api/schemas';
 import {

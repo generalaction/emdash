@@ -1,4 +1,4 @@
-import { peek } from '@agent/wire/state';
+import { peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createTuiAgentStatesLiveModel,

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { parse as parseToml } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { CODEX_CONFIG_PATH, CODEX_LEGACY_HOOKS_PATH, buildCodexHookConfig } from './hooks';
@@ -41,7 +41,7 @@ describe('buildCodexHookConfig', () => {
                 hooks: [
                   {
                     type: 'command',
-                    command: 'curl http://127.0.0.1:$AGENT_HOOK_PORT/hook',
+                    command: 'curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook',
                   },
                 ],
               },
@@ -101,7 +101,7 @@ describe('buildCodexHookConfig', () => {
     await expect(fs.read(CODEX_LEGACY_HOOKS_PATH)).resolves.toBe(legacyHooks);
   });
 
-  it('preserves Codex hook trust state while installing and deleting Agent hooks', async () => {
+  it('preserves Codex hook trust state while installing and deleting Emdash hooks', async () => {
     const trustKey = '/home/user/.codex/config.toml:stop:0:0';
     const fs = createMemoryFs({
       [CODEX_CONFIG_PATH]: `[hooks.state."${trustKey}"]
@@ -174,9 +174,9 @@ invalid = true
           encoding: 'utf8',
           env: {
             PATH: process.env.PATH ?? '',
-            AGENT_HOOK_PORT: '1234',
-            AGENT_HOOK_NONCE: 'nonce',
-            AGENT_PTY_ID: 'pty-1',
+            EMDASH_HOOK_PORT: '1234',
+            EMDASH_HOOK_NONCE: 'nonce',
+            EMDASH_PTY_ID: 'pty-1',
           },
         }
       );
@@ -186,12 +186,12 @@ invalid = true
     }
   );
 
-  it('deletes Agent hooks from both current and legacy Codex hook config', async () => {
-    const agentHook = {
+  it('deletes Emdash hooks from both current and legacy Codex hook config', async () => {
+    const emdashHook = {
       hooks: [
         {
           type: 'command',
-          command: 'curl http://127.0.0.1:$AGENT_HOOK_PORT/hook',
+          command: 'curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook',
         },
       ],
     };
@@ -200,14 +200,14 @@ invalid = true
     };
     const fs = createMemoryFs({
       [CODEX_CONFIG_PATH]: `[[hooks.Stop]]
-hooks = [{ type = "command", command = "curl http://127.0.0.1:$AGENT_HOOK_PORT/hook" }]
+hooks = [{ type = "command", command = "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook" }]
 
 [[hooks.Stop]]
 hooks = [{ type = "command", command = "echo user-toml" }]
 `,
       [CODEX_LEGACY_HOOKS_PATH]: JSON.stringify({
         hooks: {
-          Stop: [agentHook, userHook],
+          Stop: [emdashHook, userHook],
         },
       }),
     });
@@ -216,10 +216,10 @@ hooks = [{ type = "command", command = "echo user-toml" }]
     await hooks.deleteHooks(fs);
 
     const config = await fs.read(CODEX_CONFIG_PATH);
-    expect(config).not.toContain('AGENT_HOOK_PORT');
+    expect(config).not.toContain('EMDASH_HOOK_PORT');
     expect(config).toContain('echo user-toml');
     const legacy = await fs.read(CODEX_LEGACY_HOOKS_PATH);
     expect(legacy).toContain('echo user-stop');
-    expect(legacy).not.toContain('AGENT_HOOK_PORT');
+    expect(legacy).not.toContain('EMDASH_HOOK_PORT');
   });
 });

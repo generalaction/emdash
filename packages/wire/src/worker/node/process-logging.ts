@@ -1,6 +1,6 @@
-import type { Logger } from '@agent/shared/logger';
-import { initProcessLogging } from '@agent/shared/logger/node';
-import { startDevPerfInstruments } from '@agent/shared/perf';
+import type { Logger } from '@emdash/shared/logger';
+import { initProcessLogging } from '@emdash/shared/logger/node';
+import { startDevPerfInstruments } from '@emdash/shared/perf';
 import { WORKER_NAME_ENV_VAR } from '../types';
 import { installWorkerVitals } from './vitals';
 

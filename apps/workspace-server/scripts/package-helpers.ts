@@ -1,4 +1,4 @@
-export const artifactRootName = 'agent-workspace-server';
+export const artifactRootName = 'emdash-workspace-server';
 export const RIPGREP_VERSION = '15.2.0';
 
 const targetDefinitions = {
@@ -271,7 +271,7 @@ export function createArtifactManifest(options: {
 
 export function parseAdapterAssetInfos(value: unknown): PackageAdapterAssetInfo[] {
   if (!Array.isArray(value)) {
-    throw new Error('@agent/plugins adapter manifest did not export an adapterAssets array');
+    throw new Error('@emdash/plugins adapter manifest did not export an adapterAssets array');
   }
 
   return value.map((asset) => {
@@ -280,7 +280,7 @@ export function parseAdapterAssetInfos(value: unknown): PackageAdapterAssetInfo[
       typeof asset['name'] !== 'string' ||
       (asset['format'] !== 'esm' && asset['format'] !== 'cjs')
     ) {
-      throw new Error('@agent/plugins adapter manifest contains an invalid adapter asset');
+      throw new Error('@emdash/plugins adapter manifest contains an invalid adapter asset');
     }
     return { name: asset['name'], format: asset['format'] };
   });
@@ -297,8 +297,8 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
 
-export AGENT_WS_APP_VERSION=${quoteShellArgument(version)}
-export AGENT_WS_RIPGREP_PATH="$root_dir/bin/rg"
+export EMDASH_WS_APP_VERSION=${quoteShellArgument(version)}
+export EMDASH_WS_RIPGREP_PATH="$root_dir/bin/rg"
 exec "$root_dir/node" "$root_dir/dist/index.mjs" "$@"
 `;
 }

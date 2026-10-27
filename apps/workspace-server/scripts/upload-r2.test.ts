@@ -19,19 +19,19 @@ import {
 describe('workspace-server R2 upload helpers', () => {
   it('builds the complete expected artifact set', () => {
     expect(expectedArtifactNames('1.2.3')).toEqual([
-      'agent-workspace-server-1.2.3-linux-x64.tar.gz',
-      'agent-workspace-server-1.2.3-linux-x64.tar.gz.sha256',
-      'agent-workspace-server-1.2.3-linux-arm64.tar.gz',
-      'agent-workspace-server-1.2.3-linux-arm64.tar.gz.sha256',
-      'agent-workspace-server-1.2.3-darwin-arm64.tar.gz',
-      'agent-workspace-server-1.2.3-darwin-arm64.tar.gz.sha256',
+      'emdash-workspace-server-1.2.3-linux-x64.tar.gz',
+      'emdash-workspace-server-1.2.3-linux-x64.tar.gz.sha256',
+      'emdash-workspace-server-1.2.3-linux-arm64.tar.gz',
+      'emdash-workspace-server-1.2.3-linux-arm64.tar.gz.sha256',
+      'emdash-workspace-server-1.2.3-darwin-arm64.tar.gz',
+      'emdash-workspace-server-1.2.3-darwin-arm64.tar.gz.sha256',
     ]);
   });
 
   it('builds the expected artifact set for selected targets', () => {
     expect(expectedArtifactNames('1.2.3', [parsePackageTarget('linux-arm64')])).toEqual([
-      'agent-workspace-server-1.2.3-linux-arm64.tar.gz',
-      'agent-workspace-server-1.2.3-linux-arm64.tar.gz.sha256',
+      'emdash-workspace-server-1.2.3-linux-arm64.tar.gz',
+      'emdash-workspace-server-1.2.3-linux-arm64.tar.gz.sha256',
     ]);
   });
 
@@ -39,13 +39,13 @@ describe('workspace-server R2 upload helpers', () => {
     const linuxArm64 = parsePackageTarget('linux-arm64');
     expect(
       artifactVersionFromArchiveName(
-        'agent-workspace-server-1.2.3-dev.abc123.1234567890-linux-arm64.tar.gz',
+        'emdash-workspace-server-1.2.3-dev.abc123.1234567890-linux-arm64.tar.gz',
         linuxArm64
       )
     ).toBe('1.2.3-dev.abc123.1234567890');
     expect(
       artifactVersionFromArchiveName(
-        'agent-workspace-server-1.2.3-dev.abc123.1234567890-linux-x64.tar.gz',
+        'emdash-workspace-server-1.2.3-dev.abc123.1234567890-linux-x64.tar.gz',
         linuxArm64
       )
     ).toBeUndefined();
@@ -68,8 +68,8 @@ describe('workspace-server R2 upload helpers', () => {
     expect(channelPointerUrl('https://releases.example.test', 'stable', 2)).toBe(
       'https://releases.example.test/workspace-server/channels/stable/protocol-2.json'
     );
-    expect(channelPointerUrl('http://localhost:9000/agent-releases/', 'canary', 2)).toBe(
-      'http://localhost:9000/agent-releases/workspace-server/channels/canary/protocol-2.json'
+    expect(channelPointerUrl('http://localhost:9000/emdash-releases/', 'canary', 2)).toBe(
+      'http://localhost:9000/emdash-releases/workspace-server/channels/canary/protocol-2.json'
     );
   });
 

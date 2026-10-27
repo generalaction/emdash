@@ -9,7 +9,7 @@
  * This file is NOT included in dist/style.css so it doesn't fight the host
  * app's body/token CSS. Import it explicitly when you want these defaults:
  *
- *   import '@agent/ui/styles/global-base.css';   // library consumers
+ *   import '@emdash/ui/styles/global-base.css';   // library consumers
  *   import '../src/styles/base.css';               // Storybook
  */
 

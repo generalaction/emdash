@@ -97,18 +97,18 @@ Primitives may depend on other primitives, but those dependencies must remain ac
 
 ## Shared Foundations
 
-`@agent/shared` owns package-level foundations that are below Core, Wire, desktop,
+`@emdash/shared` owns package-level foundations that are below Core, Wire, desktop,
 workspace-server, and tests. Do not move these into Core primitives just because Core uses them:
 
-- `@agent/shared/concurrency` owns `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
+- `@emdash/shared/concurrency` owns `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
   `ResourceCache`, `SharedResource`, `AsyncCache`, bounded buffers, and disposable helpers.
-- `@agent/shared/scheduling` owns `Clock`, `TimerHandle`, timeout helpers, retry schedules,
+- `@emdash/shared/scheduling` owns `Clock`, `TimerHandle`, timeout helpers, retry schedules,
   and `retry()`.
-- `@agent/shared/testing` owns `ManualClock`, deferred promises, `waitFor()`, and stub logger
+- `@emdash/shared/testing` owns `ManualClock`, deferred promises, `waitFor()`, and stub logger
   helpers.
-- `@agent/shared/util` owns stable generic utilities such as `stableStringify()`.
+- `@emdash/shared/util` owns stable generic utilities such as `stableStringify()`.
 
-Core primitives should hold Agent domain vocabulary, portable contracts, and narrowly scoped
+Core primitives should hold Emdash domain vocabulary, portable contracts, and narrowly scoped
 domain behavior. Shared foundations should hold reusable lifecycle, concurrency, scheduling,
 testing, result, logging, and utility behavior that has no Core domain ownership.
 
@@ -125,7 +125,7 @@ Choose lifecycle primitives by ownership shape:
   `AsyncCache` for cached async values without finalizers.
 - Use `WireWorkerHost.create(component, ...)` or `spawn(component, ...)` when supervising a
   process-hosted Wire component with a stable client, readiness, restart backoff, and process
-  generations. The lower-level worker slot is internal to `@agent/wire`.
+  generations. The lower-level worker slot is internal to `@emdash/wire`.
 - Use Wire `LiveJobSource` when work must be visible over the Wire protocol as a cancellable job with
   progress, terminal state, retention, and remote client handles.
 
@@ -204,22 +204,22 @@ Browser code imports another module's `api/` or `browser/` surface only. It must
 All Core module exports follow:
 
 ```text
-@agent/core/<module-type>/<module-name>/<surface>
+@emdash/core/<module-type>/<module-name>/<surface>
 ```
 
 Examples:
 
 ```ts
-import { gitContract } from '@agent/core/runtimes/git/api';
-import { GitRuntime, gitComponent } from '@agent/core/runtimes/git/node';
+import { gitContract } from '@emdash/core/runtimes/git/api';
+import { GitRuntime, gitComponent } from '@emdash/core/runtimes/git/node';
 
-import type { WatchService } from '@agent/core/services/fs-watch/api';
-import { createNativeWatchService } from '@agent/core/services/fs-watch/node';
+import type { WatchService } from '@emdash/core/services/fs-watch/api';
+import { createNativeWatchService } from '@emdash/core/services/fs-watch/node';
 
-import { parseAbsolute, type HostAbsolutePath } from '@agent/core/primitives/path/api';
+import { parseAbsolute, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
 ```
 
-Do not add an ambiguous module-root export such as `@agent/core/runtimes/git`. Consumers must
+Do not add an ambiguous module-root export such as `@emdash/core/runtimes/git`. Consumers must
 select `api`, `node`, or `browser` explicitly.
 
 Each exported surface has one `index.ts`. Nested implementation directories do not add barrel files
@@ -350,6 +350,6 @@ Move one domain at a time:
 5. migrate consumers without introducing cross-runtime imports; and
 6. keep worker entry files and manifests in the host application that deploys the component.
 
-Keep `@agent/wire` and `@agent/shared` as lower-level packages. This module taxonomy organizes
-Agent domain ownership; it does not absorb the Wire framework, logging implementation, Result
+Keep `@emdash/wire` and `@emdash/shared` as lower-level packages. This module taxonomy organizes
+Emdash domain ownership; it does not absorb the Wire framework, logging implementation, Result
 type, or other package-level foundations.

@@ -1,10 +1,10 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   createConcurrencyLimiter,
   createLifecycleRegistry,
   type LifecycleRegistry,
   type Scope,
-} from '@agent/shared/concurrency';
+} from '@emdash/shared/concurrency';
 import { canonicalExclusionPatterns } from '#primitives/exclusion-policy/api';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import type {

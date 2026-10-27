@@ -2,7 +2,7 @@
 
 Research notes, 2026-08-06. All claims are cited to primary sources: Electron docs, Node.js docs,
 W3C specs, `microsoft/vscode` source on `main`, react.dev, and web.dev (Google owns the INP metric
-definition). Context: agent is an Electron app that runs ~14 persistent Node worker child
+definition). Context: emdash is an Electron app that runs ~14 persistent Node worker child
 processes plus many short-lived git subprocesses.
 
 ---
@@ -228,7 +228,7 @@ exact lifetimes.
   than any polling interval); zero polling cost — cost is O(spawns), a counter increment and an
   event listener per spawn; rich attribution (command, argv, cwd, calling feature, duration, exit
   code).
-- **Cons:** only sees spawns made *by the instrumented process* — each of agent's worker
+- **Cons:** only sees spawns made *by the instrumented process* — each of emdash's worker
   processes needs the same wrapper; blind to grandchildren spawned by external binaries (e.g. git
   invoking `ssh` or credential helpers); a monkey-patch (as opposed to an owned wrapper seam) is
   invasive and interacts badly with security-sensitive spawn paths.
@@ -324,9 +324,9 @@ gate is purely the existing telemetry opt-in (and, per VS Code's precedent, sess
 
 ---
 
-## Implications for agent
+## Implications for emdash
 
-**Key structural fact:** agent's ~14 persistent workers are plain Node `child_process` children,
+**Key structural fact:** emdash's ~14 persistent workers are plain Node `child_process` children,
 so `app.getAppMetrics()` cannot see them (§1.1). That forces a two-source design — or a migration
 of the persistent workers to `utilityProcess.fork()`, which would unify them under
 `getAppMetrics` with a per-worker `serviceName` and `child-process-gone` crash events (§3.3).

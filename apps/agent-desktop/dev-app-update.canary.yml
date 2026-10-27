@@ -1,6 +1,0 @@
-provider: github
-owner: generalaction
-repo: agent
-channel: canary
-allowPrerelease: true
-updaterCacheDirName: agent-canary-updater

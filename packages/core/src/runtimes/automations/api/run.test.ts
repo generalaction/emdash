@@ -3,7 +3,7 @@ import { LOCAL_HOST_REF } from '#primitives/host/api';
 import { automationRunSchema } from './run';
 const workspace = {
   host: LOCAL_HOST_REF,
-  path: { root: { kind: 'posix' as const }, segments: ['worktrees', 'agent-abc'] },
+  path: { root: { kind: 'posix' as const }, segments: ['worktrees', 'emdash-abc'] },
 };
 const configSnapshot = {
   name: 'Nightly',
@@ -41,7 +41,7 @@ const scheduledRun = {
   status: 'scheduled',
   triggerKind: 'cron',
   configSnapshot,
-  generatedName: 'agent-abc',
+  generatedName: 'emdash-abc',
   scheduledAt: 1000,
   deadlineAt: 2000,
   startedAt: null,
@@ -57,17 +57,17 @@ describe('automationRunSchema', () => {
     const parsed = automationRunSchema.parse({
       ...scheduledRun,
       status: 'done',
-      generatedName: '  agent-abc  ',
+      generatedName: '  emdash-abc  ',
       startedAt: 1100,
       finishedAt: 1200,
       workspace,
-      branchName: '  agent-abc  ',
+      branchName: '  emdash-abc  ',
       conversationId: '  conversation-1  ',
       sessionId: '  session-1  ',
     });
     expect(parsed).toMatchObject({
-      generatedName: 'agent-abc',
-      branchName: 'agent-abc',
+      generatedName: 'emdash-abc',
+      branchName: 'emdash-abc',
       conversationId: 'conversation-1',
       sessionId: 'session-1',
     });

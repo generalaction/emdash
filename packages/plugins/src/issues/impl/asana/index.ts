@@ -1,4 +1,4 @@
-import { err, ok } from '@agent/shared';
+import { err, ok } from '@emdash/shared';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { createAsanaClient, readAsanaCredentials } from '../../../integrations/impl/asana/client';

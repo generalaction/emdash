@@ -1,8 +1,8 @@
-import { createScope } from '@agent/shared/concurrency';
-import { deferred, ManualClock, waitFor } from '@agent/shared/testing';
-import { createController } from '@agent/wire/rpc';
-import { observe, remote, snapshot } from '@agent/wire/state';
-import { createTestWire } from '@agent/wire/testing';
+import { createScope } from '@emdash/shared/concurrency';
+import { deferred, ManualClock, waitFor } from '@emdash/shared/testing';
+import { createController } from '@emdash/wire/rpc';
+import { observe, remote, snapshot } from '@emdash/wire/state';
+import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UsageProbeResult } from '#primitives/provider-usage/api';
 import { providerUsageContract } from '../api';

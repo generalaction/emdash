@@ -1,19 +1,19 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@agent/core/services/agent-plugins/api/plugins';
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
   opencodeMcpAdapter,
   xdgConfigRoot,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { opencodeAuthStatus } from './auth';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
-const OPENCODE_PLUGIN_PATH = 'plugins/agent-notifications.js';
+const OPENCODE_PLUGIN_PATH = 'plugins/emdash-notifications.js';
 const validateSessionId = (id: string) => id.startsWith('ses');
 import { icon } from './icon';
 

@@ -256,7 +256,7 @@ async function readBranchIdentity(
     const name = key.slice(prefix.length);
     if (name === 'remote') remote = value;
     else if (name === 'merge') mergeRef = value;
-    else if (name === 'agent-pr-url') prBreadcrumb = value;
+    else if (name === 'emdash-pr-url') prBreadcrumb = value;
   }
   const upstream =
     remote !== null && mergeRef !== null

@@ -1,4 +1,4 @@
-import { resultSchema, type Result } from '@agent/shared';
+import { resultSchema, type Result } from '@emdash/shared';
 import { z } from 'zod';
 import type { LiveMutationInput, Mutator } from './channel';
 import type { WireFileMeta } from './protocol';

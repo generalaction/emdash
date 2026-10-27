@@ -1,7 +1,7 @@
-import { err, ok, type Result } from '@agent/shared';
-import { KeyedMutex } from '@agent/shared/concurrency';
-import type { Logger } from '@agent/shared/logger';
-import type { WireFile } from '@agent/wire/rpc';
+import { err, ok, type Result } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
+import type { WireFile } from '@emdash/wire/rpc';
 import type { AttachmentError, AttachmentOwner, AttachmentRef } from '../api';
 import type { AttachmentStore, StoredAttachment } from './attachment-store';
 

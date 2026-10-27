@@ -1,4 +1,4 @@
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import { APIErrorCode, APIResponseError } from '@notionhq/client';
 import type * as NotionSdk from '@notionhq/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -51,7 +51,7 @@ describe('notion integration verify', () => {
       object: 'user',
       id: 'bot-1',
       type: 'bot',
-      name: 'Agent',
+      name: 'Emdash',
       avatar_url: null,
       bot: {},
     });
@@ -61,7 +61,7 @@ describe('notion integration verify', () => {
     expect(result).toEqual({
       connected: true,
       account: { id: 'bot-1' },
-      displayName: 'Agent',
+      displayName: 'Emdash',
       credentials: { apiToken: 'ntn_valid' },
     });
     expect(notionSdk.constructor).toHaveBeenCalledWith({ auth: 'ntn_valid' });

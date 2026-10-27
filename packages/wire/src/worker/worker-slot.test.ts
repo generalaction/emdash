@@ -1,6 +1,6 @@
-import { createScope } from '@agent/shared/concurrency';
-import { retrySchedules } from '@agent/shared/scheduling';
-import { createManualClock, createStubLogger } from '@agent/shared/testing';
+import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
+import { createManualClock, createStubLogger } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineContract, procedure } from '../api/define';

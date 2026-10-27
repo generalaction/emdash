@@ -1,4 +1,4 @@
-import type { PendingLease } from '@agent/shared';
+import type { PendingLease } from '@emdash/shared';
 import type { LiveMutationResult, LiveSource } from '../../api/channel';
 import type {
   LiveModelKey,

@@ -13,14 +13,14 @@ describe('buildUserShellEnvSeed', () => {
         NODE_ENV_ELECTRON_VITE: 'development',
         ELECTRON_RUN_AS_NODE: '1',
         ELECTRON_EXEC_PATH: '/app/node_modules/electron',
-        AGENT_DB_FILE: '/tmp/app.db',
-        AGENT_LOG_FILE: '/tmp/app.log',
+        EMDASH_DB_FILE: '/tmp/app.db',
+        EMDASH_LOG_FILE: '/tmp/app.log',
         npm_lifecycle_event: 'dev',
-        npm_package_name: '@agent/agent-desktop',
+        npm_package_name: '@emdash/emdash-desktop',
         NX_TASK_TARGET_TARGET: 'dev',
         NX_NO_CLOUD: 'true',
         PNPM_HOME: '/home/test/.local/share/pnpm',
-        PNPM_PACKAGE_NAME: '@agent/agent-desktop',
+        PNPM_PACKAGE_NAME: '@emdash/emdash-desktop',
         DISABLE_AUTO_UPDATE: 'true',
       })
     ).toEqual({

@@ -1,11 +1,11 @@
-# @agent/core Docs
+# @emdash/core Docs
 
-`@agent/core` contains transport-agnostic primitives shared by the desktop app,
+`@emdash/core` contains transport-agnostic primitives shared by the desktop app,
 workspace server, worker processes, and provider runtimes.
 
 ## Public Exports
 
-- [`@agent/core/primitives/path/api`](path/README.md) - pure host-aware path identity,
+- [`@emdash/core/primitives/path/api`](path/README.md) - pure host-aware path identity,
   normalization, resource URI, and comparison helpers.
 
 ## Boundaries

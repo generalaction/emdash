@@ -40,12 +40,12 @@ describe('NodeExecutionContext', () => {
   });
 
   it('resolves the current environment for every command spawn', async () => {
-    let env = { AGENT_ENV_REVISION: 'before-refresh' };
+    let env = { EMDASH_ENV_REVISION: 'before-refresh' };
     const context = new NodeExecutionContext({ env: async () => env });
 
-    const before = await context.exec(process.execPath, ['-p', 'process.env.AGENT_ENV_REVISION']);
-    env = { AGENT_ENV_REVISION: 'after-refresh' };
-    const after = await context.exec(process.execPath, ['-p', 'process.env.AGENT_ENV_REVISION']);
+    const before = await context.exec(process.execPath, ['-p', 'process.env.EMDASH_ENV_REVISION']);
+    env = { EMDASH_ENV_REVISION: 'after-refresh' };
+    const after = await context.exec(process.execPath, ['-p', 'process.env.EMDASH_ENV_REVISION']);
 
     expect(before.stdout.trim()).toBe('before-refresh');
     expect(after.stdout.trim()).toBe('after-refresh');
@@ -83,7 +83,7 @@ describe('NodeExecutionContext', () => {
   });
 
   it('uses the Windows launch planner for buffered and streaming cmd shims', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'agent-windows-exec-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-windows-exec-'));
     const cmdWrapper = path.join(dir, 'cmd-wrapper');
     const provider = path.join(dir, 'provider.cmd');
     await writeFile(cmdWrapper, '#!/bin/sh\nprintf \'%s\\n\' "$@"\n', 'utf8');
@@ -111,7 +111,7 @@ describe('NodeExecutionContext', () => {
   });
 
   it('kills streaming descendants when the consumer stops early', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'agent-stream-stop-tree-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-stream-stop-tree-'));
     const pidPath = path.join(dir, 'descendant.pid');
     const context = new NodeExecutionContext();
     const execution = context.execStreaming(
@@ -126,7 +126,7 @@ describe('NodeExecutionContext', () => {
   });
 
   it('awaits forced descendant cleanup when the context is disposed', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'agent-context-dispose-tree-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-context-dispose-tree-'));
     const pidPath = path.join(dir, 'descendant.pid');
     const context = new NodeExecutionContext();
     const execution = context.execStreaming(

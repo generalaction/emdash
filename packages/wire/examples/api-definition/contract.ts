@@ -1,4 +1,4 @@
-import { ok } from '@agent/shared';
+import { ok } from '@emdash/shared';
 import {
   defineContract,
   liveModel,
@@ -6,7 +6,7 @@ import {
   liveLog,
   mutation,
   procedure,
-} from '@agent/wire/rpc';
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 export const sessionKeySchema = z.object({ sessionId: z.string() });

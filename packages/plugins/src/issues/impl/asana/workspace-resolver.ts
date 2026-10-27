@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import { USER_OPT_FIELDS } from '../../../integrations/impl/asana/client';
 import type {

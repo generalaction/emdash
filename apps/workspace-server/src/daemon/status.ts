@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { daemonPaths, type DaemonPaths } from './paths';
 import { probeDaemon, type DaemonHealth } from './probe';
 

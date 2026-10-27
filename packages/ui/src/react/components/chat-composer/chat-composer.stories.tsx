@@ -252,7 +252,7 @@ const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'overflow-shell-command',
     title:
-      'Execute a Shell Command: pnpm --filter @agent/agent-desktop run test:migrations -- --reporter=verbose --runInBand --updateSnapshot=false',
+      'Execute a Shell Command: pnpm --filter @emdash/emdash-desktop run test:migrations -- --reporter=verbose --runInBand --updateSnapshot=false',
     options: [
       {
         optionId: 'allow-once-long',
@@ -274,7 +274,7 @@ const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'overflow-deep-path',
     title:
-      'Edit /Users/davidkonopka/Documents/repos/agent/apps/agent-desktop/src/core/features/conversations/browser/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
+      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/core/features/conversations/browser/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
     options: [
       { optionId: 'allow-edit-once', name: 'Allow this edit once', kind: 'allow_once' },
       {

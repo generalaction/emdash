@@ -1,0 +1,219 @@
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
+import { Octokit } from '@octokit/rest';
+import { Arch, Platform, build as electronBuild } from 'electron-builder';
+import type { Configuration } from 'electron-builder';
+import canaryConfig from '../../electron-builder.canary.config.ts';
+import stableConfig from '../../electron-builder.config.ts';
+import {
+  duplicateChannelManifests,
+  findManifests,
+  mergeUpdateManifests,
+  resolvePublishChannels,
+} from './lib/artifacts.ts';
+import { createReleaseBuildConfig } from './lib/build-config.ts';
+import { GITHUB_OWNER, GITHUB_REPO, requireEnv } from './lib/config.ts';
+import { exec } from './lib/exec.ts';
+import { verifyLanguageServerAssets } from './lib/language-servers.ts';
+import { fail, info, step, warn } from './lib/log.ts';
+import {
+  packagedLanguageServerApp,
+  verifyPackagedLanguageServers,
+  type PackagedLanguageServerApp,
+} from './lib/packaged-language-servers.ts';
+import { releaseHasOwnership } from './lib/release-ownership.ts';
+import { resolveReleaseVersion } from './lib/version.ts';
+import type { ReleaseChannel } from './lib/version.ts';
+
+const { values } = parseArgs({
+  options: {
+    platform: { type: 'string' },
+    arch: { type: 'string', default: 'both' },
+    targets: { type: 'string' },
+    config: { type: 'string', default: 'electron-builder.config.ts' },
+    channel: { type: 'string', default: 'stable' },
+    'release-id': { type: 'string' },
+  },
+  strict: true,
+});
+
+const platform = values.platform;
+if (!platform || !['mac', 'linux', 'win'].includes(platform)) {
+  fail(
+    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts] [--channel stable|canary] [--release-id id]'
+  );
+}
+
+const channel = (values.channel ?? 'stable') as ReleaseChannel;
+if (!['stable', 'canary'].includes(channel)) {
+  fail(`Unknown channel "${channel}"; must be "stable" or "canary"`);
+}
+
+const archInput = values.arch ?? 'both';
+if (!['x64', 'arm64', 'both'].includes(archInput)) {
+  fail(`Unknown arch: ${archInput}`);
+}
+const archs: Array<'x64' | 'arm64'> =
+  archInput === 'both' ? ['x64', 'arm64'] : [archInput as 'x64' | 'arm64'];
+
+const defaultTargets: Record<string, string[]> = {
+  mac: ['dmg', 'zip'],
+  linux: ['AppImage', 'deb', 'rpm'],
+  win: ['nsis', 'msi'],
+};
+const targetList = values.targets ? values.targets.split(',') : defaultTargets[platform];
+
+const platformMap: Record<string, Platform> = {
+  mac: Platform.MAC,
+  linux: Platform.LINUX,
+  win: Platform.WINDOWS,
+};
+
+const archMap: Record<string, Arch> = {
+  x64: Arch.x64,
+  arm64: Arch.arm64,
+};
+
+const ebPlatform = platformMap[platform];
+
+const { version: overrideVersion, tag, isCanary } = resolveReleaseVersion(channel);
+if (isCanary) {
+  info(`Canary build: packaging as version ${overrideVersion} (tag ${tag})`);
+}
+
+const releaseId = Number(values['release-id']);
+if (!Number.isSafeInteger(releaseId) || releaseId <= 0) {
+  fail('--release-id must be a positive integer from prepare-release');
+}
+const ghToken = requireEnv('GH_TOKEN');
+const octokit = new Octokit({ auth: ghToken });
+const { data: draft } = await octokit.rest.repos.getRelease({
+  owner: GITHUB_OWNER,
+  repo: GITHUB_REPO,
+  release_id: releaseId,
+});
+const ownership = {
+  runId: requireEnv('GITHUB_RUN_ID'),
+  sha: requireEnv('GITHUB_SHA'),
+};
+if (!draft.draft || draft.tag_name !== tag || !releaseHasOwnership(draft.body, ownership)) {
+  fail(`Release ${releaseId} is not the owned ${tag} draft for this workflow run and commit`);
+}
+if (draft.target_commitish !== ownership.sha) {
+  fail(`Release ${releaseId} targets ${draft.target_commitish}, expected ${ownership.sha}`);
+}
+
+step('Creating deployment directory with production dependencies');
+const workspaceRoot = resolve(process.cwd(), '../..');
+const deployDir = mkdtempSync(join(workspaceRoot, '.emdash-deploy-'));
+exec(`pnpm --filter @emdash/emdash-desktop deploy --legacy --prod ${deployDir}`, {
+  cwd: workspaceRoot,
+  echo: true,
+});
+
+verifyLanguageServerAssets(deployDir);
+
+step('Copying built assets into deployment directory');
+cpSync('out', join(deployDir, 'out'), { recursive: true });
+cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
+
+const electronVersion = exec(`node -p "require('electron/package.json').version"`);
+
+const configName = basename(values.config ?? 'electron-builder.config.ts');
+const baseConfig: Configuration =
+  configName === 'electron-builder.config.ts'
+    ? stableConfig
+    : configName === 'electron-builder.canary.config.ts'
+      ? canaryConfig
+      : fail(`Unknown electron-builder config "${configName}"`);
+const publishArray = Array.isArray(baseConfig.publish)
+  ? baseConfig.publish
+  : baseConfig.publish
+    ? [baseConfig.publish]
+    : [];
+const { githubChannel, r2Channel } = resolvePublishChannels(
+  publishArray as Array<Record<string, unknown>>
+);
+const collectedManifests = new Map<string, string[]>();
+
+try {
+  for (const arch of archs) {
+    step(`Building ${platform} ${targetList.join(' ')} for ${arch}`);
+
+    exec(
+      `node --experimental-strip-types scripts/release/rebuild-native.ts --arch ${arch} --deploy-dir ${deployDir}`,
+      { echo: true }
+    );
+
+    const archEnum = archMap[arch];
+    if (!archEnum) fail(`Unknown arch: ${arch}`);
+
+    const buildTargets = ebPlatform.createTarget(targetList, archEnum);
+    const config = createReleaseBuildConfig(
+      baseConfig,
+      electronVersion,
+      isCanary ? overrideVersion : undefined
+    );
+    const packagedApps: PackagedLanguageServerApp[] = [];
+
+    await electronBuild({
+      targets: buildTargets,
+      config: {
+        ...config,
+        afterPack: async (context) => {
+          packagedApps.push(packagedLanguageServerApp(context));
+        },
+      },
+      projectDir: deployDir,
+      // Platform verification and notarization must run against the exact bytes that ship.
+      // A later explicit step uploads those final files to the owned GitHub draft.
+      publish: 'never',
+    });
+
+    if (arch === process.arch && ebPlatform.nodeName === process.platform) {
+      if (packagedApps.length !== 1)
+        fail('Expected one finished app for language-server verification');
+      step('Verifying bundled language servers in the finished app with an empty PATH');
+      await verifyPackagedLanguageServers(packagedApps[0]);
+    } else {
+      warn(
+        `Cannot execute the ${platform}/${arch} app on this host; run verify-language-servers on a matching host`
+      );
+    }
+
+    for (const manifest of findManifests(githubChannel, join(deployDir, 'release'))) {
+      const name = basename(manifest);
+      const versions = collectedManifests.get(name) ?? [];
+      versions.push(readFileSync(manifest, 'utf8'));
+      collectedManifests.set(name, versions);
+    }
+
+    info(`Built ${platform} ${targetList.join(' ')} for ${arch}`);
+  }
+
+  for (const [name, manifests] of collectedManifests) {
+    writeFileSync(join(deployDir, 'release', name), mergeUpdateManifests(manifests));
+  }
+
+  step('Copying release artifacts to app directory');
+  rmSync('release', { recursive: true, force: true });
+  cpSync(join(deployDir, 'release'), 'release', { recursive: true });
+
+  step('Preparing GitHub and R2 channel manifests');
+  const generatedManifests = findManifests(githubChannel);
+  if (r2Channel && githubChannel !== r2Channel) {
+    const duplicated = duplicateChannelManifests(githubChannel, r2Channel);
+    if (duplicated.length > 0) {
+      info(`Duplicated ${duplicated.length} manifest(s): "${githubChannel}" → "${r2Channel}"`);
+      generatedManifests.push(...duplicated);
+    } else {
+      warn(`No "${githubChannel}" manifests found to duplicate for R2 channel "${r2Channel}"`);
+    }
+  }
+  info(
+    `Prepared ${generatedManifests.length} local update manifest(s) for post-verification upload`
+  );
+} finally {
+  rmSync(deployDir, { recursive: true, force: true });
+}

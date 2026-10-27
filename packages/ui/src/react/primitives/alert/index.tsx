@@ -1,4 +1,4 @@
-import type { SurfaceStatusName } from '@agent/theme';
+import type { SurfaceStatusName } from '@emdash/theme';
 import { cx } from '@styles/utilities/cx';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircleIcon, InfoIcon, XIcon } from 'lucide-react';
 import * as React from 'react';

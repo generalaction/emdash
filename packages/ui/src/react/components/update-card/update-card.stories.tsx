@@ -8,7 +8,7 @@ const meta = {
   parameters: { layout: 'centered' },
   args: {
     currentVersion: '1.2.5',
-    appName: 'Agent',
+    appName: 'Emdash',
     status: {
       type: 'update-download-available',
       version: '1.2.6',
@@ -48,7 +48,7 @@ export const DownloadError: Story = {
       message:
         'The download was interrupted because the connection was lost. Check your internet connection, then try downloading the update again.',
       details:
-        'Version: 1.2.6\nError: net::ERR_CONNECTION_RESET\nThe connection closed while downloading the update archive. The download did not complete, so no update is ready to install.\nYou can keep using the current version of Agent and retry the download when your connection is restored.',
+        'Version: 1.2.6\nError: net::ERR_CONNECTION_RESET\nThe connection closed while downloading the update archive. The download did not complete, so no update is ready to install.\nYou can keep using the current version of Emdash and retry the download when your connection is restored.',
     },
   },
 };

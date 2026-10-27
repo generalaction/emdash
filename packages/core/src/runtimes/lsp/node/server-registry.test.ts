@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { err, ok } from '@agent/shared';
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { parseNativeAbsolute } from '#primitives/path/api';
 import {
@@ -99,7 +99,7 @@ describe('language server resolution', () => {
     expect(resolver.resolve).not.toHaveBeenCalled();
   });
   it('resolves a hoisted project compiler without loading project code', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'agent-lsp-sdk-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-sdk-'));
     try {
       const lib = path.join(root, 'node_modules/typescript/lib');
       const project = path.join(root, 'packages/app');
@@ -117,7 +117,7 @@ describe('language server resolution', () => {
     }
   });
   it('uses bundled TS6 when the workspace package does not expose tsserver', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'agent-lsp-compiler-fallback-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-compiler-fallback-'));
     try {
       const compiler = path.join(root, 'node_modules/typescript');
       await mkdir(compiler, { recursive: true });

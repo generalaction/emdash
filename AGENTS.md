@@ -1,6 +1,6 @@
 # Project Overview
 
-Agent is a local-first, cross-platform Electron app for running multiple AI coding
+Emdash is a local-first, cross-platform Electron app for running multiple AI coding
 agents in parallel. Each task is isolated in its own Git worktree and can run locally
 or over SSH, while the desktop app coordinates provider CLIs, ACP chat sessions,
 terminal sessions, issue and PR integrations, diff review, and release packaging.
@@ -8,17 +8,17 @@ terminal sessions, issue and PR integrations, diff review, and release packaging
 ## Repository Structure
 
 This is a pnpm workspace monorepo. The Electron app lives in
-`apps/agent-desktop/` as `@agent/agent-desktop`; shared packages live under
+`apps/emdash-desktop/` as `@emdash/emdash-desktop`; shared packages live under
 `packages/`. Unless a path is prefixed with `packages/` or another app, app paths
 such as `src/...`, `drizzle/`, `scripts/`, and `build/` are relative to
-`apps/agent-desktop/`.
+`apps/emdash-desktop/`.
 
 Repo root:
 
 - `.claude/` - Local Claude agent settings for this checkout.
 - `.github/` - GitHub issue templates, reusable actions, CI, and release workflows.
 - `agents/` - Agent-facing architecture, workflow, convention, integration, and risk docs.
-- `apps/agent-desktop/` - The Electron desktop app.
+- `apps/emdash-desktop/` - The Electron desktop app.
 - `apps/workspace-server/` - Remote workspace server and its Docker-based dev stack.
 - `packages/chat-ui/` - Shared transcript and ACP chat renderer with Storybook coverage.
 - `packages/core/` - Transport-agnostic runtime primitives, including ACP session logic.
@@ -31,7 +31,7 @@ Repo root:
 - Root config files - `package.json`, `nx.json`, `.nvmrc`, `.oxfmtrc.json`,
   `.oxlintrc.json`, and lockfile/configuration owned at the workspace root.
 
-Inside `apps/agent-desktop/`:
+Inside `apps/emdash-desktop/`:
 
 - `build/` - Electron packaging assets; avoid edits unless working on packaging/signing.
 - `drizzle/` - Generated Drizzle SQL migrations and metadata.
@@ -60,7 +60,7 @@ packaging, remote development, and escape hatches):
 ```bash
 pnpm install        # complete setup from the repo root — nothing else needed
 pnpm run doctor     # report-only environment health check
-pnpm run dev        # full workspace dev (root); app-only from apps/agent-desktop/
+pnpm run dev        # full workspace dev (root); app-only from apps/emdash-desktop/
 pnpm run build      # build all workspace projects
 pnpm run check      # full merge gate: format, lint, typecheck, test
 ```
@@ -77,10 +77,10 @@ pnpm run test
 Use an isolated development database for schema or migration work:
 
 ```bash
-AGENT_DB_FILE=/tmp/agent-scratch.db pnpm run dev
+EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
 ```
 
-Run focused database validation from `apps/agent-desktop/`:
+Run focused database validation from `apps/emdash-desktop/`:
 
 ```bash
 pnpm run db:fixtures
@@ -109,7 +109,7 @@ and channel rules.
   trailing commas where valid in ES5, and sorted imports.
 - Lint with `oxlint`; config is `.oxlintrc.json` with correctness, TypeScript, React
   hooks, and local repo rules enabled.
-- TypeScript strict mode is enabled; app targets share `apps/agent-desktop/tsconfig.json`.
+- TypeScript strict mode is enabled; app targets share `apps/emdash-desktop/tsconfig.json`.
 - Avoid `any`; if a registry or boundary needs it, keep the escape local and documented.
 - Use top-level `import` statements; do not use `require()`.
 - Never re-export as a shortcut; import from the original source.
@@ -165,9 +165,9 @@ flowchart LR
   Services --> VCS[Git, GitHub, GitLab, PRs]
   Services --> Issues[Issue integrations]
   Services --> MCP[MCP and skills]
-  ACP --> CoreAcp[@agent/core ACP runtime]
-  ACP --> Plugins[@agent/plugins providers]
-  Renderer --> ChatUI[@agent/chat-ui]
+  ACP --> CoreAcp[@emdash/core ACP runtime]
+  ACP --> Plugins[@emdash/plugins providers]
+  Renderer --> ChatUI[@emdash/chat-ui]
   Main --> Events[Live models and typed events]
   Events --> Renderer
 ```
@@ -189,7 +189,7 @@ Structured chat conversations use ACP: provider plugins in `packages/plugins/` e
 ACP behavior, `packages/core/src/runtimes/acp/` owns protocol/session state, terminal
 management, and process hosting, the desktop launches that runtime as a Wire component worker
 from `src/main/gateway/entries/acp.ts` (`src/main/core/acp/` bridges agent status), and
-`src/core/features/conversations/browser/acp/` maps updates into `@agent/chat-ui`.
+`src/core/features/conversations/browser/acp/` maps updates into `@emdash/chat-ui`.
 
 Main-process adapter domains live under `src/main/core/`: ACP, agent status, app,
 dependencies, file search, files, Git, preview servers, provider accounts, runtime,
@@ -197,7 +197,7 @@ shared, terminal shell, and utils. Portable domain logic lives in vertical slice
 under `src/core/` and in `packages/core/` (for example PTY services under
 `packages/core/src/services/pty/` and resource monitoring under
 `packages/core/src/runtimes/resource-usage/`). Expected failures should use the
-`Result<T, E>` pattern from `@agent/shared` or the app-local result helpers.
+`Result<T, E>` pattern from `@emdash/shared` or the app-local result helpers.
 
 ## Testing Strategy
 
@@ -211,7 +211,7 @@ pnpm run test
 ```
 
 - Root `pnpm run test` uses Nx to run every workspace package test target.
-- App tests run with Vitest projects in `apps/agent-desktop/vitest.config.ts`.
+- App tests run with Vitest projects in `apps/emdash-desktop/vitest.config.ts`.
 - App `node` tests cover `src/**/*.test.ts` except DB, migration, and browser tests.
 - App `main-db` tests cover main-process integration tests that need real SQLite.
 - App `fixtures` tests generate DB fixtures via `pnpm run db:fixtures`.
@@ -344,11 +344,11 @@ pnpm run test
   `src/core/features/mcp/browser/`.
 - Skills types and validation live in Core primitives; skills UI and service code live in
   `src/core/features/skills/browser/` and `src/core/features/skills/node/`.
-- Team-owned runtime settings live in each workspace's `.agent.json`:
+- Team-owned runtime settings live in each workspace's `.emdash.json`:
   `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
   `scripts.teardown`, and `shellSetup` (a per-workspace override of the host default).
 - Project overrides such as `worktreeRoot`, `defaultBranch`, `baseRemote`, `pushRemote`,
-  `githubAccount`, `agentGitCredentials`, and `tmux` are DB-backed, not `.agent.json`. Effective
+  `githubAccount`, `agentGitCredentials`, and `tmux` are DB-backed, not `.emdash.json`. Effective
   tmux resolves through project override > host default > app default; it is not seeded from a
   default at project creation.
 - The workspace registry owns lifecycle and file-handling config. Host-local personal config
@@ -356,11 +356,11 @@ pnpm run test
   directory project-root record; worktrees resolve against their project root's personal config.
 - Read registry-owned config through the keyed `projectConfig` live model or `getProjectConfig`.
   It exposes raw personal/team layers, team-file sources, and one `{ value, from }` result per
-  field. Applicable precedence is personal > that workspace's `.agent.json` > host default >
+  field. Applicable precedence is personal > that workspace's `.emdash.json` > host default >
   built-in; arrays replace rather than merge.
 - Per-host defaults (`shellSetup`, `worktreeRoot`, `tmux`) live in the host-settings
   runtime (`packages/core/src/runtimes/host-settings/`), stored as JSON in the host's
-  agent data directory and editable from the machines/system settings UI.
+  emdash data directory and editable from the machines/system settings UI.
 - Desktop project settings compose self-contained domain snapshots: the registry owns
   lifecycle/file handling, while desktop DB and host-settings domains own Git identity and
   placement. Forms edit raw layers with explicit per-domain patches; there is no merged settings
@@ -372,8 +372,8 @@ pnpm run test
   `src/core/features/projects/node/settings/migrations/` and run in order when an attachment is
   established. Legacy schemas and readers stay migration-only; destination markers make imports
   idempotent and retryable.
-- Optional environment variables include `TELEMETRY_ENABLED`, `AGENT_DB_FILE`,
-  `AGENT_DISABLE_NATIVE_DB`, `AGENT_DISABLE_PTY`, `AGENT_AUTH_SERVER_URL` (development
+- Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
+  `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`, `EMDASH_AUTH_SERVER_URL` (development
   builds only), `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
@@ -382,7 +382,7 @@ pnpm run test
   `electron.vite.config.ts`; workspace packages resolve through their `exports` maps with a
   `development` condition, not aliases.
 - Versioned JSON column schemas use `defineVersionedSchema()` from
-  `@agent/core/primitives/versioned-schema/api`
+  `@emdash/core/primitives/versioned-schema/api`
  (`packages/core/src/primitives/versioned-schema/api/versioned-schema.ts`) and Drizzle
  `versionedJsonColumn()` from `src/core/services/app-db/node/versioned-column.ts`.
 

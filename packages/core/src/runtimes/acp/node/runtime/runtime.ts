@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { Result } from '@agent/shared';
-import { ok } from '@agent/shared';
-import type { LiveLogSource } from '@agent/wire/live';
+import type { Result } from '@emdash/shared';
+import { ok } from '@emdash/shared';
+import type { LiveLogSource } from '@emdash/wire/live';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,

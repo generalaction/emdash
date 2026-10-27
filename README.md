@@ -1,4 +1,4 @@
-<img alt="Agent" src="https://github.com/user-attachments/assets/a2ecaf3c-9d84-40ca-9a8e-d4f612cc1c6f" />
+<img alt="Emdash" src="https://github.com/user-attachments/assets/a2ecaf3c-9d84-40ca-9a8e-d4f612cc1c6f" />
 
 <div align="center">
 
@@ -14,18 +14,18 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
 <a href="https://www.ycombinator.com"><img src="https://img.shields.io/badge/Y%20Combinator-W26-orange" alt="Y Combinator W26"></a>
-[![Follow @agentsh on X](https://img.shields.io/twitter/follow/agentsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=agentsh)
+[![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
 </div>
 
-Agent is a desktop app for running AI coding agents in parallel. Each task runs in its
+Emdash is a desktop app for running AI coding agents in parallel. Each task runs in its
 own Git worktree, so you can explore multiple fixes or features at once, review the
 diffs, and merge what works.
 
 It works with local projects and remote machines over SSH. Bring the CLI agents you
 already use: Claude Code, Codex, OpenCode, Amp, and more.
 
-<img alt="Agent product screenshot" src="https://emdash.sh/media/blog/public-v1-beta/v1beta.jpg" />
+<img alt="Emdash product screenshot" src="https://emdash.sh/media/blog/public-v1-beta/v1beta.jpg" />
 
 ## What You Can Do
 
@@ -40,7 +40,7 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 
 | Platform | Install |
 | --- | --- |
-| macOS | `brew install --cask agent` · [Apple Silicon](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg) · [Intel](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg) |
+| macOS | `brew install --cask emdash` · [Apple Silicon](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg) · [Intel](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg) |
 | Windows | [Installer](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi) · [Portable](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe) |
 | Linux x64 | [AppImage](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage) · [DEB](https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb) · [RPM](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.rpm) |
 | Linux ARM64 | [AppImage](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.AppImage) · [DEB](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.deb) · [RPM](https://github.com/generalaction/emdash/releases/latest/download/emdash-aarch64.rpm) |
@@ -50,13 +50,13 @@ all desktop builds.
 
 ## Agents
 
-Agent detects installed provider CLIs automatically. It supports agents like Claude
+Emdash detects installed provider CLIs automatically. It supports agents like Claude
 Code, Codex, Cursor, OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub
 Copilot.
 
-For agents with lifecycle-hook support, Agent installs marker-tagged entries in the agent's
-user-level config. These hooks let Agent track status, notifications, and resumable sessions, and
-silently do nothing when the agent runs outside an Agent session.
+For agents with lifecycle-hook support, Emdash installs marker-tagged entries in the agent's
+user-level config. These hooks let Emdash track status, notifications, and resumable sessions, and
+silently do nothing when the agent runs outside an Emdash session.
 
 See [Providers](https://emdash.sh/docs/providers) for the full list, setup commands,
 and provider-specific behavior.
@@ -64,15 +64,15 @@ and provider-specific behavior.
 ## Remote Projects
 
 Connect to remote machines with SSH/SFTP and run the same parallel workflow on remote
-codebases. Agent supports SSH agent, key, and password authentication, including OpenSSH
+codebases. Emdash supports SSH agent, key, and password authentication, including OpenSSH
 certificates held by the agent, with credentials stored in your OS keychain.
 
 See [Remote Projects](https://emdash.sh/docs/remote-projects) for setup details.
 
 ## Privacy
 
-Agent is local-first. App state is stored in a local SQLite database, and Agent does
-not send your code or chats to Agent servers.
+Emdash is local-first. App state is stored in a local SQLite database, and Emdash does
+not send your code or chats to Emdash servers.
 
 Agent CLIs may send code, prompts, and context to their own providers. Their data
 handling depends on the provider you choose.

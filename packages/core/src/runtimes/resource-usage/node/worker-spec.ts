@@ -1,4 +1,4 @@
-import type { WireComponentWorkerCreateOptions } from '@agent/wire/worker';
+import type { WireComponentWorkerCreateOptions } from '@emdash/wire/worker';
 import { resourceUsageComponent } from './component';
 
 type ResourceUsageWorkerOptions = WireComponentWorkerCreateOptions<

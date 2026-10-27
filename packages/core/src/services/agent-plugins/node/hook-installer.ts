@@ -1,4 +1,4 @@
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import { mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import type { AgentPluginHost } from '#services/agent-plugins/api/plugins';

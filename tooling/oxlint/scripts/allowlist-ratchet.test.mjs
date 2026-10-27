@@ -8,17 +8,17 @@ function diagnostic(code, filename) {
 
 test('collectBoundaryViolations buckets core-host-boundaries by file location', () => {
   const violations = collectBoundaryViolations([
-    diagnostic('agent(core-host-boundaries)', 'apps/agent-desktop/src/core/features/a/view.tsx'),
-    diagnostic('agent(core-host-boundaries)', 'apps/agent-desktop/src/main/core/app/service.ts'),
+    diagnostic('emdash(core-host-boundaries)', 'apps/emdash-desktop/src/core/features/a/view.tsx'),
+    diagnostic('emdash(core-host-boundaries)', 'apps/emdash-desktop/src/main/core/app/service.ts'),
   ]);
 
   assert.deepEqual(
     [...violations.coreToHost],
-    ['apps/agent-desktop/src/core/features/a/view.tsx']
+    ['apps/emdash-desktop/src/core/features/a/view.tsx']
   );
   assert.deepEqual(
     [...violations.mainCoreToFeatures],
-    ['apps/agent-desktop/src/main/core/app/service.ts']
+    ['apps/emdash-desktop/src/main/core/app/service.ts']
   );
   assert.equal(violations.crossSlice.size, 0);
 });
@@ -26,28 +26,28 @@ test('collectBoundaryViolations buckets core-host-boundaries by file location', 
 test('collectBoundaryViolations buckets core-module-boundaries as crossSlice', () => {
   const violations = collectBoundaryViolations([
     diagnostic(
-      'agent(core-module-boundaries)',
-      'apps/agent-desktop/src/core/services/x/node/service.ts'
+      'emdash(core-module-boundaries)',
+      'apps/emdash-desktop/src/core/services/x/node/service.ts'
     ),
   ]);
 
   assert.deepEqual(
     [...violations.crossSlice],
-    ['apps/agent-desktop/src/core/services/x/node/service.ts']
+    ['apps/emdash-desktop/src/core/services/x/node/service.ts']
   );
 });
 
 test('collectBoundaryViolations buckets no-tsx-in-api as tsxInApi', () => {
   const violations = collectBoundaryViolations([
     diagnostic(
-      'agent(no-tsx-in-api)',
-      'apps/agent-desktop/src/core/features/a/api/browser/view.tsx'
+      'emdash(no-tsx-in-api)',
+      'apps/emdash-desktop/src/core/features/a/api/browser/view.tsx'
     ),
   ]);
 
   assert.deepEqual(
     [...violations.tsxInApi],
-    ['apps/agent-desktop/src/core/features/a/api/browser/view.tsx']
+    ['apps/emdash-desktop/src/core/features/a/api/browser/view.tsx']
   );
   assert.equal(violations.crossSlice.size, 0);
 });
@@ -56,29 +56,29 @@ test('findStaleAllowlistEntries reports stale tsxInApi entries', () => {
   const stale = findStaleAllowlistEntries(
     {
       tsxInApi: [
-        'apps/agent-desktop/src/core/features/a/api/view.tsx',
-        'apps/agent-desktop/src/core/features/b/api/view.tsx',
+        'apps/emdash-desktop/src/core/features/a/api/view.tsx',
+        'apps/emdash-desktop/src/core/features/b/api/view.tsx',
       ],
     },
     {
       coreToHost: new Set(),
       mainCoreToFeatures: new Set(),
       crossSlice: new Set(),
-      tsxInApi: new Set(['apps/agent-desktop/src/core/features/a/api/view.tsx']),
+      tsxInApi: new Set(['apps/emdash-desktop/src/core/features/a/api/view.tsx']),
     }
   );
 
   assert.deepEqual(stale, {
-    tsxInApi: ['apps/agent-desktop/src/core/features/b/api/view.tsx'],
+    tsxInApi: ['apps/emdash-desktop/src/core/features/b/api/view.tsx'],
   });
 });
 
 test('collectBoundaryViolations ignores unrelated diagnostics and dedupes files', () => {
   const violations = collectBoundaryViolations([
-    diagnostic('agent(no-dynamic-imports)', 'apps/agent-desktop/src/core/features/a/view.tsx'),
-    diagnostic('eslint(no-unused-vars)', 'apps/agent-desktop/src/core/features/a/view.tsx'),
-    diagnostic('agent(core-host-boundaries)', 'apps/agent-desktop/src/core/features/a/view.tsx'),
-    diagnostic('agent(core-host-boundaries)', 'apps/agent-desktop/src/core/features/a/view.tsx'),
+    diagnostic('emdash(no-dynamic-imports)', 'apps/emdash-desktop/src/core/features/a/view.tsx'),
+    diagnostic('eslint(no-unused-vars)', 'apps/emdash-desktop/src/core/features/a/view.tsx'),
+    diagnostic('emdash(core-host-boundaries)', 'apps/emdash-desktop/src/core/features/a/view.tsx'),
+    diagnostic('emdash(core-host-boundaries)', 'apps/emdash-desktop/src/core/features/a/view.tsx'),
   ]);
 
   assert.equal(violations.coreToHost.size, 1);
@@ -89,55 +89,55 @@ test('collectBoundaryViolations ignores unrelated diagnostics and dedupes files'
 test('collectBoundaryViolations normalizes windows separators and leading ./', () => {
   const violations = collectBoundaryViolations([
     diagnostic(
-      'agent(core-host-boundaries)',
-      './apps/agent-desktop/src/core/features/a/view.tsx'
+      'emdash(core-host-boundaries)',
+      './apps/emdash-desktop/src/core/features/a/view.tsx'
     ),
     diagnostic(
-      'agent(core-module-boundaries)',
-      'apps\\agent-desktop\\src\\core\\services\\x\\service.ts'
+      'emdash(core-module-boundaries)',
+      'apps\\emdash-desktop\\src\\core\\services\\x\\service.ts'
     ),
   ]);
 
   assert.deepEqual(
     [...violations.coreToHost],
-    ['apps/agent-desktop/src/core/features/a/view.tsx']
+    ['apps/emdash-desktop/src/core/features/a/view.tsx']
   );
   assert.deepEqual(
     [...violations.crossSlice],
-    ['apps/agent-desktop/src/core/services/x/service.ts']
+    ['apps/emdash-desktop/src/core/services/x/service.ts']
   );
 });
 
 test('findStaleAllowlistEntries reports entries with no matching violation', () => {
   const allowlists = {
     coreToHost: [
-      'apps/agent-desktop/src/core/features/a/view.tsx',
-      'apps/agent-desktop/src/core/features/b/view.tsx',
+      'apps/emdash-desktop/src/core/features/a/view.tsx',
+      'apps/emdash-desktop/src/core/features/b/view.tsx',
     ],
     mainCoreToFeatures: [],
-    crossSlice: ['apps/agent-desktop/src/core/services/x/service.ts'],
+    crossSlice: ['apps/emdash-desktop/src/core/services/x/service.ts'],
   };
   const violations = {
-    coreToHost: new Set(['apps/agent-desktop/src/core/features/a/view.tsx']),
+    coreToHost: new Set(['apps/emdash-desktop/src/core/features/a/view.tsx']),
     mainCoreToFeatures: new Set(),
-    crossSlice: new Set(['apps/agent-desktop/src/core/services/x/service.ts']),
+    crossSlice: new Set(['apps/emdash-desktop/src/core/services/x/service.ts']),
   };
 
   const stale = findStaleAllowlistEntries(allowlists, violations);
 
   assert.deepEqual(stale, {
-    coreToHost: ['apps/agent-desktop/src/core/features/b/view.tsx'],
+    coreToHost: ['apps/emdash-desktop/src/core/features/b/view.tsx'],
   });
 });
 
 test('findStaleAllowlistEntries returns empty object when every entry still violates', () => {
   const allowlists = {
-    coreToHost: ['apps/agent-desktop/src/core/features/a/view.tsx'],
+    coreToHost: ['apps/emdash-desktop/src/core/features/a/view.tsx'],
     mainCoreToFeatures: [],
     crossSlice: [],
   };
   const violations = {
-    coreToHost: new Set(['apps/agent-desktop/src/core/features/a/view.tsx']),
+    coreToHost: new Set(['apps/emdash-desktop/src/core/features/a/view.tsx']),
     mainCoreToFeatures: new Set(),
     crossSlice: new Set(),
   };
@@ -148,7 +148,7 @@ test('findStaleAllowlistEntries returns empty object when every entry still viol
 test('findStaleAllowlistEntries never reports extra violations as a problem', () => {
   const allowlists = { coreToHost: [], mainCoreToFeatures: [], crossSlice: [] };
   const violations = {
-    coreToHost: new Set(['apps/agent-desktop/src/core/features/new/view.tsx']),
+    coreToHost: new Set(['apps/emdash-desktop/src/core/features/new/view.tsx']),
     mainCoreToFeatures: new Set(),
     crossSlice: new Set(),
   };
@@ -162,7 +162,7 @@ test('findStaleAllowlistEntries treats a deleted crossSlice key as legal', () =>
     {
       coreToHost: new Set(),
       mainCoreToFeatures: new Set(),
-      crossSlice: new Set(['apps/agent-desktop/src/core/services/x/service.ts']),
+      crossSlice: new Set(['apps/emdash-desktop/src/core/services/x/service.ts']),
     }
   );
 
@@ -171,11 +171,11 @@ test('findStaleAllowlistEntries treats a deleted crossSlice key as legal', () =>
 
 test('findStaleAllowlistEntries tolerates missing categories in the allowlist file', () => {
   const stale = findStaleAllowlistEntries(
-    { coreToHost: ['apps/agent-desktop/src/core/features/gone/view.tsx'] },
+    { coreToHost: ['apps/emdash-desktop/src/core/features/gone/view.tsx'] },
     { coreToHost: new Set(), mainCoreToFeatures: new Set(), crossSlice: new Set() }
   );
 
   assert.deepEqual(stale, {
-    coreToHost: ['apps/agent-desktop/src/core/features/gone/view.tsx'],
+    coreToHost: ['apps/emdash-desktop/src/core/features/gone/view.tsx'],
   });
 });

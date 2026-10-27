@@ -2,9 +2,9 @@
 
 ## Main Files
 
-- `apps/agent-desktop/src/core/services/ssh/node/` — physical connection generation, credentials,
+- `apps/emdash-desktop/src/core/services/ssh/node/` — physical connection generation, credentials,
   stable SSH proxy, configuration resolution, and bounded channel operations
-- `apps/agent-desktop/src/core/services/hosts/node/connection-supervisor.ts` — sole remote
+- `apps/emdash-desktop/src/core/services/hosts/node/connection-supervisor.ts` — sole remote
   recovery owner (ADR 0008); SSH and Wire adapters must not add independent reconnect loops
 - `src/main/core/fs/impl/ssh-fs.ts`
 - `src/main/core/pty/ssh2-pty.ts`

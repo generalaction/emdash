@@ -1,7 +1,7 @@
 import * as toml from 'smol-toml';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 import type { HookRegistration } from '#services/agent-plugins/api/plugins/capabilities/hooks';
-import { AGENT_MARKER, filterUserHooks } from './hooks';
+import { EMDASH_MARKER, filterUserHooks } from './hooks';
 
 export type { HookCommandOptions } from './hooks';
 
@@ -147,7 +147,7 @@ export function buildFlatTomlHookConfig(
   options: FlatTomlHookConfigOptions = {}
 ) {
   const stringifyEntry = options.stringifyEntry ?? JSON.stringify;
-  const hasAgentHook = (config: Record<string, unknown>) => {
+  const hasEmdashHook = (config: Record<string, unknown>) => {
     const serializedEntries = hookEntriesFromConfig(config, configPath).map((entry) =>
       stringifyEntry(entry)
     );
@@ -157,7 +157,7 @@ export function buildFlatTomlHookConfig(
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readTomlConfig(fs, configPath);
-      return hasAgentHook(config) ? [{ event: 'agent', command: AGENT_MARKER }] : [];
+      return hasEmdashHook(config) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readTomlConfig(fs, configPath);
@@ -177,7 +177,7 @@ export function buildFlatTomlHookConfig(
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readTomlConfig(fs, configPath);
-      return hasAgentHook(config);
+      return hasEmdashHook(config);
     },
   };
 }
@@ -208,7 +208,7 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = hookMapFromConfig(config, configPath);
-      return hasAllManagedNestedEntries(hooks) ? [{ event: 'agent', command: AGENT_MARKER }] : [];
+      return hasAllManagedNestedEntries(hooks) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
@@ -260,7 +260,7 @@ export function buildFlatJsonHookConfig(
           (entry) => JSON.stringify(entry) === JSON.stringify(buildFlatEntry(command))
         );
       });
-      return installed ? [{ event: 'agent', command: AGENT_MARKER }] : [];
+      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
@@ -312,7 +312,7 @@ export function buildMinimalJsonHookConfig(
           (entry) => JSON.stringify(entry) === JSON.stringify(buildMinimalEntry(command))
         );
       });
-      return installed ? [{ event: 'agent', command: AGENT_MARKER }] : [];
+      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);

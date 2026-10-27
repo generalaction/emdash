@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as git from './index';
 
-describe('@agent/core/runtimes/git/api public exports', () => {
+describe('@emdash/core/runtimes/git/api public exports', () => {
   it('exposes wire contracts and shared pure helpers', () => {
     const exported = git as Record<string, unknown>;
 

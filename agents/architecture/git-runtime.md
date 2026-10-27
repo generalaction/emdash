@@ -65,7 +65,7 @@ owned by `BoundExec`, so repository scoping and dynamic executable selection app
 
 ## Live Models
 
-Wire's `expose()` (from `@agent/wire/state`) adapts keyed, externally authoritative resources to
+Wire's `expose()` (from `@emdash/wire/state`) adapts keyed, externally authoritative resources to
 live models as a `LeasedLiveModelProvider`. It owns generic resource acquisition, keyed state
 retention, mutation idempotency, typed handler dispatch, and settled cursor construction.
 
@@ -118,5 +118,5 @@ throwing and are recorded by Wire as causes.
   and checkout operations.
 - `exec/` contains Git process construction and scoping, operation context, and transfer progress.
 
-Only runtime and component composition are exported from `@agent/core/runtimes/git/node`.
+Only runtime and component composition are exported from `@emdash/core/runtimes/git/node`.
 Allocation, resources, and command drivers remain implementation details.

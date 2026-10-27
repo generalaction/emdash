@@ -32,7 +32,7 @@
  * conversationId in AcpChatPanel) — this assumption is intentional.
  */
 
-import type { TranscriptSnapshot } from '@agent/core/runtimes/acp/api/client';
+import type { TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
 import { createEffect, createMemo, createRoot, createSignal } from 'solid-js';
 import type { ChatContext } from '../chat-context';
 import { createParseCaches } from '../core/caches';

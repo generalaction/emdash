@@ -35,7 +35,7 @@ export type ShellFallbackEvent = {
  * Implementations resolve shell intent against the host they run on (its
  * platform, environment, and filesystem), so a remote runtime resolves remote
  * shells and a local runtime resolves local shells. The concrete Node
- * implementation lives in `@agent/core/services/pty/node`.
+ * implementation lives in `@emdash/core/services/pty/node`.
  */
 export interface TerminalShellResolver {
   resolveWithSystemFallback(input: {

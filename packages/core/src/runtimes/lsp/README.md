@@ -19,11 +19,11 @@ when a session is attached.
 
 | Languages | Server | Host requirements |
 | --- | --- | --- |
-| TypeScript, JavaScript, JSX, TSX | [typescript-language-server](https://github.com/typescript-language-server/typescript-language-server) with TypeScript 6 | Bundled, runs with Agent’s Node/Electron; no external Node required |
+| TypeScript, JavaScript, JSX, TSX | [typescript-language-server](https://github.com/typescript-language-server/typescript-language-server) with TypeScript 6 | Bundled, runs with Emdash’s Node/Electron; no external Node required |
 | Bash, sh | [bash-language-server](https://github.com/bash-lsp/bash-language-server) | Node.js 20+; ShellCheck on PATH adds lint diagnostics |
 | Go | [gopls](https://go.dev/gopls/) | Go toolchain; make GOBIN or GOPATH/bin available on PATH after installing |
 | Rust | [rust-analyzer](https://rust-analyzer.github.io/book/installation.html) | Rust toolchain, Cargo and rust-src; the offered rustup command installs the analyzer and sources |
-| Python | [Pyright](https://github.com/microsoft/pyright) | Bundled, runs with Agent’s Node/Electron; uses the project’s Python environment |
+| Python | [Pyright](https://github.com/microsoft/pyright) | Bundled, runs with Emdash’s Node/Electron; uses the project’s Python environment |
 | C, C++ | [clangd](https://clangd.llvm.org/installation) | Project compiler flags, normally compile_commands.json; Homebrew LLVM's bin directory must be on PATH or selected explicitly |
 | JSON, JSONC | [VS Code JSON server](https://github.com/hrsh7th/vscode-langservers-extracted) | Node.js; JSONC includes .jsonc, tsconfig.json and jsconfig.json |
 | YAML | [yaml-language-server](https://github.com/redhat-developer/yaml-language-server) | Node.js; schemas may be associated using a file modeline |
@@ -59,12 +59,12 @@ the editor invokes the local workers as fallback. TypeScript reuses Monaco's wor
 CSS, HTML and JSON fallback workers start lazily and are released after two minutes
 of inactivity. Host availability never changes global language defaults.
 
-[editor/browser/lsp/monaco-language-services.ts](../../../../../apps/agent-desktop/src/core/features/editor/browser/lsp/monaco-language-services.ts) adapts Monaco models, providers,
+[editor/browser/lsp/monaco-language-services.ts](../../../../../apps/emdash-desktop/src/core/features/editor/browser/lsp/monaco-language-services.ts) adapts Monaco models, providers,
 diagnostics and navigation. It registers providers once during lazy Monaco bootstrap.
-[editor/api/browser/lsp/language-service-client.ts](../../../../../apps/agent-desktop/src/core/features/editor/api/browser/lsp/language-service-client.ts) owns project discovery, session
+[editor/api/browser/lsp/language-service-client.ts](../../../../../apps/emdash-desktop/src/core/features/editor/api/browser/lsp/language-service-client.ts) owns project discovery, session
 sharing, buffer lifetime, cancellation and synchronization before queries. Its document
 bindings expose semantic queries without requiring Monaco or session keys. File tabs
-register the originating task and workspace root before their buffer models are created. Only `agent-buffer:` models are
+register the originating task and workspace root before their buffer models are created. Only `emdash-buffer:` models are
 replicated; disk and Git snapshots never enter the language server. Shared model
 lifetime owns open/close, so split panes and dirty buffers surviving tab closure
 remain consistent. `DocumentSynchronizer` coalesces edits and flushes every open
@@ -131,7 +131,7 @@ Host configuration is resolved again when a server restarts.
 `vscode-languageserver-protocol` (MIT) supplies JSON-RPC framing and cancellation.
 TypeScript 6.0.3 and `typescript-language-server` 6.0.1 (both Apache-2.0) are pinned
 production dependencies, alongside Pyright (MIT). Both servers use the host's
-Agent Node/Electron executable; Electron launches them with `ELECTRON_RUN_AS_NODE`.
+Emdash Node/Electron executable; Electron launches them with `ELECTRON_RUN_AS_NODE`.
 The same JavaScript assets work on every supported CPU architecture. Electron
 unpacks the servers and their runtime data, with an explicit resource-copy rule
 preserving TypeScript's `.d.ts` standard libraries, which its default module
@@ -165,7 +165,7 @@ This unreleased feature is included in protocol 12.0, with no legacy LSP aliases
 
 Tests cover protocol state and actual server behavior in Core, host routing and
 buffer policy in desktop Node tests, and Monaco providers/navigation in browser
-tests. [language-services.e2e.browser.test.ts](../../../../../apps/agent-desktop/src/core/features/editor/browser/lsp/language-services.e2e.browser.test.ts) carries actual Wire frames through
+tests. [language-services.e2e.browser.test.ts](../../../../../apps/emdash-desktop/src/core/features/editor/browser/lsp/language-services.e2e.browser.test.ts) carries actual Wire frames through
 Playwright bindings into the production editor controller and host runtime,
 then checks cross-file unsaved types, definitions, diagnostics and restart with
 real TypeScript and Python servers. The bindings exist only in Vitest's test harness.
@@ -175,7 +175,7 @@ test runs. Enable its native Go, Rust and C++ cases with installed `gopls`, `go`
 `rust-analyzer`, `cargo`, `rustc` and `clangd` on PATH:
 
 ```bash
-AGENT_TEST_NATIVE_LSP=1 pnpm --dir packages/core exec vitest run src/runtimes/lsp/node/language-servers.integration.test.ts
+EMDASH_TEST_NATIVE_LSP=1 pnpm --dir packages/core exec vitest run src/runtimes/lsp/node/language-servers.integration.test.ts
 ```
 
 This opt-in fails if a requested tool is absent; it does not install tools or silently

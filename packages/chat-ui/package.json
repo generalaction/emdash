@@ -1,11 +1,11 @@
 {
-  "name": "@agent/chat-ui",
+  "name": "@emdash/chat-ui",
   "version": "1.0.0",
   "private": true,
   "description": "Solid-based chat transcript renderer with pretext layout engine",
   "license": "Apache-2.0",
   "author": {
-    "name": "Agent Contributors",
+    "name": "Emdash Contributors",
     "email": "support@emdash.sh"
   },
   "type": "module",
@@ -28,14 +28,14 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm exec nx test @agent/chat-ui",
-    "test:perf": "pnpm exec nx run @agent/chat-ui:test-perf",
-    "test:bench": "pnpm exec nx run @agent/chat-ui:test-bench"
+    "test": "pnpm exec nx test @emdash/chat-ui",
+    "test:perf": "pnpm exec nx run @emdash/chat-ui:test-perf",
+    "test:bench": "pnpm exec nx run @emdash/chat-ui:test-bench"
   },
   "dependencies": {
-    "@agent/core": "workspace:*",
-    "@agent/shared": "workspace:*",
     "@chenglou/pretext": "^0.0.8",
+    "@emdash/core": "workspace:*",
+    "@emdash/shared": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@shikijs/langs": "^4.2.0",

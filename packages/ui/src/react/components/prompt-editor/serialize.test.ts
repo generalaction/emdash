@@ -171,8 +171,8 @@ describe('serializeMentionLabel', () => {
   });
 
   it('emits @[label](target) for an absolute path with no special chars', () => {
-    expect(serializeMentionLabel('/Users/me/projects/agent/src/main.ts', 'file')).toBe(
-      '@[/Users/me/projects/agent/src/main.ts](/Users/me/projects/agent/src/main.ts)'
+    expect(serializeMentionLabel('/Users/me/projects/emdash/src/main.ts', 'file')).toBe(
+      '@[/Users/me/projects/emdash/src/main.ts](/Users/me/projects/emdash/src/main.ts)'
     );
   });
 

@@ -49,7 +49,7 @@ describe('host file resources', () => {
     const ref = hostFileRef(LOCAL_HOST_REF, path.data);
     const uri = encodeResourceUri(ref);
 
-    expect(uri).toBe('agent-file://v2/local/local/posix/repo/a%20b/%C3%A9.ts');
+    expect(uri).toBe('emdash-file://v2/local/local/posix/repo/a%20b/%C3%A9.ts');
     expect(decodeResourceUri(uri)).toEqual({ success: true, data: ref });
   });
 
@@ -58,7 +58,7 @@ describe('host file resources', () => {
     expect(path.success).toBe(true);
     if (!path.success) return;
 
-    expect(decodeResourceUri('agent-file://remote-1/v1/posix/repo/index.ts')).toEqual({
+    expect(decodeResourceUri('emdash-file://remote-1/v1/posix/repo/index.ts')).toEqual({
       success: true,
       data: hostFileRef(hostRef('remote', 'remote-1'), path.data),
     });
@@ -85,7 +85,7 @@ describe('host file resources', () => {
       success: false,
       error: { type: 'invalid-uri' },
     });
-    expect(decodeResourceUri('agent-file://local/v1/posix/%E0%A4%A')).toMatchObject({
+    expect(decodeResourceUri('emdash-file://local/v1/posix/%E0%A4%A')).toMatchObject({
       success: false,
       error: { type: 'invalid-uri' },
     });

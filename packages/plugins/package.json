@@ -1,5 +1,5 @@
 {
-  "name": "@agent/plugins",
+  "name": "@emdash/plugins",
   "version": "1.0.0",
   "description": "Plugin interfaces and helpers for agent providers",
   "keywords": [],
@@ -62,8 +62,8 @@
   "scripts": {
     "dev": "tsdown --config-loader tsx --watch",
     "build": "tsdown --config-loader tsx && tsx tooling/validate-adapters.ts",
-    "test": "pnpm exec nx test @agent/plugins",
-    "test:watch": "pnpm exec nx run @agent/plugins:test-watch",
+    "test": "pnpm exec nx test @emdash/plugins",
+    "test:watch": "pnpm exec nx run @emdash/plugins:test-watch",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
     "lint": "oxlint src",
@@ -71,10 +71,10 @@
     "generate:acp-fixture": "tsx tooling/fixtures/create-acp-transcript.ts"
   },
   "dependencies": {
-    "@agent/core": "workspace:*",
-    "@agent/shared": "workspace:*",
     "@agentclientprotocol/sdk": "^1.1.0",
     "@anthropic-ai/claude-agent-sdk": "0.3.280",
+    "@emdash/core": "workspace:*",
+    "@emdash/shared": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",

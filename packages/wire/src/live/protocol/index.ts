@@ -1,4 +1,4 @@
-import type { SerializedError } from '@agent/shared';
+import type { SerializedError } from '@emdash/shared';
 import { z } from 'zod';
 import type { Patch } from '../state/immer-setup';
 

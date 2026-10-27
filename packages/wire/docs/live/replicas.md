@@ -32,7 +32,7 @@ Live models are exposed only through `liveModel()`. A
 `LiveModelReplicaCache` follows a live model client handle and yields a `ReplicaInstance`:
 
 ```ts
-import { createImmutableMobxStore } from '@agent/wire/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/mobx';
 
 const conversations = createLiveModelReplicaCache(api.conversation, contractClient.conversation, {
   lingerMs: 30_000,
@@ -78,7 +78,7 @@ Use a `LiveLogReplicaCache` when a process needs a local retained text buffer or
 to serve log output downstream:
 
 ```ts
-import { createMobxLogStore } from '@agent/wire/mobx';
+import { createMobxLogStore } from '@emdash/wire/mobx';
 
 const outputs = createLiveLogReplicaCache(api.ptyOutput, contractClient.ptyOutput, {
   lingerMs: 10_000,
@@ -115,7 +115,7 @@ materializes job state by `jobId`, and keeps terminal state readable under lease
 or retention:
 
 ```ts
-import { createImmutableMobxStore } from '@agent/wire/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/mobx';
 
 const jobs = createLiveJobReplicaCache(api.build, contractClient.build, {
   lingerMs: 30_000,

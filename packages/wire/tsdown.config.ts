@@ -13,7 +13,7 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['@agent/shared', 'immer', 'mobx', 'zod'],
+    neverBundle: ['@emdash/shared', 'immer', 'mobx', 'zod'],
   },
   sourcemap: true,
   clean: true,

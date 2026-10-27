@@ -1,8 +1,8 @@
-import { isOk, ok } from '@agent/shared';
-import { createScope } from '@agent/shared/concurrency';
-import { createManualClock, deferred } from '@agent/shared/testing';
-import { observe, peek } from '@agent/wire/state';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import { isOk, ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import { createManualClock, deferred } from '@emdash/shared/testing';
+import { observe, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { wrapHiddenContext } from '#runtimes/acp/api/models/prompt';
 import {

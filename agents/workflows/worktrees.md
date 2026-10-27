@@ -6,12 +6,12 @@
 - `packages/core/src/runtimes/scripts/` (lifecycle script execution)
 - `packages/core/src/runtimes/host-settings/` (per-host defaults)
 - `src/core/features/workspaces/` (desktop wire controllers and UI)
-- `.agent.json`
+- `.emdash.json`
 
 ## Current Behavior
 
 - task worktrees are created under the project's DB-backed worktree directory setting
-- branch prefix defaults to `agent` and is configurable in app settings
+- branch prefix defaults to `emdash` and is configurable in app settings
 - generated task branch names use the configured prefix plus a random suffix by default; app repository settings can disable only the random suffix
 - worktree creation is managed by the project provider pattern
 - creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
@@ -31,9 +31,9 @@
 - branch publication and ref freshening run as durable background steps; a failed push surfaces
   as a "branch not pushed" task state with a manual retry
 
-## `.agent.json`
+## `.emdash.json`
 
-`.agent.json` stores optional shareable project settings. Supported runtime keys:
+`.emdash.json` stores optional shareable project settings. Supported runtime keys:
 
 - `preservePatterns` (gitignored files deliberately carried into new worktrees; empty unless configured)
 - `scripts.prepare`
@@ -43,7 +43,7 @@
 - `shellSetup` (per-workspace override of the host-settings default; the per-project DB
   field was retired)
 
-Base project settings are DB-backed Project Settings, not runtime `.agent.json` keys:
+Base project settings are DB-backed Project Settings, not runtime `.emdash.json` keys:
 
 - `worktreeDirectory`
 - `defaultBranch`
@@ -52,14 +52,14 @@ Base project settings are DB-backed Project Settings, not runtime `.agent.json` 
 - `tmux`
 
 Host-local project settings are stored by the workspace registry and are not written to
-`.agent.json`:
+`.emdash.json`:
 
 - `env` (variables injected into new task terminals, lifecycle scripts, and TUI/ACP agent
-  processes; Agent-owned `AGENT_*` task metadata takes precedence)
+  processes; Emdash-owned `EMDASH_*` task metadata takes precedence)
 
 Host-level defaults (`shellSetup`, `worktreeRoot`, `tmux`) live in the host-settings
 runtime (`packages/core/src/runtimes/host-settings/`), stored as a JSON file in the
-host's agent data directory and editable from the machines/system settings UI.
+host's emdash data directory and editable from the machines/system settings UI.
 Precedence is per-project DB override, then host settings, then app defaults.
 
 ## Rules
@@ -81,10 +81,10 @@ Precedence is per-project DB override, then host settings, then app defaults.
   every launch path; exports performed by one lifecycle shell do not mutate sibling or later
   processes
 - `shellSetup` runs inside each PTY before the interactive shell starts; the workspace's
-  `.agent.json` value overrides the host-settings default. Lifecycle commands and `shellSetup`
+  `.emdash.json` value overrides the host-settings default. Lifecycle commands and `shellSetup`
   are opaque strings run together in the default shell selected by the host-owned runtime at
   execution time; repository authors own their portability.
 - tmux wrapping has an app level default but is also project-configurable in Project Settings
   and affects PTY lifecycle behavior. It is always disabled for local Windows sessions without
   deleting the stored preference.
-- `preservePatterns` never copies tracked files or `.agent.json`
+- `preservePatterns` never copies tracked files or `.emdash.json`

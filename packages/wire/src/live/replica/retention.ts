@@ -1,6 +1,6 @@
-import { once, type PendingLease } from '@agent/shared';
-import type { ResourceCache, Scope } from '@agent/shared/concurrency';
-import type { Clock } from '@agent/shared/scheduling';
+import { once, type PendingLease } from '@emdash/shared';
+import type { ResourceCache, Scope } from '@emdash/shared/concurrency';
+import type { Clock } from '@emdash/shared/scheduling';
 import { keyedRetention, type RetainedEntry } from '../../state/core/keyed-retention';
 
 /**

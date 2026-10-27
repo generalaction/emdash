@@ -1,12 +1,12 @@
 import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { err, ok, type Result } from '@agent/shared';
-import { KeyedMutex } from '@agent/shared/concurrency';
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import { systemClock, type Clock } from '@agent/shared/scheduling';
-import { stableStringify } from '@agent/shared/util';
-import { type LeasedLiveModelProvider } from '@agent/wire/rpc';
+import { err, ok, type Result } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { stableStringify } from '@emdash/shared/util';
+import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import {
   cell,
   expose,
@@ -16,11 +16,11 @@ import {
   type Cell,
   type Family,
   type Query,
-} from '@agent/wire/state';
+} from '@emdash/wire/state';
 import type { EnvSource } from '#primitives/exec/api';
 import type { PathProfile } from '#primitives/path/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
+// oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
 import type { AttachmentStore } from '#services/attachments/node/attachment-store';
 import { OwnedAttachments } from '#services/attachments/node/owned-attachments';
@@ -189,7 +189,7 @@ export class WorkspaceRegistryRuntime {
    */
   private readonly backgroundSteps: BackgroundStepRunner;
   /**
-   * The `.agent.json` live model (spec: workspace-lifecycle-v2): one parsed entry per
+   * The `.emdash.json` live model (spec: workspace-lifecycle-v2): one parsed entry per
    * present record, filled at boot / creation / scans — never read from disk inside a
    * creation or activation verb. Worktrees carry their own entry (branches diverge).
    * Cache discipline (coalescing, change detection) lives in the shared ConfigModel.
@@ -1409,7 +1409,7 @@ export class WorkspaceRegistryRuntime {
     const parent = record.parentId === null ? null : this.store.get(record.parentId);
     const repositoryPath = await this.resolveRepositoryPath(record, parent);
     const branch = record.git?.branch ?? record.creation?.branch;
-    // 'origin/main' → 'main': AGENT_DEFAULT_BRANCH is a branch name, not a ref.
+    // 'origin/main' → 'main': EMDASH_DEFAULT_BRANCH is a branch name, not a ref.
     const baseRef = record.creation?.baseRef;
     const defaultBranch = baseRef?.includes('/')
       ? baseRef.slice(baseRef.indexOf('/') + 1)
@@ -1600,7 +1600,7 @@ export class WorkspaceRegistryRuntime {
   }
 
   /**
-   * (Re)reads one workspace's `.agent.json` into the live model. Runs at boot, at
+   * (Re)reads one workspace's `.emdash.json` into the live model. Runs at boot, at
    * creation finalize/adoption, and on full scans (the working-tree watchers feed
    * those) — the blocking creation/activation paths only ever read the map. A parse
    * failure degrades to the empty config plus a visible notice; a change republishes
@@ -1741,7 +1741,7 @@ export class WorkspaceRegistryRuntime {
                 {
                   id: 'config-invalid',
                   kind: 'config-invalid' as const,
-                  message: `Could not parse .agent.json in '${workspacePath}'; using defaults`,
+                  message: `Could not parse .emdash.json in '${workspacePath}'; using defaults`,
                   at: this.clock.now(),
                 },
               ]
@@ -1764,7 +1764,7 @@ export class WorkspaceRegistryRuntime {
         {
           id: 'config-unreadable',
           kind: 'config-unreadable',
-          message: `Could not read .agent.json in '${workspacePath}'; keeping the last valid settings (${detail})`,
+          message: `Could not read .emdash.json in '${workspacePath}'; keeping the last valid settings (${detail})`,
           at: this.clock.now(),
         },
       ],

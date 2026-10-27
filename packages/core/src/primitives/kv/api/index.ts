@@ -1,4 +1,4 @@
-import { err, ok, type Result, type Serializable, toSerializedError } from '@agent/shared';
+import { err, ok, type Result, type Serializable, toSerializedError } from '@emdash/shared';
 import { z } from 'zod';
 
 export type KeyValueStoreError =

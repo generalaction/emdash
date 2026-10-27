@@ -13,7 +13,7 @@ composition; inventory fact 8 in
 last of the four surfaces — it needs structural redesign, not just a binding swap.
 
 - **Restructure** in
-  `apps/agent-desktop/src/core/features/source-control/browser/diff-view/changes-panel/`:
+  `apps/emdash-desktop/src/core/features/source-control/browser/diff-view/changes-panel/`:
   inert fixed-height header rows as direct Group children; only **expanded section
   bodies** are panels. Per-feature composition reusing the shared storage plumbing
   and threshold→command pattern (this surface does not use the single-panel hook

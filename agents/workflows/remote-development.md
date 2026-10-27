@@ -30,7 +30,7 @@ or shell-profile code.
 - host key handling is implemented under `src/main/core/ssh/`
 - runtime dependency state for remote hosts belongs to the workspace-server
   `hostDependencies` component, not an Electron-side SSH execution context
-- the desktop owns the managed install under `~/.agent/workspace-server`; remote
+- the desktop owns the managed install under `~/.emdash/workspace-server`; remote
   runtime calls begin only after the workspace-server provisioner reports ready
 - managed installs read the desktop channel's pointer for its protocol major, then
   run the immutable versioned `install.sh` with the pointer's artifact version pinned

@@ -11,10 +11,10 @@ Spec: `../../workbench-state-architecture/spec.md` (§Chrome command stores; dec
 `TaskComposition` with a task-chrome command store instance.
 
 - State (memento `tasks.chrome`, per-task subject — schema currently in
-  `apps/agent-desktop/src/core/features/tasks/contributions/mementos.ts` L22–32):
+  `apps/emdash-desktop/src/core/features/tasks/contributions/mementos.ts` L22–32):
   `{ sidebarCollapsed, sidebarTab, terminalDrawerOpen }`.
 - Commands replace the setters in
-  `apps/agent-desktop/src/core/features/workbench/api/browser/task-composition.tsx`
+  `apps/emdash-desktop/src/core/features/workbench/api/browser/task-composition.tsx`
   (`setSidebarCollapsed` L467, `setTerminalDrawerOpen` L482, sidebar-tab setter):
   `toggleSidebar`, `openSidebarTab(tab)` (enforces "changes/files tab ⇒ sidebar
   expanded" — kills the `setSidebarTab` + `setSidebarCollapsed` dance at

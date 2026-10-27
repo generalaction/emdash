@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import axios from 'axios';
 import { YouTrack as YouTrackSdkClient } from 'youtrack-client';
 import { parseCredentials } from '../../helpers/credentials';

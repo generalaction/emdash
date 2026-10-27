@@ -17,8 +17,8 @@ and zen mode's move from a captured-closure ref to plain persisted data.
   fields, then applies zen), `exitZenMode` (applies the restore). Zen persists with
   the document — restart in zen resumes zen with a working restore.
 - **Left sidebar conversion** in
-  `apps/agent-desktop/src/renderer/lib/layout/layout-provider.tsx` and
-  `apps/agent-desktop/src/renderer/lib/layout/workspace-layout.tsx`: delete the
+  `apps/emdash-desktop/src/renderer/lib/layout/layout-provider.tsx` and
+  `apps/emdash-desktop/src/renderer/lib/layout/workspace-layout.tsx`: delete the
   `useState isLeftOpen` (L30), the imperative `setCollapsed` → `panel.collapse()/
   expand()` (L47–64), the `programmaticRef` + rAF guard (L35, L51–61), and the
   `onResize={syncLeftOpenFromPanel}` write-back (workspace-layout.tsx L36). Replace
@@ -30,7 +30,7 @@ and zen mode's move from a captured-closure ref to plain persisted data.
   (one-time layout reset, per spec).
 - **Zen mode**: delete `zenModeSnapshotRef` (layout-provider.tsx L36–40) and the
   captured `setCollapsed` closure passed from
-  `apps/agent-desktop/src/core/features/workbench/browser/window-scope.tsx`
+  `apps/emdash-desktop/src/core/features/workbench/browser/window-scope.tsx`
   (L112–127). Per the spec's flagged editorial call: zen is workspace-chrome data;
   its restore covers workspace fields only; the task sidebar renders hidden while
   `zen.active` as a derived condition (no task-chrome mutation). The implicit

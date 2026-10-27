@@ -17,10 +17,10 @@ Spec: [measurement decision, track 1](../../performance-footprint/issues/07-meas
 - [x] Zero overhead when debug logging is off (no timers, no sampling)
 - [x] Counter seam has unit tests; a dev-mode smoke run shows both log lines
 
-Implementation notes: counters live in `@agent/shared/perf` (`recordSpawn` /
+Implementation notes: counters live in `@emdash/shared/perf` (`recordSpawn` /
 `classifySpawnPurpose` / `snapshotSpawnCounts`); the per-process reporter is
 `startDevPerfInstruments`, gated on `logger.level === 'debug'`
-(`AGENT_LOG_LEVEL=debug` or the main process `--debug-logs` flag). Instrumented
+(`EMDASH_LOG_LEVEL=debug` or the main process `--debug-logs` flag). Instrumented
 seams: BoundExec (git worker), NodeExecutionContext (tmux etc.), node-pty spawner,
 ACP child-process host (agent + agent terminals), wire worker fork, shell-env
 capture, process-tree `ps`, and the main-process `runLocalCommand`. Workers start

@@ -1,4 +1,3 @@
-import type { Logger } from '@agent/shared/logger';
 import type {
   CreateTerminalRequest,
   CreateTerminalResponse,
@@ -6,6 +5,7 @@ import type {
   RequestPermissionResponse,
   SessionNotification,
 } from '@agentclientprotocol/sdk';
+import type { Logger } from '@emdash/shared/logger';
 import type { NormalizedEvent } from '#runtimes/acp/api';
 import type { InboundRouter } from '#runtimes/acp/node/agent-ports/agent-client';
 import type { AcpConnectionContext } from '#runtimes/acp/node/connection/source';

@@ -1,19 +1,19 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseAbsolute } from '@agent/core/primitives/path/api';
-import type * as HostDependenciesModule from '@agent/core/services/host-dependencies/node';
-import type { ShellEnvManager } from '@agent/core/services/shell-env/node';
-import { ok } from '@agent/shared';
-import { createScope } from '@agent/shared/concurrency';
-import { deferred } from '@agent/shared/testing';
-import type * as WireWorkerModule from '@agent/wire/worker';
+import { parseAbsolute } from '@emdash/core/primitives/path/api';
+import type * as HostDependenciesModule from '@emdash/core/services/host-dependencies/node';
+import type { ShellEnvManager } from '@emdash/core/services/shell-env/node';
+import { ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import { deferred } from '@emdash/shared/testing';
+import type * as WireWorkerModule from '@emdash/wire/worker';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createWorkspaceServerRuntimeHost } from './workspace-workers';
 
 const mocks = vi.hoisted(() => ({ ready: vi.fn<(name: string) => Promise<unknown>>() }));
 
-vi.mock('@agent/wire/worker', async (importOriginal) => ({
+vi.mock('@emdash/wire/worker', async (importOriginal) => ({
   ...(await importOriginal<typeof WireWorkerModule>()),
   createWireWorkerHost: () => ({
     create: (_component: unknown, options: { name: string }) => ({
@@ -23,7 +23,7 @@ vi.mock('@agent/wire/worker', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@agent/core/services/host-dependencies/node', async (importOriginal) => ({
+vi.mock('@emdash/core/services/host-dependencies/node', async (importOriginal) => ({
   ...(await importOriginal<typeof HostDependenciesModule>()),
   createHostDependenciesComponent: () => ({ create: () => ({ client: { resolver: {} } }) }),
 }));
@@ -33,7 +33,7 @@ describe('workspace runtime readiness', () => {
     'keeps required runtimes available and recovers after LSP startup %s',
     async (mode) => {
       const scope = createScope();
-      const directory = await mkdtemp(join(tmpdir(), 'agent-lsp-workers-'));
+      const directory = await mkdtemp(join(tmpdir(), 'emdash-lsp-workers-'));
       onTestFinished(async () => {
         await scope.dispose();
         await rm(directory, { recursive: true, force: true });
@@ -84,7 +84,7 @@ describe('workspace runtime readiness', () => {
     'keeps required runtimes available and recovers after provider usage %s',
     async (mode) => {
       const scope = createScope();
-      const directory = await mkdtemp(join(tmpdir(), 'agent-usage-workers-'));
+      const directory = await mkdtemp(join(tmpdir(), 'emdash-usage-workers-'));
       onTestFinished(async () => {
         await scope.dispose();
         await rm(directory, { recursive: true, force: true });

@@ -35,7 +35,7 @@ export type StandardCommandSpec = {
   resumeFlag?: string;
   /**
    * Flag for passing a session ID, e.g. '--session-id'. On fresh sessions (non-resuming),
-   * the agent session UUID is passed. On resume sessions, `resumeFlag` is used instead.
+   * the emdash session UUID is passed. On resume sessions, `resumeFlag` is used instead.
    * If both are the same flag (e.g. grok/copilot), set sessionIdOnResumeOnly=true.
    */
   sessionIdFlag?: string;
@@ -77,7 +77,7 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
   // Session / resume logic.
   // For sessionIdOnResumeOnly providers, use only the provider-native session id.
   // If providerSessionId is absent, validSessionId will be undefined → fallback flags apply.
-  // For all other providers, the agent session UUID (sessionId) is used, unless a
+  // For all other providers, the emdash session UUID (sessionId) is used, unless a
   // resume carries a provider-reported session id that differs from it (the process
   // switched sessions, e.g. Claude's in-session `/resume`); then that id is resumed.
   const capturedSessionId =
@@ -101,7 +101,7 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
         // resumeFlag takes the session ID (e.g. '--resume <id>' or '--conversation=<id>')
         appendFlagValue(args, spec.resumeFlag, validSessionId);
       } else if (spec.sessionIdFlag && !spec.sessionIdOnResumeOnly) {
-        // Use agent UUID
+        // Use emdash UUID
         appendFlagValue(args, spec.resumeFlag, ctx.sessionId!);
       } else if (spec.resumeWithoutSessionFlag) {
         args.push(...splitFlag(spec.resumeWithoutSessionFlag));

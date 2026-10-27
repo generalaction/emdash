@@ -11,7 +11,7 @@ import { CanonicalGitIdentityResolver } from './identity-resolver';
 const execFileAsync = promisify(execFile);
 
 async function makeRepo(): Promise<string> {
-  const repo = await mkdtemp(path.join(tmpdir(), 'agent-git-identity-'));
+  const repo = await mkdtemp(path.join(tmpdir(), 'emdash-git-identity-'));
   await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repo });
@@ -24,7 +24,7 @@ async function makeRepo(): Promise<string> {
 describe('CanonicalGitIdentityResolver', () => {
   it('shares repository identity while distinguishing linked checkouts', async () => {
     const repo = await makeRepo();
-    const linked = await mkdtemp(path.join(tmpdir(), 'agent-git-linked-'));
+    const linked = await mkdtemp(path.join(tmpdir(), 'emdash-git-linked-'));
     await execFileAsync('git', ['worktree', 'add', linked, '-b', 'linked'], { cwd: repo });
     const resolver = new CanonicalGitIdentityResolver({
       exec: createBoundExec({ file: 'git', cwd: process.cwd(), env: process.env }),
@@ -49,7 +49,7 @@ describe('CanonicalGitIdentityResolver', () => {
   });
 
   it('shares concurrent alias resolution and retries failures', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'agent-git-identity-retry-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-git-identity-retry-'));
     const resolver = new CanonicalGitIdentityResolver({
       exec: createBoundExec({ file: 'git', cwd: process.cwd(), env: process.env }),
     });

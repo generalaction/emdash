@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import { systemClock, type Clock, type TimerHandle } from '@agent/shared/scheduling';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import {
   automationRunConfigSnapshotSchema,
   type AutomationDeployment,
@@ -350,7 +350,7 @@ function positiveInteger(value: number, label: string): number {
 
 function defaultRunIdentity(): AutomationRunIdentity {
   const id = randomUUID();
-  return { id, generatedName: `agent-${id.slice(0, 8)}` };
+  return { id, generatedName: `emdash-${id.slice(0, 8)}` };
 }
 
 function errorMessage(error: unknown): string {

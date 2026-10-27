@@ -23,30 +23,30 @@ importers:
         specifier: ^4.22.4
         version: 4.22.4
 
-  apps/agent-desktop:
+  apps/emdash-desktop:
     dependencies:
       '@agentclientprotocol/sdk':
         specifier: ^1.1.0
         version: 1.1.0(zod@4.4.3)
-      '@agent/chat-ui':
+      '@emdash/chat-ui':
         specifier: workspace:*
         version: link:../../packages/chat-ui
-      '@agent/core':
+      '@emdash/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@agent/plugins':
+      '@emdash/plugins':
         specifier: workspace:*
         version: link:../../packages/plugins
-      '@agent/shared':
+      '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@agent/theme':
+      '@emdash/theme':
         specifier: workspace:*
         version: link:../../packages/theme
-      '@agent/ui':
+      '@emdash/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@agent/wire':
+      '@emdash/wire':
         specifier: workspace:*
         version: link:../../packages/wire
       '@fontsource-variable/inter':
@@ -308,16 +308,16 @@ importers:
 
   apps/workspace-server:
     dependencies:
-      '@agent/core':
+      '@emdash/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@agent/plugins':
+      '@emdash/plugins':
         specifier: workspace:*
         version: link:../../packages/plugins
-      '@agent/shared':
+      '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@agent/wire':
+      '@emdash/wire':
         specifier: workspace:*
         version: link:../../packages/wire
       '@parcel/watcher':
@@ -369,10 +369,10 @@ importers:
       '@chenglou/pretext':
         specifier: ^0.0.8
         version: 0.0.8
-      '@agent/core':
+      '@emdash/core':
         specifier: workspace:*
         version: link:../core
-      '@agent/shared':
+      '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
       '@fontsource-variable/inter':
@@ -493,10 +493,10 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^1.1.0
         version: 1.1.0(zod@4.4.3)
-      '@agent/shared':
+      '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
-      '@agent/wire':
+      '@emdash/wire':
         specifier: workspace:*
         version: link:../wire
       '@parcel/watcher':
@@ -581,10 +581,10 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.280
         version: 0.3.280(@anthropic-ai/sdk@0.106.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
-      '@agent/core':
+      '@emdash/core':
         specifier: workspace:*
         version: link:../core
-      '@agent/shared':
+      '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
       '@gitbeaker/rest':
@@ -719,13 +719,13 @@ importers:
       '@base-ui/react':
         specifier: ^1.3.0
         version: 1.5.0(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@agent/chat-ui':
+      '@emdash/chat-ui':
         specifier: workspace:*
         version: link:../chat-ui
-      '@agent/shared':
+      '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
-      '@agent/theme':
+      '@emdash/theme':
         specifier: workspace:*
         version: link:../theme
       '@fontsource-variable/jetbrains-mono':
@@ -885,7 +885,7 @@ importers:
 
   packages/wire:
     dependencies:
-      '@agent/shared':
+      '@emdash/shared':
         specifier: workspace:*
         version: link:../shared
       immer:

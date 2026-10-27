@@ -1,6 +1,6 @@
-# @agent/shared
+# @emdash/shared
 
-`@agent/shared` is the repo's standard library: package-level foundations reused
+`@emdash/shared` is the repo's standard library: package-level foundations reused
 by Wire, Core, desktop, workspace-server, and tests. These primitives are
 intentionally generic — they do not define product domains, Wire protocol
 messages, or host-specific process behavior.
@@ -18,7 +18,7 @@ unexported.
 
 ## The Prelude
 
-The root entrypoint (`@agent/shared`) is the single home for the blessed
+The root entrypoint (`@emdash/shared`) is the single home for the blessed
 cross-cutting core:
 
 - The result module: `Result<T, E>`, `ok`/`err`/`fail`, guards, combinators
@@ -36,30 +36,30 @@ root, domain symbols from their subpath. Nothing is exported from both.
 
 ## Entrypoints
 
-- `@agent/shared` — the prelude (above).
-- `@agent/shared/concurrency`: `Scope` (`createScope`), `createLifecycleRegistry`,
+- `@emdash/shared` — the prelude (above).
+- `@emdash/shared/concurrency`: `Scope` (`createScope`), `createLifecycleRegistry`,
   `createConcurrencyLimiter`, `createKeyedLanes`, `createMailbox`,
   `createAsyncCache`, `createResourceCache`, `createSharedResource`,
   `createDurableQueue`, `createBoundedBuffer`, and `Disposable`.
-- `@agent/shared/scheduling`: `Clock`, `systemClock`, `abortableWait`,
+- `@emdash/shared/scheduling`: `Clock`, `systemClock`, `abortableWait`,
   `abortReason`, `throwIfAborted`, `waitWithSignal`, `retry`, `retrySchedule`
   and the `retrySchedules` combinators, `runWithTimeout`, `TimeoutError`, and
   `TimerHandle`.
-- `@agent/shared/requests`: request orchestration — `compose` middleware,
+- `@emdash/shared/requests`: request orchestration — `compose` middleware,
   `withRetry`, `withTimeout`, `withScheduler`, `deduplicate`,
   `createRequestScheduler`, and `createTokenBucketGate`.
-- `@agent/shared/logger`: the browser-safe logging surface — `log`,
+- `@emdash/shared/logger`: the browser-safe logging surface — `log`,
   `runWithLogger`, levels, formatting, field preparation, and redaction.
-- `@agent/shared/logger/node`: the Node-only surface — `initProcessLogging`,
+- `@emdash/shared/logger/node`: the Node-only surface — `initProcessLogging`,
   `createPinoLogger`, `createFileTransport`, and `installAsyncLogContext`.
-- `@agent/shared/plugins`: the plugin framework — capabilities, assets,
+- `@emdash/shared/plugins`: the plugin framework — capabilities, assets,
   registries, and `PluginIconAsset` (the one icon-asset type; never re-alias it).
-- `@agent/shared/testing`: `deferred`, `createManualClock`,
+- `@emdash/shared/testing`: `deferred`, `createManualClock`,
   `createStubLogger`, and `waitFor`.
-- `@agent/shared/util`: stable utility helpers such as `stableStringify`.
-- `@agent/shared/markdown`: mention grammar helpers.
-- `@agent/shared/config`: layered config parsing with zod schemas.
-- `@agent/shared/perf` and `@agent/shared/perf/node`: spawn accounting and
+- `@emdash/shared/util`: stable utility helpers such as `stableStringify`.
+- `@emdash/shared/markdown`: mention grammar helpers.
+- `@emdash/shared/config`: layered config parsing with zod schemas.
+- `@emdash/shared/perf` and `@emdash/shared/perf/node`: spawn accounting and
   process vitals instrumentation.
 
 ## Choosing Lifecycle Primitives
@@ -79,12 +79,12 @@ Use `createSharedResource` for the same lease behavior around one unkeyed
 resource, and `createAsyncCache` for retryable cached async values with no
 finalizer.
 
-The command/event/effect machine primitive is internal to `@agent/core`'s acp
+The command/event/effect machine primitive is internal to `@emdash/core`'s acp
 runtime (`packages/core/src/runtimes/acp/node/machine/primitive/`) and is not
 offered as a shared building block. Use Wire-owned primitives when the lifecycle is
-protocol-specific: Wire workers belong to `@agent/wire/worker` because they
+protocol-specific: Wire workers belong to `@emdash/wire/worker` because they
 supervise process generations and keep a stable typed Wire client, and
-`LiveJobSource` belongs to `@agent/wire/live` because it publishes cancellable
+`LiveJobSource` belongs to `@emdash/wire/live` because it publishes cancellable
 job state, progress, retention, and remote client handles.
 
 ## Package Conventions

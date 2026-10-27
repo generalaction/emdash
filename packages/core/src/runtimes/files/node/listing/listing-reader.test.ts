@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { deferred } from '@agent/shared/testing';
+import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isExpandableListingEntry } from '#runtimes/files/api';
 import { RootPathPolicy } from '#runtimes/files/node/fs/path-policy';
@@ -159,7 +159,7 @@ function names(result: { success: true; data: ReadEntry[] } | { success: false }
 }
 
 async function makeRoot(): Promise<string> {
-  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-listing-reader-')));
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-listing-reader-')));
   roots.push(root);
   return root;
 }

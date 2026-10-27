@@ -1,4 +1,4 @@
-import { createController } from '@agent/wire/rpc';
+import { createController } from '@emdash/wire/rpc';
 import { agentConfigContract } from '#runtimes/agent-config/api';
 import type { AgentConfigRuntime } from '#runtimes/agent-config/node/runtime/runtime';
 import { createAgentConfigProcedures } from './procedures';

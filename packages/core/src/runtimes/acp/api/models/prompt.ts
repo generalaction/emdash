@@ -23,8 +23,8 @@ export type QueuedPrompt = z.infer<typeof queuedPromptSchema>;
 // its own marked block and transcript decoding drops chunks that are exactly one such block.
 // Matching the whole chunk (not a pattern inside it) means marker text inside the context, or in
 // what the user typed, can neither end the block early nor erase visible text.
-const HIDDEN_CONTEXT_OPEN = '<agent-hidden-context>\n';
-const HIDDEN_CONTEXT_CLOSE = '\n</agent-hidden-context>';
+const HIDDEN_CONTEXT_OPEN = '<emdash-hidden-context>\n';
+const HIDDEN_CONTEXT_CLOSE = '\n</emdash-hidden-context>';
 
 export function wrapHiddenContext(text: string): string {
   return `${HIDDEN_CONTEXT_OPEN}${text}${HIDDEN_CONTEXT_CLOSE}`;

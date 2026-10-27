@@ -22,7 +22,7 @@ export type WorkspaceObservedStatus = z.infer<typeof workspaceObservedStatusSche
 
 /**
  * Non-fatal session-plane event (a failed lifecycle script, an unparseable
- * `.agent.json`), carried on the runtime overlay — informational, never a verb
+ * `.emdash.json`), carried on the runtime overlay — informational, never a verb
  * failure.
  */
 export const workspaceNoticeSchema = z.union([

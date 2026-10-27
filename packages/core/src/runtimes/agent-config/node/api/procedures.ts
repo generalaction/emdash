@@ -1,4 +1,4 @@
-import { ok, type Result } from '@agent/shared';
+import { ok, type Result } from '@emdash/shared';
 import type { McpServer } from '#primitives/mcp/api';
 import type { CatalogSkill } from '#primitives/skills/api';
 import type {

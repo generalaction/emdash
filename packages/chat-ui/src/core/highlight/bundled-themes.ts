@@ -1,9 +1,9 @@
 /**
- * bundled-themes.ts — chat-ui owned copy of the agent Shiki themes.
+ * bundled-themes.ts — chat-ui owned copy of the emdash Shiki themes.
  *
- * These theme objects are replicated from @agent/ui/theme/shiki-themes
+ * These theme objects are replicated from @emdash/ui/theme/shiki-themes
  * so that the default ChatHighlighter in this package does not need to import
- * from @agent/ui at runtime. The values must stay in sync with the generated
+ * from @emdash/ui at runtime. The values must stay in sync with the generated
  * shiki-themes.ts when the design token palette is regenerated.
  */
 

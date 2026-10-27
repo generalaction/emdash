@@ -12,7 +12,7 @@ import {
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 const coreSrcRoot = path.join(repoRoot, 'packages/core/src');
-const desktopCoreSrcRoot = path.join(repoRoot, 'apps/agent-desktop/src/core');
+const desktopCoreSrcRoot = path.join(repoRoot, 'apps/emdash-desktop/src/core');
 
 test('classifies core module source files', () => {
   assert.deepEqual(
@@ -71,7 +71,7 @@ test('classifies alias, package, and relative imports', () => {
     surface: 'api',
   });
   assert.deepEqual(
-    classifyImportSpecifier('@agent/core/primitives/path/api', fromFile, coreSrcRoot),
+    classifyImportSpecifier('@emdash/core/primitives/path/api', fromFile, coreSrcRoot),
     {
       type: 'primitives',
       moduleName: 'path',
@@ -86,7 +86,7 @@ test('classifies alias, package, and relative imports', () => {
       surface: 'api',
     }
   );
-  assert.equal(classifyImportSpecifier('@agent/shared', fromFile, coreSrcRoot), undefined);
+  assert.equal(classifyImportSpecifier('@emdash/shared', fromFile, coreSrcRoot), undefined);
   assert.deepEqual(
     classifyImportSpecifier(
       '@core/primitives/mementos/api',
@@ -199,7 +199,7 @@ test('allows only the core module dependency graph', () => {
 });
 
 test('oxlint visitor reports imports, re-exports, and dynamic imports', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'agent-core-boundaries-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'emdash-core-boundaries-'));
   try {
     const fixtureCoreRoot = path.join(tempRoot, 'packages/core/src');
     const serviceDir = path.join(fixtureCoreRoot, 'services/example/api');
@@ -216,7 +216,7 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
           jsPlugins: [path.join(repoRoot, 'tooling/oxlint/index.js')],
           env: { node: true, es2020: true },
           rules: {
-            'agent/core-module-boundaries': ['error', { coreSrcRoot: fixtureCoreRoot }],
+            'emdash/core-module-boundaries': ['error', { coreSrcRoot: fixtureCoreRoot }],
           },
         },
         null,
@@ -239,7 +239,7 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
       path.join(fixtureCoreRoot, 'services/example/api/invalid.ts')
     );
     assert.notEqual(result.code, 0);
-    assert.match(result.output, /agent\(core-module-boundaries\)/);
+    assert.match(result.output, /emdash\(core-module-boundaries\)/);
     assert.match(result.output, /services\/example must not import runtimes\/git/);
     assert.match(result.output, /services\/example must not import runtimes\/files/);
     assert.match(result.output, /services\/example must not import runtimes\/acp/);
@@ -264,7 +264,7 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
 });
 
 test('a missing crossSlice allowlist key is valid and means no exceptions', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'agent-core-boundaries-allowlist-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'emdash-core-boundaries-allowlist-'));
   try {
     const fixtureCoreRoot = path.join(tempRoot, 'packages/core/src');
     const featureDir = path.join(fixtureCoreRoot, 'features/tasks/browser');
@@ -284,7 +284,7 @@ test('a missing crossSlice allowlist key is valid and means no exceptions', asyn
           jsPlugins: [path.join(repoRoot, 'tooling/oxlint/index.js')],
           env: { node: true, es2020: true },
           rules: {
-            'agent/core-module-boundaries': [
+            'emdash/core-module-boundaries': [
               'error',
               { coreSrcRoot: fixtureCoreRoot, allowlistPath, repoRoot: tempRoot },
             ],

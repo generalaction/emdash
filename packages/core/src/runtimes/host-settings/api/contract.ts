@@ -1,11 +1,11 @@
-import { defineContract, fallible, liveModel, liveState } from '@agent/wire/rpc';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { hostSettingsErrorSchema } from './errors';
 import { hostSettingsStateSchema, updateHostSettingsInputSchema } from './schemas';
 
 /**
  * The host-settings runtime (spec: activation-scripts-via-terminals): owns the
- * per-host defaults file in the host's agent data directory. One file per host,
+ * per-host defaults file in the host's emdash data directory. One file per host,
  * one live state — get/update verbs plus a live model that also reflects
  * out-of-band edits to the file (watched via the shared config-model machinery).
  */

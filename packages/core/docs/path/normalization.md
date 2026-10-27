@@ -1,6 +1,6 @@
 # Normalization
 
-Path normalization in Agent is explicit. Callers choose the dialect they are
+Path normalization in Emdash is explicit. Callers choose the dialect they are
 parsing instead of inheriting the operating system of the current process.
 
 ## Native Absolute Paths

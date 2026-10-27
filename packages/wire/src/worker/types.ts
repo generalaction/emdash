@@ -1,7 +1,7 @@
-import type { Unsubscribe } from '@agent/shared';
-import type { Scope } from '@agent/shared/concurrency';
-import type { Logger } from '@agent/shared/logger';
-import type { Clock, RetrySchedule } from '@agent/shared/scheduling';
+import type { Unsubscribe } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
+import type { Clock, RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '../api/client';
 import type { Contract, ContractDefinitions } from '../api/define';
 import type { WireInstrumentation } from '../api/instrumentation';
@@ -11,7 +11,7 @@ import type {
   WireComponentRequirements,
 } from './component';
 
-export const WORKER_NAME_ENV_VAR = 'AGENT_WORKER_NAME';
+export const WORKER_NAME_ENV_VAR = 'EMDASH_WORKER_NAME';
 
 export type WorkerStdioStream = 'stdout' | 'stderr';
 

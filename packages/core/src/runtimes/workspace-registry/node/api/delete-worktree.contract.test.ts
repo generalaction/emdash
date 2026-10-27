@@ -2,18 +2,18 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ManualClock } from '@agent/shared/testing';
-import { remote, snapshot } from '@agent/wire/state';
-import { createTestWire, type TestWire } from '@agent/wire/testing';
+import { ManualClock } from '@emdash/shared/testing';
+import { remote, snapshot } from '@emdash/wire/state';
+import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
+// oxlint-disable-next-line emdash/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
 import { scriptsContract } from '#runtimes/scripts/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { createScriptsController } from '#runtimes/scripts/node/api/controller';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import {
@@ -127,7 +127,7 @@ describe('workspace registry deleteWorktree', () => {
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktree = await createWorktree('ws-repo', 'active');
     await fs.writeFile(
-      path.join(worktree.path, '.agent.json'),
+      path.join(worktree.path, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'echo teardown >> ../teardown-log' } })
     );
     // The config live model refreshes on scans; stand in for the watcher settling.
@@ -253,9 +253,9 @@ describe('workspace registry deleteWorktree', () => {
       await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
       const worktree = await createWorktree('ws-repo', 'cold');
       await fs.writeFile(
-        path.join(worktree.path, '.agent.json'),
+        path.join(worktree.path, '.emdash.json'),
         JSON.stringify({
-          scripts: { teardown: 'test -f .agent.json && echo teardown >> ../teardown-log' },
+          scripts: { teardown: 'test -f .emdash.json && echo teardown >> ../teardown-log' },
         })
       );
       await wire.client.refresh({ workspaceId: 'wt-cold' });
@@ -292,7 +292,7 @@ describe('workspace registry deleteWorktree', () => {
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktree = await createWorktree('ws-repo', 'cold-failure');
     await fs.writeFile(
-      path.join(worktree.path, '.agent.json'),
+      path.join(worktree.path, '.emdash.json'),
       JSON.stringify({
         scripts: { teardown: 'echo attempted >> ../teardown-log; exit 9' },
       })
@@ -319,7 +319,7 @@ describe('workspace registry deleteWorktree', () => {
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktree = await createWorktree('ws-repo', 'vanished');
     await fs.writeFile(
-      path.join(worktree.path, '.agent.json'),
+      path.join(worktree.path, '.emdash.json'),
       JSON.stringify({
         scripts: { teardown: 'exit 9' },
       })
@@ -378,7 +378,7 @@ describe('workspace registry deleteWorktree', () => {
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktree = await createWorktree('ws-repo', 'torn');
     await fs.writeFile(
-      path.join(worktree.path, '.agent.json'),
+      path.join(worktree.path, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'echo torn down >&2; exit 9' } })
     );
     await wire.client.refresh({ workspaceId: 'wt-torn' });
@@ -412,7 +412,7 @@ describe('workspace registry deleteWorktree', () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     await fs.writeFile(
-      path.join(repoPath, '.agent.json'),
+      path.join(repoPath, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'exit 3' } })
     );
     await wire.client.refresh({ workspaceId: 'ws-repo' });
@@ -436,7 +436,7 @@ describe('workspace registry deleteWorktree', () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     await fs.writeFile(
-      path.join(repoPath, '.agent.json'),
+      path.join(repoPath, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'echo teardown >> ../repo-teardown-log' } })
     );
     await wire.client.refresh({ workspaceId: 'ws-repo' });

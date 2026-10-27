@@ -1,4 +1,4 @@
-// Public `@agent/wire/state` entry: the state kernel (cells, families,
+// Public `@emdash/wire/state` entry: the state kernel (cells, families,
 // queries, optimistic views, pinning, observation) plus the wire bridge
 // (`expose` on the serving side, `remote` on the consuming side).
 export { assignDraft } from './bridge/assign-draft';

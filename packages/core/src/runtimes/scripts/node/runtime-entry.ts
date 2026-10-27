@@ -1,5 +1,5 @@
-import { runWireComponentWorker } from '@agent/wire/worker';
-import { initWorkerProcessLogging } from '@agent/wire/worker/node';
+import { runWireComponentWorker } from '@emdash/wire/worker';
+import { initWorkerProcessLogging } from '@emdash/wire/worker/node';
 import { scriptsComponent } from './component';
 
 const logger = initWorkerProcessLogging('scripts-runtime');

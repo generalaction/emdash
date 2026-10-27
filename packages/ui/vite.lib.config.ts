@@ -13,7 +13,7 @@ const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8'))
 
 // Rollup string externals match import specifiers EXACTLY, so 'foo' does not
 // externalize 'foo/bar'. Source here imports many subpaths ('@base-ui/react/dialog',
-// '@tiptap/pm/state', '@agent/theme/manifest', ...), and inlining them duplicates
+// '@tiptap/pm/state', '@emdash/theme/manifest', ...), and inlining them duplicates
 // modules the app also imports directly — two copies of @base-ui/react means two
 // React contexts and broken dialogs. Externalize every dependency and peer
 // dependency with a subpath-tolerant regex so nothing third-party or workspace
@@ -81,7 +81,7 @@ export default defineConfig({
         /^@shikijs\//,
       ],
       output: {
-        // Rename the bundled stylesheet so consumers import '@agent/ui/style.css'.
+        // Rename the bundled stylesheet so consumers import '@emdash/ui/style.css'.
         assetFileNames: (assetInfo) => {
           if (assetInfo.names?.some((n) => n.endsWith('.css'))) return 'style.css';
           return '[name][extname]';

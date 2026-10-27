@@ -1,10 +1,10 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { ok } from '@agent/shared';
-import { createScope, type Scope } from '@agent/shared/concurrency';
-import { cell } from '@agent/wire/state';
-import { createTestWire } from '@agent/wire/testing';
+import { ok } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { cell } from '@emdash/wire/state';
+import { createTestWire } from '@emdash/wire/testing';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
@@ -109,7 +109,7 @@ function createWire(
 }
 
 async function createRoot(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-active-root-host-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-active-root-host-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
 }

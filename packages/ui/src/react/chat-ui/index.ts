@@ -1,5 +1,5 @@
 /**
- * React adapter for @agent/chat-ui.
+ * React adapter for @emdash/chat-ui.
  *
  * Uses React.createElement (no JSX) to avoid dual-JSX-runtime conflicts.
  * Creates a ChatView into the container div on mount and disposes on unmount.
@@ -25,8 +25,8 @@ import type {
   ChatView,
   ChatViewOptions,
   TranscriptTurn,
-} from '@agent/chat-ui';
-import { createChatView } from '@agent/chat-ui';
+} from '@emdash/chat-ui';
+import { createChatView } from '@emdash/chat-ui';
 import { createElement, useEffect, useRef } from 'react';
 
 export type ChatTranscriptProps = Pick<
@@ -131,7 +131,7 @@ export type {
   ChatContext,
   ChatState,
   TranscriptTurn,
-} from '@agent/chat-ui';
+} from '@emdash/chat-ui';
 export type LoadOlderFn = (turns: TranscriptTurn[]) => void;
 export {
   CHAT_VIEW_COMMANDS,
@@ -141,4 +141,4 @@ export {
   createChatView,
   createDefaultHighlighter,
   generateMockTranscript,
-} from '@agent/chat-ui';
+} from '@emdash/chat-ui';

@@ -313,7 +313,7 @@ describe('AcpTranscriptParser', () => {
     const result = AcpTranscriptParser.replay(
       [
         userChunk('u1', 'Fix the issue.'),
-        userChunk('u1', wrapHiddenContext('before </agent-hidden-context> after')),
+        userChunk('u1', wrapHiddenContext('before </emdash-hidden-context> after')),
       ],
       deps()
     );
@@ -322,7 +322,7 @@ describe('AcpTranscriptParser', () => {
   });
 
   it('replay keeps marker text the user typed in a visible message', () => {
-    const typed = 'Why does <agent-hidden-context>x</agent-hidden-context> show up?';
+    const typed = 'Why does <emdash-hidden-context>x</emdash-hidden-context> show up?';
     const result = AcpTranscriptParser.replay([userChunk('u1', typed)], deps());
     const messages = result.committed[0]?.items.filter((item) => item.kind === 'message') ?? [];
     expect(messages.map((message) => message.text)).toEqual([typed]);

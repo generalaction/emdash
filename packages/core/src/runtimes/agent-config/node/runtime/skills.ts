@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   generateSkillMd,
   isValidSkillName,
@@ -12,8 +12,8 @@ import type { PluginFs } from '#services/agent-plugins/api/plugins';
 import type { AgentConfigRuntimeDeps } from './types';
 
 const SKILLS_ROOT = '.agentskills';
-const AGENT_META = `${SKILLS_ROOT}/.agent`;
-const SKILLSH_INSTALLS_PATH = `${AGENT_META}/skillssh-installs.json`;
+const EMDASH_META = `${SKILLS_ROOT}/.emdash`;
+const SKILLSH_INSTALLS_PATH = `${EMDASH_META}/skillssh-installs.json`;
 
 type SkillInstallPayload = {
   id: string;
@@ -135,7 +135,7 @@ async function getInstalledSkills(fs: PluginFs, homeDir: string): Promise<Catalo
   const provenance = await readSkillShInstalls(fs);
   const skills: CatalogSkill[] = [];
   for (const entry of entries) {
-    if (entry === '.agent') continue;
+    if (entry === '.emdash') continue;
     const content = await fs.read(`${SKILLS_ROOT}/${entry}/SKILL.md`);
     if (!content) continue;
     const parsed = parseFrontmatter(content);

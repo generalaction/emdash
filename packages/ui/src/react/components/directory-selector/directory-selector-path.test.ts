@@ -3,18 +3,18 @@ import { splitDirectorySelectorPath } from './directory-selector';
 
 describe('directory selector path parsing', () => {
   it('keeps a drive root attached to every Windows breadcrumb', () => {
-    expect(splitDirectorySelectorPath(String.raw`D:\Projects\agent`, '\\')).toEqual([
+    expect(splitDirectorySelectorPath(String.raw`D:\Projects\emdash`, '\\')).toEqual([
       { label: 'D:', path: 'D:\\' },
       { label: 'Projects', path: String.raw`D:\Projects` },
-      { label: 'agent', path: String.raw`D:\Projects\agent` },
+      { label: 'emdash', path: String.raw`D:\Projects\emdash` },
     ]);
   });
 
   it('treats a UNC server and share as one filesystem root', () => {
-    expect(splitDirectorySelectorPath(String.raw`\\server\share\Projects\agent`, '\\')).toEqual([
+    expect(splitDirectorySelectorPath(String.raw`\\server\share\Projects\emdash`, '\\')).toEqual([
       { label: String.raw`\\server\share`, path: String.raw`\\server\share` },
       { label: 'Projects', path: String.raw`\\server\share\Projects` },
-      { label: 'agent', path: String.raw`\\server\share\Projects\agent` },
+      { label: 'emdash', path: String.raw`\\server\share\Projects\emdash` },
     ]);
   });
 });

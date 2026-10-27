@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@agent/shared';
+import type { Unsubscribe } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { client } from '../rpc/client';

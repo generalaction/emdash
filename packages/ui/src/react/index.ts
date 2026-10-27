@@ -1,5 +1,5 @@
 /**
- * @agent/ui/react — main entry for React components.
+ * @emdash/ui/react — main entry for React components.
  * Re-exports primitives, components, and patterns.
  */
 export * from './primitives/index';

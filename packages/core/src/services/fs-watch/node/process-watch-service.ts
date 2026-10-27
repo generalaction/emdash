@@ -1,6 +1,6 @@
-import type { Scope } from '@agent/shared/concurrency';
-import type { Logger } from '@agent/shared/logger';
-import type { ContractClient } from '@agent/wire/rpc';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
+import type { ContractClient } from '@emdash/wire/rpc';
 import type { fsWatchContract } from '#services/fs-watch/api';
 import { processWatchBackend } from '#services/fs-watch/impl/process-backend';
 import { createWatchService } from '#services/fs-watch/impl/watch-service';

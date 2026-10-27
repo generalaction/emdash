@@ -1,4 +1,4 @@
-import { deferred } from '@agent/shared/testing';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { ServerCapabilities } from 'vscode-languageserver-protocol';
 import { LanguageServerSession, type LanguageServerTransport } from './server-session';

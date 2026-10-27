@@ -1,4 +1,4 @@
-import { SCALE_NAMES, STEPS } from '@agent/theme';
+import { SCALE_NAMES, STEPS } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import React, { useEffect, useRef, useState } from 'react';

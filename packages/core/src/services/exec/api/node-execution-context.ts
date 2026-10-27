@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { classifySpawnPurpose, recordSpawn } from '@agent/shared/perf';
+import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import type { EnvSource } from '#primitives/exec/api';
 import {
   createChildProcessTreeTerminator,

@@ -1,8 +1,8 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@agent/core/services/agent-plugins/api/plugins';
-import { buildStandardCommand } from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildKiroHookConfig } from './hooks';
 import { icon } from './icon';
@@ -72,7 +72,7 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        defaultArgs: ['chat', '--agent', 'agent'],
+        defaultArgs: ['chat', '--agent', 'emdash'],
         autoApproveFlag: '--trust-all-tools',
         initialPromptFlag: '',
         resumeFlag: '--resume-id',

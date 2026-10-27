@@ -5,7 +5,7 @@ import { join } from 'node:path';
 /** Keep provider argv comfortably below the lowest practical OS command-line limit. */
 export const MAX_INLINE_PROMPT_CHARS = 16_384;
 
-const TEMP_DIR_PREFIX = 'agent-tui-prompt-';
+const TEMP_DIR_PREFIX = 'emdash-tui-prompt-';
 const CONTEXT_FILE_NAME = 'task-context.md';
 const STALE_PROMPT_AGE_MS = 24 * 60 * 60 * 1_000;
 

@@ -14,9 +14,6 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { AcpProcessHost } from '@agent/core/runtimes/acp/api/transport';
-import { AgentTerminalManager } from '@agent/core/runtimes/acp/node';
-import type { IAcpBehavior } from '@agent/core/services/agent-plugins/api/plugins';
 import type {
   Client,
   CreateTerminalRequest,
@@ -37,6 +34,9 @@ import type {
   WriteTextFileRequest,
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
+import type { AcpProcessHost } from '@emdash/core/runtimes/acp/api/transport';
+import { AgentTerminalManager } from '@emdash/core/runtimes/acp/node';
+import type { IAcpBehavior } from '@emdash/core/services/agent-plugins/api/plugins';
 import type { Recorder } from './recorder';
 
 /**

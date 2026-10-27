@@ -1,8 +1,8 @@
-import type { CommandContext, PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { CommandContext, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedEntry,
   makeStdinHookCommand,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { CODEBUDDY_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
@@ -196,7 +196,7 @@ describe('codebuddy provider', () => {
     expect(cleanedSettings.hooks.Notification).toEqual([
       { hooks: [{ type: 'command', command: 'notify-user' }] },
     ]);
-    expect(JSON.stringify(cleanedSettings)).not.toContain('AGENT_HOOK_PORT');
+    expect(JSON.stringify(cleanedSettings)).not.toContain('EMDASH_HOOK_PORT');
     await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(false);
   });
 

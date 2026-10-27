@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Serializable } from '@agent/shared';
-import { deferred } from '@agent/shared/testing';
+import type { Serializable } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createJsonFileKeyValueStore } from './index';
 
@@ -25,7 +25,7 @@ describe('createJsonFileKeyValueStore', () => {
   });
 
   it('returns the JSON-normalized value after writing', async () => {
-    directory = await mkdtemp(join(tmpdir(), 'agent-json-kv-'));
+    directory = await mkdtemp(join(tmpdir(), 'emdash-json-kv-'));
     const path = join(directory, 'store.json');
     const store = createJsonFileKeyValueStore({ path });
     const value = {
@@ -48,7 +48,7 @@ describe('createJsonFileKeyValueStore', () => {
   it.each(['set', 'delete'] as const)(
     'does not publish or later flush a failed %s',
     async (operation) => {
-      directory = await mkdtemp(join(tmpdir(), 'agent-json-kv-'));
+      directory = await mkdtemp(join(tmpdir(), 'emdash-json-kv-'));
       const path = join(directory, 'store.json');
       const store = createJsonFileKeyValueStore({ path });
       await store.set('session', 'saved');
@@ -72,7 +72,7 @@ describe('createJsonFileKeyValueStore', () => {
   );
 
   it('does not publish a rename failure or leak it through another key', async () => {
-    directory = await mkdtemp(join(tmpdir(), 'agent-json-kv-'));
+    directory = await mkdtemp(join(tmpdir(), 'emdash-json-kv-'));
     const path = join(directory, 'store.json');
     const store = createJsonFileKeyValueStore({ path });
     await store.set('session', 'old');
@@ -87,7 +87,7 @@ describe('createJsonFileKeyValueStore', () => {
   });
 
   it('keeps a serialization failure out of later writes', async () => {
-    directory = await mkdtemp(join(tmpdir(), 'agent-json-kv-'));
+    directory = await mkdtemp(join(tmpdir(), 'emdash-json-kv-'));
     const path = join(directory, 'store.json');
     const store = createJsonFileKeyValueStore({ path });
     await store.set('session', 'old');
@@ -102,7 +102,7 @@ describe('createJsonFileKeyValueStore', () => {
   });
 
   it('exposes committed reads during a pending write and serializes later mutations', async () => {
-    directory = await mkdtemp(join(tmpdir(), 'agent-json-kv-'));
+    directory = await mkdtemp(join(tmpdir(), 'emdash-json-kv-'));
     const path = join(directory, 'store.json');
     const store = createJsonFileKeyValueStore({ path });
     await store.set('session', 'old');
@@ -136,7 +136,7 @@ describe('createJsonFileKeyValueStore', () => {
   });
 
   it('coalesces initial reads so a late load cannot revert a committed write', async () => {
-    directory = await mkdtemp(join(tmpdir(), 'agent-json-kv-'));
+    directory = await mkdtemp(join(tmpdir(), 'emdash-json-kv-'));
     const path = join(directory, 'store.json');
     await writeFile(path, JSON.stringify({ session: 'old' }));
     const store = createJsonFileKeyValueStore({ path });

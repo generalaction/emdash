@@ -1,5 +1,5 @@
-import { AcpTranscriptParser, type NormalizedEvent } from '@agent/core/runtimes/acp/api';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import { AcpTranscriptParser, type NormalizedEvent } from '@emdash/core/runtimes/acp/api';
 import { describe, expect, it } from 'vitest';
 import { enrichClaudeUpdate } from './acp-transform';
 

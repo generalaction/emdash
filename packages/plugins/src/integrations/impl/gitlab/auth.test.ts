@@ -49,7 +49,7 @@ describe('GitLab credentials', () => {
 });
 
 describe('GitLab auth behavior', () => {
-  it('declares Agent and device sign-in for gitlab.com before the token form', () => {
+  it('declares Emdash and device sign-in for gitlab.com before the token form', () => {
     expect(provider.capabilities.auth.methods).toEqual([
       { kind: 'oauth', providerId: 'gitlab' },
       { kind: 'oauth-device', clientId: GITLAB_OAUTH_CLIENT_ID, scopes: ['api', 'read_user'] },
@@ -138,7 +138,7 @@ describe('GitLab auth behavior', () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it('leaves server-issued OAuth credentials to the Agent auth server', async () => {
+    it('leaves server-issued OAuth credentials to the Emdash auth server', async () => {
       const fetch = vi.fn<FetchLike>();
       const { refreshToken: _refreshToken, ...serverIssued } = oauth;
       await expect(

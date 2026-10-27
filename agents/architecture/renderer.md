@@ -1,6 +1,6 @@
 # Renderer
 
-All paths are relative to `apps/agent-desktop/`.
+All paths are relative to `apps/emdash-desktop/`.
 
 ## Main Entry Points
 

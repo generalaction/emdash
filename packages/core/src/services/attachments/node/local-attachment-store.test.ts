@@ -42,7 +42,7 @@ afterEach(async () => {
 });
 
 async function makeRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'agent-attachments-'));
+  const root = await mkdtemp(join(tmpdir(), 'emdash-attachments-'));
   roots.push(root);
   return root;
 }

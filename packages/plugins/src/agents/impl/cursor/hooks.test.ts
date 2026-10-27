@@ -1,4 +1,4 @@
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { buildCursorHookConfig, CURSOR_HOOKS_PATH, parseCursorHookEvent } from './hooks';
 import { provider } from './index';
@@ -48,7 +48,7 @@ describe('Cursor hooks', () => {
     expect(config.hooks.sessionStart).toHaveLength(1);
     expect(config.hooks.beforeSubmitPrompt).toHaveLength(1);
     expect(config.hooks.stop).toHaveLength(1);
-    expect(config.hooks.beforeSubmitPrompt[0].command).toContain('AGENT_HOOK_PORT');
+    expect(config.hooks.beforeSubmitPrompt[0].command).toContain('EMDASH_HOOK_PORT');
     expect(config.hooks.beforeSubmitPrompt[0].command).toContain('"continue":true');
     expect(config.hooks.stop[0].command).toContain('printf');
     expect(await hooks.getHooksInstalled(fs)).toBe(true);
@@ -65,20 +65,20 @@ describe('Cursor hooks', () => {
       const script = Buffer.from(command.split(' -EncodedCommand ')[1], 'base64').toString(
         'utf16le'
       );
-      expect(script).toContain('X-Agent-Event-Type');
+      expect(script).toContain('X-Emdash-Event-Type');
       if (event === 'beforeSubmitPrompt') {
         expect(script).toContain('"continue":true');
       }
     }
   });
 
-  it('preserves user hooks while replacing managed agent entries', async () => {
+  it('preserves user hooks while replacing managed emdash entries', async () => {
     const { fs, read } = createFs({
       [CURSOR_HOOKS_PATH]: {
         version: 1,
         hooks: {
           afterFileEdit: [{ type: 'command', command: './hooks/format.sh' }],
-          stop: [{ type: 'command', command: 'echo AGENT_HOOK_PORT stale' }],
+          stop: [{ type: 'command', command: 'echo EMDASH_HOOK_PORT stale' }],
         },
       },
     });
@@ -87,7 +87,7 @@ describe('Cursor hooks', () => {
     const config = read(CURSOR_HOOKS_PATH);
     expect(config.hooks.afterFileEdit).toEqual([{ type: 'command', command: './hooks/format.sh' }]);
     expect(config.hooks.stop).toHaveLength(1);
-    expect(config.hooks.stop[0].command).toContain('X-Agent-Event-Type: stop');
+    expect(config.hooks.stop[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.stop[0].command).not.toContain('stale');
   });
 

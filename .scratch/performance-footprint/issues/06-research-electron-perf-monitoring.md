@@ -16,12 +16,12 @@ memory, and subprocess footprint, to inform the measurement decision in
 - How VS Code does it: its perf/telemetry machinery for startup timings, process
   explorer, extension-host resource tracking — what's worth imitating in a
   multi-worker-process Electron app.
-- Practical patterns for counting child-process spawns (agent spawns git subprocesses
+- Practical patterns for counting child-process spawns (emdash spawns git subprocesses
   from worker processes) — instrumenting at the spawn seam vs OS-level observation.
 - Renderer-side: long-task/INP observation and React render profiling in production vs
   dev-only.
 - Cost/overhead of each option and whether it is safe to leave on in production
-  (telemetry is optional in agent and must remain so).
+  (telemetry is optional in emdash and must remain so).
 
 Findings go to `.scratch/performance-footprint/research/electron-perf-monitoring.md`,
 each claim cited to its primary source.
@@ -31,9 +31,9 @@ each claim cited to its primary source.
 Full findings with primary-source citations:
 [electron-perf-monitoring.md](../research/electron-perf-monitoring.md). Key facts:
 
-1. **`app.getAppMetrics()` is blind to agent's workers.** It covers only
+1. **`app.getAppMetrics()` is blind to emdash's workers.** It covers only
    Chromium-managed processes (main, renderers, GPU, `utilityProcess`). Children spawned
-   via plain `child_process` — agent's ~14 workers — and their git grandchildren never
+   via plain `child_process` — emdash's ~14 workers — and their git grandchildren never
    appear. Coverage requires per-worker self-sampling or migrating workers to
    `utilityProcess.fork()` (which surfaces them with a `serviceName`).
 2. **Cheap always-on primitives exist for every process type:** Electron's
@@ -53,5 +53,5 @@ Full findings with primary-source citations:
    safe to leave on; `contentTracing` and React `<Profiler>` carry real overhead —
    dev-harness only.
 
-Recommended split for agent (input to ticket 07): dev-only `ps`-based process panel +
+Recommended split for emdash (input to ticket 07): dev-only `ps`-based process panel +
 tracing; opt-in production telemetry from the cheap self-sampling set + spawn counters.

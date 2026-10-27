@@ -3,7 +3,7 @@
 The `workspaces` table is the Registry from ADR 0001, and its invariants (untrack-never-delete,
 tombstone/revert symmetry, observation columns owned by sync, annotation columns owned by features)
 were re-implemented by ten independent writers across six slices. We decided a single Registry module
-owns every write through a verb vocabulary — `register` (agent-created, with Provenance), `adopt`
+owns every write through a verb vocabulary — `register` (emdash-created, with Provenance), `adopt`
 (host-discovered, without), `refresh` (observations only), `untrack`/`revertUntrack`, `resurrect`,
 `annotate`, and `purge` (hard delete, valid only on already-untracked rows) — with verbs accepting an
 optional transaction handle so callers keep atomicity across tables. Raw drizzle access to the table

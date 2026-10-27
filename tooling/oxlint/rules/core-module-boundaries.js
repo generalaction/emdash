@@ -17,13 +17,13 @@ const ALIAS_PREFIXES = {
   '@core/primitives/': 'primitives',
   '@core/features/': 'features',
 };
-const CORE_PACKAGE_PREFIX = '@agent/core/';
+const CORE_PACKAGE_PREFIX = '@emdash/core/';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_CORE_SRC_ROOT = path.resolve(currentDir, '../../../packages/core/src');
 export const DEFAULT_DESKTOP_CORE_SRC_ROOT = path.resolve(
   currentDir,
-  '../../../apps/agent-desktop/src/core'
+  '../../../apps/emdash-desktop/src/core'
 );
 
 export function normalizePath(value) {

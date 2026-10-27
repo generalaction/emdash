@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { err, ok, type Result } from '@agent/shared';
-import { abortReason } from '@agent/shared/scheduling';
+import { err, ok, type Result } from '@emdash/shared';
+import { abortReason } from '@emdash/shared/scheduling';
 import type { EnvSource } from '#primitives/exec/api';
 import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {

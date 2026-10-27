@@ -7,13 +7,13 @@
  *
  * Surface cascade classes (.surface-*) and non-color design tokens (--text-*,
  * --radius-*, --font-*, --animate-*) are emitted by the Vanilla Extract build
- * pipeline into dist/style.css. Consumers must also import '@agent/ui/style.css'.
+ * pipeline into dist/style.css. Consumers must also import '@emdash/ui/style.css'.
  *
  * Usage in an app entry (e.g. main.tsx):
- *   import '@agent/ui/styles/tokens.css';
- *   import '@agent/ui/style.css';
+ *   import '@emdash/ui/styles/tokens.css';
+ *   import '@emdash/ui/style.css';
  */
 
-@import '@agent/theme/theme.css';
-@import '@agent/theme/semantic.css';
+@import '@emdash/theme/theme.css';
+@import '@emdash/theme/semantic.css';
 @import './typography.css';

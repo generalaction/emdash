@@ -1,10 +1,10 @@
 import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ok } from '@agent/shared';
-import { createScope } from '@agent/shared/concurrency';
-import type { Logger } from '@agent/shared/logger';
-import { noopLogger } from '@agent/shared/logger';
+import { ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
+import { noopLogger } from '@emdash/shared/logger';
 import { describe, expect, it, vi } from 'vitest';
 import type { McpServer } from '#primitives/mcp/api';
 import type {
@@ -217,7 +217,7 @@ describe('AgentConfigRuntime', () => {
   });
 
   it('runs a Windows cmd authentication probe with the sanitized environment', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'agent-auth-cmd-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-auth-cmd-'));
     const cmdWrapper = path.join(dir, 'cmd-wrapper');
     const providerPath = path.join(dir, 'fake-agent.cmd');
     await writeFile(cmdWrapper, '#!/bin/sh\nprintf \'%s\\n\' "$@"\n', 'utf8');

@@ -1,5 +1,5 @@
 /**
- * styles/utilities — atomic CSS utilities for @agent/ui.
+ * styles/utilities — atomic CSS utilities for @emdash/ui.
  *
  * Re-exports:
  *   sx        — Sprinkles function for type-safe atomic class generation

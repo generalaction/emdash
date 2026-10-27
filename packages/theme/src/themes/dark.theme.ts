@@ -1,5 +1,5 @@
 /**
- * Dark theme — the default agent dark palette.
+ * Dark theme — the default emdash dark palette.
  *
  * Tuned to stay visually close to the current Radix-sourced emdark palette:
  *   - Neutral: near-black background (OKLCH L ~0.178), very low chroma

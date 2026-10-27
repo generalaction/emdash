@@ -3,7 +3,7 @@ import { gitCredentialChannelSchema } from '#primitives/git-credentials/api';
 import { hostAbsolutePathSchema } from '#primitives/path/api';
 
 /**
- * Operation-scoped agent credential-helper context for network jobs
+ * Operation-scoped emdash credential-helper context for network jobs
  * (spec: github-git-settings §4): a per-operation channel to the desktop
  * credential server plus the normalized HTTPS host it answers for. Carries
  * only the loopback channel — never token material. Absent = native

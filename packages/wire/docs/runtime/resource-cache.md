@@ -1,7 +1,7 @@
 # Resource Caches
 
 `ResourceCache`, `SharedResource`, and `AsyncCache` are Shared primitives from
-`@agent/shared/concurrency`. Wire uses them for shared lifetimes and cached
+`@emdash/shared/concurrency`. Wire uses them for shared lifetimes and cached
 async values, but they do not define Wire protocol messages.
 
 ## Choose A Primitive

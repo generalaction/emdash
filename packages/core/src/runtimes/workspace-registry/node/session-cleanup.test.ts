@@ -48,7 +48,7 @@ describe('workspace session cleanup', () => {
   });
 
   it('counts and kills sessions under a Windows workspace path', async () => {
-    const workspacePath = 'C:\\Users\\taehyun\\agent\\task-1';
+    const workspacePath = 'C:\\Users\\taehyun\\emdash\\task-1';
     const terminalPath = parseNativeAbsolute(`${workspacePath}\\src`);
     if (!terminalPath.success) throw new Error(terminalPath.error.message);
     const terminate = vi.fn().mockResolvedValue({ success: true, data: undefined });

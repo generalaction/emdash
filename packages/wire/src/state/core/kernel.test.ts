@@ -1,4 +1,4 @@
-import { createScope } from '@agent/shared/concurrency';
+import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it } from 'vitest';
 import { recordSnapshots } from '../testing';
 import { batch, cell, derived, flushStateTurn, observe, peek, revisionOf, snapshot } from './index';

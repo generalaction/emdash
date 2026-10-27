@@ -36,23 +36,23 @@ describe('formatCommandLine', () => {
     expect(
       formatCommandLine(
         {
-          command: '/opt/Agent Server/bin/agent',
-          args: ['start', '--socket', '/tmp/agent socket'],
+          command: '/opt/Emdash Server/bin/emdash',
+          args: ['start', '--socket', '/tmp/emdash socket'],
         },
         'posix'
       )
-    ).toBe("'/opt/Agent Server/bin/agent' start --socket '/tmp/agent socket'");
+    ).toBe("'/opt/Emdash Server/bin/emdash' start --socket '/tmp/emdash socket'");
   });
 
   it('uses the PowerShell invocation operator', () => {
     expect(
       formatCommandLine(
         {
-          command: 'C:\\Program Files\\Agent\\agent.exe',
+          command: 'C:\\Program Files\\Emdash\\emdash.exe',
           args: ['start', '--name', "David's task"],
         },
         'powershell'
       )
-    ).toBe("& 'C:\\Program Files\\Agent\\agent.exe' start --name 'David''s task'");
+    ).toBe("& 'C:\\Program Files\\Emdash\\emdash.exe' start --name 'David''s task'");
   });
 });

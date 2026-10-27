@@ -1,5 +1,5 @@
-import { createEmitter, type PendingLease, type Unsubscribe } from '@agent/shared';
-import { stableStringify } from '@agent/shared/util';
+import { createEmitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
+import { stableStringify } from '@emdash/shared/util';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';

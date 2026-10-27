@@ -47,7 +47,7 @@ export type UpdateWorktreeExecutionResult =
  *
  * Fetch mechanics: `--no-write-fetch-head` (registry hygiene) makes a
  * destination-less fetch unresolvable, so the source ref is fetched into a private,
- * uniquely named `refs/agent/update/<uuid>` ref (force-updated — it is ours alone —
+ * uniquely named `refs/emdash/update/<uuid>` ref (force-updated — it is ours alone —
  * and deleted afterwards; unique because refs are shared repository-wide across
  * worktrees). The fetched OID is resolved explicitly, ancestry is checked with
  * `merge-base --is-ancestor` so a diverged branch fails cleanly before `git merge`
@@ -62,7 +62,7 @@ export async function executeUpdateWorktree(
     repository: execution.repositoryPath,
   });
   return execution.git.locks.withWriter(execution.worktreePath, async () => {
-    const tempRef = `refs/agent/update/${crypto.randomUUID()}`;
+    const tempRef = `refs/emdash/update/${crypto.randomUUID()}`;
     try {
       let fetchedOid: string;
       let headOid: string;

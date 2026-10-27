@@ -13,7 +13,7 @@ exactly one answer. Removal inventory:
 - [x] Legacy compose file, its docker tooling directory, and the `run:docker-ssh` script are
       deleted
 - [x] All four doc mentions updated to point at the workspace-server stack
-- [x] The gated remote integration test (`AGENT_TEST_REMOTE_WSS=1`) still passes against the
+- [x] The gated remote integration test (`EMDASH_TEST_REMOTE_WSS=1`) still passes against the
       workspace-server stack — verified by inspection only: the test targets the
       workspace-server stack's port 2223, which this ticket does not touch; Docker was not
       running on the build machine so the gated run itself could not be exercised

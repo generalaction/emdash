@@ -210,7 +210,7 @@ export const Streaming: Story = {
           afterMs: 700,
           children: [
             searchNode('subagent-stream-search', 1, 'latest failing job output'),
-            executeNode('subagent-stream-execute', 2, 'pnpm --filter @agent/chat-ui test'),
+            executeNode('subagent-stream-execute', 2, 'pnpm --filter @emdash/chat-ui test'),
           ],
         },
         { afterMs: 900, status: 'done' },

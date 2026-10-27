@@ -1,4 +1,4 @@
-import { noopLogger, type Logger } from '@agent/shared/logger';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
 import {
   collectLocalProcessInfosByPidAsync,
   collectLocalProcessTreeAsync,

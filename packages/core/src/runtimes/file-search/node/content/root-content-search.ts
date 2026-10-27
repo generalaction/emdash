@@ -1,5 +1,5 @@
-import type { Result } from '@agent/shared';
-import type { ConcurrencyLimiter } from '@agent/shared/concurrency';
+import type { Result } from '@emdash/shared';
+import type { ConcurrencyLimiter } from '@emdash/shared/concurrency';
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT,
   type ContentSearchError,

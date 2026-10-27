@@ -2,13 +2,13 @@ import { Buffer } from 'node:buffer';
 import { exec } from 'node:child_process';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { buildAntigravityHookConfig } from './hooks';
 import { provider } from './index';
 
-const manifestPath = 'plugins/agent/plugin.json';
-const hooksPath = 'plugins/agent/hooks.json';
+const manifestPath = 'plugins/emdash/plugin.json';
+const hooksPath = 'plugins/emdash/hooks.json';
 
 function createFs(initial: Record<string, unknown> = {}) {
   const files = new Map(
@@ -47,9 +47,9 @@ describe('Antigravity hooks', () => {
     const { fs, files, read } = createFs();
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
     expect(await hooks.writeHooks(fs)).toEqual([manifestPath, hooksPath]);
-    expect(read(manifestPath).name).toBe('agent');
+    expect(read(manifestPath).name).toBe('emdash');
     expect(read(hooksPath)).toMatchObject({
-      agent: { enabled: true, PreInvocation: [{ type: 'command' }], Stop: [{ type: 'command' }] },
+      emdash: { enabled: true, PreInvocation: [{ type: 'command' }], Stop: [{ type: 'command' }] },
     });
     expect(await hooks.getHooksInstalled(fs)).toBe(true);
     const before = new Map(files);
@@ -59,7 +59,7 @@ describe('Antigravity hooks', () => {
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
     await hooks.writeHooks(fs);
     const config = read(hooksPath);
-    config.agent.Stop = [];
+    config.emdash.Stop = [];
     files.set(hooksPath, JSON.stringify(config));
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
     await hooks.writeHooks(fs);
@@ -73,7 +73,7 @@ describe('Antigravity hooks', () => {
       ['PreInvocation', '{}'],
       ['Stop', '{"decision":"stop"}'],
     ]) {
-      const command = read(hooksPath).agent[event][0].command;
+      const command = read(hooksPath).emdash[event][0].command;
       expect(command).toMatch(/^cmd\.exe .* -EncodedCommand [A-Za-z0-9+/]+=*$/);
       expect(command).not.toContain('/dev/null');
       expect(command).not.toContain('printf');
@@ -87,18 +87,18 @@ describe('Antigravity hooks', () => {
   it('preserves user definitions and handlers on installation and removal', async () => {
     const userHook = { type: 'command', command: 'echo user' };
     const { fs, read } = createFs({
-      [manifestPath]: { name: 'agent', description: 'custom' },
+      [manifestPath]: { name: 'emdash', description: 'custom' },
       [hooksPath]: {
         user: { Stop: [userHook] },
-        agent: { Stop: [userHook], PostInvocation: [userHook] },
+        emdash: { Stop: [userHook], PostInvocation: [userHook] },
       },
     });
     await hooks.writeHooks(fs);
-    expect(read(hooksPath).agent.Stop).toHaveLength(2);
+    expect(read(hooksPath).emdash.Stop).toHaveLength(2);
     await hooks.deleteHooks(fs);
     expect(read(hooksPath)).toEqual({
       user: { Stop: [userHook] },
-      agent: { enabled: true, PreInvocation: [], Stop: [userHook], PostInvocation: [userHook] },
+      emdash: { enabled: true, PreInvocation: [], Stop: [userHook], PostInvocation: [userHook] },
     });
     expect(read(manifestPath).description).toBe('custom');
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
@@ -106,8 +106,8 @@ describe('Antigravity hooks', () => {
 
   it.each([
     { [manifestPath]: { name: 'another-plugin' } },
-    { [hooksPath]: { agent: 'invalid' } },
-    { [hooksPath]: { agent: { Stop: {} } } },
+    { [hooksPath]: { emdash: 'invalid' } },
+    { [hooksPath]: { emdash: { Stop: {} } } },
   ])('rejects incompatible configuration without writing: %j', async (initial) => {
     const { fs, files } = createFs(initial);
     const before = new Map(files);
@@ -179,9 +179,9 @@ describe('Antigravity hooks', () => {
         body += chunk;
       });
       req.on('end', () => {
-        expect(req.headers['x-agent-token']).toBe('test-token');
-        expect(req.headers['x-agent-pty-id']).toBe('test-pty');
-        requests.push({ type: req.headers['x-agent-event-type'], body });
+        expect(req.headers['x-emdash-token']).toBe('test-token');
+        expect(req.headers['x-emdash-pty-id']).toBe('test-pty');
+        requests.push({ type: req.headers['x-emdash-event-type'], body });
         res.statusCode = responseStatus;
         res.end('{"decision":"continue"}');
       });
@@ -194,22 +194,22 @@ describe('Antigravity hooks', () => {
         ['PreInvocation', {}],
         ['Stop', { decision: 'stop' }],
       ] as const) {
-        const command = read(hooksPath).agent[event][0].command;
+        const command = read(hooksPath).emdash[event][0].command;
         for (const status of [200, 503]) {
           responseStatus = status;
           const output = promisify(exec)(command, {
             env: {
               ...process.env,
-              AGENT_HOOK_PORT: String(address.port),
-              AGENT_HOOK_NONCE: 'test-token',
-              AGENT_PTY_ID: 'test-pty',
+              EMDASH_HOOK_PORT: String(address.port),
+              EMDASH_HOOK_NONCE: 'test-token',
+              EMDASH_PTY_ID: 'test-pty',
             },
           });
           output.child.stdin!.end('{"conversationId":"session","fullyIdle":true}');
           expect(JSON.parse((await output).stdout)).toEqual(expected);
         }
         const outside = await promisify(exec)(command, {
-          env: { ...process.env, AGENT_HOOK_PORT: '' },
+          env: { ...process.env, EMDASH_HOOK_PORT: '' },
         });
         expect(JSON.parse(outside.stdout)).toEqual(expected);
       }

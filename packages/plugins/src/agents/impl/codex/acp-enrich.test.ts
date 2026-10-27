@@ -1,5 +1,5 @@
-import { decodeSessionUpdate } from '@agent/core/runtimes/acp/api';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import { decodeSessionUpdate } from '@emdash/core/runtimes/acp/api';
 import { describe, expect, it } from 'vitest';
 import { enrichCodexUpdate } from './acp-enrich';
 

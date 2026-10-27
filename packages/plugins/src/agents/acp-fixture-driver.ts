@@ -1,4 +1,3 @@
-import { AcpTranscriptParser, type TranscriptTurnOutcome } from '@agent/core/runtimes/acp/api';
 /**
  * Shared helper for ACP transcript fixture tests.
  *
@@ -10,6 +9,7 @@ import { AcpTranscriptParser, type TranscriptTurnOutcome } from '@agent/core/run
  * test file. Both `claude` and `codex` fixture tests import from here.
  */
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import { AcpTranscriptParser, type TranscriptTurnOutcome } from '@emdash/core/runtimes/acp/api';
 
 // ── Narrow fixture types (mirrors recorder.ts shapes for the used fields) ────
 

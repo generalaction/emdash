@@ -1,4 +1,4 @@
-import { createEmitter, type Unsubscribe } from '@agent/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import { isWireMessage, WireError, type WireMessage, type WireTransport } from '../api/protocol';
 import { isWireWorkerFrame, RUNTIME_CHANNEL } from './component-protocol';
 import { isWorkerSignal } from './protocol';

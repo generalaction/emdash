@@ -3,7 +3,7 @@
  *
  * Prerequisites (must be satisfied before running):
  *   1. Workspace packages built: run `pnpm build` from the repo root so that
- *      @agent/core/runtimes/acp/api, @agent/core/runtimes/acp/node, and @agent/plugins resolve from dist.
+ *      @emdash/core/runtimes/acp/api, @emdash/core/runtimes/acp/node, and @emdash/plugins resolve from dist.
  *   2. Target agent CLI installed and authenticated, e.g. `claude` on PATH.
  *   3. Network + API-token access (real model calls are made).
  *
@@ -12,8 +12,8 @@
  *     [--cwd /tmp/my-worktree] [--out src/agents/impl/claude/fixtures/acp-transcript.json]
  *
  * Environment overrides:
- *   AGENT_<PROVIDERID_UPPER>_BIN   - absolute path to the provider CLI binary
- *   AGENT_CLI_PATH                 - generic CLI binary path override
+ *   EMDASH_<PROVIDERID_UPPER>_BIN   - absolute path to the provider CLI binary
+ *   EMDASH_CLI_PATH                 - generic CLI binary path override
  *
  * Safety: by default a throw-away `git worktree` is created from HEAD so all
  * agent file edits are isolated. Pass --cwd to run in-place or against an
@@ -22,8 +22,8 @@
 import { execSync, execFileSync } from 'node:child_process';
 import { resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createAcpAgentConnection } from '@agent/core/runtimes/acp/node';
-import { createScope } from '@agent/shared/concurrency';
+import { createAcpAgentConnection } from '@emdash/core/runtimes/acp/node';
+import { createScope } from '@emdash/shared/concurrency';
 import { pluginRegistry } from '../../src/agents/registry';
 import { Recorder } from './acp/recorder';
 import { buildRecordingClient } from './acp/recording-client';
@@ -55,7 +55,7 @@ function repoRoot(): string {
 function createWorktree(): string {
   const root = repoRoot();
   const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
-  const tmpDir = `/tmp/agent-acp-fixture-${Date.now()}`;
+  const tmpDir = `/tmp/emdash-acp-fixture-${Date.now()}`;
   console.log(`[fixture] Creating throwaway worktree at ${tmpDir} (branch: ${branch})`);
   execFileSync('git', ['worktree', 'add', '--detach', tmpDir, 'HEAD'], {
     cwd: root,
@@ -300,7 +300,7 @@ function parseArgs(): TranscriptOptions {
   // Accept --<providerId> as shorthand (e.g. --claude, --codex).
   // The first unknown boolean flag (starts with -- but has no value) is treated
   // as the provider id.
-  let providerId = get('--provider') ?? process.env['AGENT_FIXTURE_PROVIDER'];
+  let providerId = get('--provider') ?? process.env['EMDASH_FIXTURE_PROVIDER'];
 
   if (!providerId) {
     const shorthand = args.find(
@@ -319,9 +319,9 @@ function parseArgs(): TranscriptOptions {
   providerId ??= 'claude';
 
   const defaults = PROVIDER_DEFAULTS[providerId] ?? {};
-  const model = get('--model') ?? process.env['AGENT_FIXTURE_MODEL'] ?? defaults.model ?? null;
-  const cwd = get('--cwd') ?? process.env['AGENT_FIXTURE_CWD'];
-  const out = get('--out') ?? process.env['AGENT_FIXTURE_OUT'];
+  const model = get('--model') ?? process.env['EMDASH_FIXTURE_MODEL'] ?? defaults.model ?? null;
+  const cwd = get('--cwd') ?? process.env['EMDASH_FIXTURE_CWD'];
+  const out = get('--out') ?? process.env['EMDASH_FIXTURE_OUT'];
 
   return { providerId, model, cwd, out };
 }

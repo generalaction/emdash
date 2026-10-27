@@ -22,7 +22,7 @@ this is the setup-broken-vs-HEAD-red disambiguator. Decision detail:
 - [x] Test/check failure output references the doctor (root `pnpm run check` failure hint;
       vitest internals untouched). Follow-up 2026-08-06: plain root `pnpm run test` failures
       now surface the same hint via `tooling/scripts/test.mjs` (root `test` script wraps the
-      Nx run; unit-tested in `apps/agent-desktop/scripts/root-test-wrapper.test.ts`)
+      Nx run; unit-tested in `apps/emdash-desktop/scripts/root-test-wrapper.test.ts`)
 - [x] Baseline procedure re-run recorded (success-criteria checkpoint from the
       [spec](../../dev-setup-overhaul/spec.md)): one command from clone, zero interventions,
       doctor green — recorded in

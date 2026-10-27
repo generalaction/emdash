@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveModel, liveState } from '@agent/wire/rpc';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { workspaceAttachmentsContract } from '#services/attachments/api';
 import {
@@ -71,7 +71,7 @@ export const workspaceRegistryContract = defineContract({
   }),
 
   /**
-   * Write-through consistency barrier for a known `.agent.json` write. Rereads the
+   * Write-through consistency barrier for a known `.emdash.json` write. Rereads the
    * exact registered workspace path and publishes the refreshed project-config model
    * before returning.
    */

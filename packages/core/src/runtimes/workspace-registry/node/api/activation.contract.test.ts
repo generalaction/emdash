@@ -3,18 +3,18 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { deferred, ManualClock } from '@agent/shared/testing';
-import { remote, snapshot } from '@agent/wire/state';
-import { createTestWire, type TestWire } from '@agent/wire/testing';
+import { deferred, ManualClock } from '@emdash/shared/testing';
+import { remote, snapshot } from '@emdash/wire/state';
+import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
+// oxlint-disable-next-line emdash/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
 import { scriptsContract } from '#runtimes/scripts/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { createScriptsController } from '#runtimes/scripts/node/api/controller';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
-// oxlint-disable-next-line agent/core-module-boundaries -- see above
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import {
@@ -118,7 +118,7 @@ describe('workspace registry activation lifecycle', () => {
     await fs.mkdir(workspacePath, { recursive: true });
     await execFileAsync('git', ['init', '--quiet', workspacePath]);
     await fs.writeFile(
-      path.join(workspacePath, '.agent.json'),
+      path.join(workspacePath, '.emdash.json'),
       JSON.stringify({ scripts, shellSetup })
     );
     const created = await wire.client.createWorkspace({

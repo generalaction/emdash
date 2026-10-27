@@ -1,6 +1,6 @@
-import type { HookRegistration, PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { HookRegistration, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
-  AGENT_MARKER,
+  EMDASH_MARKER,
   buildMinimalJsonHookConfig,
   configRoots,
   envConfigRoot,
@@ -9,10 +9,10 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const KIRO_CLASSIC_HOOKS_PATH = 'agents/agent.json';
-export const KIRO_V3_HOOKS_PATH = 'hooks/agent.json';
+export const KIRO_CLASSIC_HOOKS_PATH = 'agents/emdash.json';
+export const KIRO_V3_HOOKS_PATH = 'hooks/emdash.json';
 
 const KIRO_CLASSIC_SPECS = [
   { hookKey: 'agentSpawn', command: makeStdinHookCommand('session') },
@@ -24,27 +24,27 @@ const KIRO_CLASSIC_SPECS = [
 
 const KIRO_V3_SPECS = [
   {
-    name: 'agent-session-start',
+    name: 'emdash-session-start',
     trigger: 'SessionStart',
     command: makeStdinHookCommand('session'),
   },
   {
-    name: 'agent-user-prompt-submit',
+    name: 'emdash-user-prompt-submit',
     trigger: 'UserPromptSubmit',
     command: makeStdinHookCommand('start'),
   },
-  { name: 'agent-pre-tool-use', trigger: 'PreToolUse', command: makeStdinHookCommand('start') },
+  { name: 'emdash-pre-tool-use', trigger: 'PreToolUse', command: makeStdinHookCommand('start') },
   {
-    name: 'agent-post-tool-use',
+    name: 'emdash-post-tool-use',
     trigger: 'PostToolUse',
     command: makeStdinHookCommand('start'),
   },
-  { name: 'agent-stop', trigger: 'Stop', command: makeStdinHookCommand('stop') },
+  { name: 'emdash-stop', trigger: 'Stop', command: makeStdinHookCommand('stop') },
 ];
 
 const classicBehavior = buildMinimalJsonHookConfig(KIRO_CLASSIC_HOOKS_PATH, KIRO_CLASSIC_SPECS, {
-  name: 'agent',
-  description: 'Agent-managed Kiro agent configuration for lifecycle hooks.',
+  name: 'emdash',
+  description: 'Emdash-managed Kiro agent configuration for lifecycle hooks.',
 });
 
 function buildV3Entry(spec: (typeof KIRO_V3_SPECS)[number]): Record<string, unknown> {
@@ -70,7 +70,7 @@ export function buildKiroHookConfig() {
       const config = await readJsonConfig(fs, KIRO_V3_HOOKS_PATH);
       const v3Installed = hasAllV3Hooks(hookEntriesFromConfig(config, KIRO_V3_HOOKS_PATH));
       return classicHooks.length > 0 && v3Installed
-        ? [{ event: 'agent', command: AGENT_MARKER }]
+        ? [{ event: 'emdash', command: EMDASH_MARKER }]
         : [];
     },
     async writeHooks(fs: PluginFs, hooks: HookRegistration[]): Promise<string[]> {

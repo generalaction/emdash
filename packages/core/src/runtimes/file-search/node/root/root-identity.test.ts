@@ -66,7 +66,7 @@ describe('NodeFileSearchRootResolver', () => {
 });
 
 async function createRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-file-search-root-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-file-search-root-'));
   temporaryDirectories.push(root);
   return realpath(root);
 }

@@ -1,5 +1,5 @@
-import { ok } from '@agent/shared';
-import { createController, type Controller } from '@agent/wire/rpc';
+import { ok } from '@emdash/shared';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { conversationsContract } from '../../api/contract';
 import type { ConversationsRuntime } from '../runtime';
 

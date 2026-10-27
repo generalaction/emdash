@@ -1,4 +1,4 @@
-import { compose, deduplicate } from '@agent/shared/requests';
+import { compose, deduplicate } from '@emdash/shared/requests';
 import {
   createController,
   client,
@@ -7,7 +7,7 @@ import {
   memoryTransportPair,
   procedure,
   serve,
-} from '@agent/wire/rpc';
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 const api = defineContract({
@@ -35,9 +35,9 @@ async function main(): Promise<void> {
 
   const contractClient = client(api, connect(pair.left));
   const [first, second, third] = await Promise.all([
-    contractClient.expensiveStats({ repo: 'agent', branch: 'main' }),
-    contractClient.expensiveStats({ branch: 'main', repo: 'agent' }),
-    contractClient.expensiveStats({ repo: 'agent', branch: 'feature' }),
+    contractClient.expensiveStats({ repo: 'emdash', branch: 'main' }),
+    contractClient.expensiveStats({ branch: 'main', repo: 'emdash' }),
+    contractClient.expensiveStats({ repo: 'emdash', branch: 'feature' }),
   ]);
 
   console.log('first:', first);

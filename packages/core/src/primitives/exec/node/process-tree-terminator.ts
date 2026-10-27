@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import { recordSpawn } from '@agent/shared/perf';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { recordSpawn } from '@emdash/shared/perf';
 
 const DEFAULT_GRACE_MS = 1_000;
 const POLL_INTERVAL_MS = 20;

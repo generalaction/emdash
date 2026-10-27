@@ -11,7 +11,7 @@ import {
 } from '#primitives/git-credentials/api';
 import { buildTerminalEnv } from './terminal-env';
 
-const cwd = mkdtempSync(join(tmpdir(), 'agent-credential-env-'));
+const cwd = mkdtempSync(join(tmpdir(), 'emdash-credential-env-'));
 beforeAll(() => {
   git({}, ['init', '--quiet']);
 });
@@ -91,7 +91,7 @@ describe('credential config across child environment filtering', () => {
         mode
       )
     );
-    // The Agent test channel is deliberately unavailable. Neither mode may
+    // The Emdash test channel is deliberately unavailable. Neither mode may
     // fall back to the inherited helper and authenticate as the wrong account.
     expect(() => git(env, ['credential', 'fill'], 'protocol=https\nhost=github.com\n\n')).toThrow(
       /could not read Username|unable to get password from user/
@@ -106,9 +106,9 @@ describe('credential config across child environment filtering', () => {
   it('authenticates through the real terminal helper after filtering, without using inherited helpers', async () => {
     const requests: { url: string | undefined; nonce: string | string[] | undefined }[] = [];
     const server = createServer((request, response) => {
-      requests.push({ url: request.url, nonce: request.headers['x-agent-token'] });
+      requests.push({ url: request.url, nonce: request.headers['x-emdash-token'] });
       request.resume();
-      response.end('username=agent-test\npassword=synthetic-test-password\n');
+      response.end('username=emdash-test\npassword=synthetic-test-password\n');
     });
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
@@ -143,7 +143,7 @@ describe('credential config across child environment filtering', () => {
         );
         child.stdin?.end('protocol=https\nhost=github.com\n\n');
       });
-      expect(stdout).toContain('username=agent-test');
+      expect(stdout).toContain('username=emdash-test');
       expect(requests).toEqual([{ url: '/git-credential/get', nonce: 'test-channel' }]);
     } finally {
       await new Promise<void>((resolve, reject) =>

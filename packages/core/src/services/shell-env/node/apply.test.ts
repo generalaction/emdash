@@ -21,7 +21,7 @@ describe('mergePath', () => {
 
 describe('ensureUserBinDirsInPath', () => {
   it('prepends existing POSIX user bin directories without duplicates', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-user-bin-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-user-bin-'));
     process.env.PATH = '/usr/bin';
 
     expect(ensureUserBinDirsInPath(process.env, [dir], 'posix')).toEqual([dir]);
@@ -32,10 +32,10 @@ describe('ensureUserBinDirsInPath', () => {
 
 describe('applyShellEnvCapture', () => {
   it('applies captured env while preserving protected keys and merging PATH', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-user-bin-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-user-bin-'));
     const target: NodeJS.ProcessEnv = {
       NODE_ENV: 'production',
-      PATH: '/tmp/.mount_agent/usr/bin:/usr/bin',
+      PATH: '/tmp/.mount_emdash/usr/bin:/usr/bin',
     };
     const capture: ShellEnvCapture = {
       env: {

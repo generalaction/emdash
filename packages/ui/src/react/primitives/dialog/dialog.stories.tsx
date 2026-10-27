@@ -57,7 +57,7 @@ export const Sizes: Story = {
             <Dialog.Body>
               <p className={cx(sx({ color: 'foregroundMuted' }))}>
                 This dialog uses the <code>{size}</code> size option (<code>{width}</code>),
-                matching the agent-desktop modal sizes.
+                matching the emdash-desktop modal sizes.
               </p>
             </Dialog.Body>
             <Dialog.Footer>

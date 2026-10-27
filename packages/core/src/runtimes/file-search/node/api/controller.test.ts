@@ -1,7 +1,7 @@
-import { ok } from '@agent/shared';
-import { createLiveJobReplicaCache } from '@agent/wire/live';
-import { cell, expose } from '@agent/wire/state';
-import { createTestWire } from '@agent/wire/testing';
+import { ok } from '@emdash/shared';
+import { createLiveJobReplicaCache } from '@emdash/wire/live';
+import { cell, expose } from '@emdash/wire/state';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it } from 'vitest';
 import { fileSearchContract, type ActiveRootStatus } from '#runtimes/file-search/api';
 import { hostPath as absolute, relativePath as relative } from '../testing/paths';

@@ -13,9 +13,9 @@ import type {
 const available = { kind: 'available' } as const;
 
 export const fixtureProject: CreateTaskProjectOption = {
-  id: 'agent',
-  label: 'Agent',
-  path: '~/Code/agent',
+  id: 'emdash',
+  label: 'Emdash',
+  path: '~/Code/emdash',
   location: { kind: 'local' },
   availability: available,
 };
@@ -120,14 +120,14 @@ export function createReadyCreateTaskState(): CreateTaskModalState {
         kind: 'ready',
         detail: {
           preset: 'repo-root',
-          repositoryPath: '~/Code/agent',
+          repositoryPath: '~/Code/emdash',
           consequence: 'Work directly in the repository directory.',
         },
       },
       resolution: { kind: 'ready-valid' },
       destination: {
         kind: 'ready',
-        path: '~/Code/agent',
+        path: '~/Code/emdash',
         description: 'Repository directory',
       },
     },

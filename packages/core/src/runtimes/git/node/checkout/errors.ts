@@ -1,4 +1,4 @@
-import type { Err } from '@agent/shared';
+import type { Err } from '@emdash/shared';
 import type { PortableRelativePath } from '#primitives/path/api';
 import { gitErr, type CommitError, type GitCommandError, type PullError } from '#runtimes/git/api';
 import {

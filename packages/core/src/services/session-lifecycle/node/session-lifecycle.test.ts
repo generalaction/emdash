@@ -1,6 +1,6 @@
-import { err, ok, type Result } from '@agent/shared';
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import { createManualClock, deferred } from '@agent/shared/testing';
+import { err, ok, type Result } from '@emdash/shared';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { createManualClock, deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import {

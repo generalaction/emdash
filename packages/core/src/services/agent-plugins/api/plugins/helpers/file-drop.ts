@@ -9,7 +9,7 @@ export function createFileDropPlugin(opts: {
 }) {
   const getContent = typeof opts.content === 'string' ? () => opts.content as string : opts.content;
   const getManagedContent = (context: { platform: NodeJS.Platform }) =>
-    `// agent-hook-config-version:1\n${getContent(context)}`;
+    `// emdash-hook-config-version:1\n${getContent(context)}`;
 
   return {
     resolveConfigRoot: opts.resolveConfigRoot,

@@ -1,4 +1,4 @@
-import type { HistoryPage, TranscriptSnapshot } from '@agent/core/runtimes/acp/api/client';
+import type { HistoryPage, TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
 import { batch, createSignal } from 'solid-js';
 import { createStore, reconcile, unwrap } from 'solid-js/store';
 import type { ChatItem, TranscriptTurn } from '@/model';

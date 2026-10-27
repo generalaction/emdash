@@ -12,12 +12,12 @@ fact 10 in `../../workbench-state-architecture/assets/state-inventory.md`)
 
 - **Stable-id verification first (spec requirement):** pane ids are
   `crypto.randomUUID()` at creation
-  (`apps/agent-desktop/src/core/primitives/workbench-shell/browser/tabs/pane-layout-store.ts`
+  (`apps/emdash-desktop/src/core/primitives/workbench-shell/browser/tabs/pane-layout-store.ts`
   L398) but round-trip through the persisted snapshot on restore (L314–316), so they
   appear restart-stable. Verify with a restart-cycle test; if any path regenerates
   ids on restore, make ids stable before proceeding.
 - **Wire `SplitPane`** (in
-  `apps/agent-desktop/src/core/features/tasks/browser/view/task-main-column.tsx`,
+  `apps/emdash-desktop/src/core/features/tasks/browser/view/task-main-column.tsx`,
   seed at L166) to `useDefaultLayout` with the task-scoped facade, keyed
   `pane:${groupId}` — replacing the `defaultSize={paneLayout.paneSizes[i]}` seeding.
   Drag persistence now works for the first time (the old write-back was dead code —

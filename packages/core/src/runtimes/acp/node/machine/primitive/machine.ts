@@ -1,4 +1,4 @@
-import { createEmitter, ok, type Result, type Unsubscribe } from '@agent/shared';
+import { createEmitter, ok, type Result, type Unsubscribe } from '@emdash/shared';
 
 export type MachineEvolveResult<State, Effect> = {
   state: State;

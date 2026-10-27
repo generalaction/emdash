@@ -1,4 +1,4 @@
-import { createEmitter, type Unsubscribe } from '@agent/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import { type Patch, produceWithPatches } from './immer-setup';
 

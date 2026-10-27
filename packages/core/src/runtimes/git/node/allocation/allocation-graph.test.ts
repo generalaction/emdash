@@ -1,4 +1,4 @@
-import { err, ok } from '@agent/shared';
+import { err, ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hostPath } from '#runtimes/git/node/testing/paths';
 import type { BoundExec } from '#services/exec/api';

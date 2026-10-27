@@ -1,10 +1,10 @@
 {
-  "name": "@agent/shared",
+  "name": "@emdash/shared",
   "version": "1.0.0",
-  "description": "Shared primitives for Agent",
+  "description": "Shared primitives for Emdash",
   "license": "Apache-2.0",
   "author": {
-    "name": "Agent Contributors",
+    "name": "Emdash Contributors",
     "email": "support@emdash.sh"
   },
   "files": [
@@ -83,7 +83,7 @@
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
-    "test": "pnpm exec nx test @agent/shared",
+    "test": "pnpm exec nx test @emdash/shared",
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",

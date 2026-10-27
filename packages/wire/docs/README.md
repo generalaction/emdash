@@ -1,6 +1,6 @@
-# @agent/wire Docs
+# @emdash/wire Docs
 
-`@agent/wire` is the transport-agnostic runtime layer for typed API calls,
+`@emdash/wire` is the transport-agnostic runtime layer for typed API calls,
 live model subscriptions, live logs, event streams, jobs, mutations, workers, and
 the small utilities that sit at the API boundary.
 
@@ -48,7 +48,7 @@ handles. `WireComponent` is the reusable contract implementation pattern: it
 declares explicit typed requirements, validates config at the creation boundary,
 and can be created in-process or hosted in a worker. Worker hosting is Wire-specific because it
 serves components across processes. Generic lifecycle, scheduling, concurrency, testing, and stable
-utility primitives live in `@agent/shared` and are documented here where Wire
+utility primitives live in `@emdash/shared` and are documented here where Wire
 uses them. The `WireInstrumentation` seam is cross-cutting and can be attached
 to API, live, and worker surfaces through their options.
 
@@ -114,51 +114,51 @@ There is no root export: every symbol has exactly one home in a hand-curated
 subpath entrypoint.
 
 ```ts
-import { createController, defineContract } from '@agent/wire/rpc';
-import { cell, expose } from '@agent/wire/state';
+import { createController, defineContract } from '@emdash/wire/rpc';
+import { cell, expose } from '@emdash/wire/state';
 ```
 
-- `@agent/wire/rpc`: contract definition (`defineContract()`, endpoint
+- `@emdash/wire/rpc`: contract definition (`defineContract()`, endpoint
   factories), controller creation, clients, `connect()`/`serve()`, transports,
   protocol vocabulary (`WireMessage`, `WireTransport`, `WireError`,
   `LiveSource`, `LiveUpdate`, cursors), provider seam types
   (`LiveModelProvider`, `LeasedLiveModelProvider`,
   `LiveModelMutationEnvelope`), the blob/file surface, validation, and the
   `WireInstrumentation` seam types. Retry schedules come from
-  `@agent/shared/scheduling`.
-- `@agent/wire/live`: the server-side reactivity sources (`LiveLogSource`,
+  `@emdash/shared/scheduling`.
+- `@emdash/wire/live`: the server-side reactivity sources (`LiveLogSource`,
   `LiveJobSource`, `EventStreamSource`, `createEventStreamHost()`), the keyed
   replica caches (`createLiveLogReplicaCache()`, `createLiveJobReplicaCache()`,
   `ReplicaLog`), and resync failure policies (`resyncRetry()`,
   `resyncMarkStale()`).
-- `@agent/wire/state`: state kernel primitives and Wire bridges (`cell`,
+- `@emdash/wire/state`: state kernel primitives and Wire bridges (`cell`,
   `query`, `family`, `optimistic`, `observe`, `expose`, `remote`).
-- `@agent/wire/mobx`: MobX-backed log/store helpers
+- `@emdash/wire/mobx`: MobX-backed log/store helpers
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`).
-- `@agent/wire/testing`: Wire test helpers such as `createTestWire()` and fake
+- `@emdash/wire/testing`: Wire test helpers such as `createTestWire()` and fake
   worker process support.
-- `@agent/wire/worker`: `WireWorkerHost`, `runWireComponentWorker()`,
+- `@emdash/wire/worker`: `WireWorkerHost`, `runWireComponentWorker()`,
   `defineWireComponent()` and component requirement helpers, worker signal
   types, supervision types, process contracts, and worker log forwarding.
-- `@agent/wire/worker/node`: Node `childProcessSpawner()`.
+- `@emdash/wire/worker/node`: Node `childProcessSpawner()`.
 
 Use Shared subpaths directly for generic foundations:
 
-- `@agent/shared/concurrency`: `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
+- `@emdash/shared/concurrency`: `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
   `ResourceCache`, `SharedResource`, `AsyncCache`, bounded buffers, and disposable
   helpers.
-- `@agent/shared/scheduling`: `Clock`, `systemClock`, `TimerHandle`,
+- `@emdash/shared/scheduling`: `Clock`, `systemClock`, `TimerHandle`,
   `TimeoutError`, `runWithTimeout()`, `RetrySchedule`, retry schedule builders,
   and `retry()`.
-- `@agent/shared/requests`: request handler composition, timeout, retry,
+- `@emdash/shared/requests`: request handler composition, timeout, retry,
   in-flight deduplication, and request scheduling.
-- `@agent/shared/testing`: `createManualClock()`, `deferred()`, `waitFor()`, and
+- `@emdash/shared/testing`: `createManualClock()`, `deferred()`, `waitFor()`, and
   stub logger helpers.
-- `@agent/shared/util`: stable utility helpers such as `stableStringify()`.
+- `@emdash/shared/util`: stable utility helpers such as `stableStringify()`.
 
 MobX-backed utilities intentionally live in their own export because they have a
-`mobx` peer dependency. Server-only code can import `@agent/wire/rpc`,
-`@agent/wire/live`, `@agent/wire/state`, `@agent/wire/worker`, and Shared
+`mobx` peer dependency. Server-only code can import `@emdash/wire/rpc`,
+`@emdash/wire/live`, `@emdash/wire/state`, `@emdash/wire/worker`, and Shared
 foundation subpaths without pulling in MobX.
 
 ## Typical Flow

@@ -1,10 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { err, ok, type Result } from '@agent/shared';
-import { noopLogger, type Logger } from '@agent/shared/logger';
-import type { LeasedLiveModelProvider } from '@agent/wire/rpc';
-import { cell, expose, type Cell } from '@agent/wire/state';
+import { err, ok, type Result } from '@emdash/shared';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, expose, type Cell } from '@emdash/wire/state';
 import {
   ConfigModel,
   readConfigFile,
@@ -23,7 +23,7 @@ import {
 const HOST_KEY = 'host';
 
 export type HostSettingsRuntimeOptions = {
-  /** Absolute path of the settings JSON file in the host's agent data directory. */
+  /** Absolute path of the settings JSON file in the host's emdash data directory. */
   settingsPath: string;
   logger?: Logger;
 };

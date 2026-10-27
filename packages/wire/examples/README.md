@@ -1,6 +1,6 @@
-# @agent/wire Examples
+# @emdash/wire Examples
 
-These examples show the public surface of `@agent/wire`. Every example imports
+These examples show the public surface of `@emdash/wire`. Every example imports
 the package entrypoints only (`/rpc`, `/live`, `/state`, via their in-repo
 source paths) and splits the authoritative server side from the client-side
 binding so the boundary looks like a real transport without adding an adapter.
@@ -13,14 +13,14 @@ For conceptual docs that explain how the examples fit together, see
 Run them from the repository root:
 
 ```bash
-pnpm --filter @agent/wire run example:state-kernel
-pnpm --filter @agent/wire run example:live-log
-pnpm --filter @agent/wire run example:event-stream
-pnpm --filter @agent/wire run example:mailbox
-pnpm --filter @agent/wire run example:cancellation
-pnpm --filter @agent/wire run example:api-definition
-pnpm --filter @agent/wire run example:dedupe
-pnpm --filter @agent/wire run example:job-contract
+pnpm --filter @emdash/wire run example:state-kernel
+pnpm --filter @emdash/wire run example:live-log
+pnpm --filter @emdash/wire run example:event-stream
+pnpm --filter @emdash/wire run example:mailbox
+pnpm --filter @emdash/wire run example:cancellation
+pnpm --filter @emdash/wire run example:api-definition
+pnpm --filter @emdash/wire run example:dedupe
+pnpm --filter @emdash/wire run example:job-contract
 ```
 
 Examples:
@@ -42,8 +42,8 @@ Examples:
   `procedure`, `liveModel`, `liveLog`, and live model contract
   mutations.
 - `dedupe/` demonstrates server-side `deduplicate()` middleware from
-  `@agent/shared/requests` for in-flight procedure calls.
+  `@emdash/shared/requests` for in-flight procedure calls.
 - `job-contract/` demonstrates the contract-level `liveJob()` endpoint with start,
   progress, cancellation, terminal result, and reattach.
-- `scope/` and `resource-cache/` demonstrate the `@agent/shared/concurrency`
+- `scope/` and `resource-cache/` demonstrate the `@emdash/shared/concurrency`
   primitives the live layer builds on.

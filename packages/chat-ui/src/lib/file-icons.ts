@@ -1,7 +1,7 @@
 /**
  * resolveFileIconClass — framework-agnostic devicon class resolver.
  *
- * Bundled copy of @agent/ui/src/lib/file-icons.ts. Keep in sync when the
+ * Bundled copy of @emdash/ui/src/lib/file-icons.ts. Keep in sync when the
  * ui package's extension/filename maps are updated.
  *
  * Returns the devicon CSS class string for a given filename (e.g.

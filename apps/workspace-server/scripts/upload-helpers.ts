@@ -4,7 +4,7 @@ import {
   releaseVersionSchema,
   type ChannelPointer,
   type ReleaseChannel,
-} from '@agent/core/workspace-server';
+} from '@emdash/core/workspace-server';
 import {
   artifactArchiveName,
   artifactRootName,

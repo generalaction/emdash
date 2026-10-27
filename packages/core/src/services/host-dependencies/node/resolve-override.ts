@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
 import { access, realpath, stat } from 'node:fs/promises';
 import { extname, isAbsolute } from 'node:path';
-import { err, ok } from '@agent/shared';
+import { err, ok } from '@emdash/shared';
 import type { IExecutionContext } from '#primitives/exec/api';
 import type {
   HostDependencyResolveResult,

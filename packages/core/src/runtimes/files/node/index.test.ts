@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as files from './index';
 
-describe('@agent/core/runtimes/files/node public exports', () => {
+describe('@emdash/core/runtimes/files/node public exports', () => {
   it('exports only the runtime composition and controller surface', () => {
     const exported = files as Record<string, unknown>;
     expect(exported.FilesRuntime).toBeTypeOf('function');

@@ -12,7 +12,7 @@ grep-able assertions so regressions are catchable.
 - **Contract assertions** (add as a lint rule or a repo test, so they keep holding):
   - No imperative panel calls in app code: `\.collapse\(\)`, `\.expand\(\)`,
     `\.resize\(`, `setLayout\(` against panel/group refs under
-    `apps/agent-desktop/src/` (workbench surfaces).
+    `apps/emdash-desktop/src/` (workbench surfaces).
   - No `display:none`-style visibility toggling of workbench surfaces: audit
     `ShowHide` / `hidden` / `style={{ display` usage in
     `src/core/features/{workbench,tasks,source-control}` and
@@ -42,7 +42,7 @@ grep-able assertions so regressions are catchable.
 
 ## Conformance mechanism (built)
 
-`apps/agent-desktop/src/core/features/workbench/browser/layout-contract.test.ts`
+`apps/emdash-desktop/src/core/features/workbench/browser/layout-contract.test.ts`
 — a repo test in the app's `node` Vitest project, so it runs on every
 `pnpm run test` / `pnpm run check` and in CI's `nx affected` test target. A test
 (not an oxlint rule) was chosen because the assertions are content patterns with
@@ -54,7 +54,7 @@ Nine checks (each with a rationale and a stale-allowlist guard; test/story files
 excluded; `_`-prefixed dirs skipped):
 
 1. No direct `react-resizable-panels` imports anywhere in app src — consumers
-   go through `@agent/ui`, which deliberately does not re-export imperative
+   go through `@emdash/ui`, which deliberately does not re-export imperative
    panel handles. This is what makes the "against panel/group refs" scoping
    sound: without a direct import, app code cannot obtain a panel ref at all.
 2. No `ImperativePanel(Group)Handle`, `.setLayout(`, `.collapse()`, `.expand()`
@@ -215,7 +215,7 @@ workstream; only the mutation path changed), `tasks.terminal-selection`,
   local formatting drift that the run normalized back to the committed
   content — net no diff).
 - `pnpm run lint` — **fails on untracked scratch files only**: one error in
-  `apps/agent-desktop/tooling/prototypes/cow-worktree/run.ts` (unused `os`
+  `apps/emdash-desktop/tooling/prototypes/cow-worktree/run.ts` (unused `os`
   import) plus `no-explicit-any` warnings in `tooling/prototypes/wire-seam/`.
   These are the known out-of-scope prototype scratch files (not part of any
   commit in `5ecef4b37..HEAD`); left untouched per scope. Zero errors in
@@ -227,4 +227,4 @@ workstream; only the mutation path changed), `tasks.terminal-selection`,
   `terminal-retention`) which pass in isolation in 9s — load-induced flake
   under the full parallel run, flagged as a flaky task by Nx itself, not
   workstream-caused (these are the tests CI skips via
-  `AGENT_TEST_SKIP_BROWSER`).
+  `EMDASH_TEST_SKIP_BROWSER`).

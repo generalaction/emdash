@@ -1,4 +1,4 @@
-import type { Logger } from '@agent/shared/logger';
+import type { Logger } from '@emdash/shared/logger';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IntegrationHostContext } from '../../host';
 import { provider } from './index';

@@ -1,4 +1,4 @@
-import { SEMANTIC_VARS } from '@agent/theme';
+import { SEMANTIC_VARS } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import React, { useEffect, useRef } from 'react';

@@ -1,6 +1,6 @@
-import { isOk } from '@agent/shared';
-import { peek, remote, snapshot } from '@agent/wire/state';
-import { createTestWire } from '@agent/wire/testing';
+import { isOk } from '@emdash/shared';
+import { peek, remote, snapshot } from '@emdash/wire/state';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,

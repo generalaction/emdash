@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@agent/wire/rpc';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { userShellEnvContract, type UserShellEnv } from '#services/shell-env/api';
 
 export function createUserShellEnvController(

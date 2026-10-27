@@ -4,7 +4,7 @@
 runs the full merge gate (format, lint, typecheck, test) through Nx. A unified `db:generate`
 dispatcher covers all five Drizzle schemas (the app schema plus the four in packages/core),
 takes the target schema, and prints the follow-up obligations (fixtures regeneration, migration
-tests) after generating. `db:reset` honors `AGENT_DB_FILE` and loses its hardcoded
+tests) after generating. `db:reset` honors `EMDASH_DB_FILE` and loses its hardcoded
 platform-specific paths. Decision detail:
 [Flows catalog](../../dev-setup-overhaul/assets/flows-catalog.md) decisions E/F and flow 8.
 
@@ -17,7 +17,7 @@ platform-specific paths. Decision detail:
 - [x] Dispatcher generates into the correct drizzle directory for each of the five schemas and
       prints the follow-ups (unit-tested mapping + exercised live for `app` and
       `workspace-registry`)
-- [x] `db:reset` deletes the right file when `AGENT_DB_FILE` is set and the default dev DB
+- [x] `db:reset` deletes the right file when `EMDASH_DB_FILE` is set and the default dev DB
       otherwise; no raw `rm -f` with hardcoded mac paths (portable node script, unit-tested
       target resolution incl. sibling DBs and SQLite sidecars)
 - [x] Demo: schema author generates a migration for a packages/core store via the dispatcher

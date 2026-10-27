@@ -1,6 +1,6 @@
-import { deferred } from '@agent/shared/testing';
-import type { LiveSource } from '@agent/wire/rpc';
-import { flushStateTurn } from '@agent/wire/state';
+import { deferred } from '@emdash/shared/testing';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { flushStateTurn } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '#primitives/exec/api';
 import type {

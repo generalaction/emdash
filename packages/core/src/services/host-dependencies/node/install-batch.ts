@@ -1,4 +1,4 @@
-import { err } from '@agent/shared';
+import { err } from '@emdash/shared';
 import type {
   DependencyId,
   ElevationPolicy,

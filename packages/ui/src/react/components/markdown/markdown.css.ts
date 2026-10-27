@@ -3,7 +3,7 @@ import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
 // Element styles for the two Markdown variants, ported from the legacy
-// Tailwind component maps onto @agent/ui tokens. The full variant reads like
+// Tailwind component maps onto @emdash/ui tokens. The full variant reads like
 // a document; the compact variant is denser for previews and comment bodies.
 
 const mutedTint = (percent: number) =>

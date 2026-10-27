@@ -1,5 +1,5 @@
-import type { Unsubscribe } from '@agent/shared';
-import { deferred, waitFor } from '@agent/shared/testing';
+import type { Unsubscribe } from '@emdash/shared';
+import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { connect } from '../api/connect';

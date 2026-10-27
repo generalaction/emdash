@@ -1,7 +1,7 @@
-# `@agent/wire` reactive state (`wire/src/state/`)
+# `@emdash/wire` reactive state (`wire/src/state/`)
 
 > **Status: implemented in parallel to `wire/src/live/`.** The primitives in
-> this folder are available as `@agent/wire/state` and are in production use:
+> this folder are available as `@emdash/wire/state` and are in production use:
 > desktop feature slices (tasks, workspaces, source-control, editor, projects)
 > author providers with `expose` and consume them with `remote`. See
 > [05-migration.md](./05-migration.md) for the remaining migration plan.
@@ -60,7 +60,7 @@ expose(tasksContract.taskList, taskList);
 | `remote` | Consume a wire live model as a reactive family (wraps the replica) | [04](./04-wire-integration.md#remote) |
 
 Ownership and disposal always flow through `Scope` from
-`@agent/shared/concurrency` — there is no manual `release()` in the common
+`@emdash/shared/concurrency` — there is no manual `release()` in the common
 path. On the client side, demand is driven by `pin`s owned by lifecycle
 boundaries (view scopes), never by render-time observability — see
 [01-concepts.md §6](./01-concepts.md#demand-is-a-policy-not-a-rendering-accident).

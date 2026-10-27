@@ -10,7 +10,7 @@ The diagnosis was ad hoc (`ps`, `sample`, DevTools). Decide the durable measurem
 so the fixes from this map stay fixed and the next regression is caught by a signal, not a
 user's Activity Monitor screenshot:
 
-- What does agent measure continuously — per-process CPU/RSS via `app.getAppMetrics()`,
+- What does emdash measure continuously — per-process CPU/RSS via `app.getAppMetrics()`,
   event-loop delay in workers, git-spawn counts per minute, renderer long tasks? Which
   metrics specifically guard findings 1–5 in the [diagnosis](../assets/diagnosis.md)?
 - Where does it live: a dev-only harness (metrics log during dev sessions), an opt-in

@@ -15,7 +15,7 @@ it('finishes the plugin build before testing plugins alongside their consumers',
       '-t',
       'test',
       '-p',
-      '@agent/plugins,@agent/agent-desktop,@agent/workspace-server',
+      '@emdash/plugins,@emdash/emdash-desktop,@emdash/workspace-server',
       '--graph=stdout',
     ],
     {
@@ -37,7 +37,7 @@ it('finishes the plugin build before testing plugins alongside their consumers',
       visit(dependency);
     }
   };
-  visit('@agent/plugins:test');
+  visit('@emdash/plugins:test');
 
-  expect(prerequisites).toContain('@agent/plugins:build');
+  expect(prerequisites).toContain('@emdash/plugins:build');
 }, 40_000);

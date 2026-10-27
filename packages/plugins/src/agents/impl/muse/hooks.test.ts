@@ -1,5 +1,5 @@
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
-import { makeStdinHookCommand } from '@agent/core/services/agent-plugins/api/plugins/helpers';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import { makeStdinHookCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { buildMuseHookConfig, MUSE_HOOK_ENV_VARS, MUSE_HOOKS_PATH } from './hooks';
 import { provider } from './index';
@@ -55,7 +55,7 @@ describe('Muse hooks', () => {
     expect(read('settings.json')).toEqual({
       schema_version: 1,
       managed_hooks_path: MUSE_HOOKS_PATH,
-      managed_hooks_env_vars: ['AGENT_HOOK_PORT', 'AGENT_HOOK_NONCE', 'AGENT_PTY_ID'],
+      managed_hooks_env_vars: ['EMDASH_HOOK_PORT', 'EMDASH_HOOK_NONCE', 'EMDASH_PTY_ID'],
     });
     expect(Object.keys(read(MUSE_HOOKS_PATH).hooks)).toEqual([
       'SessionStart',

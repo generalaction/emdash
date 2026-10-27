@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { GROK_HOOKS_PATH, buildGrokHookConfig } from './hooks';
 
@@ -21,7 +21,7 @@ function createMemoryFs(): PluginFs & { files: Map<string, string> } {
 
 describe('Grok hook config', () => {
   it.skipIf(process.platform === 'win32')(
-    'does not invoke its custom session hook outside Agent',
+    'does not invoke its custom session hook outside Emdash',
     async () => {
       const fs = createMemoryFs();
       await buildGrokHookConfig().writeHooks(fs, []);
@@ -32,25 +32,25 @@ describe('Grok hook config', () => {
       expect(command).toBeDefined();
 
       const shellCommand = `curl() { printf called; }; ${command}`;
-      const outsideAgent = spawnSync('/bin/sh', ['-c', shellCommand], {
+      const outsideEmdash = spawnSync('/bin/sh', ['-c', shellCommand], {
         encoding: 'utf8',
         env: { PATH: process.env.PATH ?? '' },
       });
-      const insideAgent = spawnSync('/bin/sh', ['-c', shellCommand], {
+      const insideEmdash = spawnSync('/bin/sh', ['-c', shellCommand], {
         encoding: 'utf8',
         env: {
           PATH: process.env.PATH ?? '',
-          AGENT_HOOK_PORT: '1234',
-          AGENT_HOOK_NONCE: 'nonce',
-          AGENT_PTY_ID: 'pty-1',
+          EMDASH_HOOK_PORT: '1234',
+          EMDASH_HOOK_NONCE: 'nonce',
+          EMDASH_PTY_ID: 'pty-1',
           GROK_SESSION_ID: 'session-1',
         },
       });
 
-      expect(outsideAgent.status).toBe(0);
-      expect(outsideAgent.stdout).toBe('');
-      expect(insideAgent.status).toBe(0);
-      expect(insideAgent.stdout).toBe('called');
+      expect(outsideEmdash.status).toBe(0);
+      expect(outsideEmdash.stdout).toBe('');
+      expect(insideEmdash.status).toBe(0);
+      expect(insideEmdash.stdout).toBe('called');
     }
   );
 });

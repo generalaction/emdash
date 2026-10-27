@@ -10,7 +10,7 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((p) => rm(p, { recursive: true, force: true })));
 });
 async function fixture() {
-  const root = await mkdtemp(path.join(tmpdir(), 'agent-lsp-project-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-project-'));
   directories.push(root);
   await mkdir(path.join(root, 'workspace', 'packages', 'app', 'src'), { recursive: true });
   const absolute = (p: string) => {

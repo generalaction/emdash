@@ -1,4 +1,4 @@
-import { noopLogger, setRootLogger } from '@agent/shared/logger';
+import { noopLogger, setRootLogger } from '@emdash/shared/logger';
 import { afterEach, describe, expect, it } from 'vitest';
 import { once, toPendingLease, type Lease } from './lifecycle';
 import { createStubLogger } from './testing';

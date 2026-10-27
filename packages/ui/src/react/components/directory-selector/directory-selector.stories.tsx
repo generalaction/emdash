@@ -38,23 +38,23 @@ function symlink(name: string, daysAgo: number): DirectoryEntry {
 const mockFs: Record<string, DirectoryEntry[]> = {
   '/home/user': [
     folder('repos', 64),
-    repo('agent', 14),
+    repo('emdash', 14),
     folder('Downloads', 3),
     folder('empty-folder', 1),
     file('.zshrc', 3_421, 90),
   ],
-  '/home/user/repos': [repo('agent', 14), folder('plugins', 22), file('README.md', 12_420, 21)],
-  '/home/user/repos/agent': [
+  '/home/user/repos': [repo('emdash', 14), folder('plugins', 22), file('README.md', 12_420, 21)],
+  '/home/user/repos/emdash': [
     folder('apps', 13),
     folder('packages', 13),
     folder('.git', 14),
     file('package.json', 5_125, 2),
     file('pnpm-lock.yaml', 643_220, 2),
   ],
-  '/home/user/repos/agent/apps': [repo('agent-desktop', 13), file('README.md', 8_032, 12)],
-  '/home/user/repos/agent/packages': [repo('ui', 13), folder('core', 13), folder('shared', 13)],
+  '/home/user/repos/emdash/apps': [repo('emdash-desktop', 13), file('README.md', 8_032, 12)],
+  '/home/user/repos/emdash/packages': [repo('ui', 13), folder('core', 13), folder('shared', 13)],
   '/home/user/repos/plugins': [folder('providers', 20), symlink('current', 4)],
-  '/home/user/agent': [folder('src', 14), folder('.git', 14), file('README.md', 15_248, 9)],
+  '/home/user/emdash': [folder('src', 14), folder('.git', 14), file('README.md', 15_248, 9)],
   '/home/user/Downloads': [file('archive.zip', 4_932_812, 8), folder('screenshots', 3)],
   '/home/user/Downloads/screenshots': [
     file('settings.png', 812_400, 3),
@@ -66,7 +66,7 @@ const mockFs: Record<string, DirectoryEntry[]> = {
 const windowsFs: Record<string, DirectoryEntry[]> = {
   'C:': [folder('Users', 200)],
   'C:\\Users': [folder('david', 180)],
-  'C:\\Users\\david': [folder('Documents', 120), repo('agent', 6), file('notes.txt', 3_104, 11)],
+  'C:\\Users\\david': [folder('Documents', 120), repo('emdash', 6), file('notes.txt', 3_104, 11)],
   'C:\\Users\\david\\Documents': [folder('repos', 60), folder('designs', 15)],
 };
 
@@ -135,7 +135,7 @@ export const WithSelection: Story = {
   args: {
     path: '/home/user',
     listing: { status: 'ready', entries: mockFs['/home/user']! },
-    selectedPath: '/home/user/agent',
+    selectedPath: '/home/user/emdash',
     canGoBack: false,
     canGoForward: false,
     onBack: noop,

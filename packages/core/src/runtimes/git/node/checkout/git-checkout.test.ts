@@ -30,7 +30,7 @@ const quotedPaths = [
 ];
 
 async function makeRepo(): Promise<string> {
-  const repo = await mkdtemp(path.join(tmpdir(), 'agent-git-checkout-'));
+  const repo = await mkdtemp(path.join(tmpdir(), 'emdash-git-checkout-'));
   await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repo });
@@ -86,7 +86,7 @@ describe('GitCheckout', () => {
 
   it('distinguishes remote upstream identity from tracking resolution', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();
-    const remote = await mkdtemp(path.join(tmpdir(), 'agent-git-checkout-remote-'));
+    const remote = await mkdtemp(path.join(tmpdir(), 'emdash-git-checkout-remote-'));
     try {
       await execFileAsync('git', ['init', '--bare'], { cwd: remote });
       await execFileAsync('git', ['remote', 'add', 'origin', remote], { cwd: repo });

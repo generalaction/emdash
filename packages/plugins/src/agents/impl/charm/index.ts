@@ -1,13 +1,13 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@agent/core/services/agent-plugins/api/plugins';
-import type { CommandContext } from '@agent/core/services/agent-plugins/api/plugins';
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import type { CommandContext } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   crushMcpAdapter,
   npmDependency,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { icon } from './icon';
 
 function buildCharmCommand(ctx: CommandContext) {

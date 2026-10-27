@@ -24,7 +24,7 @@ export const Placeholder: Story = {
 
 export const WithPath: Story = {
   args: {
-    path: '/Users/david/Documents/repos/agent',
+    path: '/Users/david/Documents/repos/emdash',
     onClick: noop,
   },
 };
@@ -40,7 +40,7 @@ export const Disabled: Story = {
 export const Small: Story = {
   args: {
     size: 'sm',
-    path: '~/repos/agent',
+    path: '~/repos/emdash',
     onClick: noop,
   },
 };

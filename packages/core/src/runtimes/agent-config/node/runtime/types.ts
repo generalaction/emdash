@@ -1,5 +1,5 @@
-import type { Scope } from '@agent/shared/concurrency';
-import type { Logger } from '@agent/shared/logger';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import type { AgentPluginHost } from '#services/agent-plugins/api/plugins';
 import type { SpawnContext } from '#services/agent-plugins/api/spawn-context';
 import type { PtySpawner } from '#services/pty/api';

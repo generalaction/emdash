@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@agent/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   PATH_SEARCH_DEFAULT_LIMIT,
   type PathSearchError,

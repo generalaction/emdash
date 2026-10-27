@@ -1,4 +1,4 @@
-import { ok, type Result, type SerializedError } from '@agent/shared';
+import { ok, type Result, type SerializedError } from '@emdash/shared';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,

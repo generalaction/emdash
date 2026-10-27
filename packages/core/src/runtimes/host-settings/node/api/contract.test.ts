@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { remote, snapshot } from '@agent/wire/state';
-import { createTestWire, type TestWire } from '@agent/wire/testing';
+import { remote, snapshot } from '@emdash/wire/state';
+import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { hostSettingsContract } from '#runtimes/host-settings/api';
 import { HostSettingsRuntime } from '#runtimes/host-settings/node/runtime';

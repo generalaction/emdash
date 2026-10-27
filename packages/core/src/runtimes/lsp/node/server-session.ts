@@ -276,7 +276,7 @@ export class LanguageServerSession {
           processId: process.pid,
           rootUri: this.options.rootUri,
           workspaceFolders: [{ uri: this.options.rootUri, name: 'workspace' }],
-          clientInfo: { name: 'Agent' },
+          clientInfo: { name: 'Emdash' },
           capabilities: {
             general: { positionEncodings: ['utf-16'] },
             workspace: { applyEdit: false, configuration: true, workspaceFolders: true },

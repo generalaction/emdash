@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok, type Result } from '@agent/shared';
-import type { ContractClient } from '@agent/wire/rpc';
+import { err, ok, type Result } from '@emdash/shared';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { formatAbsolute, type HostFileRef } from '#primitives/path/api';
-// oxlint-disable-next-line agent/core-module-boundaries -- run workspaces register and activate through the registry's plain verbs (workspaceHost retirement, spec §4.1); the contract has no services-level home yet
+// oxlint-disable-next-line emdash/core-module-boundaries -- run workspaces register and activate through the registry's plain verbs (workspaceHost retirement, spec §4.1); the contract has no services-level home yet
 import type {
   ActivateWorkspaceError,
   CreateWorkspaceError,
@@ -190,8 +190,8 @@ function compileConversationIndexRecord(
     cwd,
     workspacePath: cwd,
     // ACP providers mint their own session ids; TUI sessions run under the
-    // agent-chosen conversation id (spec §3.1).
-    idRegime: agent.type === 'acp' ? 'provider-minted' : 'agent-chosen',
+    // emdash-chosen conversation id (spec §3.1).
+    idRegime: agent.type === 'acp' ? 'provider-minted' : 'emdash-chosen',
     createdAt: Date.now(),
     title: agent.title ?? fallbackTitle,
     config,

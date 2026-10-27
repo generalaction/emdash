@@ -1,5 +1,5 @@
-import { err, ok } from '@agent/shared';
-import { waitFor } from '@agent/shared/testing';
+import { err, ok } from '@emdash/shared';
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { createController } from '../rpc/controller';

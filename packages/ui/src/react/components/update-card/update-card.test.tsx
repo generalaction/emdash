@@ -1,12 +1,12 @@
 /** @vitest-environment jsdom */
-import { deferred } from '@agent/shared/testing';
+import { deferred } from '@emdash/shared/testing';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UpdateCard, type UpdateCardProps } from './update-card';
 
 const props: UpdateCardProps = {
   currentVersion: '1.2.5',
-  appName: 'Agent',
+  appName: 'Emdash',
   onCheckForUpdates: async () => {},
   status: {
     type: 'update-download-available',

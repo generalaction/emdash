@@ -1,4 +1,4 @@
-import { definePluginCapability } from '@agent/shared/plugins';
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 

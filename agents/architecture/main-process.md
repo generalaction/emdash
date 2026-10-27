@@ -6,7 +6,7 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 
 ## Domain Modules (`src/main/core/`)
 
-- **account** — Agent account service, credential store, provider token registry
+- **account** — Emdash account service, credential store, provider token registry
 - **agent-status** — Desktop projection of runtime agent states into SQLite/cache state and renderer status events
 - **app** — App lifecycle service and controller
 - **conversations** — Conversation CRUD and session start

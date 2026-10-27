@@ -1,4 +1,4 @@
-import { noopLogger, setRootLogger } from '@agent/shared/logger';
+import { noopLogger, setRootLogger } from '@emdash/shared/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStubLogger, deferred } from '../testing';
 import { createMailbox, MailboxClosedError, MailboxConsumerError } from './mailbox';

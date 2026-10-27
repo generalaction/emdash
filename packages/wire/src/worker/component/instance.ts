@@ -1,4 +1,4 @@
-import type { Scope } from '@agent/shared/concurrency';
+import type { Scope } from '@emdash/shared/concurrency';
 import type { Controller } from '../../api/controller';
 import type { Contract, ContractDefinitions } from '../../api/define';
 import { createInProcessWire } from '../../rpc/in-process-wire';

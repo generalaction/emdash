@@ -1,5 +1,5 @@
-// DPkg::Lock::Timeout only waits on the dpkg lock held by processes outside Agent
-// (manual apt, unattended-upgrades); Agent-owned installs serialize in-process.
+// DPkg::Lock::Timeout only waits on the dpkg lock held by processes outside Emdash
+// (manual apt, unattended-upgrades); Emdash-owned installs serialize in-process.
 const APT_COMMAND_PREFIX = 'DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=60';
 
 export const APT_UPDATE_COMMAND = `${APT_COMMAND_PREFIX} update`;

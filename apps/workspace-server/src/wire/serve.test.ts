@@ -3,8 +3,8 @@ import { createConnection, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { PROTOCOL_VERSION, workspaceWireContract } from '@agent/core/workspace-server';
-import { client as createClient, connect, streamTransport } from '@agent/wire/rpc';
+import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
+import { client as createClient, connect, streamTransport } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestWorkspaceWireController } from '../testing/controller';
 import { serveSocket, type SocketServeHandle } from './serve-socket';
@@ -112,7 +112,7 @@ function initializeInput() {
 }
 
 async function tempSocketPath(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'agent-workspace-wire-'));
+  const dir = await mkdtemp(join(tmpdir(), 'emdash-workspace-wire-'));
   return join(dir, 'workspace.sock');
 }
 

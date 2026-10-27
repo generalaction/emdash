@@ -1,5 +1,5 @@
-import type { Serializable } from '@agent/shared';
-import type { Logger } from '@agent/shared/logger';
+import type { Serializable } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 
 /**
  * Credential values and derived account config for one connected account,

@@ -17,7 +17,7 @@
  * can be built once at module scope and reused across calls.
  */
 
-import { AT_BARE_PATTERN, SLASH_PATTERN } from '@agent/shared/markdown';
+import { AT_BARE_PATTERN, SLASH_PATTERN } from '@emdash/shared/markdown';
 import type { Link, Parent, Root, Text } from 'mdast';
 import { toString } from 'mdast-util-to-string';
 import { SKIP, visit } from 'unist-util-visit';

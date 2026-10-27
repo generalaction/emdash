@@ -1,7 +1,7 @@
 import type {
   ProvidedWireComponentRequirements,
   WireComponentWorkerCreateOptions,
-} from '@agent/wire/worker';
+} from '@emdash/wire/worker';
 import type { z } from 'zod';
 import { scriptsComponent, type scriptsComponentConfigSchema } from './component';
 

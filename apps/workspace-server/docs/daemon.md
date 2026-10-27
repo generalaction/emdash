@@ -41,25 +41,25 @@ flowchart LR
 Foreground serving:
 
 ```bash
-agent-workspace-server serve --socket
-agent-workspace-server serve --socket ~/.agent/workspace-server/run/workspace.sock
-agent-workspace-server serve --stdio
+emdash-workspace-server serve --socket
+emdash-workspace-server serve --socket ~/.emdash/workspace-server/run/workspace.sock
+emdash-workspace-server serve --stdio
 ```
 
 Daemon lifecycle:
 
 ```bash
-agent-workspace-server start
-agent-workspace-server status
-agent-workspace-server stop
+emdash-workspace-server start
+emdash-workspace-server status
+emdash-workspace-server stop
 ```
 
 For backwards compatibility, invoking the binary with only flags still means
 `serve`:
 
 ```bash
-agent-workspace-server --socket
-agent-workspace-server --stdio
+emdash-workspace-server --socket
+emdash-workspace-server --stdio
 ```
 
 Lifecycle commands use socket mode. Passing `--socket <path>` selects a custom
@@ -71,18 +71,18 @@ All runtime files are derived from the socket path so custom socket paths remain
 self-contained:
 
 ```text
-~/.agent/workspace-server/run/workspace.sock
-~/.agent/workspace-server/run/workspace.sock.pid
-~/.agent/workspace-server/run/workspace.sock.lock
-~/.agent/workspace-server/run/workspace.sock.log
-~/.agent/workspace-server/state/acp-attachments/
-~/.agent/workspace-server/state/acp-session-intents.json
-~/.agent/workspace-server/state/tui-agent-session-intents.json
-~/.agent/workspace-server/state/automations.db
-~/.agent/workspace-server/state/conversations.db
-~/.agent/workspace-server/state/file-search.db
-~/.agent/workspace-server/state/workspace-registry.db
-~/.agent/workspace-server/state/host-dependencies.json
+~/.emdash/workspace-server/run/workspace.sock
+~/.emdash/workspace-server/run/workspace.sock.pid
+~/.emdash/workspace-server/run/workspace.sock.lock
+~/.emdash/workspace-server/run/workspace.sock.log
+~/.emdash/workspace-server/state/acp-attachments/
+~/.emdash/workspace-server/state/acp-session-intents.json
+~/.emdash/workspace-server/state/tui-agent-session-intents.json
+~/.emdash/workspace-server/state/automations.db
+~/.emdash/workspace-server/state/conversations.db
+~/.emdash/workspace-server/state/file-search.db
+~/.emdash/workspace-server/state/workspace-registry.db
+~/.emdash/workspace-server/state/host-dependencies.json
 ```
 
 - `.sock` is the Unix domain socket accepted by the foreground daemon.
@@ -206,7 +206,7 @@ Desktop-side daemon bootstrap is intentionally separate from this server package
 The intended flow is:
 
 1. Resolve or establish the SSH connection.
-2. Run `agent-workspace-server start` on the remote host.
+2. Run `emdash-workspace-server start` on the remote host.
 3. Open an SSH stream-local channel to the socket path.
 4. Wrap that channel in `streamTransport(channel, channel)`.
 5. Create a wire client and call `initialize`.

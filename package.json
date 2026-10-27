@@ -1,5 +1,5 @@
 {
-  "name": "agent-monorepo",
+  "name": "emdash-monorepo",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "typecheck": "nx run-many -t typecheck --all",
     "affected": "nx affected -t lint typecheck test",
     "check": "node tooling/scripts/check.mjs",
-    "doctor": "pnpm --dir apps/agent-desktop run doctor",
+    "doctor": "pnpm --dir apps/emdash-desktop run doctor",
     "prune:boundary-allowlists": "node tooling/oxlint/scripts/prune-boundary-allowlists.mjs",
     "graph": "nx graph"
   },

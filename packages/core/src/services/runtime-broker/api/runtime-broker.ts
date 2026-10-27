@@ -1,5 +1,5 @@
-import { err, ok, type Result } from '@agent/shared';
-import type { Contract, ContractClient } from '@agent/wire/rpc';
+import { err, ok, type Result } from '@emdash/shared';
+import type { Contract, ContractClient } from '@emdash/wire/rpc';
 import { formatHostRef, type HostRef } from '../../../primitives/host/api';
 import { runtimeHostIdentityLost } from '../../../primitives/runtime-resolution/api';
 import type { hostRuntimesContract } from './contract';

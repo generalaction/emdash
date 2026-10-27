@@ -11,7 +11,7 @@ sides of the wire (diagnosis §1). Main side: `TerminalLiveRegistry.onTerminalOu
 `state.output` by full-string concat per chunk with no cap and republishes conversation
 state per chunk — even though the adjacent `record.log` (`LiveLogSource`, 1 MB cap) is
 documented as the authoritative stream. Renderer side: `bindSessionTerminalOutputs`
-(`apps/agent-desktop/src/core/features/conversations/browser/acp/acp-terminal-output-binding.ts:49-51`)
+(`apps/emdash-desktop/src/core/features/conversations/browser/acp/acp-terminal-output-binding.ts:49-51`)
 pushes `binding.text()` — the full accumulated text — into chat state on every append,
 backed by concat-per-chunk in `packages/wire/src/live/mobx/mobx-log-store.ts`.
 

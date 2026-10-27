@@ -5,7 +5,7 @@
  * combinations. Defaults to `display: flex, direction: row`.
  *
  * Usage:
- *   import { box } from '@agent/ui/styles/recipes/box';
+ *   import { box } from '@emdash/ui/styles/recipes/box';
  *   <div className={box({ display: 'flex', direction: 'column', gap: '2', padding: '3' })} />
  */
 

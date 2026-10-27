@@ -76,7 +76,7 @@ describe('project lifecycle config resolver', () => {
       preservePatterns: [
         {
           workspaceId: 'repo',
-          path: '/project/.agent.json',
+          path: '/project/.emdash.json',
           value: ['root/**'],
         },
       ],
@@ -84,21 +84,21 @@ describe('project lifecycle config resolver', () => {
       setup: [
         {
           workspaceId: 'repo',
-          path: '/project/.agent.json',
+          path: '/project/.emdash.json',
           value: 'root setup',
         },
       ],
       run: [
         {
           workspaceId: 'duplicate',
-          path: '/project/a/.agent.json',
+          path: '/project/a/.emdash.json',
           value: 'duplicate run',
         },
       ],
       teardown: [
         {
           workspaceId: 'wt-z',
-          path: '/project/z/.agent.json',
+          path: '/project/z/.emdash.json',
           value: 'z teardown',
         },
       ],

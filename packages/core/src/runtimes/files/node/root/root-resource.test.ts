@@ -1,8 +1,8 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { err, ok, type Result } from '@agent/shared';
-import { deferred } from '@agent/shared/testing';
+import { err, ok, type Result } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolveRootIdentity, type RootIdentity } from '#runtimes/files/node/allocation/identity';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
@@ -124,7 +124,7 @@ class PendingWatcher implements IWatchService {
 }
 
 async function createIdentity(): Promise<RootIdentity> {
-  const rootPath = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-root-resource-')));
+  const rootPath = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-root-resource-')));
   cleanups.push(() => rm(rootPath, { recursive: true, force: true }));
   const resolved = await resolveRootIdentity(runtimeRoot(rootPath));
   if (!resolved.success) throw new Error(`Unable to resolve test root: ${resolved.error.type}`);

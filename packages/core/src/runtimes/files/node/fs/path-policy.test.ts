@@ -77,7 +77,7 @@ describe('RootPathPolicy', () => {
 });
 
 async function makeRoot(): Promise<string> {
-  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-path-policy-')));
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-path-policy-')));
   roots.push(root);
   return root;
 }

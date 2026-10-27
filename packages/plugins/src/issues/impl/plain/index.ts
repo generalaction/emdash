@@ -1,4 +1,4 @@
-import { err, ok } from '@agent/shared';
+import { err, ok } from '@emdash/shared';
 import type { ThreadsSort, ThreadStatus } from '@team-plain/graphql';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { createPlainClient, readPlainCredentials } from '../../../integrations/impl/plain/client';

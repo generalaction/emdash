@@ -27,13 +27,13 @@ Workspace packages are consumed exclusively through their `package.json` `export
 `packages/*` package exposes a `development` condition pointing at `src/`; `dist` stays the
 default, so dev and packaged builds resolve differently by design. `tsconfig.base.json` sets
 `customConditions: ["development"]` so TypeScript follows the same resolution. There are no
-`@agent/*` path aliases in any tsconfig or Vite config.
+`@emdash/*` path aliases in any tsconfig or Vite config.
 
 Within `packages/core`, internal imports use `#`-prefixed subpath imports declared in its
 `package.json` `imports` map (`#runtimes/*`, `#services/*`, `#primitives/*`).
 
 App-internal aliases (`@/*`, `@core/*`, `@renderer/*`, `@main/*`, `@root/*`, `@tooling/*`) are
-defined in `apps/agent-desktop/tsconfig.json` and mirrored in its `electron.vite.config.ts`.
+defined in `apps/emdash-desktop/tsconfig.json` and mirrored in its `electron.vite.config.ts`.
 
 ## Provider Metadata Rules
 

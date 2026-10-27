@@ -1,7 +1,7 @@
 # Composition
 
 How the primitives combine, the rules that keep composition sound, and worked
-examples drawn from real agent subsystems (each is the design target for that
+examples drawn from real emdash subsystems (each is the design target for that
 subsystem's eventual port — nothing here is implemented yet).
 
 ## The composition rules

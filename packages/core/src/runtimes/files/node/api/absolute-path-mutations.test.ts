@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ok } from '@agent/shared';
-import { client, connect, memoryTransportPair, serve } from '@agent/wire/rpc';
+import { ok } from '@emdash/shared';
+import { client, connect, memoryTransportPair, serve } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { filesContract, listingEntryName } from '#runtimes/files/api';
 import { FilesRuntime, type FilesRuntimeOptions } from '#runtimes/files/node/files-runtime';
@@ -337,7 +337,7 @@ async function makeRuntime(options: FilesRuntimeOptions = {}) {
 }
 
 async function makeDir(): Promise<string> {
-  const dir = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-files-mutations-')));
+  const dir = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-files-mutations-')));
   roots.push(dir);
   return dir;
 }

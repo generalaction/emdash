@@ -33,7 +33,7 @@ Convert at these boundaries:
 
 ## Contract Validation
 
-Contracts should import schemas from `@agent/core/path` instead of introducing
+Contracts should import schemas from `@emdash/core/path` instead of introducing
 new `z.string()` path fields once they migrate to structured resources.
 
 Recommended boundary shapes:

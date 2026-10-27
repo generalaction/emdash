@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok, type PendingLease, type Result } from '@agent/shared';
+import { err, ok, type PendingLease, type Result } from '@emdash/shared';
 import {
   createAsyncCache,
   createResourceCache,
   type AsyncCache,
   type ResourceCache,
   type Scope,
-} from '@agent/shared/concurrency';
-import type { LiveLogSource } from '@agent/wire/live';
+} from '@emdash/shared/concurrency';
+import type { LiveLogSource } from '@emdash/wire/live';
 import type { AgentConfigAuthError, AuthStatusModelState } from '#runtimes/agent-config/api';
 import type { AgentAuthStatus, AgentHostError } from '#services/agent-plugins/api/plugins';
 import {

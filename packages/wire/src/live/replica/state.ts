@@ -1,6 +1,6 @@
-import { createEmitter, type Unsubscribe } from '@agent/shared';
-import type { Logger } from '@agent/shared/logger';
-import type { Clock } from '@agent/shared/scheduling';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
 import type { LiveCursor, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveClientHandle } from '../../api/client';

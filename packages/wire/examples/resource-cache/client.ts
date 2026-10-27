@@ -1,5 +1,5 @@
-import { createResourceCache } from '@agent/shared/concurrency';
-import { ManualClock } from '@agent/shared/testing';
+import { createResourceCache } from '@emdash/shared/concurrency';
+import { ManualClock } from '@emdash/shared/testing';
 
 type Session = {
   id: string;

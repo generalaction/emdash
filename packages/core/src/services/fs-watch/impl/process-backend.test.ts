@@ -1,15 +1,15 @@
-import { err, ok, type Result } from '@agent/shared';
-import { createScope } from '@agent/shared/concurrency';
-import { retrySchedules } from '@agent/shared/scheduling';
-import { createTestWire, FakeWorkerProcessSpawner } from '@agent/wire/testing';
-import { defineWireComponent } from '@agent/wire/worker';
+import { err, ok, type Result } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
+import { createTestWire, FakeWorkerProcessSpawner } from '@emdash/wire/testing';
+import { defineWireComponent } from '@emdash/wire/worker';
 import {
   createWireWorkerHost,
   isWorkerSignal,
   runWireComponentWorker,
   type WorkerParentPort,
   type WorkerSupervision,
-} from '@agent/wire/worker';
+} from '@emdash/wire/worker';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {

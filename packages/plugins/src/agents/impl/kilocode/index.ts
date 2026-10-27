@@ -1,18 +1,18 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@agent/core/services/agent-plugins/api/plugins';
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   homeConfigRoot,
   npmDependency,
-} from '@agent/core/services/agent-plugins/api/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 import { KILOCODE_PLUGIN_CONTENT } from './plugin-file';
 
-const KILOCODE_PLUGIN_PATH = 'plugin/agent-notifications.js';
+const KILOCODE_PLUGIN_PATH = 'plugin/emdash-notifications.js';
 
 export const plugin = definePlugin(
   {

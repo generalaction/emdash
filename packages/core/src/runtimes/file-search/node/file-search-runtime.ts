@@ -1,10 +1,10 @@
-import type { Result } from '@agent/shared';
+import type { Result } from '@emdash/shared';
 import {
   createConcurrencyLimiter,
   createScope,
   type ConcurrencyLimiter,
   type Scope,
-} from '@agent/shared/concurrency';
+} from '@emdash/shared/concurrency';
 import type Database from 'better-sqlite3';
 import { DEFAULT_SEARCH_EXCLUDE } from '#primitives/exclusion-policy/api';
 import type { EnvSource } from '#primitives/exec/api';

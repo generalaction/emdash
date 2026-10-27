@@ -1,7 +1,7 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createScope, type Scope } from '@agent/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
@@ -347,7 +347,7 @@ function fakeRoot(
 }
 
 async function createRoot(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-root-registry-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-root-registry-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
 }

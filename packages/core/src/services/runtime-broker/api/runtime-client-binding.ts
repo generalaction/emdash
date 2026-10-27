@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@agent/shared';
+import type { Unsubscribe } from '@emdash/shared';
 import {
   client as createClient,
   WireError,
@@ -7,7 +7,7 @@ import {
   type Connection,
   type LiveSnapshot,
   type LiveUpdate,
-} from '@agent/wire/rpc';
+} from '@emdash/wire/rpc';
 import { hostRuntimesContract } from './contract';
 import type { HostRuntimesClient } from './runtime-broker';
 

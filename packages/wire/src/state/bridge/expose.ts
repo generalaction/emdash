@@ -1,7 +1,7 @@
-import { ok, toPendingLease, type Lease, type PendingLease, type Result } from '@agent/shared';
-import { createScope, type Scope } from '@agent/shared/concurrency';
-import { systemClock, type Clock } from '@agent/shared/scheduling';
-import { stableStringify } from '@agent/shared/util';
+import { ok, toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { stableStringify } from '@emdash/shared/util';
 import type {
   LiveCursor,
   LiveCursorEntry,

@@ -1,4 +1,4 @@
-# 03 — `useCollapsiblePanelBinding` in `@agent/ui`
+# 03 — `useCollapsiblePanelBinding` in `@emdash/ui`
 
 Spec: `../../workbench-state-architecture/spec.md` (§Shared binding; decision:
 `../../workbench-state-architecture/issues/06-panel-binding-design.md`)
@@ -43,7 +43,7 @@ Productionize it in `packages/ui/src/react/primitives/resizable/` next to `Resiz
 - [x] Unit/browser tests for the generation-id and sliver guards (regression tests for
       the poisoned-panel-memory trap).
 - [x] `LayoutStorage` interface exported for the app facade (ticket 02).
-- [x] `@agent/ui` typecheck/lint/tests green; stories render in Storybook.
+- [x] `@emdash/ui` typecheck/lint/tests green; stories render in Storybook.
 
 Shipped as `use-collapsible-panel-binding.ts` (+ `.test.tsx`, `.stories.tsx`) under
 `Primitives/Resizable/PanelBinding` (stories: CollapsibleSidebar, TerminalDrawer,

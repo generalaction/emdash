@@ -1,5 +1,5 @@
-import { err, ok } from '@agent/shared';
-import { createManualClock } from '@agent/shared/testing';
+import { err, ok } from '@emdash/shared';
+import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { cell, flushStateTurn, snapshot } from './core';
 import { optimistic } from './optimistic';

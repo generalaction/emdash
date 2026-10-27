@@ -42,7 +42,7 @@ describe('buildStandardCommand', () => {
     expect(result.args).toEqual(['threads', 'continue', 'T-thread-1']);
   });
 
-  it('resumes with the captured provider session id when it differs from the agent id', () => {
+  it('resumes with the captured provider session id when it differs from the emdash id', () => {
     const result = buildStandardCommand(
       {
         cli: 'claude',
@@ -58,7 +58,7 @@ describe('buildStandardCommand', () => {
     expect(result.args).toEqual(['--resume', 'native-1']);
   });
 
-  it('resumes with the agent session id when no provider session id was captured', () => {
+  it('resumes with the emdash session id when no provider session id was captured', () => {
     const result = buildStandardCommand(
       {
         cli: 'claude',

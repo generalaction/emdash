@@ -49,7 +49,7 @@ describe('ContentReader', () => {
 });
 
 async function makeRoot(): Promise<string> {
-  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-content-reader-')));
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-content-reader-')));
   roots.push(root);
   return root;
 }

@@ -1,7 +1,7 @@
-import { err, ok } from '@agent/shared';
-import { createScope, type Scope } from '@agent/shared/concurrency';
-import type { RateGate } from '@agent/shared/requests';
-import { createStubLogger } from '@agent/shared/testing';
+import { err, ok } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { RateGate } from '@emdash/shared/requests';
+import { createStubLogger } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IntegrationCredentials } from '../../../integrations/host';
 import type { PullRequestAuthError } from '../../schemas';

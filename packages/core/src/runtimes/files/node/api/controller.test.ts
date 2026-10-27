@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
-import { ok } from '@agent/shared';
-import { waitFor } from '@agent/shared/testing';
-import { createLiveJobReplicaCache } from '@agent/wire/live';
+import { ok } from '@emdash/shared';
+import { waitFor } from '@emdash/shared/testing';
+import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import {
   client,
   connect,
@@ -12,7 +12,7 @@ import {
   serve,
   streamTransport,
   type LiveUpdate,
-} from '@agent/wire/rpc';
+} from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createPathProfile } from '#primitives/path/api';
 import { filesContract, listingEntry, type FolderListing } from '#runtimes/files/api';
@@ -444,7 +444,7 @@ function makeStreamClient(runtime: FilesRuntime) {
 }
 
 async function makeRoot(): Promise<string> {
-  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-files-runtime-')));
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-files-runtime-')));
   roots.push(root);
   return root;
 }

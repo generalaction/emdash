@@ -1,11 +1,11 @@
-import type { Result } from '@agent/shared';
-import { ok, toSerializedError } from '@agent/shared';
 import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionConfigOption,
   SetSessionConfigOptionRequest,
 } from '@agentclientprotocol/sdk';
+import type { Result } from '@emdash/shared';
+import { ok, toSerializedError } from '@emdash/shared';
 import type {
   AcpCancelTurnError,
   AcpPermissionRequest,

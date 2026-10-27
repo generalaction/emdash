@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@agent/shared';
+import type { Unsubscribe } from '@emdash/shared';
 
 export type EventEmitterLike = {
   on(event: string, cb: (...args: unknown[]) => void): void;

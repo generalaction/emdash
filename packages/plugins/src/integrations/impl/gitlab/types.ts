@@ -16,7 +16,7 @@ export const gitLabTokenCredentialsSchema = z.object({
 
 /**
  * OAuth access token. Device sign-in stores the refresh token, which rotates on
- * use; the Agent auth server keeps the refresh token for tokens it issues.
+ * use; the Emdash auth server keeps the refresh token for tokens it issues.
  */
 export const gitLabOAuthCredentialsSchema = z.object({
   instanceUrl: instanceUrlSchema,

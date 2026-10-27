@@ -1,5 +1,5 @@
-import type { PendingLease, Unsubscribe } from '@agent/shared';
-import { stableStringify } from '@agent/shared/util';
+import type { PendingLease, Unsubscribe } from '@emdash/shared';
+import { stableStringify } from '@emdash/shared/util';
 import type { z } from 'zod';
 import type { LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveJobClientHandle } from '../../api/client';

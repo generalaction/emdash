@@ -8,7 +8,7 @@ export type ConversationType = z.infer<typeof conversationTypeSchema>;
  * creation. Any stored provider session id is a last-observed resume handle, never the
  * record's identity.
  */
-export const conversationIdRegimeSchema = z.enum(['agent-chosen', 'provider-minted', 'none']);
+export const conversationIdRegimeSchema = z.enum(['emdash-chosen', 'provider-minted', 'none']);
 export type ConversationIdRegime = z.infer<typeof conversationIdRegimeSchema>;
 
 /**
@@ -32,7 +32,7 @@ export type ConversationConfig = z.infer<typeof conversationConfigSchema>;
 
 /** One host conversation record (spec §3.2). */
 export const conversationRecordSchema = z.object({
-  /** Agent-minted UUID; primary key; client-supplied on create; never changes, never reused. */
+  /** Emdash-minted UUID; primary key; client-supplied on create; never changes, never reused. */
   conversationId: z.string().min(1),
   provider: z.string().min(1),
   type: conversationTypeSchema,

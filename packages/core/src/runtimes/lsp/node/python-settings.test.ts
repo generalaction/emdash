@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const directory = await mkdtemp(path.join(tmpdir(), 'agent-lsp-python-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-python-'));
   directories.push(directory);
   const parsed = parseNativeAbsolute(directory);
   if (!parsed.success) throw new Error('invalid root');

@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ok, type PendingLease } from '@agent/shared';
-import { deferred } from '@agent/shared/testing';
-import { peek, revisionOf } from '@agent/wire/state';
+import { ok, type PendingLease } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
+import { peek, revisionOf } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import { listingEntryName, type FolderListing, type ListingEntry } from '#runtimes/files/api';
@@ -348,7 +348,7 @@ function childRoot(folder: HostAbsolutePath, watcher: IWatchService): PendingLea
 async function createHarness(
   options: Partial<Omit<RootListingsOptions, 'root'>> & { watchIgnoreGlobs?: string[] } = {}
 ) {
-  const rootPath = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-root-listings-')));
+  const rootPath = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-root-listings-')));
   cleanups.push(() => rm(rootPath, { recursive: true, force: true }));
   const identity = await resolveRootIdentity(runtimeRoot(rootPath));
   if (!identity.success) throw new Error(`Unable to resolve test root: ${identity.error.type}`);

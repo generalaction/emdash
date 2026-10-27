@@ -10,7 +10,7 @@ export const tuiAgentStartInputSchema = z.object({
   /** Provider-native session id; drives resume routing per provider. */
   sessionId: z.string().nullable(),
   /**
-   * Agent-chosen resume handle for fresh spawns (spec §3.1, agent-chosen regime): the
+   * Emdash-chosen resume handle for fresh spawns (spec §3.1, emdash-chosen regime): the
    * caller's convention for resuming this session when no provider-native id is captured.
    * Reported to the conversation index as the spawned session's provider session id.
    */

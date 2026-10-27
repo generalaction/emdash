@@ -1,6 +1,6 @@
 # State Ownership
 
-Agent has two durable state authorities:
+Emdash has two durable state authorities:
 
 - Desktop SQLite owns desktop entities such as projects, tasks, automations, conversations,
   and the bindings from those entities to host resources.

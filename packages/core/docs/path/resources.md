@@ -14,7 +14,7 @@ hard links, and renames are handled by runtime-specific filesystem behavior.
 
 ## Host References
 
-`HostRef` is defined by `@agent/core/primitives/host/api`:
+`HostRef` is defined by `@emdash/core/primitives/host/api`:
 
 ```ts
 type HostRef = {
@@ -60,9 +60,9 @@ compact shape: a `HostAbsolutePath` root plus `PortableRelativePath` coordinates
 `ResourceUri` is the stable string encoding:
 
 ```text
-agent-file://v2/local/local/posix/home/david/repo/src/index.ts
-agent-file://v2/remote/connection-1/drive/c/Users/David/repo/src/index.ts
-agent-file://v2/remote/connection-2/unc/server/share/repo/src/index.ts
+emdash-file://v2/local/local/posix/home/david/repo/src/index.ts
+emdash-file://v2/remote/connection-1/drive/c/Users/David/repo/src/index.ts
+emdash-file://v2/remote/connection-2/unc/server/share/repo/src/index.ts
 ```
 
 Use it for serialization, persistence, Monaco model identity, and durable

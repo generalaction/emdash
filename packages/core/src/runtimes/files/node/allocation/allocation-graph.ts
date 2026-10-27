@@ -1,5 +1,5 @@
-import { once, toPendingLease, type Lease, type PendingLease, type Result } from '@agent/shared';
-import { createResourceCache, type ResourceCache } from '@agent/shared/concurrency';
+import { once, toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
+import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import type { PortableRelativePath } from '#primitives/path/api';
 import type {
   AbsolutePathKey,

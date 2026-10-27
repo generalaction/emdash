@@ -187,7 +187,7 @@ export function buildAllowlistedAgentEnv(
   const env: Record<string, string> = {
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
-    TERM_PROGRAM: 'agent',
+    TERM_PROGRAM: 'emdash',
     HOME: getValue('HOME') ?? getValue('USERPROFILE') ?? options.homeDir ?? '',
     USER: getValue('USER') ?? getValue('USERNAME') ?? options.username ?? '',
     PATH: getValue('PATH') ?? '',

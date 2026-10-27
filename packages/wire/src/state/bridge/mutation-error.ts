@@ -1,4 +1,4 @@
-import { err, type Result } from '@agent/shared';
+import { err, type Result } from '@emdash/shared';
 
 export type MutationErrorMapper<E> = (error: unknown) => E | undefined;
 

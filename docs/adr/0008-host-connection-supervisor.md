@@ -33,7 +33,7 @@ Each Host service composes one `ManagedHostConnection`. It owns leases,
 runtime pins, and persisted intent, and composes one connection supervisor. That supervisor is
 the sole authority for connection execution, liveness evidence, recovery sequencing,
 retry scheduling, and observable Host availability. Both live under
-`apps/agent-desktop/src/core/services/hosts/node/`, using existing Scope, cancellation,
+`apps/emdash-desktop/src/core/services/hosts/node/`, using existing Scope, cancellation,
 clock, scheduling, and typed Result primitives.
 
 The supervisor operates bounded adapters:

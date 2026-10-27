@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveModel, liveState } from '@agent/wire/rpc';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { conversationAttachmentsContract } from '#services/attachments/api';
 import {

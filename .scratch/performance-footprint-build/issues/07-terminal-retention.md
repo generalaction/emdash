@@ -27,7 +27,7 @@ Spec: [terminal retention decision](../../performance-footprint/issues/04-termin
       browser-project test (`src/renderer/tests/browser/terminal-retention.test.ts`)
 - [ ] Before/after renderer RSS with ~10 open terminals recorded in the PR
       — *Not captured: requires attaching to a live GUI run with ~10 populated terminals.
-      The ticket-02 dev instruments (RSS log gated on debug logging via `AGENT_LOG_LEVEL=debug`
+      The ticket-02 dev instruments (RSS log gated on debug logging via `EMDASH_LOG_LEVEL=debug`
       or `--debug-logs`, plus the dev process panel) are in
       place to record this during a manual smoke pass. The expected effect is a ~10× cut in
       per-terminal text-buffer memory (10k vs 100k line cap).*
@@ -35,7 +35,7 @@ Spec: [terminal retention decision](../../performance-footprint/issues/04-termin
 ## Implementation notes
 
 - `SCROLLBACK_LINES` 100,000 → 10,000 in
-  `apps/agent-desktop/src/core/features/terminals/api/browser/pty/pty.ts`; the sign-in modal
+  `apps/emdash-desktop/src/core/features/terminals/api/browser/pty/pty.ts`; the sign-in modal
   terminal (`AgentSignInModal.tsx`) 100,000 → 1,000.
 - **Deviation from decision 2 (documented):** the spec assumed a Canvas2D renderer addon whose
   bitmap layers (~10 MB/terminal) should be disposed on unmount. That addon does not exist in

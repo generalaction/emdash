@@ -1,11 +1,11 @@
-import type { Scope } from '@agent/shared/concurrency';
+import type { Scope } from '@emdash/shared/concurrency';
 import {
   retrySchedules,
   systemClock,
   waitWithSignal,
   type RetrySchedule,
-} from '@agent/shared/scheduling';
-import { cell, peek, type Cell, type Readable } from '@agent/wire/state';
+} from '@emdash/shared/scheduling';
+import { cell, peek, type Cell, type Readable } from '@emdash/wire/state';
 import type { IWatchService, WatchEvent, WatchHandle } from '#services/fs-watch/api';
 
 /** Freshness floor for a searchable root whose watcher is unavailable. */

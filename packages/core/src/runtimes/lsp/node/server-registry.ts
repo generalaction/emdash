@@ -46,7 +46,7 @@ const servers: Readonly<Record<string, HostServerProfile>> = {
       compiler ??= createRequire(import.meta.url).resolve('typescript/lib/tsserver.js');
       return {
         initializationOptions: {
-          hostInfo: 'Agent',
+          hostInfo: 'Emdash',
           disableAutomaticTypingAcquisition: true,
           tsserver: { path: unpackedPath(compiler) },
         },

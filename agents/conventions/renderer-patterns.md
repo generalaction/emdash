@@ -1,6 +1,6 @@
 # Renderer Patterns
 
-All paths are relative to `apps/agent-desktop/`.
+All paths are relative to `apps/emdash-desktop/`.
 
 ## Feature `api/` Surfaces
 
@@ -10,7 +10,7 @@ A feature slice's `api/` directory is its contract with other slices, nothing mo
 - Cross-slice UI flows through the contributions registries (`contributions/browser.ts`,
   aggregated by `src/core/manifests/browser/browser-contributions.ts`), never through `api/`
 - React components never live under `api/`; they belong in `browser/`
-  (enforced by the `agent/no-tsx-in-api` lint rule; the shrink-only allowlist at repo-root
+  (enforced by the `emdash/no-tsx-in-api` lint rule; the shrink-only allowlist at repo-root
   `tooling/oxlint/allowlists/api-surfaces.json` is empty and must stay that way)
 
 ## Modal System
@@ -95,7 +95,7 @@ Workbench layout follows a strict ownership model (see
   `src/core/primitives/chrome-stores/`.
 - **Panel visibility is store-driven conditional rendering, never programmatic panel
   writes.** Closed = unmounted. Collapsible surfaces bind through
-  `useCollapsiblePanelBinding` from `@agent/ui` (next to `Resizable`), which turns
+  `useCollapsiblePanelBinding` from `@emdash/ui` (next to `Resizable`), which turns
   drag-below-threshold into a semantic close command. No `panel.collapse()` /
   `expand()` / `resize()` / `setLayout()` calls exist in app code, and no
   `display:none` toggling of workbench surfaces.

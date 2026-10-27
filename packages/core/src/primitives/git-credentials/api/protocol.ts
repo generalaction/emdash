@@ -3,7 +3,7 @@
  * newline-separated `key=value` lines, terminated by a blank line or EOF.
  * Values never contain newlines or NUL bytes.
  *
- * Used by the agent git credential helper channel: git writes a request to
+ * Used by the emdash git credential helper channel: git writes a request to
  * the helper's stdin, the helper forwards it verbatim to the desktop, and the
  * desktop answers with the same format (typically `username` + `password`).
  */

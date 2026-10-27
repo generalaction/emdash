@@ -13,7 +13,7 @@ export const DOCTOR_HINT =
 /**
  * Runs the workspace test targets; returns the exit code to use.
  * `spawn` and `log` are injectable for tests (see
- * apps/agent-desktop/scripts/root-test-wrapper.test.ts).
+ * apps/emdash-desktop/scripts/root-test-wrapper.test.ts).
  */
 export function runRootTests({ argv = [], spawn = spawnSync, log = console.error } = {}) {
   const result = spawn('pnpm', ['exec', 'nx', 'run-many', '-t', 'test', '--all', ...argv], {

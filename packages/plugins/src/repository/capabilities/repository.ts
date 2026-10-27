@@ -1,5 +1,5 @@
-import type { Result } from '@agent/shared';
-import { definePluginCapability } from '@agent/shared/plugins';
+import type { Result } from '@emdash/shared';
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
 import type {
   ConnectedIntegrationHostContext,

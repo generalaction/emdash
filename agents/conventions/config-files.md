@@ -10,7 +10,7 @@ Repo root:
 - `.oxfmtrc.json`, `.oxlintrc.json`
 - `.github/workflows/`
 
-In `apps/agent-desktop/`:
+In `apps/emdash-desktop/`:
 
 - `package.json` (app scripts and version)
 - `electron.vite.config.ts`
@@ -19,7 +19,7 @@ In `apps/agent-desktop/`:
 - `drizzle.config.ts`
 - `flake.nix`
 
-Per-project (user repos): `.agent.json`
+Per-project (user repos): `.emdash.json`
 
 ## Repo Rules
 

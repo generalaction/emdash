@@ -1,6 +1,6 @@
-import type { Result } from '@agent/shared';
-import type { Scope } from '@agent/shared/concurrency';
-import type { Logger } from '@agent/shared/logger';
+import type { Result } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import type { IntegrationCredentials } from '../integrations/host';
 import type {
   PullRequest,
