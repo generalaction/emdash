@@ -1,10 +1,10 @@
 # Testing And Validation
 
-All paths are relative to `apps/emdash-desktop/`.
+All paths are relative to `apps/agent-desktop/`.
 
 ## Core Local Gate
 
-Run these before merging (from the repo root or `apps/emdash-desktop/`):
+Run these before merging (from the repo root or `apps/agent-desktop/`):
 
 ```bash
 pnpm run format
@@ -17,12 +17,12 @@ pnpm run test
 
 `pnpm test` at the repository root runs every package's default test suite.
 Inside an app or package directory it runs only that package's suite. From the
-root, `pnpm --filter @emdash/plugins test` runs only the selected package's suite.
+root, `pnpm --filter @agent/plugins test` runs only the selected package's suite.
 All three routes use Nx to prepare required builds automatically; dependency
 builds do not cause dependency tests to run. Nx is installed by `pnpm install`.
 
 Pass test-file paths or Vitest options after `test --`, for example
-`pnpm --filter @emdash/emdash-desktop test -- --project scripts`. The separator
+`pnpm --filter @agent/agent-desktop test -- --project scripts`. The separator
 prevents Nx from consuming flags that both tools recognize, such as `--project`.
 Direct `pnpm exec vitest` is an advanced debugging escape hatch that bypasses
 prerequisite preparation.
@@ -50,7 +50,7 @@ can use the Nx cache.
   - `scripts` — release, support, and developer-command tests under `scripts/`
   - `browser` — `src/renderer/tests/browser/**/*.test.{ts,tsx}` via Playwright
 - `pnpm run test` runs every project except `fixtures` (`node`, `main-db`,
-  `migrations`, `scripts`, and `browser`). Setting `EMDASH_TEST_SKIP_BROWSER=1`
+  `migrations`, `scripts`, and `browser`). Setting `AGENT_TEST_SKIP_BROWSER=1`
   omits the Playwright-backed `browser` project locally; CI omits it automatically.
 - Tests use per-file `vi.mock()` setup.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
@@ -61,9 +61,9 @@ can use the Nx cache.
   format:check, typecheck, lint, and test only for projects touched by the PR. Nx
   computes the affected set using `nrwl/nx-set-shas` and the PR base/head SHAs.
 - CI installs with `--ignore-scripts`, so the workflow explicitly installs the
-  native side project (`pnpm --dir apps/emdash-desktop/tooling/node-deps install`)
+  native side project (`pnpm --dir apps/agent-desktop/tooling/node-deps install`)
   for the DB-backed Vitest projects. It also rebuilds and load-checks `node-pty`
-  from `@emdash/core`, a workspace that declares the dependency. Vitest omits the
+  from `@agent/core`, a workspace that declares the dependency. Vitest omits the
   Playwright-backed `browser` projects (app and chat-ui) when it detects CI until
   browser provisioning is proven stable there.
 - The full suite (including `browser` projects) is still expected locally before merging.

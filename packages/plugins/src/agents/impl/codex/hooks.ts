@@ -1,10 +1,10 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import type {
   CanonicalHookEvent,
   HookRegistration,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 import {
-  EMDASH_MARKER,
+  AGENT_MARKER,
   buildNestedEntry,
   configRoots,
   defaultHookEventParser,
@@ -17,7 +17,7 @@ import {
   readTomlConfig,
   writeJsonConfig,
   writeTomlConfig,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import * as toml from 'smol-toml';
 
 export const CODEX_CONFIG_PATH = 'config.toml';
@@ -28,11 +28,11 @@ const LEGACY_CODEX_NOTIFY_COMMAND = [
   '-c',
   'curl -sf -X POST ' +
     "-H 'Content-Type: application/json' " +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    '-H "X-Emdash-Event-Type: notification" ' +
+    '-H "X-Agent-Token: $AGENT_HOOK_NONCE" ' +
+    '-H "X-Agent-Pty-Id: $AGENT_PTY_ID" ' +
+    '-H "X-Agent-Event-Type: notification" ' +
     '-d "$1" ' +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
+    '"http://127.0.0.1:$AGENT_HOOK_PORT/hook" || true',
   '_',
 ];
 
@@ -45,7 +45,7 @@ function isLegacyCodexNotify(value: unknown): boolean {
     noProfile === '-NoProfile' &&
     fileFlag === '-File' &&
     typeof scriptPath === 'string' &&
-    scriptPath.endsWith('emdash-codex-notify.ps1')
+    scriptPath.endsWith('agent-codex-notify.ps1')
   );
 }
 
@@ -100,7 +100,7 @@ function configWithEventHooks(
   return { ...config, hooks: { ...existingHooks, ...eventHooks } };
 }
 
-function hasCodexEmdashHooks(hooks: Record<string, unknown[]>, specs: [string, string][]): boolean {
+function hasCodexAgentHooks(hooks: Record<string, unknown[]>, specs: [string, string][]): boolean {
   return specs.every(([key, command]) => {
     const entries = Array.isArray(hooks[key]) ? hooks[key] : [];
     return entries.some(
@@ -184,12 +184,12 @@ export function buildCodexHookConfig() {
     resolveConfigRoots: configRoots(envConfigRoot('CODEX_HOME', '.codex')),
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
-      if (hasCodexEmdashHooks(getHooks(config, CODEX_CONFIG_PATH), specs)) {
-        return [{ event: 'emdash', command: EMDASH_MARKER }];
+      if (hasCodexAgentHooks(getHooks(config, CODEX_CONFIG_PATH), specs)) {
+        return [{ event: 'agent', command: AGENT_MARKER }];
       }
 
-      return hasCodexEmdashHooks(await readLegacyHooks(fs), specs)
-        ? [{ event: 'emdash', command: EMDASH_MARKER }]
+      return hasCodexAgentHooks(await readLegacyHooks(fs), specs)
+        ? [{ event: 'agent', command: AGENT_MARKER }]
         : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
@@ -228,8 +228,8 @@ export function buildCodexHookConfig() {
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
       return (
-        hasCodexEmdashHooks(getHooks(config, CODEX_CONFIG_PATH), specs) ||
-        hasCodexEmdashHooks(await readLegacyHooks(fs), specs)
+        hasCodexAgentHooks(getHooks(config, CODEX_CONFIG_PATH), specs) ||
+        hasCodexAgentHooks(await readLegacyHooks(fs), specs)
       );
     },
     parseHookEvent: parseCodexHookEvent,

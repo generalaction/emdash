@@ -28,7 +28,7 @@ describe('built adapter bundles', () => {
 });
 
 async function smokeAdapter(adapterPath: string): Promise<void> {
-  const cwd = await mkdtemp(join(tmpdir(), 'emdash-adapter-smoke-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'agent-adapter-smoke-'));
   try {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(process.execPath, [adapterPath], {

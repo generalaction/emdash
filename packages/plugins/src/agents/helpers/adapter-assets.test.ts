@@ -22,7 +22,7 @@ describe('adapter asset helpers', () => {
   });
 
   it('resolves adapters next to the consuming bundle', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'emdash-adapter-assets-'));
+    const root = await mkdtemp(join(tmpdir(), 'agent-adapter-assets-'));
     try {
       const adapterPath = join(root, 'adapters', adapterAssetFileName(asset));
       await mkdir(join(root, 'adapters'));
@@ -39,7 +39,7 @@ describe('adapter asset helpers', () => {
   });
 
   it('resolves adapters one directory above split chunks', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'emdash-adapter-assets-'));
+    const root = await mkdtemp(join(tmpdir(), 'agent-adapter-assets-'));
     try {
       const adapterPath = join(root, 'adapters', adapterAssetFileName(asset));
       await mkdir(join(root, 'adapters'), { recursive: true });

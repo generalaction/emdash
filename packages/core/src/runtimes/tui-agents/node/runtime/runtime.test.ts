@@ -1,10 +1,10 @@
-import { ok } from '@emdash/shared';
-import { noopLogger } from '@emdash/shared/logger';
-import { createManualClock, type ManualClock } from '@emdash/shared/testing';
-import { ReplicaLog } from '@emdash/wire/live';
-import { defineContract } from '@emdash/wire/rpc';
-import { peek } from '@emdash/wire/state';
-import { createTestWire } from '@emdash/wire/testing';
+import { ok } from '@agent/shared';
+import { noopLogger } from '@agent/shared/logger';
+import { createManualClock, type ManualClock } from '@agent/shared/testing';
+import { ReplicaLog } from '@agent/wire/live';
+import { defineContract } from '@agent/wire/rpc';
+import { peek } from '@agent/wire/state';
+import { createTestWire } from '@agent/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { TuiAgentStartInput } from '#runtimes/tui-agents/api';
 import { tuiAgentsContract } from '#runtimes/tui-agents/api';
@@ -312,7 +312,7 @@ describe('TuiAgentsRuntime', () => {
         env: {
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
-          TERM_PROGRAM: 'emdash',
+          TERM_PROGRAM: 'agent',
           FORCE_HYPERLINK: '1',
           AGENT: '1',
         },
@@ -395,22 +395,22 @@ describe('TuiAgentsRuntime', () => {
     try {
       const env = spawner.specs[0]?.env;
       expect(env).toMatchObject({
-        EMDASH_PTY_ID: 'conversation-1',
-        EMDASH_HOOK_PORT: expect.stringMatching(/^\d+$/),
-        EMDASH_HOOK_NONCE: expect.any(String),
-        EMDASH_HOOK_TOKEN: expect.any(String),
+        AGENT_PTY_ID: 'conversation-1',
+        AGENT_HOOK_PORT: expect.stringMatching(/^\d+$/),
+        AGENT_HOOK_NONCE: expect.any(String),
+        AGENT_HOOK_TOKEN: expect.any(String),
       });
-      if (!env?.EMDASH_HOOK_PORT || !env.EMDASH_HOOK_NONCE) {
+      if (!env?.AGENT_HOOK_PORT || !env.AGENT_HOOK_NONCE) {
         throw new Error('hook endpoint was not provided');
       }
 
-      const response = await fetch(`http://127.0.0.1:${env.EMDASH_HOOK_PORT}/hook`, {
+      const response = await fetch(`http://127.0.0.1:${env.AGENT_HOOK_PORT}/hook`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Emdash-Token': env.EMDASH_HOOK_NONCE,
-          'X-Emdash-Pty-Id': 'conversation-1',
-          'X-Emdash-Event-Type': 'stop',
+          'X-Agent-Token': env.AGENT_HOOK_NONCE,
+          'X-Agent-Pty-Id': 'conversation-1',
+          'X-Agent-Event-Type': 'stop',
         },
         body: '{}',
       });
@@ -481,11 +481,11 @@ describe('TuiAgentsRuntime', () => {
     expect(invocation.kind).toBe('argv');
     if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
     expect(invocation.argv[1]).toMatch(/fix-login-[a-f0-9]{10}/u);
-    expect(invocation.argv[1]).toContain('@emdash_identity');
+    expect(invocation.argv[1]).toContain('@agent_identity');
     expect(exec.exec).toHaveBeenCalledWith('tmux', [
       'list-sessions',
       '-F',
-      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
+      '#{session_name}\t#{session_activity}\t#{@agent_identity}',
     ]);
   });
 
@@ -663,7 +663,7 @@ describe('TuiAgentsRuntime', () => {
     const clock = createManualClock(1_000_000);
     const exec = vi.fn(() =>
       Promise.resolve({
-        stdout: `emdash-test\t${Math.floor(clock.now() / 1000)}\t\n`,
+        stdout: `agent-test\t${Math.floor(clock.now() / 1000)}\t\n`,
         stderr: '',
       })
     );
@@ -686,7 +686,7 @@ describe('TuiAgentsRuntime', () => {
     expect(exec).toHaveBeenCalledWith('tmux', [
       'list-sessions',
       '-F',
-      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
+      '#{session_name}\t#{session_activity}\t#{@agent_identity}',
     ]);
     expect(spawner.processes[0]!.killCount).toBe(0);
     expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
@@ -828,7 +828,7 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
     ]);
   });
 
-  it('reports the caller-declared emdash-chosen handle on a fresh spawn (spec §3.1)', async () => {
+  it('reports the caller-declared agent-chosen handle on a fresh spawn (spec §3.1)', async () => {
     const reports = createRecordingConversationLifecycleReporter();
     const { runtime } = createRuntime({ conversationReports: reports });
 

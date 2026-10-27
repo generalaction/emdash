@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
-import { remote, snapshot } from '@emdash/wire/state';
-import { createTestWire, type TestWire } from '@emdash/wire/testing';
+import { remote, snapshot } from '@agent/wire/state';
+import { createTestWire, type TestWire } from '@agent/wire/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { scriptsContract, startScriptRunInputSchema } from '#runtimes/scripts/api';
 import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
@@ -83,7 +83,7 @@ describe('scripts runtime contract', () => {
       provenance: 'manual',
       env: {
         CLAUDE_CONFIG_DIR: '/tmp/claude-project',
-        EMDASH_TASK_ID: 'cannot-override',
+        AGENT_TASK_ID: 'cannot-override',
       },
     });
     expect(started.success && started.data.status).toBe('running');
@@ -94,9 +94,9 @@ describe('scripts runtime contract', () => {
     );
     expect(spec.cwd).toBe(WORKSPACE);
     expect(spec.env).toMatchObject({
-      EMDASH_TASK_ID: 'ws-1',
-      EMDASH_TASK_NAME: 'feature-x',
-      EMDASH_ROOT_PATH: '/repos/app',
+      AGENT_TASK_ID: 'ws-1',
+      AGENT_TASK_NAME: 'feature-x',
+      AGENT_ROOT_PATH: '/repos/app',
       CLAUDE_CONFIG_DIR: '/tmp/claude-project',
     });
     expect(spec.env?.USER_VALUE).toBe('kept');

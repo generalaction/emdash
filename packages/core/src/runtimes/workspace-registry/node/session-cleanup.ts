@@ -1,4 +1,4 @@
-import type { Logger } from '@emdash/shared/logger';
+import type { Logger } from '@agent/shared/logger';
 import { containsAbsolute, parseNativeAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import type { HostRuntimesClient } from '#services/runtime-broker/api';
 

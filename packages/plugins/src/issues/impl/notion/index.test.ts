@@ -1,4 +1,4 @@
-import { noopLogger } from '@emdash/shared/logger';
+import { noopLogger } from '@agent/shared/logger';
 import type { PageObjectResponse } from '@notionhq/client';
 import type * as NotionSdk from '@notionhq/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

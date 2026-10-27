@@ -1,12 +1,12 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import type {
   CanonicalHookEvent,
   HookRegistration,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 import {
-  EMDASH_MARKER,
-  EMDASH_HOOK_POSIX_GUARD,
-  EMDASH_HOOK_VERSION_MARKER,
+  AGENT_MARKER,
+  AGENT_HOOK_POSIX_GUARD,
+  AGENT_HOOK_VERSION_MARKER,
   buildNestedEntry,
   configRoots,
   defaultHookEventParser,
@@ -17,35 +17,35 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 
-export const GROK_HOOKS_PATH = 'hooks/emdash.json';
+export const GROK_HOOKS_PATH = 'hooks/agent.json';
 
 function makeGrokSessionStartCommand(): string {
   if (process.platform === 'win32') {
     const script = [
       "$ErrorActionPreference = 'SilentlyContinue'",
-      'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_NONCE -or -not $env:EMDASH_PTY_ID) { exit 0 }',
+      'if (-not $env:AGENT_HOOK_PORT -or -not $env:AGENT_HOOK_NONCE -or -not $env:AGENT_PTY_ID) { exit 0 }',
       '$payload = @{ session_id = $env:GROK_SESSION_ID } | ConvertTo-Json -Compress',
       'try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
-        "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
+        "-Uri ('http://127.0.0.1:' + $env:AGENT_HOOK_PORT + '/hook') " +
         '-Headers @{ ' +
         "'Content-Type' = 'application/json'; " +
-        "'X-Emdash-Token' = $env:EMDASH_HOOK_NONCE; " +
-        "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
-        "'X-Emdash-Event-Type' = 'session' " +
+        "'X-Agent-Token' = $env:AGENT_HOOK_NONCE; " +
+        "'X-Agent-Pty-Id' = $env:AGENT_PTY_ID; " +
+        "'X-Agent-Event-Type' = 'session' " +
         '} -Body $payload | Out-Null } catch { exit 0 }',
     ].join('; ');
     return makeWindowsPowerShellHookCommand(script);
   }
   return (
-    `${EMDASH_HOOK_VERSION_MARKER}; ${EMDASH_HOOK_POSIX_GUARD}; curl -sf -X POST ` +
+    `${AGENT_HOOK_VERSION_MARKER}; ${AGENT_HOOK_POSIX_GUARD}; curl -sf -X POST ` +
     '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    '-H "X-Emdash-Event-Type: session" ' +
+    '-H "X-Agent-Token: $AGENT_HOOK_NONCE" ' +
+    '-H "X-Agent-Pty-Id: $AGENT_PTY_ID" ' +
+    '-H "X-Agent-Event-Type: session" ' +
     `--data-binary '{"session_id":"'"$GROK_SESSION_ID"'"}' ` +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
+    '"http://127.0.0.1:$AGENT_HOOK_PORT/hook" || true'
   );
 }
 
@@ -91,7 +91,7 @@ export function buildGrokHookConfig() {
           (entry) => JSON.stringify(entry) === JSON.stringify(buildNestedEntry(command))
         );
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'agent', command: AGENT_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, GROK_HOOKS_PATH);

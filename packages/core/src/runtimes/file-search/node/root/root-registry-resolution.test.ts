@@ -1,7 +1,7 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@agent/shared/concurrency';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RootWatchError } from '../path/index/errors';
 import { hostPath as absolute } from '../testing/paths';
@@ -161,7 +161,7 @@ function resolveRoot(registry: FileSearchRootRegistry, root: ReturnType<typeof a
 }
 
 async function createRootDirectory(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-root-registry-resolution-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-root-registry-resolution-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
 }

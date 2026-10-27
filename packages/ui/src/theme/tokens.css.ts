@@ -6,7 +6,7 @@
  * into dist/style.css via the VE build pipeline.
  *
  * Spacing and radius tokens are reference-only here; their values are generated
- * by @emdash/theme into the default density vars and .density-* classes.
+ * by @agent/theme into the default density vars and .density-* classes.
  *
  * Exports a typed `tokenVars` contract so consumers can reference these tokens
  * with full TypeScript safety rather than raw `'var(--text-sm)'` strings.
@@ -18,7 +18,7 @@
  * into another and cannot be represented in the VE typed-vars map.
  */
 
-import { nsName } from '@emdash/theme';
+import { nsName } from '@agent/theme';
 import { createGlobalThemeContract, globalStyle } from '@vanilla-extract/css';
 
 // ── Primitive non-color token contract ────────────────────────────────────────

@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { provider } from './index';
 
@@ -30,17 +30,17 @@ describe('Cursor trust behavior', () => {
     const fs = createMemoryFs();
 
     await provider.behavior.trust!.trustWorkspace(fs, {
-      workspacePath: '/Users/janburzinski/emdash/worktrees/emdash-official/tough-falcons-notice',
+      workspacePath: '/Users/janburzinski/agent/worktrees/agent-official/tough-falcons-notice',
     });
 
     expect(fs.writes).toHaveLength(1);
     expect(fs.writes[0].path).toBe(
-      '.cursor/projects/Users-janburzinski-emdash-worktrees-emdash-official-tough-falcons-notice/.workspace-trusted'
+      '.cursor/projects/Users-janburzinski-agent-worktrees-agent-official-tough-falcons-notice/.workspace-trusted'
     );
     expect(JSON.parse(fs.writes[0].content)).toEqual({
       trustedAt: expect.any(String),
-      workspacePath: '/Users/janburzinski/emdash/worktrees/emdash-official/tough-falcons-notice',
-      trustMethod: 'emdash-auto-trust',
+      workspacePath: '/Users/janburzinski/agent/worktrees/agent-official/tough-falcons-notice',
+      trustMethod: 'agent-auto-trust',
     });
   });
 

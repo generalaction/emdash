@@ -1,5 +1,5 @@
 /**
- * Light theme — the default emdash light palette.
+ * Light theme — the default agent light palette.
  *
  * Tuned to stay visually close to the current Radix-sourced emlight palette:
  *   - Neutral: pure gray (hue 0, very low chroma)

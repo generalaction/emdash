@@ -1,4 +1,4 @@
-import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import { log as ambientLog, type Logger } from '@agent/shared/logger';
 import { systemClock, type Clock } from '../scheduling';
 import type { Disposable } from './disposable';
 

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineWireComponent } from '@emdash/wire/worker';
+import { defineWireComponent } from '@agent/wire/worker';
 import { z } from 'zod';
 import { hostSettingsContract } from '../api/contract';
 import { createHostSettingsController } from './api/controller';

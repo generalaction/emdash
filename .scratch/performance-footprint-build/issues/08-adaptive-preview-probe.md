@@ -34,5 +34,5 @@ Spec: [preview probe decision](../../performance-footprint/issues/05-preview-pro
   are unchanged (pty exit / 2 consecutive failures), and the change is confined to
   `startProbe` per the decision.
 - Both cadence constants are exported for the tests; the default `isPortOpen` probe records
-  a `probe`-tagged event via `@emdash/shared/perf` on each attempt (map increment, always-on
+  a `probe`-tagged event via `@agent/shared/perf` on each attempt (map increment, always-on
   per the spawn-metrics design).

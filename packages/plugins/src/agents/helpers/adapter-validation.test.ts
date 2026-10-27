@@ -54,7 +54,7 @@ describe('adapter bundle validation', () => {
   });
 
   it('validates declared adapter files in a directory', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'emdash-adapter-validation-'));
+    const root = await mkdtemp(join(tmpdir(), 'agent-adapter-validation-'));
     const assets: AdapterAsset[] = [
       { name: 'ok', specifier: '@example/ok', format: 'esm' },
       { name: 'missing', specifier: '@example/missing', format: 'cjs' },

@@ -1,35 +1,35 @@
-// Verbatim source of the Kilo emdash notifications plugin, embedded as a string constant.
+// Verbatim source of the Kilo agent notifications plugin, embedded as a string constant.
 export const KILOCODE_PLUGIN_CONTENT = `\
 /* global fetch, process */
 
-export const EmdashNotifications = async () => ({
+export const AgentNotifications = async () => ({
   event: async ({ event }) => {
-    const port = process.env.EMDASH_HOOK_PORT;
-    const token = process.env.EMDASH_HOOK_NONCE ?? process.env.EMDASH_HOOK_TOKEN;
-    const ptyId = process.env.EMDASH_PTY_ID;
+    const port = process.env.AGENT_HOOK_PORT;
+    const token = process.env.AGENT_HOOK_NONCE ?? process.env.AGENT_HOOK_TOKEN;
+    const ptyId = process.env.AGENT_PTY_ID;
     if (!port || !token || !ptyId) return;
 
     const sessionId = getKiloSessionId(event);
     if (sessionId) {
-      await postToEmdash({ port, token, ptyId, type: 'session', body: { sessionId } });
+      await postToAgent({ port, token, ptyId, type: 'session', body: { sessionId } });
     }
 
-    const payload = toEmdashPayload(event);
+    const payload = toAgentPayload(event);
     if (!payload) return;
 
-    await postToEmdash({ port, token, ptyId, type: payload.type, body: payload.body });
+    await postToAgent({ port, token, ptyId, type: payload.type, body: payload.body });
   },
 });
 
-async function postToEmdash({ port, token, ptyId, type, body }) {
+async function postToAgent({ port, token, ptyId, type, body }) {
   try {
     await fetch(\`http://127.0.0.1:\${port}/hook\`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Emdash-Token': token,
-        'X-Emdash-Pty-Id': ptyId,
-        'X-Emdash-Event-Type': type,
+        'X-Agent-Token': token,
+        'X-Agent-Pty-Id': ptyId,
+        'X-Agent-Event-Type': type,
       },
       signal: AbortSignal.timeout(2000),
       body: JSON.stringify(body),
@@ -55,7 +55,7 @@ function isKiloSessionId(value) {
   return typeof value === 'string' && value.trim().startsWith('ses');
 }
 
-function toEmdashPayload(event) {
+function toAgentPayload(event) {
   if (event.type === 'session.idle') {
     return {
       type: 'notification',

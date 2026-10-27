@@ -1,6 +1,6 @@
 # chat-ui — Technical Architecture
 
-`@emdash/chat-ui` is a framework-agnostic, high-performance chat transcript
+`@agent/chat-ui` is a framework-agnostic, high-performance chat transcript
 renderer built on **SolidJS**. It is designed to render very long, continuously
 streaming AI conversations (10k+ rows) at 60fps without layout thrash.
 

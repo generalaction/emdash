@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import semver from 'semver';
 import { z } from 'zod';
 import { protocolMajor } from './versions';

@@ -1,7 +1,7 @@
 /**
  * Highlighter — ChatHighlighter interface + default factory.
  *
- * chat-ui defines the `ChatHighlighter` contract; consumers (emdash-desktop)
+ * chat-ui defines the `ChatHighlighter` contract; consumers (agent-desktop)
  * can inject their own implementation through ChatRootProps / MountChatOptions.
  * When no highlighter is provided, `createDefaultHighlighter()` is used, which
  * wraps a bundled Shiki singleton with the chat-ui owned em-light/em-dark themes.
@@ -133,7 +133,7 @@ export function computeHighlightRaw(code: string, resolvedLang: string): Highlig
  * Shiki themes and a fixed set of common languages. Used automatically when no
  * highlighter is injected through ChatRootProps.
  *
- * For the emdash desktop app, inject a custom highlighter via the prop instead
+ * For the agent desktop app, inject a custom highlighter via the prop instead
  * so the app-singleton Shiki instance with the full language set is used.
  */
 export function createDefaultHighlighter(): ChatHighlighter {

@@ -1,6 +1,6 @@
-import { createEmitter, type Unsubscribe } from '@emdash/shared';
-import { abortableWait, abortReason } from '@emdash/shared/scheduling';
-import { stableStringify } from '@emdash/shared/util';
+import { createEmitter, type Unsubscribe } from '@agent/shared';
+import { abortableWait, abortReason } from '@agent/shared/scheduling';
+import { stableStringify } from '@agent/shared/util';
 import type {
   EventStreamSnapshotData,
   LiveSnapshot,

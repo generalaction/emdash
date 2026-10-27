@@ -39,7 +39,7 @@ Spec: [measurement decision, track 2](../../performance-footprint/issues/07-meas
   `perfSampled = isEnabled() && Math.random() < 0.05`. Exposed as
   `isPerfSampledSession()` and as `perf_sampled` on `TelemetryStatus` (contract + zod
   updated) so the renderer can ask over the existing RPC.
-- **Shared sampler:** `@emdash/shared/perf/node` (new subpath export) provides
+- **Shared sampler:** `@agent/shared/perf/node` (new subpath export) provides
   `createVitalsSampler` / `startVitalsReporting` — RSS, CPU-percent since last sample,
   event-loop delay p95/max (`monitorEventLoopDelay`), ELU delta, V8 heap stats with the
   detached-context canary, and the ticket-02 spawn counters flattened as `spawns_<purpose>`.

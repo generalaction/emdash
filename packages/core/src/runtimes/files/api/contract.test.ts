@@ -1,4 +1,4 @@
-import { defineContract } from '@emdash/wire/rpc';
+import { defineContract } from '@agent/wire/rpc';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { hostAbsolutePathSchema } from '#primitives/path/api';

@@ -30,14 +30,14 @@ desktop count (24) was the Electron-ABI better-sqlite3 crash masking the real st
       test runs (affected scoping works) — by construction (`nx affected -t … test`), but only
       demonstrable on the first real PR run; watch it
 - [x] Browser project excluded from the CI test run, with a note on the criteria for admitting
-      it later — via `EMDASH_TEST_SKIP_BROWSER=1` (job env), which makes the app and chat-ui
+      it later — via `AGENT_TEST_SKIP_BROWSER=1` (job env), which makes the app and chat-ui
       vitest configs omit their `browser` projects; **scope extension:** chat-ui's `browser`
       project is excluded too, since its `test` script also needs Playwright and CI provisions
       no browsers at all. Admission criteria: add a `pnpm exec playwright install chromium`
       step (plus browser caching), prove the browser projects stable on runners for a few
       weeks, then drop the env var
 - [x] CI test job provisions the native side project despite `--ignore-scripts` —
-      `pnpm --dir apps/emdash-desktop/tooling/node-deps install --frozen-lockfile` step; the
+      `pnpm --dir apps/agent-desktop/tooling/node-deps install --frozen-lockfile` step; the
       side project's own `pnpm-workspace.yaml` allowlists the better-sqlite3 build so the
       system-Node binding is built/downloaded there
 - [ ] Consistency-check wall time remains acceptable on a typical PR — unverifiable without a

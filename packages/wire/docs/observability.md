@@ -1,17 +1,17 @@
 # Observability
 
-`@emdash/wire` exposes observability at the same boundaries that own runtime
+`@agent/wire` exposes observability at the same boundaries that own runtime
 behavior: server calls, client calls, live topic attachment, mutation dedupe,
 live-client resyncs, transport messages, and scope cleanup.
 
 ## Ambient Logger
 
-The logger interface and redaction utilities live in `@emdash/shared/logger`.
+The logger interface and redaction utilities live in `@agent/shared/logger`.
 Wire uses the shared ambient logger to attach call context without passing a
 logger through every domain function:
 
 ```ts
-import { log, runWithLogger } from '@emdash/shared/logger';
+import { log, runWithLogger } from '@agent/shared/logger';
 
 await runWithLogger(logger.child({ requestId: 'r1' }), async () => {
   log.info('handling request');
@@ -21,7 +21,7 @@ await runWithLogger(logger.child({ requestId: 'r1' }), async () => {
 Node entry points can install the `AsyncLocalStorage` store:
 
 ```ts
-import { installAsyncLogContext } from '@emdash/shared/logger/node';
+import { installAsyncLogContext } from '@agent/shared/logger/node';
 
 installAsyncLogContext();
 ```
@@ -32,12 +32,12 @@ logger and scoped synchronous blocks, but it does not preserve context across
 
 ## Instrumentation Hooks
 
-Use `WireInstrumentation` (exported from `@emdash/wire/rpc`) for typed events
+Use `WireInstrumentation` (exported from `@agent/wire/rpc`) for typed events
 that can be adapted to logs, metrics, or tracing. The seam is threaded through
 the public options of `serve()`, `connect()`, replicas, and `expose()`:
 
 ```ts
-import type { WireInstrumentation } from '@emdash/wire/rpc';
+import type { WireInstrumentation } from '@agent/wire/rpc';
 
 const instrumentation: WireInstrumentation = {
   callEnd: (event) => logger.debug('call finished', event),

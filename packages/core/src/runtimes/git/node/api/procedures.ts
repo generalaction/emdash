@@ -1,4 +1,4 @@
-import type { ContractImpl } from '@emdash/wire/rpc';
+import type { ContractImpl } from '@agent/wire/rpc';
 import { gitContract, type GitContract } from '#runtimes/git/api';
 import { credentialOperationEnv } from '#runtimes/git/node/exec/operation-context';
 import type { GitRuntime } from '#runtimes/git/node/git-runtime';

@@ -1,4 +1,4 @@
-import { createController } from '@emdash/wire/rpc';
+import { createController } from '@agent/wire/rpc';
 import { terminalsContract } from '#runtimes/terminals/api';
 import type { TerminalsRuntime } from '#runtimes/terminals/node/runtime/runtime';
 

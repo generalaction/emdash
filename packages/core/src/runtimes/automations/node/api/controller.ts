@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/rpc';
+import { createController, type Controller } from '@agent/wire/rpc';
 import { automationsContract } from '../../api/contract';
 import type { AutomationsRuntime } from '../runtime';
 

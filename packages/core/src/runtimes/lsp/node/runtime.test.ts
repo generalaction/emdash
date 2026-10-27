@@ -3,10 +3,10 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createScope } from '@emdash/shared/concurrency';
-import type { ContractClient } from '@emdash/wire/rpc';
-import { observe, remote } from '@emdash/wire/state';
-import { createTestWire } from '@emdash/wire/testing';
+import { createScope } from '@agent/shared/concurrency';
+import type { ContractClient } from '@agent/wire/rpc';
+import { observe, remote } from '@agent/wire/state';
+import { createTestWire } from '@agent/wire/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseNativeAbsolute } from '#primitives/path/api';
 import { lspContract } from '../api/contract';
@@ -43,7 +43,7 @@ async function attach(
 }
 
 async function fixture() {
-  const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-wire-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'agent-lsp-wire-'));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   await writeFile(
     path.join(root, 'tsconfig.json'),
@@ -83,7 +83,7 @@ describe('LSP runtime over Wire', () => {
   it.each(['saved 😀\r\n', ''])(
     'carries saved content over Wire and stdio while retaining the newer overlay: %j',
     async (savedText) => {
-      const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-save-'));
+      const root = await mkdtemp(path.join(tmpdir(), 'agent-lsp-save-'));
       cleanups.push(() => rm(root, { recursive: true, force: true }));
       const file = path.join(root, 'a.ts');
       await writeFile(file, savedText);

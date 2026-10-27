@@ -1,4 +1,4 @@
-// Verbatim source of the OpenCode emdash notifications plugin, embedded as a string constant.
+// Verbatim source of the OpenCode agent notifications plugin, embedded as a string constant.
 export const OPENCODE_PLUGIN_CONTENT = `\
 /* global fetch, process */
 
@@ -6,10 +6,10 @@ export const OPENCODE_PLUGIN_CONTENT = `\
 // events after an error, interruption, or successful execution.
 const settledSessions = new Set();
 
-export const EmdashNotifications = async () => ({ event: handleOpenCodeEvent });
+export const AgentNotifications = async () => ({ event: handleOpenCodeEvent });
 
 export default {
-  id: 'emdash-notifications',
+  id: 'agent-notifications',
   setup: ({ event }) => {
     const controller = new AbortController();
 
@@ -30,31 +30,31 @@ async function consumeEvents(eventApi, signal) {
 }
 
 async function handleOpenCodeEvent({ event }) {
-  const port = process.env.EMDASH_HOOK_PORT;
-  const token = process.env.EMDASH_HOOK_NONCE ?? process.env.EMDASH_HOOK_TOKEN;
-  const ptyId = process.env.EMDASH_PTY_ID;
+  const port = process.env.AGENT_HOOK_PORT;
+  const token = process.env.AGENT_HOOK_NONCE ?? process.env.AGENT_HOOK_TOKEN;
+  const ptyId = process.env.AGENT_PTY_ID;
   if (!port || !token || !ptyId) return;
 
   const sessionId = getOpenCodeSessionId(event);
-  const payload = toEmdashPayload(event, sessionId ?? ptyId);
+  const payload = toAgentPayload(event, sessionId ?? ptyId);
   if (sessionId) {
-    await postToEmdash({ port, token, ptyId, type: 'session', body: { sessionId } });
+    await postToAgent({ port, token, ptyId, type: 'session', body: { sessionId } });
   }
 
   if (!payload) return;
 
-  await postToEmdash({ port, token, ptyId, type: payload.type, body: payload.body });
+  await postToAgent({ port, token, ptyId, type: payload.type, body: payload.body });
 }
 
-async function postToEmdash({ port, token, ptyId, type, body }) {
+async function postToAgent({ port, token, ptyId, type, body }) {
   try {
     await fetch(\`http://127.0.0.1:\${port}/hook\`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Emdash-Token': token,
-        'X-Emdash-Pty-Id': ptyId,
-        'X-Emdash-Event-Type': type,
+        'X-Agent-Token': token,
+        'X-Agent-Pty-Id': ptyId,
+        'X-Agent-Event-Type': type,
       },
       body: JSON.stringify(body),
     });
@@ -87,7 +87,7 @@ function sessionStatusType(event) {
   return typeof status?.type === 'string' ? status.type : undefined;
 }
 
-function toEmdashPayload(event, sessionId) {
+function toAgentPayload(event, sessionId) {
   if (event.type === 'session.deleted') {
     settledSessions.delete(sessionId);
     return undefined;

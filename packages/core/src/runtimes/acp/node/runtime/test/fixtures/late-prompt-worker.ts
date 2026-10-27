@@ -1,7 +1,7 @@
+import { deferred } from '@agent/shared/testing';
 // Subprocess fixture: runs the ACP runtime under Node's default unhandled-rejection policy, which
 // terminates this process the same way it terminates the shared production ACP worker.
 import type { PromptRequest, PromptResponse } from '@agentclientprotocol/sdk';
-import { deferred } from '@emdash/shared/testing';
 import { makeAcpHarness, makeStartInput } from '../../../acp-test-support';
 import { AcpRuntime } from '../../runtime';
 

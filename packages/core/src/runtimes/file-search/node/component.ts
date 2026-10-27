@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineWireComponent, requireContract } from '@emdash/wire/worker';
+import { defineWireComponent, requireContract } from '@agent/wire/worker';
 import { z } from 'zod';
 import { fileSearchContract } from '#runtimes/file-search/api';
 import { createFileSearchController } from '#runtimes/file-search/node/api/controller';

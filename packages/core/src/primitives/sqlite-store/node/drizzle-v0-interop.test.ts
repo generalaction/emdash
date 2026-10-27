@@ -52,7 +52,7 @@ describe('drizzle v0 migration interop', () => {
     try {
       const handle = store.open(path);
       expect(
-        handle.connection.get<{ tag: string }>('SELECT tag FROM __emdash_migrations')?.tag
+        handle.connection.get<{ tag: string }>('SELECT tag FROM __agent_migrations')?.tag
       ).toBe(migration.tag);
       handle.close();
     } finally {
@@ -73,13 +73,13 @@ describe('drizzle v0 migration interop', () => {
     try {
       const first = store.open(path);
       expect(
-        first.connection.get<{ hash: string }>('SELECT hash FROM __emdash_migrations')?.hash
+        first.connection.get<{ hash: string }>('SELECT hash FROM __agent_migrations')?.hash
       ).toBe(migration.hash);
       first.close();
 
       const second = store.open(path);
       expect(
-        second.connection.get<{ hash: string }>('SELECT hash FROM __emdash_migrations')?.hash
+        second.connection.get<{ hash: string }>('SELECT hash FROM __agent_migrations')?.hash
       ).toBe(migration.hash);
       second.close();
     } finally {
@@ -100,7 +100,7 @@ describe('drizzle v0 migration interop', () => {
     try {
       const handle = store.open(path);
       expect(
-        handle.connection.get<{ tag: string }>('SELECT tag FROM __emdash_migrations')?.tag
+        handle.connection.get<{ tag: string }>('SELECT tag FROM __agent_migrations')?.tag
       ).toBe(migration.tag);
       handle.close();
     } finally {

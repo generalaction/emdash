@@ -1,5 +1,5 @@
-import type { Unsubscribe } from '@emdash/shared';
-import type { ResourceCache } from '@emdash/shared/concurrency';
+import type { Unsubscribe } from '@agent/shared';
+import type { ResourceCache } from '@agent/shared/concurrency';
 import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../../api/channel';
 
 export function resourceCachedLiveSource<K, T>(

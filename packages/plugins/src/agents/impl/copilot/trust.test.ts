@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { provider } from './index';
 

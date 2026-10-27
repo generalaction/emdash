@@ -1,4 +1,4 @@
-import { flushStateTurn, peek } from '@emdash/wire/state';
+import { flushStateTurn, peek } from '@agent/wire/state';
 import { describe, expect, it } from 'vitest';
 import { initialSessionConfigState } from '#runtimes/acp/api';
 import { closedSessionState, createAcpSessionLiveHost } from './live-models';

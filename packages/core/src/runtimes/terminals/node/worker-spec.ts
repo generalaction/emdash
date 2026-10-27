@@ -1,7 +1,7 @@
 import type {
   ProvidedWireComponentRequirements,
   WireComponentWorkerCreateOptions,
-} from '@emdash/wire/worker';
+} from '@agent/wire/worker';
 import type { z } from 'zod';
 import { terminalsComponent, type terminalsComponentConfigSchema } from './component';
 

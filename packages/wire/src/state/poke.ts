@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@emdash/shared';
+import type { Unsubscribe } from '@agent/shared';
 
 export type PokeSubscription = {
   subscribe(listener: () => void): Unsubscribe;

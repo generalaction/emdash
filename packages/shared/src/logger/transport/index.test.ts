@@ -10,7 +10,7 @@ const VENDOR_TOKEN = `ghp_${'a'.repeat(36)}`;
 const tempDirs: string[] = [];
 
 async function tempLogPath(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'emdash-transport-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'agent-transport-test-'));
   tempDirs.push(dir);
   return join(dir, 'test.log');
 }

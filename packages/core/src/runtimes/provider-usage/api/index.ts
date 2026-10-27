@@ -1,4 +1,4 @@
-import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
+import { defineContract, liveModel, liveState, procedure } from '@agent/wire/rpc';
 import { z } from 'zod';
 import { hostUsageSchema } from '#primitives/provider-usage/api';
 

@@ -1,4 +1,4 @@
-import type { Result } from '@emdash/shared';
+import type { Result } from '@agent/shared';
 
 export type WatchEventKind = 'create' | 'update' | 'delete';
 

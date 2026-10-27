@@ -1,4 +1,4 @@
-import { defineWireComponent, requireContract } from '@emdash/wire/worker';
+import { defineWireComponent, requireContract } from '@agent/wire/worker';
 import { z } from 'zod';
 import { NodePtySpawner } from '#services/pty/node';
 import { userShellEnvContract } from '#services/shell-env/api';

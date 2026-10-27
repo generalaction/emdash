@@ -1,5 +1,5 @@
+import type { NormalizedEvent } from '@agent/core/runtimes/acp/api';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { NormalizedEvent } from '@emdash/core/runtimes/acp/api';
 
 /**
  * Claude-specific enrichment of a baseline `NormalizedEvent`.

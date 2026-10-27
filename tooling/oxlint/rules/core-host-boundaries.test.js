@@ -11,13 +11,13 @@ const repoRoot = path.resolve(import.meta.dirname, '../../..');
 test('classifies forbidden host and feature imports', () => {
   assert.equal(isCoreHostSpecifier('@main/lib/logger'), true);
   assert.equal(isCoreHostSpecifier('@renderer/lib/ui/button'), true);
-  assert.equal(isCoreHostSpecifier('@emdash/shared/logger'), false);
+  assert.equal(isCoreHostSpecifier('@agent/shared/logger'), false);
   assert.equal(isMainCoreFeatureSpecifier('@core/features/tasks/node'), true);
   assert.equal(isMainCoreFeatureSpecifier('@core/primitives/tasks/api'), false);
 });
 
 test('reports both process-direction boundaries and respects generated allowlists', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'emdash-core-host-boundaries-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'agent-core-host-boundaries-'));
   try {
     const coreRoot = path.join(tempRoot, 'src/core');
     const mainCoreRoot = path.join(tempRoot, 'src/main/core');
@@ -45,7 +45,7 @@ test('reports both process-direction boundaries and respects generated allowlist
         jsPlugins: [path.join(repoRoot, 'tooling/oxlint/index.js')],
         env: { node: true, es2020: true },
         rules: {
-          'emdash/core-host-boundaries': [
+          'agent/core-host-boundaries': [
             'error',
             {
               allowlistPath,
@@ -77,7 +77,7 @@ test('reports both process-direction boundaries and respects generated allowlist
 
     const coreResult = await runOxlint(configPath, corePath);
     assert.notEqual(coreResult.code, 0);
-    assert.match(coreResult.output, /emdash\(core-host-boundaries\)/);
+    assert.match(coreResult.output, /agent\(core-host-boundaries\)/);
     assert.match(coreResult.output, /@main\/lib\/logger/);
     assert.match(coreResult.output, /@renderer\/lib\/stores\/app-state/);
     assert.match(coreResult.output, /@main\/host\/window/);
@@ -96,7 +96,7 @@ test('reports both process-direction boundaries and respects generated allowlist
 });
 
 test('missing coreToHost key and missing allowlist file both mean no exceptions', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'emdash-core-host-boundaries-strict-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'agent-core-host-boundaries-strict-'));
   try {
     const coreRoot = path.join(tempRoot, 'src/core');
     const corePath = path.join(coreRoot, 'features/tasks/node/controller.ts');
@@ -112,7 +112,7 @@ test('missing coreToHost key and missing allowlist file both mean no exceptions'
         jsPlugins: [path.join(repoRoot, 'tooling/oxlint/index.js')],
         env: { node: true, es2020: true },
         rules: {
-          'emdash/core-host-boundaries': [
+          'agent/core-host-boundaries': [
             'error',
             {
               allowlistPath,

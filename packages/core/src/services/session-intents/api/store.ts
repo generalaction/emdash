@@ -1,4 +1,4 @@
-import { err, ok, type Result, type Serializable } from '@emdash/shared';
+import { err, ok, type Result, type Serializable } from '@agent/shared';
 import { z } from 'zod';
 import type { KeyValueStore } from '#primitives/kv/api';
 import type { SessionIntent, SessionIntentError, SessionIntentScope } from './schemas';

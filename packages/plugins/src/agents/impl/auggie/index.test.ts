@@ -1,8 +1,8 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import {
   buildNestedEntry,
   makeStdinHookCommand,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { AUGGIE_HOOKS_PATH } from './hooks';
 import { provider } from './index';
@@ -11,7 +11,7 @@ const baseContext = {
   cli: 'auggie',
   autoApprove: false,
   initialPrompt: undefined,
-  sessionId: 'emdash-session-id',
+  sessionId: 'agent-session-id',
   providerSessionId: undefined,
   isResuming: false,
   model: '',

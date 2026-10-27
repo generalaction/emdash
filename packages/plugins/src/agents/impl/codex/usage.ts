@@ -1,5 +1,5 @@
-import type { UsageProbeResult, UsageWindow } from '@emdash/core/primitives/provider-usage/api';
-import type { UsageProbeContext } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { UsageProbeResult, UsageWindow } from '@agent/core/primitives/provider-usage/api';
+import type { UsageProbeContext } from '@agent/core/services/agent-plugins/api/plugins';
 import { z } from 'zod';
 import { percent, withUsageRpc } from '../../helpers/usage-probe';
 
@@ -72,7 +72,7 @@ export function codexUsageWindows(raw: unknown): { accountId?: string; windows: 
 export async function probeCodexUsage(ctx: UsageProbeContext): Promise<UsageProbeResult> {
   return withUsageRpc(ctx, async (rpc) => {
     await rpc.request('initialize', {
-      clientInfo: { name: 'emdash_usage', title: 'Emdash Usage', version: '1.0.0' },
+      clientInfo: { name: 'agent_usage', title: 'Agent Usage', version: '1.0.0' },
       capabilities: { experimentalApi: true },
     });
     rpc.notify('initialized');

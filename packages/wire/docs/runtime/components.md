@@ -11,8 +11,8 @@ its config schema, and how to synchronously create a scope-owned instance.
 ## Define A Component
 
 ```ts
-import { defineContract, procedure, createController } from '@emdash/wire/rpc';
-import { defineWireComponent, requireContract } from '@emdash/wire/worker';
+import { defineContract, procedure, createController } from '@agent/wire/rpc';
+import { defineWireComponent, requireContract } from '@agent/wire/worker';
 import { z } from 'zod';
 
 export const clockContract = defineContract({
@@ -98,7 +98,7 @@ Controller factories used by components should return unvalidated controllers. T
 creation or worker serving boundary applies validation once.
 
 ```ts
-import { createScope } from '@emdash/shared/concurrency';
+import { createScope } from '@agent/shared/concurrency';
 
 const scope = createScope({ label: 'app' });
 const clockInstance = clock.create({
@@ -145,9 +145,9 @@ start dependencies themselves.
 Parent process:
 
 ```ts
-import { createScope } from '@emdash/shared/concurrency';
-import { createWireWorkerHost } from '@emdash/wire/worker';
-import { childProcessSpawner } from '@emdash/wire/worker/node';
+import { createScope } from '@agent/shared/concurrency';
+import { createWireWorkerHost } from '@agent/wire/worker';
+import { childProcessSpawner } from '@agent/wire/worker/node';
 import { clock, component as counterComponent } from './component';
 import { workerPath } from './worker-manifest';
 
@@ -180,7 +180,7 @@ await counterClient.increment(undefined);
 Worker entry:
 
 ```ts
-import { runWireComponentWorker } from '@emdash/wire/worker';
+import { runWireComponentWorker } from '@agent/wire/worker';
 import { component as counterComponent } from './component';
 
 void runWireComponentWorker(counterComponent);
@@ -209,9 +209,9 @@ For in-process tests, create the component under a test scope and pass fake depe
 explicitly.
 
 ```ts
-import { createScope } from '@emdash/shared/concurrency';
-import { createController } from '@emdash/wire/rpc';
-import { defineWireComponent } from '@emdash/wire/worker';
+import { createScope } from '@agent/shared/concurrency';
+import { createController } from '@agent/wire/rpc';
+import { defineWireComponent } from '@agent/wire/worker';
 import { z } from 'zod';
 
 const scope = createScope({ label: 'test' });

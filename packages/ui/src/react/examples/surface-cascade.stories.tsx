@@ -1,5 +1,5 @@
-import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_SCOPES, SURFACE_STATUSES } from '@emdash/theme';
-import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
+import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_SCOPES, SURFACE_STATUSES } from '@agent/theme';
+import type { SurfaceScopeName, SurfaceStatusName } from '@agent/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';

@@ -20,16 +20,16 @@ describe('gitEnv', () => {
   });
 
   it('loads the current environment for every git subprocess', async () => {
-    let env = { EMDASH_ENV_REVISION: 'before-refresh' };
+    let env = { AGENT_ENV_REVISION: 'before-refresh' };
     const exec = createGitExec({
       cwd: process.cwd(),
       executable: process.execPath,
       env: async () => env,
     });
 
-    const before = await exec.exec(['-p', 'process.env.EMDASH_ENV_REVISION']);
-    env = { EMDASH_ENV_REVISION: 'after-refresh' };
-    const after = await exec.exec(['-p', 'process.env.EMDASH_ENV_REVISION']);
+    const before = await exec.exec(['-p', 'process.env.AGENT_ENV_REVISION']);
+    env = { AGENT_ENV_REVISION: 'after-refresh' };
+    const after = await exec.exec(['-p', 'process.env.AGENT_ENV_REVISION']);
 
     expect(before.stdout.trim()).toBe('before-refresh');
     expect(after.stdout.trim()).toBe('after-refresh');

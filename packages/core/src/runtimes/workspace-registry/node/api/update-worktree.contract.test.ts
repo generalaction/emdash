@@ -2,8 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ManualClock } from '@emdash/shared/testing';
-import { createTestWire, type TestWire } from '@emdash/wire/testing';
+import { ManualClock } from '@agent/shared/testing';
+import { createTestWire, type TestWire } from '@agent/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
@@ -124,7 +124,7 @@ describe('workspace registry updateWorktree', () => {
       'new work\n'
     );
     // Hygiene: no FETCH_HEAD write, no private temp refs left behind.
-    expect(git(repoPath, 'for-each-ref', 'refs/emdash')).toBe('');
+    expect(git(repoPath, 'for-each-ref', 'refs/agent')).toBe('');
     const gitDir = git(worktree.path, 'rev-parse', '--absolute-git-dir');
     await expect(fs.stat(path.join(gitDir, 'FETCH_HEAD'))).rejects.toThrow();
 

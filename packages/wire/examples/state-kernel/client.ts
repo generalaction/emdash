@@ -1,6 +1,6 @@
-import { createScope } from '@emdash/shared/concurrency';
-import { client, connect, memoryTransportPair, serve } from '@emdash/wire/rpc';
-import { flushStateTurn, observe, optimistic, remote, snapshot } from '@emdash/wire/state';
+import { createScope } from '@agent/shared/concurrency';
+import { client, connect, memoryTransportPair, serve } from '@agent/wire/rpc';
+import { flushStateTurn, observe, optimistic, remote, snapshot } from '@agent/wire/state';
 import { api, createCounterController, createCounterProvider } from './server';
 
 async function main(): Promise<void> {

@@ -196,7 +196,7 @@ describe('executeCreateWorktree gitSetup', () => {
     expect(git(path.join(root, 'pr-wt'), 'branch', '--show-current')).toBe('pr/7/fix');
     expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
     expect(git(repoPath, 'config', 'branch.pr/7/fix.merge')).toBe('refs/pull/7/head');
-    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.agent-pr-url')).toBe(
       'https://github.com/acme/repo/pull/7'
     );
   });
@@ -227,7 +227,7 @@ describe('executeCreateWorktree gitSetup', () => {
     // The replay rule: refs/heads/<branch> is never force-updated by the host.
     expect(git(repoPath, 'rev-parse', 'refs/heads/pr/7/fix')).toBe(localOid);
     expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
-    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.agent-pr-url')).toBe(
       'https://github.com/acme/repo/pull/7'
     );
   });

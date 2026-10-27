@@ -1,7 +1,7 @@
-import type { Result, Serializable } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
-import type { Clock } from '@emdash/shared/scheduling';
+import type { Result, Serializable } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
+import type { Logger } from '@agent/shared/logger';
+import type { Clock } from '@agent/shared/scheduling';
 import { z } from 'zod';
 import type {
   ReportProviderSessionIdInput,

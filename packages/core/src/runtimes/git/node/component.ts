@@ -1,4 +1,4 @@
-import { defineWireComponent, requireContract } from '@emdash/wire/worker';
+import { defineWireComponent, requireContract } from '@agent/wire/worker';
 import { z } from 'zod';
 import { gitContract } from '#runtimes/git/api';
 import { createGitController } from '#runtimes/git/node/api/controller';

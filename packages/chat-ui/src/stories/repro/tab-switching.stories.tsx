@@ -6,7 +6,7 @@
  *   RangeError: Maximum call stack size exceeded
  *
  * This story replicates the REAL desktop lifecycle and the REAL ACP data shape
- * (verified from apps/emdash-desktop/.emdash-logs/emdash.log), which earlier
+ * (verified from apps/agent-desktop/.agent-logs/agent.log), which earlier
  * versions of this story got wrong.
  *
  * Lifecycle (matches desktop):
@@ -25,7 +25,7 @@
  * Data (matches desktop ACP payloads):
  *   Claude emits a `thinking` update and the following `assistant message` update
  *   with the SAME messageId, e.g. both `msg_01Vy2P9WJkbSNhiN2dB83oxs`
- *   (emdash.log line 147, seq 1 & 2). Through mapAgentUpdate + applyTurnEvent this
+ *   (agent.log line 147, seq 1 & 2). Through mapAgentUpdate + applyTurnEvent this
  *   produces TWO ChatItems that share one `id` — one `kind:'thinking'` and one
  *   `kind:'message'`. Plans always use the constant id `'plan'`, so repeated plans
  *   across turns also duplicate. chat-ui keys per-row state by item id

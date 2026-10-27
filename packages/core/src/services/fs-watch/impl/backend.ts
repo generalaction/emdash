@@ -1,4 +1,4 @@
-import type { Scope } from '@emdash/shared/concurrency';
+import type { Scope } from '@agent/shared/concurrency';
 import type { WatchEvent } from '#services/fs-watch/api';
 
 export type WatchKey = {

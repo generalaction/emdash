@@ -29,7 +29,7 @@ test('classifies against a custom core src root', () => {
 });
 
 test('reports tsx files in api surfaces once and respects allowlists', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'emdash-no-tsx-in-api-'));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'agent-no-tsx-in-api-'));
   try {
     const coreRoot = path.join(tempRoot, 'src/core');
     const violatingPath = path.join(coreRoot, 'features/tasks/api/browser/task-badge.tsx');
@@ -52,7 +52,7 @@ test('reports tsx files in api surfaces once and respects allowlists', async () 
         jsPlugins: [path.join(repoRoot, 'tooling/oxlint/index.js')],
         env: { browser: true, es2020: true },
         rules: {
-          'emdash/no-tsx-in-api': [
+          'agent/no-tsx-in-api': [
             'error',
             {
               allowlistPath,
@@ -70,9 +70,9 @@ test('reports tsx files in api surfaces once and respects allowlists', async () 
 
     const violatingResult = await runOxlint(configPath, violatingPath);
     assert.notEqual(violatingResult.code, 0);
-    assert.match(violatingResult.output, /emdash\(no-tsx-in-api\)/);
+    assert.match(violatingResult.output, /agent\(no-tsx-in-api\)/);
     assert.match(violatingResult.output, /React components belong in browser\//);
-    assert.equal(violatingResult.output.match(/emdash\(no-tsx-in-api\)/g).length, 1);
+    assert.equal(violatingResult.output.match(/agent\(no-tsx-in-api\)/g).length, 1);
 
     const allowlistedResult = await runOxlint(configPath, allowlistedPath);
     assert.equal(allowlistedResult.code, 0, allowlistedResult.output);

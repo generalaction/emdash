@@ -1,11 +1,11 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   npmDependency,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildAuggieHookConfig } from './hooks';
 import { icon } from './icon';

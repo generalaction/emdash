@@ -6,7 +6,7 @@ import {
   liveModel,
   liveState,
   mutation,
-} from '@emdash/wire/rpc';
+} from '@agent/wire/rpc';
 import { z } from 'zod';
 import { gitFileContentStateSchema } from '#runtimes/git/api/checkout/states/content';
 import { checkoutHeadStateSchema } from '#runtimes/git/api/checkout/states/head';

@@ -1,5 +1,5 @@
-import type { ProvidedWireComponentRequirements } from '@emdash/wire/worker';
-import type { WireComponentWorkerCreateOptions } from '@emdash/wire/worker';
+import type { ProvidedWireComponentRequirements } from '@agent/wire/worker';
+import type { WireComponentWorkerCreateOptions } from '@agent/wire/worker';
 import type { z } from 'zod';
 import { gitComponent, type gitComponentConfigSchema } from './component';
 import { gitRuntimeEnv } from './non-interactive-env';

@@ -1,7 +1,7 @@
-import { err, ok, type Result } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import type { PluginRegistry } from '@emdash/shared/plugins';
-import { compose, deduplicate } from '@emdash/shared/requests';
+import { err, ok, type Result } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
+import type { PluginRegistry } from '@agent/shared/plugins';
+import { compose, deduplicate } from '@agent/shared/requests';
 import {
   buildAllowlistedAgentEnv,
   mergeAgentEnvLayers,

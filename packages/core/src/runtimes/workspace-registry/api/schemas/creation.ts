@@ -29,7 +29,7 @@ export const workspaceGitSetupSchema = z.object({
   fetchBranch: z.object({ remote: z.string().min(1), sourceRef: z.string().min(1) }).optional(),
   /** Upstream tracking, written as `branch.<branch>.remote` / `branch.<branch>.merge`. */
   upstream: z.object({ remote: z.string().min(1), mergeRef: z.string().min(1) }).optional(),
-  /** PR breadcrumb, written as `branch.<branch>.emdash-pr-url`. */
+  /** PR breadcrumb, written as `branch.<branch>.agent-pr-url`. */
   breadcrumb: z.object({ prUrl: z.string().min(1) }).optional(),
   /** Host-local ref-follow policy, recorded durably (consumed by the follow loop). */
   followRef: z.boolean().optional(),

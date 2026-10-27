@@ -1,6 +1,6 @@
 import { Readable, Writable } from 'node:stream';
+import type { AcpClientFactory } from '@agent/core/services/agent-plugins/api/plugins';
 import type { Agent } from '@agentclientprotocol/sdk';
-import type { AcpClientFactory } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { pluginRegistry } from '../../registry';
 import { enrichCodexUpdate } from './acp-enrich';

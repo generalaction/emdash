@@ -1,4 +1,4 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok } from '@agent/shared';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import { mapWithConcurrency } from '../../../integrations/helpers/map-with-concurrency';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';

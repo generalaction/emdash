@@ -11,7 +11,7 @@ Spec: `../../workbench-state-architecture/spec.md` (§Sync contract, §Shared bi
 simplest bidirectional surface (one boolean, one panel), chosen first to shake out
 the binding in production.
 
-In `apps/emdash-desktop/src/core/features/tasks/browser/view/task-main-column.tsx`:
+In `apps/agent-desktop/src/core/features/tasks/browser/view/task-main-column.tsx`:
 
 - Replace the store→panel `useEffect` → `expand()/collapse()` (L38–44) and the
   panel→store `onResize` write-back with its first-call skip (L95–98) with

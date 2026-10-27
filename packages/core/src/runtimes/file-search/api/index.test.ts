@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as fileSearch from './index';
 
-describe('@emdash/core/runtimes/file-search/api public exports', () => {
+describe('@agent/core/runtimes/file-search/api public exports', () => {
   it('exports the Wire contract and portable schemas', () => {
     const exported = fileSearch as Record<string, unknown>;
 

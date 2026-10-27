@@ -7,7 +7,7 @@ exports[`Claude ACP fixture parsing > agents 1`] = `
     "background": true,
     "launchTurnId": "677167db-64b7-4193-8470-302e96b223a6:turn:10",
     "name": "Agent",
-    "outputFile": "/private/tmp/claude-501/-private-tmp-emdash-acp-fixture-1783037827823/677167db-64b7-4193-8470-302e96b223a6/tasks/ad0a1acabfb4a0dc1.output",
+    "outputFile": "/private/tmp/claude-501/-private-tmp-agent-acp-fixture-1783037827823/677167db-64b7-4193-8470-302e96b223a6/tasks/ad0a1acabfb4a0dc1.output",
     "startedAt": 1577836800000,
     "status": "running",
     "toolCallId": "toolu_01N3Y7C4y7eLVpC11EJGC4oA",
@@ -283,7 +283,7 @@ SKIP only when another provider is being worked on (overrides all triggers): Ope
 
 exports[`Claude ACP fixture parsing > plan 1`] = `null`;
 
-exports[`Claude ACP fixture parsing > title 1`] = `"Understand what emdash is"`;
+exports[`Claude ACP fixture parsing > title 1`] = `"Understand what agent is"`;
 
 exports[`Claude ACP fixture parsing > transcript 1`] = `
 {
@@ -298,7 +298,7 @@ exports[`Claude ACP fixture parsing > transcript 1`] = `
           "kind": "message",
           "role": "user",
           "seq": 0,
-          "text": "In one sentence, without reading any files, what is emdash?",
+          "text": "In one sentence, without reading any files, what is agent?",
         },
         {
           "durationMs": 0,
@@ -308,10 +308,10 @@ exports[`Claude ACP fixture parsing > transcript 1`] = `
           "seq": 1,
           "startedAt": 1577836800000,
           "status": "done",
-          "text": "The user is asking me to describe emdash in one sentence without reading any files. However, I have already been provided with context in the CLAUDE.md and AGENTS.md files that were included in the system reminder.
+          "text": "The user is asking me to describe agent in one sentence without reading any files. However, I have already been provided with context in the CLAUDE.md and AGENTS.md files that were included in the system reminder.
 
 From the project instructions provided:
-"Emdash is a local-first, cross-platform Electron app for running multiple AI coding agents in parallel. Each task is isolated in its own Git worktree and can run locally or over SSH, while the desktop app coordinates provider CLIs, ACP chat sessions, terminal sessions, issue and PR integrations, diff review, and release packaging."
+"Agent is a local-first, cross-platform Electron app for running multiple AI coding agents in parallel. Each task is isolated in its own Git worktree and can run locally or over SSH, while the desktop app coordinates provider CLIs, ACP chat sessions, terminal sessions, issue and PR integrations, diff review, and release packaging."
 
 The user said "without reading any files" but I've been given this context in the system reminder already, so I can use it. They're asking for a concise one-sentence summary.
 
@@ -322,7 +322,7 @@ Let me provide a clean, concise one-liner based on what I've been given.",
           "kind": "message",
           "role": "assistant",
           "seq": 2,
-          "text": "Emdash is a local-first, cross-platform Electron app that runs multiple AI coding agents in parallel, each isolated in its own Git worktree, coordinating with provider CLIs, chat sessions, terminals, and GitHub/GitLab integrations.",
+          "text": "Agent is a local-first, cross-platform Electron app that runs multiple AI coding agents in parallel, each isolated in its own Git worktree, coordinating with provider CLIs, chat sessions, terminals, and GitHub/GitLab integrations.",
         },
       ],
       "seq": 0,
@@ -356,10 +356,10 @@ Let me read the AGENTS.md file first to get the Repository Structure section.",
         {
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:1:tool:toolu_019KBHfhSqsvBKYbM3VbKBJB",
           "kind": "read-tool-call",
-          "path": "/private/tmp/emdash-acp-fixture-1783037827823/AGENTS.md",
+          "path": "/private/tmp/agent-acp-fixture-1783037827823/AGENTS.md",
           "seq": 2,
           "status": "done",
-          "title": "Read /private/tmp/emdash-acp-fixture-1783037827823/AGENTS.md (1 - 50)",
+          "title": "Read /private/tmp/agent-acp-fixture-1783037827823/AGENTS.md (1 - 50)",
           "toolCallId": "toolu_019KBHfhSqsvBKYbM3VbKBJB",
         },
         {
@@ -372,7 +372,7 @@ Let me read the AGENTS.md file first to get the Repository Structure section.",
           "status": "done",
           "text": "Good, I've read the Repository Structure section. Now I need to distill it into exactly 3 bullet points. Let me look at the key points:
 
-1. It's a pnpm workspace monorepo with the Electron app in \`apps/emdash-desktop/\` and shared packages under \`packages/\`
+1. It's a pnpm workspace monorepo with the Electron app in \`apps/agent-desktop/\` and shared packages under \`packages/\`
 2. The repo root contains configuration, GitHub workflows, agent docs, and the workspace definition
 3. Inside the app are the main process, renderer, shared types/IPC, database migrations, and tooling
 
@@ -385,9 +385,9 @@ Let me make 3 concise bullet points that capture the essential structure:",
           "seq": 4,
           "text": "**Repository Structure (3 bullet points):**
 
-- **pnpm workspace monorepo** with Electron app in \`apps/emdash-desktop/\` and shared packages (\`chat-ui\`, \`core\`, \`plugins\`, \`shared\`, \`ui\`) under \`packages/\`
+- **pnpm workspace monorepo** with Electron app in \`apps/agent-desktop/\` and shared packages (\`chat-ui\`, \`core\`, \`plugins\`, \`shared\`, \`ui\`) under \`packages/\`
 - **Repo root** contains \`.claude/\`, \`.github/\` (workflows), \`agents/\` (architecture docs), and workspace configuration (\`pnpm-workspace.yaml\`, \`package.json\`, \`nx.json\`)
-- **App internals** (\`apps/emdash-desktop/\`) include main process (\`src/main/\`), vertical slices (\`src/core/\`), the React composition shell (\`src/renderer/\`), preload bridge, and database migrations (\`drizzle/\`)",
+- **App internals** (\`apps/agent-desktop/\`) include main process (\`src/main/\`), vertical slices (\`src/core/\`), the React composition shell (\`src/renderer/\`), preload bridge, and database migrations (\`drizzle/\`)",
         },
       ],
       "seq": 1,
@@ -416,32 +416,32 @@ Let me make 3 concise bullet points that capture the essential structure:",
 Let me search for it using grep.",
         },
         {
-          "command": "grep -rn "toAgentUpdate" /private/tmp/emdash-acp-fixture-1783037827823 --include="*.ts" --include="*.tsx" | head -20",
+          "command": "grep -rn "toAgentUpdate" /private/tmp/agent-acp-fixture-1783037827823 --include="*.ts" --include="*.tsx" | head -20",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:2:tool:toolu_015T1fvNzvcrkCDuAoEEMf1p",
           "kind": "execute-tool-call",
-          "outputText": "/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/agents/plugins/capabilities/acp.ts:85:   * \`toAgentUpdate\` conversion. Receives the already-decoded \`AgentUpdate\`
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/agents/plugins/capabilities/acp.ts:90:   * Omit for standard-ACP passthrough — \`toAgentUpdate\` handles baseline decoding.
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.test.ts:902:  it('baseline toAgentUpdate runs even without a provider enrich', async () => {
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-agent-connection.ts:7:import { toAgentUpdate } from './agent-update';
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-agent-connection.ts:79:    const base = toAgentUpdate(raw);
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts:5: * process by \`toAgentUpdate\` before being stored in \`AcpTurn.updates\` or emitted
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts:122:export function toAgentUpdate(update: SessionUpdate): AgentUpdate {
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/index.ts:45:export { toAgentUpdate } from './agent-update';
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.ts:58:   * Composed of the baseline \`toAgentUpdate\` plus the optional provider \`enrich\` hook.
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:3:import { toAgentUpdate } from './agent-update';
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:30:describe('toAgentUpdate', () => {
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:34:    const result = toAgentUpdate(agentText('hello', 'msg-1'));
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:44:    const result = toAgentUpdate(userText('world', 'msg-2'));
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:54:    const result = toAgentUpdate(agentText('hi'));
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:63:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:71:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:77:    const result = toAgentUpdate(agentThought('pondering'));
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:90:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:103:    expect(toAgentUpdate(update)).toStrictEqual({
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:122:    const result = toAgentUpdate(update);",
+          "outputText": "/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/agents/plugins/capabilities/acp.ts:85:   * \`toAgentUpdate\` conversion. Receives the already-decoded \`AgentUpdate\`
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/agents/plugins/capabilities/acp.ts:90:   * Omit for standard-ACP passthrough — \`toAgentUpdate\` handles baseline decoding.
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.test.ts:902:  it('baseline toAgentUpdate runs even without a provider enrich', async () => {
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/acp-agent-connection.ts:7:import { toAgentUpdate } from './agent-update';
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/acp-agent-connection.ts:79:    const base = toAgentUpdate(raw);
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts:5: * process by \`toAgentUpdate\` before being stored in \`AcpTurn.updates\` or emitted
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts:122:export function toAgentUpdate(update: SessionUpdate): AgentUpdate {
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/index.ts:45:export { toAgentUpdate } from './agent-update';
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.ts:58:   * Composed of the baseline \`toAgentUpdate\` plus the optional provider \`enrich\` hook.
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:3:import { toAgentUpdate } from './agent-update';
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:30:describe('toAgentUpdate', () => {
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:34:    const result = toAgentUpdate(agentText('hello', 'msg-1'));
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:44:    const result = toAgentUpdate(userText('world', 'msg-2'));
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:54:    const result = toAgentUpdate(agentText('hi'));
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:63:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:71:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:77:    const result = toAgentUpdate(agentThought('pondering'));
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:90:    expect(toAgentUpdate(update)).toStrictEqual({ kind: 'ignored' });
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:103:    expect(toAgentUpdate(update)).toStrictEqual({
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.test.ts:122:    const result = toAgentUpdate(update);",
           "seq": 2,
           "status": "done",
-          "title": "grep -rn "toAgentUpdate" /private/tmp/emdash-acp-fixture-1783037827823 --include="*.ts" --include="*.tsx" | head -20",
+          "title": "grep -rn "toAgentUpdate" /private/tmp/agent-acp-fixture-1783037827823 --include="*.ts" --include="*.tsx" | head -20",
           "toolCallId": "toolu_015T1fvNzvcrkCDuAoEEMf1p",
         },
         {
@@ -493,19 +493,19 @@ The grep output shows \`export function toAgentUpdate(update: SessionUpdate): Ag
             {
               "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:tool:toolu_01EQQ7MeGGtaLE3iWWQR49hK",
               "kind": "read-tool-call",
-              "path": "/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts",
+              "path": "/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts",
               "seq": 2,
               "status": "done",
-              "title": "Read /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts",
+              "title": "Read /private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/agent-update.ts",
               "toolCallId": "toolu_01EQQ7MeGGtaLE3iWWQR49hK",
             },
             {
               "id": "677167db-64b7-4193-8470-302e96b223a6:turn:3:tool:toolu_01FKwN7A4ztxfhDKm2qSFUyg",
               "kind": "read-tool-call",
-              "path": "/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
+              "path": "/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
               "seq": 3,
               "status": "done",
-              "title": "Read /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
+              "title": "Read /private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
               "toolCallId": "toolu_01FKwN7A4ztxfhDKm2qSFUyg",
             },
           ],
@@ -584,7 +584,7 @@ Let me write this in two sentences.",
 
 **5. Downstream consumers**
 - [ ] \`packages/core/src/acp/session-machine.ts\` — \`foo\` flows through \`Updated\` events and \`update\` Effects unchanged (no code change needed, but verify no exhaustive destructuring drops it).
-- [ ] Trace \`AgentUpdate\` consumers: \`src/core/features/conversations/browser/acp/\` (maps updates into \`@emdash/chat-ui\`) and \`packages/chat-ui/\` renderer — decide whether \`foo\` needs rendering or just passthrough.
+- [ ] Trace \`AgentUpdate\` consumers: \`src/core/features/conversations/browser/acp/\` (maps updates into \`@agent/chat-ui\`) and \`packages/chat-ui/\` renderer — decide whether \`foo\` needs rendering or just passthrough.
 - [ ] Check \`SessionSnapshot\` / IPC serialization path (\`state.ts\`) — an optional string serializes fine, but confirm no schema/validation rejects unknown fields.
 
 **6. Tests**
@@ -593,7 +593,7 @@ Let me write this in two sentences.",
 
 **7. Verify**
 - [ ] \`pnpm run typecheck\` (catches every exhaustive switch/spread that needs updating).
-- [ ] \`pnpm run test\` (or focused \`@emdash/core\` + \`chat-ui\` targets).
+- [ ] \`pnpm run test\` (or focused \`@agent/core\` + \`chat-ui\` targets).
 - [ ] \`pnpm run lint\` / \`pnpm run format\`.
 
 The two load-bearing spots are the union definition and \`toAgentUpdate\` (both in \`agent-update.ts\`); everything else is passthrough plus deciding whether the renderer should surface \`foo\`.",
@@ -687,12 +687,12 @@ ui",
         {
           "content": "# ACP fixture notes
 ",
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7:tool:toolu_01JeGgFpDENi9UKyGyURTM6X:/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:7:tool:toolu_01JeGgFpDENi9UKyGyURTM6X:/private/tmp/agent-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
           "kind": "create-file-tool-call",
-          "path": "/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
+          "path": "/private/tmp/agent-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
           "seq": 1,
           "status": "done",
-          "title": "Write /private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
+          "title": "Write /private/tmp/agent-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
           "toolCallId": "toolu_01JeGgFpDENi9UKyGyURTM6X",
         },
         {
@@ -717,12 +717,12 @@ ui",
           "text": "Append the line \`generated by fixture script\` to \`.acp-fixture-scratch/NOTES.md\`.",
         },
         {
-          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8:tool:toolu_01SdTsjTARBJXjkPGAa31kzt:/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
+          "id": "677167db-64b7-4193-8470-302e96b223a6:turn:8:tool:toolu_01SdTsjTARBJXjkPGAa31kzt:/private/tmp/agent-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
           "kind": "modify-file-tool-call",
           "newText": "# ACP fixture notes
 generated by fixture script",
           "oldText": "# ACP fixture notes",
-          "path": "/private/tmp/emdash-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
+          "path": "/private/tmp/agent-acp-fixture-1783037827823/.acp-fixture-scratch/NOTES.md",
           "seq": 1,
           "status": "done",
           "title": "Edit file",
@@ -820,19 +820,19 @@ drwxr-xr-x@ 29 davidkonopka  wheel  928 Jul  2 17:18 ..",
           "text": "Explain the ACP session lifecycle in detail, using markdown headings for each phase and including a fenced code block showing an example sequence of events.",
         },
         {
-          "command": "grep -rl "stopReason" /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp",
+          "command": "grep -rl "stopReason" /private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:tool:toolu_01AY8xD2Y4FtSd1YEV7FdL91",
           "kind": "execute-tool-call",
-          "outputText": "/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/state.ts
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-test-support.ts
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.test.ts
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/session-machine.test.ts
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.ts
-/private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
+          "outputText": "/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/state.ts
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/acp-test-support.ts
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.test.ts
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/session-machine.test.ts
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/acp-session-runtime.ts
+/private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/session-machine.ts",
           "parentToolCallId": "toolu_01N3Y7C4y7eLVpC11EJGC4oA",
           "seq": 1,
           "status": "done",
-          "title": "grep -rl "stopReason" /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp",
+          "title": "grep -rl "stopReason" /private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp",
           "toolCallId": "toolu_01AY8xD2Y4FtSd1YEV7FdL91",
         },
         {
@@ -919,7 +919,7 @@ Note how \`decide\` gates the \`Prompt\`/\`ResolvePermission\` **commands** (rej
 Separately — the background subagent finished its \`stopReason\` file search; want me to relay its summary?",
         },
         {
-          "command": "for f in state.ts acp-test-support.ts acp-session-runtime.test.ts session-machine.test.ts acp-session-runtime.ts session-machine.ts; do echo "===== $f ====="; head -30 /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/$f; echo; done",
+          "command": "for f in state.ts acp-test-support.ts acp-session-runtime.test.ts session-machine.test.ts acp-session-runtime.ts session-machine.ts; do echo "===== $f ====="; head -30 /private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/$f; echo; done",
           "id": "677167db-64b7-4193-8470-302e96b223a6:turn:11:tool:toolu_01HiEJYjpi7zXdZACwyuVM4Q",
           "kind": "execute-tool-call",
           "outputText": "===== state.ts =====
@@ -965,7 +965,7 @@ export interface SessionUsage {
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
-import { noopLogger } from '@emdash/shared/logger';
+import { noopLogger } from '@agent/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
@@ -1019,7 +1019,7 @@ describe('AcpSessionRuntime – pooling', () => {
   });
 
 ===== session-machine.test.ts =====
-import { isErr, isOk } from '@emdash/shared';
+import { isErr, isOk } from '@agent/shared';
 import { describe, expect, it } from 'vitest';
 import type { AgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
@@ -1076,8 +1076,8 @@ import type {
   WriteTextFileRequest,
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import type { Result } from '@emdash/shared';
-import { isErr, LifecycleMap, ok, toSerializedError } from '@emdash/shared';
+import type { Result } from '@agent/shared';
+import { isErr, LifecycleMap, ok, toSerializedError } from '@agent/shared';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import { createAcpAgentConnection } from './acp-agent-connection';
 import { AgentTerminalManager } from './agent-ports/terminal-manager';
@@ -1116,7 +1116,7 @@ import type {",
           "parentToolCallId": "toolu_01N3Y7C4y7eLVpC11EJGC4oA",
           "seq": 3,
           "status": "done",
-          "title": "for f in state.ts acp-test-support.ts acp-session-runtime.test.ts session-machine.test.ts acp-session-runtime.ts session-machine.ts; do echo "===== $f ====="; head -30 /private/tmp/emdash-acp-fixture-1783037827823/packages/core/src/acp/$f; echo; done",
+          "title": "for f in state.ts acp-test-support.ts acp-session-runtime.test.ts session-machine.test.ts acp-session-runtime.ts session-machine.ts; do echo "===== $f ====="; head -30 /private/tmp/agent-acp-fixture-1783037827823/packages/core/src/acp/$f; echo; done",
           "toolCallId": "toolu_01HiEJYjpi7zXdZACwyuVM4Q",
         },
       ],

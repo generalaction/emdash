@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@emdash/shared';
+import type { Unsubscribe } from '@agent/shared';
 import type { Controller } from '../controller';
 import { createWireSessionHub } from '../sessions';
 import { portTransport, type PortLike } from './port';

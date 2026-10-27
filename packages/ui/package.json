@@ -1,10 +1,10 @@
 {
-  "name": "@emdash/ui",
+  "name": "@agent/ui",
   "version": "1.0.0",
-  "description": "Shared UI components and theme system for Emdash",
+  "description": "Shared UI components and theme system for Agent",
   "license": "Apache-2.0",
   "author": {
-    "name": "Emdash Contributors",
+    "name": "Agent Contributors",
     "email": "support@emdash.sh"
   },
   "files": [
@@ -93,9 +93,9 @@
   "scripts": {
     "dev": "vite build --config vite.lib.config.ts --watch",
     "build": "vite build --config vite.lib.config.ts",
-    "test": "pnpm exec nx test @emdash/ui",
-    "build:theme": "pnpm --filter @emdash/theme run build:theme",
-    "watch:theme": "pnpm --filter @emdash/theme run watch:theme",
+    "test": "pnpm exec nx test @agent/ui",
+    "build:theme": "pnpm --filter @agent/theme run build:theme",
+    "watch:theme": "pnpm --filter @agent/theme run watch:theme",
     "storybook": "node ../../tooling/scripts/ensure-packages-built.mjs && storybook dev -p 6006 -c .storybook",
     "build:storybook": "storybook build -c .storybook",
     "lint": "oxlint src",
@@ -104,10 +104,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@agent/chat-ui": "workspace:*",
+    "@agent/shared": "workspace:*",
+    "@agent/theme": "workspace:*",
     "@base-ui/react": "^1.3.0",
-    "@emdash/chat-ui": "workspace:*",
-    "@emdash/shared": "workspace:*",
-    "@emdash/theme": "workspace:*",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@shikijs/langs": "^4.2.0",
     "@tiptap/core": "^3.26.1",

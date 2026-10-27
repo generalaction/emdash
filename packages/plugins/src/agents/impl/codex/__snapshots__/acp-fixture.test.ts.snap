@@ -212,7 +212,7 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
           "kind": "message",
           "role": "user",
           "seq": 0,
-          "text": "In one sentence, without reading any files, what is emdash?",
+          "text": "In one sentence, without reading any files, what is agent?",
         },
         {
           "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:0:message:assistant:generated:0",
@@ -339,12 +339,12 @@ I think I need to form an answer after reviewing the relevant information. Using
               "kind": "read-tool-call",
               "locations": [
                 {
-                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts",
+                  "path": "/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts",
                 },
               ],
               "seq": 3,
               "status": "done",
-              "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts'",
+              "title": "Read file '/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts'",
               "toolCallId": "call_8Xe7CkBGWr56UnafQajA6tJm",
             },
             {
@@ -352,12 +352,12 @@ I think I need to form an answer after reviewing the relevant information. Using
               "kind": "read-tool-call",
               "locations": [
                 {
-                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
+                  "path": "/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
                 },
               ],
               "seq": 4,
               "status": "done",
-              "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
+              "title": "Read file '/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
               "toolCallId": "call_x033kE3l2l9CKnHIIMOL1MlJ",
             },
             {
@@ -365,12 +365,12 @@ I think I need to form an answer after reviewing the relevant information. Using
               "kind": "read-tool-call",
               "locations": [
                 {
-                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
+                  "path": "/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
                 },
               ],
               "seq": 5,
               "status": "done",
-              "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
+              "title": "Read file '/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
               "toolCallId": "call_cJhMBU98lbEuPzKi0p4PHRCt",
             },
           ],
@@ -393,12 +393,12 @@ I think I need to form an answer after reviewing the relevant information. Using
           "kind": "read-tool-call",
           "locations": [
             {
-              "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
+              "path": "/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
             },
           ],
           "seq": 7,
           "status": "done",
-          "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
+          "title": "Read file '/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
           "toolCallId": "call_EpbDQ39xyA1D5C7qfQS7LEVO",
         },
         {
@@ -450,12 +450,12 @@ I need to respond with just a plan since the user is asking for a checklist or t
               "kind": "read-tool-call",
               "locations": [
                 {
-                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts",
+                  "path": "/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts",
                 },
               ],
               "seq": 3,
               "status": "done",
-              "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts'",
+              "title": "Read file '/tmp/agent-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts'",
               "toolCallId": "call_L8H2vFMxU8sqVLUvHG38FwYj",
             },
             {
@@ -463,12 +463,12 @@ I need to respond with just a plan since the user is asking for a checklist or t
               "kind": "read-tool-call",
               "locations": [
                 {
-                  "path": "/tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts",
+                  "path": "/tmp/agent-acp-fixture-1783042314643/apps/agent-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts",
                 },
               ],
               "seq": 4,
               "status": "done",
-              "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts'",
+              "title": "Read file '/tmp/agent-acp-fixture-1783042314643/apps/agent-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts'",
               "toolCallId": "call_4aV1pRthSPJZGbDql5SiEfWG",
             },
             {
@@ -624,9 +624,9 @@ I'm thinking about how to edit a file effectively. I need to use apply_patch, bu
         {
           "content": "# ACP fixture notes
 ",
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:tool:call_5G3PTdzqpvPGdY6lSvFGLGJH:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:7:tool:call_5G3PTdzqpvPGdY6lSvFGLGJH:/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "kind": "create-file-tool-call",
-          "path": "/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "path": "/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "seq": 3,
           "status": "done",
           "title": "Editing files",
@@ -661,14 +661,14 @@ I'm thinking about how to edit a file effectively. I need to use apply_patch, bu
           "text": "I’m appending the requested line to the existing notes file and leaving the original content intact.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:tool:call_tXyN5u55PGr31y1rBSbwDPRP:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:8:tool:call_tXyN5u55PGr31y1rBSbwDPRP:/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "kind": "modify-file-tool-call",
           "newText": "# ACP fixture notes
 generated by fixture script
 ",
           "oldText": "# ACP fixture notes
 ",
-          "path": "/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "path": "/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "seq": 2,
           "status": "done",
           "title": "Editing files",
@@ -738,13 +738,13 @@ I need to figure out if I should move content or maybe make some changes. It's l
           "text": "The rename helper needs a non-empty hunk, so I’m using a file move pattern that preserves the current contents before deleting the target.",
         },
         {
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:tool:call_krldrCarRuXYq8c00DESs1zE:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:tool:call_krldrCarRuXYq8c00DESs1zE:/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "kind": "modify-file-tool-call",
           "newText": "",
           "oldText": "# ACP fixture notes
 generated by fixture script
 ",
-          "path": "/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
+          "path": "/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES.md",
           "seq": 5,
           "status": "done",
           "title": "Editing files",
@@ -754,9 +754,9 @@ generated by fixture script
           "content": "# ACP fixture notes
 generated by fixture script
 ",
-          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:tool:call_krldrCarRuXYq8c00DESs1zE:/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES2.md",
+          "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:9:tool:call_krldrCarRuXYq8c00DESs1zE:/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES2.md",
           "kind": "create-file-tool-call",
-          "path": "/tmp/emdash-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES2.md",
+          "path": "/tmp/agent-acp-fixture-1783042314643/.acp-fixture-scratch/NOTES2.md",
           "seq": 6,
           "status": "done",
           "title": "Editing files",

@@ -1,6 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 
 export type PidFileError = {
   type: 'missing' | 'invalid' | 'io';

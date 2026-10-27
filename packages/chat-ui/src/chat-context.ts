@@ -1,5 +1,5 @@
 /**
- * ChatContext — global services singleton for @emdash/chat-ui.
+ * ChatContext — global services singleton for @agent/chat-ui.
  *
  * Holds everything that is shared across all conversations and views:
  *   - Resolved theme + config (typography constants for measurement)

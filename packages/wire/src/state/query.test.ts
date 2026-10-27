@@ -1,5 +1,5 @@
-import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createManualClock } from '@emdash/shared/testing';
+import { createScope, type Scope } from '@agent/shared/concurrency';
+import { createManualClock } from '@agent/shared/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { snapshot } from './core';
 import { pokeChannel } from './poke';

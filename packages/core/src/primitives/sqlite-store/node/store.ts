@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { noopLogger, type Logger } from '@agent/shared/logger';
 import type {
   DerivedSqliteStore,
   DerivedStoreConfig,
@@ -35,7 +35,7 @@ function removeDatabaseFiles(path: string): void {
 
 function makeTempPath(name: string): string {
   const safeName = name.replaceAll(/[^a-zA-Z0-9._-]/g, '-');
-  return join(tmpdir(), `emdash-${safeName}-${randomUUID()}.db`);
+  return join(tmpdir(), `agent-${safeName}-${randomUUID()}.db`);
 }
 
 function configureConnection(connection: SqliteConnection, busyTimeoutMs: number): void {

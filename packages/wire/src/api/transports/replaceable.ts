@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@emdash/shared';
+import type { Unsubscribe } from '@agent/shared';
 import { WireError, type WireMessage, type WireTransport } from '../protocol';
 
 export type ReplaceableTransport = WireTransport & {

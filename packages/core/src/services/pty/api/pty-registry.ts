@@ -1,4 +1,4 @@
-import type { LiveLogSource } from '@emdash/wire/live';
+import type { LiveLogSource } from '@agent/wire/live';
 import { PtySession, type PtySessionOptions } from './pty-session';
 import type { PtySpawnSpec, PtySpawner } from './types';
 

@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@emdash/shared';
+import type { Unsubscribe } from '@agent/shared';
 import { isWireMessage, type WireTransport } from '../protocol';
 
 export type DomPortLike = {

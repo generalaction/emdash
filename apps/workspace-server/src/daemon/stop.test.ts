@@ -69,6 +69,6 @@ describe('stopDaemon', () => {
 });
 
 async function tempSocketPath(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'emdash-workspace-daemon-stop-'));
+  const dir = await mkdtemp(join(tmpdir(), 'agent-workspace-daemon-stop-'));
   return join(dir, 'workspace.sock');
 }

@@ -1,4 +1,4 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok } from '@agent/shared';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { createJiraClient, readJiraCredentials } from '../../../integrations/impl/jira/client';

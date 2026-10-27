@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { ApiClient } from '@mondaydotcomorg/api';
 import { parseCredentials } from '../../helpers/credentials';
 import type { IntegrationCredentials } from '../../host';

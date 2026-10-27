@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
-export const LEGACY_TMUX_SESSION_PREFIX = 'emdash-';
-export const TMUX_IDENTITY_OPTION = '@emdash_identity';
+export const LEGACY_TMUX_SESSION_PREFIX = 'agent-';
+export const TMUX_IDENTITY_OPTION = '@agent_identity';
 const TMUX_NAME_MAX_LENGTH = 48;
 const TMUX_HASH_LENGTH = 10;
 

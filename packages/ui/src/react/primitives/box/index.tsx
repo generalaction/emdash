@@ -14,7 +14,7 @@
  *   <Box className={cx(card(), myStyle)}>…</Box>
  */
 
-import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
+import type { SurfaceScopeName, SurfaceStatusName } from '@agent/theme';
 import { cx } from '@styles/utilities/cx';
 import React from 'react';
 // Relative type import: the dts emitter rewrites `@styles/*` type imports to a

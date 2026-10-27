@@ -1,10 +1,10 @@
-import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import { log as ambientLog, type Logger } from '@agent/shared/logger';
 import {
   retrySchedule,
   systemClock,
   type Clock,
   type RetrySchedule,
-} from '@emdash/shared/scheduling';
+} from '@agent/shared/scheduling';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../api/channel';
 import type { WireInstrumentation, WireResyncReason } from '../api/instrumentation';
 

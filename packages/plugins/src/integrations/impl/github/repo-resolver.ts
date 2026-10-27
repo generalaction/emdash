@@ -1,4 +1,4 @@
-import { err, type Result } from '@emdash/shared';
+import { err, type Result } from '@agent/shared';
 import { type RemoteRepository, resolveRemoteRepository } from '../../helpers/repository-remote';
 import type { IntegrationError } from '../../types';
 import type { GitHubCredentials } from './types';

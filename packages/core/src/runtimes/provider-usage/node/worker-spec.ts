@@ -1,8 +1,8 @@
-import type { PluginRegistry } from '@emdash/shared/plugins';
+import type { PluginRegistry } from '@agent/shared/plugins';
 import type {
   ProvidedWireComponentRequirements,
   WireComponentWorkerCreateOptions,
-} from '@emdash/wire/worker';
+} from '@agent/wire/worker';
 import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
 import { createProviderUsageComponent } from './component';
 

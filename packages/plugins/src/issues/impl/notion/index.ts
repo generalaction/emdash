@@ -1,4 +1,4 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok } from '@agent/shared';
 import {
   isFullPage,
   type BlockObjectResponse,

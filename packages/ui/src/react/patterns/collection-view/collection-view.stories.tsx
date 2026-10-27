@@ -72,7 +72,7 @@ const TASK_NAMES = [
 const TASKS: TaskFixture[] = Array.from({ length: 57 }, (_, i) => ({
   id: `task-${i}`,
   name: `${TASK_NAMES[i % TASK_NAMES.length]} #${i + 1}`,
-  branch: `emdash/task-${i + 1}`,
+  branch: `agent/task-${i + 1}`,
   adds: (i * 37) % 400,
   dels: (i * 13) % 120,
   status: i % 5 === 4 ? 'archived' : 'active',
@@ -291,7 +291,7 @@ const WORKTREES: WorktreeFixture[] = [
   {
     id: 'wt-1',
     branch: 'feature/settings-redesign',
-    path: '.worktrees/emdash-settings',
+    path: '.worktrees/agent-settings',
     status: 'active',
     adds: 231,
     dels: 87,
@@ -302,7 +302,7 @@ const WORKTREES: WorktreeFixture[] = [
   {
     id: 'wt-2',
     branch: 'feature/status-icons',
-    path: '.worktrees/emdash-icons',
+    path: '.worktrees/agent-icons',
     status: 'idle',
     adds: 126,
     dels: 10,
@@ -313,7 +313,7 @@ const WORKTREES: WorktreeFixture[] = [
   {
     id: 'wt-3',
     branch: 'fix/pty-teardown',
-    path: '.worktrees/emdash-pty',
+    path: '.worktrees/agent-pty',
     status: 'error',
     adds: 12,
     dels: 40,
@@ -324,7 +324,7 @@ const WORKTREES: WorktreeFixture[] = [
   {
     id: 'wt-4',
     branch: 'chore/deps-bump',
-    path: '.worktrees/emdash-deps',
+    path: '.worktrees/agent-deps',
     status: 'idle',
     adds: 4,
     dels: 4,
@@ -509,7 +509,7 @@ const AUTOMATIONS: AutomationFixture[] = [
     name: 'Morning triage',
     enabled: true,
     cronLabel: 'Every day at 9 AM',
-    project: 'emdash',
+    project: 'agent',
     lastRun: { ok: true, label: 'Last run today at 9:00 AM · schedule' },
     nextRunLabel: 'Next run tomorrow at 9:00 AM',
   },
@@ -518,7 +518,7 @@ const AUTOMATIONS: AutomationFixture[] = [
     name: 'Dependency bump PRs',
     enabled: true,
     cronLabel: 'Every Monday at 6 AM',
-    project: 'emdash',
+    project: 'agent',
     lastRun: { ok: false, label: 'Last run Mon at 6:00 AM · schedule' },
     nextRunLabel: 'Next run Mon at 6:00 AM',
   },

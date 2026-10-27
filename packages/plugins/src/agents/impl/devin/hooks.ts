@@ -4,7 +4,7 @@ import {
   makeNotificationHookCommand,
   makeStdinHookCommand,
   xdgConfigRoot,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 
 export const DEVIN_HOOKS_PATH = 'config.json';
 

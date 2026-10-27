@@ -144,8 +144,8 @@ describe('executeCopyArtifacts', () => {
     // ...and must redo entries that are missing (simulated torn copy), including
     // cleaning up an abandoned staging directory.
     await fs.rm(path.join(worktreePath, 'dist'), { recursive: true });
-    await fs.mkdir(path.join(worktreePath, 'dist.emdash-clone-tmp'), { recursive: true });
-    await fs.writeFile(path.join(worktreePath, 'dist.emdash-clone-tmp', 'torn'), 'partial\n');
+    await fs.mkdir(path.join(worktreePath, 'dist.agent-clone-tmp'), { recursive: true });
+    await fs.writeFile(path.join(worktreePath, 'dist.agent-clone-tmp', 'torn'), 'partial\n');
 
     const second = await executeCopyArtifacts({
       git: gitContext,
@@ -158,7 +158,7 @@ describe('executeCopyArtifacts', () => {
     expect(second.entries).toBe(2);
     expect(await fs.readFile(path.join(worktreePath, '.env'), 'utf8')).toBe('SECRET=changed\n');
     await fs.access(path.join(worktreePath, 'dist', 'out.js'));
-    await expect(fs.access(path.join(worktreePath, 'dist.emdash-clone-tmp'))).rejects.toThrow();
+    await expect(fs.access(path.join(worktreePath, 'dist.agent-clone-tmp'))).rejects.toThrow();
   });
 
   it('a preserved directory counts as one entry and nested matches ride their parent', async () => {

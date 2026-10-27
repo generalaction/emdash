@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { invalidPath, type PathError } from './errors';
 import type { UnicodeNormalization } from './types';
 

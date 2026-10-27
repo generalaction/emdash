@@ -1,9 +1,9 @@
-import { once } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import { abortableWait } from '@emdash/shared/scheduling';
-import { stableStringify } from '@emdash/shared/util';
-import { createEventStreamHost } from '@emdash/wire/live';
-import { createController, type Controller } from '@emdash/wire/rpc';
+import { once } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
+import { abortableWait } from '@agent/shared/scheduling';
+import { stableStringify } from '@agent/shared/util';
+import { createEventStreamHost } from '@agent/wire/live';
+import { createController, type Controller } from '@agent/wire/rpc';
 import { fsWatchContract, requireWatchReady, type FsWatchKey } from '#services/fs-watch/api';
 import type { IWatchService } from '#services/fs-watch/api';
 

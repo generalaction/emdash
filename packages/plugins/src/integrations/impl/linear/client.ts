@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { LinearClient as LinearSdkClient } from '@linear/sdk';
 import { parseCredentials } from '../../helpers/credentials';
 import type { IntegrationCredentials } from '../../host';

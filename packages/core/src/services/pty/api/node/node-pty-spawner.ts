@@ -1,4 +1,4 @@
-import { recordSpawn } from '@emdash/shared/perf';
+import { recordSpawn } from '@agent/shared/perf';
 import * as nodePty from 'node-pty';
 import { ProcessTreeTerminator, type TaskkillRunner } from '#primitives/exec/node';
 import {

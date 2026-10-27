@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { observe, remote } from '@emdash/wire/state';
-import { defineWireComponent, requireContract } from '@emdash/wire/worker';
+import { observe, remote } from '@agent/wire/state';
+import { defineWireComponent, requireContract } from '@agent/wire/worker';
 import { z } from 'zod';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { fsWatchContract } from '#services/fs-watch/api';

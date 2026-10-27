@@ -1,4 +1,4 @@
-import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { CanonicalHookEvent } from '@agent/core/services/agent-plugins/api/plugins';
 import {
   buildFlatJsonHookConfig,
   configRoots,
@@ -7,7 +7,7 @@ import {
   homeConfigRoot,
   type HookCommandOptions,
   makeStdinHookCommand,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 
 /** User-level Cursor hooks live at `~/.cursor/hooks.json`. */
 export const CURSOR_HOOKS_PATH = 'hooks.json';

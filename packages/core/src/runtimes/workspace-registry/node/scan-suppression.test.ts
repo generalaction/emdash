@@ -100,10 +100,10 @@ describe('background steps suppress their own scans', () => {
     await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\n');
     await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
     await fs.writeFile(
-      path.join(repoPath, '.emdash.json'),
+      path.join(repoPath, '.agent.json'),
       JSON.stringify({ preservePatterns: ['.env'] })
     );
-    git(repoPath, 'add', '.gitignore', '.emdash.json');
+    git(repoPath, 'add', '.gitignore', '.agent.json');
     git(repoPath, 'commit', '-m', 'initial');
     const originPath = path.join(root, 'origin.git');
     git(root, 'init', '--bare', originPath);

@@ -12,14 +12,14 @@ describe('EntityHeader', () => {
     const { container } = render(
       <EntityHeader
         icon={<span data-testid="identity-icon" />}
-        title={<h1>Emdash</h1>}
+        title={<h1>Agent</h1>}
         actions={<button type="button">Actions</button>}
       />
     );
 
     expect(container.querySelector('header[data-slot="entity-header"]')).not.toBeNull();
     expect(screen.getByTestId('identity-icon')).not.toBeNull();
-    expect(screen.getByRole('heading', { level: 1, name: 'Emdash' })).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Agent' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Actions' })).not.toBeNull();
   });
 

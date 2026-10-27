@@ -26,7 +26,7 @@ The update carries `mutationIds: ['example-add-task']`. A replica can resolve
 ## Providers and Context
 
 Live model contract mutations run against a `LiveModelProvider` — most commonly
-one produced by `expose()` from `@emdash/wire/state`, which bridges kernel state
+one produced by `expose()` from `@agent/wire/state`, which bridges kernel state
 onto the endpoint. Mutation handlers update kernel cells and await the observed
 revision so the returned cursor is settled:
 

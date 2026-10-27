@@ -4,10 +4,10 @@ import { compileWorktreePayload } from './compile-worktree-payload';
 describe('compileWorktreePayload', () => {
   it.each([
     {
-      repoPath: '/Users/test/code/emdash',
-      worktreeRoot: '/Users/test/emdash/worktrees',
+      repoPath: '/Users/test/code/agent',
+      worktreeRoot: '/Users/test/agent/worktrees',
       branchName: 'feature/compiler',
-      legacyPath: '/Users/test/emdash/worktrees/emdash-6190d212/feature-compiler',
+      legacyPath: '/Users/test/agent/worktrees/agent-8e7b45ce/feature-compiler',
     },
     {
       repoPath: '/srv/repos/my repo',
@@ -41,13 +41,13 @@ describe('compileWorktreePayload', () => {
 
   it('uses Windows separators for Windows roots', () => {
     const result = compileWorktreePayload({
-      repoPath: String.raw`C:\Users\test\code\emdash`,
-      worktreeRoot: String.raw`C:\Users\test\emdash\worktrees`,
+      repoPath: String.raw`C:\Users\test\code\agent`,
+      worktreeRoot: String.raw`C:\Users\test\agent\worktrees`,
       branchName: 'fix/windows/path',
     });
 
     expect(result.worktreePath).toMatch(
-      /^C:\\Users\\test\\emdash\\worktrees\\emdash-[a-f0-9]{8}\\fix-windows-path$/u
+      /^C:\\Users\\test\\agent\\worktrees\\agent-[a-f0-9]{8}\\fix-windows-path$/u
     );
   });
 

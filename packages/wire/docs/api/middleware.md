@@ -4,9 +4,9 @@ Wire uses explicit composition for execution policy. Contracts describe protocol
 shape; middleware wraps handlers or controllers at the composition site.
 
 ```ts
-import { compose, deduplicate, withRetry, withTimeout } from '@emdash/shared/requests';
-import { retrySchedules } from '@emdash/shared/scheduling';
-import { createController } from '@emdash/wire/rpc';
+import { compose, deduplicate, withRetry, withTimeout } from '@agent/shared/requests';
+import { retrySchedules } from '@agent/shared/scheduling';
+import { createController } from '@agent/wire/rpc';
 
 const loadStats = compose(
   async (input: { repo: string }, meta: { signal?: AbortSignal }) => {
@@ -86,7 +86,7 @@ where they are served.
 ## Controller Middleware
 
 Controller middleware wraps a complete `Controller` and satisfies
-`Middleware<Controller>` from `@emdash/shared/requests`. The seam exists as the
+`Middleware<Controller>` from `@agent/shared/requests`. The seam exists as the
 sanctioned extension point for future cross-cutting concerns (for example
 observability), even though Wire ships no controller middleware today.
 
@@ -109,8 +109,8 @@ controller middleware when the policy belongs to the served boundary.
 
 ## Timeout
 
-`withTimeout({ timeoutMs, clock? })` from `@emdash/shared/requests` is handler
-middleware backed by Shared `runWithTimeout()` from `@emdash/shared/scheduling`.
+`withTimeout({ timeoutMs, clock? })` from `@agent/shared/requests` is handler
+middleware backed by Shared `runWithTimeout()` from `@agent/shared/scheduling`.
 It derives a child `AbortSignal`, passes that signal to the wrapped handler, and
 converts an expired deadline to a timeout error.
 
@@ -129,8 +129,8 @@ the wire call rejects with `CANCELLED`.
 
 ## Retry
 
-`withRetry()` from `@emdash/shared/requests` is handler middleware backed by
-Shared `retry()` from `@emdash/shared/scheduling`. It requires an explicit
+`withRetry()` from `@agent/shared/requests` is handler middleware backed by
+Shared `retry()` from `@agent/shared/scheduling`. It requires an explicit
 `shouldRetry` classifier:
 
 ```ts
@@ -149,7 +149,7 @@ retry only `DISCONNECTED` by default.
 
 ## Deduplication
 
-`deduplicate(options?)` from `@emdash/shared/requests` is handler middleware for
+`deduplicate(options?)` from `@agent/shared/requests` is handler middleware for
 sharing one in-flight execution for identical inputs:
 
 ```ts

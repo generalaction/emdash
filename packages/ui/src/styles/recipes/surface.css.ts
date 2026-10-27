@@ -6,7 +6,7 @@
  * surfaces.css.ts but makes them composable with VE recipe().
  *
  * Usage:
- *   import { surface } from '@emdash/ui/styles/recipes/surface';
+ *   import { surface } from '@agent/ui/styles/recipes/surface';
  *   <div className={surface({ level: 'elevated', interactive: true })} />
  *
  * Variants:
@@ -19,7 +19,7 @@
  * cascade vars to the canvas-matched tints generated at theme build time.
  */
 
-import { SURFACE_STATUSES } from '@emdash/theme';
+import { SURFACE_STATUSES } from '@agent/theme';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 // Relative import: the dts emitter rewrites aliased imports to a dangling

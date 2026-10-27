@@ -1,9 +1,9 @@
-import { err, isDeepEqual, ok, type Result, type Serializable } from '@emdash/shared';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { KeyedMutex } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
-import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
-import { expose, peek, query, revisionOf, type Query } from '@emdash/wire/state';
+import { err, isDeepEqual, ok, type Result, type Serializable } from '@agent/shared';
+import { createScope, type Scope } from '@agent/shared/concurrency';
+import { KeyedMutex } from '@agent/shared/concurrency';
+import type { Logger } from '@agent/shared/logger';
+import { type LeasedLiveModelProvider } from '@agent/wire/rpc';
+import { expose, peek, query, revisionOf, type Query } from '@agent/wire/state';
 import { z } from 'zod';
 import type { IExecutionContext } from '#primitives/exec/api';
 import {

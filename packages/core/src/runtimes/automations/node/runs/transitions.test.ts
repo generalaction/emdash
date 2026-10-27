@@ -46,7 +46,7 @@ function newRun(overrides: Partial<Omit<AutomationRun, 'seq'>> = {}): Omit<Autom
     status: 'scheduled',
     triggerKind: 'cron',
     configSnapshot,
-    generatedName: 'emdash-abc',
+    generatedName: 'agent-abc',
     scheduledAt: 1000,
     deadlineAt: null,
     startedAt: null,
@@ -83,7 +83,7 @@ describe('AutomationRunTransitions', () => {
     const claimed = transitions.claimQueued('run-1', 2000);
     const starting = transitions.markStartingSession('run-1', {
       workspace: worktree,
-      branchName: 'emdash-abc',
+      branchName: 'agent-abc',
     });
     const done = transitions.markDone(
       'run-1',
@@ -96,7 +96,7 @@ describe('AutomationRunTransitions', () => {
     expect(queued?.status).toBe('queued');
     expect(claimed?.startedAt).toBe(2000);
     expect(starting?.workspace).toEqual(worktree);
-    expect(starting?.branchName).toBe('emdash-abc');
+    expect(starting?.branchName).toBe('agent-abc');
     expect(done?.status).toBe('done');
     expect(done?.conversationId).toBe('conv-1');
     expect(done?.sessionId).toBe('sess-1');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emdashScriptsConfigSchema } from '#primitives/emdash-config/api';
+import { agentScriptsConfigSchema } from '#primitives/agent-config/api';
 import * as publicSchemas from './index';
 import * as schemaBarrel from './schemas';
 import { workspaceCreationSchema as creationWorkspaceCreationSchema } from './schemas/creation';
@@ -70,7 +70,7 @@ describe('workspace registry schema exports', () => {
     }
   });
 
-  it('parses personal scripts with the shared Emdash config schema', () => {
+  it('parses personal scripts with the shared Agent config schema', () => {
     const scripts = {
       prepare: 'pnpm install',
       setup: 'pnpm build',
@@ -80,7 +80,7 @@ describe('workspace registry schema exports', () => {
     };
 
     expect(projectConfigPersonalProjectConfigSchema.parse({ scripts }).scripts).toEqual(
-      emdashScriptsConfigSchema.parse(scripts)
+      agentScriptsConfigSchema.parse(scripts)
     );
   });
 });

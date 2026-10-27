@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createScope } from '@emdash/shared/concurrency';
-import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
-import { createWireWorkerHost, runWireComponentWorker } from '@emdash/wire/worker';
+import { createScope } from '@agent/shared/concurrency';
+import { FakeWorkerProcessSpawner } from '@agent/wire/testing';
+import { createWireWorkerHost, runWireComponentWorker } from '@agent/wire/worker';
 import { describe, expect, it, vi } from 'vitest';
 import { conversationsComponent, conversationsComponentConfigSchema } from './component';
 
@@ -26,19 +26,19 @@ describe('conversationsComponent', () => {
   it('rejects relative database paths', () => {
     expect(
       conversationsComponentConfigSchema.safeParse({
-        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        attachmentsDir: '/tmp/agent-conversations-component-test-attachments',
         databasePath: 'relative.db',
       }).success
     ).toBe(false);
     expect(
       conversationsComponentConfigSchema.safeParse({
-        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        attachmentsDir: '/tmp/agent-conversations-component-test-attachments',
         databasePath: ':memory:',
       }).success
     ).toBe(true);
     expect(
       conversationsComponentConfigSchema.safeParse({
-        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        attachmentsDir: '/tmp/agent-conversations-component-test-attachments',
         databasePath: '/abs/path.db',
       }).success
     ).toBe(true);
@@ -50,7 +50,7 @@ describe('conversationsComponent', () => {
       scope,
       dependencies: {},
       config: {
-        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        attachmentsDir: '/tmp/agent-conversations-component-test-attachments',
         databasePath: ':memory:',
       },
     });
@@ -68,7 +68,7 @@ describe('conversationsComponent', () => {
       executable: 'conversations-worker',
       dependencies: {},
       config: {
-        attachmentsDir: '/tmp/emdash-conversations-component-test-attachments',
+        attachmentsDir: '/tmp/agent-conversations-component-test-attachments',
         databasePath: ':memory:',
       },
       shutdownGraceMs: 0,

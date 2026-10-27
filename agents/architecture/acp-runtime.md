@@ -47,7 +47,7 @@ not mix cross-session routing with per-session state projection.
 - Runtime implementation code lives under `packages/core/src/runtimes/acp/node/`; the portable
   contract and client models stay under `packages/core/src/runtimes/acp/api/`.
 - The Node surface exports `createAcpComponent()`. App-owned worker entries call
-  `runWireComponentWorker(createAcpComponent(...))`; `@emdash/core` does not export
+  `runWireComponentWorker(createAcpComponent(...))`; `@agent/core` does not export
   process bootstrap helpers.
 
 ```mermaid
@@ -185,7 +185,7 @@ replay rather than the evicted process.
 ## Permissions
 
 Chat sessions use the provider's native permission/access mode. Every permission request that
-reaches Emdash remains interactive; the permission broker never automatically chooses an option.
+reaches Agent remains interactive; the permission broker never automatically chooses an option.
 Pending requests are cancelled on teardown. There is no separate ACP auto-approval setting or command.
 
 TUI auto-approve remains a provider CLI launch setting, remembered per host/provider/transport.
@@ -380,14 +380,14 @@ untouched until owner deletion. Existing development attachments must be uploade
 them through the attachment APIs after upgrading.
 
 Desktop composes the ACP client and renderer exposure in
-`apps/emdash-desktop/src/main/gateway/desktop-workers.ts`. The raw stable worker client is consumed
+`apps/agent-desktop/src/main/gateway/desktop-workers.ts`. The raw stable worker client is consumed
 by typed desktop Wire controllers and by headless runtime services; renderer clients receive the
 smaller conversations contract. `WireWorkerHost` itself does not own client decoration, startup
 policy, or renderer exposure.
 
-The concrete plugin registry is injected by each host entry (`emdash-desktop` and
-`workspace-server`) rather than imported by `@emdash/core/runtimes`; this keeps runtime
-from depending back on `@emdash/plugins` while still letting plugin resolution be
+The concrete plugin registry is injected by each host entry (`agent-desktop` and
+`workspace-server`) rather than imported by `@agent/core/runtimes`; this keeps runtime
+from depending back on `@agent/plugins` while still letting plugin resolution be
 owned by the runtime composition root.
 
 Desktop relies on Electron's `child_process.fork` behavior, which runs children

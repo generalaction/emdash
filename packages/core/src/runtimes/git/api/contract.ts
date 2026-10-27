@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveJob } from '@emdash/wire/rpc';
+import { defineContract, fallible, liveJob } from '@agent/wire/rpc';
 import { z } from 'zod';
 import { hostAbsolutePathSchema } from '#primitives/path/api';
 import { gitCheckoutContract } from '#runtimes/git/api/checkout/contract';

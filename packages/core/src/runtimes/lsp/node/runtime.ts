@@ -1,8 +1,8 @@
 import { stat } from 'node:fs/promises';
-import { err, ok, type Result } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
-import { cell, expose } from '@emdash/wire/state';
+import { err, ok, type Result } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
+import type { LeasedLiveModelProvider } from '@agent/wire/rpc';
+import { cell, expose } from '@agent/wire/state';
 import { formatAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import { lspContract } from '../api/contract';
 import type {

@@ -1,6 +1,6 @@
-import { err, ok } from '@emdash/shared';
-import { createController } from '@emdash/wire/rpc';
-import { defineWireComponent } from '@emdash/wire/worker';
+import { err, ok } from '@agent/shared';
+import { createController } from '@agent/wire/rpc';
+import { defineWireComponent } from '@agent/wire/worker';
 import { z } from 'zod';
 import { resourceUsageContract } from '#runtimes/resource-usage/api';
 import { ResourceUsageRuntime } from './resource-usage-runtime';

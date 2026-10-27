@@ -1,4 +1,4 @@
-import { toSerializedError, type SerializedError, type Unsubscribe } from '@emdash/shared';
+import { toSerializedError, type SerializedError, type Unsubscribe } from '@agent/shared';
 import type { LiveUpdate } from './channel';
 
 export type WireErrorCode =

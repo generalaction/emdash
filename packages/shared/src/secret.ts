@@ -11,7 +11,7 @@
  *   octokit = new Octokit({ auth: token.expose() }); // single disclosure
  */
 
-const SECRET_TAG = Symbol.for('emdash.secret');
+const SECRET_TAG = Symbol.for('agent.secret');
 
 export const REDACTED = '[REDACTED]';
 

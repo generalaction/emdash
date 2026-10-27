@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
-import { ok, type Result } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
+import { ok, type Result } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
 import {
   containsAbsolute,
   comparisonKeyForAbsolutePath,

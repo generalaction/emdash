@@ -118,12 +118,10 @@ describe('path schemas', () => {
     if (!path.success) return;
 
     const ref = hostFileRef(LOCAL_HOST_REF, path.data);
-    const uri = 'emdash-file://local/v1/posix/repo/src/index.ts';
+    const uri = 'agent-file://local/v1/posix/repo/src/index.ts';
 
     expect(resourceUriSchema.parse(uri)).toBe(uri);
     expect(resourceRefFromUriSchema.parse(uri)).toEqual(ref);
-    expect(resourceUriSchema.safeParse('emdash-file://local/v1/posix/%E0%A4%A').success).toBe(
-      false
-    );
+    expect(resourceUriSchema.safeParse('agent-file://local/v1/posix/%E0%A4%A').success).toBe(false);
   });
 });

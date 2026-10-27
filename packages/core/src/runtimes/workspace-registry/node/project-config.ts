@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EmdashConfig, EmdashScriptsConfig } from '#primitives/emdash-config/api';
+import type { AgentConfig, AgentScriptsConfig } from '#primitives/agent-config/api';
 import type {
   ImportLegacyLifecycleSettingsInput,
   PatchPersonalProjectConfigInput,
@@ -18,7 +18,7 @@ export type ProjectConfigHostDefaults = { shellSetup?: string };
 
 export function resolveProjectConfig(input: {
   personalConfig: PersonalProjectConfig;
-  workspaceConfig: EmdashConfig;
+  workspaceConfig: AgentConfig;
   hostSettings: ProjectConfigHostDefaults;
 }): { resolved: ResolvedProjectConfig } {
   const personalPreservePatterns = input.personalConfig.preservePatterns;
@@ -91,7 +91,7 @@ export function collectProjectConfigSources(
     seenPaths.add(pathKey);
     const entry = configs.get(record.id);
     if (!entry) continue;
-    const configPath = path.join(record.path, '.emdash.json');
+    const configPath = path.join(record.path, '.agent.json');
     if (entry.config.preservePatterns !== undefined) {
       sources.preservePatterns.push({
         workspaceId: record.id,
@@ -158,7 +158,7 @@ export function applyLegacyLifecycleSettingsImport(
   current: PersonalProjectConfig,
   input: ImportLegacyLifecycleSettingsInput
 ): PersonalProjectConfig {
-  const scripts: EmdashScriptsConfig = { ...current.scripts };
+  const scripts: AgentScriptsConfig = { ...current.scripts };
   for (const script of ['prepare', 'setup', 'run', 'teardown'] as const) {
     if (scripts[script] === undefined && input.settings.scripts?.[script] !== undefined) {
       scripts[script] = input.settings.scripts[script];

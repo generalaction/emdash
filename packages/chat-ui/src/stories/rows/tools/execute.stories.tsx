@@ -213,7 +213,7 @@ export const MultiLineCommand: Story = {
             'git fetch origin',
             'git checkout -b feature/my-branch',
             'pnpm install',
-            'pnpm run build --filter=@emdash/chat-ui',
+            'pnpm run build --filter=@agent/chat-ui',
             'pnpm run typecheck',
             'pnpm run lint',
             'pnpm run test',
@@ -262,7 +262,7 @@ export const RequestingPermission: Story = {
         {
           kind: 'execute',
           id: 'ex-perm',
-          command: 'pnpm run build --filter=emdash-desktop',
+          command: 'pnpm run build --filter=agent-desktop',
           status: 'running',
           startedAt: Date.now() - 1200,
         },

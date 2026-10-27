@@ -6,7 +6,7 @@ export default defineConfig({
     alias: {
       'better-sqlite3': resolve(
         __dirname,
-        '../../apps/emdash-desktop/tooling/node-deps/node_modules/better-sqlite3'
+        '../../apps/agent-desktop/tooling/node-deps/node_modules/better-sqlite3'
       ),
     },
   },

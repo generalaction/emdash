@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared';
+import { ok } from '@agent/shared';
 import {
   createController,
   defineContract,
@@ -6,8 +6,8 @@ import {
   liveState,
   mutation,
   type Controller,
-} from '@emdash/wire/rpc';
-import { cell, expose, family, type ExposeOptions } from '@emdash/wire/state';
+} from '@agent/wire/rpc';
+import { cell, expose, family, type ExposeOptions } from '@agent/wire/state';
 import { z } from 'zod';
 
 export const api = defineContract({

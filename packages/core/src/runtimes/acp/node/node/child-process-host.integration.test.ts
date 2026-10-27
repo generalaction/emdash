@@ -36,7 +36,7 @@ describe('ACP terminal process lifecycle', () => {
   it.skipIf(process.platform === 'win32')(
     'executes explicit shell scripts with pipes and redirects',
     async () => {
-      const cwd = await mkdtemp(join(tmpdir(), 'emdash-acp-terminal-'));
+      const cwd = await mkdtemp(join(tmpdir(), 'agent-acp-terminal-'));
       cleanups.push(() => rm(cwd, { recursive: true, force: true }));
       const host = new ChildAcpProcessHost();
       const terminal = await host.spawnTerminal({
@@ -63,7 +63,7 @@ describe('ACP terminal process lifecycle', () => {
   it.each(['executable', 'cwd', ...(process.platform === 'win32' ? [] : ['permission'])])(
     'rejects a terminal startup failure (%s) and can run another terminal',
     async (missing) => {
-      const cwd = await mkdtemp(join(tmpdir(), 'emdash-acp-terminal-'));
+      const cwd = await mkdtemp(join(tmpdir(), 'agent-acp-terminal-'));
       cleanups.push(() => rm(cwd, { recursive: true, force: true }));
       if (missing === 'permission')
         await writeFile(join(cwd, 'missing'), '#!/bin/sh\n', { mode: 0o600 });

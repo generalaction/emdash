@@ -1,4 +1,4 @@
-import type { PluginIconAsset } from '@emdash/shared/plugins';
+import type { PluginIconAsset } from '@agent/shared/plugins';
 
 // Official JetBrains asset: https://resources.jetbrains.com/storage/products/company/brand/logos/YouTrack_icon.svg
 export const icon: PluginIconAsset = {

@@ -1,4 +1,4 @@
-import { waitFor } from '@emdash/shared/testing';
+import { waitFor } from '@agent/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveLog } from '../../api/define';

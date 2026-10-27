@@ -1,4 +1,4 @@
-import { compareFileNames } from '@emdash/shared/util';
+import { compareFileNames } from '@agent/shared/util';
 import type { TreeNode } from '../../patterns/tree-view';
 
 export type FileTreeNodeType = 'file' | 'directory' | 'symlink';

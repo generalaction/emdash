@@ -6,7 +6,7 @@ Conventions that apply throughout:
 - **One blessed command per flow.** Aliases that duplicated a flow (`d`,
   `db:setup`, `run:docker-ssh`) no longer exist.
 - **Root vs app dir:** run workspace-wide flows from the repo root, app-scoped
-  flows from `apps/emdash-desktop/`, package-local flows from that package.
+  flows from `apps/agent-desktop/`, package-local flows from that package.
 - **Environment preflight is owned by the doctor.** When a flow lists a
   prerequisite, the check for it is `pnpm run doctor` (root) — report-only,
   every failing line names the fixing command.
@@ -36,18 +36,18 @@ browser test project are the one extra step, only needed for tests:
 | Flow | Command | Where |
 | --- | --- | --- |
 | Full workspace dev | `pnpm run dev` | root |
-| App-only dev | `pnpm run dev` | `apps/emdash-desktop/` |
-| App dev, verbose Vite logs | `pnpm run dev:debug` | `apps/emdash-desktop/` |
-| Main-only / renderer-only watch | `pnpm run dev:main` / `pnpm run dev:renderer` | `apps/emdash-desktop/` |
+| App-only dev | `pnpm run dev` | `apps/agent-desktop/` |
+| App dev, verbose Vite logs | `pnpm run dev:debug` | `apps/agent-desktop/` |
+| Main-only / renderer-only watch | `pnpm run dev:main` / `pnpm run dev:renderer` | `apps/agent-desktop/` |
 | One package in isolation | `pnpm run dev` | that `packages/*` dir |
-| Storybook (ui) | `pnpm --filter @emdash/ui run storybook` (port 6006) | root |
-| Storybook (chat-ui) | `pnpm --filter @emdash/chat-ui run storybook` (port 6007) | root |
+| Storybook (ui) | `pnpm --filter @agent/ui run storybook` (port 6006) | root |
+| Storybook (chat-ui) | `pnpm --filter @agent/chat-ui run storybook` (port 6007) | root |
 | Theme codegen | `pnpm run build:theme` / `pnpm run watch:theme` | `packages/theme/` |
 
 Notes:
 
 - App dev scripts hardcode `LOG_LEVEL=debug` and write the main-process log to
-  `apps/emdash-desktop/.emdash-logs/emdash.log`.
+  `apps/agent-desktop/.agent-logs/agent.log`.
 - Root `pnpm run dev` already includes every package watcher; the per-package
   watch flow is only for working on one package in isolation.
 - Nx starts a background daemon that lingers after dev sessions; stop it with
@@ -60,27 +60,27 @@ Notes:
 
 | Flow | Command | Where |
 | --- | --- | --- |
-| Generate a migration | `pnpm run db:generate <schema>` | `apps/emdash-desktop/` |
-| Regenerate fixture DBs | `pnpm run db:fixtures` | `apps/emdash-desktop/` |
-| Validate migrations | `pnpm run test:migrations` | `apps/emdash-desktop/` |
-| Reset dev databases | `pnpm run db:reset` | `apps/emdash-desktop/` |
+| Generate a migration | `pnpm run db:generate <schema>` | `apps/agent-desktop/` |
+| Regenerate fixture DBs | `pnpm run db:fixtures` | `apps/agent-desktop/` |
+| Validate migrations | `pnpm run test:migrations` | `apps/agent-desktop/` |
+| Reset dev databases | `pnpm run db:reset` | `apps/agent-desktop/` |
 
 The `db:generate` dispatcher covers all five Drizzle schemas in the repo and
 prints the follow-up obligations (fixtures, migration tests) after generating:
 
 | Schema | Owner | Migrations directory |
 | --- | --- | --- |
-| `app` | `apps/emdash-desktop` | `apps/emdash-desktop/drizzle/` |
+| `app` | `apps/agent-desktop` | `apps/agent-desktop/drizzle/` |
 | `automations` | `packages/core` | `packages/core/src/runtimes/automations/node/persistence/migrations/` |
 | `conversations` | `packages/core` | `packages/core/src/runtimes/conversations/node/persistence/migrations/` |
 | `file-search` | `packages/core` | `packages/core/src/runtimes/file-search/node/storage/migrations/` |
 | `workspace-registry` | `packages/core` | `packages/core/src/runtimes/workspace-registry/node/persistence/migrations/` |
 
-`db:reset` honors `EMDASH_DB_FILE`: when set it deletes that database family
+`db:reset` honors `AGENT_DB_FILE`: when set it deletes that database family
 (main file plus the derived `-file-search` / `-automations` / `-operations`
 siblings and SQLite `-wal`/`-shm` sidecars); otherwise it deletes the default
-dev databases in the platform user-data dir. Use `EMDASH_DB_FILE` isolation for
-schema work: `EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev`.
+dev databases in the platform user-data dir. Use `AGENT_DB_FILE` isolation for
+schema work: `AGENT_DB_FILE=/tmp/agent-scratch.db pnpm run dev`.
 
 ## Checks and tests
 
@@ -89,12 +89,12 @@ schema work: `EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev`.
 | Full merge gate | `pnpm run check` | root |
 | Individual gates | `pnpm run format` / `lint` / `typecheck` / `test` | root |
 | One package's tests | `pnpm test` | that app or package directory |
-| One package's tests from root | `pnpm --filter @emdash/plugins test` | root |
+| One package's tests from root | `pnpm --filter @agent/plugins test` | root |
 | CI-style scoping | `pnpm run affected` | root |
-| One app Vitest project | `pnpm test -- --project <name>` | `apps/emdash-desktop/` |
+| One app Vitest project | `pnpm test -- --project <name>` | `apps/agent-desktop/` |
 | Plugin tests in watch mode | `pnpm run test:watch` | `packages/plugins/` |
 | chat-ui perf / bench | `pnpm run test:perf` / `pnpm run test:bench` | `packages/chat-ui/` |
-| Remote WSS integration test | `pnpm run test:workspace-server-remote` | `apps/emdash-desktop/` |
+| Remote WSS integration test | `pnpm run test:workspace-server-remote` | `apps/agent-desktop/` |
 
 - `pnpm run check` runs the four gate commands in order and is exactly
   equivalent to running them by hand.
@@ -111,7 +111,7 @@ schema work: `EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev`.
   proven stable there.
 - The remote WSS test requires Docker and the workspace-server stack
   (`pnpm run run:docker-remote` from `apps/workspace-server/`) and sets
-  `EMDASH_TEST_REMOTE_WSS=1` itself. Run the doctor first; it reports Docker
+  `AGENT_TEST_REMOTE_WSS=1` itself. Run the doctor first; it reports Docker
   reachability.
 
 ## Remote development
@@ -124,15 +124,15 @@ schema work: `EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev`.
 The workspace-server stack is the only remote-dev stack. Prerequisite: Docker
 running (doctor reports it). See
 [remote development](remote-development.md) for the full workflow and the
-`EMDASH_WS_*` env family.
+`AGENT_WS_*` env family.
 
 ## Packaging and maintenance
 
 | Flow | Command | Where |
 | --- | --- | --- |
-| Local packaging | `pnpm run package` / `package:mac` / `package:linux` / `package:win` | `apps/emdash-desktop/` |
-| Packaged language-server regression check | `EMDASH_TEST_PACKAGED_LSP=1 pnpm exec vitest run --project scripts scripts/release/lib/packaged-language-servers.test.ts` | `apps/emdash-desktop/` |
-| Rebuild native deps | `pnpm run rebuild` | `apps/emdash-desktop/` |
+| Local packaging | `pnpm run package` / `package:mac` / `package:linux` / `package:win` | `apps/agent-desktop/` |
+| Packaged language-server regression check | `AGENT_TEST_PACKAGED_LSP=1 pnpm exec vitest run --project scripts scripts/release/lib/packaged-language-servers.test.ts` | `apps/agent-desktop/` |
+| Rebuild native deps | `pnpm run rebuild` | `apps/agent-desktop/` |
 | Lint-infra allowlists | `pnpm run prune:boundary-allowlists` | root |
 | Task graph | `pnpm run graph` | root |
 | Releases (maintainers) | `gh workflow run release-prod.yml` / `release-canary.yml` / `release-workspace-server.yml` | — |
@@ -150,8 +150,8 @@ running (doctor reports it). See
   `node --experimental-strip-types scripts/release/verify-language-servers.ts --executable
   <binary> --resources <resources-directory>` from the app directory.
 - Linux packaging keeps `extraMetadata.desktopName` aligned with the installed
-  `.desktop` filename via `linux.syncDesktopName`. The desktop IDs are `Emdash`
-  (stable) and `emdash-canary` (canary); preserve them across upgrades for dock pins.
+  `.desktop` filename via `linux.syncDesktopName`. The desktop IDs are `Agent`
+  (stable) and `agent-canary` (canary); preserve them across upgrades for dock pins.
   Electron 40 uses this metadata for Wayland's `app_id`, but uses the product name
   for X11's `WM_CLASS`, so `linux.desktop.entry.StartupWMClass` remains the product
   name. Release version overrides must merge `extraMetadata`, not replace it.
@@ -175,13 +175,13 @@ doctor lists any that are active.
 
 | Variable | Effect |
 | --- | --- |
-| `EMDASH_DB_FILE` | Point the app (and `db:reset`) at an isolated database file |
-| `EMDASH_USER_DATA_DIR` | Use an isolated profile directory (database, secrets, logs) |
-| `EMDASH_AUTH_SERVER_URL` | Development builds only: use another Emdash auth server, e.g. a local one; pair it with `EMDASH_USER_DATA_DIR` so its session stays separate |
-| `EMDASH_SKIP_ELECTRON_REBUILD=1` | Skip the Electron-ABI rebuild in postinstall (CI sets this implicitly via `--ignore-scripts`) |
-| `EMDASH_DISABLE_NATIVE_DB=1` | Run without the native better-sqlite3 (also skips its rebuild) |
-| `EMDASH_DISABLE_PTY=1` | Run without PTY support |
-| `EMDASH_TEST_SKIP_BROWSER=1` | Omit the Playwright-backed `browser` Vitest projects locally |
-| `EMDASH_FORCE_BOOT_FAILURE=1` | Force the boot-failure path for recovery testing |
+| `AGENT_DB_FILE` | Point the app (and `db:reset`) at an isolated database file |
+| `AGENT_USER_DATA_DIR` | Use an isolated profile directory (database, secrets, logs) |
+| `AGENT_AUTH_SERVER_URL` | Development builds only: use another Agent auth server, e.g. a local one; pair it with `AGENT_USER_DATA_DIR` so its session stays separate |
+| `AGENT_SKIP_ELECTRON_REBUILD=1` | Skip the Electron-ABI rebuild in postinstall (CI sets this implicitly via `--ignore-scripts`) |
+| `AGENT_DISABLE_NATIVE_DB=1` | Run without the native better-sqlite3 (also skips its rebuild) |
+| `AGENT_DISABLE_PTY=1` | Run without PTY support |
+| `AGENT_TEST_SKIP_BROWSER=1` | Omit the Playwright-backed `browser` Vitest projects locally |
+| `AGENT_FORCE_BOOT_FAILURE=1` | Force the boot-failure path for recovery testing |
 | `TELEMETRY_ENABLED=false` | Disable telemetry |
 | `CODEX_SANDBOX_MODE`, `CODEX_APPROVAL_POLICY` | Override Codex provider sandbox/approval behavior |

@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { err, ok } from '@emdash/shared';
-import { createScope } from '@emdash/shared/concurrency';
-import { peek, remote } from '@emdash/wire/state';
-import { createTestWire } from '@emdash/wire/testing';
+import { err, ok } from '@agent/shared';
+import { createScope } from '@agent/shared/concurrency';
+import { peek, remote } from '@agent/wire/state';
+import { createTestWire } from '@agent/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { absoluteEquals, parseNativeAbsolute } from '#primitives/path/api';
 import { lspContract } from '../api/contract';
@@ -38,7 +38,7 @@ function absolute(value: string) {
 }
 
 async function fixture(filename: string, text: string, files: Record<string, string> = {}) {
-  const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-languages-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'agent-lsp-languages-'));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   for (const [name, contents] of Object.entries({ ...files, [filename]: text })) {
     await mkdir(path.dirname(path.join(root, name)), { recursive: true });
@@ -190,7 +190,7 @@ const codeFixtures: {
 
 describe('installed language servers through production profiles and Wire', () => {
   for (const example of codeFixtures) {
-    it.skipIf(example.native && process.env.EMDASH_TEST_NATIVE_LSP !== '1')(
+    it.skipIf(example.native && process.env.AGENT_TEST_NATIVE_LSP !== '1')(
       `${example.language}: navigation, unsaved edits, restart and lease cleanup`,
       async () => {
         const f = await fixture(example.filename, example.text, example.files);

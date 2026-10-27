@@ -78,12 +78,12 @@ describe.skipIf(process.platform !== 'darwin' || process.arch !== 'arm64')(
 );
 
 async function createNativeFixture() {
-  const directory = await mkdtemp(resolve(tmpdir(), 'emdash-install-macos-'));
+  const directory = await mkdtemp(resolve(tmpdir(), 'agent-install-macos-'));
   try {
     const home = resolve(directory, 'home with spaces');
     const mirror = resolve(directory, 'mirror');
-    const source = resolve(directory, 'emdash-workspace-server');
-    const root = resolve(home, '.emdash/workspace-server');
+    const source = resolve(directory, 'agent-workspace-server');
+    const root = resolve(home, '.agent/workspace-server');
     const env = {
       HOME: home,
       // Exclude Homebrew and host Node: installation must use stock macOS tools
@@ -94,14 +94,14 @@ async function createNativeFixture() {
     };
     await mkdir(home);
     await mkdir(resolve(source, 'bin'), { recursive: true });
-    const launcher = resolve(source, 'bin/emdash-workspace-server');
+    const launcher = resolve(source, 'bin/agent-workspace-server');
     await writeFile(launcher, '#!/bin/sh\nexit 0\n');
     await chmod(launcher, 0o755);
     await copyFile(process.execPath, resolve(source, 'node'));
     const packed = resolve(directory, 'fixture.tar.gz');
     const tar = spawnSync(
       '/usr/bin/tar',
-      ['-czf', packed, '-C', directory, 'emdash-workspace-server'],
+      ['-czf', packed, '-C', directory, 'agent-workspace-server'],
       {
         env,
         encoding: 'utf8',
@@ -113,7 +113,7 @@ async function createNativeFixture() {
       .update(await readFile(packed))
       .digest('hex');
     const artifactName = (version: string) =>
-      `emdash-workspace-server-${version}-darwin-arm64.tar.gz`;
+      `agent-workspace-server-${version}-darwin-arm64.tar.gz`;
     const archive = (version: string) => resolve(mirror, version, artifactName(version));
     for (const version of ['1.0.0', '1.1.0']) {
       await mkdir(resolve(mirror, version), { recursive: true });

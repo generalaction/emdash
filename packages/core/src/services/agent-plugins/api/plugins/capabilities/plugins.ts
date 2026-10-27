@@ -1,4 +1,4 @@
-import { definePluginCapability } from '@emdash/shared/plugins';
+import { definePluginCapability } from '@agent/shared/plugins';
 import z from 'zod';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 import type { ConfigRootResolver } from '../helpers/config-root';
@@ -18,8 +18,8 @@ export type IPlugins = {
 /**
  * PluginsDescriptor describes how an agent loads extension plugins.
  *
- * kind: 'file-drop' — emdash drops a file into the agent's plugin directory
- * kind: 'cli'       — emdash invokes the agent's CLI to install/manage plugins
+ * kind: 'file-drop' — agent drops a file into the agent's plugin directory
+ * kind: 'cli'       — agent invokes the agent's CLI to install/manage plugins
  * kind: 'none'      — the agent does not support plugins
  */
 export const pluginsCapability = definePluginCapability<IPlugins>()(

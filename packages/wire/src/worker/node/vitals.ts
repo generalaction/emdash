@@ -1,10 +1,10 @@
-import type { Logger } from '@emdash/shared/logger';
-import { setVerboseSpawnLogging } from '@emdash/shared/perf';
+import type { Logger } from '@agent/shared/logger';
+import { setVerboseSpawnLogging } from '@agent/shared/perf';
 import {
   startVitalsReporting,
   type StartVitalsReportingOptions,
   type VitalsReporting,
-} from '@emdash/shared/perf/node';
+} from '@agent/shared/perf/node';
 import { isWorkerSpawnLogToggle, isWorkerVitalsStart, workerVitalsReport } from '../vitals';
 
 export type WorkerVitalsPort = {

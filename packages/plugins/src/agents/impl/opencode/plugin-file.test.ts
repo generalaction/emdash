@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { provider } from './index';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
@@ -34,18 +34,18 @@ async function loadPlugin() {
 function hookTypes(fetchMock: ReturnType<typeof vi.fn>): string[] {
   return fetchMock.mock.calls.map(([, init]) => {
     const headers = new Headers((init as RequestInit).headers);
-    return headers.get('X-Emdash-Event-Type') ?? '';
+    return headers.get('X-Agent-Event-Type') ?? '';
   });
 }
 
 async function createEventHarness() {
-  vi.stubEnv('EMDASH_HOOK_PORT', '9876');
-  vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
-  vi.stubEnv('EMDASH_PTY_ID', 'pty-outcomes');
+  vi.stubEnv('AGENT_HOOK_PORT', '9876');
+  vi.stubEnv('AGENT_HOOK_NONCE', 'nonce');
+  vi.stubEnv('AGENT_PTY_ID', 'pty-outcomes');
   const fetchMock = vi.fn().mockResolvedValue(new Response());
   vi.stubGlobal('fetch', fetchMock);
   const plugin = await loadPlugin();
-  const v1 = await plugin.EmdashNotifications();
+  const v1 = await plugin.AgentNotifications();
   return { fetchMock, send: v1.event };
 }
 
@@ -67,22 +67,22 @@ describe('OpenCode plugin hooks', () => {
 
     const written = await provider.behavior.plugins?.installPlugin(fs, { kind: 'global' });
 
-    expect(written).toEqual(['plugins/emdash-notifications.js']);
-    const content = await fs.read('plugins/emdash-notifications.js');
-    expect(content).toContain('export const EmdashNotifications');
-    expect(content).toContain("id: 'emdash-notifications'");
+    expect(written).toEqual(['plugins/agent-notifications.js']);
+    const content = await fs.read('plugins/agent-notifications.js');
+    expect(content).toContain('export const AgentNotifications');
+    expect(content).toContain("id: 'agent-notifications'");
     expect(content).toContain('eventApi.subscribe({ signal })');
     expect(content).toContain("event.type === 'session.status'");
   });
 
   it('maps session.status busy/idle for custom OpenAI-compatible providers', async () => {
-    vi.stubEnv('EMDASH_HOOK_PORT', '9876');
-    vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
-    vi.stubEnv('EMDASH_PTY_ID', 'pty-status');
+    vi.stubEnv('AGENT_HOOK_PORT', '9876');
+    vi.stubEnv('AGENT_HOOK_NONCE', 'nonce');
+    vi.stubEnv('AGENT_PTY_ID', 'pty-status');
     const fetchMock = vi.fn().mockResolvedValue(new Response());
     vi.stubGlobal('fetch', fetchMock);
     const plugin = await loadPlugin();
-    const v1 = await plugin.EmdashNotifications();
+    const v1 = await plugin.AgentNotifications();
 
     await v1.event({
       event: {
@@ -117,13 +117,13 @@ describe('OpenCode plugin hooks', () => {
   });
 
   it('reports v1 idle events as stop so the sidebar spinner clears', async () => {
-    vi.stubEnv('EMDASH_HOOK_PORT', '9876');
-    vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
-    vi.stubEnv('EMDASH_PTY_ID', 'pty-1');
+    vi.stubEnv('AGENT_HOOK_PORT', '9876');
+    vi.stubEnv('AGENT_HOOK_NONCE', 'nonce');
+    vi.stubEnv('AGENT_PTY_ID', 'pty-1');
     const fetchMock = vi.fn().mockResolvedValue(new Response());
     vi.stubGlobal('fetch', fetchMock);
     const plugin = await loadPlugin();
-    const v1 = await plugin.EmdashNotifications();
+    const v1 = await plugin.AgentNotifications();
 
     await v1.event({
       event: { type: 'session.idle', properties: { sessionID: 'ses_v1' } },
@@ -133,9 +133,9 @@ describe('OpenCode plugin hooks', () => {
   });
 
   it('reports v2 execution lifecycle events as start and stop hooks', async () => {
-    vi.stubEnv('EMDASH_HOOK_PORT', '9876');
-    vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
-    vi.stubEnv('EMDASH_PTY_ID', 'pty-2');
+    vi.stubEnv('AGENT_HOOK_PORT', '9876');
+    vi.stubEnv('AGENT_HOOK_NONCE', 'nonce');
+    vi.stubEnv('AGENT_PTY_ID', 'pty-2');
     const fetchMock = vi.fn().mockResolvedValue(new Response());
     vi.stubGlobal('fetch', fetchMock);
     const plugin = await loadPlugin();
@@ -158,9 +158,9 @@ describe('OpenCode plugin hooks', () => {
   });
 
   it('clears interrupted v2 executions without reporting completion on subsequent idle events', async () => {
-    vi.stubEnv('EMDASH_HOOK_PORT', '9876');
-    vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
-    vi.stubEnv('EMDASH_PTY_ID', 'pty-3');
+    vi.stubEnv('AGENT_HOOK_PORT', '9876');
+    vi.stubEnv('AGENT_HOOK_NONCE', 'nonce');
+    vi.stubEnv('AGENT_PTY_ID', 'pty-3');
     const fetchMock = vi.fn().mockResolvedValue(new Response());
     vi.stubGlobal('fetch', fetchMock);
     const plugin = await loadPlugin();

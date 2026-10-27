@@ -15,7 +15,7 @@ flowchart LR
     proxy[SshClientProxy]
   end
   subgraph host [Workspace Host]
-    socket["Unix socket ~/.emdash/workspace-server/run/workspace.sock"]
+    socket["Unix socket ~/.agent/workspace-server/run/workspace.sock"]
     hub[createWireSessionHub]
     controller[workspaceWireContract controller]
     runtimes["required core runtime subprocesses"]
@@ -167,8 +167,8 @@ subscribed after readiness.
 Socket mode:
 
 ```bash
-emdash-workspace-server serve --socket
-emdash-workspace-server serve --socket ~/.emdash/workspace-server/run/workspace.sock
+agent-workspace-server serve --socket
+agent-workspace-server serve --socket ~/.agent/workspace-server/run/workspace.sock
 ```
 
 The server ensures the socket directory exists, probes before unlinking stale
@@ -178,20 +178,20 @@ socket files, and serves each accepted `net.Socket` through
 Daemon lifecycle:
 
 ```bash
-emdash-workspace-server start
-emdash-workspace-server status
-emdash-workspace-server stop
+agent-workspace-server start
+agent-workspace-server status
+agent-workspace-server stop
 ```
 
 Lifecycle commands use socket mode by default. They derive sidecar files from
 the socket path so custom paths remain self-contained:
 
 ```text
-~/.emdash/workspace-server/run/workspace.sock
-~/.emdash/workspace-server/run/workspace.sock.pid
-~/.emdash/workspace-server/run/workspace.sock.lock
-~/.emdash/workspace-server/run/workspace.sock.log
-~/.emdash/workspace-server/state/
+~/.agent/workspace-server/run/workspace.sock
+~/.agent/workspace-server/run/workspace.sock.pid
+~/.agent/workspace-server/run/workspace.sock.lock
+~/.agent/workspace-server/run/workspace.sock.log
+~/.agent/workspace-server/state/
 ```
 
 `start` probes the socket first, acquires the lock, spawns `serve --socket` as a
@@ -209,7 +209,7 @@ returned session id when remote ACP session resume is wired.
 Stdio mode:
 
 ```bash
-emdash-workspace-server serve --stdio
+agent-workspace-server serve --stdio
 ```
 
 Stdio mode must not write logs to stdout because stdout is the wire protocol

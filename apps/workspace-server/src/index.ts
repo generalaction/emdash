@@ -1,7 +1,7 @@
-import { createShellEnvManager } from '@emdash/core/services/shell-env/node';
-import { createScope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
-import { initProcessLogging } from '@emdash/shared/logger/node';
+import { createShellEnvManager } from '@agent/core/services/shell-env/node';
+import { createScope } from '@agent/shared/concurrency';
+import type { Logger } from '@agent/shared/logger';
+import { initProcessLogging } from '@agent/shared/logger/node';
 import { createWorkspaceWireController } from './api/controller';
 import {
   formatWorkspaceServerConfigError,

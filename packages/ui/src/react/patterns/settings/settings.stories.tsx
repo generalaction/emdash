@@ -84,7 +84,7 @@ function FormSettings() {
     defaultValues: {
       telemetry: true,
       theme: 'system',
-      displayName: 'Emdash',
+      displayName: 'Agent',
     },
     onSubmit: () => {},
   });

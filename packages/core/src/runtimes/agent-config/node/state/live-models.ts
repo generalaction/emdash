@@ -1,5 +1,5 @@
-import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
-import { cell, expose, publishStructural, type Cell } from '@emdash/wire/state';
+import { type LeasedLiveModelProvider } from '@agent/wire/rpc';
+import { cell, expose, publishStructural, type Cell } from '@agent/wire/state';
 import type { McpServer } from '#primitives/mcp/api';
 import type { CatalogSkill } from '#primitives/skills/api';
 import { agentConfigContract, type AgentConfigList } from '#runtimes/agent-config/api';

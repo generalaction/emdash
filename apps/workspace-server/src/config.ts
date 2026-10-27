@@ -1,8 +1,8 @@
-import { type Result } from '@emdash/shared';
-import { formatConfigError, parseConfig, type ConfigError } from '@emdash/shared/config';
+import { type Result } from '@agent/shared';
+import { formatConfigError, parseConfig, type ConfigError } from '@agent/shared/config';
 import { z } from 'zod';
 
-const WORKSPACE_SERVER_ENV_PREFIX = 'EMDASH_WS_';
+const WORKSPACE_SERVER_ENV_PREFIX = 'AGENT_WS_';
 const DEFAULT_ENV_FILES = ['.env'];
 const workspaceServerCommands = ['serve', 'start', 'stop', 'status'] as const;
 

@@ -1,4 +1,4 @@
-import { waitFor } from '@emdash/shared/testing';
+import { waitFor } from '@agent/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { resyncRetry } from '../follower';

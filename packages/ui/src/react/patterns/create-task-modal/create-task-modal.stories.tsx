@@ -329,7 +329,7 @@ workspaceFallback.overlay = { kind: 'workspace-settings', nested: 'none' };
 if (workspaceFallback.workspace.kind === 'inspectable') {
   workspaceFallback.workspace.destination = {
     kind: 'fallback',
-    path: '/tmp/emdash/worktrees',
+    path: '/tmp/agent/worktrees',
     configuredPath: '/Volumes/team/worktrees',
     warning: 'The configured destination is unavailable, so the local fallback will be used.',
   };
@@ -396,7 +396,7 @@ newWorktree.workspace = {
   resolution: { kind: 'ready-valid' },
   destination: {
     kind: 'ready',
-    path: '~/Code/emdash-worktrees/feat-create-task',
+    path: '~/Code/agent-worktrees/feat-create-task',
     description: 'New worktree',
   },
 };
@@ -449,7 +449,7 @@ checkoutPullRequest.workspace = {
   resolution: { kind: 'ready-valid' },
   destination: {
     kind: 'ready',
-    path: '~/Code/emdash-worktrees/pr-128',
+    path: '~/Code/agent-worktrees/pr-128',
     description: 'Pull Request worktree',
   },
 };
@@ -607,8 +607,8 @@ remoteProject.project.selection = {
   option: {
     ...fixtureProject,
     id: 'remote',
-    label: 'Remote Emdash',
-    path: '/srv/emdash',
+    label: 'Remote Agent',
+    path: '/srv/agent',
     location: { kind: 'ssh', hostLabel: 'build-machine' },
   },
 };

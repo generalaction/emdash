@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 export const conversationIndexTypeSchema = z.enum(['pty', 'acp']);
 
-export const conversationIndexIdRegimeSchema = z.enum(['emdash-chosen', 'provider-minted', 'none']);
+export const conversationIndexIdRegimeSchema = z.enum(['agent-chosen', 'provider-minted', 'none']);
 
 export const conversationIndexConfigSchema = z.record(z.string(), z.unknown());
 

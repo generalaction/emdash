@@ -6,7 +6,7 @@ Status: resolved
 ## Question
 
 `GitRepositoryFetchService` runs `git fetch` every 2 minutes per open project
-(`apps/emdash-desktop/src/main/core/git/repository/fetch-service.ts:60`). Each fetch
+(`apps/agent-desktop/src/main/core/git/repository/fetch-service.ts:60`). Each fetch
 writes `FETCH_HEAD`/refs, and the scan scheduler turns any ref event into a refs scan
 (2 git subprocesses) for **every worktree of that repo**
 (`packages/core/src/runtimes/workspace-registry/node/scan/scheduler.ts:165-173`) —
@@ -42,7 +42,7 @@ Two decisions:
    fetches in a user's terminal behave identically, and no coupling is added between the
    app's fetch service and core's registry. The alternative (fetch service directly
    triggering a batched refresh) was rejected — second refresh path, and blind to
-   fetches emdash didn't initiate.
+   fetches agent didn't initiate.
 2. **The 2-minute fetch cadence stays unconditional.** After decision 1 the residual
    cost is one fetch subprocess + network round-trip per project per 2 minutes with no
    fan-out — negligible; visibility gating was considered and rejected as not worth the

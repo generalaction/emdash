@@ -3,18 +3,18 @@
 import '../../theme/tokens.css';
 import '../surfaces.css';
 /**
- * sprinkles.css.ts — atomic CSS utilities for @emdash/ui.
+ * sprinkles.css.ts — atomic CSS utilities for @agent/ui.
  *
  * Built on the VE theme contract from contract/contract.css.ts so every
  * color/surface reference emits a typed var(--*) that automatically adapts to
  * the active .em<id> theme class and .surface-* cascade scope.
  *
  * Non-color design tokens use tokenVars. Spacing/radius values are generated
- * by @emdash/theme density classes; typography and motion values remain static
+ * by @agent/theme density classes; typography and motion values remain static
  * :root vars emitted by tokens.css.ts.
  *
  * Usage:
- *   import { sx } from '@emdash/ui/styles/sprinkles';
+ *   import { sx } from '@agent/ui/styles/sprinkles';
  *   <div className={sx({ display: 'flex', background: 'surface', padding: '3' })} />
  */
 import { createSprinkles, defineProperties } from '@vanilla-extract/sprinkles';

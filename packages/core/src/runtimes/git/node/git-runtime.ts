@@ -1,4 +1,4 @@
-import { KeyedMutex } from '@emdash/shared/concurrency';
+import { KeyedMutex } from '@agent/shared/concurrency';
 import type { EnvSource } from '#primitives/exec/api';
 import { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
 import { GitCheckoutRuntime } from '#runtimes/git/node/checkout/checkout-runtime';

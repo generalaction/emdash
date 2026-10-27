@@ -1,8 +1,8 @@
-import { err, ok, type Result } from '@emdash/shared';
-import { noopLogger, type Logger } from '@emdash/shared/logger';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
-import { cell, expose, type Cell } from '@emdash/wire/state';
+import { err, ok, type Result } from '@agent/shared';
+import { noopLogger, type Logger } from '@agent/shared/logger';
+import { systemClock, type Clock } from '@agent/shared/scheduling';
+import { type LeasedLiveModelProvider } from '@agent/wire/rpc';
+import { cell, expose, type Cell } from '@agent/wire/state';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type { AttachmentStore } from '#services/attachments/node/attachment-store';
 import { OwnedAttachments } from '#services/attachments/node/owned-attachments';

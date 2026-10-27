@@ -2,14 +2,14 @@ import type {
   CanonicalHookEvent,
   HookRegistration,
   PluginFs,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
   configRoots,
   defaultHookEventParser,
   homeConfigRoot,
   makeStdinHookCommand,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 
 export const CODEBUDDY_SETTINGS_PATH = 'settings.json';
 

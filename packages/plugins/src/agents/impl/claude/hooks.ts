@@ -1,4 +1,4 @@
-import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { CanonicalHookEvent } from '@agent/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
   configRoots,
@@ -6,7 +6,7 @@ import {
   envConfigRoot,
   extractProviderSessionId,
   makeStdinHookCommand,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 
 export const CLAUDE_SETTINGS_PATH = 'settings.json';
 

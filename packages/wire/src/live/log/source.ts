@@ -1,4 +1,4 @@
-import { createEmitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@agent/shared';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { LiveLogDelta } from '../protocol';
 

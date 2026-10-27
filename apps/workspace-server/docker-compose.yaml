@@ -1,7 +1,7 @@
 services:
   minio:
     image: minio/minio:latest
-    container_name: emdash-workspace-minio
+    container_name: agent-workspace-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -15,7 +15,7 @@ services:
 
   minio-setup:
     image: minio/mc:latest
-    container_name: emdash-workspace-minio-setup
+    container_name: agent-workspace-minio-setup
     depends_on:
       - minio
     entrypoint: /bin/sh
@@ -26,8 +26,8 @@ services:
         until mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null 2>&1; do
           sleep 1
         done
-        mc mb --ignore-existing local/emdash-releases
-        mc anonymous set download local/emdash-releases
+        mc mb --ignore-existing local/agent-releases
+        mc anonymous set download local/agent-releases
     restart: "no"
 
   workspace-remote:
@@ -35,7 +35,7 @@ services:
     build:
       context: ./tooling/docker
       dockerfile: remote-machine.dockerfile
-    container_name: emdash-workspace-remote
+    container_name: agent-workspace-remote
     depends_on:
       minio-setup:
         condition: service_completed_successfully
@@ -47,8 +47,8 @@ services:
 
 volumes:
   minio-data:
-    name: emdash-workspace-minio-data
+    name: agent-workspace-minio-data
     driver: local
   workspace-remote-home:
-    name: emdash-workspace-remote-home
+    name: agent-workspace-remote-home
     driver: local

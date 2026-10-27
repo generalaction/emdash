@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { err, ok } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
+import { err, ok } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
 import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
 import { requireWatchReady, type WatchEvent } from '#services/fs-watch/api';
@@ -28,7 +28,7 @@ async function eventually<T>(
 
 describe('createWatchService', () => {
   it('shares a backend subscription by normalized root and ignore set', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-fs-watch-engine-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-fs-watch-engine-'));
     const backend = new FakeWatchBackend();
     const service = createWatchService({ backend });
     const firstEvents: WatchEvent[] = [];
@@ -65,7 +65,7 @@ describe('createWatchService', () => {
 
   it('applies debounce per consumer and forwards resync signals', async () => {
     vi.useFakeTimers();
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-fs-watch-debounce-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-fs-watch-debounce-'));
     const backend = new FakeWatchBackend();
     const service = createWatchService({ backend });
     const events: WatchEvent[] = [];
@@ -100,7 +100,7 @@ describe('createWatchService', () => {
   });
 
   it('emits real file events through ref-counted native leases', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-shared-watch-'));
     const watch = createNativeWatchService();
     const firstEvents: WatchEvent[] = [];
     const secondEvents: WatchEvent[] = [];
@@ -148,7 +148,7 @@ describe('createWatchService', () => {
   });
 
   it('keeps the shared subscription alive across concurrent release/re-watch', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-relock-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-shared-watch-relock-'));
     const watch = createNativeWatchService();
     const events: WatchEvent[] = [];
 
@@ -170,7 +170,7 @@ describe('createWatchService', () => {
   });
 
   it('surfaces watcher subscription failures through ready()', async () => {
-    const root = path.join(tmpdir(), `emdash-shared-watch-missing-${Date.now()}`);
+    const root = path.join(tmpdir(), `agent-shared-watch-missing-${Date.now()}`);
     const watch = createNativeWatchService();
 
     try {
@@ -190,7 +190,7 @@ describe('createWatchService', () => {
   });
 
   it('reports watcher subscription failures while ready() fulfills with a failure Result', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-error-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-watch-error-'));
     const backend = new DeferredWatchBackend();
     const service = createWatchService({ backend });
     const onError = vi.fn();
@@ -213,7 +213,7 @@ describe('createWatchService', () => {
   });
 
   it('does not emit an unhandled rejection when ready() is not awaited', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-unhandled-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-watch-unhandled-'));
     const backend = new DeferredWatchBackend();
     const service = createWatchService({ backend });
     const unhandled = vi.fn();
@@ -237,7 +237,7 @@ describe('createWatchService', () => {
   });
 
   it('suppresses watcher subscription errors after release', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-released-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-watch-released-'));
     const backend = new DeferredWatchBackend();
     const service = createWatchService({ backend });
     const onError = vi.fn();
@@ -259,7 +259,7 @@ describe('createWatchService', () => {
   });
 
   it('contains errors thrown by the attach-failure observer', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-error-observer-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-watch-error-observer-'));
     const backend = new DeferredWatchBackend();
     const service = createWatchService({ backend });
     const failure = new Error('watch attach failed');
@@ -281,7 +281,7 @@ describe('createWatchService', () => {
   });
 
   it('evicts a failed startup so the next watch makes a fresh attempt', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-retry-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-watch-retry-'));
     const backend = new DeferredWatchBackend();
     const service = createWatchService({ backend });
     const failure = new Error('watch attach failed');
@@ -309,9 +309,9 @@ describe('createWatchService', () => {
   });
 
   it('keeps the native backend healthy when an active startup is cancelled', async () => {
-    const activeRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-active-'));
-    const cancelledRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-cancelled-'));
-    const nextRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-next-'));
+    const activeRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-watch-active-'));
+    const cancelledRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-watch-cancelled-'));
+    const nextRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-watch-next-'));
     const cancelledSubscription = deferred<parcelWatcher.AsyncSubscription>();
     const activeUnsubscribe = vi.fn(async () => {});
     const cancelledUnsubscribe = vi.fn(async () => {});
@@ -368,7 +368,7 @@ describe('createWatchService', () => {
 
   it('poisons the native backend when a cancelled startup exceeds its watchdog', async () => {
     vi.useFakeTimers();
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-cancelled-stuck-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-native-watch-cancelled-stuck-'));
     const subscription = deferred<parcelWatcher.AsyncSubscription>();
     const unsubscribe = vi.fn(async () => {});
     const subscribe = vi.fn().mockReturnValueOnce(subscription.promise);
@@ -400,8 +400,8 @@ describe('createWatchService', () => {
   });
 
   it('starts native subscriptions FIFO', async () => {
-    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-queue-first-'));
-    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-queue-second-'));
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-queue-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-queue-second-'));
     const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
     const secondSubscription = deferred<parcelWatcher.AsyncSubscription>();
     const firstUnsubscribe = vi.fn(async () => {});
@@ -445,8 +445,8 @@ describe('createWatchService', () => {
 
   it('poisons queued native starts when the active startup exceeds its watchdog', async () => {
     vi.useFakeTimers();
-    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-first-'));
-    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-second-'));
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-stuck-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-stuck-second-'));
     const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
     const firstUnsubscribe = vi.fn(async () => {});
     const subscribe = vi.fn().mockReturnValueOnce(firstSubscription.promise);
@@ -499,7 +499,7 @@ describe('createWatchService', () => {
 
   it('applies the native startup watchdog to replacement subscriptions', async () => {
     vi.useFakeTimers();
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-replacement-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-native-stuck-replacement-'));
     const replacement = deferred<parcelWatcher.AsyncSubscription>();
     const firstUnsubscribe = vi.fn(async () => {});
     const replacementUnsubscribe = vi.fn(async () => {});
@@ -546,8 +546,8 @@ describe('createWatchService', () => {
   });
 
   it('cancels a queued native subscription when its final lease is released', async () => {
-    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-first-'));
-    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-second-'));
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-cancel-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-cancel-second-'));
     const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
     const firstUnsubscribe = vi.fn(async () => {});
     const subscribe = vi.fn().mockReturnValueOnce(firstSubscription.promise);
@@ -578,8 +578,8 @@ describe('createWatchService', () => {
   });
 
   it('survives native unsubscribe failure and accepts a later root', async () => {
-    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-release-first-'));
-    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-release-second-'));
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-release-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'agent-native-release-second-'));
     const failure = new Error('Unable to remove watcher');
     const firstUnsubscribe = vi.fn().mockRejectedValue(failure);
     const secondUnsubscribe = vi.fn(async () => {});
@@ -614,7 +614,7 @@ describe('createWatchService', () => {
   });
 
   it('releases every native subscription after repeated many-root churn', async () => {
-    const parent = await mkdtemp(path.join(tmpdir(), 'emdash-native-churn-'));
+    const parent = await mkdtemp(path.join(tmpdir(), 'agent-native-churn-'));
     const roots = Array.from({ length: 8 }, (_, index) => path.join(parent, `root-${index}`));
     await Promise.all(roots.map((root) => mkdir(root)));
     const service = createNativeWatchService();
@@ -643,7 +643,7 @@ describe('createWatchService', () => {
   }, 15_000);
 
   it('disposes active handles by releasing their shared native subscription', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-dispose-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-shared-watch-dispose-'));
     const watch = createNativeWatchService();
     const handle = watch.watch(root, () => {});
 

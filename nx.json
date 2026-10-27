@@ -46,7 +46,7 @@
           "env": "CI"
         },
         {
-          "env": "EMDASH_TEST_SKIP_BROWSER"
+          "env": "AGENT_TEST_SKIP_BROWSER"
         }
       ],
       "cache": true

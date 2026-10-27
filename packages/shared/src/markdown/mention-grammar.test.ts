@@ -72,10 +72,10 @@ describe('stringifyMention', () => {
     expect(
       stringifyMention({
         label: 'main.ts',
-        target: '/Users/me/projects/emdash/src/main.ts',
+        target: '/Users/me/projects/agent/src/main.ts',
         kind: 'file',
       })
-    ).toBe('@[main.ts](/Users/me/projects/emdash/src/main.ts)');
+    ).toBe('@[main.ts](/Users/me/projects/agent/src/main.ts)');
   });
 });
 

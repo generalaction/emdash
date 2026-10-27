@@ -1,4 +1,4 @@
-import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
+import type { PendingLease, Result, Unsubscribe } from '@agent/shared';
 import { markDownloadFileOpen, type BlobSource, type WireFile } from './blob-channel';
 import type { LiveSource } from './channel';
 import type {

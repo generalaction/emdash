@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { emdashScriptsConfigSchema } from '#primitives/emdash-config/api';
+import { agentScriptsConfigSchema } from '#primitives/agent-config/api';
 
 /**
  * The registry's config live model, projected per record: which scripts the
- * workspace's own `.emdash.json` defines and its preserve patterns — enough for the
+ * workspace's own `.agent.json` defines and its preserve patterns — enough for the
  * desktop to render script availability without its own filesystem reads. Null until
  * the model's first read lands (boot and scans fill it off the blocking path).
  */
@@ -26,7 +26,7 @@ export type WorkspaceConfigSummary = z.infer<typeof workspaceConfigSummarySchema
  */
 export const personalProjectConfigSchema = z.object({
   preservePatterns: z.array(z.string()).optional(),
-  scripts: emdashScriptsConfigSchema.optional(),
+  scripts: agentScriptsConfigSchema.optional(),
   /** Host-local variables injected into every process launched for this project. */
   env: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).optional(),
   autoRunSetup: z.boolean().optional(),

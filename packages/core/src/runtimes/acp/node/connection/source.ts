@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
+import { isErr, toSerializedError } from '@agent/shared';
+import { createResourceCache, type ResourceCache, type Scope } from '@agent/shared/concurrency';
+import type { Logger } from '@agent/shared/logger';
+import type { Clock } from '@agent/shared/scheduling';
 import type { Client, McpCapabilities } from '@agentclientprotocol/sdk';
-import { isErr, toSerializedError } from '@emdash/shared';
-import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
-import type { Clock } from '@emdash/shared/scheduling';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import { acpErr } from '#runtimes/acp/api';
 import type { AcpProcessHost } from '#runtimes/acp/api/transport';

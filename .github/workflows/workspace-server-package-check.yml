@@ -50,7 +50,7 @@ jobs:
       - name: Cache packaged Node distribution
         uses: actions/cache@v4
         with:
-          path: ~/.cache/emdash/workspace-server
+          path: ~/.cache/agent/workspace-server
           key: workspace-server-node-linux-x64-${{ hashFiles('.nvmrc') }}
 
       - name: Set up Docker Buildx

@@ -1,6 +1,6 @@
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import {
   comparisonKeyForAbsolutePath,
   createPathProfile,

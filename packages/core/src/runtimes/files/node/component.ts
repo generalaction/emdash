@@ -1,4 +1,4 @@
-import { defineWireComponent, requireContract } from '@emdash/wire/worker';
+import { defineWireComponent, requireContract } from '@agent/wire/worker';
 import { z } from 'zod';
 import { filesContract } from '#runtimes/files/api';
 import { createFilesController } from '#runtimes/files/node/api/controller';

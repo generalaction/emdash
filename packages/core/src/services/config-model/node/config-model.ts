@@ -15,7 +15,7 @@ export type ConfigFileEntry<T> = {
 
 /**
  * Reads one config file leniently. `parse` receives the raw content and reports
- * success plus the (defaulted) data — the shape `parseEmdashConfig` and friends
+ * success plus the (defaulted) data — the shape `parseAgentConfig` and friends
  * already produce.
  */
 export async function readConfigFile<T>(

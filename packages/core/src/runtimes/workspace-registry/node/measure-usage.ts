@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { defaultGitExecFactory, type GitExecFactory } from '#services/exec/node/git-exec';
 import { measureAbsolutePathUsage } from '#services/fs-usage/node';
 import type { MeasureUsageError } from '../api/errors';

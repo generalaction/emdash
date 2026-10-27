@@ -1,6 +1,6 @@
 # Structured Concurrency
 
-Shared `Scope.run()` from `@emdash/shared/concurrency` tracks asynchronous work
+Shared `Scope.run()` from `@agent/shared/concurrency` tracks asynchronous work
 under the same owner as subscriptions, processes, timers, and other resources.
 Wire uses it when work must not outlive the feature that started it.
 

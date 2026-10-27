@@ -1,7 +1,7 @@
 /**
- * namespace.ts — Single source of truth for the @emdash/ui CSS custom-property namespace.
+ * namespace.ts — Single source of truth for the @agent/ui CSS custom-property namespace.
  *
- * Every CSS custom property emitted by @emdash/ui is prefixed with `--em-` so the
+ * Every CSS custom property emitted by @agent/ui is prefixed with `--em-` so the
  * library can coexist with a host app's own unprefixed vars without collision.
  *
  * Components and styles keep referencing tokens through VE typed accessors

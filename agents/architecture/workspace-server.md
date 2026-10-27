@@ -1,9 +1,9 @@
 # Workspace Server
 
-The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a remote machine and exposes workspace runtimes (git, files, deps, ACP, …) to Emdash clients over the `@emdash/wire` protocol. Clients connect over an SSH-forwarded Unix socket; the daemon is independently lived and can be running when clients upgrade, downgrade, or are absent entirely.
+The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a remote machine and exposes workspace runtimes (git, files, deps, ACP, …) to Agent clients over the `@agent/wire` protocol. Clients connect over an SSH-forwarded Unix socket; the daemon is independently lived and can be running when clients upgrade, downgrade, or are absent entirely.
 
 The desktop client and managed installation flow live in
-`apps/emdash-desktop/src/core/services/hosts/node/workspace-server/`. For an SSH host, the runtime
+`apps/agent-desktop/src/core/services/hosts/node/workspace-server/`. For an SSH host, the runtime
 broker looks up a `HostService` through `Hosts` (`core/services/hosts/node/hosts.ts`) and asks
 its `runtime` service for a client. `Hosts` owns identity replacement, aggregate state/events,
 and lease rebinding. Each remote identity has one `HostService`
@@ -51,7 +51,7 @@ workers; production uses it only for desktop-local workers. A remote Host cannot
 that local preparation path. The Host probe and provisioner each own a single Host's cached result
 and current operation; cancelled work is fenced before continuing to another daemon action.
 
-Managed Linux and macOS installations use `~/.emdash/workspace-server/` with immutable version
+Managed Linux and macOS installations use `~/.agent/workspace-server/` with immutable version
 directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under
 `run/`. When the daemon is absent or the user explicitly requests an update, the desktop downloads
@@ -64,9 +64,9 @@ platform ships: GNU coreutils and tar on Linux, and BSD tar, `shasum`, and the a
 runtime (for the atomic `current` rename) on macOS. Compatible same-major daemons remain installed until a future explicit update.
 The desktop offers that update only when the channel pointer names a strictly newer SemVer artifact
 version; equal and older pointer versions leave the running daemon alone.
-`EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL` overrides the install-script and artifact base URL for
+`AGENT_WORKSPACE_SERVER_ARTIFACTS_URL` overrides the install-script and artifact base URL for
 development; the Docker remote dev setup publishes Linux builds to local minio and uses
-`http://minio:9000/emdash-releases/workspace-server` so remote installation exercises the same
+`http://minio:9000/agent-releases/workspace-server` so remote installation exercises the same
 curl-based object-store path as production. Provisioning verifies that every successful install
 selected the exact version named by the resolved channel pointer.
 
@@ -231,7 +231,7 @@ When majors differ, the fallible `initialize` procedure returns a typed error:
 }
 ```
 
-`action` is `'upgrade-client'` when the client major is lower (stale desktop app) and `'upgrade-server'` when the client major is higher (stale daemon). Use `protocolUpgradeMessage(action)` from `@emdash/core/workspace-server` to produce a consistent user-facing string.
+`action` is `'upgrade-client'` when the client major is lower (stale desktop app) and `'upgrade-server'` when the client major is higher (stale daemon). Use `protocolUpgradeMessage(action)` from `@agent/core/workspace-server` to produce a consistent user-facing string.
 
 ### Negotiation flow
 
@@ -281,6 +281,6 @@ The desktop forwards the read-only agent hook-status procedure to the selected h
 | [`apps/workspace-server/src/gateway/worker-paths.ts`](../../apps/workspace-server/src/gateway/worker-paths.ts) | packaged worker executable path resolution |
 | [`apps/workspace-server/src/gateway/entries/`](../../apps/workspace-server/src/gateway/entries/) | plugin-injecting ACP, agent config, and TUI-agent worker entries |
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |
-| [`apps/emdash-desktop/src/core/services/hosts/`](../../apps/emdash-desktop/src/core/services/hosts/) | Desktop orchestration and lifecycle policy for SSH hosts |
-| [`apps/emdash-desktop/src/core/services/hosts/node/workspace-server/`](../../apps/emdash-desktop/src/core/services/hosts/node/workspace-server/) | Wire connection manager, hosted-script installer, daemon control, and provisioner |
+| [`apps/agent-desktop/src/core/services/hosts/`](../../apps/agent-desktop/src/core/services/hosts/) | Desktop orchestration and lifecycle policy for SSH hosts |
+| [`apps/agent-desktop/src/core/services/hosts/node/workspace-server/`](../../apps/agent-desktop/src/core/services/hosts/node/workspace-server/) | Wire connection manager, hosted-script installer, daemon control, and provisioner |
 | [`apps/workspace-server/install.sh`](../../apps/workspace-server/install.sh) | Remote platform detection and atomic pinned-artifact installation |

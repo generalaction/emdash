@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ManualClock } from '@emdash/shared/testing';
+import { ManualClock } from '@agent/shared/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import {
@@ -126,7 +126,7 @@ describe('workspace registry ref-follow pass', () => {
       'feature.txt\n'
     );
     // Executor hygiene holds on the follow path too: no leftover private temp refs.
-    expect(git(repoPath, 'for-each-ref', 'refs/emdash')).toBe('');
+    expect(git(repoPath, 'for-each-ref', 'refs/agent')).toBe('');
 
     // An already-current checkout is a silent no-op on the next pass.
     const again = await runtime.runRefFollowPass();

@@ -6,7 +6,7 @@ import { noTsxInApiRule } from './rules/no-tsx-in-api.js';
 
 export default {
   meta: {
-    name: 'emdash',
+    name: 'agent',
   },
   rules: {
     'core-host-boundaries': coreHostBoundariesRule,

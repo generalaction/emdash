@@ -1,5 +1,5 @@
-import { resultSchema } from '@emdash/shared';
-import type { Result } from '@emdash/shared';
+import { resultSchema } from '@agent/shared';
+import type { Result } from '@agent/shared';
 import { z } from 'zod';
 import {
   hostDependencyDescriptorSchema,

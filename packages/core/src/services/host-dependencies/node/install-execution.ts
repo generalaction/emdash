@@ -1,5 +1,5 @@
-import { err, ok, type Result } from '@emdash/shared';
-import type { Logger } from '@emdash/shared/logger';
+import { err, ok, type Result } from '@agent/shared';
+import type { Logger } from '@agent/shared/logger';
 import { formatCommandLine } from '#primitives/exec/api';
 import type { IExecutionContext } from '#primitives/exec/api';
 import type {

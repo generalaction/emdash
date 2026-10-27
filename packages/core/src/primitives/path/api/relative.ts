@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { invalidPath, type PathError } from './errors';
 import { normalizeSegmentStack, splitPosixInput } from './segments';
 import type { PortableRelativePath, UnicodeNormalization } from './types';

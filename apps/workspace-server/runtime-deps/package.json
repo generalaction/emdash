@@ -1,5 +1,5 @@
 {
-  "name": "@emdash/workspace-server-runtime-deps",
+  "name": "@agent/workspace-server-runtime-deps",
   "version": "0.0.0",
   "private": true,
   "description": "Native runtime dependencies staged into workspace-server artifacts",

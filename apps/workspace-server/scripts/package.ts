@@ -89,7 +89,7 @@ async function main(): Promise<void> {
   }
 
   process.stdout.write('Building workspace-server package dependencies...\n');
-  for (const packageName of ['@emdash/shared', '@emdash/wire', '@emdash/core']) {
+  for (const packageName of ['@agent/shared', '@agent/wire', '@agent/core']) {
     await runCommand('pnpm', ['--filter', packageName, 'run', 'build'], {
       cwd: repositoryDirectory,
     });
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   const protocolVersion = await readProtocolVersion();
 
   process.stdout.write('Building plugin adapter assets...\n');
-  await runCommand('pnpm', ['--filter', '@emdash/plugins', 'run', 'build'], {
+  await runCommand('pnpm', ['--filter', '@agent/plugins', 'run', 'build'], {
     cwd: repositoryDirectory,
   });
   const adapterAssets = await readBuiltAdapterAssets();
@@ -138,7 +138,7 @@ async function packageTarget(options: {
     adapterAssets,
     verify,
   } = options;
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), `emdash-ws-package-${target.id}-`));
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), `agent-ws-package-${target.id}-`));
 
   try {
     process.stdout.write(`Packaging ${target.id}...\n`);
@@ -205,21 +205,21 @@ async function resolvePackageVersion(
 ): Promise<{ value: string; devBuild: boolean }> {
   if (explicitVersion !== undefined) {
     if (
-      process.env['EMDASH_WS_DEV_BUILD'] === '1' ||
-      process.env['EMDASH_WS_DEV_VERSION'] !== undefined
+      process.env['AGENT_WS_DEV_BUILD'] === '1' ||
+      process.env['AGENT_WS_DEV_VERSION'] !== undefined
     ) {
       throw new Error(
-        '--version cannot be combined with EMDASH_WS_DEV_BUILD or EMDASH_WS_DEV_VERSION'
+        '--version cannot be combined with AGENT_WS_DEV_BUILD or AGENT_WS_DEV_VERSION'
       );
     }
     return { value: validatePackageVersion(explicitVersion), devBuild: false };
   }
 
-  const explicitDevVersion = process.env['EMDASH_WS_DEV_VERSION']?.trim();
+  const explicitDevVersion = process.env['AGENT_WS_DEV_VERSION']?.trim();
   if (explicitDevVersion !== undefined && explicitDevVersion.length > 0) {
     return { value: createDevPackageVersion(baseVersion, explicitDevVersion), devBuild: true };
   }
-  if (process.env['EMDASH_WS_DEV_BUILD'] !== '1') {
+  if (process.env['AGENT_WS_DEV_BUILD'] !== '1') {
     return { value: baseVersion, devBuild: false };
   }
   return {
@@ -244,12 +244,12 @@ async function devBuildIdentifier(): Promise<string> {
 }
 
 async function readProtocolVersion(): Promise<string> {
-  const workspaceServerModule: unknown = await import('@emdash/core/workspace-server');
+  const workspaceServerModule: unknown = await import('@agent/core/workspace-server');
   if (
     !isRecord(workspaceServerModule) ||
     typeof workspaceServerModule['PROTOCOL_VERSION'] !== 'string'
   ) {
-    throw new Error('@emdash/core/workspace-server must export a string PROTOCOL_VERSION');
+    throw new Error('@agent/core/workspace-server must export a string PROTOCOL_VERSION');
   }
   return workspaceServerModule['PROTOCOL_VERSION'];
 }
@@ -261,7 +261,7 @@ async function readBuiltAdapterAssets(): Promise<readonly PackageAdapterAssetInf
   );
   const manifestModule: unknown = await import(pathToFileURL(manifestPath).href);
   if (!isRecord(manifestModule)) {
-    throw new Error('@emdash/plugins adapter manifest did not export adapterAssets');
+    throw new Error('@agent/plugins adapter manifest did not export adapterAssets');
   }
 
   return parseAdapterAssetInfos(manifestModule['adapterAssets']);
@@ -280,7 +280,7 @@ async function validateBuiltAdapterDirectory(
     !isRecord(validationModule) ||
     typeof validationModule['validateAdapterBundleAssets'] !== 'function'
   ) {
-    throw new Error('@emdash/plugins adapter validation helper was not built');
+    throw new Error('@agent/plugins adapter validation helper was not built');
   }
   const { validateAdapterBundleAssets } = validationModule as AdapterValidationModule;
   await validateAdapterBundleAssets({ adapterDirectory, assets });
@@ -431,8 +431,8 @@ function findChecksum(checksums: string, archiveName: string): string {
 
 function packageCacheRoot(): string {
   return (
-    process.env['EMDASH_WS_PACKAGE_CACHE_DIR'] ??
-    join(homedir(), '.cache', 'emdash', 'workspace-server')
+    process.env['AGENT_WS_PACKAGE_CACHE_DIR'] ??
+    join(homedir(), '.cache', 'agent', 'workspace-server')
   );
 }
 
@@ -544,7 +544,7 @@ async function assembleArtifact(options: {
   const binDirectory = join(artifactDirectory, 'bin');
   const distDirectory = join(artifactDirectory, 'dist');
   const ripgrepLicenseDirectory = join(artifactDirectory, 'licenses', 'ripgrep');
-  const launcherPath = join(binDirectory, 'emdash-workspace-server');
+  const launcherPath = join(binDirectory, 'agent-workspace-server');
   const nodePath = join(artifactDirectory, 'node');
   const ripgrepPath = join(binDirectory, 'rg');
 
@@ -607,7 +607,7 @@ async function assembleArtifact(options: {
 }
 
 async function verifyArtifact(archivePath: string, target: PackageTarget): Promise<void> {
-  const extractionDirectory = await mkdtemp(join(tmpdir(), `emdash-ws-verify-${target.id}-`));
+  const extractionDirectory = await mkdtemp(join(tmpdir(), `agent-ws-verify-${target.id}-`));
   try {
     await runCommand('tar', ['-xzf', archivePath, '-C', extractionDirectory]);
     const extractedArtifact = join(extractionDirectory, artifactRootName);
@@ -622,8 +622,8 @@ async function verifyArtifact(archivePath: string, target: PackageTarget): Promi
 }
 
 async function verifyLocalArtifact(extractedArtifact: string): Promise<void> {
-  const runtimeDirectory = await mkdtemp('/tmp/emdash-ws-smoke-');
-  const launcherPath = join(extractedArtifact, 'bin/emdash-workspace-server');
+  const runtimeDirectory = await mkdtemp('/tmp/agent-ws-smoke-');
+  const launcherPath = join(extractedArtifact, 'bin/agent-workspace-server');
   const ripgrepPath = join(extractedArtifact, 'bin/rg');
   const socketPath = join(runtimeDirectory, 'run/workspace.sock');
   const searchDirectory = join(runtimeDirectory, 'search');
@@ -664,16 +664,16 @@ async function verifyLinuxArtifact(
   }
 
   const smokeScript = `set -eu
-server=/opt/emdash-workspace-server/bin/emdash-workspace-server
-rg=/opt/emdash-workspace-server/bin/rg
-socket=/tmp/emdash-smoke/run/workspace.sock
-mkdir -p /tmp/emdash-smoke/run
-mkdir -p /tmp/emdash-smoke/search
-printf '%s\\n' bundled-ripgrep-smoke > /tmp/emdash-smoke/search/needle.txt
+server=/opt/agent-workspace-server/bin/agent-workspace-server
+rg=/opt/agent-workspace-server/bin/rg
+socket=/tmp/agent-smoke/run/workspace.sock
+mkdir -p /tmp/agent-smoke/run
+mkdir -p /tmp/agent-smoke/search
+printf '%s\\n' bundled-ripgrep-smoke > /tmp/agent-smoke/search/needle.txt
 cleanup() { "$server" stop --socket-path "$socket" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
 "$rg" --version
-"$rg" --fixed-strings --quiet bundled-ripgrep-smoke /tmp/emdash-smoke/search
+"$rg" --fixed-strings --quiet bundled-ripgrep-smoke /tmp/agent-smoke/search
 "$server" start --socket-path "$socket"
 "$server" status --socket-path "$socket"
 "$server" stop --socket-path "$socket"
@@ -685,7 +685,7 @@ trap cleanup EXIT INT TERM
     '--platform',
     target.dockerPlatform,
     '--volume',
-    `${extractedArtifact}:/opt/emdash-workspace-server:ro`,
+    `${extractedArtifact}:/opt/agent-workspace-server:ro`,
     '--entrypoint',
     '/bin/sh',
     'debian:bookworm-slim',

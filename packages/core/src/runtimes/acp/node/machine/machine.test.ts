@@ -1,4 +1,4 @@
-import { isErr, isOk } from '@emdash/shared';
+import { isErr, isOk } from '@agent/shared';
 import { describe, expect, it } from 'vitest';
 import type { AcpPermissionRequest } from '#runtimes/acp/api';
 import type { SessionMachineState } from './machine';

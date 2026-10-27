@@ -1,4 +1,4 @@
-import type { Logger } from '@emdash/shared/logger';
+import type { Logger } from '@agent/shared/logger';
 import type * as LinearSdk from '@linear/sdk';
 import { AuthenticationLinearError } from '@linear/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';

@@ -1,4 +1,4 @@
-import { defineWireComponent, requireContract } from '@emdash/wire/worker';
+import { defineWireComponent, requireContract } from '@agent/wire/worker';
 import { z } from 'zod';
 import { terminalsContract } from '#runtimes/terminals/api';
 import { NodeExecutionContext } from '#services/exec/api';

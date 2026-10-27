@@ -1,8 +1,8 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import {
   buildNestedEntry,
   makeStdinHookCommand,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { QODER_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
@@ -11,7 +11,7 @@ const baseContext = {
   cli: 'qodercli',
   autoApprove: false,
   initialPrompt: undefined,
-  sessionId: 'emdash-session-id',
+  sessionId: 'agent-session-id',
   providerSessionId: undefined,
   isResuming: false,
   model: '',
@@ -89,8 +89,8 @@ describe('qoder provider', () => {
     expect(settings.hooks.Stop).toEqual([buildNestedEntry(makeStdinHookCommand('stop'))]);
 
     const hooksJson = JSON.stringify(settings.hooks);
-    expect(hooksJson).toContain('EMDASH_HOOK_NONCE');
-    expect(hooksJson).toContain('EMDASH_HOOK_PORT');
+    expect(hooksJson).toContain('AGENT_HOOK_NONCE');
+    expect(hooksJson).toContain('AGENT_HOOK_PORT');
   });
 
   it('maps PermissionRequest hooks to permission notifications', () => {

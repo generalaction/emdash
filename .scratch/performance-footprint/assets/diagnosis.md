@@ -9,14 +9,14 @@ before re-deriving facts. Produced by a live-process investigation plus two code
 - **1.76 TB "Virtual Memory Size" is normal.** macOS reports reserved address space; V8's
   pointer-compression cage and Chromium's allocator reserve terabytes by design. Every
   Electron process on the machine shows ~1.8 TB. The metric that matters is private/real
-  memory growth over time. Emdash at 422 MB real / 360 MB private is unremarkable.
-- **The CPU burn was not emdash.** Three orphaned `nx storybook @emdash/ui` processes
+  memory growth over time. Agent at 422 MB real / 360 MB private is unremarkable.
+- **The CPU burn was not agent.** Three orphaned `nx storybook @agent/ui` processes
   (launched via global Homebrew nx 21.4.0 against a repo on nx 23.0.0) each pinned a full
   core for 10–22 days — a single thread spinning on a dead `read()` inside Nx's native
   module after the parent terminal died. Killed with SIGKILL on 2026-08-06 (they ignored
   SIGTERM). Guidance: launch nx via the repo (`pnpm exec nx ...`), never the global CLI.
 - Baseline note: the app deliberately spawns ~14 persistent Node worker child processes
-  (`apps/emdash-desktop/src/main/gateway/desktop-workers.ts`), so a few-hundred-MB
+  (`apps/agent-desktop/src/main/gateway/desktop-workers.ts`), so a few-hundred-MB
   baseline across the process tree is by design.
 
 ## High-impact code findings (verified in source)
@@ -31,7 +31,7 @@ conversation state per chunk. The adjacent `record.log` (`LiveLogSource`,
 authoritative stream; `state.output` duplicates it unbounded. Upstream,
 `ManagedAcpTerminal` ring-buffers at 4 MB (`acp/node/agent-ports/managed-terminal.ts`).
 
-Renderer side — `apps/emdash-desktop/src/core/features/conversations/browser/acp/acp-terminal-output-binding.ts:49-51`:
+Renderer side — `apps/agent-desktop/src/core/features/conversations/browser/acp/acp-terminal-output-binding.ts:49-51`:
 on every append, `setTerminalOutput(terminalId, binding.text())` pushes the **full**
 accumulated text into chat state; `packages/wire/src/live/mobx/mobx-log-store.ts` grows an
 observable string by concatenation per chunk. O(n²) over a stream, unbounded growth for
@@ -51,7 +51,7 @@ workspaces are the product's premise.
 
 ### 3. Fetch-loop ref fan-out (CPU, MEDIUM/HIGH)
 
-`apps/emdash-desktop/src/main/core/git/repository/fetch-service.ts:60` — `git fetch` on a
+`apps/agent-desktop/src/main/core/git/repository/fetch-service.ts:60` — `git fetch` on a
 2-minute `setInterval` per open project (properly cleared). Each fetch writes
 `FETCH_HEAD`/refs; `scan/scheduler.ts:165-173` turns a ref event into a refs scan (2 git
 subprocesses) for **every worktree of that repo**. Steady-state: every 2 min, 1 fetch +
@@ -59,7 +59,7 @@ subprocesses) for **every worktree of that repo**. Steady-state: every 2 min, 1 
 
 ### 4. Off-screen xterm terminals retained forever with 100k scrollback (renderer memory, HIGH)
 
-`apps/emdash-desktop/src/core/features/terminals/api/browser/pty/pty.ts:15` —
+`apps/agent-desktop/src/core/features/terminals/api/browser/pty/pty.ts:15` —
 `SCROLLBACK_LINES = 100_000`. `terminals/browser/pty/use-pty.ts:71-76` — on unmount the
 terminal is reparented to an off-screen host, never disposed, "so scrollback is preserved
 across tab switches". Memory scales with every terminal ever opened in the session.

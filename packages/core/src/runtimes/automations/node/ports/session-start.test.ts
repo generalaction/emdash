@@ -1,9 +1,9 @@
-import { err, ok } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/rpc';
+import { err, ok } from '@agent/shared';
+import type { ContractClient } from '@agent/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { LOCAL_HOST_REF } from '#primitives/host/api';
 import { hostFileRef, parseAbsolute } from '#primitives/path/api';
-// oxlint-disable-next-line emdash/core-module-boundaries -- exercises the port's registry rewiring (workspaceHost retirement, spec §4.1)
+// oxlint-disable-next-line agent/core-module-boundaries -- exercises the port's registry rewiring (workspaceHost retirement, spec §4.1)
 import type { WorkspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import type { ConversationIndexContract } from '#services/conversation-index/api';
 import type { AcpSessionStartContract, TuiSessionStartContract } from '#services/session-start/api';
@@ -186,7 +186,7 @@ describe('createSessionPortFromDependencies', () => {
       expect.objectContaining({
         conversationId: 'conversation-2',
         type: 'pty',
-        idRegime: 'emdash-chosen',
+        idRegime: 'agent-chosen',
       }),
       { signal: expect.any(AbortSignal) }
     );

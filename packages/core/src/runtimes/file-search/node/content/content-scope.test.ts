@@ -63,7 +63,7 @@ describe('resolveContentScope', () => {
 });
 
 async function createRoot(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-content-scope-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-content-scope-'));
   roots.push(directory);
   return realpath(directory);
 }

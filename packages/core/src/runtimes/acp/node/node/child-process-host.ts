@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { recordSpawn } from '@emdash/shared/perf';
+import { recordSpawn } from '@agent/shared/perf';
 import type { CommandSpec } from '#primitives/exec/api';
 import {
   createChildProcessTreeTerminator,

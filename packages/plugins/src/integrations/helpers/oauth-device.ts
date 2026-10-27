@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import type { DeviceAuthorizationSession } from '../capabilities/auth';
 import type { IntegrationCredentials } from '../host';
 import type { IntegrationError } from '../types';

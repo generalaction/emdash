@@ -1,5 +1,5 @@
-import type { Unsubscribe } from '@emdash/shared';
-import { deferred } from '@emdash/shared/testing';
+import type { Unsubscribe } from '@agent/shared';
+import { deferred } from '@agent/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WireError, type WireMessage, type WireTransport } from '../protocol';
 import { reconnectingTransport } from './reconnecting';

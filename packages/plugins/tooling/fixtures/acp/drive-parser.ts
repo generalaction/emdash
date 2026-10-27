@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
+import type { EnrichHook } from '@agent/core/runtimes/acp/api';
+import { AcpTranscriptParser } from '@agent/core/runtimes/acp/api';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { EnrichHook } from '@emdash/core/runtimes/acp/api';
-import { AcpTranscriptParser } from '@emdash/core/runtimes/acp/api';
 
 export interface RecordedPrompt {
   kind: 'prompt';

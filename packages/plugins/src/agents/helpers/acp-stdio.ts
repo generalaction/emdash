@@ -1,5 +1,4 @@
 import { Readable, Writable } from 'node:stream';
-import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import type {
   AcpAgentApi,
   AcpClientFactory,
@@ -7,7 +6,8 @@ import type {
   AcpSpawnContext,
   AcpSpawnResult,
   IAcpBehavior,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
+import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 
 type NativeAcpSpawnResult = Omit<AcpSpawnResult, 'command'> & {
   command?: string;

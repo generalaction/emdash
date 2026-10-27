@@ -7,7 +7,7 @@ import { createBoundExec, ExecError } from './index';
 
 describe('BoundExec', () => {
   it('runs a configured executable from a fixed cwd', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-'));
     const result = await createBoundExec({ file: process.execPath, cwd }).exec([
       '-e',
       'console.log(process.cwd())',
@@ -18,7 +18,7 @@ describe('BoundExec', () => {
   });
 
   it('streams stdout and lets the consumer stop early', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-stream-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-stream-'));
     const chunks: string[] = [];
 
     await createBoundExec({ file: process.execPath, cwd }).execStreaming(
@@ -33,18 +33,18 @@ describe('BoundExec', () => {
   });
 
   it('opens a piped child with the bound cwd and environment', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-spawn-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-spawn-'));
     const child = await createBoundExec({
       file: process.execPath,
       cwd,
-      env: { ...process.env, EMDASH_EXEC_TEST: 'configured' },
+      env: { ...process.env, AGENT_EXEC_TEST: 'configured' },
     }).spawn([
       '-e',
       [
         "process.stdin.setEncoding('utf8');",
         "let input = '';",
         "process.stdin.on('data', (chunk) => { input += chunk; });",
-        "process.stdin.on('end', () => console.log(JSON.stringify({ cwd: process.cwd(), env: process.env.EMDASH_EXEC_TEST, input })));",
+        "process.stdin.on('end', () => console.log(JSON.stringify({ cwd: process.cwd(), env: process.env.AGENT_EXEC_TEST, input })));",
       ].join(' '),
     ]);
     let stdout = '';
@@ -64,7 +64,7 @@ describe('BoundExec', () => {
   });
 
   it('throws ExecError with serializable process details on non-zero exit', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-error-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-error-'));
     await expect(
       createBoundExec({ file: 'git', cwd }).exec(['rev-parse', '--not-a-real-flag'])
     ).rejects.toMatchObject({
@@ -75,7 +75,7 @@ describe('BoundExec', () => {
   });
 
   it('preserves the operating-system error when an executable is missing', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-missing-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-missing-'));
     const file = path.join(cwd, 'missing-executable');
     try {
       await expect(createBoundExec({ file, cwd }).exec([])).rejects.toMatchObject({
@@ -89,7 +89,7 @@ describe('BoundExec', () => {
   });
 
   it('uses the configured executable path', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-bin-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-bin-'));
     const executable = path.join(dir, 'tool.sh');
     const logPath = path.join(dir, 'calls.log');
     await writeFile(
@@ -106,7 +106,7 @@ describe('BoundExec', () => {
   });
 
   it('uses the Windows launch planner for a bound cmd shim', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-bound-windows-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'agent-bound-windows-'));
     const cmdWrapper = path.join(dir, 'cmd-wrapper');
     const provider = path.join(dir, 'provider.cmd');
     await writeFile(cmdWrapper, '#!/bin/sh\nprintf \'%s\\n\' "$@"\n', 'utf8');
@@ -126,7 +126,7 @@ describe('BoundExec', () => {
   });
 
   it('rejects timed-out processes with an ExecError', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-timeout-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-timeout-'));
 
     await expect(
       createBoundExec({ file: process.execPath, cwd }).exec(
@@ -141,7 +141,7 @@ describe('BoundExec', () => {
   });
 
   it('escalates timed-out processes that ignore SIGTERM', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-timeout-kill-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-timeout-kill-'));
     const pidPath = path.join(cwd, 'child.pid');
 
     await expect(
@@ -165,7 +165,7 @@ describe('BoundExec', () => {
   });
 
   it('awaits process-group termination when cancelled', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-cancel-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-cancel-'));
     const pidPath = path.join(cwd, 'child.pid');
     const controller = new AbortController();
     const execution = createBoundExec({ file: process.execPath, cwd }).exec(
@@ -190,7 +190,7 @@ describe('BoundExec', () => {
   });
 
   it('cleans up descendants after exceeding maxBuffer', async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-buffer-tree-'));
+    const cwd = await mkdtemp(path.join(tmpdir(), 'agent-shared-exec-buffer-tree-'));
     const pidPath = path.join(cwd, 'child.pid');
     const execution = createBoundExec({ file: process.execPath, cwd }).exec(
       [

@@ -1,4 +1,4 @@
-import { definePluginCapability } from '@emdash/shared/plugins';
+import { definePluginCapability } from '@agent/shared/plugins';
 import z from 'zod';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 import type { ConfigRootContext } from '../helpers/config-root';

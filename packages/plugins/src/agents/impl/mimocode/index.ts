@@ -1,22 +1,22 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   mimocodeMcpAdapter,
   npmDependency,
   xdgConfigRoot,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 import { MIMOCODE_PLUGIN_CONTENT } from './plugin-file';
 
-const MIMOCODE_PLUGIN_PATH = 'plugins/emdash-notifications.js';
+const MIMOCODE_PLUGIN_PATH = 'plugins/agent-notifications.js';
 
 // MiMoCode session ids match `^ses.*` (inherited from its OpenCode base). The
-// guard prevents resuming with the emdash conversation UUID that
+// guard prevents resuming with the agent conversation UUID that
 // `conversation.sessionId` is seeded with before the first native id is captured.
 const validateSessionId = (id: string) => id.startsWith('ses');
 

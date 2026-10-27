@@ -11,7 +11,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 export const DEFAULT_DESKTOP_CORE_SRC_ROOT = path.resolve(
   currentDir,
-  '../../../apps/emdash-desktop/src/core'
+  '../../../apps/agent-desktop/src/core'
 );
 
 function normalizePath(value) {

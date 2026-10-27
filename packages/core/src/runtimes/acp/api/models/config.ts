@@ -46,7 +46,7 @@ export function acceptsProviderValue(
 export const sessionCommandSchema = z.object({
   name: z.string(),
   description: z.string(),
-  /** Distinguishes provider-advertised ACP commands from Emdash-owned skills. */
+  /** Distinguishes provider-advertised ACP commands from Agent-owned skills. */
   source: z.literal('provider-command'),
   /** Optional provider hint for slash-command arguments, shown near the composer. */
   inputHint: z.string().optional(),

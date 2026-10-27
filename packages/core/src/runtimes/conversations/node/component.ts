@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineWireComponent } from '@emdash/wire/worker';
+import { defineWireComponent } from '@agent/wire/worker';
 import { z } from 'zod';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { conversationsContract } from '../api';

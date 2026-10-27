@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { userGetCurrent } from '@llamaduck/forgejo-ts';
 import { createClient } from '@llamaduck/forgejo-ts/client';
 import { parseCredentials } from '../../helpers/credentials';

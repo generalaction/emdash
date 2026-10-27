@@ -1,4 +1,4 @@
-import { createScope } from '@emdash/shared/concurrency';
+import { createScope } from '@agent/shared/concurrency';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { connect } from '../api/connect';

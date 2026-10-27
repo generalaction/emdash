@@ -1,4 +1,4 @@
-# @emdash/chat-ui — Public API
+# @agent/chat-ui — Public API
 
 A Solid-based chat transcript renderer with a pretext layout engine. It
 virtualizes long conversations, renders markdown/code/diffs/tool calls, and
@@ -7,11 +7,11 @@ split for fine-grained lifecycle control.
 
 The package ships a single entry point:
 
-- `@emdash/chat-ui` — the three factory functions `createChatContext`,
+- `@agent/chat-ui` — the three factory functions `createChatContext`,
   `createChatState`, and `createChatView`.
 
 The React wrapper (`ChatTranscript`) and theme adapter (`chat-theme.css`) now
-live in `@emdash/ui/react/chat-ui`. See that package for React integration docs.
+live in `@agent/ui/react/chat-ui`. See that package for React integration docs.
 
 Everything below is the supported surface. Internals (components, layout
 engine, stores) are not exported and may change without notice.
@@ -21,8 +21,8 @@ engine, stores) are not exported and may change without notice.
 ## Installation & styles
 
 ```ts
-import { createChatContext, createChatState, createChatView } from '@emdash/chat-ui';
-import '@emdash/chat-ui/style.css';
+import { createChatContext, createChatState, createChatView } from '@agent/chat-ui';
+import '@agent/chat-ui/style.css';
 ```
 
 The mount container must have a **fixed height** — the virtualizer measures the
@@ -58,8 +58,8 @@ preserves transcript state without re-fetching.
 ## Quick start (Solid / vanilla)
 
 ```ts
-import { createChatContext, createChatState, createChatView } from '@emdash/chat-ui';
-import '@emdash/chat-ui/style.css';
+import { createChatContext, createChatState, createChatView } from '@agent/chat-ui';
+import '@agent/chat-ui/style.css';
 
 // Once per app (or per conversation set):
 const ctx = createChatContext({ stickToBottom: true });
@@ -109,8 +109,8 @@ ctx.dispose();     // clears shared caches and Solid reactive root
 ## Quick start (React)
 
 ```tsx
-import { createChatContext, createChatState, ChatTranscript } from '@emdash/ui/react/chat-ui';
-import '@emdash/chat-ui/style.css';
+import { createChatContext, createChatState, ChatTranscript } from '@agent/ui/react/chat-ui';
+import '@agent/chat-ui/style.css';
 
 // Create once at app startup:
 const chatCtx = createChatContext();
@@ -303,8 +303,8 @@ type ScrollToItemOptions = {
 ## Theme
 
 ```ts
-import { buildChatTheme, DEFAULT_CONFIG, DEFAULT_THEME } from '@emdash/chat-ui';
-import type { ChatTheme, ChatConfig } from '@emdash/chat-ui';
+import { buildChatTheme, DEFAULT_CONFIG, DEFAULT_THEME } from '@agent/chat-ui';
+import type { ChatTheme, ChatConfig } from '@agent/chat-ui';
 
 const theme = buildChatTheme(myConfig);          // build from config
 const ctx   = createChatContext({ theme });      // or pass directly
@@ -320,7 +320,7 @@ needed).
 ## Highlighter
 
 ```ts
-import { createDefaultHighlighter } from '@emdash/chat-ui';
+import { createDefaultHighlighter } from '@agent/chat-ui';
 
 const highlighter = await createDefaultHighlighter();
 const ctx = createChatContext({ highlighter });
@@ -335,7 +335,7 @@ override.
 ## Mention provider
 
 ```ts
-import type { MentionProvider } from '@emdash/chat-ui';
+import type { MentionProvider } from '@agent/chat-ui';
 
 const provider: MentionProvider = {
   resolve(token: string) {

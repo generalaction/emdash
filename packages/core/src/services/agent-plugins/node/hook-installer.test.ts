@@ -1,8 +1,8 @@
 import { promises as nodeFs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createScope } from '@emdash/shared/concurrency';
-import { createStubLogger, deferred } from '@emdash/shared/testing';
+import { createScope } from '@agent/shared/concurrency';
+import { createStubLogger, deferred } from '@agent/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '#primitives/exec/api';
 import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
@@ -124,7 +124,7 @@ describe('AgentHookInstaller', () => {
   it('installs file-drop plugins relative to their resolved global root', async () => {
     const homeDir = await makeTempDir();
     const configRoot = path.join(homeDir, 'plugin-home');
-    const pluginPath = 'plugins/emdash.ts';
+    const pluginPath = 'plugins/agent.ts';
     const behavior: IPlugins = {
       resolveConfigRoot: envConfigRoot('OPENCODE_CONFIG_DIR', '.test-plugin'),
       installPlugin: async (fs) => {
@@ -213,7 +213,7 @@ function createInstaller(
 }
 
 async function makeTempDir(): Promise<string> {
-  const dir = await nodeFs.mkdtemp(path.join(os.tmpdir(), 'emdash-hooks-'));
+  const dir = await nodeFs.mkdtemp(path.join(os.tmpdir(), 'agent-hooks-'));
   tempDirs.push(dir);
   return dir;
 }

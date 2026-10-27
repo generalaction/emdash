@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { incompatibleRoot, invalidPath, outsideRoot, type PathError } from './errors';
 import { normalizeSegmentStack, splitPosixInput, splitWindowsInput } from './segments';
 import { comparisonKeyForAbsolutePath, createPathProfile } from './semantics';

@@ -3,8 +3,8 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { ok, type Result } from '@emdash/shared';
-import { createLiveJobReplicaCache } from '@emdash/wire/live';
+import { ok, type Result } from '@agent/shared';
+import { createLiveJobReplicaCache } from '@agent/wire/live';
 import {
   client,
   connect,
@@ -13,7 +13,7 @@ import {
   memoryTransportPair,
   serve,
   type LiveUpdate,
-} from '@emdash/wire/rpc';
+} from '@agent/wire/rpc';
 import { describe, expect, it } from 'vitest';
 import { gitContract } from '#runtimes/git/api';
 import { GitRuntime } from '#runtimes/git/node/git-runtime';
@@ -59,7 +59,7 @@ function createNoopWatcher(onRelease?: () => void): IWatchService {
 }
 
 async function makeRepo(): Promise<string> {
-  const repo = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-'));
+  const repo = await mkdtemp(path.join(tmpdir(), 'agent-git-controller-'));
   await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repo });
@@ -71,7 +71,7 @@ async function makeRepo(): Promise<string> {
 
 async function makeRepoWithRemote(): Promise<{ repo: string; remote: string }> {
   const repo = await makeRepo();
-  const remote = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-remote-'));
+  const remote = await mkdtemp(path.join(tmpdir(), 'agent-git-controller-remote-'));
   await execFileAsync('git', ['init', '--bare'], { cwd: remote });
   await execFileAsync('git', ['remote', 'add', 'origin', remote], { cwd: repo });
   return { repo, remote };
@@ -403,7 +403,7 @@ describe('createGitController', () => {
   });
 
   it('evicts failed acquisitions so a later request retries the same selector', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-non-repo-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'agent-git-controller-non-repo-'));
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
 
@@ -426,7 +426,7 @@ describe('createGitController', () => {
   });
 
   it('returns selector resolution failures through fallible procedures', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-resolution-'));
+    const directory = await mkdtemp(path.join(tmpdir(), 'agent-git-controller-resolution-'));
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
 

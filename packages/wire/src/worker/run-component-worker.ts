@@ -1,5 +1,5 @@
-import { createScope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
+import { createScope } from '@agent/shared/concurrency';
+import type { Logger } from '@agent/shared/logger';
 import { connect } from '../api/connect';
 import type { ContractDefinitions } from '../api/define';
 import { serve } from '../api/serve';

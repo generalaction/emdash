@@ -1,17 +1,17 @@
 import {
   definePlugin,
   registerPluginBehavior,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 import {
   ampMcpAdapter,
   buildStandardCommand,
   createFileDropPlugin,
   homeConfigRoot,
   npmDependency,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
-const AMP_PLUGIN_PATH = 'plugins/emdash-hook.ts';
+const AMP_PLUGIN_PATH = 'plugins/agent-hook.ts';
 const LEGACY_MODEL_ALIASES: Record<string, string> = {
   deep: 'ultra',
   rush: 'low',

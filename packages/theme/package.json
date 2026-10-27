@@ -1,10 +1,10 @@
 {
-  "name": "@emdash/theme",
+  "name": "@agent/theme",
   "version": "1.0.0",
-  "description": "Theme generation and design token artifacts for Emdash",
+  "description": "Theme generation and design token artifacts for Agent",
   "license": "Apache-2.0",
   "author": {
-    "name": "Emdash Contributors",
+    "name": "Agent Contributors",
     "email": "support@emdash.sh"
   },
   "files": [
@@ -46,7 +46,7 @@
     "build": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts && tsdown",
     "build:theme": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts",
     "watch:theme": "tsx --watch src/core/codegen/run.ts",
-    "test": "pnpm exec nx test @emdash/theme",
+    "test": "pnpm exec nx test @agent/theme",
     "lint": "oxlint src",
     "format": "oxfmt",
     "format:check": "oxfmt --check",

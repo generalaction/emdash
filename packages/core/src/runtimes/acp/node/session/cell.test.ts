@@ -1,7 +1,7 @@
+import { isOk } from '@agent/shared';
+import { noopLogger } from '@agent/shared/logger';
+import { deferred } from '@agent/shared/testing';
 import type { PermissionOptionKind } from '@agentclientprotocol/sdk';
-import { isOk } from '@emdash/shared';
-import { noopLogger } from '@emdash/shared/logger';
-import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent } from '#runtimes/acp/node/acp-test-support';
 import { SessionCell } from './cell';

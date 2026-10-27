@@ -9,7 +9,7 @@ Spec: `../../workbench-state-architecture/spec.md` (§Explicit build requirement
 sweeps up everything that outlives them.
 
 - Any residual localStorage layout persistence: no `storage: localStorage` argument
-  to `useResizableDefaultLayout` anywhere; decide whether `@emdash/ui` should keep
+  to `useResizableDefaultLayout` anywhere; decide whether `@agent/ui` should keep
   accepting arbitrary `Storage` (fine — the app just never passes localStorage) and
   document the facade as the app-side default.
 - Residual imperative panel plumbing: `useResizablePanelRef` call sites that only
@@ -18,7 +18,7 @@ sweeps up everything that outlives them.
   rAF timing flags around panels, `appliedExpanded`, `offsetHeight` visibility
   sniffs, first-call `prevPanelSize === undefined` skips.
 - Dead chrome plumbing: any leftover layout-context fields from
-  `apps/emdash-desktop/src/renderer/lib/layout/layout-provider.tsx` (`isLeftOpen`,
+  `apps/agent-desktop/src/renderer/lib/layout/layout-provider.tsx` (`isLeftOpen`,
   `setCollapsed`, zen callbacks) and their consumers; prune the context type.
 - Dead memento fields: old per-setter chrome schema versions, abandoned
   `paneSizes` schema remnants — confirm schema versions were bumped, not mutated

@@ -1,7 +1,7 @@
 /**
  * layers.css.ts — CSS @layer order declaration.
  *
- * Establishes cascade precedence for the @emdash/ui styling system.
+ * Establishes cascade precedence for the @agent/ui styling system.
  * Later layers win; import this file before any other VE stylesheet so the
  * declaration appears first in the compiled bundle.
  *

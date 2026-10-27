@@ -3,23 +3,23 @@ import { expect, it } from 'vitest';
 import type { ConnectedIntegrationHostContext } from '../../../integrations/host';
 import { createRepository, deleteRepository, listOwners } from './index';
 
-const enabled = process.env.EMDASH_GITLAB_LIVE_TEST === '1';
+const enabled = process.env.AGENT_GITLAB_LIVE_TEST === '1';
 
 it.skipIf(!enabled)(
   'lists an owner and creates and deletes a repository on GitLab',
   async () => {
-    const instanceUrl = process.env.EMDASH_GITLAB_URL;
-    const apiToken = process.env.EMDASH_GITLAB_TOKEN;
-    const owner = process.env.EMDASH_GITLAB_OWNER;
+    const instanceUrl = process.env.AGENT_GITLAB_URL;
+    const apiToken = process.env.AGENT_GITLAB_TOKEN;
+    const owner = process.env.AGENT_GITLAB_OWNER;
     if (!instanceUrl || !apiToken || !owner) {
-      throw new Error('Set EMDASH_GITLAB_URL, EMDASH_GITLAB_TOKEN, and EMDASH_GITLAB_OWNER.');
+      throw new Error('Set AGENT_GITLAB_URL, AGENT_GITLAB_TOKEN, and AGENT_GITLAB_OWNER.');
     }
 
     const host = {
       credentials: { instanceUrl, apiToken },
       log: { debug() {}, info() {}, warn() {}, error() {} },
     } as unknown as ConnectedIntegrationHostContext;
-    const name = `emdash-yrf7-${randomUUID().slice(0, 8)}`;
+    const name = `agent-yrf7-${randomUUID().slice(0, 8)}`;
     let created = false;
 
     const owners = await listOwners(host);

@@ -1,6 +1,6 @@
-import { stableStringify } from '@emdash/shared/util';
-import { eventFromUpdate } from '@emdash/wire/live';
-import type { ContractClient } from '@emdash/wire/rpc';
+import { stableStringify } from '@agent/shared/util';
+import { eventFromUpdate } from '@agent/wire/live';
+import type { ContractClient } from '@agent/wire/rpc';
 import type { fsWatchContract, FsWatchStreamEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 

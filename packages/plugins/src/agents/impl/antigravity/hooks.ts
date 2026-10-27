@@ -1,18 +1,18 @@
-import type { CanonicalHookEvent, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { CanonicalHookEvent, PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import {
   configRoots,
-  EMDASH_MARKER,
+  AGENT_MARKER,
   filterUserHooks,
   homeConfigRoot,
   type HookCommandOptions,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 
-const MANIFEST_PATH = 'plugins/emdash/plugin.json';
-const HOOKS_PATH = 'plugins/emdash/hooks.json';
-const MANIFEST = { name: 'emdash', description: 'Emdash lifecycle hooks for Antigravity sessions' };
+const MANIFEST_PATH = 'plugins/agent/plugin.json';
+const HOOKS_PATH = 'plugins/agent/hooks.json';
+const MANIFEST = { name: 'agent', description: 'Agent lifecycle hooks for Antigravity sessions' };
 
 // Antigravity consumes stdout as hook decisions. Never expose the transport's
 // HTTP response as a decision, and never ask the agent to continue executing.
@@ -32,12 +32,12 @@ function buildHooks(opts: HookCommandOptions) {
 async function readConfig(fs: PluginFs) {
   const manifest = await readJsonConfig(fs, MANIFEST_PATH);
   if (manifest.name !== undefined && manifest.name !== MANIFEST.name) {
-    throw new Error('Antigravity Emdash plugin path contains another plugin');
+    throw new Error('Antigravity Agent plugin path contains another plugin');
   }
   const config = await readJsonConfig(fs, HOOKS_PATH);
-  const definition = config.emdash ?? {};
+  const definition = config.agent ?? {};
   if (typeof definition !== 'object' || Array.isArray(definition) || definition === null) {
-    throw new Error('Invalid Antigravity emdash hook definition');
+    throw new Error('Invalid Antigravity agent hook definition');
   }
   const hooks = definition as Record<string, unknown>;
   for (const key of ['PreInvocation', 'Stop']) {
@@ -69,7 +69,7 @@ export function buildAntigravityHookConfig(opts: HookCommandOptions = {}) {
     resolveConfigRoots: configRoots(homeConfigRoot('.gemini/config')),
     getHooksInstalled,
     async readHooks(fs: PluginFs) {
-      return (await getHooksInstalled(fs)) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return (await getHooksInstalled(fs)) ? [{ event: 'agent', command: AGENT_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs) {
       const { manifest, config, hooks } = await readConfig(fs);
@@ -79,7 +79,7 @@ export function buildAntigravityHookConfig(opts: HookCommandOptions = {}) {
       await writeJsonConfig(fs, MANIFEST_PATH, { ...MANIFEST, ...manifest });
       await writeJsonConfig(fs, HOOKS_PATH, {
         ...config,
-        emdash: { ...hooks, enabled: true },
+        agent: { ...hooks, enabled: true },
       });
       return [MANIFEST_PATH, HOOKS_PATH];
     },
@@ -88,7 +88,7 @@ export function buildAntigravityHookConfig(opts: HookCommandOptions = {}) {
       for (const key of Object.keys(managedHooks)) {
         if (Array.isArray(hooks[key])) hooks[key] = filterUserHooks(hooks[key]);
       }
-      await writeJsonConfig(fs, HOOKS_PATH, { ...config, emdash: hooks });
+      await writeJsonConfig(fs, HOOKS_PATH, { ...config, agent: hooks });
     },
     parseHookEvent(eventType: string, body: Record<string, unknown>): CanonicalHookEvent {
       const providerSessionId =

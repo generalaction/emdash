@@ -1,5 +1,5 @@
-import type { Result, Unsubscribe } from '@emdash/shared';
-import { ok } from '@emdash/shared';
+import type { Result, Unsubscribe } from '@agent/shared';
+import { ok } from '@agent/shared';
 import type {
   AcpPermissionRequest,
   AcpRuntimeError,

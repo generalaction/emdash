@@ -10,8 +10,8 @@
  *  - all other inline nodes / marks → plain text content
  */
 
-import { stringifyMention } from '@emdash/shared/markdown';
-import type { MentionKind } from '@emdash/shared/markdown';
+import { stringifyMention } from '@agent/shared/markdown';
+import type { MentionKind } from '@agent/shared/markdown';
 import type { Node } from '@tiptap/pm/model';
 
 /**

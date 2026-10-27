@@ -14,7 +14,7 @@ export interface SettingsRowProps {
  * SettingsRow — label and supporting text paired with a right-aligned control.
  *
  * Use this for custom or externally controlled settings. Form-backed settings
- * can use the horizontal fields from `@emdash/ui/react/form` directly.
+ * can use the horizontal fields from `@agent/ui/react/form` directly.
  */
 export function SettingsRow({
   label,

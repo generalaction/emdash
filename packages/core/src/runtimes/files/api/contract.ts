@@ -8,7 +8,7 @@ import {
   mutation,
   procedure,
   uploadFile,
-} from '@emdash/wire/rpc';
+} from '@agent/wire/rpc';
 import { z } from 'zod';
 import { hostAbsolutePathSchema } from '#primitives/path/api';
 import { fileContentModelSchema } from '#runtimes/files/api/content/state';

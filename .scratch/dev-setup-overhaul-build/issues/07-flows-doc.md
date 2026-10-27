@@ -19,12 +19,12 @@ and Storybook as the first command after install — fixing failures via Nx depe
       (single Storybook invocation style — `pnpm --filter <pkg> run storybook` — everywhere)
 - [x] Both ordering verifications performed; any failure fixed via task wiring and covered in
       the doc — both failed on a never-built clone (Storybook could not resolve unbuilt
-      @emdash/theme; app-only dev could not resolve unbuilt @emdash/chat-ui). Fixed with
+      @agent/theme; app-only dev could not resolve unbuilt @agent/chat-ui). Fixed with
       `tooling/scripts/ensure-packages-built.mjs` (runs the workspace package builds through
       Nx, no-ops under Nx task orchestration; pnpm does not run pre-hooks by default, so the
       ensure step is explicit in the scripts) plus an nx.json `storybook` targetDefault with
       `^build`. Re-verified: both flows work as the first command on a fresh clone.
       Note: the fresh-clone verification required restoring the `allotment` dependency in the
       scratch clone — the branch HEAD has a pre-existing inconsistency (allotment removed from
-      apps/emdash-desktop/package.json while the committed renderer index.css still imports
+      apps/agent-desktop/package.json while the committed renderer index.css still imports
       it) unrelated to this work.

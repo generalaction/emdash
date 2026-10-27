@@ -2,7 +2,7 @@
 
 ## Wire Pattern
 
-All renderer-main application traffic uses `@emdash/wire`:
+All renderer-main application traffic uses `@agent/wire`:
 
 - **Contracts**: `src/core/features/<domain>/api/` using `defineContract`.
 - **Controllers**: `src/core/features/<domain>/node/` using `createController`.

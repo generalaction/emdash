@@ -1,7 +1,7 @@
 import type {
   AgentAuthContext,
   AgentAuthStatus,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 import { authenticatedFromEnv } from '../../helpers/auth';
 
 const AUTH_STATUS_TIMEOUT_MS = 5_000;

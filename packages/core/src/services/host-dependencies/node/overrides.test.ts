@@ -1,7 +1,7 @@
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { err } from '@emdash/shared';
+import { err } from '@agent/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '#primitives/exec/api';
 import { createMemoryKeyValueStore } from '#primitives/kv/api';
@@ -13,7 +13,7 @@ describe.skipIf(process.platform === 'win32')('host executable overrides', () =>
   const runtimes: HostDependenciesRuntime[] = [];
 
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'emdash-overrides-'));
+    directory = await mkdtemp(join(tmpdir(), 'agent-overrides-'));
     wrapper = join(directory, 'custom agent');
     await writeFile(wrapper, '#!/bin/sh\nprintf "wrapper\\n"\n', { mode: 0o755 });
   });

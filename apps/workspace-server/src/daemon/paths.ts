@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 export const DEFAULT_WORKSPACE_SERVER_SOCKET_PATH = join(
   homedir(),
-  '.emdash',
+  '.agent',
   'workspace-server',
   'run',
   'workspace.sock'

@@ -1,4 +1,4 @@
-import { createTestWire } from '@emdash/wire/testing';
+import { createTestWire } from '@agent/wire/testing';
 import { describe, expect, it } from 'vitest';
 import { userShellEnvContract } from '#services/shell-env/api';
 import { createUserShellEnvController } from './controller';

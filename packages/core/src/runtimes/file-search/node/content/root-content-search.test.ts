@@ -1,9 +1,9 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { ok } from '@emdash/shared';
-import { createConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
-import { deferred } from '@emdash/shared/testing';
+import { ok } from '@agent/shared';
+import { createConcurrencyLimiter, createScope } from '@agent/shared/concurrency';
+import { deferred } from '@agent/shared/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ContentSearchResult } from '#runtimes/file-search/api';
 import type { RegisteredRoot } from '../root/registered-root';
@@ -101,7 +101,7 @@ function registeredRoot(rootPath: string): RegisteredRoot {
 }
 
 async function createDirectory(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-root-content-search-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-root-content-search-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
 }

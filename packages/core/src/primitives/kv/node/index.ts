@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { ok, type Result, type Serializable } from '@emdash/shared';
+import { ok, type Result, type Serializable } from '@agent/shared';
 import { keyValueIoError, type KeyValueStore, type KeyValueStoreError } from '../api';
 
 export type JsonFileKeyValueStoreOptions = {

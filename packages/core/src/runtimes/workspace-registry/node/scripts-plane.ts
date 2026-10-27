@@ -1,11 +1,11 @@
-import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { noopLogger, type Logger } from '@emdash/shared/logger';
-import type { ContractClient } from '@emdash/wire/rpc';
-import { observe, remote, snapshot, type RemoteModel } from '@emdash/wire/state';
+import { createScope, type Scope } from '@agent/shared/concurrency';
+import { noopLogger, type Logger } from '@agent/shared/logger';
+import type { ContractClient } from '@agent/wire/rpc';
+import { observe, remote, snapshot, type RemoteModel } from '@agent/wire/state';
 import { nativePathIdentityKey } from '#primitives/path/api';
-// oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
+// oxlint-disable-next-line agent/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import { scriptsContract } from '#runtimes/scripts/api';
-// oxlint-disable-next-line emdash/core-module-boundaries -- see above
+// oxlint-disable-next-line agent/core-module-boundaries -- see above
 import type {
   ScriptKind,
   ScriptRuns,

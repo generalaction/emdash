@@ -5,7 +5,7 @@ const baseContext = {
   cli: 'crush',
   autoApprove: false,
   initialPrompt: undefined,
-  sessionId: 'emdash-session-id',
+  sessionId: 'agent-session-id',
   providerSessionId: undefined,
   isResuming: false,
   model: '',
@@ -49,7 +49,7 @@ describe('charm provider', () => {
     });
   });
 
-  it('does not pass Emdash ids as Crush session ids', () => {
+  it('does not pass Agent ids as Crush session ids', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
       isResuming: true,

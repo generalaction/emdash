@@ -137,7 +137,7 @@ export type ChatView = {
    * `anchor`  — keep the given item's edge at the given viewport offset.
    *             Use `pinTopMode(itemId)` to hold a row flush at the top.
    *
-   * Use the `tailMode()` and `pinTopMode(itemId)` helpers from `@emdash/chat-ui`
+   * Use the `tailMode()` and `pinTopMode(itemId)` helpers from `@agent/chat-ui`
    * rather than constructing objects inline.
    */
   setScrollMode(mode: ScrollMode): void;

@@ -1,7 +1,7 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
-import type { HookRegistration } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import type { HookRegistration } from '@agent/core/services/agent-plugins/api/plugins';
 import {
-  EMDASH_MARKER,
+  AGENT_MARKER,
   buildFlatEntry,
   configRoots,
   envConfigRoot,
@@ -11,9 +11,9 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 
-export const COPILOT_HOOKS_PATH = 'hooks/emdash.json';
+export const COPILOT_HOOKS_PATH = 'hooks/agent.json';
 
 export function buildCopilotHookConfig() {
   const stopCmd = makeStdinHookCommand('stop');
@@ -35,7 +35,7 @@ export function buildCopilotHookConfig() {
           (entry) => JSON.stringify(entry) === JSON.stringify(buildFlatEntry(command))
         );
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'agent', command: AGENT_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);

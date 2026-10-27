@@ -5,7 +5,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 import { inspectBundles } from './bundle-validation';
 
 async function inspect(source: string, chunks: Record<string, string> = {}) {
-  const directory = await mkdtemp(join(tmpdir(), 'emdash-bundle-validation-'));
+  const directory = await mkdtemp(join(tmpdir(), 'agent-bundle-validation-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
   for (const [name, content] of Object.entries({ 'index.mjs': source, ...chunks })) {
     await writeFile(join(directory, name), content);
@@ -107,7 +107,7 @@ import missing from 'not-a-dependency';
   });
 
   it('rejects missing entry bundles', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'emdash-bundle-validation-'));
+    const directory = await mkdtemp(join(tmpdir(), 'agent-bundle-validation-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
     await expect(inspectBundles(directory, ['index.mjs'])).rejects.toThrow(
       'missing entry bundles: index.mjs'

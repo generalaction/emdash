@@ -1,5 +1,5 @@
-import { ok } from '@emdash/shared';
-import { ManualClock } from '@emdash/shared/testing';
+import { ok } from '@agent/shared';
+import { ManualClock } from '@agent/shared/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LOCAL_HOST_REF } from '#primitives/host/api';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
@@ -53,7 +53,7 @@ function deployment(overrides: Partial<AutomationDeployment> = {}): AutomationDe
 }
 function fakeWorkspacePort(): AutomationWorkspacePort {
   return {
-    provision: vi.fn(() => Promise.resolve(ok({ workspace: worktree, branchName: 'emdash-abc' }))),
+    provision: vi.fn(() => Promise.resolve(ok({ workspace: worktree, branchName: 'agent-abc' }))),
   };
 }
 function fakeSessionPort(): AutomationSessionPort {

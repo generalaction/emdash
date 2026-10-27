@@ -47,7 +47,7 @@ function gitConfigPairs(env: Record<string, string>): [string, string][] {
  * stdin, so writing a request could fail with EPIPE once the shell exits.
  */
 function runHelper(action: string, request?: string): string {
-  const bin = mkdtempSync(join(tmpdir(), 'emdash-helper-'));
+  const bin = mkdtempSync(join(tmpdir(), 'agent-helper-'));
   try {
     writeFileSync(
       join(bin, 'curl'),
@@ -60,8 +60,8 @@ function runHelper(action: string, request?: string): string {
       {
         env: {
           PATH: `${bin}:${process.env.PATH}`,
-          EMDASH_GIT_CREDENTIAL_PORT: String(channel.port),
-          EMDASH_GIT_CREDENTIAL_NONCE: channel.nonce,
+          AGENT_GIT_CREDENTIAL_PORT: String(channel.port),
+          AGENT_GIT_CREDENTIAL_NONCE: channel.nonce,
         },
         ...(request !== undefined ? { input: request } : {}),
         encoding: 'utf8',
@@ -110,8 +110,8 @@ describe('applyGitCredentialsToEnv', () => {
   describe('effective-account mode', () => {
     it('wires the helper for each host with a reset entry first', () => {
       const env = applyGitCredentialsToEnv({ PATH: '/bin' }, helperSpec);
-      expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('45678');
-      expect(env.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-nonce-1234');
+      expect(env.AGENT_GIT_CREDENTIAL_PORT).toBe('45678');
+      expect(env.AGENT_GIT_CREDENTIAL_NONCE).toBe('channel-nonce-1234');
       expect(gitConfigPairs(env)).toEqual([
         ['credential.https://github.com.helper', ''],
         ['credential.https://github.com.helper', GIT_CREDENTIAL_HELPER_COMMAND],
@@ -178,11 +178,11 @@ describe('applyGitCredentialsToEnv', () => {
       ]);
     });
 
-    it('removes an emdash helper channel if one is present', () => {
+    it('removes an agent helper channel if one is present', () => {
       const helperEnv = applyGitCredentialsToEnv({ PATH: '/bin' }, helperSpec);
       const scrubbed = applyGitCredentialsToEnv(helperEnv, { mode: 'none' });
-      expect(scrubbed.EMDASH_GIT_CREDENTIAL_PORT).toBeUndefined();
-      expect(scrubbed.EMDASH_GIT_CREDENTIAL_NONCE).toBeUndefined();
+      expect(scrubbed.AGENT_GIT_CREDENTIAL_PORT).toBeUndefined();
+      expect(scrubbed.AGENT_GIT_CREDENTIAL_NONCE).toBeUndefined();
       expect(gitConfigPairs(scrubbed).at(-1)).toEqual(['credential.helper', '']);
     });
   });
@@ -199,7 +199,7 @@ describe('gitCredentialOperationEnv', () => {
 
   it('produces a standalone overlay for one host', () => {
     const env = gitCredentialOperationEnv(channel, 'github.example.com');
-    expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('45678');
+    expect(env.AGENT_GIT_CREDENTIAL_PORT).toBe('45678');
     expect(gitConfigPairs(env)).toEqual([
       ['credential.https://github.example.com.helper', ''],
       ['credential.https://github.example.com.helper', GIT_CREDENTIAL_HELPER_COMMAND],

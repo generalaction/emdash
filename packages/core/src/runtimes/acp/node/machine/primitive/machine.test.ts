@@ -1,4 +1,4 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok } from '@agent/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { createMachine, type MachineDefinition } from './machine';
 

@@ -17,7 +17,7 @@
 
 - portable schema, row types, and Drizzle helpers live in `src/core/services/app-db/node/`
 - database path is resolved by main-process db path helpers
-- `EMDASH_DB_FILE` overrides the default location
+- `AGENT_DB_FILE` overrides the default location
 - the main bootstrap creates one native Drizzle client and passes its SQLite connection to
   `src/main/db/initialize.ts`
 - Core Node services receive `AppDb` through constructor/factory injection
@@ -31,7 +31,7 @@
 
 ### Tooling folder
 
-All dev and test infrastructure lives in `tooling/` inside `apps/emdash-desktop/`.
+All dev and test infrastructure lives in `tooling/` inside `apps/agent-desktop/`.
 Nothing in `tooling/` is part of the production Electron bundle — the `@tooling`
 alias only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
 
@@ -47,12 +47,12 @@ tooling/
 
 ### Isolated dev database
 
-Point `EMDASH_DB_FILE` at a scratch path instead of using the default database
+Point `AGENT_DB_FILE` at a scratch path instead of using the default database
 when working on migrations, so schema experiments cannot corrupt your real app
 data. `pnpm run db:reset` wipes the default dev databases.
 
 ```bash
-EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev   # start app with isolated dev database
+AGENT_DB_FILE=/tmp/agent-scratch.db pnpm run dev   # start app with isolated dev database
 pnpm run db:reset                                    # wipe the dev databases and start fresh
 ```
 
@@ -75,8 +75,8 @@ installed under `tooling/node-deps/` (compiled for system Node). The app's
 
 ### Migration authoring checklist
 
-1. **Isolate your dev DB**: run the app with `EMDASH_DB_FILE` pointing at a scratch path
-   so you're not working against your personal emdash database
+1. **Isolate your dev DB**: run the app with `AGENT_DB_FILE` pointing at a scratch path
+   so you're not working against your personal agent database
 
 2. **Snapshot the pre-migration baseline**:
    ```bash

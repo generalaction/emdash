@@ -69,7 +69,7 @@ export function negotiateProtocol(
  */
 export function protocolUpgradeMessage(action: 'upgrade-client' | 'upgrade-server'): string {
   if (action === 'upgrade-client') {
-    return 'This version of the Emdash app is too old for the remote workspace server. Please update the Emdash app.';
+    return 'This version of the Agent app is too old for the remote workspace server. Please update the Agent app.';
   }
   return 'The remote workspace server is out of date. Please upgrade the workspace server on the remote machine.';
 }

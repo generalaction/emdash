@@ -1,8 +1,8 @@
+import type { Result } from '@agent/shared';
+import { ok, toSerializedError } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
+import { noopLogger, type Logger } from '@agent/shared/logger';
 import type { Client, McpCapabilities, SessionUpdate } from '@agentclientprotocol/sdk';
-import type { Result } from '@emdash/shared';
-import { ok, toSerializedError } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { InitializeFailedError, NormalizedEvent, SpawnFailedError } from '#runtimes/acp/api';
 import { acpErr, decodeSessionUpdate } from '#runtimes/acp/api';
 import type { AcpProcessHandle, AcpProcessHost } from '#runtimes/acp/api/transport';
@@ -157,7 +157,7 @@ function onceProcessClosed(handle: AcpProcessHandle, logger: Logger): Promise<Pr
 function initializeAgent(agent: AcpAgentApi, host: AcpAgentProcessHost) {
   return agent.initialize({
     protocolVersion: 1,
-    clientInfo: { name: 'emdash', version: '1' },
+    clientInfo: { name: 'agent', version: '1' },
     clientCapabilities: {
       ...{ session: { configOptions: { boolean: {} } } },
       fs: { readTextFile: true, writeTextFile: true },

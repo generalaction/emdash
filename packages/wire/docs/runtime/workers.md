@@ -27,7 +27,7 @@ flowchart LR
 - The internal worker slot is the only multi-generation state machine. It keeps one stable
   connection/client while child processes restart underneath it; it is not an author-facing API.
 - `WorkerProcessSpawner` is platform-specific and creates one generation. Use
-  `childProcessSpawner()` from `@emdash/wire/worker/node` for Node child
+  `childProcessSpawner()` from `@agent/wire/worker/node` for Node child
   processes.
 - `runWireComponentWorker(component)` is the child-side IPC bridge. It bootstraps typed config,
   connects explicit dependency clients, creates the component, serves its controller, and signals
@@ -36,9 +36,9 @@ flowchart LR
 ## Parent Side
 
 ```ts
-import { createWireWorkerHost } from '@emdash/wire/worker';
-import { childProcessSpawner } from '@emdash/wire/worker/node';
-import { createScope } from '@emdash/shared/concurrency';
+import { createWireWorkerHost } from '@agent/wire/worker';
+import { childProcessSpawner } from '@agent/wire/worker/node';
+import { createScope } from '@agent/shared/concurrency';
 import { counterComponent } from './component';
 import { workerPath } from './worker-manifest';
 
@@ -73,7 +73,7 @@ that awaits `worker.ready()`.
 ## Child Side
 
 ```ts
-import { runWireComponentWorker } from '@emdash/wire/worker';
+import { runWireComponentWorker } from '@agent/wire/worker';
 import { counterComponent } from './component';
 
 void runWireComponentWorker(counterComponent);

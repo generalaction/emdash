@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared';
+import { ok } from '@agent/shared';
 import { describe, expect, it } from 'vitest';
 import { mapMutationErrors } from './mutation-error';
 

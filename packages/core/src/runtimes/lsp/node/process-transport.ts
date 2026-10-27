@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { recordSpawn } from '@emdash/shared/perf';
+import { recordSpawn } from '@agent/shared/perf';
 import {
   CancellationTokenSource,
   createProtocolConnection,

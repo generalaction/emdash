@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@emdash/shared';
+import type { Unsubscribe } from '@agent/shared';
 import type { Controller } from './controller';
 import type { WireTransport } from './protocol';
 import { serve } from './serve';

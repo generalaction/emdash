@@ -1,5 +1,5 @@
-import { err, type Serializable } from '@emdash/shared';
-import { deferred } from '@emdash/shared/testing';
+import { err, type Serializable } from '@agent/shared';
+import { deferred } from '@agent/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { acpErr } from '#runtimes/acp/api';
 import { wrapHiddenContext } from '#runtimes/acp/api/models/prompt';

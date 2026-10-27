@@ -1,4 +1,4 @@
-import { resultSchema } from '@emdash/shared';
+import { resultSchema } from '@agent/shared';
 
 /**
  * Wraps a Result<T,E> on the wire as a discriminated union.

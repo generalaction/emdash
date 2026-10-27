@@ -1,5 +1,5 @@
 import { z } from 'zod';
-// oxlint-disable-next-line emdash/core-module-boundaries -- runScript resolves script configuration before sequencing execution through the scripts runtime; these shared errors have no services-level home yet
+// oxlint-disable-next-line agent/core-module-boundaries -- runScript resolves script configuration before sequencing execution through the scripts runtime; these shared errors have no services-level home yet
 import {
   scriptNotConfiguredErrorSchema,
   startScriptRunErrorSchema,

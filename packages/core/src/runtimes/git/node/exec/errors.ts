@@ -1,4 +1,4 @@
-import type { Err } from '@emdash/shared';
+import type { Err } from '@agent/shared';
 import { gitErr, type GitCommandError, type PushError } from '#runtimes/git/api';
 import { ExecError } from '#services/exec/api';
 

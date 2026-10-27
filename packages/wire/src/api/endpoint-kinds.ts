@@ -1,4 +1,4 @@
-import type { PendingLease } from '@emdash/shared';
+import type { PendingLease } from '@agent/shared';
 import type { LiveSource } from './channel';
 import type { Connection } from './connect';
 import type { CallMeta } from './controller';

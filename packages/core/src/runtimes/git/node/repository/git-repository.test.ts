@@ -18,7 +18,7 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 async function makeRepo(): Promise<string> {
-  const repo = await mkdtemp(path.join(tmpdir(), 'emdash-git-repository-'));
+  const repo = await mkdtemp(path.join(tmpdir(), 'agent-git-repository-'));
   await git(repo, ['init', '-b', 'main']);
   await git(repo, ['config', 'user.email', 'test@example.com']);
   await git(repo, ['config', 'user.name', 'Test User']);

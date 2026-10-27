@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { createScope } from '@agent/shared/concurrency';
+import { deferred } from '@agent/shared/testing';
+import { observe, remote, snapshot } from '@agent/wire/state';
+import { createTestWire } from '@agent/wire/testing';
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import { createScope } from '@emdash/shared/concurrency';
-import { deferred } from '@emdash/shared/testing';
-import { observe, remote, snapshot } from '@emdash/wire/state';
-import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { acpApiContract, type StopReason, type TranscriptTurn } from '#runtimes/acp/api';
 import { wrapHiddenContext } from '#runtimes/acp/api/models/prompt';

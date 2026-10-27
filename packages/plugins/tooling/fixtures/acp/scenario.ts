@@ -6,7 +6,7 @@
  * mode update surfaces.
  *
  * The scenario is designed to exercise (nearly) the full ACP SessionUpdate
- * event surface in a single session against the emdash repo:
+ * event surface in a single session against the agent repo:
  *
  *  Step 1  → agent_message_chunk, turn boundary
  *  Step 2  → agent_thought_chunk, tool_call (readFile), tool_call_update, message, resource_link?
@@ -120,7 +120,7 @@ export const scenario: ScenarioStep[] = [
   // Step 1 — plain text answer, no tools
   {
     kind: 'prompt',
-    text: 'In one sentence, without reading any files, what is emdash?',
+    text: 'In one sentence, without reading any files, what is agent?',
   },
 
   // Step 2 — read AGENTS.md, thought + tool_call(read) + message + resource_link

@@ -1,4 +1,4 @@
-import { deferred } from '@emdash/shared/testing';
+import { deferred } from '@agent/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDurableQueue } from './durable-queue';
 import { createScope } from './scope';

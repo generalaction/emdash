@@ -1,6 +1,6 @@
-import { ok } from '@emdash/shared';
-import { systemClock } from '@emdash/shared/scheduling';
-import { cell, peek } from '@emdash/wire/state';
+import { ok } from '@agent/shared';
+import { systemClock } from '@agent/shared/scheduling';
+import { cell, peek } from '@agent/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { acpErr, initialSessionConfigState, type SessionConfigState } from '#runtimes/acp/api';
 import { makeStartInput } from '#runtimes/acp/node/acp-test-support';

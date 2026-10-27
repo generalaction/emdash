@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { daemonPaths, type DaemonPaths } from './paths';
 import { isProcessAlive, readPidFile, removePidFile, type ProcessSignaler } from './pid-file';
 import { probeDaemon, type DaemonHealth, type DaemonProbeError } from './probe';

@@ -1,4 +1,4 @@
-import type { Scope } from '@emdash/shared/concurrency';
+import type { Scope } from '@agent/shared/concurrency';
 import type { IWatchService } from '#services/fs-watch/api';
 import type { WatchOnError } from '#services/fs-watch/impl/backend';
 import { nativeWatchBackend } from '#services/fs-watch/impl/native-backend';

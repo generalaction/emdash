@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { err, type Serializable } from '@emdash/shared';
-import { deferred } from '@emdash/shared/testing';
-import { peek } from '@emdash/wire/state';
+import { err, type Serializable } from '@agent/shared';
+import { deferred } from '@agent/shared/testing';
+import { peek } from '@agent/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import { emptyRetainedPresentation } from '#runtimes/acp/node/state/live-models';
@@ -422,7 +422,7 @@ describe('ACP persistence boundaries', () => {
 
   it('preserves the pointer through a real file write failure and store restart', async () => {
     const { intents, h, runtime: seed, input } = await seededRuntime(false);
-    const directory = await mkdtemp(join(tmpdir(), 'emdash-acp-persistence-'));
+    const directory = await mkdtemp(join(tmpdir(), 'agent-acp-persistence-'));
     const path = join(directory, 'intents.json');
     const file = createFileSessionIntentStore({ path, scope: 'acp' });
     await file.saveActive(intents.snapshot()[0]!);

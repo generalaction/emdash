@@ -35,8 +35,8 @@ describe('buildTerminalEnv git credentials', () => {
       baseEnv: { PATH: '/bin' },
       gitCredentials: MODES['effective-account'],
     });
-    expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('51234');
-    expect(env.EMDASH_GIT_CREDENTIAL_NONCE).toBe('session-nonce');
+    expect(env.AGENT_GIT_CREDENTIAL_PORT).toBe('51234');
+    expect(env.AGENT_GIT_CREDENTIAL_NONCE).toBe('session-nonce');
     expect(env.GIT_CONFIG_COUNT).toBeUndefined();
     expect(env.GIT_CONFIG_PARAMETERS).toContain("'credential.https://github.com.helper'=''");
     expect(env.GIT_CONFIG_PARAMETERS).toContain(GIT_CREDENTIAL_HELPER_COMMAND);
@@ -62,7 +62,7 @@ describe('buildTerminalEnv git credentials', () => {
       });
       expect(env.GIT_ASKPASS).toBe('/usr/local/bin/gh-askpass');
       expect(env.GIT_CONFIG_COUNT).toBeUndefined();
-      expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBeUndefined();
+      expect(env.AGENT_GIT_CREDENTIAL_PORT).toBeUndefined();
     }
   });
 });

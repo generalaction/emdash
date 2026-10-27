@@ -6,7 +6,7 @@
  * internals via data-attribute selectors on DOM it owns. Its only theming
  * hooks are those variables and CSS targeting those attributes, so the
  * overrides below are attribute-scoped globalStyles by necessity (this is
- * third-party DOM, not an @emdash/ui component boundary). Every selector is
+ * third-party DOM, not an @agent/ui component boundary). Every selector is
  * anchored on the doubled `toaster` class so it outranks sonner's injected
  * stylesheet regardless of insertion order.
  */

@@ -46,7 +46,7 @@ export const DEFAULT_SEARCH_EXCLUDE = [
   '.windsurf',
   'worktrees',
   '.worktrees',
-  '.emdash',
+  '.agent',
   'node_modules',
 ] as const;
 

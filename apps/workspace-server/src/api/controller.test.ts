@@ -3,22 +3,22 @@ import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { parseAbsolute } from '@emdash/core/primitives/path/api';
-import type { TerminalShellResolver } from '@emdash/core/primitives/terminal-shell/api';
-import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
-import { filesContract } from '@emdash/core/runtimes/files/api';
-import { createFilesController, FilesRuntime } from '@emdash/core/runtimes/files/node';
-import { gitContract } from '@emdash/core/runtimes/git/api';
-import { createGitController, GitRuntime } from '@emdash/core/runtimes/git/node';
-import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
-import { createTerminalsController, TerminalsRuntime } from '@emdash/core/runtimes/terminals/node';
-import type { IWatchService } from '@emdash/core/services/fs-watch/api';
-import type { PtySpawner } from '@emdash/core/services/pty/api';
-import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
-import { ok } from '@emdash/shared';
-import { client as createClient, connect, serve, streamTransport } from '@emdash/wire/rpc';
-import type { ContractClient } from '@emdash/wire/rpc';
-import { createTestWire } from '@emdash/wire/testing';
+import { parseAbsolute } from '@agent/core/primitives/path/api';
+import type { TerminalShellResolver } from '@agent/core/primitives/terminal-shell/api';
+import type { AcpApiContract } from '@agent/core/runtimes/acp/api';
+import { filesContract } from '@agent/core/runtimes/files/api';
+import { createFilesController, FilesRuntime } from '@agent/core/runtimes/files/node';
+import { gitContract } from '@agent/core/runtimes/git/api';
+import { createGitController, GitRuntime } from '@agent/core/runtimes/git/node';
+import { terminalsContract } from '@agent/core/runtimes/terminals/api';
+import { createTerminalsController, TerminalsRuntime } from '@agent/core/runtimes/terminals/node';
+import type { IWatchService } from '@agent/core/services/fs-watch/api';
+import type { PtySpawner } from '@agent/core/services/pty/api';
+import { PROTOCOL_VERSION, workspaceWireContract } from '@agent/core/workspace-server';
+import { ok } from '@agent/shared';
+import { client as createClient, connect, serve, streamTransport } from '@agent/wire/rpc';
+import type { ContractClient } from '@agent/wire/rpc';
+import { createTestWire } from '@agent/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { createTestWorkspaceWireController } from '../testing/controller';
 
@@ -161,7 +161,7 @@ describe('runtime domain forwarding', () => {
   });
 
   it('forwards Git and Files procedures, live models, and binary streams', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'emdash-workspace-server-domains-'));
+    const directory = await mkdtemp(join(tmpdir(), 'agent-workspace-server-domains-'));
     const root = parseAbsolute(directory);
     const textPath = parseAbsolute(join(directory, 'remote.txt'));
     const binaryPath = parseAbsolute(join(directory, 'remote.bin'));

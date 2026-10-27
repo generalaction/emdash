@@ -1,4 +1,4 @@
-import { createController } from '@emdash/wire/rpc';
+import { createController } from '@agent/wire/rpc';
 import { lspContract } from '../api/contract';
 import type { LspRuntime } from './runtime';
 

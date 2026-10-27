@@ -1,4 +1,4 @@
-// Public `@emdash/wire/live` entry: the server-side reactivity sources, the
+// Public `@agent/wire/live` entry: the server-side reactivity sources, the
 // keyed replica caches consumers hold on the client side, and the resync
 // failure policies threaded through their options.
 export { eventFromUpdate } from './event-stream/client';

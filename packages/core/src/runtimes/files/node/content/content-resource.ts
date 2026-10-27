@@ -1,6 +1,6 @@
-import { type Result } from '@emdash/shared';
-import { createScope } from '@emdash/shared/concurrency';
-import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire/state';
+import { type Result } from '@agent/shared';
+import { createScope } from '@agent/shared/concurrency';
+import { query, type ExposedMutationContext, type Query, type Revision } from '@agent/wire/state';
 import { type FileContentModel, type FsError, type filesContract } from '#runtimes/files/api';
 import type { ContentIdentity } from '#runtimes/files/node/allocation/identity';
 import { writeFileContent } from '#runtimes/files/node/fs/write-file';

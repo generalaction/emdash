@@ -1,5 +1,5 @@
-import { ok, type Unsubscribe } from '@emdash/shared';
-import { deferred } from '@emdash/shared/testing';
+import { ok, type Unsubscribe } from '@agent/shared';
+import { deferred } from '@agent/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { LiveSnapshot } from '../../api/channel';

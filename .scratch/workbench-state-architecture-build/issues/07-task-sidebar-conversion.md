@@ -11,13 +11,13 @@ inventory facts 4–5 in
 owners: memento, RRP panel, `display:none`; completely unguarded `onResize` that
 races and clobbers the hydrating persisted value at mount).
 
-- In `apps/emdash-desktop/src/core/features/tasks/browser/main-panel.tsx`
+- In `apps/agent-desktop/src/core/features/tasks/browser/main-panel.tsx`
   (`ReadyTaskMainPanel`): replace the store→panel `useEffect` → `collapse()/expand()`
   (L271–277) and the unguarded `onResize` → `setSidebarCollapsed` (L294–296) with
   `useCollapsiblePanelBinding`: `open` = `!sidebarCollapsed` from the task chrome
   store; `onCloseRequest` = the sidebar-collapse command; collapsed = panel and
   handle unmounted.
-- In `apps/emdash-desktop/src/core/features/tasks/browser/view/task-sidebar.tsx`:
+- In `apps/agent-desktop/src/core/features/tasks/browser/view/task-sidebar.tsx`:
   delete the `display:none` wrapper (L15) — the third owner dies. Convert the three
   `ShowHide` tab wrappers (L17–25) to store-driven conditional rendering of the
   active tab (the law bans `display:none` visibility in workbench surfaces; if a tab

@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Per-host default settings (spec: activation-scripts-via-terminals, host settings):
  * machine-level configuration that per-project settings may override. Stored as a
- * JSON file in the host's emdash data directory — readable and editable out-of-band.
+ * JSON file in the host's agent data directory — readable and editable out-of-band.
  * Unknown keys in the file are preserved on update (forward compatibility).
  */
 export const hostSettingsSchema = z.object({

@@ -1,4 +1,4 @@
-import { defineContract, resourcedStream } from '@emdash/wire/rpc';
+import { defineContract, resourcedStream } from '@agent/wire/rpc';
 import { z } from 'zod';
 
 export const watchKeySchema = z.object({

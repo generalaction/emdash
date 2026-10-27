@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { provider } from './index';
 
@@ -57,11 +57,11 @@ describe('oh-my-pi plugin hooks', () => {
 
     const written = await provider.behavior.plugins?.installPlugin(fs, { kind: 'global' });
 
-    expect(written).toEqual(['extensions/emdash-hook.ts']);
-    const content = await fs.read('extensions/emdash-hook.ts');
+    expect(written).toEqual(['extensions/agent-hook.ts']);
+    const content = await fs.read('extensions/agent-hook.ts');
     expect(content).toContain("pi.on('session_stop'");
     expect(content).toContain('event.session_file');
-    expect(content).toContain("notifyEmdash('stop'");
+    expect(content).toContain("notifyAgent('stop'");
     expect(content).toContain("pi.on('session_shutdown', async ()");
   });
 });

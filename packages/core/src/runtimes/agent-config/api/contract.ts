@@ -5,7 +5,7 @@ import {
   liveModel,
   liveState,
   procedure,
-} from '@emdash/wire/rpc';
+} from '@agent/wire/rpc';
 import { z } from 'zod';
 import { agentAuthStatusSchema } from '#services/agent-plugins/api/plugins/capabilities/auth';
 import {

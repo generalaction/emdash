@@ -16,7 +16,7 @@ Start the container from `apps/workspace-server/`:
 pnpm run run:docker-remote
 ```
 
-Use these SSH connection settings in Emdash:
+Use these SSH connection settings in Agent:
 
 - Host: `localhost`
 - Port: `2223`
@@ -50,10 +50,10 @@ pnpm run dev:remote
 
 The script packages a Linux artifact for the host's native architecture (`linux-arm64` on Apple
 Silicon, `linux-x64` otherwise), starts the Compose services (`minio`, `minio-setup`, and
-`workspace-remote`), uploads the artifact layout to `http://localhost:9000/emdash-releases`, and
+`workspace-remote`), uploads the artifact layout to `http://localhost:9000/agent-releases`, and
 verifies that minio's stable and canary `workspace-server/channels/*/protocol-7.json` pointers name
-the new version. Override the target with `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or
-`EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
+the new version. Override the target with `AGENT_WS_DEV_REMOTE_TARGET=linux-x64` or
+`AGENT_WS_DEV_REMOTE_TARGET=linux-arm64`.
 
 The remote container is no longer recreated to ingest artifacts. It stays a bare SSH host; the
 desktop provisioner resolves a minio channel pointer, then curls that version's immutable
@@ -68,15 +68,15 @@ pnpm run dev:remote-app
 which expands to:
 
 ```bash
-EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=http://minio:9000/emdash-releases/workspace-server \
-  EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 \
-  pnpm --dir ../emdash-desktop run dev
+AGENT_WORKSPACE_SERVER_ARTIFACTS_URL=http://minio:9000/agent-releases/workspace-server \
+  AGENT_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 \
+  pnpm --dir ../agent-desktop run dev
 ```
 
 The `minio` hostname is resolved by the `workspace-remote` container. The host can inspect the same
-objects through `http://localhost:9000/emdash-releases/workspace-server/`.
+objects through `http://localhost:9000/agent-releases/workspace-server/`.
 
-`EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1` makes the desktop compare the running daemon's
+`AGENT_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1` makes the desktop compare the running daemon's
 `appVersion` with the artifact version in its channel pointer for the desktop protocol major. If
 they differ, the desktop reinstalls that exact version and restarts the remote daemon during the next
 ensure/reconnect. This is development-only; production provisioning still keeps compatible running
@@ -89,11 +89,11 @@ target manually. `upload:dev` defaults to the host's Linux target and uploads th
 archive under `dist-artifacts/`:
 
 ```bash
-EMDASH_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
+AGENT_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
 pnpm run upload:dev
 ```
 
-Use `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` when publishing an x64 artifact from Apple Silicon, or
+Use `AGENT_WS_DEV_REMOTE_TARGET=linux-x64` when publishing an x64 artifact from Apple Silicon, or
 pass `--version` / `--target` to override detection. With the desktop running in dev-auto-update
 mode, the next ensure/reconnect sees the updated channel pointer, installs its pinned artifact
 version, and restarts the daemon.
@@ -101,7 +101,7 @@ version, and restarts the daemon.
 Run the desktop connection smoke test against the installed daemon:
 
 ```bash
-pnpm --dir ../emdash-desktop run test:workspace-server-remote
+pnpm --dir ../agent-desktop run test:workspace-server-remote
 ```
 
 The test uses the Compose service's fixed `localhost:2223` and `devuser`/`devpass` credentials. It
@@ -114,20 +114,20 @@ reconnection, then stops the daemon and removes its temporary workspace.
 The daemon log is stored beside its socket. Follow it without opening an SSH session:
 
 ```bash
-docker exec --user devuser emdash-workspace-remote \
-  tail -f /home/devuser/.emdash/workspace-server/run/workspace.sock.log
+docker exec --user devuser agent-workspace-remote \
+  tail -f /home/devuser/.agent/workspace-server/run/workspace.sock.log
 ```
 
 To inspect streamlocal forwarding manually, first start the daemon, then run:
 
 ```bash
-rm -f /tmp/emdash-workspace-server.sock
+rm -f /tmp/agent-workspace-server.sock
 ssh -p 2223 -N \
-  -L /tmp/emdash-workspace-server.sock:/home/devuser/.emdash/workspace-server/run/workspace.sock \
+  -L /tmp/agent-workspace-server.sock:/home/devuser/.agent/workspace-server/run/workspace.sock \
   devuser@localhost
 ```
 
-While that SSH process is running, `/tmp/emdash-workspace-server.sock` is the local endpoint. The
+While that SSH process is running, `/tmp/agent-workspace-server.sock` is the local endpoint. The
 desktop transport performs the same forwarding in-process and calls Wire `initialize` before using
 runtime services.
 
@@ -139,8 +139,8 @@ Stop the Compose project and delete its named volumes:
 docker compose down -v
 ```
 
-This removes only the workspace remote container, network, and its `emdash-workspace-remote-home`
-and `emdash-workspace-minio-data` volumes. The legacy desktop `ssh-dev` Compose project and its
+This removes only the workspace remote container, network, and its `agent-workspace-remote-home`
+and `agent-workspace-minio-data` volumes. The legacy desktop `ssh-dev` Compose project and its
 `projects` volume are separate. This is no longer required for normal dev artifact refreshes; use it
 only when you need a bare machine, want to remove persisted daemon state, or want to clear the local
 artifact bucket.
@@ -153,7 +153,7 @@ under emulation:
 
 ```bash
 WORKSPACE_REMOTE_PLATFORM=linux/amd64 \
-  EMDASH_WS_DEV_REMOTE_TARGET=linux-x64 \
+  AGENT_WS_DEV_REMOTE_TARGET=linux-x64 \
   pnpm run dev:remote
 ```
 

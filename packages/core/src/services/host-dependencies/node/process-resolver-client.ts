@@ -1,4 +1,4 @@
-import type { ContractClient } from '@emdash/wire/rpc';
+import type { ContractClient } from '@agent/wire/rpc';
 import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import type { HostDependencyResolverContract } from '#services/host-dependencies/api';
 

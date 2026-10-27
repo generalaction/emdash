@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { DROID_HOOKS_PATH } from './hooks';
 import { provider } from './index';
@@ -31,7 +31,7 @@ describe('droid provider hooks', () => {
     expect(config.hooks.Notification).toHaveLength(1);
     expect(config.hooks.Stop).toHaveLength(1);
     expect(config.hooks.SessionStart).toHaveLength(1);
-    expect(JSON.stringify(config.hooks)).toContain('EMDASH_HOOK_CONFIG_VERSION=1');
+    expect(JSON.stringify(config.hooks)).toContain('AGENT_HOOK_CONFIG_VERSION=1');
   });
 
   it('preserves user hooks while replacing managed entries', async () => {
@@ -43,7 +43,7 @@ describe('droid provider hooks', () => {
           hooks: {
             Notification: [
               userHook,
-              { hooks: [{ type: 'command', command: 'echo EMDASH_HOOK_PORT && echo stale' }] },
+              { hooks: [{ type: 'command', command: 'echo AGENT_HOOK_PORT && echo stale' }] },
             ],
           },
         }),

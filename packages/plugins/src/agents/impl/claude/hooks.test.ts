@@ -1,5 +1,5 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
-import { makeStdinHookCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+import type { PluginFs } from '@agent/core/services/agent-plugins/api/plugins';
+import { makeStdinHookCommand } from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { CLAUDE_SETTINGS_PATH } from './hooks';
 import { provider } from './index';

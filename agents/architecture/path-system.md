@@ -1,6 +1,6 @@
 # Path System
 
-`@emdash/core/primitives/path/api` is the source of truth for portable file identity and lexical
+`@agent/core/primitives/path/api` is the source of truth for portable file identity and lexical
 path operations. The detailed package docs live in
 [`packages/core/docs/path/README.md`](../../packages/core/docs/path/README.md).
 
@@ -11,8 +11,8 @@ path operations. The detailed package docs live in
 - Desktop placement resolution owns repository and worktree location policy. It combines the target
   host's home directory from `files.getHomeDir`, desktop settings, per-project overrides, and UI
   input, then sends absolute paths to the host runtime.
-- Repository destinations default to `~/emdash/repositories/<name>` with numeric suffix allocation.
-  Worktree pools default to `~/emdash/worktrees/<repo-basename>-<hash8(repo-path)>`; the workspace
+- Repository destinations default to `~/agent/repositories/<name>` with numeric suffix allocation.
+  Worktree pools default to `~/agent/worktrees/<repo-basename>-<hash8(repo-path)>`; the workspace
   planner adds the sanitized branch leaf.
 - Runtime and app layers own host resolution, native string conversion,
   filesystem I/O, realpath checks, authorization, and persistence migrations.
@@ -33,7 +33,7 @@ path operations. The detailed package docs live in
 ## Future Adoption Map
 
 - Core `files` path helpers can delegate lexical operations to
-  `@emdash/core/primitives/path/api`.
+  `@agent/core/primitives/path/api`.
 - Desktop `RuntimePath` and SSH path helpers can become adapters around
   structured path parsing/formatting.
 - Git models can represent repo-relative file coordinates as

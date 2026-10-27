@@ -1,7 +1,7 @@
 /**
  * Lazy shiki highlighting for the Markdown component.
  *
- * Uses the generated var-based `em-syntax` theme from @emdash/theme: token
+ * Uses the generated var-based `em-syntax` theme from @agent/theme: token
  * colors are `--em-syntax-*` CSS custom properties, so a single tokenization
  * adapts to light/dark via the theme class — no theme identity or re-highlight
  * on theme flips is needed.
@@ -94,7 +94,7 @@ function getHighlighter(): Promise<HighlighterCore> {
         await Promise.all([
           import('shiki/core'),
           import('shiki/engine/javascript'),
-          import('@emdash/theme/shiki-themes'),
+          import('@agent/theme/shiki-themes'),
         ]);
       return createHighlighterCore({
         engine: createJavaScriptRegexEngine(),

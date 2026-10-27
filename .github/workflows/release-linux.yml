@@ -66,7 +66,7 @@ jobs:
       - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
       - name: Build Linux ${{ matrix.arch }} packages
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ARCH: ${{ matrix.arch }}
@@ -79,10 +79,10 @@ jobs:
           --release-id "${{ inputs.release_id }}"
 
       - name: Verify Linux ${{ matrix.arch }} packages
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
-          ARTIFACT_PREFIX: ${{ inputs.channel == 'canary' && 'emdash-canary' || 'emdash' }}
-          EXECUTABLE_NAME: ${{ inputs.channel == 'canary' && 'emdash-canary' || 'Emdash' }}
+          ARTIFACT_PREFIX: ${{ inputs.channel == 'canary' && 'agent-canary' || 'agent' }}
+          EXECUTABLE_NAME: ${{ inputs.channel == 'canary' && 'agent-canary' || 'Agent' }}
           RELEASE_ARCH: ${{ matrix.arch }}
         run: >
           node --experimental-strip-types scripts/release/verify-linux.ts
@@ -90,7 +90,7 @@ jobs:
           --prefix "$ARTIFACT_PREFIX" --executable "$EXECUTABLE_NAME"
 
       - name: Upload verified Linux ${{ matrix.arch }} assets to owned draft
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_CHANNEL: ${{ inputs.channel }}

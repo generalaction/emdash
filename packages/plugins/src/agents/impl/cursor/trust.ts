@@ -2,7 +2,7 @@ import type {
   ITrustBehavior,
   PluginFs,
   TrustContext,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+} from '@agent/core/services/agent-plugins/api/plugins';
 
 export function buildCursorTrustBehavior(): ITrustBehavior {
   return {
@@ -35,6 +35,6 @@ function createTrustMarker(workspacePath: string): Record<string, string> {
   return {
     trustedAt: new Date().toISOString(),
     workspacePath,
-    trustMethod: 'emdash-auto-trust',
+    trustMethod: 'agent-auto-trust',
   };
 }

@@ -33,13 +33,13 @@ RUN install -d -m 0755 /run/sshd \
     'MaxSessions 100' \
     'MaxStartups 100:30:200' \
     'X11Forwarding no' \
-    > /etc/ssh/sshd_config.d/00-emdash-workspace-remote.conf
+    > /etc/ssh/sshd_config.d/00-agent-workspace-remote.conf
 
 USER devuser
 WORKDIR /home/devuser
 
-RUN git config --global user.email 'devuser@emdash-dev' \
-  && git config --global user.name 'Emdash Dev' \
+RUN git config --global user.email 'devuser@agent-dev' \
+  && git config --global user.name 'Agent Dev' \
   && git config --global init.defaultBranch main \
   && git config --global safe.directory '*'
 

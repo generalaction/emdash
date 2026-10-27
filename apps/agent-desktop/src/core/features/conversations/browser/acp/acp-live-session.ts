@@ -1,0 +1,432 @@
+import {
+  initialSessionConfigState,
+  planStateSchema,
+  sessionUsageSchema,
+  sessionConfigStateSchema,
+  sessionMcpServerSchema,
+  sessionStateSchema,
+  terminalStateSchema,
+  type AcpRuntimeError,
+  type AcpSessionStartMode,
+  type PromptInput,
+  type PromptPlacement,
+  type SessionState,
+  type TerminalState,
+} from '@agent/core/runtimes/acp/api/client';
+import type { RuntimeResolveError } from '@agent/core/services/runtime-broker/api';
+import { createEmitter, type Result, type Unsubscribe } from '@agent/shared';
+import { createScope, type Scope } from '@agent/shared/concurrency';
+import { TimeoutError, runWithTimeout } from '@agent/shared/scheduling';
+import { ReplicaLog, ReplicaState, createLineLogStore } from '@agent/wire/live';
+import { WireError, type LiveClientHandle } from '@agent/wire/rpc';
+import { observe, whenReady, type Readable } from '@agent/wire/state';
+import { observable, runInAction } from 'mobx';
+import { z } from 'zod';
+import {
+  getConversationsClient,
+  type ConversationsClient,
+} from '@core/features/conversations/api/browser/client';
+import type { ProjectAttachmentError } from '@core/features/projects/api/attachments';
+
+export interface LiveValueSource<T> {
+  getSnapshot(): T;
+  subscribe(cb: () => void): Unsubscribe;
+}
+
+/**
+ * Line-structured live terminal output. `lines()` returns the store's
+ * identity-stable array (mutated in place); `version()` bumps once per
+ * frame-coalesced flush; `truncated()` is true when output was dropped
+ * upstream (agent ring buffer) or by the client store's byte cap.
+ */
+export type AcpTerminalOutput = {
+  lines(): readonly string[];
+  truncated(): boolean;
+  version(): number;
+  onFlush(listener: () => void): Unsubscribe;
+};
+
+type RemoteValueState<T> = {
+  readonly ready: Promise<void>;
+  current(): T;
+  onChange(cb: (value: T) => void): Unsubscribe;
+  dispose(): Promise<void>;
+};
+
+export function asValueSource<T>(replica: RemoteValueState<T>): LiveValueSource<T> {
+  return {
+    getSnapshot: () => replica.current(),
+    subscribe: (cb) => replica.onChange(() => cb()),
+  };
+}
+
+export class AcpStartError extends Error {
+  constructor(
+    readonly runtimeError: AcpRuntimeError | RuntimeResolveError | ProjectAttachmentError
+  ) {
+    super(
+      ('message' in runtimeError ? runtimeError.message : undefined) ??
+        ('cause' in runtimeError ? runtimeError.cause?.message : undefined) ??
+        runtimeError.type
+    );
+    this.name = 'AcpStartError';
+  }
+
+  get errorType(): (AcpRuntimeError | RuntimeResolveError | ProjectAttachmentError)['type'] {
+    return this.runtimeError.type;
+  }
+}
+
+export class AcpPromptDeliveryUnknownError extends Error {
+  constructor(
+    readonly promptId: string,
+    cause: unknown
+  ) {
+    super('The connection interrupted confirmation of prompt delivery', { cause });
+    this.name = 'AcpPromptDeliveryUnknownError';
+  }
+}
+
+export class AcpLiveSession {
+  readonly sessionState: RemoteValueState<SessionState>;
+  readonly config: RemoteValueState<z.infer<typeof sessionConfigStateSchema>>;
+  readonly usage: RemoteValueState<z.infer<typeof sessionUsageSchema> | null>;
+  readonly plan: RemoteValueState<z.infer<typeof planStateSchema> | null>;
+  readonly terminals: RemoteValueState<TerminalState[]>;
+  readonly mcpServers: RemoteValueState<Array<z.infer<typeof sessionMcpServerSchema>>>;
+  private readonly scope = createScope({ label: 'acp-live-session' });
+  private readonly terminalLogs = new Map<
+    string,
+    { replica: ReplicaLog; output: AcpTerminalOutput }
+  >();
+  private disposed = false;
+  private readonly usableState = observable.box(false);
+  private validation = 0;
+  private readonly refreshStates: () => Promise<void>;
+
+  get usable(): boolean {
+    return this.usableState.get();
+  }
+
+  private constructor(
+    readonly conversationId: string,
+    private readonly client: ConversationsClient['acp'],
+    private startMode: AcpSessionStartMode
+  ) {
+    const key = { conversationId };
+    // Subscribe to individual states: remote(model) waits for *every* state acquisition
+    // before exposing any of them. A slow optional source must not block the transcript.
+    const state = replicaValueState(
+      client.session.state(key, 'state'),
+      sessionStateSchema,
+      this.scope
+    );
+    const config = replicaValueState(
+      client.session.state(key, 'config'),
+      sessionConfigStateSchema,
+      this.scope,
+      initialSessionConfigState
+    );
+    const usage = replicaValueState(
+      client.session.state(key, 'usage'),
+      sessionUsageSchema.nullable(),
+      this.scope,
+      null
+    );
+    const plan = replicaValueState(
+      client.session.state(key, 'plan'),
+      planStateSchema.nullable(),
+      this.scope,
+      null
+    );
+    const terminals = replicaValueState(
+      client.session.state(key, 'terminals'),
+      z.array(terminalStateSchema),
+      this.scope,
+      []
+    );
+    const mcpServers = replicaValueState(
+      client.session.state(key, 'mcpServers'),
+      z.array(sessionMcpServerSchema),
+      this.scope,
+      []
+    );
+    this.sessionState = state;
+    this.config = config;
+    this.usage = usage;
+    this.plan = plan;
+    this.terminals = terminals;
+    this.mcpServers = mcpServers;
+    this.refreshStates = async () => {
+      for (const ancillary of [config, usage, plan, terminals, mcpServers]) {
+        void ancillary.refresh().catch(() => {});
+      }
+      await state.refresh();
+    };
+  }
+
+  static async create(conversationId: string): Promise<AcpLiveSession> {
+    const client = (await getConversationsClient()).acp;
+    const result = await withTimeout(
+      (signal) => client.attach({ conversationId }, { signal }),
+      'Timed out attaching ACP session'
+    );
+    if (!result.success) {
+      throw new AcpStartError(result.error);
+    }
+    const session = new AcpLiveSession(
+      conversationId,
+      client,
+      result.data.sessionId ? 'resume' : 'fresh'
+    );
+    try {
+      await withTimeout(session.sessionState.ready, 'Timed out connecting ACP live models');
+      runInAction(() => session.usableState.set(true));
+      return session;
+    } catch (error) {
+      session.dispose();
+      throw error;
+    }
+  }
+
+  async revalidate(signal: AbortSignal = this.scope.signal): Promise<void> {
+    const validation = ++this.validation;
+    runInAction(() => this.usableState.set(false));
+    try {
+      const result = await withTimeout(
+        (signal) => this.client.attach({ conversationId: this.conversationId }, { signal }),
+        'Timed out reattaching ACP session',
+        10_000,
+        signal
+      );
+      if (validation !== this.validation || this.disposed) return;
+      if (!result.success) throw new AcpStartError(result.error);
+      this.startMode = result.data.sessionId ? 'resume' : 'fresh';
+      await withTimeout(this.refreshStates(), 'Timed out refreshing ACP session', 10_000, signal);
+      if (!this.disposed && !signal.aborted && validation === this.validation)
+        runInAction(() => this.usableState.set(true));
+    } catch (error) {
+      if (!this.disposed && validation === this.validation) throw error;
+    }
+  }
+
+  async startSession(mode: AcpSessionStartMode = this.startMode) {
+    const result = await this.client.startSession(
+      { conversationId: this.conversationId, mode },
+      { timeoutMs: 0 }
+    );
+    if (result.success) this.startMode = 'resume';
+    return result;
+  }
+
+  loadHistory(before?: number, limit = 50) {
+    return this.client.loadHistory({ conversationId: this.conversationId, before, limit });
+  }
+
+  async exportTranscript(): Promise<Result<string, unknown>> {
+    const result = await this.client.exportAcpTranscript({
+      conversationId: this.conversationId,
+    });
+    if (!result.success) return result;
+    return { success: true, data: result.data.transcript };
+  }
+
+  async exportRawAcpLog(): Promise<Result<string, unknown>> {
+    const result = await this.client.exportRawAcpLog({ conversationId: this.conversationId });
+    if (!result.success) return result;
+    return { success: true, data: result.data.log };
+  }
+
+  async sendPrompt(
+    prompt: PromptInput,
+    placement?: PromptPlacement,
+    promptId: string = crypto.randomUUID()
+  ): Promise<Result<{ queued: boolean }, unknown>> {
+    try {
+      return await this.client.sendPrompt(
+        { conversationId: this.conversationId, promptId, prompt, placement },
+        { timeoutMs: 0 }
+      );
+    } catch (error) {
+      if (error instanceof WireError && error.delivery === 'not-sent') throw error;
+      throw new AcpPromptDeliveryUnknownError(promptId, error);
+    }
+  }
+
+  editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {
+    return this.client.editQueuedPrompt({ conversationId: this.conversationId, id, input });
+  }
+
+  deleteQueuedPrompt(id: string): Promise<Result<void, unknown>> {
+    return this.client.deleteQueuedPrompt({ conversationId: this.conversationId, id });
+  }
+
+  changeQueuePromptOrder(ids: string[]): Promise<Result<void, unknown>> {
+    return this.client.changeQueuePromptOrder({ conversationId: this.conversationId, ids });
+  }
+
+  cancelTurn(): Promise<Result<void, unknown>> {
+    return this.client.cancelTurn({ conversationId: this.conversationId });
+  }
+
+  setOption(configId: string, value: string | boolean) {
+    return this.client.setOption({ conversationId: this.conversationId, configId, value });
+  }
+
+  resolvePermission(requestId: string, optionId: string): Promise<Result<void, unknown>> {
+    return this.client.resolvePermission({
+      conversationId: this.conversationId,
+      requestId,
+      optionId,
+    });
+  }
+
+  async terminalOutput(terminalId: string): Promise<AcpTerminalOutput> {
+    const existing = this.terminalLogs.get(terminalId);
+    if (existing) return existing.output;
+    const store = createLineLogStore();
+    const replica = new ReplicaLog(
+      this.client.terminalOutput.handle({ conversationId: this.conversationId, terminalId }),
+      { store }
+    );
+    const output: AcpTerminalOutput = {
+      lines: () => store.lines(),
+      truncated: () => store.truncated(),
+      version: () => store.version(),
+      onFlush: (listener) => store.onFlush(listener),
+    };
+    this.terminalLogs.set(terminalId, { replica, output });
+    await replica.ready;
+    if (this.disposed) void replica.dispose();
+    return output;
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.validation += 1;
+    runInAction(() => this.usableState.set(false));
+    void this.scope.dispose();
+    for (const { replica } of this.terminalLogs.values()) {
+      void replica.dispose();
+    }
+    this.terminalLogs.clear();
+  }
+}
+
+function replicaValueState<T>(
+  handle: LiveClientHandle<T>,
+  schema: z.ZodType<T>,
+  parentScope: Scope,
+  initial?: T
+): RemoteValueState<T> & { refresh(): Promise<void> } {
+  const scope = parentScope.child('acp-state-replica');
+  const changes = createEmitter<T>();
+  const value = observable.box<T | undefined>(initial, { deep: false });
+  let incarnation = 0;
+  const createReplica = () => {
+    const current = ++incarnation;
+    const next = new ReplicaState<T | undefined>(handle, {
+      schema: schema.optional(),
+      onChange(next) {
+        if (scope.signal.aborted || current !== incarnation || next === undefined) return;
+        runInAction(() => value.set(next));
+        changes.emit(next);
+      },
+    });
+    // Failed acquisition may never have produced a subscription to detach.
+    scope.add(() => next.dispose().catch(() => {}));
+    void next.ready.catch(() => {});
+    return next;
+  };
+  let replica = createReplica();
+  let refreshing: Promise<void> | undefined;
+  return {
+    get ready() {
+      return replica.ready;
+    },
+    current: () => value.get() as T,
+    onChange: (cb) => changes.subscribe(cb),
+    dispose: () => scope.dispose(),
+    refresh() {
+      refreshing ??= (async () => {
+        try {
+          await replica.ready;
+        } catch {
+          scope.signal.throwIfAborted();
+          await replica.dispose().catch(() => {});
+          // Retry failed initial acquisition on revalidation. Its rejected ready promise
+          // cannot recover even if the connection now reaches a healthy host.
+          replica = createReplica();
+          await replica.ready;
+        }
+        scope.signal.throwIfAborted();
+        await replica.refresh();
+      })().finally(() => {
+        refreshing = undefined;
+      });
+      return refreshing;
+    },
+  };
+}
+
+export function remoteValueState<T>(
+  source: Readable<T | undefined>,
+  schema: z.ZodType<T>,
+  parentScope: Scope
+): RemoteValueState<T> {
+  const scope = parentScope.child('remote-value-state');
+  const changes = createEmitter<T>();
+  const value = observable.box<T | undefined>(undefined, { deep: false });
+  const update = (next: T): void => {
+    runInAction(() => value.set(next));
+  };
+  const ready = whenReady(source, { scope }).then((settled) => {
+    if (settled.status === 'error' && settled.value === undefined) {
+      throw readableError(settled.error);
+    }
+    if (settled.value !== undefined) update(schema.parse(settled.value));
+  });
+  observe(
+    source,
+    (snapshot) => {
+      if (snapshot.value !== undefined) {
+        const next = schema.parse(snapshot.value);
+        update(next);
+        changes.emit(next);
+      }
+    },
+    { scope }
+  );
+  return {
+    ready,
+    current() {
+      return value.get() as T;
+    },
+    onChange(cb) {
+      return changes.subscribe(cb);
+    },
+    dispose() {
+      return scope.dispose();
+    },
+  };
+}
+
+function readableError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  return new Error(error === undefined ? 'Remote live model failed to load' : String(error));
+}
+
+function withTimeout<T>(
+  work: Promise<T> | ((signal: AbortSignal) => Promise<T>),
+  message: string,
+  ms = 10_000,
+  signal?: AbortSignal
+): Promise<T> {
+  return runWithTimeout((signal) => (typeof work === 'function' ? work(signal) : work), {
+    timeoutMs: ms,
+    signal,
+  }).catch((error: unknown) => {
+    if (error instanceof TimeoutError) throw new Error(message);
+    throw error;
+  });
+}

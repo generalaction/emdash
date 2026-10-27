@@ -1,7 +1,7 @@
-import type { Result } from '@emdash/shared';
-import { noopLogger, type Logger } from '@emdash/shared/logger';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import type { ContractClient } from '@emdash/wire/rpc';
+import type { Result } from '@agent/shared';
+import { noopLogger, type Logger } from '@agent/shared/logger';
+import { systemClock, type Clock } from '@agent/shared/scheduling';
+import type { ContractClient } from '@agent/wire/rpc';
 import type { ConversationReportsContract } from '../api/contract';
 import type { ReportProviderSessionIdInput, ReportSessionStartedInput } from '../api/schemas';
 

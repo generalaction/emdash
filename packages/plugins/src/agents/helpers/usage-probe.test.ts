@@ -2,8 +2,8 @@ import type * as ChildProcessModule from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import type * as ExecModule from '@emdash/core/primitives/exec/node';
-import { createChildProcessTreeTerminator } from '@emdash/core/primitives/exec/node';
+import type * as ExecModule from '@agent/core/primitives/exec/node';
+import { createChildProcessTreeTerminator } from '@agent/core/primitives/exec/node';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { probeCodexUsage } from '../impl/codex/usage';
 
@@ -11,7 +11,7 @@ vi.mock('node:child_process', async (original) => ({
   ...(await original<typeof ChildProcessModule>()),
   spawn: vi.fn(),
 }));
-vi.mock('@emdash/core/primitives/exec/node', async (original) => ({
+vi.mock('@agent/core/primitives/exec/node', async (original) => ({
   ...(await original<typeof ExecModule>()),
   createChildProcessTreeTerminator: vi.fn(),
 }));

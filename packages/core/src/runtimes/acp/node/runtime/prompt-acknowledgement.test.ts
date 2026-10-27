@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { ok } from '@emdash/shared';
-import { deferred } from '@emdash/shared/testing';
+import { ok } from '@agent/shared';
+import { deferred } from '@agent/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '../acp-test-support';
 import { AcpRuntime } from './runtime';

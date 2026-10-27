@@ -1,6 +1,0 @@
-provider: github
-owner: generalaction
-repo: emdash
-channel: canary
-allowPrerelease: true
-updaterCacheDirName: emdash-canary-updater

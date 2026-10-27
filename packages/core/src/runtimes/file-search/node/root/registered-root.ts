@@ -1,4 +1,4 @@
-import type { ConcurrencyLimiter, Scope } from '@emdash/shared/concurrency';
+import type { ConcurrencyLimiter, Scope } from '@agent/shared/concurrency';
 import type { IWatchService } from '#services/fs-watch/api';
 import type { FileSearchExclusions } from '../exclusions';
 import type { PathIndexStore } from '../path/index/path-index-store';

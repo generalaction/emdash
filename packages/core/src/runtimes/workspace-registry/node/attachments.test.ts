@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { deferred } from '@emdash/shared/testing';
-import { createTestWire } from '@emdash/wire/testing';
+import { deferred } from '@agent/shared/testing';
+import { createTestWire } from '@agent/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { workspaceRegistryContract } from '../api';

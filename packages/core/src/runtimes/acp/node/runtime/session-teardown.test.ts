@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { ok } from '@agent/shared';
+import { noopLogger } from '@agent/shared/logger';
+import { deferred } from '@agent/shared/testing';
+import { peek } from '@agent/wire/state';
 import type { CloseSessionRequest, PromptRequest, PromptResponse } from '@agentclientprotocol/sdk';
-import { ok } from '@emdash/shared';
-import { noopLogger } from '@emdash/shared/logger';
-import { deferred } from '@emdash/shared/testing';
-import { peek } from '@emdash/wire/state';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import { AcpRuntime } from './runtime';

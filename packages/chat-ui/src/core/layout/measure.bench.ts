@@ -2,7 +2,7 @@
  * Node micro-benchmarks for layout hot paths.
  *
  * All benchmarks run in the `node` Vitest project (pure JS, no DOM).
- * Use `pnpm --filter @emdash/chat-ui run test:bench` to execute.
+ * Use `pnpm --filter @agent/chat-ui run test:bench` to execute.
  *
  * Scenarios:
  *   - caches.parseBlocks: markdown parse + caching on representative bodies

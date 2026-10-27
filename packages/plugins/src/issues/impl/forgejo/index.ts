@@ -1,4 +1,4 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok } from '@agent/shared';
 import { issueListIssues } from '@llamaduck/forgejo-ts';
 import { toIntegrationError } from '../../../integrations/helpers/error';
 import { resolveRemoteRepository } from '../../../integrations/helpers/repository-remote';

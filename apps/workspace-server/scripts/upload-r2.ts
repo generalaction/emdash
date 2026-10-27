@@ -7,7 +7,7 @@ import {
   PROTOCOL_VERSION,
   serializeChannelPointer,
   type ChannelPointer,
-} from '@emdash/core/workspace-server';
+} from '@agent/core/workspace-server';
 import { S3mini } from 's3mini';
 import {
   artifactArchiveName,
@@ -49,7 +49,7 @@ type ValidatedArtifact = {
 
 async function main(): Promise<void> {
   const options = parseUploadArgs(process.argv.slice(2));
-  const devUpload = process.env['EMDASH_WS_DEV_UPLOAD'] === '1';
+  const devUpload = process.env['AGENT_WS_DEV_UPLOAD'] === '1';
   const targets = resolveUploadTargets(options, devUpload);
   const version =
     options.version ??
@@ -100,7 +100,7 @@ function resolveUploadTargets(options: UploadOptions, devUpload: boolean): Packa
 }
 
 function defaultDevUploadTarget(): PackageTarget {
-  const explicitTarget = process.env['EMDASH_WS_DEV_REMOTE_TARGET']?.trim();
+  const explicitTarget = process.env['AGENT_WS_DEV_REMOTE_TARGET']?.trim();
   if (explicitTarget !== undefined && explicitTarget.length > 0) {
     return parsePackageTarget(explicitTarget);
   }
@@ -249,12 +249,12 @@ async function readPackageVersion(): Promise<string> {
 }
 
 function resolveUploadConfig(): UploadConfig {
-  const endpoint = process.env['EMDASH_WS_UPLOAD_ENDPOINT'];
+  const endpoint = process.env['AGENT_WS_UPLOAD_ENDPOINT'];
   if (endpoint !== undefined && endpoint.length > 0) {
     return {
       label: endpoint,
-      accessKeyId: requireEnv('EMDASH_WS_UPLOAD_ACCESS_KEY'),
-      secretAccessKey: requireEnv('EMDASH_WS_UPLOAD_SECRET_KEY'),
+      accessKeyId: requireEnv('AGENT_WS_UPLOAD_ACCESS_KEY'),
+      secretAccessKey: requireEnv('AGENT_WS_UPLOAD_SECRET_KEY'),
       endpoint,
     };
   }

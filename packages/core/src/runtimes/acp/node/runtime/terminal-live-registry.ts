@@ -1,4 +1,4 @@
-import { LiveLogSource } from '@emdash/wire/live';
+import { LiveLogSource } from '@agent/wire/live';
 import type { AgentTerminalHooks } from '#runtimes/acp/node/agent-ports/terminal-manager';
 
 type TerminalRecord = {

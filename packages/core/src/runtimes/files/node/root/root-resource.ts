@@ -1,5 +1,5 @@
-import type { Unsubscribe } from '@emdash/shared';
-import { KeyedMutex } from '@emdash/shared/concurrency';
+import type { Unsubscribe } from '@agent/shared';
+import { KeyedMutex } from '@agent/shared/concurrency';
 import { Minimatch } from 'minimatch';
 import type { PortableRelativePath } from '#primitives/path/api';
 import type { RootIdentity } from '#runtimes/files/node/allocation/identity';
@@ -8,7 +8,7 @@ import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
 
 const WATCH_DEBOUNCE_MS = 50;
 /** Stands in for an arbitrary child when asking whether a folder's listing is watched. */
-const LISTING_PROBE = '.emdash-listing-probe';
+const LISTING_PROBE = '.agent-listing-probe';
 
 export type RootChange =
   | { kind: 'create' | 'update' | 'delete'; path: PortableRelativePath }

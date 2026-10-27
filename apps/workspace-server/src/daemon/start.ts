@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { unlink } from 'node:fs/promises';
 import { open } from 'node:fs/promises';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { withFileLock } from './lock';
 import { daemonPaths, type DaemonPaths } from './paths';
 import { isProcessAlive, readPidFile, removePidFile, type ProcessSignaler } from './pid-file';

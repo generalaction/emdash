@@ -1,19 +1,19 @@
-# Emdash
+# Agent
 
-Emdash runs AI coding agents in parallel across isolated git worktrees on local and remote machines. The desktop app coordinates; workspace hosts execute.
+Agent runs AI coding agents in parallel across isolated git worktrees on local and remote machines. The desktop app coordinates; workspace hosts execute.
 
 ## Language
 
 ### The model
 
 **Inventory-and-command model**:
-Emdash's state model for host artifacts: the host's inventory is authoritative — for Workspaces indexed by the Host registry — the desktop Registry converges toward it, and there is no standing desired state: emdash never re-converges the world toward a record. Mutations are plain fail-fast wire RPCs (ADR 0005), with one deliberate exception: deletion intent survives unreachability as a Tombstone, swept by the Reconcile sweep (ADR 0006). Creation never converges; only tombstoned deletions do. See ADR 0001 for the authority stance.
+Agent's state model for host artifacts: the host's inventory is authoritative — for Workspaces indexed by the Host registry — the desktop Registry converges toward it, and there is no standing desired state: agent never re-converges the world toward a record. Mutations are plain fail-fast wire RPCs (ADR 0005), with one deliberate exception: deletion intent survives unreachability as a Tombstone, swept by the Reconcile sweep (ADR 0006). Creation never converges; only tombstoned deletions do. See ADR 0001 for the authority stance.
 _Avoid_: Spec/status, desired state, converging the world toward a record (the one convergence loop removes tombstoned artifacts, nothing else)
 
 ### Places and artifacts
 
 **Host**:
-A machine emdash can reach and run commands on — the local machine or an SSH-connected remote. Authoritative for everything that physically exists on it.
+A machine agent can reach and run commands on — the local machine or an SSH-connected remote. Authoritative for everything that physically exists on it.
 _Avoid_: Machine (UI label only), server, remote (as a noun)
 
 **Host diagnostics**:
@@ -40,7 +40,7 @@ may be resolved (OID and divergence are known) or unresolved while the upstream 
 _Avoid_: Inferring publication from repository ref inventory, treating every upstream as published, collapsing unresolved tracking to no upstream
 
 **Workspace**:
-A working directory on a host that emdash tracks — a repository, a worktree, or a plain directory. The place sessions and agents run in.
+A working directory on a host that agent tracks — a repository, a worktree, or a plain directory. The place sessions and agents run in.
 
 **Session**:
 A running process (terminal or agent process) attached to a Workspace on a host. Host-owned; dies with its workspace.
@@ -139,7 +139,7 @@ _Avoid_: Transcript storage, offline Prompt queue, retaining Prompt content afte
 **Payload unavailable**:
 The blocking pre-dispatch state where an accepted Prompt attempt's required queued content or
 attachment snapshot cannot be read or validated. No provider outcome exists; the user must
-withdraw or supersede it rather than Emdash skipping or failing it automatically.
+withdraw or supersede it rather than Agent skipping or failing it automatically.
 _Avoid_: Outcome unknown (Provider dispatch never occurred), Failed
 
 **Prompt supersession**:
@@ -179,7 +179,7 @@ work or an active provider turn.
 _Avoid_: Prompt cancellation
 
 **Plugins**:
-One word, three homes — say which one you mean: the capability framework (`@emdash/shared/plugins`), the concrete agent providers (`@emdash/plugins`), and the host services that install and run them (`packages/core/src/services/agent-plugins`).
+One word, three homes — say which one you mean: the capability framework (`@agent/shared/plugins`), the concrete agent providers (`@agent/plugins`), and the host services that install and run them (`packages/core/src/services/agent-plugins`).
 _Avoid_: Unqualified "plugins" where the home matters
 
 ### Desktop concepts
@@ -329,7 +329,7 @@ The in-memory, per-Workspace host state merged into the Host registry's live mod
 _Avoid_: Persisting "active" as a durable flag (lastActivatedAt is an Observation)
 
 **Provenance**:
-The immutable record of what emdash asked for when it created a Workspace (stored as its config). Absent for adopted workspaces.
+The immutable record of what agent asked for when it created a Workspace (stored as its config). Absent for adopted workspaces.
 _Avoid_: Intent (nothing on the desktop expresses ongoing intent about host state)
 
 **Adoption**:
@@ -398,7 +398,7 @@ _Avoid_: Operation, error state (the workspace keeps working)
 
 ### File identity vocabulary
 
-Roles in `@emdash/core/primitives/path/api` (see `agents/architecture/path-system.md`), adopted as
+Roles in `@agent/core/primitives/path/api` (see `agents/architecture/path-system.md`), adopted as
 the file identity for the unified content stack.
 
 **HostFileRef**:
@@ -407,7 +407,7 @@ of any Workspace — workspace membership is a view/scoping concern, never part 
 _Avoid_: HostPathRef (retired working name), (workspaceId, relative path) as identity
 
 **ResourceUri**:
-The serialized form of a HostFileRef (`emdash-file://v2/...`), used on the wire and in durable
+The serialized form of a HostFileRef (`agent-file://v2/...`), used on the wire and in durable
 state.
 _Avoid_: Raw absolute path strings as serialized identity
 
@@ -557,7 +557,7 @@ A CSS rule reached through a document, stable, or foreign selector rather than a
 _Avoid_: Any Vanilla Extract `globalStyle()` call
 
 **Host Styling Adapter**:
-The host-owned Module at the styling seam with `@emdash/ui`, responsible for satisfying the shared styling interface and mapping host-only visual roles when necessary.
+The host-owned Module at the styling seam with `@agent/ui`, responsible for satisfying the shared styling interface and mapping host-only visual roles when necessary.
 _Avoid_: Host Token Bridge, Theme Bridge
 
 ### Shared vocabulary
@@ -565,7 +565,7 @@ _Avoid_: Host Token Bridge, Theme Bridge
 Roles in `packages/shared`, settled by the shared-architecture naming pass.
 
 **Prelude**:
-The root entrypoint (`@emdash/shared`) — the single home for the blessed cross-cutting core: the result module, `Unsubscribe`, `Emitter`, the lifecycle leases, `isDeepEqual`, the serialization/error family, and `Secret`. One home per symbol package-wide: domain modules stay subpath-only, and nothing is importable from both the root and a subpath.
+The root entrypoint (`@agent/shared`) — the single home for the blessed cross-cutting core: the result module, `Unsubscribe`, `Emitter`, the lifecycle leases, `isDeepEqual`, the serialization/error family, and `Secret`. One home per symbol package-wide: domain modules stay subpath-only, and nothing is importable from both the root and a subpath.
 _Avoid_: Re-exporting a prelude symbol from a subpath, aliasing a shared type under a domain name
 
 **Scope**:
@@ -577,7 +577,7 @@ The time seam. No raw `Date.now`/`setTimeout` outside `scheduling/clock.ts`; any
 _Avoid_: Direct timer calls in primitives, fake-timer test hacks where a `Clock` parameter exists
 
 **RetrySchedule**:
-The one retry/backoff word. The `retrySchedule(options)` constructor lives beside the `retrySchedules` combinator namespace in `@emdash/shared/scheduling`; a schedule maps a retry index to a delay or `undefined` (stop).
+The one retry/backoff word. The `retrySchedule(options)` constructor lives beside the `retrySchedules` combinator namespace in `@agent/shared/scheduling`; a schedule maps a retry index to a delay or `undefined` (stop).
 _Avoid_: Backoff/BackoffSchedule (dissolved), per-package retry vocabularies
 
 **Secret**:
@@ -604,12 +604,12 @@ _Avoid_: Git identity settings bag, replacing all provider choices when editing 
 The account and resource URL captured with a linked issue or issue mention; refreshing follows that source rather than the Project's current account, and ambiguous legacy snapshots remain unchanged.
 _Avoid_: Provider plus shorthand as durable issue identity, retargeting linked context after an account switch
 
-**Emdash Git credential helper**:
+**Agent Git credential helper**:
 The packaged, stateless Host-local adapter implementing Git's credential-helper protocol. It asks the Host Secret Runtime through a scoped Git credential channel and writes a granted credential only to Git's response stream; it never chooses an account or stores a credential.
 _Avoid_: ASKPASS broker, provider-native helper, Secret resolver, global credential store
 
 **First-party Git credential mode**:
-The per-Project choice for Git operations owned by Emdash itself: `effective-account` uses the selected managed account, while `system` delegates to the Host's native Git authentication. It is separate from Session policy so agent containment does not disable background source control.
+The per-Project choice for Git operations owned by Agent itself: `effective-account` uses the selected managed account, while `system` delegates to the Host's native Git authentication. It is separate from Session policy so agent containment does not disable background source control.
 _Avoid_: Agent Git credentials, GitHub API account, silent native fallback after a selected identity breaks
 
 **Session Git credential mode**:

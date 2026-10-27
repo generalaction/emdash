@@ -121,7 +121,7 @@ export async function executeCreateWorktree(
 
     // Stale-is-fine: creation never fetches when the base ref resolves locally. Only an
     // unresolvable remote-shaped ref triggers a targeted single-ref fetch — no --all,
-    // no --prune, no tags. Failure surfaces git's own error; no emdash timeout or retry.
+    // no --prune, no tags. Failure surfaces git's own error; no agent timeout or retry.
     if (execution.baseRef !== null) {
       const baseRef = execution.baseRef;
       execution.onStage('resolve-base');
@@ -195,7 +195,7 @@ export async function executeCreateWorktree(
         entries.push([`branch.${execution.branch}.merge`, upstream.mergeRef]);
       }
       if (breadcrumb) {
-        entries.push([`branch.${execution.branch}.emdash-pr-url`, breadcrumb.prUrl]);
+        entries.push([`branch.${execution.branch}.agent-pr-url`, breadcrumb.prUrl]);
       }
       for (const [key, value] of entries) {
         await exec.exec(['config', key, value]);

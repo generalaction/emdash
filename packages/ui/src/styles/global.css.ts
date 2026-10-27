@@ -1,5 +1,5 @@
 /**
- * global.css.ts — single side-effect barrel for the full @emdash/ui VE style stack.
+ * global.css.ts — single side-effect barrel for the full @agent/ui VE style stack.
  *
  * Import this once in your app entry to pull every VE module into the build graph
  * so their globalStyle output lands in dist/style.css.
@@ -11,7 +11,7 @@
  * overflow-fade) must still be @imported in the host's CSS pipeline.
  *
  * Usage:
- *   import '@emdash/ui/styles/global';  // in app entry or Storybook preview
+ *   import '@agent/ui/styles/global';  // in app entry or Storybook preview
  */
 
 // 1. Layer order must be declared first.
@@ -27,7 +27,7 @@ export * from './surfaces.css';
 export * from './reset.css';
 
 // 5. Global element defaults (body, scrollbars, selection) are now opt-in.
-// Import '@emdash/ui/styles/global-base.css' in the host app or Storybook
+// Import '@agent/ui/styles/global-base.css' in the host app or Storybook
 // preview when you want these element defaults. They are NOT included here
 // so they don't fight the host app's own body/token CSS.
 

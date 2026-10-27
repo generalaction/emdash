@@ -255,7 +255,7 @@ export const AutomationsStyle: Story = {
 
 function CustomSidebarDemo() {
   const [selected, setSelected] = React.useState(0);
-  const projects = ['emdash', 'api-gateway', 'frontend', 'docs-site'];
+  const projects = ['agent', 'api-gateway', 'frontend', 'docs-site'];
 
   return (
     <div style={{ height: '40rem', display: 'flex', flexDirection: 'column' }}>
@@ -463,7 +463,7 @@ function SidebarWithFooterDemo() {
                     paddingRight: '0.75rem',
                   }}
                 >
-                  Emdash UI v1.0.0
+                  Agent UI v1.0.0
                 </div>
                 <Button size="xs" variant="ghost" style={{ justifyContent: 'flex-start' }}>
                   Manage sidebar

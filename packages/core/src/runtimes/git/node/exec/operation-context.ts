@@ -6,7 +6,7 @@ export type GitOperationContext<P = GitTransferProgress> = Readonly<{
   onProgress?: (progress: P) => void;
   /**
    * Per-invocation env overlay for this one git command (e.g. an
-   * operation-scoped emdash credential helper). Never carries token material.
+   * operation-scoped agent credential helper). Never carries token material.
    */
   env?: NodeJS.ProcessEnv;
 }>;

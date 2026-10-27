@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import type { IntegrationError } from '../types';
 import { parseGitRemoteUrl, type ParsedGitRemote } from './git-remote';
 import { checkRemoteHostMatchesInstance } from './hosted-instance';

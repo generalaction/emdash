@@ -1,8 +1,5 @@
-import {
-  isGitHubDotComHost,
-  normalizeRepositoryHost,
-} from '@emdash/core/primitives/repository/api';
-import { ok } from '@emdash/shared';
+import { isGitHubDotComHost, normalizeRepositoryHost } from '@agent/core/primitives/repository/api';
+import { ok } from '@agent/shared';
 import type { OAuthAccessToken, VerifyResult } from '../../capabilities/auth';
 import { startDeviceAuthorizationSession, type FetchLike } from '../../helpers/oauth-device';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
@@ -10,7 +7,7 @@ import { verifyGitHubCredentials } from './client';
 import { icon } from './icon';
 import { GITHUB_DOTCOM_API_BASE_URL, gitHubCredentialsSchema } from './types';
 
-/** emdash's GitHub OAuth app, used for device sign-in. */
+/** agent's GitHub OAuth app, used for device sign-in. */
 export const GITHUB_OAUTH_CLIENT_ID = 'Ov23ligC35uHWopzCeWf';
 export const GITHUB_OAUTH_SCOPES = ['repo', 'read:user', 'read:org'];
 

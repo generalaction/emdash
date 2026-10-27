@@ -5,7 +5,7 @@ const baseContext = {
   cli: 'droid',
   autoApprove: false,
   initialPrompt: undefined,
-  sessionId: 'emdash-session-id',
+  sessionId: 'agent-session-id',
   providerSessionId: undefined,
   isResuming: false,
   model: '',

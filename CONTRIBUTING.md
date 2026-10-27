@@ -1,4 +1,4 @@
-# Contributing to Emdash
+# Contributing to Agent
 
 Thanks for your interest in contributing. We favor small, focused PRs with clear
 intent. This guide covers the local development setup, the commands that matter,
@@ -33,8 +33,8 @@ managers.
 Fork the repository on GitHub, then clone your fork:
 
 ```bash
-git clone https://github.com/<you>/emdash.git
-cd emdash
+git clone https://github.com/<you>/agent.git
+cd agent
 ```
 
 ### Install
@@ -50,7 +50,7 @@ dependencies, and prepares the native modules — after it succeeds the machine
 is ready for every dev flow.
 
 This repository is a pnpm workspace. The Electron app is in
-`apps/emdash-desktop/`, and shared workspace packages live in `packages/`.
+`apps/agent-desktop/`, and shared workspace packages live in `packages/`.
 
 ### Start Development
 
@@ -68,11 +68,11 @@ The root `dev` command now does two things:
 Use this command when you are changing code in `packages/` or when you want the
 same startup path a fresh contributor will use.
 
-If you are only working inside `apps/emdash-desktop/`, you can run the Electron
+If you are only working inside `apps/agent-desktop/`, you can run the Electron
 dev server directly:
 
 ```bash
-cd apps/emdash-desktop
+cd apps/agent-desktop
 pnpm run dev
 ```
 
@@ -80,27 +80,27 @@ Important distinction:
 
 - `pnpm run dev` from the repo root starts the workspace package watchers and the
   app together.
-- `pnpm run dev` from `apps/emdash-desktop/` starts only `electron-vite dev` for
+- `pnpm run dev` from `apps/agent-desktop/` starts only `electron-vite dev` for
   the desktop app.
 - If app code imports changed package output, prefer the root command so package
   `dist/` files stay current.
 
 Renderer changes usually hot reload. Main-process changes under
-`apps/emdash-desktop/src/main/` may require restarting the Electron dev app.
+`apps/agent-desktop/src/main/` may require restarting the Electron dev app.
 
 ## Repository Layout
 
 This is a pnpm workspace monorepo.
 
-- `apps/emdash-desktop/` - Electron desktop app package
-- `apps/emdash-desktop/src/main/` - Electron main process, RPC controllers,
+- `apps/agent-desktop/` - Electron desktop app package
+- `apps/agent-desktop/src/main/` - Electron main process, RPC controllers,
   services, database, PTY, SSH, Git, GitHub, updates, and integrations
-- `apps/emdash-desktop/src/preload/` - typed Electron preload bridge
-- `apps/emdash-desktop/src/renderer/` - React composition shell and shared browser infrastructure
-- `apps/emdash-desktop/src/core/` - vertical slices with APIs, Node implementations, browser UI,
+- `apps/agent-desktop/src/preload/` - typed Electron preload bridge
+- `apps/agent-desktop/src/renderer/` - React composition shell and shared browser infrastructure
+- `apps/agent-desktop/src/core/` - vertical slices with APIs, Node implementations, browser UI,
   contributions, and manifests
-- `apps/emdash-desktop/drizzle/` - generated Drizzle migrations and metadata
-- `apps/emdash-desktop/scripts/` - release, verification, and build scripts
+- `apps/agent-desktop/drizzle/` - generated Drizzle migrations and metadata
+- `apps/agent-desktop/scripts/` - release, verification, and build scripts
 - `packages/core/` - transport-agnostic core runtime primitives
 - `packages/shared/` - shared workspace primitives
 - `packages/ui/` - shared UI components and theme system
@@ -108,7 +108,7 @@ This is a pnpm workspace monorepo.
 - `agents/` - architecture, workflow, convention, integration, and risk docs
 
 Root scripts are aggregate workspace scripts. Most app-specific commands live in
-`apps/emdash-desktop/package.json`.
+`apps/agent-desktop/package.json`.
 
 ## Common Commands
 
@@ -132,14 +132,14 @@ pnpm run graph          # open the Nx project graph in the browser
 Individual project targets are addressable from the root without `cd`:
 
 ```bash
-nx package:mac @emdash/emdash-desktop
-nx db:reset @emdash/emdash-desktop
-nx build:theme @emdash/ui
+nx package:mac @agent/agent-desktop
+nx db:reset @agent/agent-desktop
+nx build:theme @agent/ui
 ```
 
 See `agents/workflows/nx.md` for a full explanation of the Nx setup.
 
-Useful app-local commands from `apps/emdash-desktop/`:
+Useful app-local commands from `apps/agent-desktop/`:
 
 ```bash
 pnpm run dev            # start electron-vite dev for the desktop app only
@@ -273,26 +273,26 @@ State and stores:
 
 Development database paths use Electron `app.getPath('userData')`.
 
-- macOS: `~/Library/Application Support/emdash-dev/emdash4.db`
-- Linux: `~/.config/emdash-dev/emdash4.db`
-- Windows: `%APPDATA%\emdash-dev\emdash4.db`
+- macOS: `~/Library/Application Support/agent-dev/agent4.db`
+- Linux: `~/.config/agent-dev/agent4.db`
+- Windows: `%APPDATA%\agent-dev\agent4.db`
 
 Use an isolated scratch database when working on schema or migration changes.
 From the repo root:
 
 ```bash
-EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+AGENT_DB_FILE=/tmp/agent-scratch.db pnpm run dev
 ```
 
-For app-only development, change into `apps/emdash-desktop/` first so this starts
+For app-only development, change into `apps/agent-desktop/` first so this starts
 only `electron-vite dev`:
 
 ```bash
-cd apps/emdash-desktop
-EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+cd apps/agent-desktop
+AGENT_DB_FILE=/tmp/agent-scratch.db pnpm run dev
 ```
 
-Reset dev databases from `apps/emdash-desktop/`:
+Reset dev databases from `apps/agent-desktop/`:
 
 ```bash
 pnpm run db:reset
@@ -303,7 +303,7 @@ Database rules:
 - Do not hand-edit numbered Drizzle migrations or `drizzle/meta/`.
 - Use `pnpm run db:generate` for new migrations.
 - Update fixtures and migration tests when schema behavior changes.
-- Run focused database validation from `apps/emdash-desktop/` when relevant:
+- Run focused database validation from `apps/agent-desktop/` when relevant:
 
 ```bash
 pnpm run db:fixtures
@@ -314,7 +314,7 @@ Read `agents/risky-areas/database.md` before changing database internals.
 
 ## Worktrees, PTY, SSH, And Providers
 
-Emdash orchestrates coding agents in Git worktrees and PTY sessions. These areas
+Agent orchestrates coding agents in Git worktrees and PTY sessions. These areas
 are high impact.
 
 - Do not delete worktree folders manually unless you know the matching Git state.
@@ -345,7 +345,7 @@ Read the relevant risk or integration doc before touching these areas:
 - Renderer browser tests live under `src/renderer/tests/browser/`.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
 
-From `apps/emdash-desktop/`, the app test command is:
+From `apps/agent-desktop/`, the app test command is:
 
 ```bash
 pnpm run test
@@ -360,7 +360,7 @@ node, main-db, migrations, browser, scripts
 ## Native Dependencies
 
 After native dependency changes, rebuild Electron native modules from
-`apps/emdash-desktop/`:
+`apps/agent-desktop/`:
 
 ```bash
 pnpm run rebuild
@@ -386,7 +386,7 @@ before making SSH behavior changes.
 Use GitHub Issues. Include:
 
 - Operating system
-- Emdash version or commit SHA
+- Agent version or commit SHA
 - Node and pnpm versions, if development-related
 - Steps to reproduce
 - Expected behavior
@@ -401,8 +401,8 @@ repository content in public issues.
 Do not dispatch release workflows, publish packages, or upload artifacts unless
 you are explicitly doing release work.
 
-The app version lives in `apps/emdash-desktop/package.json`. For release version
-bumps, run these from `apps/emdash-desktop/`:
+The app version lives in `apps/agent-desktop/package.json`. For release version
+bumps, run these from `apps/agent-desktop/`:
 
 ```bash
 pnpm version patch

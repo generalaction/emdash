@@ -1,4 +1,4 @@
-import { ChildAcpProcessHost, AgentTerminalManager } from '@emdash/core/runtimes/acp/node';
+import { ChildAcpProcessHost, AgentTerminalManager } from '@agent/core/runtimes/acp/node';
 import { describe, expect, it } from 'vitest';
 import { provider } from './index';
 

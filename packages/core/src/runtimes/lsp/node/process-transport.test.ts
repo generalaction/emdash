@@ -17,7 +17,7 @@ describe('language server process transport', () => {
   it('reports a missing executable without hanging or leaking a child', async () => {
     await expect(
       spawnLanguageServer({
-        command: '/missing/emdash-language-server',
+        command: '/missing/agent-language-server',
         args: [],
         cwd: tmpdir(),
         env: process.env,
@@ -45,7 +45,7 @@ describe('language server process transport', () => {
   });
 
   it('provides real TypeScript hover, definitions and diagnostics using unsaved cross-file buffers', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-lsp-'));
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-lsp-'));
     directories.push(root);
     await writeFile(
       path.join(root, 'tsconfig.json'),

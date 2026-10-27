@@ -26,7 +26,7 @@ async function git(...args: string[]): Promise<void> {
 }
 
 beforeEach(async () => {
-  repo = await mkdtemp(join(tmpdir(), 'emdash-observe-git-'));
+  repo = await mkdtemp(join(tmpdir(), 'agent-observe-git-'));
   await git('init');
   await git('config', 'user.email', 'test@example.com');
   await git('config', 'user.name', 'Test');
@@ -142,7 +142,7 @@ describe('observeWorkspaceGit head OID, upstream identity, and PR breadcrumb', (
     await git('remote', 'add', 'origin', 'https://example.com/acme/app.git');
     await git('config', 'branch.main.remote', 'origin');
     await git('config', 'branch.main.merge', 'refs/heads/main');
-    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/7');
+    await git('config', 'branch.main.agent-pr-url', 'https://github.com/acme/app/pull/7');
 
     const observed = await observeWorkspaceGit(gitContext, repo);
 
@@ -173,7 +173,7 @@ describe('observeWorkspaceGit head OID, upstream identity, and PR breadcrumb', (
   });
 
   it('reports the breadcrumb independently of upstream tracking', async () => {
-    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/9');
+    await git('config', 'branch.main.agent-pr-url', 'https://github.com/acme/app/pull/9');
 
     const observed = await observeWorkspaceGit(gitContext, repo);
 
@@ -196,9 +196,9 @@ describe('observeWorkspaceGit head OID, upstream identity, and PR breadcrumb', (
 
   it('matches the branch config literally when the branch name has regex metacharacters', async () => {
     await git('checkout', '-b', 'release/1.2+x');
-    await git('config', 'branch.release/1.2+x.emdash-pr-url', 'https://github.com/a/b/pull/3');
+    await git('config', 'branch.release/1.2+x.agent-pr-url', 'https://github.com/a/b/pull/3');
     // A decoy the unescaped pattern `1.2+x` would also match.
-    await git('config', 'branch.release/1a22x.emdash-pr-url', 'https://github.com/a/b/pull/4');
+    await git('config', 'branch.release/1a22x.agent-pr-url', 'https://github.com/a/b/pull/4');
 
     const observed = await observeWorkspaceGit(gitContext, repo);
 
@@ -209,7 +209,7 @@ describe('observeWorkspaceGit head OID, upstream identity, and PR breadcrumb', (
   it('nulls upstream and breadcrumb on detached HEAD but still reports headOid', async () => {
     await git('config', 'branch.main.remote', 'origin');
     await git('config', 'branch.main.merge', 'refs/heads/main');
-    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/7');
+    await git('config', 'branch.main.agent-pr-url', 'https://github.com/acme/app/pull/7');
     await git('checkout', '--detach');
 
     const observed = await observeWorkspaceGit(gitContext, repo);
@@ -244,7 +244,7 @@ describe('observeWorkspaceGitRefs', () => {
     await git('remote', 'add', 'origin', 'https://example.com/acme/app.git');
     await git('config', 'branch.main.remote', 'origin');
     await git('config', 'branch.main.merge', 'refs/heads/main');
-    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/7');
+    await git('config', 'branch.main.agent-pr-url', 'https://github.com/acme/app/pull/7');
     await writeFile(join(repo, 'wip.txt'), 'wip\n');
     const previous = await observeWorkspaceGit(gitContext, repo, undefined, {
       untrackedCache: createUntrackedLinesCache(),

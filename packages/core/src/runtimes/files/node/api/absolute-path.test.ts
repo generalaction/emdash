@@ -10,9 +10,9 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ok } from '@emdash/shared';
-import { waitFor } from '@emdash/shared/testing';
-import { client, connect, memoryTransportPair, serve, type LiveUpdate } from '@emdash/wire/rpc';
+import { ok } from '@agent/shared';
+import { waitFor } from '@agent/shared/testing';
+import { client, connect, memoryTransportPair, serve, type LiveUpdate } from '@agent/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import { filesContract } from '#runtimes/files/api';
@@ -366,7 +366,7 @@ async function makeRuntime(options: FilesRuntimeOptions = {}) {
 }
 
 async function makeDir(): Promise<string> {
-  const dir = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-files-absolute-')));
+  const dir = await realpath(await mkdtemp(path.join(tmpdir(), 'agent-files-absolute-')));
   roots.push(dir);
   return dir;
 }

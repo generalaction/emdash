@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import { hostRefEquals, hostRefKey, type HostRef } from '#primitives/host/api';
 import { formatAbsolute, joinAbsolute } from './absolute';
 import { type PathError } from './errors';

@@ -1,3 +1,8 @@
+import type { Result, Serializable } from '@agent/shared';
+import { err, ok, toSerializedError } from '@agent/shared';
+import type { Scope } from '@agent/shared/concurrency';
+import type { Logger } from '@agent/shared/logger';
+import { systemClock, type Clock } from '@agent/shared/scheduling';
 import type {
   CreateTerminalRequest,
   CreateTerminalResponse,
@@ -6,11 +11,6 @@ import type {
   SessionNotification,
   SessionUpdate,
 } from '@agentclientprotocol/sdk';
-import type { Result, Serializable } from '@emdash/shared';
-import { err, ok, toSerializedError } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,

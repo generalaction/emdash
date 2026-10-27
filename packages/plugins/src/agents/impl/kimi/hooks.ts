@@ -6,7 +6,7 @@ import {
   homeConfigRoot,
   hookEntriesFromConfig,
   makeStdinHookCommand,
-} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+} from '@agent/core/services/agent-plugins/api/plugins/helpers';
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
 
 export const KIMI_CONFIG_PATH = 'config.toml';
@@ -24,11 +24,11 @@ const KIMI_HOOK_SPECS = [
 
 function buildKimiHookEntries(existing: unknown[]): unknown[] {
   const userEntries = filterUserHooks(existing as Record<string, unknown>[]);
-  const emdashEntries = KIMI_HOOK_SPECS.map(({ hookKey, command }) => ({
+  const agentEntries = KIMI_HOOK_SPECS.map(({ hookKey, command }) => ({
     event: hookKey,
     command,
   }));
-  return [...userEntries, ...emdashEntries];
+  return [...userEntries, ...agentEntries];
 }
 
 /**

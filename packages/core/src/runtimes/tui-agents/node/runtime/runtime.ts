@@ -1,9 +1,9 @@
-import { err, ok, type Result, type Serializable } from '@emdash/shared';
-import { KeyedMutex } from '@emdash/shared/concurrency';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { LiveLogSource } from '@emdash/wire/live';
-import { type LiveSource } from '@emdash/wire/rpc';
-import { peek } from '@emdash/wire/state';
+import { err, ok, type Result, type Serializable } from '@agent/shared';
+import { KeyedMutex } from '@agent/shared/concurrency';
+import { systemClock, type Clock } from '@agent/shared/scheduling';
+import { LiveLogSource } from '@agent/wire/live';
+import { type LiveSource } from '@agent/wire/rpc';
+import { peek } from '@agent/wire/state';
 import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import { applyGitCredentialsToEnv } from '#primitives/git-credentials/api';
 import type {
@@ -541,7 +541,7 @@ export class TuiAgentsRuntime {
         {
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
-          TERM_PROGRAM: 'emdash',
+          TERM_PROGRAM: 'agent',
           ...XTERM_PTY_DEFAULT_ENV,
         },
         command.env,
@@ -650,7 +650,7 @@ export class TuiAgentsRuntime {
       conversationId: config.input.conversationId,
       // A resume attempt (re)asserts the handle it spawned with. A fresh spawn's
       // provider-native id is unknown until hook capture, but the caller may declare an
-      // emdash-chosen resume handle up front (spec §3.1) — report it so the index holds
+      // agent-chosen resume handle up front (spec §3.1) — report it so the index holds
       // the handle the session will actually resume by.
       providerSessionId: isResuming
         ? (config.input.sessionId ?? null)
@@ -849,10 +849,10 @@ export class TuiAgentsRuntime {
 
     return {
       env: {
-        EMDASH_HOOK_PORT: String(hook.port),
-        EMDASH_PTY_ID: input.conversationId,
-        EMDASH_HOOK_NONCE: hook.token,
-        EMDASH_HOOK_TOKEN: hook.token,
+        AGENT_HOOK_PORT: String(hook.port),
+        AGENT_PTY_ID: input.conversationId,
+        AGENT_HOOK_NONCE: hook.token,
+        AGENT_HOOK_TOKEN: hook.token,
       },
       // Suppress Enter→working only when start hooks were actually installed.
       startHooksActive: declaresStart && hooksAvailable,

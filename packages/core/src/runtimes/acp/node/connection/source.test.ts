@@ -1,7 +1,7 @@
+import { err, isErr, isOk } from '@agent/shared';
+import { acquireResourceAsResult } from '@agent/shared/concurrency';
+import { noopLogger } from '@agent/shared/logger';
 import type { Client } from '@agentclientprotocol/sdk';
-import { err, isErr, isOk } from '@emdash/shared';
-import { acquireResourceAsResult } from '@emdash/shared/concurrency';
-import { noopLogger } from '@emdash/shared/logger';
 import { describe, expect, it, vi } from 'vitest';
 import {
   FakeAcpAgent,

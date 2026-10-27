@@ -1,4 +1,4 @@
-import { createPluginFramework } from '@emdash/shared/plugins';
+import { createPluginFramework } from '@agent/shared/plugins';
 import z from 'zod';
 import { repositoryCapability } from './capabilities/repository';
 

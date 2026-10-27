@@ -103,7 +103,7 @@ jobs:
       - name: Cache packaged Node distribution
         uses: actions/cache@v4
         with:
-          path: ~/.cache/emdash/workspace-server
+          path: ~/.cache/agent/workspace-server
           key: workspace-server-node-${{ matrix.target }}-${{ hashFiles('.nvmrc') }}
 
       - name: Set up Docker Buildx
@@ -151,7 +151,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build workspace-server release contract
-        run: pnpm exec nx build @emdash/core
+        run: pnpm exec nx build @agent/core
 
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4
@@ -169,7 +169,7 @@ jobs:
           cp apps/workspace-server/dist-artifacts/* "$mirror/$version/"
 
           docker run --rm --platform linux/amd64 \
-            --env HOME=/tmp/emdash-home \
+            --env HOME=/tmp/agent-home \
             --env "VERSION=$version" \
             --volume "$mirror:/mirror:ro" \
             --volume "$GITHUB_WORKSPACE/apps/workspace-server/install.sh:/install.sh:ro" \
@@ -179,8 +179,8 @@ jobs:
               apt-get update
               apt-get install -y --no-install-recommends ca-certificates coreutils curl gzip tar
               sh /install.sh --base-url file:///mirror --version "$VERSION"
-              test -x "$HOME/.emdash/workspace-server/current/bin/emdash-workspace-server"
-              test "$(readlink "$HOME/.emdash/workspace-server/current")" = "versions/$VERSION"
+              test -x "$HOME/.agent/workspace-server/current/bin/agent-workspace-server"
+              test "$(readlink "$HOME/.agent/workspace-server/current")" = "versions/$VERSION"
             '
 
       - name: Publish workspace-server release to R2

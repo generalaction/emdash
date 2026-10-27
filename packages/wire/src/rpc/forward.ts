@@ -1,4 +1,4 @@
-import { ok, type Result } from '@emdash/shared';
+import { ok, type Result } from '@agent/shared';
 import type { BlobDownloadHandle, WireFile } from '../api/blob-channel';
 import type { ContractClient } from '../api/client';
 import type { CallMeta, Controller } from '../api/controller';

@@ -1,6 +1,6 @@
 import { cp, lstat, mkdir, open, rename, rm, rmdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@agent/shared';
 import type { PortableRelativePath } from '#primitives/path/api';
 import type { FsError } from '#runtimes/files/api';
 import { toFsError } from '#runtimes/files/node/api/errors';

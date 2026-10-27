@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
-import { err, ok, type Result } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/rpc';
-import { cell, expose } from '@emdash/wire/state';
-import { createTestWire } from '@emdash/wire/testing';
+import { err, ok, type Result } from '@agent/shared';
+import type { ContractClient } from '@agent/wire/rpc';
+import { cell, expose } from '@agent/wire/state';
+import { createTestWire } from '@agent/wire/testing';
 import { describe, expect, it } from 'vitest';
 import { LOCAL_HOST_REF } from '#primitives/host/api';
 import { hostFileRef, parseAbsolute } from '#primitives/path/api';
-// oxlint-disable-next-line emdash/core-module-boundaries -- exercises the port against the registry verb contract it provisions through (operation-log retirement §5)
+// oxlint-disable-next-line agent/core-module-boundaries -- exercises the port against the registry verb contract it provisions through (operation-log retirement §5)
 import {
   workspaceRegistryContract,
   type CreateWorkspaceError,
@@ -39,7 +39,7 @@ const worktreeConfig = {
 };
 
 const repoHash = createHash('sha256').update('/Users/jona/repo').digest('hex').slice(0, 8);
-const expectedWorktreePath = `/Users/jona/worktrees/repo-${repoHash}/emdash-abc`;
+const expectedWorktreePath = `/Users/jona/worktrees/repo-${repoHash}/agent-abc`;
 
 const emptyProjectConfig: ProjectConfigState = {
   workspaceId: 'test-workspace',
@@ -84,7 +84,7 @@ describe('createWorkspacePortFromDependency', () => {
       await expect(
         port.provision({
           workspace: { kind: 'directory', path: directory },
-          generatedName: 'emdash-abc',
+          generatedName: 'agent-abc',
           runId: 'run-1',
           signal: new AbortController().signal,
         })
@@ -107,13 +107,13 @@ describe('createWorkspacePortFromDependency', () => {
       try {
         const result = await port.provision({
           workspace: worktreeConfig,
-          generatedName: 'emdash-abc',
+          generatedName: 'agent-abc',
           runId: 'run-admit',
           signal: new AbortController().signal,
         });
 
         expect(result.success).toBe(true);
-        expect(admission.calls).toEqual([{ path: expectedWorktreePath, branch: 'emdash-abc' }]);
+        expect(admission.calls).toEqual([{ path: expectedWorktreePath, branch: 'agent-abc' }]);
       } finally {
         await wire.dispose();
       }
@@ -132,7 +132,7 @@ describe('createWorkspacePortFromDependency', () => {
         await expect(
           port.provision({
             workspace: worktreeConfig,
-            generatedName: 'emdash-abc',
+            generatedName: 'agent-abc',
             runId: 'run-refused',
             signal: new AbortController().signal,
           })
@@ -160,7 +160,7 @@ describe('createWorkspacePortFromDependency', () => {
     try {
       const result = await port.provision({
         workspace: worktreeConfig,
-        generatedName: 'emdash abc',
+        generatedName: 'agent abc',
         runId: 'run-1',
         signal: new AbortController().signal,
       });
@@ -172,16 +172,16 @@ describe('createWorkspacePortFromDependency', () => {
       const request = wire.calls.createWorktree[0]!;
       expect(request.workspaceId).toBe('run-1');
       expect(request.repositoryId).toBe(wire.calls.createWorkspace[0]!.workspaceId);
-      expect(request.branch).toBe('emdash abc');
+      expect(request.branch).toBe('agent abc');
       expect(request.baseRef).toBe('origin/main');
       expect(request.publish).toBeUndefined();
       expect(request.preservePatterns).toEqual(['.env*']);
-      expect(request.path).toBe(`/Users/jona/worktrees/repo-${repoHash}/emdash-abc`);
+      expect(request.path).toBe(`/Users/jona/worktrees/repo-${repoHash}/agent-abc`);
 
       expect(result).toEqual(
         ok({
           workspace: hostFileRef(LOCAL_HOST_REF, parsed(request.path)),
-          branchName: 'emdash abc',
+          branchName: 'agent abc',
         })
       );
     } finally {
@@ -198,7 +198,7 @@ describe('createWorkspacePortFromDependency', () => {
     try {
       const result = await port.provision({
         workspace: worktreeConfig,
-        generatedName: 'emdash-abc',
+        generatedName: 'agent-abc',
         runId: 'run-adopt',
         signal: new AbortController().signal,
       });
@@ -220,7 +220,7 @@ describe('createWorkspacePortFromDependency', () => {
           ...worktreeConfig,
           git: { ...worktreeConfig.git, pushRemote: 'origin' },
         },
-        generatedName: 'emdash-abc',
+        generatedName: 'agent-abc',
         runId: 'run-push',
         signal: new AbortController().signal,
       });
@@ -242,7 +242,7 @@ describe('createWorkspacePortFromDependency', () => {
           ...worktreeConfig,
           git: { kind: 'use-branch', branchName: 'feature/x' },
         },
-        generatedName: 'emdash-abc',
+        generatedName: 'agent-abc',
         runId: 'run-2',
         signal: new AbortController().signal,
       });
@@ -272,7 +272,7 @@ describe('createWorkspacePortFromDependency', () => {
       await expect(
         port.provision({
           workspace: worktreeConfig,
-          generatedName: 'emdash-abc',
+          generatedName: 'agent-abc',
           runId: 'run-3',
           signal: new AbortController().signal,
         })
@@ -295,7 +295,7 @@ describe('createWorkspacePortFromDependency', () => {
       await expect(
         port.provision({
           workspace: worktreeConfig,
-          generatedName: 'emdash-abc',
+          generatedName: 'agent-abc',
           runId: 'run-repo-missing',
           signal: new AbortController().signal,
         })
@@ -319,7 +319,7 @@ describe('createWorkspacePortFromDependency', () => {
       await expect(
         port.provision({
           workspace: worktreeConfig,
-          generatedName: 'emdash-abc',
+          generatedName: 'agent-abc',
           runId: 'run-4',
           signal: controller.signal,
         })
@@ -360,7 +360,7 @@ describe('createWorkspacePortFromDependency', () => {
       await expect(
         port.provision({
           workspace: worktreeConfig,
-          generatedName: 'emdash-abc',
+          generatedName: 'agent-abc',
           runId: 'run-5',
           signal: controller.signal,
         })
@@ -390,7 +390,7 @@ describe('createWorkspacePortFromDependency', () => {
     const provision = () =>
       port.provision({
         workspace: worktreeConfig,
-        generatedName: 'emdash-abc',
+        generatedName: 'agent-abc',
         runId: 'run-replay',
         signal: new AbortController().signal,
       });

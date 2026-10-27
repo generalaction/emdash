@@ -11,7 +11,7 @@ export type PlanEntryPriority = z.infer<typeof planEntryPrioritySchema>;
 export const planEntrySchema = z.object({
   /** Reducer-synthesized id; ACP plan updates do not provide stable entry ids. */
   id: z.string(),
-  /** Provider plan-entry text/step label, not a structured Emdash task. */
+  /** Provider plan-entry text/step label, not a structured Agent task. */
   content: z.string(),
   status: planEntryStatusSchema,
   priority: planEntryPrioritySchema,

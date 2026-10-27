@@ -4,8 +4,8 @@
  * shared variant objects).
  */
 
-import type { BaseError, SerializedError } from '@emdash/shared';
-import { fail } from '@emdash/shared';
+import type { BaseError, SerializedError } from '@agent/shared';
+import { fail } from '@agent/shared';
 import { z } from 'zod';
 
 /** Provider does not support the ACP transport. */

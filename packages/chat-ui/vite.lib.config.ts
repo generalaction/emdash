@@ -34,7 +34,7 @@ export default defineConfig({
       external: ['solid-js', 'solid-js/web', 'solid-js/store', /^@fontsource/],
       output: {
         // Rename the bundled stylesheet to style.css so consumers can import
-        // '@emdash/chat-ui/style.css' without knowing the internal lib name.
+        // '@agent/chat-ui/style.css' without knowing the internal lib name.
         assetFileNames: (assetInfo) => {
           if (assetInfo.names?.some((n) => n.endsWith('.css'))) return 'style.css';
           return '[name][extname]';

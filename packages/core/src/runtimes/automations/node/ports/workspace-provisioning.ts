@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok, type Result } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/rpc';
+import { err, ok, type Result } from '@agent/shared';
+import type { ContractClient } from '@agent/wire/rpc';
 import {
   formatAbsolute,
   hostFileRef,
@@ -8,7 +8,7 @@ import {
   type HostAbsolutePath,
   type HostFileRef,
 } from '#primitives/path/api';
-// oxlint-disable-next-line emdash/core-module-boundaries -- runs await the registry's plain createWorktree verb (operation-log retirement §5); the contract has no services-level home yet
+// oxlint-disable-next-line agent/core-module-boundaries -- runs await the registry's plain createWorktree verb (operation-log retirement §5); the contract has no services-level home yet
 import {
   compileWorktreePayload,
   type CreateWorkspaceError,

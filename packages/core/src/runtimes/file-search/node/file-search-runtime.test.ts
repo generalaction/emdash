@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { ok } from '@emdash/shared';
+import { ok } from '@agent/shared';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
@@ -117,7 +117,7 @@ function createRuntime(
 }
 
 async function createRoot(): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-file-search-runtime-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-file-search-runtime-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
 }

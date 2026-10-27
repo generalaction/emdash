@@ -1,4 +1,4 @@
-import { stableStringify } from '@emdash/shared/util';
+import { stableStringify } from '@agent/shared/util';
 
 export function encodeTopic(refId: string, key: unknown): string {
   if (key === undefined) return refId;

@@ -80,7 +80,7 @@ interface ListViewBase<T, S extends ListViewSpec<any>> {
   }>;
 
   /**
-   * Virtualized list — renders into `@emdash/ui` `ListView.List`.
+   * Virtualized list — renders into `@agent/ui` `ListView.List`.
    *
    * Automatically wires `isLoading`, `onEndReached`, and `isFetchingMore` from the store.
    * Must be rendered inside `Root`.

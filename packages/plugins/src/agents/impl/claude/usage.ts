@@ -1,12 +1,12 @@
+import type { UsageProbeResult, UsageWindow } from '@agent/core/primitives/provider-usage/api';
+import type { UsageProbeContext } from '@agent/core/services/agent-plugins/api/plugins';
+import { runWithTimeout } from '@agent/shared/scheduling';
 import {
   query,
   type AccountInfo,
   type SDKControlGetUsageResponse,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { UsageProbeResult, UsageWindow } from '@emdash/core/primitives/provider-usage/api';
-import type { UsageProbeContext } from '@emdash/core/services/agent-plugins/api/plugins';
-import { runWithTimeout } from '@emdash/shared/scheduling';
 import { percent, resetTime } from '../../helpers/usage-probe';
 
 function planLabel(value: string | null | undefined): string | undefined {

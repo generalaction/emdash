@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as files from './index';
 
-describe('@emdash/core/runtimes/files/api public exports', () => {
+describe('@agent/core/runtimes/files/api public exports', () => {
   it('exports the Wire contract, schemas, and pure entry helpers', () => {
     const exported = files as Record<string, unknown>;
 

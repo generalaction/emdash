@@ -2,11 +2,11 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createScope } from '@emdash/shared/concurrency';
-import { ManualClock } from '@emdash/shared/testing';
-import type { LiveUpdate } from '@emdash/wire/rpc';
-import { pin, remote, snapshot } from '@emdash/wire/state';
-import { createTestWire, type TestWire } from '@emdash/wire/testing';
+import { createScope } from '@agent/shared/concurrency';
+import { ManualClock } from '@agent/shared/testing';
+import type { LiveUpdate } from '@agent/wire/rpc';
+import { pin, remote, snapshot } from '@agent/wire/state';
+import { createTestWire, type TestWire } from '@agent/wire/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
@@ -353,7 +353,7 @@ describe('workspace registry contract', () => {
   it('resolves each worktree team config and preserves personal config on record writes', async () => {
     const repoPath = await makeRepo(root, 'config-repo');
     await fs.writeFile(
-      path.join(repoPath, '.emdash.json'),
+      path.join(repoPath, '.agent.json'),
       JSON.stringify({
         preservePatterns: ['repo/**'],
         scripts: { setup: 'repo setup', run: 'repo run' },
@@ -365,7 +365,7 @@ describe('workspace registry contract', () => {
 
     const worktreePath = await makeWorktree(repoPath, root, 'config-wt');
     await fs.writeFile(
-      path.join(worktreePath, '.emdash.json'),
+      path.join(worktreePath, '.agent.json'),
       JSON.stringify({
         preservePatterns: ['worktree/**'],
         scripts: { setup: 'worktree setup', run: 'worktree run' },
@@ -457,7 +457,7 @@ describe('workspace registry contract', () => {
     const workspacePath = path.join(root, 'live-config');
     await fs.mkdir(workspacePath);
     await fs.writeFile(
-      path.join(workspacePath, '.emdash.json'),
+      path.join(workspacePath, '.agent.json'),
       JSON.stringify({ scripts: { setup: 'team setup' } })
     );
     await wire.client.createWorkspace({ workspaceId: 'ws-live-config', path: workspacePath });
@@ -523,7 +523,7 @@ describe('workspace registry contract', () => {
     const workspacePath = path.join(root, 'live-team');
     await fs.mkdir(workspacePath);
     await fs.writeFile(
-      path.join(workspacePath, '.emdash.json'),
+      path.join(workspacePath, '.agent.json'),
       JSON.stringify({ scripts: { setup: 'first setup' } })
     );
     await wire.client.createWorkspace({ workspaceId: 'ws-live-team', path: workspacePath });
@@ -537,7 +537,7 @@ describe('workspace registry contract', () => {
     await current.refresh();
 
     await fs.writeFile(
-      path.join(workspacePath, '.emdash.json'),
+      path.join(workspacePath, '.agent.json'),
       JSON.stringify({ scripts: { setup: 'second setup' } })
     );
     await wire.client.refresh({ workspaceId: 'ws-live-team' });
@@ -600,10 +600,10 @@ describe('workspace registry contract', () => {
   it('updates project config sources when project membership changes', async () => {
     const repoPath = await makeRepo(root, 'live-membership');
     await fs.writeFile(
-      path.join(repoPath, '.emdash.json'),
+      path.join(repoPath, '.agent.json'),
       JSON.stringify({ scripts: { setup: 'shared setup' } })
     );
-    git(repoPath, 'add', '.emdash.json');
+    git(repoPath, 'add', '.agent.json');
     git(repoPath, 'commit', '-m', 'add config');
     await wire.client.createWorkspace({ workspaceId: 'ws-live-membership', path: repoPath });
 
@@ -767,7 +767,7 @@ describe('workspace registry contract', () => {
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktreePath = await makeWorktree(repoPath, root, 'hand-made');
     await fs.writeFile(
-      path.join(worktreePath, '.emdash.json'),
+      path.join(worktreePath, '.agent.json'),
       JSON.stringify({ scripts: { run: 'adopted run' } })
     );
 
@@ -870,7 +870,7 @@ describe('workspace registry contract', () => {
     // background copy; everything else ignored stays behind.
     await fs.writeFile(path.join(repoPath, '.gitignore'), '.env*\nnode_modules/\n');
     await fs.writeFile(
-      path.join(repoPath, '.emdash.json'),
+      path.join(repoPath, '.agent.json'),
       JSON.stringify({ preservePatterns: ['.env.team'] })
     );
     await fs.writeFile(path.join(repoPath, '.env.personal'), 'PERSONAL=1\n');
@@ -878,7 +878,7 @@ describe('workspace registry contract', () => {
     await fs.writeFile(path.join(repoPath, '.env.input'), 'INPUT=1\n');
     await fs.mkdir(path.join(repoPath, 'node_modules', 'dep'), { recursive: true });
     await fs.writeFile(path.join(repoPath, 'node_modules', 'dep', 'index.js'), 'ok\n');
-    git(repoPath, 'add', '.gitignore', '.emdash.json');
+    git(repoPath, 'add', '.gitignore', '.agent.json');
     git(repoPath, 'commit', '-m', 'ignore env');
     git(repoPath, 'push', 'origin', 'main');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
@@ -1171,7 +1171,7 @@ describe('workspace registry contract', () => {
     // Upstream tracking and the PR breadcrumb landed as branch-scoped config.
     expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
     expect(git(repoPath, 'config', 'branch.pr/7/fix.merge')).toBe('refs/pull/7/head');
-    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.agent-pr-url')).toBe(
       'https://github.com/acme/repo/pull/7'
     );
     // Both new step ids appear in the lifecycle projection.
@@ -1286,7 +1286,7 @@ describe('workspace registry contract', () => {
     // The fetched branch was reused untouched; configure-branch still applied.
     expect(git(repoPath, 'rev-parse', 'refs/heads/pr/7/fix')).toBe(prHeadOid);
     expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
-    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.agent-pr-url')).toBe(
       'https://github.com/acme/repo/pull/7'
     );
     expect(lifecycleStep(replayed.data, 'fetch-branch')).toMatchObject({ status: 'skipped' });

@@ -52,7 +52,7 @@ describe('workspace-server install.sh', () => {
     try {
       const first = spawnSync('sh', fixture.args, { env: fixture.env });
       expect(first.status, first.stderr.toString()).toBe(0);
-      expect(await readlink(resolve(fixture.home, '.emdash/workspace-server/current'))).toBe(
+      expect(await readlink(resolve(fixture.home, '.agent/workspace-server/current'))).toBe(
         `versions/${fixture.version}`
       );
       expect(await readLog(fixture.logs.tar)).toContain('--warning=no-unknown-keyword');
@@ -68,11 +68,11 @@ describe('workspace-server install.sh', () => {
 
   it('installs on Apple silicon macOS with BSD userland and replaces current atomically', async () => {
     const fixture = await createFixture({ os: 'Darwin', machine: 'arm64' });
-    const root = resolve(fixture.home, '.emdash/workspace-server');
+    const root = resolve(fixture.home, '.agent/workspace-server');
     const previousVersion = '1.0.0';
     await mkdir(resolve(root, 'versions', previousVersion, 'bin'), { recursive: true });
     await writeExecutable(
-      resolve(root, 'versions', previousVersion, 'bin/emdash-workspace-server'),
+      resolve(root, 'versions', previousVersion, 'bin/agent-workspace-server'),
       'exit 0'
     );
     await symlink(`versions/${previousVersion}`, resolve(root, 'current'));
@@ -120,7 +120,7 @@ type FixtureOptions = {
  * rejects `--warning`, and an `mv` without `-T`).
  */
 async function createFixture(options: FixtureOptions) {
-  const directory = await mkdtemp(resolve(tmpdir(), 'emdash-install-script-'));
+  const directory = await mkdtemp(resolve(tmpdir(), 'agent-install-script-'));
   const source = resolve(directory, 'source');
   const home = resolve(directory, 'home');
   const bin = resolve(directory, 'bin');
@@ -135,7 +135,7 @@ async function createFixture(options: FixtureOptions) {
   const isDarwin = options.os === 'Darwin';
   const artifactOs = isDarwin ? 'darwin' : 'linux';
   const artifactArch = options.machine === 'x86_64' ? 'x64' : 'arm64';
-  const artifact = `emdash-workspace-server-${version}-${artifactOs}-${artifactArch}.tar.gz`;
+  const artifact = `agent-workspace-server-${version}-${artifactOs}-${artifactArch}.tar.gz`;
   await Promise.all([
     mkdir(resolve(source, version), { recursive: true }),
     mkdir(home, { recursive: true }),
@@ -200,8 +200,8 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 mkdir -p "$destination/bin"
-printf '#!/bin/sh\\nexit 0\\n' > "$destination/bin/emdash-workspace-server"
-chmod +x "$destination/bin/emdash-workspace-server"
+printf '#!/bin/sh\\nexit 0\\n' > "$destination/bin/agent-workspace-server"
+chmod +x "$destination/bin/agent-workspace-server"
 cat > "$destination/node" <<'NODE'
 #!/bin/sh
 set -eu

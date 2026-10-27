@@ -22,7 +22,7 @@ describe('TerminalPort', () => {
           ENV_TEST: 'inherited',
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
-          TERM_PROGRAM: 'emdash',
+          TERM_PROGRAM: 'agent',
           HOME: expect.any(String),
         }),
       })

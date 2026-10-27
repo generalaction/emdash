@@ -1,7 +1,7 @@
-import { createEmitter, type Unsubscribe } from '@emdash/shared';
-import { type Run, type Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
-import { retrySchedule, runWithTimeout, systemClock, type Clock } from '@emdash/shared/scheduling';
+import { createEmitter, type Unsubscribe } from '@agent/shared';
+import { type Run, type Scope } from '@agent/shared/concurrency';
+import type { Logger } from '@agent/shared/logger';
+import { retrySchedule, runWithTimeout, systemClock, type Clock } from '@agent/shared/scheduling';
 import type { ContractClient } from '../api/client';
 import { connect, type Connection } from '../api/connect';
 import type { Contract, ContractDefinitions } from '../api/define';

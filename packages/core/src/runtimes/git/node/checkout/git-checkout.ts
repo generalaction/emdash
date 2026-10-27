@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
-import { blobSourceFromBytes, type BlobSource } from '@emdash/wire/rpc';
+import { err, ok, type Result } from '@agent/shared';
+import { blobSourceFromBytes, type BlobSource } from '@agent/wire/rpc';
 import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
   gitErr,

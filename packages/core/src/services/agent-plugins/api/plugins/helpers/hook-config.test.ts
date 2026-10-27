@@ -38,7 +38,7 @@ describe('hook config parsing', () => {
 
   it('does not overwrite a structurally incompatible TOML hooks field', async () => {
     const fs = configFs('hooks = "custom-command"\n');
-    const hooks = buildFlatTomlHookConfig('config.toml', [{ command: 'emdash' }]);
+    const hooks = buildFlatTomlHookConfig('config.toml', [{ command: 'agent' }]);
 
     await expect(hooks.writeHooks(fs, [])).rejects.toThrow(
       'expected "hooks" to be an array of objects'
@@ -48,7 +48,7 @@ describe('hook config parsing', () => {
 
   it('does not overwrite a structurally incompatible JSON hooks field', async () => {
     const fs = configFs('{"hooks":[]}');
-    const hooks = buildFlatJsonHookConfig('hooks.json', [{ hookKey: 'Stop', command: 'emdash' }]);
+    const hooks = buildFlatJsonHookConfig('hooks.json', [{ hookKey: 'Stop', command: 'agent' }]);
 
     await expect(hooks.writeHooks(fs, [])).rejects.toThrow('expected "hooks" to be an object');
     expect(fs.write).not.toHaveBeenCalled();

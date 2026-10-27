@@ -19,7 +19,7 @@ export const Statuses: Story = {
     <Box display="flex" flexDirection="column" gap="3" className={s.w80}>
       <Alert.Root status="info">
         <Alert.Title>New version available</Alert.Title>
-        <Alert.Description>Restart the app to apply Emdash 1.4.0.</Alert.Description>
+        <Alert.Description>Restart the app to apply Agent 1.4.0.</Alert.Description>
       </Alert.Root>
 
       <Alert.Root status="success">
@@ -68,7 +68,7 @@ export const Dismissible: Story = {
         {visible.info && (
           <Alert.Root status="info" onDismiss={() => setVisible((v) => ({ ...v, info: false }))}>
             <Alert.Title>Update available</Alert.Title>
-            <Alert.Description>Emdash 1.5.0 is ready to install.</Alert.Description>
+            <Alert.Description>Agent 1.5.0 is ready to install.</Alert.Description>
           </Alert.Root>
         )}
         {visible.success && (

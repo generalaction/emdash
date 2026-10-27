@@ -1,1 +1,1 @@
-export const STORE_TABLE = '__emdash_migrations';
+export const STORE_TABLE = '__agent_migrations';

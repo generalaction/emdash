@@ -17,7 +17,7 @@
  *
  * HOST OVERRIDE (chat-theme.css)
  *   The optional chat-theme.css preset rebinds --chat-font-sans, colors and
- *   radii to the emdash design-system tokens (system sans on desktop). It
+ *   radii to the agent design-system tokens (system sans on desktop). It
  *   inherits everything not explicitly overridden from this default theme.
  */
 

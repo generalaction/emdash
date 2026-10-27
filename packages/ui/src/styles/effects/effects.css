@@ -1,7 +1,7 @@
 /*
  * effects/effects.css — shared, token-driven visual effect utilities.
  *
- * Consumed via @import '@emdash/ui/styles/effects.css' in any CSS build.
+ * Consumed via @import '@agent/ui/styles/effects.css' in any CSS build.
  * Also @imported by styles/theme.base.css so UI-package Storybook picks it up.
  */
 

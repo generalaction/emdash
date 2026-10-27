@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Session-env construction for the emdash git credential helper
+ * Session-env construction for the agent git credential helper
  * (spec: github-git-settings §4, invariants 4 and 5).
  *
  * Raw tokens never enter a session environment. Sessions carry only a
@@ -25,7 +25,7 @@ export type GitCredentialChannel = z.infer<typeof gitCredentialChannelSchema>;
  * The per-session credentials behavior, resolved desktop-side from the
  * per-project "agent git credentials" setting and the effective account:
  *
- * - `effective-account`: wire the emdash helper for the given hosts; other
+ * - `effective-account`: wire the agent helper for the given hosts; other
  *   hosts keep native behavior.
  * - `system`: leave the environment untouched (native credential behavior).
  * - `none`: actively scrub credential helpers from the session env
@@ -44,8 +44,8 @@ export const gitCredentialsSessionSpecSchema = z.discriminatedUnion('mode', [
 
 export type GitCredentialsSessionSpec = z.infer<typeof gitCredentialsSessionSpecSchema>;
 
-export const GIT_CREDENTIAL_PORT_ENV_VAR = 'EMDASH_GIT_CREDENTIAL_PORT';
-export const GIT_CREDENTIAL_NONCE_ENV_VAR = 'EMDASH_GIT_CREDENTIAL_NONCE';
+export const GIT_CREDENTIAL_PORT_ENV_VAR = 'AGENT_GIT_CREDENTIAL_PORT';
+export const GIT_CREDENTIAL_NONCE_ENV_VAR = 'AGENT_GIT_CREDENTIAL_NONCE';
 const GIT_CREDENTIAL_HELPER_PATH_PREFIX = '/git-credential/';
 /**
  * A credential read may first renew the token: each renewal request is
@@ -70,7 +70,7 @@ export const GIT_CREDENTIAL_HELPER_ERASE_URL_PATH = `${GIT_CREDENTIAL_HELPER_PAT
 export const GIT_CREDENTIAL_HELPER_COMMAND =
   '!f() { case "$1" in get|erase) ' +
   `curl -s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
-  `-H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
+  `-H "X-Agent-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
   `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1" ` +
   '2>/dev/null || true;; esac; }; f';
 
@@ -89,11 +89,11 @@ export function applyGitCredentialsToEnv(
   spec: GitCredentialsSessionSpec | undefined
 ): Record<string, string> {
   if (!spec || spec.mode === 'system') return env;
-  return spec.mode === 'none' ? scrubCredentialHelpers(env) : injectEmdashHelper(env, spec);
+  return spec.mode === 'none' ? scrubCredentialHelpers(env) : injectAgentHelper(env, spec);
 }
 
 /**
- * Per-operation env for emdash's own git invocations: the helper scoped to a
+ * Per-operation env for agent's own git invocations: the helper scoped to a
  * single host over an operation-scoped channel, overlaid onto the git
  * runtime's process env for that one command.
  */
@@ -129,7 +129,7 @@ function helperConfigPairs(hosts: string[]): GitConfigPair[] {
   return pairs;
 }
 
-function injectEmdashHelper(
+function injectAgentHelper(
   env: Record<string, string>,
   spec: Extract<GitCredentialsSessionSpec, { mode: 'effective-account' }>
 ): Record<string, string> {

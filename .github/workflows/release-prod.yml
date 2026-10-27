@@ -35,7 +35,7 @@ jobs:
 
       - name: Create or reuse draft release
         id: prepare
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
@@ -93,7 +93,7 @@ jobs:
 
       - name: Build Windows packages
         shell: bash
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -106,12 +106,12 @@ jobs:
 
       - name: Verify Windows code signature
         shell: bash
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         run: node --experimental-strip-types scripts/release/verify-win.ts
 
       - name: Upload verified Windows assets to owned draft
         shell: bash
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
@@ -144,7 +144,7 @@ jobs:
       - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
       - name: Build signed DMGs + ZIPs
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'true'
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -157,15 +157,15 @@ jobs:
           --release-id "${{ needs.prepare-release.outputs.release_id }}"
 
       - name: Notarize and staple
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: node --experimental-strip-types scripts/release/notarize-mac.ts --app-bundle "Emdash.app"
+        run: node --experimental-strip-types scripts/release/notarize-mac.ts --app-bundle "Agent.app"
 
       - name: Upload notarized macOS assets to owned draft
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
@@ -194,7 +194,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Publish GitHub release draft
-        working-directory: apps/emdash-desktop
+        working-directory: apps/agent-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}

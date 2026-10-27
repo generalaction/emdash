@@ -25,23 +25,23 @@ unless noted.
   read-only spec and full write on status. PUT/POST "MUST ignore the `status` values";
   a `/status` subresource MUST exist for system components to write status.
 - Direction of reconciliation: "Over time the system will work to bring the `status` into
-  line with the `spec`" — the world is driven toward the record, the inverse of emdash's
+  line with the `spec`" — the world is driven toward the record, the inverse of agent's
   registry.
 - Level-based, not edge-based: the system drives toward the most recent spec "regardless
   of previous versions", explicitly "not required to 'touch base'" at intermediate values.
   Restated later: "The system is level-based rather than edge-triggered, and should assume
-  an Open World." Emdash's snapshot sync borrows exactly this property (missed
+  an Open World." Agent's snapshot sync borrows exactly this property (missed
   intermediate states don't matter), just pointed the other way.
 - The record is existence-authoritative: "If the specification is deleted, the object will
   be purged from the system." Deleting the record deletes the world — again inverted from
-  emdash, where deleting the world updates the record.
+  agent, where deleting the world updates the record.
 - Controllers are control loops that "watch the state of your cluster, then make or request
   changes", each trying "to move the current cluster state closer to the desired state"
   ([Controllers](https://kubernetes.io/docs/concepts/architecture/controller/)). This is
   why out-of-band deletion of a controller-managed object (e.g. a ReplicaSet's Pod) is
   repaired by recreation: the desired state still exists in the record.
 - `observedGeneration` in status lets clients check whether the acting component has seen
-  the latest spec — a record-side freshness marker emdash doesn't need because it has no
+  the latest spec — a record-side freshness marker agent doesn't need because it has no
   standing spec.
 
 Deletion and GC ([Finalizers](https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers/),
@@ -61,7 +61,7 @@ Deletion and GC ([Finalizers](https://kubernetes.io/docs/concepts/overview/worki
 controllers are always-on and colocated with the API server holding truth (deletion
 *cannot complete* until a controller processes finalizers — a crashed controller wedges
 deletion, per the finalizers doc's "stuck in a deleting state" warning); and the stored
-record is authoritative for both existence and intent. None of these hold for emdash:
+record is authoritative for both existence and intent. None of these hold for agent:
 users mutate host filesystems directly, hosts are intermittently connected, and the host —
 not the desktop DB — is truth.
 
@@ -85,31 +85,31 @@ Sources: [State](https://developer.hashicorp.com/terraform/language/state),
   to update the state with the real infrastructure" (State page); `terraform refresh`
   "reads the current settings from all managed remote objects and updates the Terraform
   state to match" and "does not modify your real remote objects" (refresh page). This is
-  exactly emdash's snapshot-sync direction. The refresh page also documents the failure
-  mode emdash must respect: with misconfigured credentials Terraform "may be misled into
+  exactly agent's snapshot-sync direction. The refresh page also documents the failure
+  mode agent must respect: with misconfigured credentials Terraform "may be misled into
   thinking that all of the managed objects have been deleted", dropping every tracked
   object — i.e. distinguish "can't see the host" from "host says gone".
 - Adoption: `import` blocks bind "existing infrastructure resources … so that you can begin
   managing the resources as code"; you specify the remote object's identity and a state
   address, plus a matching `resource` block (Import page). Adoption is *manual and
-  config-gated* in Terraform; emdash adopts untracked worktrees automatically because
+  config-gated* in Terraform; agent adopts untracked worktrees automatically because
   there is no config to gate on.
 - Untrack without destroy: `terraform state rm` "removes the binding to an existing remote
   object without first destroying it. The remote object continues to exist but is no
   longer managed" (state rm page). The declarative form is a `removed` block; by default
   removal destroys the real resource, but `lifecycle { destroy = false }` forgets it
   "without destroying the actual resource" (removed block page). So Terraform has an
-  explicit, first-class untrack-vs-destroy distinction — the same distinction emdash draws
+  explicit, first-class untrack-vs-destroy distinction — the same distinction agent draws
   between silent untrack and the remove-worktree command.
 - Out-of-band deletion → recreation: because config is standing desired state, forgetting
   (or losing) a binding means "a subsequent terraform plan will include an action to
   create a new object for each of the 'forgotten' instances" (state rm page). Same for
   drift: refresh records the deletion into state, and the next plan against unchanged
-  config proposes creation. This is the precise behavior emdash rejects by having *no*
+  config proposes creation. This is the precise behavior agent rejects by having *no*
   standing desired state.
 
-**Like emdash:** state as a registry/cache of reality with refresh converging record →
-world; import/forget vocabulary; explicit untrack-vs-destroy. **Unlike emdash:** the HCL
+**Like agent:** state as a registry/cache of reality with refresh converging record →
+world; import/forget vocabulary; explicit untrack-vs-destroy. **Unlike agent:** the HCL
 config is a durable desired-state document that drives every apply, so deletion out-of-band
 is drift to be repaired, not a fact to be recorded.
 
@@ -122,26 +122,26 @@ DETAILS, LIST OUTPUT FORMAT sections); prune expiry from
 - Each linked worktree has a private record directory under `$GIT_DIR/worktrees/<name>`
   containing `gitdir` (pointer to the working tree) and per-worktree state (DETAILS). The
   working tree on disk plus this record together constitute "a worktree" — record and
-  reality are distinct artifacts, like emdash's registry row vs the directory on the host.
+  reality are distinct artifacts, like agent's registry row vs the directory on the host.
 - GC of stale records: "If a working tree is deleted without using `git worktree remove`,
   then its associated administrative files … will eventually be removed automatically (see
   `gc.worktreePruneExpire` in git-config), or you can run `git worktree prune`"
   (DESCRIPTION). `prune` removes "worktree information in `$GIT_DIR/worktrees` for
   worktrees whose working trees are missing" (COMMANDS). Git never recreates the deleted
-  directory — out-of-band deletion is absorbed by dropping the record. This is emdash's
+  directory — out-of-band deletion is absorbed by dropping the record. This is agent's
   silent-untrack behavior verbatim.
 - Grace period: `git gc` runs `git worktree prune --expire 3.months.ago` by default;
   `gc.worktreePruneExpire` can be set to `now` (prune immediately) or `never` (suppress)
   (git-config). `prune --expire <time>` and `list` honor the same threshold. So git's
   default is *delayed* auto-untrack, a hedge against temporarily-unavailable paths —
-  analogous to emdash's "missing" state before any untrack decision.
+  analogous to agent's "missing" state before any untrack decision.
 - Protection from GC: `git worktree lock` "prevent[s] its administrative files from being
   pruned automatically", also blocking move/delete, "optionally specifying `--reason` to
   explain why" (DESCRIPTION/COMMANDS). Mechanically, lock writes a file named `locked`
   containing "the reason in plain text" into the record directory (DETAILS). The stated
   use case is worktrees "on a portable device or network share which is not always
   mounted" — i.e. absence-from-disk is expected and must not be read as deletion. This is
-  the exact role of emdash's annotations (task links, provenance): an annotated record is
+  the exact role of agent's annotations (task links, provenance): an annotated record is
   protected from auto-untrack and surfaces as "missing" instead.
 - Observability: `git worktree list` annotates entries `locked` (with reason) and
   `prunable` (with reason, e.g. "gitdir file points to non-existent location"), including
@@ -156,7 +156,7 @@ DETAILS, LIST OUTPUT FORMAT sections); prune expiry from
   (OPTIONS) — stale records actively guard against identity reuse, a reason to keep
   "missing" rows visible rather than deleting them eagerly.
 
-Git worktrees are the closest first-party precedent for emdash's model: filesystem
+Git worktrees are the closest first-party precedent for agent's model: filesystem
 authoritative, record follows reality, GC with a grace period, explicit lock-with-reason
 protecting records from GC, and repair (fix pointers) instead of convergence (recreate).
 
@@ -192,7 +192,7 @@ separate channel rather than diffing against a stored desired state.
 | GC policy | ownerReferences GC, finalizer-gated deletion | None automatic; explicit forget commands | Auto-prune after `gc.worktreePruneExpire` (default 3 months); `lock` exempts |
 | Offline / intermittent fit | Poor: deletion blocks on live controllers | Moderate: refresh needs provider access; misread credentials = mass state loss | Good: records inert until next prune/list on the host |
 
-**What emdash borrows from each:**
+**What agent borrows from each:**
 
 - From **K8s**: level-triggered snapshot semantics (converge on observed level, tolerate
   missed edges); explicit lifecycle marking on records ("missing" ≈ `deletionTimestamp`
@@ -206,8 +206,8 @@ separate channel rather than diffing against a stored desired state.
   desired state driving apply.
 - From **git worktree**: nearly the whole shape — filesystem authoritative, admin records
   as the registry, auto-prune of records for vanished directories with a grace period,
-  lock-with-reason protecting records that matter (≈ emdash annotations), repair-not-
-  recreate, and stale records guarding path identity. Emdash's outbox commands are the
+  lock-with-reason protecting records that matter (≈ agent annotations), repair-not-
+  recreate, and stale records guarding path identity. Agent's outbox commands are the
   one element with no git analogue (git's `remove` is synchronous); Terraform's plan/apply
   of destroy actions and K8s finalizer-gated deletion are the closest precedents for
   durable, idempotent teardown commands.

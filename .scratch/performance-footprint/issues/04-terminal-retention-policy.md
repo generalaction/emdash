@@ -6,7 +6,7 @@ Status: resolved
 ## Question
 
 Every PTY terminal is created with 100,000 lines of scrollback
-(`apps/emdash-desktop/src/core/features/terminals/api/browser/pty/pty.ts:15`) and on
+(`apps/agent-desktop/src/core/features/terminals/api/browser/pty/pty.ts:15`) and on
 unmount is reparented to an off-screen host rather than disposed, deliberately, so
 scrollback and the Canvas2D renderer survive tab switches
 (`terminals/browser/pty/use-pty.ts:71-76`). Renderer memory therefore scales with every

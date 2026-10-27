@@ -1,4 +1,4 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok } from '@agent/shared';
 import type { OAuthAccessToken, VerifyResult } from '../../capabilities/auth';
 import {
   refreshOAuthToken,
@@ -11,7 +11,7 @@ import { icon } from './icon';
 import { gitLabCredentialsSchema, gitLabOAuthCredentialsSchema } from './types';
 
 /**
- * emdash's OAuth application on gitlab.com, shared with the auth server. It is
+ * agent's OAuth application on gitlab.com, shared with the auth server. It is
  * not confidential: the server authenticates with its secret, while device
  * sign-in and refreshes on the desktop send only this ID.
  */
