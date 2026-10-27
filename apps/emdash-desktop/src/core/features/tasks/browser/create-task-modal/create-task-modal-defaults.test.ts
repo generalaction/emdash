@@ -7,35 +7,31 @@ describe('Create Task entry points', () => {
       createTaskModalDefaults('from-branch', { hasIssues: true, hasPullRequests: true })
     ).toEqual({
       linkedType: null,
-      tab: 'workspace',
     });
     expect(
       createTaskModalDefaults('from-branch', { hasIssues: true, hasPullRequests: false })
-    ).toEqual({ linkedType: null, tab: 'workspace' });
+    ).toEqual({ linkedType: null });
   });
 
   it('preserves issue and pull request entry points', () => {
     const availability = { hasIssues: true, hasPullRequests: true };
     expect(createTaskModalDefaults('from-issue', availability)).toEqual({
       linkedType: 'issue',
-      tab: 'conversation',
     });
     expect(createTaskModalDefaults('from-pull-request', availability)).toEqual({
       linkedType: 'pr',
-      tab: 'conversation',
     });
   });
 
   it('preserves the general Create Task default', () => {
     expect(createTaskModalDefaults(undefined, { hasIssues: true, hasPullRequests: true })).toEqual({
       linkedType: 'issue',
-      tab: 'conversation',
     });
     expect(createTaskModalDefaults(undefined, { hasIssues: false, hasPullRequests: true })).toEqual(
-      { linkedType: 'pr', tab: 'conversation' }
+      { linkedType: 'pr' }
     );
     expect(
       createTaskModalDefaults(undefined, { hasIssues: false, hasPullRequests: false })
-    ).toEqual({ linkedType: null, tab: 'conversation' });
+    ).toEqual({ linkedType: null });
   });
 });

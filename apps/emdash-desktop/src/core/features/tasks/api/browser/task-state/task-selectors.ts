@@ -110,12 +110,6 @@ export function asProvisioned(
   return store && isProvisioned(store) ? store : undefined;
 }
 
-/** Returns the display name from any task store variant. */
-export function taskDisplayName(store: TaskStore | undefined): string | undefined {
-  if (!store) return undefined;
-  return store.data.name;
-}
-
 /** Returns the error message for error states. */
 export function taskErrorMessage(store: TaskStore | undefined): string | undefined {
   if (!store) return undefined;

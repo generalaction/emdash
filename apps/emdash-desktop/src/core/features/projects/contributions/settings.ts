@@ -22,7 +22,7 @@ export const projectSettingsContribution = defineSettingsContribution<'project',
   key: 'project',
   schema: projectSettingsSchema,
   defaults: {
-    pushOnCreate: true,
+    pushOnCreate: false,
     branchPrefix: 'khanhlc',
     appendRandomBranchSuffix: false,
     tmuxByDefault: false,

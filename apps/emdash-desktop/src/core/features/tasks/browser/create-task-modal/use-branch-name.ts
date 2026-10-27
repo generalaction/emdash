@@ -10,6 +10,9 @@ export type BranchNameState = {
   setBranchName: (value: string) => void;
   isUserModified: boolean;
   branchAlreadyExists: boolean;
+  branchPrefix: string;
+  usePrefix: boolean;
+  setUsePrefix: (value: boolean) => void;
 };
 
 export function useBranchName(opts: {
@@ -24,6 +27,8 @@ export function useBranchName(opts: {
   const branchPrefix = project?.branchPrefix ?? '';
   const appendRandomSuffix = project?.appendRandomBranchSuffix ?? true;
 
+  const [usePrefix, setUsePrefixRaw] = useState(true);
+
   // Generate random suffix once per modal session.
   const suffix = useMemo(() => Math.random().toString(36).slice(2, 7), []);
 
@@ -31,13 +36,13 @@ export function useBranchName(opts: {
     (name: string) =>
       resolveTaskBranchName({
         rawBranch: name,
-        branchPrefix,
+        branchPrefix: usePrefix ? branchPrefix : '',
         suffix,
         appendRandomSuffix,
         linkedIssue: linkedIssue ?? undefined,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [branchPrefix, appendRandomSuffix, suffix, linkedIssue]
+    [branchPrefix, usePrefix, appendRandomSuffix, suffix, linkedIssue]
   );
 
   const [userValue, setUserValue] = useState<string | undefined>(undefined);
@@ -70,11 +75,34 @@ export function useBranchName(opts: {
     setIsUserModified(true);
   }, []);
 
+  const setUsePrefix = useCallback(
+    (next: boolean) => {
+      setUsePrefixRaw(next);
+      const prefixed = `${branchPrefix}/`;
+      if (!branchPrefix) return;
+      setUserValue((value) => {
+        if (value === undefined) return value;
+        if (!next && value.startsWith(prefixed)) return value.slice(prefixed.length);
+        if (next && !value.startsWith(prefixed)) return `${prefixed}${value}`;
+        return value;
+      });
+    },
+    [branchPrefix]
+  );
+
   // Pre-flight: check against the already-loaded local branch list in the repository store.
   const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
   const branchAlreadyExists =
     branchName.trim().length > 0 &&
     (repo?.localBranches.some((branch) => branch.ref === `refs/heads/${branchName}`) ?? false);
 
-  return { branchName, setBranchName, isUserModified, branchAlreadyExists };
+  return {
+    branchName,
+    setBranchName,
+    isUserModified,
+    branchAlreadyExists,
+    branchPrefix,
+    usePrefix,
+    setUsePrefix,
+  };
 }

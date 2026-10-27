@@ -123,7 +123,6 @@ describe('SETTINGS_SEARCH_INDEX integrity', () => {
   });
 
   it('routes well-known queries to the expected tabs', () => {
-    expect(matchedTabsForQuery('telemetry')).toEqual(['general']);
     expect(matchedTabsForQuery('jira')).toEqual(['integrations']);
     expect(matchedTabsForQuery('youtrack')).toEqual(['integrations']);
     expect(matchedTabsForQuery('ssh')).toContain('connections');
@@ -137,7 +136,6 @@ describe('SETTINGS_SEARCH_INDEX integrity', () => {
     // These entries correspond to SettingRow titles rendered as plain strings,
     // so their id must equal slugifySettingLabel(label) for stable search targets.
     const rowBackedIds = [
-      'privacy-telemetry',
       'auto-generate-task-names',
       'enable-tmux',
       'terminal-font-size',

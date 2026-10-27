@@ -85,7 +85,7 @@ export function AutomationSettingsFields({
                 {
                   value: 'workspace',
                   label: 'Workspace Settings',
-                  content: <WorkspaceSettingsSection defaultOpen={true} />,
+                  content: <WorkspaceSettingsSection />,
                 },
               ]}
             />

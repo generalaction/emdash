@@ -17,7 +17,7 @@ const RepositorySettingsCard: React.FC = () => {
   } = useAppSettingsKey('project');
   const branchPrefix = project?.branchPrefix ?? '';
   const appendRandomBranchSuffix = project?.appendRandomBranchSuffix ?? true;
-  const pushOnCreate = project?.pushOnCreate ?? true;
+  const pushOnCreate = project?.pushOnCreate ?? false;
   const projectBusy = projectLoading || projectSaving;
 
   return (

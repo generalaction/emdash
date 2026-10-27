@@ -27,7 +27,7 @@ export function NewWorktreePanel({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {projectId && (
         <ProjectBranchSelector
           projectId={projectId}
@@ -53,6 +53,13 @@ export function NewWorktreePanel({
             </Combobox.Trigger>
           }
         />
+      )}
+
+      {workspaceConfig.usesRepositoryRoot && (
+        <p className="text-xs text-foreground-muted">
+          <strong className="font-medium">{branchSelection.selectedBranch?.branch}</strong> is
+          checked out in the repository root, so the task runs there instead of a new worktree.
+        </p>
       )}
 
       {!createBranchAndWorktree && branchConflict && (

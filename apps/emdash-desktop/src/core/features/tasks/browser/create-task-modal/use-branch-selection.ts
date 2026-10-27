@@ -19,7 +19,7 @@ export function useBranchSelection(
   createBranchAndWorktreeByDefault = true
 ) {
   const { value: project } = useAppSettingsKey('project');
-  const pushOnCreateByDefault = project?.pushOnCreate ?? true;
+  const pushOnCreateByDefault = project?.pushOnCreate ?? false;
 
   const [createBranchAndWorktreeOverride, setCreateBranchAndWorktreeOverride] = useState<
     boolean | undefined

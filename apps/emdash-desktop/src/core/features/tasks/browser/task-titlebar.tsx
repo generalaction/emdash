@@ -35,7 +35,6 @@ import { gitCheckoutStoreToken } from '@core/features/source-control/contributio
 import {
   getRegisteredTaskData,
   getTaskStore,
-  taskDisplayName,
   taskViewKind,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
@@ -44,6 +43,7 @@ import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { getTaskDisplayName } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
@@ -75,9 +75,8 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
-  const name = taskDisplayName(taskStore);
+  const name = getTaskDisplayName(projectId, taskId);
   const { navigate } = useNavigate();
 
   return (
@@ -158,7 +157,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 render={
                   <Popover.Trigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
+                      <span className="max-w-56 truncate">
+                        {getTaskDisplayName(projectId, taskId)}
+                      </span>
                       <ConnectionStatusDot state={workspace.connectionState} />
                     </span>
                     <ChevronDown className="size-3.5 shrink-0" />
@@ -170,7 +171,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             <Popover.Content align="start" className="flex w-96 flex-col gap-2 p-4">
               <div className="flex w-full flex-col gap-1">
                 <MicroLabel className="flex items-center text-foreground-passive">Task</MicroLabel>
-                <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
+                <span className="text-sm tracking-tight">
+                  {getTaskDisplayName(projectId, taskId)}
+                </span>
               </div>
               <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">

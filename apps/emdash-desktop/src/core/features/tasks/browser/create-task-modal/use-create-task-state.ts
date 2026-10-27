@@ -151,10 +151,27 @@ export function useCreateTaskState(
     setLinkedPRRaw(pr);
   };
 
+  const { presetId, branchSelection } = workspaceConfig;
+  const checkoutBranchName =
+    presetId === 'new-worktree' &&
+    !branchSelection.createBranchAndWorktree &&
+    !(linkedType === 'issue' && linkedIssue !== null) &&
+    !(linkedType === 'pr' && linkedPR !== null)
+      ? branchSelection.selectedBranch?.branch
+      : undefined;
+  const taskNameState = checkoutBranchName
+    ? {
+        ...taskName,
+        placeholder: checkoutBranchName,
+        effectiveTaskName: taskName.taskName.trim() || checkoutBranchName,
+        isPending: false,
+      }
+    : taskName;
+
   // Issue/PR selection is optional enrichment — not required for creation.
   const isValid =
-    taskName.effectiveTaskName.trim().length > 0 &&
-    !taskName.isPending &&
+    taskNameState.effectiveTaskName.trim().length > 0 &&
+    !taskNameState.isPending &&
     workspaceConfig.isValid &&
     !issueContext.isLoading &&
     !issueContext.error;
@@ -169,7 +186,7 @@ export function useCreateTaskState(
     retryIssueContext: issueContext.retry,
     linkedPR,
     setLinkedPR,
-    taskName,
+    taskName: taskNameState,
     workspaceConfig,
     isValid,
   };

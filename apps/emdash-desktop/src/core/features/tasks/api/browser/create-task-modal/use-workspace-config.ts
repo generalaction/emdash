@@ -64,6 +64,9 @@ export type WorkspaceConfigState = {
    * conflicting workspace so the UI can warn and offer a CTA.
    */
   branchConflict: ProjectWorkspaceOption | null;
+  /** "Checkout branch" picked the branch the repository root holds; git refuses a second
+   * worktree for it, so the task runs in the repository root instead. */
+  usesRepositoryRoot: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -255,7 +258,21 @@ export function useWorkspaceConfig(opts: {
 
   // ── Resolved config ──────────────────────────────────────────────────────
 
+  const usesRepositoryRoot =
+    presetId === 'new-worktree' &&
+    !branchSelection.createBranchAndWorktree &&
+    !!repositoryWorkspaceId &&
+    currentBranch !== null &&
+    branchSelection.selectedBranch?.branch === currentBranch;
+
   const resolvedConfig = useMemo((): WorkspaceConfig => {
+    if (usesRepositoryRoot && repositoryWorkspaceId) {
+      return {
+        version: '2',
+        git: { kind: 'none' },
+        workspace: { kind: 'repository-instance', workspaceId: repositoryWorkspaceId },
+      };
+    }
     try {
       return buildWorkspaceConfigFromPreset(
         presetId,
@@ -285,6 +302,7 @@ export function useWorkspaceConfig(opts: {
       };
     }
   }, [
+    usesRepositoryRoot,
     presetId,
     defaultBranch,
     currentBranch,
@@ -413,5 +431,6 @@ export function useWorkspaceConfig(opts: {
     setupSteps,
     isValid,
     branchConflict,
+    usesRepositoryRoot,
   };
 }

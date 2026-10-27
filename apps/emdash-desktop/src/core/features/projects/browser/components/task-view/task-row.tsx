@@ -13,6 +13,7 @@ import {
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
+import { getTaskDisplayName } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
@@ -108,7 +109,9 @@ export const TaskRow = observer(function TaskRow({
           />
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="min-w-0 truncate text-left text-sm">{task.data.name}</span>
+          <span className="min-w-0 truncate text-left text-sm">
+            {getTaskDisplayName(task.data.projectId, task.data.id)}
+          </span>
           <TaskGitDiffStats task={task} className="shrink-0 text-xs" />
           {currentPr && <PrBadge pr={currentPr} />}
         </div>

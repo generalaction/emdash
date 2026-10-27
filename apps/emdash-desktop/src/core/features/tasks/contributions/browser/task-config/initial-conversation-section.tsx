@@ -406,7 +406,7 @@ export function InitialConversationField({
     <Field.Root>
       <div
         className={cn(
-          'flex flex-col gap-2 transition-colors',
+          'flex flex-col gap-4 transition-colors',
           isDragOver && 'bg-accent/10 ring-2 ring-accent/50 ring-inset'
         )}
         onBlur={onPromptBlur}

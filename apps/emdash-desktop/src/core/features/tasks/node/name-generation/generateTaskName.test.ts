@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { generateTaskName } from './generateTaskName';
+import {
+  generateTaskName,
+  TASK_NAME_NOUNS,
+  TASK_NAME_SCOPES,
+  TASK_NAME_VERBS,
+} from './generateTaskName';
 
 describe('generateTaskName', () => {
   describe('heuristic generation (with title)', () => {
@@ -39,6 +44,13 @@ describe('generateTaskName', () => {
       const result = generateTaskName({});
       expect(result).toBeTruthy();
       expect(result).toMatch(/^[a-z0-9-]+$/);
+    });
+
+    it('generates a coder-style verb-scope-noun name', () => {
+      const [verb, scope, noun] = generateTaskName({}).split('-');
+      expect(TASK_NAME_VERBS).toContain(verb);
+      expect(TASK_NAME_SCOPES).toContain(scope);
+      expect(TASK_NAME_NOUNS).toContain(noun);
     });
 
     it('generates different names on subsequent calls', () => {

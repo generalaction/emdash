@@ -3,7 +3,15 @@ import type { BranchNameState } from '@core/features/tasks/browser/create-task-m
 import { useTaskConfig } from '@core/features/tasks/contributions/browser/task-config/task-config-context';
 
 interface BranchNameFieldProps {
-  state: Pick<BranchNameState, 'branchName' | 'setBranchName' | 'branchAlreadyExists'>;
+  state: Pick<
+    BranchNameState,
+    | 'branchName'
+    | 'setBranchName'
+    | 'branchAlreadyExists'
+    | 'branchPrefix'
+    | 'usePrefix'
+    | 'setUsePrefix'
+  >;
   pushBranch?: boolean;
   onPushBranchChange?: (value: boolean) => void;
 }
@@ -12,6 +20,7 @@ export function BranchNameField({ state, pushBranch, onPushBranchChange }: Branc
   const { autoBranchName } = useTaskConfig();
   const { branchName, setBranchName, branchAlreadyExists } = state;
   const showPush = pushBranch !== undefined && onPushBranchChange !== undefined;
+  const showPrefix = !autoBranchName && !!state.branchPrefix;
 
   return (
     <div className="flex flex-col rounded-lg border border-border px-2.5 py-2">
@@ -27,7 +36,7 @@ export function BranchNameField({ state, pushBranch, onPushBranchChange }: Branc
             value={branchName}
             onChange={(e) => setBranchName(e.target.value)}
             placeholder="branch-name"
-            className="px-0"
+            className="px-0!"
           />
           {branchAlreadyExists && (
             <p className="text-muted-foreground mt-1 text-xs">
@@ -36,10 +45,20 @@ export function BranchNameField({ state, pushBranch, onPushBranchChange }: Branc
           )}
         </>
       )}
-      {showPush && (
-        <div className="mt-1 flex items-center gap-1.5">
-          <Switch size="sm" checked={pushBranch} onCheckedChange={onPushBranchChange} />
-          <Label>Push branch to remote</Label>
+      {(showPush || showPrefix) && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-2">
+          {showPrefix && (
+            <div className="flex items-center gap-2">
+              <Switch size="sm" checked={state.usePrefix} onCheckedChange={state.setUsePrefix} />
+              <Label>Prefix with {state.branchPrefix}/</Label>
+            </div>
+          )}
+          {showPush && (
+            <div className="flex items-center gap-2">
+              <Switch size="sm" checked={pushBranch} onCheckedChange={onPushBranchChange} />
+              <Label>Push branch to remote</Label>
+            </div>
+          )}
         </div>
       )}
     </div>

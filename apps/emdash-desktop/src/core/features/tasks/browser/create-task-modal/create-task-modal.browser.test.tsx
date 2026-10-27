@@ -82,9 +82,6 @@ vi.mock(
 vi.mock('@core/features/tasks/contributions/browser/task-config/task-state-context', () => ({
   TaskStateProvider: () => null,
 }));
-vi.mock('@core/features/tasks/contributions/browser/task-config/task-config-panel', () => ({
-  TaskConfigPanel: () => null,
-}));
 vi.mock('@core/features/tasks/contributions/browser/task-config/conversation-field', () => ({
   ConversationField: () => null,
 }));
@@ -167,7 +164,7 @@ async function render() {
       <QueryClientProvider client={client}>
         <Dialog.Root open>
           <Dialog.Content>
-            <CreateTaskModal projectId="project-1" />
+            <CreateTaskModal projectId="project-1" strategy="from-pull-request" />
           </Dialog.Content>
         </Dialog.Root>
       </QueryClientProvider>
@@ -206,4 +203,18 @@ it('retains Pull Request terminology for GitHub', async () => {
   await expect
     .element(page.getByRole('button', { name: 'Pull Request', exact: true }))
     .toBeEnabled();
+});
+it('hides the Based on section when opened without an issue or request strategy', async () => {
+  await act(async () =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <Dialog.Root open>
+          <Dialog.Content>
+            <CreateTaskModal projectId="project-1" />
+          </Dialog.Content>
+        </Dialog.Root>
+      </QueryClientProvider>
+    )
+  );
+  expect(host.textContent).not.toContain('Based on');
 });

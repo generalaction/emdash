@@ -50,9 +50,8 @@ export async function showRecoveryWindow(options: RecoveryWindowOptions): Promis
       import('@main/host/updates/update-service'),
       import('@core/features/updates/node'),
     ]);
-    // initialize() is idempotent, so recovery can safely call it even if the
-    // normal updater phase completed before a later boot phase failed.
-    await updaterModule.updateService.initialize();
+    // ponytail: self-built app — the updater is never initialized, so recovery reports it
+    // inactive (`updaterActive: false`) and never checks the official Emdash feed.
     updateSvc = updaterModule.updateService;
     // Cast to the minimal interface — EventStreamHost satisfies it structurally.
     updateEventSource = eventsModule.updateEvents as unknown as RecoveryUpdateEvents;

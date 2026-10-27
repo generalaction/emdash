@@ -1,5 +1,4 @@
-import { Collapsible, Tabs } from '@emdash/ui/react/primitives';
-import { ChevronRight } from 'lucide-react';
+import { ToggleGroup } from '@emdash/ui/react/primitives';
 import { CheckoutPrPanel } from '@core/features/tasks/browser/task-config/checkout-pr-panel';
 import { NewWorktreePanel } from '@core/features/tasks/browser/task-config/new-worktree-panel';
 import type { WorkspacePanelProps } from '@core/features/tasks/browser/task-config/new-worktree-panel';
@@ -8,7 +7,6 @@ import { UseExistingPanel } from '@core/features/tasks/browser/task-config/use-e
 import { WorkspacePresetPicker } from '@core/features/tasks/browser/task-config/workspace-preset-picker';
 import { WorktreeDestinationPreview } from '@core/features/tasks/browser/task-config/worktree-destination-preview';
 import { useTaskState } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
-import { cn } from '@core/primitives/styling/browser/cn';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
 
 const PRESET_PANELS: Record<
@@ -21,14 +19,10 @@ const PRESET_PANELS: Record<
   'pr-new-branch': PrNewBranchPanel,
 };
 
-/** Presets with no configurable settings — the collapsible is disabled for these. */
+/** Presets with no configurable settings — no panel is rendered for these. */
 const PRESETS_WITHOUT_SETTINGS = new Set<WorkspacePresetId>(['repo-root']);
 
-interface WorkspaceSettingsSectionProps {
-  defaultOpen?: boolean;
-}
-
-export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettingsSectionProps) {
+export function WorkspaceSettingsSection() {
   const { workspaceConfig, projectId, isUnborn, hasRepository, hasPR, requestProvider } =
     useTaskState();
 
@@ -55,49 +49,30 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
         )}
         worktreesDisabledReason={worktreesDisabledReason}
       />
-      <Collapsible.Root
-        key={presetId}
-        defaultOpen={hasSettings && defaultOpen}
-        disabled={!hasSettings}
-        className="group flex flex-col gap-1.5"
-      >
-        <div className="grid h-9 grid-cols-[minmax(0,1fr)_auto] items-center">
-          <Collapsible.Trigger
-            hideChevron
-            className={cn(
-              'flex w-full items-center gap-2 text-sm outline-none',
-              !hasSettings && 'cursor-not-allowed opacity-40'
-            )}
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-foreground-muted">Settings</span>
-              <ChevronRight className="ml-auto size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-90" />
-            </span>
-          </Collapsible.Trigger>
-          {presetId === 'new-worktree' && (
-            <Tabs.Root
-              value={createBranchAndWorktree ? 'create' : 'checkout'}
-              onValueChange={(v) => setCreateBranchAndWorktree(v === 'create')}
-            >
-              <Tabs.List>
-                <Tabs.Tab value="checkout">Checkout branch</Tabs.Tab>
-                <Tabs.Tab value="create">Create new branch</Tabs.Tab>
-              </Tabs.List>
-            </Tabs.Root>
-          )}
-        </div>
-
-        {hasSettings && (
-          <Collapsible.Panel className="flex flex-col gap-3">
-            <Panel
-              workspaceConfig={workspaceConfig}
-              projectId={projectId}
-              isUnborn={isUnborn}
-              requestProvider={requestProvider}
-            />
-          </Collapsible.Panel>
-        )}
-      </Collapsible.Root>
+      {presetId === 'new-worktree' && (
+        <ToggleGroup.Root
+          className="w-full"
+          value={[createBranchAndWorktree ? 'create' : 'checkout']}
+          onValueChange={([v]) => {
+            if (v) setCreateBranchAndWorktree(v === 'create');
+          }}
+        >
+          <ToggleGroup.Item className="flex-1 text-xs" value="checkout">
+            Checkout branch
+          </ToggleGroup.Item>
+          <ToggleGroup.Item className="flex-1 text-xs" value="create">
+            Create new branch
+          </ToggleGroup.Item>
+        </ToggleGroup.Root>
+      )}
+      {hasSettings && (
+        <Panel
+          workspaceConfig={workspaceConfig}
+          projectId={projectId}
+          isUnborn={isUnborn}
+          requestProvider={requestProvider}
+        />
+      )}
       {projectId ? (
         <WorktreeDestinationPreview
           projectId={projectId}

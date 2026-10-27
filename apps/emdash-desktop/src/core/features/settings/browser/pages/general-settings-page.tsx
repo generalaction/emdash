@@ -10,8 +10,6 @@ import {
   IncludeIssueContextByDefaultRow,
   PreserveTaskNameCapitalizationRow,
 } from '../components/TaskSettingsRows';
-import TelemetryCard from '../components/TelemetryCard';
-import { UpdateCard } from '../components/UpdateCard';
 
 export function GeneralSettingsPage() {
   return (
@@ -20,14 +18,10 @@ export function GeneralSettingsPage() {
         sticky
         draggable
         title="General"
-        description="Manage your account, app updates, and task preferences."
+        description="Manage your account and task preferences."
       />
       <SettingsSection>
         <AccountTab />
-      </SettingsSection>
-      <SettingsSection title="App">
-        <UpdateCard />
-        <TelemetryCard />
       </SettingsSection>
       <SettingsSection title="Notifications" bare>
         <NotificationSettingsCard />

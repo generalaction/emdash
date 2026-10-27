@@ -19,7 +19,6 @@ import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskS
 import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { ConversationField } from '@core/features/tasks/contributions/browser/task-config/conversation-field';
 import { useInitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
-import { TaskConfigPanel } from '@core/features/tasks/contributions/browser/task-config/task-config-panel';
 import { TaskStateProvider } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
 import { WorkspaceSettingsSection } from '@core/features/tasks/contributions/browser/task-config/workspace-settings-section';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -137,18 +136,20 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <Dialog.Title>Create Task</Dialog.Title>
       </Dialog.Header>
       <Dialog.Body>
-        <div className="flex w-full flex-col gap-5">
+        <div className="flex w-full flex-col gap-4">
           <TaskNameField state={state.taskName} />
-          <LinkedEntitySection
-            state={state}
-            hasAnyIssueIntegration={hasAnyIssueIntegration}
-            hasPrSupport={hasPrSupport}
-            requestProvider={repositoryProvider}
-            issueLabel={issueTerms(issueProvider ?? repositoryProvider).title}
-            projectId={selectedProjectId}
-            repositoryUrl={repositoryUrl}
-            projectPath={projectPath}
-          />
+          {(initialStrategy === 'from-issue' || initialStrategy === 'from-pull-request') && (
+            <LinkedEntitySection
+              state={state}
+              hasAnyIssueIntegration={hasAnyIssueIntegration}
+              hasPrSupport={hasPrSupport}
+              requestProvider={repositoryProvider}
+              issueLabel={issueTerms(issueProvider ?? repositoryProvider).title}
+              projectId={selectedProjectId}
+              repositoryUrl={repositoryUrl}
+              projectPath={projectPath}
+            />
+          )}
           <TaskStateProvider
             workspaceConfig={state.workspaceConfig}
             initialConversation={initialConversation}
@@ -162,25 +163,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             }
             includeIssueContextByDefault={includeIssueContextByDefault}
           >
-            <TaskConfigPanel
-              defaultTab={defaults.tab}
-              tabs={[
-                {
-                  value: 'conversation',
-                  label: 'Initial Conversation',
-                  content: <ConversationField />,
-                },
-                {
-                  value: 'workspace',
-                  label: 'Workspace Settings',
-                  content: (
-                    <WorkspaceSettingsSection
-                      defaultOpen={defaults.tab === 'workspace' || !!initialWorkspaceId}
-                    />
-                  ),
-                },
-              ]}
-            />
+            <div className="flex flex-col gap-4">
+              <WorkspaceSettingsSection />
+              <ConversationField />
+            </div>
           </TaskStateProvider>
         </div>
       </Dialog.Body>

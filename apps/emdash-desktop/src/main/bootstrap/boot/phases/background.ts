@@ -6,16 +6,13 @@ import { runInBackground } from '../../core/background';
 import { startMainDevPerfInstruments } from './dev-perf';
 import { startPerfVitalsTelemetry } from './perf-vitals';
 import type { ServicesBundle } from './services';
-import { initializeUpdater } from './updater';
 
 export function bootBackground(services: ServicesBundle, runtimes: DesktopRuntimes): void {
   startMainDevPerfInstruments();
   startPerfVitalsTelemetry(runtimes);
 
-  // Updater init hits the network and must never block the boot chain; it
-  // moved out of preflight under the window-first boot (spec build issue 2).
-  runInBackground('updater-initialize', initializeUpdater);
-
+  // ponytail: self-built app — the updater stays inactive so the official Emdash feed never
+  // replaces this build. Restore `updateService.initialize()` here to re-enable it.
   runInBackground('dependency-probe', async () => {
     await runtimes.clients.hostDependencies.snapshot.mutate('refresh', {
       key: undefined,

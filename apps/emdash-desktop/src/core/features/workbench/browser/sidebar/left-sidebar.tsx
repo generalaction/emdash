@@ -1,11 +1,9 @@
-import { Clock, FolderInput, MessageSquareShare, Settings } from 'lucide-react';
+import { Clock, FolderInput, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/workbench-layout';
 import {
   isCurrentView,
   useNavigate,
@@ -26,14 +24,12 @@ import {
 import { SidebarSearchTrigger } from './sidebar-search-trigger';
 import { SidebarSpace } from './sidebar-space';
 import { SidebarVirtualList } from './sidebar-virtual-list';
-import { UpdateSection } from './update-section';
 import { useSidebarDrop } from './use-sidebar-drop';
 
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
 
-  const openFeedbackModal = useOpenModal('feedbackModal');
   const { isDragOver, onDragOver, onDragEnter, onDragLeave, onDrop } = useSidebarDrop();
 
   return (
@@ -96,20 +92,6 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>
-        <div
-          className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3"
-          style={{ height: WORKBENCH_BOTTOM_BAR_HEIGHT_PX }}
-        >
-          <button
-            type="button"
-            className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
-            onClick={() => void openFeedbackModal({})}
-          >
-            <MessageSquareShare className="size-4 shrink-0" />
-            <span className="truncate">Give feedback</span>
-          </button>
-          <UpdateSection />
-        </div>
       </SidebarContainer>
     </div>
   );

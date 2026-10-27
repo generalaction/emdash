@@ -165,7 +165,7 @@ describe('useWorkspaceConfig branch selection', () => {
     });
   }
 
-  it('uses the current branch when checkout mode is selected without an explicit branch', async () => {
+  it('uses the repository root when checking out the branch it already holds', async () => {
     await renderProbe(undefined);
 
     act(() => {
@@ -177,9 +177,32 @@ describe('useWorkspaceConfig branch selection', () => {
       type: 'local',
       branch: 'current-branch',
     });
-    expect(latestState?.resolvedConfig.git).toEqual({
-      kind: 'use-branch',
-      branchName: 'current-branch',
+    expect(latestState?.usesRepositoryRoot).toBe(true);
+    expect(latestState?.resolvedConfig).toEqual({
+      version: '2',
+      git: { kind: 'none' },
+      workspace: { kind: 'repository-instance', workspaceId: 'repo-workspace-1' },
+    });
+    expect(latestState?.setupSteps).toEqual([]);
+    expect(latestState?.isValid).toBe(true);
+  });
+
+  it('uses the repository root for a remote ref of the branch it already holds', async () => {
+    await renderProbe(undefined);
+
+    act(() => {
+      latestState?.branchSelection.setCreateBranchAndWorktree(false);
+      latestState?.branchSelection.setSelectedBranch({
+        type: 'remote',
+        remote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+        branch: 'current-branch',
+      });
+    });
+
+    expect(latestState?.usesRepositoryRoot).toBe(true);
+    expect(latestState?.resolvedConfig.workspace).toEqual({
+      kind: 'repository-instance',
+      workspaceId: 'repo-workspace-1',
     });
   });
 

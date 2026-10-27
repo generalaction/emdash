@@ -13,7 +13,10 @@ import {
 import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { getTaskWorkspace } from '@core/features/workbench/api/browser/task-composition-selectors';
+import {
+  getTaskDisplayName,
+  getTaskWorkspace,
+} from '@core/features/workbench/api/browser/task-composition-selectors';
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
@@ -52,6 +55,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const taskManager = getTaskManagerStore(projectId);
 
   const taskName = task.data.name;
+  const displayName = getTaskDisplayName(projectId, taskId);
 
   const openTask = () => {
     navigate(taskViewDef({ projectId, taskId }));
@@ -117,7 +121,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         onClick={openTask}
       >
         <SidebarMenuAction
-          aria-label={`Open task ${taskName || 'task'}`}
+          aria-label={`Open task ${displayName || 'task'}`}
           className="gap-1 overflow-hidden"
         >
           <span
@@ -126,7 +130,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
               task.isBootstrapping && 'text-foreground/40'
             )}
           >
-            {taskName}
+            {displayName}
           </span>
         </SidebarMenuAction>
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">

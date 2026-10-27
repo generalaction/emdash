@@ -29,20 +29,6 @@ const trayIconLabel =
 export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   // General
   {
-    id: 'version',
-    label: 'Version',
-    tab: 'general',
-    description: 'App version and updates.',
-    keywords: ['update', 'upgrade', 'restart', 'release'],
-  },
-  {
-    id: 'privacy-telemetry',
-    label: 'Privacy & Telemetry',
-    tab: 'general',
-    description: 'Help improve Emdash by sending anonymous usage data.',
-    keywords: ['analytics', 'posthog', 'usage data', 'tracking'],
-  },
-  {
     id: 'auto-generate-task-names',
     label: 'Auto-generate task names',
     tab: 'general',
