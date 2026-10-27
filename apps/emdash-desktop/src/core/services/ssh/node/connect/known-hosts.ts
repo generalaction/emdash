@@ -26,10 +26,12 @@ export type HostKeyVerdict =
   | { kind: 'known'; entry: KnownHostsEntry }
   | { kind: 'unknown' }
   | { kind: 'changed'; entry: KnownHostsEntry }
+  /** The host is recorded, but only under other key algorithms. */
+  | { kind: 'mismatched-type'; entry: KnownHostsEntry }
   | { kind: 'revoked'; entry: KnownHostsEntry };
 
 export interface HostKeyRejection {
-  verdict: Extract<HostKeyVerdict, { kind: 'changed' | 'revoked' }>;
+  verdict: Extract<HostKeyVerdict, { kind: 'changed' | 'mismatched-type' | 'revoked' }>;
   message: string;
 }
 
@@ -55,7 +57,11 @@ export const fileKnownHostsStore: KnownHostsStore = {
   },
   async append(path, line) {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-    await appendFile(path, line, { mode: 0o600 });
+    // A file without a trailing newline (hand-edited, or written by tools that omit
+    // it) would otherwise absorb the new record into its last line.
+    const existing = await this.read(path);
+    const separator = existing && !existing.endsWith('\n') ? '\n' : '';
+    await appendFile(path, separator + line, { mode: 0o600 });
   },
 };
 
@@ -141,7 +147,8 @@ export function hostKeyFingerprint(key: Buffer): string {
 
 /**
  * The names a host appears under in known_hosts. OpenSSH writes a bare hostname for
- * port 22 and `[host]:port` otherwise; the bracketed form of 22 is accepted too.
+ * port 22 and `[host]:port` otherwise; the bracketed form of 22 is accepted too. Pass
+ * the name already normalized (see {@link knownHostsLookupName}).
  */
 export function knownHostsNames(host: string, port: number): string[] {
   const bracketed = `[${host}]:${port}`;
@@ -170,9 +177,22 @@ export function matchesHostPatterns(patterns: string[], names: string[]): boolea
 }
 
 /**
+ * The name a destination is looked up and recorded under. DNS names are case-insensitive
+ * and OpenSSH lowercases them before hashing or matching, so `Dev.Example.com` must find
+ * the hashed line written for `dev.example.com`. A `HostKeyAlias` is an opaque label the
+ * user chose and is kept verbatim.
+ */
+export function knownHostsLookupName(host: string, hostKeyAlias?: string): string {
+  return hostKeyAlias ?? host.toLowerCase();
+}
+
+/**
  * How `key` relates to the recorded entries for `host:port`. A revoked match wins over
  * everything; otherwise an identical key is known, a different key of the same type is a
- * change, and anything else (no line, or only other key types) is a first sighting.
+ * change, a key of a type the host was never recorded with is a type mismatch, and only
+ * a host with no lines at all is a first sighting. The mismatch is refused rather than
+ * recorded: with no one to approve it, "offer a different algorithm" would otherwise be
+ * a free bypass of every saved key.
  */
 export function judgeHostKey(
   entries: readonly KnownHostsEntry[],
@@ -182,6 +202,7 @@ export function judgeHostKey(
   const keyType = hostKeyType(key);
   let known: KnownHostsEntry | undefined;
   let changed: KnownHostsEntry | undefined;
+  let otherType: KnownHostsEntry | undefined;
   for (const entry of entries) {
     if (!matchesHostPatterns(entry.patterns, names)) continue;
     const same = entry.key.length === key.length && timingSafeEqual(entry.key, key);
@@ -193,9 +214,11 @@ export function judgeHostKey(
     if (entry.marker === 'cert-authority') continue;
     if (same) known ??= entry;
     else if (entry.keyType === keyType) changed ??= entry;
+    else otherType ??= entry;
   }
   if (known) return { kind: 'known', entry: known };
   if (changed) return { kind: 'changed', entry: changed };
+  if (otherType) return { kind: 'mismatched-type', entry: otherType };
   return { kind: 'unknown' };
 }
 
@@ -255,7 +278,8 @@ export interface HostKeyVerifier {
  */
 export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyVerifier {
   const { host, port, store, log } = options;
-  const names = knownHostsNames(options.hostKeyAlias ?? host, port);
+  const lookupName = knownHostsLookupName(host, options.hostKeyAlias);
+  const names = knownHostsNames(lookupName, port);
   const target = port === 22 ? host : `${host}:${port}`;
   let rejection: HostKeyRejection | undefined;
   return {
@@ -271,7 +295,7 @@ export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyV
           if (options.recordTo) {
             const file = options.recordTo;
             store
-              .append(file, formatKnownHostsLine(options.hostKeyAlias ?? host, port, key))
+              .append(file, formatKnownHostsLine(lookupName, port, key))
               .catch((error: unknown) => {
                 log?.warn('SSH host key: could not record first-seen key', {
                   host: target,
@@ -289,7 +313,20 @@ export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyV
               `SSH host key for ${target} has changed: it presented ${hostKeyType(key)} ` +
               `${fingerprint}, but ${verdict.entry.file}:${verdict.entry.line} records ` +
               `${hostKeyFingerprint(verdict.entry.key)}. Refusing to connect; if the host ` +
-              `was reinstalled, remove the old line with "ssh-keygen -R ${names[0]}".`,
+              `was reinstalled, remove the old line with ` +
+              `${forgetHostCommand(verdict.entry.file, names[0]!)}.`,
+          };
+          break;
+        case 'mismatched-type':
+          rejection = {
+            verdict,
+            message:
+              `SSH host key for ${target} is of an unexpected type: it presented ` +
+              `${hostKeyType(key)} ${fingerprint}, but ${verdict.entry.file}:` +
+              `${verdict.entry.line} only records ${verdict.entry.keyType} ` +
+              `${hostKeyFingerprint(verdict.entry.key)}. Refusing to connect; if the host ` +
+              `really added this key, accept it once from a terminal with ssh, or remove ` +
+              `the old line with ${forgetHostCommand(verdict.entry.file, names[0]!)}.`,
           };
           break;
         case 'revoked':
@@ -305,6 +342,15 @@ export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyV
       return false;
     },
   };
+}
+
+/** The `ssh-keygen` invocation that drops a host's lines from the file that holds them. */
+function forgetHostCommand(file: string, name: string): string {
+  return `"ssh-keygen -f ${shellQuote(file)} -R ${shellQuote(name)}"`;
+}
+
+function shellQuote(value: string): string {
+  return /^[\w./:@[\]-]+$/u.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function matchesHashedPattern(pattern: string, name: string): boolean {

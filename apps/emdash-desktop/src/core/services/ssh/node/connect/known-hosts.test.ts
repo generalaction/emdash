@@ -1,9 +1,13 @@
 import { createHmac, randomBytes } from 'node:crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SshConnectionFailure } from '@core/primitives/ssh/api/node/connection-control';
 import {
   createHostKeyVerifier,
   defaultKnownHostsFiles,
+  fileKnownHostsStore,
   formatKnownHostsLine,
   hostKeyFingerprint,
   hostKeyType,
@@ -147,7 +151,7 @@ describe('matchesHostPatterns', () => {
 describe('judgeHostKey', () => {
   const names = knownHostsNames('dev.example.com', 22);
 
-  it('knows an identical key, flags a different key of the same type, and ignores other types', () => {
+  it('knows an identical key, flags a different key of the same type, and a different type', () => {
     const recorded = hostKey();
     const entries = parseKnownHosts(line('dev.example.com', recorded), 'f');
 
@@ -156,10 +160,29 @@ describe('judgeHostKey', () => {
       kind: 'changed',
       entry: { line: 1 },
     });
-    expect(judgeHostKey(entries, names, hostKey('ssh-rsa'))).toEqual({ kind: 'unknown' });
+    // A recorded host offering an algorithm it was never seen with is not "new": that
+    // would let an impersonator sidestep the saved key by picking another type.
+    expect(judgeHostKey(entries, names, hostKey('ssh-rsa'))).toMatchObject({
+      kind: 'mismatched-type',
+      entry: { line: 1 },
+    });
     expect(judgeHostKey(entries, knownHostsNames('other.example.com', 22), recorded)).toEqual({
       kind: 'unknown',
     });
+  });
+
+  it('prefers the same-type line when a host has keys of several types', () => {
+    const ed25519 = hostKey();
+    const rsa = hostKey('ssh-rsa');
+    const entries = parseKnownHosts(
+      [line('dev.example.com', rsa), line('dev.example.com', ed25519)].join('\n'),
+      'f'
+    );
+    expect(judgeHostKey(entries, names, hostKey())).toMatchObject({
+      kind: 'changed',
+      entry: { line: 2 },
+    });
+    expect(judgeHostKey(entries, names, rsa)).toMatchObject({ kind: 'known', entry: { line: 1 } });
   });
 
   it('refuses a revoked key even when another line still lists it', () => {
@@ -290,7 +313,83 @@ describe('createHostKeyVerifier', () => {
     expect(rejection?.message).toContain(hostKeyFingerprint(presented));
     expect(rejection?.message).toContain(hostKeyFingerprint(recorded));
     expect(rejection?.message).toContain('/home/u/.ssh/known_hosts:1');
-    expect(rejection?.message).toContain('ssh-keygen -R dev.example.com');
+    // The hint must target the file that holds the stale line, not ssh-keygen's default.
+    expect(rejection?.message).toContain(
+      '"ssh-keygen -f /home/u/.ssh/known_hosts -R dev.example.com"'
+    );
+  });
+
+  it('quotes the recovery command for files and names the shell would split', () => {
+    const recorded = hostKey();
+    const verifier = createHostKeyVerifier({
+      host: 'dev.example.com',
+      port: 2222,
+      entries: parseKnownHosts(line('[dev.example.com]:2222', recorded), "/Users/o'brien/kh"),
+      store: memoryStore(),
+    });
+    expect(verifier.verify(hostKey())).toBe(false);
+    expect(verifier.rejection()?.message).toContain(
+      `"ssh-keygen -f '/Users/o'\\''brien/kh' -R [dev.example.com]:2222"`
+    );
+  });
+
+  it('refuses a key type the host was never recorded with, and records nothing', () => {
+    const recorded = hostKey();
+    const store = memoryStore();
+    const verifier = createHostKeyVerifier({
+      host: 'dev.example.com',
+      port: 22,
+      entries: parseKnownHosts(line('dev.example.com', recorded), '/home/u/.ssh/known_hosts'),
+      recordTo: '/home/u/.ssh/known_hosts',
+      store,
+    });
+    const presented = hostKey('ssh-rsa');
+
+    expect(verifier.verify(presented)).toBe(false);
+    expect(store.appended).toEqual([]);
+    const rejection = verifier.rejection();
+    expect(rejection?.verdict.kind).toBe('mismatched-type');
+    expect(rejection?.message).toContain('unexpected type');
+    expect(rejection?.message).toContain('only records ssh-ed25519');
+    expect(rejection?.message).toContain(hostKeyFingerprint(presented));
+  });
+
+  it('looks hostnames up case-insensitively, including hashed lines, and records lowercase', async () => {
+    const recorded = hostKey();
+    const store = memoryStore();
+    const hashed = createHostKeyVerifier({
+      host: 'Dev.Example.com',
+      port: 22,
+      entries: parseKnownHosts(line(hashedPattern('dev.example.com'), recorded), 'f'),
+      recordTo: '/home/u/.ssh/known_hosts',
+      store,
+    });
+    expect(hashed.verify(recorded)).toBe(true);
+    expect(hashed.verify(hostKey())).toBe(false);
+    expect(store.appended).toEqual([]);
+
+    const fresh = createHostKeyVerifier({
+      host: 'New.Example.com',
+      port: 22,
+      entries: [],
+      recordTo: '/home/u/.ssh/known_hosts',
+      store,
+    });
+    expect(fresh.verify(recorded)).toBe(true);
+    await vi.waitFor(() => expect(store.appended).toHaveLength(1));
+    expect(store.appended[0]!.line.startsWith('new.example.com ')).toBe(true);
+  });
+
+  it('keeps a HostKeyAlias verbatim rather than lowercasing it', () => {
+    const recorded = hostKey();
+    const verifier = createHostKeyVerifier({
+      host: '10.0.0.5',
+      port: 22,
+      hostKeyAlias: 'Bastion',
+      entries: parseKnownHosts(line(hashedPattern('Bastion'), recorded), 'f'),
+      store: memoryStore(),
+    });
+    expect(verifier.verify(recorded)).toBe(true);
   });
 
   it('refuses a revoked key', () => {
@@ -324,6 +423,56 @@ describe('createHostKeyVerifier', () => {
     expect(verifier.verify(hostKey())).toBe(true);
     await vi.waitFor(() => expect(log.warn).toHaveBeenCalled());
     expect(log.warn.mock.calls[0]?.[1]).toMatchObject({ error: 'EROFS: read-only file system' });
+  });
+});
+
+describe('fileKnownHostsStore', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'known-hosts-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('creates the directory and file for a first record', async () => {
+    const file = join(root, '.ssh', 'known_hosts');
+    expect(await fileKnownHostsStore.read(file)).toBeNull();
+
+    await fileKnownHostsStore.append(file, 'a.example.com ssh-ed25519 AAAA\n');
+
+    expect(await fileKnownHostsStore.read(file)).toBe('a.example.com ssh-ed25519 AAAA\n');
+  });
+
+  it('starts a new line when the existing file lacks a trailing newline', async () => {
+    const file = join(root, 'known_hosts');
+    const record = 'b.example.com ssh-ed25519 BBBB\n';
+
+    await writeFile(file, '# trailing comment without newline');
+    await fileKnownHostsStore.append(file, record);
+    expect(await readFile(file, 'utf8')).toBe(`# trailing comment without newline\n${record}`);
+
+    const existing = line('a.example.com', hostKey());
+    const appended = `${line('b.example.com', hostKey())}\n`;
+    await writeFile(file, existing);
+    await fileKnownHostsStore.append(file, appended);
+    const content = await readFile(file, 'utf8');
+    expect(content).toBe(`${existing}\n${appended}`);
+    expect(parseKnownHosts(content, file).map((entry) => entry.patterns[0])).toEqual([
+      'a.example.com',
+      'b.example.com',
+    ]);
+  });
+
+  it('appends directly after a file that already ends in a newline', async () => {
+    const file = join(root, 'known_hosts');
+    await writeFile(file, 'a.example.com ssh-ed25519 AAAA\n');
+    await fileKnownHostsStore.append(file, 'b.example.com ssh-ed25519 BBBB\n');
+    expect(await readFile(file, 'utf8')).toBe(
+      'a.example.com ssh-ed25519 AAAA\nb.example.com ssh-ed25519 BBBB\n'
+    );
   });
 });
 
