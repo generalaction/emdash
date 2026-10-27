@@ -57,6 +57,7 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
             'baseRemote',
             'pushRemote',
             'agentGitCredentials',
+            'branchPrefix',
           ] as const) {
             if (!Object.hasOwn(git, field)) continue;
             const value = git[field];

@@ -116,4 +116,32 @@ describe('DesktopProjectSettingsAuthority', () => {
     });
     expect(row.shareableProjectSettingsJson).toBe(shareable);
   });
+
+  it('stores an empty branch prefix override and clears it with a tombstone', async () => {
+    const row: StoredProjectSettings = {
+      baseProjectSettingsJson: '{}',
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: null,
+    };
+    const authority = new DesktopProjectSettingsAuthority({
+      get: vi.fn(async () => row),
+      insertIfMissing: vi.fn(),
+      mutate: vi.fn(async (_projectId, patch) => {
+        Object.assign(row, patch(row));
+        return row;
+      }),
+    });
+
+    await authority.patch('project-1', { gitIdentity: { stored: { branchPrefix: '' } } });
+
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({ branchPrefix: '' });
+    await expect(authority.read('project-1')).resolves.toMatchObject({
+      success: true,
+      data: { gitIdentity: { stored: { branchPrefix: '' } } },
+    });
+
+    await authority.patch('project-1', { gitIdentity: { stored: { branchPrefix: null } } });
+
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({});
+  });
 });

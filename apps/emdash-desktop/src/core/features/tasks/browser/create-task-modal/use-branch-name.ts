@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { issueMentionToken } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { resolveBranchPrefix } from '@core/primitives/project-settings/api';
 import { resolveTaskBranchName } from '@core/primitives/tasks/api';
 
 export type BranchNameState = {
@@ -21,7 +23,13 @@ export function useBranchName(opts: {
   const { taskName, linkedIssue, projectId, resetKey } = opts;
 
   const { value: project } = useAppSettingsKey('project');
-  const branchPrefix = project?.branchPrefix ?? '';
+  const projectBranchPrefix = projectId
+    ? getProjectSettingsStore(projectId)?.durableDomains?.gitIdentity.stored.branchPrefix
+    : undefined;
+  const branchPrefix = resolveBranchPrefix({
+    projectBranchPrefix,
+    appBranchPrefix: project?.branchPrefix ?? '',
+  }).value;
   const appendRandomSuffix = project?.appendRandomBranchSuffix ?? true;
 
   // Generate random suffix once per modal session.

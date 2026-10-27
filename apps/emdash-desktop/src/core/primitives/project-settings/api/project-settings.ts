@@ -55,6 +55,8 @@ export const storedBaseProjectSettingsSchema = z.object({
   pushRemote: z.string().optional(),
   integrationAccounts: storedIntegrationAccountsSchema.optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
+  /** Overrides the app-wide branch prefix; an empty string means no prefix. */
+  branchPrefix: z.string().optional(),
   tmux: z.boolean().optional(),
   /** Lazy-migration marker; not a user setting. */
   tmuxDefaultMigrated: z.literal(true).optional(),

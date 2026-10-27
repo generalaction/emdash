@@ -50,6 +50,7 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       baseRemote: '',
       pushRemote: '',
       agentGitCredentials: 'effective-account',
+      branchPrefix: undefined,
       ...overrides.gitIdentity,
     },
     integrationAccounts: overrides.integrationAccounts ?? {},
@@ -225,6 +226,32 @@ describe('project settings form model', () => {
     expect(
       formToProjectSettingsDomainPatch(form, new Set<FormFieldPath>(['placement.tmux']))
     ).toEqual({ placement: { stored: { tmux: null } } });
+  });
+
+  it('keeps an inherited branch prefix unset and emits a tombstone when reset', () => {
+    const form = projectSettingsDomainsToForm(domains(), [origin]);
+
+    expect(form.gitIdentity.branchPrefix).toBeUndefined();
+    expect(
+      formToProjectSettingsDomainPatch(form, new Set<FormFieldPath>(['gitIdentity.branchPrefix']))
+    ).toEqual({ gitIdentity: { stored: { branchPrefix: null } } });
+  });
+
+  it('normalizes an explicit branch prefix and keeps an empty one as no prefix', () => {
+    const input = domains();
+    input.gitIdentity.stored = { branchPrefix: '' };
+    const form = projectSettingsDomainsToForm(input, [origin]);
+    const touched = new Set<FormFieldPath>(['gitIdentity.branchPrefix']);
+
+    expect(form.gitIdentity.branchPrefix).toBe('');
+    expect(formToProjectSettingsDomainPatch(form, touched)).toEqual({
+      gitIdentity: { stored: { branchPrefix: '' } },
+    });
+
+    form.gitIdentity.branchPrefix = ' /team/feat/ ';
+    expect(formToProjectSettingsDomainPatch(form, touched)).toEqual({
+      gitIdentity: { stored: { branchPrefix: 'team/feat' } },
+    });
   });
 
   it('renders inherited auto-run state from the resolved value', () => {
