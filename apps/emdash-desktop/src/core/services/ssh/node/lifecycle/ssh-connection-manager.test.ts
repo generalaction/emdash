@@ -46,6 +46,62 @@ describe('SshConnectionManager', () => {
     await expect(connectPromise).rejects.toThrow();
   });
 
+  it("reports why the host key verifier refused the server instead of ssh2's generic error", async () => {
+    const { SshConnectionManager } = await import('./ssh-connection-manager');
+    const client = new (class extends PassThrough {
+      connect() {}
+    })();
+    const manager = new SshConnectionManager({ createClient: () => client as unknown as Client });
+    const message = 'SSH host key for dev.example.com has changed: refusing to connect.';
+
+    const connect = manager.createConnection('ssh-1', async () => ({
+      config: { sock: new PassThrough(), username: 'alice' },
+      cleanup: () => {},
+      debugLogs: [],
+      hostKeyRejection: () => ({
+        message,
+        verdict: {
+          kind: 'changed',
+          entry: {
+            file: '/home/u/.ssh/known_hosts',
+            line: 1,
+            patterns: ['dev.example.com'],
+            keyType: 'ssh-ed25519',
+            key: Buffer.alloc(0),
+          },
+        },
+      }),
+    }));
+    connect.catch(() => {});
+    await new Promise((resolve) => setImmediate(resolve));
+    client.emit('error', new Error('Host denied (verification failed)'));
+
+    await expect(connect).rejects.toMatchObject({
+      name: 'SshConnectionFailure',
+      kind: 'host-key',
+      message,
+    });
+  });
+
+  it("classifies ssh2's host denial as a host-key failure even without verifier detail", async () => {
+    const { SshConnectionManager } = await import('./ssh-connection-manager');
+    const client = new (class extends PassThrough {
+      connect() {}
+    })();
+    const manager = new SshConnectionManager({ createClient: () => client as unknown as Client });
+
+    const connect = manager.createConnection('ssh-1', async () => ({
+      config: { sock: new PassThrough(), username: 'alice' },
+      cleanup: () => {},
+      debugLogs: [],
+    }));
+    connect.catch(() => {});
+    await new Promise((resolve) => setImmediate(resolve));
+    client.emit('error', new Error('Host denied (verification failed)'));
+
+    await expect(connect).rejects.toMatchObject({ kind: 'host-key' });
+  });
+
   it('coalesces concurrent creates before resolving proxy transports', async () => {
     const { SshConnectionManager } = await import('./ssh-connection-manager');
     const cleanupCalls: string[] = [];

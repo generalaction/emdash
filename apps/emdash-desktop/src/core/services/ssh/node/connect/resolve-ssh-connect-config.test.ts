@@ -116,6 +116,8 @@ function deps(overrides: Partial<SshConnectDeps> = {}): SshConnectDeps {
         getStream: (callback) => callback(undefined, new PassThrough()),
       }) satisfies BaseAgent,
     env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
+    knownHosts: { read: async () => null, append: async () => {} },
+    homeDir: () => '/home/test',
     ...overrides,
   };
 }
@@ -810,6 +812,70 @@ describe('resolveSshConnectConfig', () => {
         })
       )
     ).rejects.toThrow('different SSH agent sockets');
+  });
+
+  it('installs a known_hosts verifier that reads the files ssh config resolves', async () => {
+    const key = Buffer.concat([
+      Buffer.from([0, 0, 0, 11]),
+      Buffer.from('ssh-ed25519'),
+      Buffer.from([0, 0, 0, 3]),
+      Buffer.from('abc'),
+    ]);
+    const otherKey = Buffer.concat([key.subarray(0, 19), Buffer.from('xyz')]);
+    const read = vi.fn(async (path: string) =>
+      path === '/home/test/.ssh/custom_hosts'
+        ? `[resolved.internal]:2201 ssh-ed25519 ${key.toString('base64')}\n`
+        : null
+    );
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'persisted',
+        row: row({
+          authType: 'password',
+          host: 'resolved.internal',
+          port: 2201,
+          username: 'resolved-user',
+          metadata: { sshConfigAlias: 'work' },
+        }),
+      },
+      deps({
+        knownHosts: { read, append: async () => {} },
+        resolveSshConfig: async () => ({
+          hostname: 'resolved.internal',
+          user: 'resolved-user',
+          port: 2201,
+          identityFile: [],
+          identityAgentDisabled: false,
+          identitiesOnly: false,
+          forwardAgent: false,
+          userKnownHostsFile: ['~/.ssh/custom_hosts'],
+          globalKnownHostsFile: [],
+        }),
+      })
+    );
+
+    expect(read.mock.calls.map(([path]) => path)).toEqual(['/home/test/.ssh/custom_hosts']);
+    const verify = result.config.hostVerifier as (key: Buffer) => boolean;
+    expect(verify(key)).toBe(true);
+    expect(result.hostKeyRejection?.()).toBeUndefined();
+    expect(verify(otherKey)).toBe(false);
+    expect(result.hostKeyRejection?.()?.message).toContain('resolved.internal:2201 has changed');
+  });
+
+  it('refuses to connect when a known_hosts file cannot be read', async () => {
+    await expect(
+      resolveSshConnectConfig(
+        { kind: 'persisted', row: row({ authType: 'password' }) },
+        deps({
+          knownHosts: {
+            read: async () => {
+              throw new Error('EACCES: permission denied');
+            },
+            append: async () => {},
+          },
+        })
+      )
+    ).rejects.toThrow('Cannot read SSH known hosts file /home/test/.ssh/known_hosts');
   });
 
   it('creates a production resolver with explicit credential dependencies', async () => {

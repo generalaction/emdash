@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import type { Secret } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import ssh2, { type BaseAgent, type ConnectConfig } from 'ssh2';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { sshConfigFromRow } from '@core/primitives/ssh/api';
@@ -15,6 +17,14 @@ import {
   type ProxyTokens,
   type TransportResult,
 } from '../transport/transports';
+import {
+  createHostKeyVerifier,
+  defaultKnownHostsFiles,
+  fileKnownHostsStore,
+  loadKnownHosts,
+  type HostKeyRejection,
+  type KnownHostsStore,
+} from './known-hosts';
 import { buildAuthConfig, resolveManualAgentSshConfig } from './ssh-connect-auth';
 import { applyForwardAgent } from './ssh-connect-forward-agent';
 
@@ -24,6 +34,8 @@ export interface SshConnectResult {
   config: ConnectConfig;
   cleanup: () => void;
   debugLogs: string[];
+  /** Why the host key verifier refused the server, once it has; ssh2's own error is generic. */
+  hostKeyRejection?: () => HostKeyRejection | undefined;
 }
 
 export type PersistedConnectInput = { kind: 'persisted'; row: SshConnectionRow };
@@ -48,11 +60,16 @@ export interface SshConnectDeps {
   ) => Omit<TransportResult, 'process'>;
   createAgent: (socketPath: string) => BaseAgent;
   env: Record<string, string | undefined>;
+  knownHosts: KnownHostsStore;
+  homeDir: () => string;
+  log?: Logger;
 }
 
 function defaultDeps(): SshConnectDeps {
   return {
     readFile,
+    knownHosts: fileKnownHostsStore,
+    homeDir: homedir,
     getPassword: async () => {
       throw new Error('Password lookup dependency was not provided');
     },
@@ -114,6 +131,24 @@ export async function resolveSshConnectConfig(
   const forwardAgent = resolved?.forwardAgent ?? base.forwardAgent === true;
   applyForwardAgent(config, forwardAgent, agentResolved, authResult, deps);
 
+  // ssh2 accepts any host key without a verifier. Known hosts come from the files
+  // OpenSSH would consult for this alias (or its defaults), read now because ssh2 calls
+  // the verifier synchronously during key exchange.
+  const knownHostsFiles = defaultKnownHostsFiles(deps.homeDir(), deps.env, resolved);
+  const hostKeys = createHostKeyVerifier({
+    host,
+    port,
+    ...(resolved?.hostKeyAlias ? { hostKeyAlias: resolved.hostKeyAlias } : {}),
+    entries: await loadKnownHosts(
+      [...knownHostsFiles.user, ...knownHostsFiles.global],
+      deps.knownHosts
+    ),
+    ...(knownHostsFiles.user[0] ? { recordTo: knownHostsFiles.user[0] } : {}),
+    store: deps.knownHosts,
+    ...(deps.log ? { log: deps.log } : {}),
+  });
+  config.hostVerifier = hostKeys.verify;
+
   let debugLogs: string[] = [];
   let cleanup = () => {};
   const tokens: ProxyTokens = { host, port, username, originalHost: alias ?? base.host };
@@ -133,7 +168,7 @@ export async function resolveSshConnectConfig(
     debugLogs = transport.debugLogs;
   }
 
-  return { config, cleanup, debugLogs };
+  return { config, cleanup, debugLogs, hostKeyRejection: hostKeys.rejection };
 }
 
 export function createSshConnectConfigResolver(deps: SshConnectDeps) {
