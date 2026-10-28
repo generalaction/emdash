@@ -54,6 +54,8 @@ export type StoredSettings = {
   homeDirectory?: string | null;
   /** Filesystem semantics for validation; absent only in older snapshots. */
   pathProfile?: PlacementContext['pathProfile'];
+  /** The project's repository path, for resolving relative worktree roots. */
+  projectPath?: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -110,6 +112,7 @@ export function resolveEffectiveSettings(
       builtInWorktreeRoot: storedSettings.builtInWorktreeRoot,
       homeDirectory: storedSettings.homeDirectory,
       pathProfile: storedSettings.pathProfile,
+      projectPath: storedSettings.projectPath,
     }),
   };
 }
@@ -282,7 +285,7 @@ function resolveDefaultBranch(
 export function resolveWorktreeRoot(
   layers: Pick<
     StoredSettings,
-    'hostWorktreeRoot' | 'builtInWorktreeRoot' | 'homeDirectory' | 'pathProfile'
+    'hostWorktreeRoot' | 'builtInWorktreeRoot' | 'homeDirectory' | 'pathProfile' | 'projectPath'
   > & {
     projectWorktreeRoot?: string;
   }
@@ -310,7 +313,12 @@ export function resolveWorktreeRoot(
 
   let staleValue: string | null = null;
   for (const layer of chain) {
-    const normalized = normalizeWorktreeRootPath(layer.raw, homeDirectory, layers.pathProfile);
+    const normalized = normalizeWorktreeRootPath(
+      layer.raw,
+      homeDirectory,
+      layers.pathProfile,
+      layers.projectPath
+    );
     if (normalized === null) {
       staleValue ??= layer.raw;
       continue;

@@ -35,6 +35,7 @@ export function resolveRendererEffectiveSettings(
       builtInWorktreeRoot: inputs.placementContext.builtInWorktreeRoot,
       homeDirectory: inputs.placementContext.homeDirectory,
       pathProfile: inputs.placementContext.pathProfile,
+      projectPath: inputs.placementContext.projectPath,
     },
     inputs.repoFacts
   );
