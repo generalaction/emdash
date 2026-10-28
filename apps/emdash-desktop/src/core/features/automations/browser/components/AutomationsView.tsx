@@ -127,6 +127,8 @@ export function AutomationsView() {
             {currentTab === 'activity' ? (
               <ActivityView
                 automations={automations.data ?? []}
+                isLoading={automations.isLoading}
+                error={automations.error}
                 onOpenAutomation={(automation) =>
                   setParams((prev) => ({ ...prev, automationId: automation.id }))
                 }
