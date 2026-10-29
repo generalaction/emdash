@@ -59,7 +59,7 @@ export const ActiveProject = observer(function ActiveProject() {
         )
       : projectViewItems;
   return (
-    <div className="flex min-h-0 w-full flex-col gap-6">
+    <div className="flex min-h-0 w-full min-w-0 flex-col gap-6">
       <PillTabs
         items={items}
         value={activeView}
@@ -72,7 +72,7 @@ export const ActiveProject = observer(function ActiveProject() {
         id={PROJECT_SECTION_PANEL_ID}
         aria-labelledby={getPillTabId(PROJECT_SECTION_PANEL_ID, activeView)}
         className={cn(
-          'flex w-full flex-col px-1',
+          'flex min-w-0 w-full flex-col px-1',
           activeView === 'workspaces' && 'min-h-[calc(100vh-16rem)]',
           (activeView === 'tasks' || activeView === 'board' || activeView === 'pull-request') &&
             'h-[calc(100vh-16rem)] min-h-96',

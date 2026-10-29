@@ -244,4 +244,24 @@ describe('project task board', () => {
     );
     expect(column('Backlog')?.querySelector('h2')?.textContent).toBe('Backlog 0');
   });
+
+  it('sizes cards to their content instead of the shared button height', async () => {
+    addTask('1', 'completed');
+    addTask('2', 'completed');
+    host.style.width = '360px';
+    await act(async () => root.render(<TaskBoard projectId="project-1" />));
+
+    const cards = [...(column('Review')?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      const content = card.firstElementChild;
+      expect(content).not.toBeNull();
+      expect(card.getBoundingClientRect().height).toBeGreaterThan(32);
+      expect(card.clientHeight).toBeGreaterThanOrEqual(content?.scrollHeight ?? 0);
+    }
+    expect(cards[1].getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      cards[0].getBoundingClientRect().bottom
+    );
+  });
 });
+import '@emdash/ui/style.css';

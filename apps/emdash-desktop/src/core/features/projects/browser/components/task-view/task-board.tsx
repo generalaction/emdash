@@ -75,47 +75,50 @@ const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTas
   };
 
   return (
-    <li>
+    <li className="shrink-0">
       <Button
         variant="secondary"
         disabled={opening}
         onClick={() => void open()}
         aria-label={`${archived ? 'Restore and open' : 'Open'} ${issueKey ? `${issueKey}: ` : ''}${title}`}
-        className="h-auto w-full flex-col items-stretch gap-3 p-3 text-left whitespace-normal"
+        className="w-full"
+        style={{ height: 'auto' }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-xs text-foreground-muted">
-            {issueKey || 'No linked issue'}
+        <div className="flex w-full min-w-0 flex-col gap-3 py-3 text-left whitespace-normal">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-xs text-foreground-muted">
+              {issueKey || 'No linked issue'}
+            </span>
+            <AgentStatus status={conversation?.status ?? null} />
+          </div>
+          <span className="line-clamp-3 text-sm font-medium">{title}</span>
+          {linkedIssue && title !== task.data.name && (
+            <span className="truncate text-xs text-foreground-muted">{task.data.name}</span>
+          )}
+          <div className="flex items-center gap-2">
+            <StackedAgentLogos stats={stats} />
+            <span className="truncate text-xs text-foreground-muted">
+              {agentNames.join(', ') || 'No agent'}
+            </span>
+          </div>
+          <span
+            className="flex items-center gap-1 text-xs text-foreground-muted"
+            title={branch ?? undefined}
+          >
+            <GitBranch className="size-3 shrink-0" />
+            <span className="truncate">{branch || 'Branch unavailable'}</span>
           </span>
-          <AgentStatus status={conversation?.status ?? null} />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground-passive">
+            <span title="Latest saved task update or conversation interaction; not every agent output">
+              Activity{' '}
+              <RelativeTime value={boardLastActivity(task.data, conversations)} compact ago />
+            </span>
+            {pr && <span>PR {pr.status}</span>}
+          </div>
+          {archived && (
+            <span className="text-xs text-foreground-muted">Archived · Restore and open</span>
+          )}
         </div>
-        <span className="line-clamp-3 text-sm font-medium">{title}</span>
-        {linkedIssue && title !== task.data.name && (
-          <span className="truncate text-xs text-foreground-muted">{task.data.name}</span>
-        )}
-        <div className="flex items-center gap-2">
-          <StackedAgentLogos stats={stats} />
-          <span className="truncate text-xs text-foreground-muted">
-            {agentNames.join(', ') || 'No agent'}
-          </span>
-        </div>
-        <span
-          className="flex items-center gap-1 text-xs text-foreground-muted"
-          title={branch ?? undefined}
-        >
-          <GitBranch className="size-3 shrink-0" />
-          <span className="truncate">{branch || 'Branch unavailable'}</span>
-        </span>
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground-passive">
-          <span title="Latest saved task update or conversation interaction; not every agent output">
-            Activity{' '}
-            <RelativeTime value={boardLastActivity(task.data, conversations)} compact ago />
-          </span>
-          {pr && <span>PR {pr.status}</span>}
-        </div>
-        {archived && (
-          <span className="text-xs text-foreground-muted">Archived · Restore and open</span>
-        )}
       </Button>
     </li>
   );
@@ -142,12 +145,15 @@ export const TaskBoard = observer(function TaskBoard({ projectId }: { projectId:
   }));
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
       <p className="text-xs text-foreground-muted">
         Live agent and pull request status. Errors need input; started idle sessions appear in
         Review.
       </p>
-      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2" aria-label="Task board">
+      <div
+        className="flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto pb-2"
+        aria-label="Task board"
+      >
         {columns.map(({ column, tasks: columnTasks }) => (
           <section
             key={column}
