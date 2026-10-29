@@ -1,6 +1,7 @@
 import type { ExternalSelectionStore } from '@emdash/ui/react/patterns';
 import { makeAutoObservable } from 'mobx';
 import type * as React from 'react';
+import type { BoardColumn } from '@core/features/projects/browser/components/task-view/task-board-model';
 import type {
   ProjectTaskSortBy,
   ProjectViewState,
@@ -40,6 +41,20 @@ export class ProjectViewStore {
       ...current,
       selectedIssueProvider: provider ?? undefined,
     }));
+  }
+
+  boardOverride(taskId: string, agentStatusKey: string): BoardColumn | undefined {
+    const override = this.handle.value.boardOverrides?.[taskId];
+    return override?.agentStatusKey === agentStatusKey ? override.column : undefined;
+  }
+
+  setBoardOverride(taskId: string, column: BoardColumn | null, agentStatusKey = '') {
+    this.handle.update((current) => {
+      const boardOverrides = { ...current.boardOverrides };
+      if (column && column !== 'Done') boardOverrides[taskId] = { column, agentStatusKey };
+      else delete boardOverrides[taskId];
+      return { ...current, boardOverrides };
+    });
   }
 }
 

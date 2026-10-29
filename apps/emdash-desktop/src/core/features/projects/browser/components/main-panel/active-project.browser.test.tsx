@@ -139,7 +139,7 @@ describe('ActiveProject section state', () => {
 
 function createHandle(activeView: ProjectViewState['activeView']): MementoHandle<ProjectViewState> {
   const value = observable.box<ProjectViewState>({
-    version: '2',
+    version: '3',
     activeView,
     taskViewTab: 'active',
   });

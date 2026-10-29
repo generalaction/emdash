@@ -7,6 +7,15 @@ export type BoardColumn = (typeof BOARD_COLUMNS)[number];
 
 type BoardConversation = Pick<ConversationStore, 'data' | 'status'>;
 
+/** Changes only when a saved agent conversation appears or reports a new real status. */
+export function boardAgentStatusKey(conversations: readonly BoardConversation[]): string {
+  return JSON.stringify(
+    conversations
+      .map((conversation) => [conversation.data.id, conversation.status])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+  );
+}
+
 /** A presentation of existing facts, never a persisted task workflow. Ignore notification `seen`. */
 export function taskBoardColumn(
   task: Pick<Task, 'archivedAt' | 'status'>,

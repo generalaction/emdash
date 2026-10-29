@@ -1,34 +1,64 @@
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import { AgentStatus } from '@emdash/ui/react/components';
 import { Badge, Button, RelativeTime, toast } from '@emdash/ui/react/primitives';
 import { GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useState, type DragEvent } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentMetadata } from '@core/features/agents/api/browser/use-agent-metadata';
+import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { StackedAgentLogos } from '@core/features/agents/contributions/browser/stacked-agent-logos';
+import { getConversationsClient } from '@core/features/conversations/api/browser/client';
 import {
   getConversationsForTask,
   taskConversationStats,
 } from '@core/features/conversations/api/browser/conversation-selectors';
 import { conversationTabKind } from '@core/features/conversations/api/browser/conversation-tab-kind';
+import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { useConversationLaunchSettings } from '@core/features/conversations/api/browser/use-conversation-launch-settings';
+import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
+import {
+  getProjectSshConnectionId,
+  getProjectViewStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import {
   getTaskGitCheckoutStore,
   getTaskPrAssociationStore,
 } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
-import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import {
+  getTaskManagerStore,
+  taskHostActionAvailability,
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { agentSupportsAcp, agentSupportsInitialPromptDelivery } from '@core/primitives/agents/api';
+import { buildIssueContextText } from '@core/primitives/issues/api';
 import { linkedIssueDisplayIdentifier } from '@core/primitives/linked-issues/api';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
+import { isRegistered } from '@core/primitives/task-state/browser/task-state';
 import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
 import {
   BOARD_COLUMNS,
+  boardAgentStatusKey,
   boardConversation,
   boardLastActivity,
   taskBoardColumn,
+  type BoardColumn,
 } from './task-board-model';
 import type { ReadyTask } from './task-list-model';
 
-const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTask }) {
+const TASK_DRAG_TYPE = 'application/x-emdash-task';
+
+const TaskBoardCard = observer(function TaskBoardCard({
+  task,
+  column,
+  onDragStart,
+}: {
+  task: ReadyTask;
+  column: BoardColumn;
+  onDragStart: (event: DragEvent<HTMLLIElement>, taskId: string) => void;
+}) {
   const { navigate } = useNavigate();
   const [opening, setOpening] = useState(false);
   const { data: agents } = useAgentMetadata();
@@ -46,7 +76,6 @@ const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTas
   const issueKey = linkedIssue && linkedIssueDisplayIdentifier(linkedIssue);
   const title = linkedIssue?.title || task.data.name;
   const archived = Boolean(task.data.archivedAt);
-  const column = taskBoardColumn(task.data, conversations, pr);
 
   const open = async () => {
     setOpening(true);
@@ -76,7 +105,7 @@ const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTas
   };
 
   return (
-    <li className="shrink-0">
+    <li className="shrink-0" draggable onDragStart={(event) => onDragStart(event, taskId)}>
       <Button
         variant="secondary"
         disabled={opening}
@@ -132,7 +161,151 @@ const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTas
 
 export const TaskBoard = observer(function TaskBoard({ projectId }: { projectId: string }) {
   const manager = getTaskManagerStore(projectId);
+  const view = getProjectViewStore(projectId);
+  const connectionId = getProjectSshConnectionId(projectId);
+  const hostRef = hostRefFromConnectionId(connectionId);
+  const host = formatHostRef(hostRef);
+  const { providerId, createDisabled } = useEffectiveProvider(connectionId);
+  const { data: agents } = useAgents(hostRef);
+  const selectedAgent = agents?.find((agent) => agent.id === providerId);
+  const launchSettings = useConversationLaunchSettings(
+    host,
+    providerId,
+    selectedAgent?.capabilities
+  );
+  const confirmArchive = useOpenModal('confirmActionModal');
+  const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   if (!manager) return null;
+
+  const taskColumn = (task: ReadyTask): BoardColumn => {
+    const conversations = [
+      ...(getConversationsForTask(task.data.id)?.conversations.values() ?? []),
+    ];
+    const pr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
+    const actual = taskBoardColumn(task.data, conversations, pr);
+    if (actual === 'Done') return actual;
+    return view?.boardOverride(task.data.id, boardAgentStatusKey(conversations)) ?? actual;
+  };
+
+  const startAgent = async (task: ReadyTask) => {
+    if (taskHostActionAvailability(projectId).kind === 'disabled') {
+      throw new Error('The project host is unavailable. Reconnect it and try again.');
+    }
+    if (!providerId || createDisabled || !launchSettings.ready || !selectedAgent) {
+      throw new Error('No ready agent is available. Select and install a default agent first.');
+    }
+    const outcome = await manager.provisionTask(task.data.id);
+    if (outcome.kind !== 'active') throw new Error('The task workspace could not be activated.');
+    const current = manager.tasks.get(task.data.id);
+    if (current?.state !== 'provisioned') throw new Error('The task workspace is not ready.');
+    await current.ready();
+    const conversations = getConversationsForTask(task.data.id);
+    if (!conversations) throw new Error('The task conversations are not ready.');
+
+    const issue = task.data.linkedIssue;
+    const prompt = issue
+      ? `Work on ${linkedIssueDisplayIdentifier(issue) ?? issue.identifier}: ${issue.title}`
+      : `Work on this task: ${task.data.name}`;
+    const context = issue ? buildIssueContextText(issue) : undefined;
+    const canUseInitialPtyPrompt = agentSupportsInitialPromptDelivery(selectedAgent.capabilities);
+    const type =
+      agentSupportsAcp(selectedAgent.capabilities) &&
+      (launchSettings.useChatUi || !canUseInitialPtyPrompt)
+        ? 'acp'
+        : 'pty';
+    if (type === 'pty' && !canUseInitialPtyPrompt) {
+      throw new Error('This agent cannot receive a task prompt in the terminal interface.');
+    }
+    const id = crypto.randomUUID();
+    await conversations.createConversation({
+      id,
+      projectId,
+      taskId: task.data.id,
+      provider: providerId,
+      title: nextDefaultConversationTitle(
+        providerId,
+        [...conversations.conversations.values()].map((conversation) => conversation.data)
+      ),
+      type,
+      ...(type === 'acp'
+        ? {
+            options: launchSettings.settings.acp.options,
+            initialQueue: [{ text: prompt, ...(context && { hiddenContext: context }) }],
+          }
+        : {
+            autoApprove: launchSettings.autoApprove,
+            initialPrompt: context ? `${context}\n\n${prompt}` : prompt,
+          }),
+    });
+    const startedConversations = [...conversations.conversations.values()];
+    const actual = taskBoardColumn(
+      task.data,
+      startedConversations,
+      selectCurrentPr(getTaskPrAssociationStore(task).pullRequests)
+    );
+    if (actual === 'Backlog') {
+      view?.setBoardOverride(task.data.id, 'Running', boardAgentStatusKey(startedConversations));
+    }
+    if (type === 'acp') {
+      try {
+        const started = await (
+          await getConversationsClient()
+        ).acp.startSession({
+          conversationId: id,
+          mode: 'fresh',
+        });
+        if (!started.success) throw new Error('The agent session could not start.');
+      } catch (error) {
+        view?.setBoardOverride(task.data.id, null);
+        throw error;
+      }
+    }
+  };
+
+  const moveTask = async (taskId: string, destination: BoardColumn) => {
+    const task = manager.tasks.get(taskId);
+    if (!task || !isRegistered(task) || task.data.type === 'automation-run') return;
+    const source = taskColumn(task);
+    if (source === destination || movingTaskId || task.data.archivedAt) return;
+    setMovingTaskId(taskId);
+    try {
+      if (destination === 'Done') {
+        const confirmed = await confirmArchive({
+          title: 'Archive task?',
+          description: `Archive "${task.data.name}"? Its worktree will be preserved.`,
+          confirmLabel: 'Archive',
+        });
+        if (!confirmed.success) return;
+        await manager.archiveTask(taskId);
+        view?.setBoardOverride(taskId, null);
+        return;
+      }
+      if (source === 'Backlog' && destination === 'Running') {
+        await startAgent(task);
+        return;
+      }
+      const conversations = [...(getConversationsForTask(taskId)?.conversations.values() ?? [])];
+      view?.setBoardOverride(taskId, destination, boardAgentStatusKey(conversations));
+    } catch (error) {
+      toast.error('Could not move task', { description: String(error) });
+    } finally {
+      setMovingTaskId(null);
+    }
+  };
+
+  const dragStart = (event: DragEvent<HTMLLIElement>, taskId: string) => {
+    event.dataTransfer.setData(TASK_DRAG_TYPE, taskId);
+    event.dataTransfer.effectAllowed = 'move';
+    setDraggingTaskId(taskId);
+  };
+
+  const drop = (event: DragEvent<HTMLElement>, column: BoardColumn) => {
+    event.preventDefault();
+    const taskId = event.dataTransfer.getData(TASK_DRAG_TYPE);
+    setDraggingTaskId(null);
+    if (taskId) void moveTask(taskId, column);
+  };
 
   // Match the project task list: omit optimistic rows and automation runs, include archived tasks.
   const tasks = [...manager.tasks.values()].filter(
@@ -141,17 +314,14 @@ export const TaskBoard = observer(function TaskBoard({ projectId }: { projectId:
   );
   const columns = BOARD_COLUMNS.map((column) => ({
     column,
-    tasks: tasks.filter((task) => {
-      const conversations = [
-        ...(getConversationsForTask(task.data.id)?.conversations.values() ?? []),
-      ];
-      const pr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
-      return taskBoardColumn(task.data, conversations, pr) === column;
-    }),
+    tasks: tasks.filter((task) => taskColumn(task) === column),
   }));
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
+    <div
+      className="flex h-full min-h-0 min-w-0 flex-col gap-3"
+      onDragEnd={() => setDraggingTaskId(null)}
+    >
       <p className="text-xs text-foreground-muted">
         Live agent and pull request status. Questions, permissions, and errors need input; completed
         turns and open pull requests appear in Review.
@@ -164,6 +334,12 @@ export const TaskBoard = observer(function TaskBoard({ projectId }: { projectId:
           <section
             key={column}
             aria-label={column}
+            onDragOver={(event) => {
+              if (!draggingTaskId) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(event) => drop(event, column)}
             className="flex min-h-0 min-w-56 flex-1 flex-col rounded-lg border border-border bg-background-2/30"
           >
             <h2 className="flex items-center justify-between gap-2 p-3 text-sm font-medium">
@@ -171,7 +347,12 @@ export const TaskBoard = observer(function TaskBoard({ projectId }: { projectId:
             </h2>
             <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
               {columnTasks.map((task) => (
-                <TaskBoardCard key={task.data.id} task={task} />
+                <TaskBoardCard
+                  key={task.data.id}
+                  task={task}
+                  column={column}
+                  onDragStart={dragStart}
+                />
               ))}
               {columnTasks.length === 0 && (
                 <li className="p-3 text-xs text-foreground-passive">No tasks</li>

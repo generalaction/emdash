@@ -120,13 +120,13 @@ describe('project board preference', () => {
       projectViewSchema.safeParse({ version: '1', activeView: 'settings', taskViewTab: 'archived' })
     ).toEqual({
       status: 'ok',
-      data: { version: '2', activeView: 'settings', taskViewTab: 'archived' },
+      data: { version: '3', activeView: 'settings', taskViewTab: 'archived' },
     });
   });
 
   it('round trips the board selection through the existing memento schema', () => {
     const preference = {
-      version: '2' as const,
+      version: '3' as const,
       activeView: 'board' as const,
       taskViewTab: 'active' as const,
     };

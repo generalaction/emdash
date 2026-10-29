@@ -17,21 +17,72 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   open: vi.fn(),
   restore: vi.fn(),
+  archive: vi.fn(),
+  createConversation: vi.fn(),
+  startSession: vi.fn(),
+  confirm: vi.fn(),
+  useChatUi: true,
+  boardOverrides: new Map<string, { column: string; agentStatusKey: string }>(),
   manager: undefined as
-    | { tasks: Map<string, ReadyTask>; restoreTask: (id: string) => Promise<void> }
+    | {
+        tasks: Map<string, ReadyTask>;
+        restoreTask: (id: string) => Promise<void>;
+        archiveTask: (id: string) => Promise<void>;
+        provisionTask: (id: string) => Promise<{ kind: 'active' }>;
+      }
     | undefined,
   conversations: new Map<
     string,
-    { conversations: Map<string, ConversationStore>; list: { load: () => Promise<void> } }
+    {
+      conversations: Map<string, ConversationStore>;
+      list: { load: () => Promise<void> };
+      createConversation: (...args: unknown[]) => Promise<unknown>;
+    }
   >(),
   projectView: undefined as { activeView: string } | undefined,
 }));
 
 vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   getTaskManagerStore: () => mocks.manager,
+  taskHostActionAvailability: () => ({ kind: 'enabled' }),
 }));
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
-  getProjectViewStore: () => mocks.projectView,
+  getProjectViewStore: () => ({
+    ...mocks.projectView,
+    boardOverride: (id: string, key: string) => {
+      const override = mocks.boardOverrides.get(id);
+      return override?.agentStatusKey === key ? override.column : undefined;
+    },
+    setBoardOverride: (id: string, column: string | null, agentStatusKey: string) => {
+      if (column) mocks.boardOverrides.set(id, { column, agentStatusKey });
+      else mocks.boardOverrides.delete(id);
+    },
+  }),
+  getProjectSshConnectionId: () => undefined,
+}));
+vi.mock('@core/features/conversations/api/browser/use-effective-provider', () => ({
+  useEffectiveProvider: () => ({ providerId: 'claude', createDisabled: false }),
+}));
+vi.mock('@core/features/agents/api/browser/use-agents', () => ({
+  useAgents: () => ({
+    data: [
+      { id: 'claude', capabilities: { acp: { kind: 'supported' }, prompt: { kind: 'argv' } } },
+    ],
+  }),
+}));
+vi.mock('@core/features/conversations/api/browser/use-conversation-launch-settings', () => ({
+  useConversationLaunchSettings: () => ({
+    ready: true,
+    useChatUi: mocks.useChatUi,
+    autoApprove: false,
+    settings: { acp: { options: {} } },
+  }),
+}));
+vi.mock('@core/features/conversations/api/browser/client', () => ({
+  getConversationsClient: async () => ({ acp: { startSession: mocks.startSession } }),
+}));
+vi.mock('@core/manifests/browser/modal-api', () => ({
+  useOpenModal: () => mocks.confirm,
 }));
 vi.mock('@core/features/conversations/api/browser/conversation-selectors', () => ({
   getConversationsForTask: (id: string) => mocks.conversations.get(id),
@@ -79,6 +130,7 @@ function addTask(id: string, status: AgentStatus, type: ConversationType = 'pty'
   mocks.conversations.set(id, {
     conversations: observable.map([[conversation.data.id, conversation]]),
     list: { load: async () => {} },
+    createConversation: mocks.createConversation,
   });
   const task = observable({
     state: 'provisioned',
@@ -101,6 +153,7 @@ function addTask(id: string, status: AgentStatus, type: ConversationType = 'pty'
       conversations: { claude: 1 },
     },
     get: () => association,
+    ready: async () => {},
   }) as unknown as ReadyTask;
   mocks.manager?.tasks.set(id, task);
   return { task, conversation, association };
@@ -119,8 +172,31 @@ describe('project task board', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.conversations.clear();
+    mocks.boardOverrides = observable.map() as unknown as Map<
+      string,
+      { column: string; agentStatusKey: string }
+    >;
+    mocks.startSession.mockResolvedValue({ success: true, data: {} });
+    mocks.useChatUi = true;
+    mocks.createConversation.mockImplementation(async (params: { taskId: string; id: string }) => {
+      const current = mocks.conversations.get(params.taskId);
+      current?.conversations.set(
+        params.id,
+        observable({
+          data: { id: params.id, providerId: 'claude', title: 'New session' },
+          status: 'idle',
+          seen: false,
+        }) as unknown as ConversationStore
+      );
+    });
+    mocks.confirm.mockResolvedValue({ success: true });
     mocks.projectView = observable({ activeView: 'board' });
-    mocks.manager = { tasks: observable.map(), restoreTask: mocks.restore };
+    mocks.manager = {
+      tasks: observable.map(),
+      restoreTask: mocks.restore,
+      archiveTask: mocks.archive,
+      provisionTask: async () => ({ kind: 'active' }),
+    };
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -134,6 +210,117 @@ describe('project task board', () => {
   function column(name: string) {
     return host.querySelector<HTMLElement>(`section[aria-label="${name}"]`);
   }
+
+  async function dragTask(from: string, to: string) {
+    const card = column(from)?.querySelector('li');
+    const destination = column(to);
+    if (!card || !destination) throw new Error(`Missing drag target ${from} → ${to}`);
+    const dataTransfer = new DataTransfer();
+    await act(async () => {
+      card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer }));
+      destination.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }));
+      destination.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }));
+    });
+  }
+
+  it('starts a Jira backlog agent with saved description and comments, then follows status', async () => {
+    const { task } = addTask('1', 'idle');
+    runInAction(() => {
+      task.data.linkedIssue = {
+        ...task.data.linkedIssue!,
+        description: 'FULL DESCRIPTION',
+        context: 'Jira comments\n\n- Ada: KEEP THIS COMMENT',
+      };
+    });
+    mocks.conversations.get('1')?.conversations.clear();
+    await act(async () => root.render(<TaskBoard projectId="project-1" />));
+
+    await dragTask('Backlog', 'Running');
+    expect(mocks.createConversation).toHaveBeenCalledOnce();
+    const create = mocks.createConversation.mock.calls[0]?.[0] as {
+      id: string;
+      initialQueue: { text: string; hiddenContext: string }[];
+    };
+    expect(create.initialQueue[0]?.text).toContain('EM-1: Jira title 1');
+    expect(create.initialQueue[0]?.hiddenContext).toContain('FULL DESCRIPTION');
+    expect(create.initialQueue[0]?.hiddenContext).toContain('KEEP THIS COMMENT');
+    expect(mocks.startSession).toHaveBeenCalledWith({ conversationId: create.id, mode: 'fresh' });
+    expect(column('Running')?.querySelector('h2')?.textContent).toBe('Running 1');
+
+    const created = mocks.conversations.get('1')?.conversations.get(create.id);
+    await act(async () =>
+      runInAction(() => {
+        if (created) created.status = 'awaiting-input';
+      })
+    );
+    expect(column('Awaiting Input')?.querySelector('h2')?.textContent).toBe('Awaiting Input 1');
+  });
+
+  it('delivers the Jira context as the initial terminal prompt when PTY is selected', async () => {
+    mocks.useChatUi = false;
+    const { task } = addTask('1', 'idle');
+    runInAction(() => {
+      task.data.linkedIssue = {
+        ...task.data.linkedIssue!,
+        description: 'FULL DESCRIPTION',
+        context: 'Jira comments: KEEP THIS COMMENT',
+      };
+    });
+    mocks.conversations.get('1')?.conversations.clear();
+    await act(async () => root.render(<TaskBoard projectId="project-1" />));
+
+    await dragTask('Backlog', 'Running');
+    const create = mocks.createConversation.mock.calls[0]?.[0] as {
+      type: string;
+      initialPrompt: string;
+    };
+    expect(create.type).toBe('pty');
+    expect(create.initialPrompt).toContain('FULL DESCRIPTION');
+    expect(create.initialPrompt).toContain('KEEP THIS COMMENT');
+    expect(mocks.startSession).not.toHaveBeenCalled();
+  });
+
+  it('lets a fast agent status replace Running before startup returns', async () => {
+    addTask('1', 'idle');
+    mocks.conversations.get('1')?.conversations.clear();
+    mocks.startSession.mockImplementation(
+      async ({ conversationId }: { conversationId: string }) => {
+        const created = mocks.conversations.get('1')?.conversations.get(conversationId);
+        runInAction(() => {
+          if (created) created.status = 'completed';
+        });
+        return { success: true, data: {} };
+      }
+    );
+    await act(async () => root.render(<TaskBoard projectId="project-1" />));
+
+    await dragTask('Backlog', 'Running');
+    expect(column('Review')?.querySelector('h2')?.textContent).toBe('Review 1');
+    expect(column('Running')?.querySelector('h2')?.textContent).toBe('Running 0');
+  });
+
+  it('keeps a manual move until the agent reports a new status', async () => {
+    const { conversation } = addTask('1', 'completed');
+    await act(async () => root.render(<TaskBoard projectId="project-1" />));
+    await dragTask('Review', 'Backlog');
+    expect(column('Backlog')?.querySelector('h2')?.textContent).toBe('Backlog 1');
+    await act(async () =>
+      runInAction(() => {
+        conversation.status = 'working';
+      })
+    );
+    expect(column('Running')?.querySelector('h2')?.textContent).toBe('Running 1');
+  });
+
+  it('confirms before archiving a card dropped on Done', async () => {
+    addTask('1', 'completed');
+    await act(async () => root.render(<TaskBoard projectId="project-1" />));
+    mocks.confirm.mockResolvedValueOnce({ success: false });
+    await dragTask('Review', 'Done');
+    expect(mocks.archive).not.toHaveBeenCalled();
+    await dragTask('Review', 'Done');
+    expect(mocks.archive).toHaveBeenCalledWith('1');
+  });
 
   it('moves cards and counts live, without treating acknowledgement as a workflow change', async () => {
     addTask('1', 'idle');
