@@ -24,6 +24,8 @@ export type IssueData = {
  */
 export type IssueQueryOpts = {
   limit: number;
+  /** Jira sync: enumerate every matching page; limit is the page size. */
+  jql?: string;
   /** Resolved repository URL, present when the descriptor requires it. */
   repositoryUrl?: string;
 };

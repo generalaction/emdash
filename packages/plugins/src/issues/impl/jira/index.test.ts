@@ -15,6 +15,8 @@ vi.mock('../../../integrations/impl/jira/client', async (importOriginal) => {
 
 const mockCreateJiraClient = vi.mocked(jiraClient.createJiraClient);
 const mockSearchForIssues = vi.fn();
+const mockGetIssue = vi.fn();
+const mockGetComments = vi.fn();
 
 const issues = provider.behavior.issues;
 if (!issues) {
@@ -42,6 +44,8 @@ function makeHost(): ConnectedIntegrationHostContext {
 
 function makeClient(): JiraClient {
   return {
+    issues: { getIssue: mockGetIssue },
+    issueComments: { getComments: mockGetComments },
     issueSearch: {
       searchForIssuesUsingJqlEnhancedSearchPost: mockSearchForIssues,
     },
@@ -96,6 +100,134 @@ describe('jira issues plugin', () => {
       jql: 'updated >= -90d ORDER BY updated DESC',
       maxResults: 2,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
+    });
+  });
+
+  it('enumerates every JQL page without treating the page size as a total limit', async () => {
+    mockSearchForIssues
+      .mockResolvedValueOnce({ issues: [jiraIssue('ENG-1')], nextPageToken: 'next' })
+      .mockResolvedValueOnce({ issues: [jiraIssue('ENG-2')] });
+    const result = await issues.listIssues(makeHost(), {
+      limit: 1,
+      jql: 'assignee = currentUser()',
+    });
+    expect(result).toMatchObject({
+      success: true,
+      data: [{ identifier: 'ENG-1' }, { identifier: 'ENG-2' }],
+    });
+    expect(searchParams(1)).toMatchObject({
+      nextPageToken: 'next',
+      jql: 'assignee = currentUser()',
+      maxResults: 1,
+    });
+  });
+
+  it('fails clearly instead of looping on a repeated search cursor', async () => {
+    mockSearchForIssues.mockResolvedValue({ issues: [], nextPageToken: 'same' });
+    expect(await issues.listIssues(makeHost(), { limit: 100, jql: 'project = ENG' })).toMatchObject(
+      {
+        success: false,
+        error: { message: expect.stringContaining('repeated page token') },
+      }
+    );
+    expect(mockSearchForIssues).toHaveBeenCalledTimes(2);
+  });
+
+  it('enumerates issue identities even when one search entry has incomplete fields', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({ issues: [{ key: 'ENG-1' }, jiraIssue('ENG-2')] });
+    expect(await issues.listIssues(makeHost(), { limit: 100, jql: 'project = ENG' })).toMatchObject(
+      {
+        success: true,
+        data: [{ identifier: 'ENG-1' }, { identifier: 'ENG-2' }],
+      }
+    );
+  });
+
+  it('continues comments pagination when the server omits total', async () => {
+    mockGetIssue.mockResolvedValue(jiraIssue('ENG-1'));
+    mockGetComments
+      .mockResolvedValueOnce({ maxResults: 1, comments: [{ body: 'First' }] })
+      .mockResolvedValueOnce({ maxResults: 1, comments: [{ body: 'Second' }] })
+      .mockResolvedValueOnce({ maxResults: 1, comments: [] });
+    const result = await issues.getIssue?.(makeHost(), { identifier: 'ENG-1' });
+    expect(result).toMatchObject({
+      success: true,
+      data: { context: expect.stringContaining('Second') },
+    });
+    expect(mockGetComments).toHaveBeenCalledTimes(3);
+  });
+
+  it('loads the full description and every comments page, including authors and rich text', async () => {
+    const text = 'Full description '.repeat(1000);
+    mockGetIssue.mockResolvedValue({
+      ...jiraIssue('ENG-1'),
+      fields: {
+        ...jiraIssue('ENG-1').fields,
+        description: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text },
+                { type: 'hardBreak' },
+                { type: 'text', text: 'More' },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    mockGetComments
+      .mockResolvedValueOnce({
+        total: 2,
+        comments: [
+          { author: { displayName: 'Alice' }, created: '2026-01-01', body: 'First comment' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        total: 2,
+        comments: [
+          {
+            author: { displayName: 'Bob' },
+            body: {
+              type: 'doc',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Second comment',
+                      marks: [{ type: 'link', attrs: { href: 'https://example.com' } }],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      });
+    const result = await issues.getIssue?.(makeHost(), { identifier: 'ENG-1' });
+    expect(result).toMatchObject({
+      success: true,
+      data: { description: `${text}\nMore`, url: 'https://example.atlassian.net/browse/ENG-1' },
+    });
+    if (!result?.success) return;
+    expect(result.data.context).toContain('Alice · 2026-01-01');
+    expect(result.data.context).toContain('First comment');
+    expect(result.data.context).toContain('[Second comment](https://example.com)');
+    expect(mockGetComments).toHaveBeenNthCalledWith(2, expect.objectContaining({ startAt: 1 }));
+  });
+
+  it('does not return partial context if a later comment page fails', async () => {
+    mockGetIssue.mockResolvedValue(jiraIssue('ENG-1'));
+    mockGetComments
+      .mockResolvedValueOnce({ total: 2, comments: [{ body: 'First' }] })
+      .mockRejectedValueOnce(Object.assign(new Error('Connection failed'), { code: 'ETIMEDOUT' }));
+    expect(await issues.getIssue?.(makeHost(), { identifier: 'ENG-1' })).toMatchObject({
+      success: false,
+      error: { type: 'host_unreachable' },
     });
   });
 

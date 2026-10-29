@@ -1,7 +1,8 @@
 import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import type { Result } from '@emdash/shared';
-import { Field } from '@emdash/ui/react/primitives';
+import { Field, Textarea } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
+import { DEFAULT_JIRA_SYNC_JQL } from '@core/features/issues/api/jira-sync';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import type {
   MigrateProjectConfigRequest,
@@ -93,6 +94,19 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             hostActionReason={hostActionReason}
             hostObservationKind={hostObservationKind}
           />
+          <Field.Root>
+            <Field.Label>Jira sync JQL</Field.Label>
+            <Textarea
+              aria-label="Jira sync JQL"
+              value={formModel.form.jiraSync.jql}
+              placeholder={DEFAULT_JIRA_SYNC_JQL}
+              onChange={(event) => formModel.updateJiraSync('jql', event.target.value)}
+            />
+            <Field.Description>
+              Query used by Sync assigned Jira issues for this project. Leave blank to import all
+              open issues assigned to the selected Jira account. Add a project filter to narrow it.
+            </Field.Description>
+          </Field.Root>
           {hostObservationKind === 'unavailable' ? (
             <div
               role="status"

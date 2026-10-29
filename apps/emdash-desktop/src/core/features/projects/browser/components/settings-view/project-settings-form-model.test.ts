@@ -53,6 +53,7 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       ...overrides.gitIdentity,
     },
     integrationAccounts: overrides.integrationAccounts ?? {},
+    jiraSync: { jql: '' },
     placement: { tmux: undefined, worktreeDirectory: '', ...overrides.placement },
   };
 }
@@ -105,6 +106,20 @@ function domains(): ProjectSettingsDomains {
     },
   };
 }
+
+it('round trips Jira sync JQL and clears the override when blank', () => {
+  const input = domains();
+  input.jiraSync = { jql: 'project = ENG' };
+  const form = projectSettingsDomainsToForm(input, []);
+  expect(form.jiraSync.jql).toBe('project = ENG');
+  const touched = new Set<FormFieldPath>(['jiraSync.jql']);
+  expect(formToProjectSettingsDomainPatch(form, touched)).toEqual({
+    jiraSync: { jql: 'project = ENG' },
+  });
+  form.jiraSync.jql = '  ';
+  expect(formToProjectSettingsDomainPatch(form, touched)).toEqual({ jiraSync: { jql: null } });
+  expect(formToProjectSettingsDomainPatch(form, new Set())).toEqual({});
+});
 
 describe('project settings form model', () => {
   it('patches only the provider edited while preserving other live account choices', () => {
