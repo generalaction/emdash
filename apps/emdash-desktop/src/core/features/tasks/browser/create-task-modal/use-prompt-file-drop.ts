@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { toAcpImageAttachmentMimeType } from '@core/features/conversations/api/browser/acp-image-attachment';
 import { resolveDroppedFile } from '@core/features/terminals/api/browser/pty/terminal-image-injection';
 import { formatTerminalImagePaths } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
@@ -16,11 +17,14 @@ import { log } from '@core/primitives/logging/browser/logger';
  */
 export function usePromptFileDrop({
   disableLocalFiles = false,
+  ignoreImages = false,
   onDropText,
   workspaceId,
 }: {
   /** Reject OS file drops, e.g. for SSH projects where local paths would not exist remotely. */
   disableLocalFiles?: boolean;
+  /** The ACP composer handles image drops as attachments. */
+  ignoreImages?: boolean;
   onDropText: (text: string) => void;
   workspaceId?: string;
 }) {
@@ -81,7 +85,11 @@ export function usePromptFileDrop({
       const workspaceFile = getDraggedWorkspaceFile(e.dataTransfer);
       if (workspaceFile && workspaceFile.workspaceId !== workspaceId) return;
 
-      const files = workspaceFile ? [] : Array.from(e.dataTransfer.files);
+      const files = workspaceFile
+        ? []
+        : Array.from(e.dataTransfer.files).filter(
+            (file) => !ignoreImages || toAcpImageAttachmentMimeType(file) === null
+          );
       if (!workspaceFile && files.length === 0) return;
 
       void (async () => {
@@ -101,7 +109,7 @@ export function usePromptFileDrop({
         }
       })();
     },
-    [accepts, onDropText, workspaceId]
+    [accepts, ignoreImages, onDropText, workspaceId]
   );
 
   return { isDragOver, dropHandlers: { onDragOver, onDragEnter, onDragLeave, onDrop } };

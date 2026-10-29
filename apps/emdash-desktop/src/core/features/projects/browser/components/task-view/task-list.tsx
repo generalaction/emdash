@@ -29,6 +29,7 @@ import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-s
 import { TaskListEmptyState } from './task-list-empty-state';
 import {
   createTaskListView,
+  isTaskInArchivedList,
   type ReadyTask,
   type TaskListTab,
   type TaskListViewModel,
@@ -53,7 +54,7 @@ const TasksTabs = observer(function TasksTabs({
 }) {
   const filter = view.useFilter();
   const allTasks = listedTasks(taskManager);
-  const activeCount = allTasks.filter((t) => !t.data.archivedAt).length;
+  const activeCount = allTasks.filter((t) => !isTaskInArchivedList(t)).length;
   const archivedCount = allTasks.length - activeCount;
 
   return (
@@ -151,6 +152,11 @@ const TasksSelectionBar = observer(function TasksSelectionBar({
     [...taskView.selectedIds].forEach(apply);
     taskView.clear();
   };
+  const isArchived = (id: string) => {
+    const task = taskManager.tasks.get(id);
+    return Boolean(task && 'archivedAt' in task.data && task.data.archivedAt);
+  };
+  const hasArchivedSelection = [...taskView.selectedIds].some(isArchived);
 
   return (
     <ListPopoverCard className="justify-between">
@@ -167,11 +173,15 @@ const TasksSelectionBar = observer(function TasksSelectionBar({
             Archive
           </Button>
         )}
-        {taskView.tab === 'archived' && (
+        {taskView.tab === 'archived' && hasArchivedSelection && (
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => bulkApply((id) => void taskManager.restoreTask(id))}
+            onClick={() =>
+              bulkApply((id) => {
+                if (isArchived(id)) void taskManager.restoreTask(id);
+              })
+            }
           >
             <RotateCcw className="size-3.5" />
             Restore

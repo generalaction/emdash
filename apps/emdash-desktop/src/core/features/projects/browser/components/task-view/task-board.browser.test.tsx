@@ -322,6 +322,25 @@ describe('project task board', () => {
     expect(mocks.archive).toHaveBeenCalledWith('1');
   });
 
+  it('marks only Jira-linked cards with a purple Jira badge', async () => {
+    addTask('1', 'idle');
+    const { task: githubTask } = addTask('2', 'idle');
+    const { task: unlinkedTask } = addTask('3', 'idle');
+    runInAction(() => {
+      githubTask.data.linkedIssue = { ...githubTask.data.linkedIssue!, provider: 'github' };
+      unlinkedTask.data.linkedIssue = undefined;
+    });
+
+    await act(async () => root.render(<TaskBoard projectId="project-1" />));
+    const cards = [...(column('Backlog')?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
+    expect(cards).toHaveLength(3);
+    expect(cards[0].querySelector('[data-slot="badge"][data-tone="purple"]')?.textContent).toBe(
+      'Jira'
+    );
+    expect(cards[1].querySelector('[data-tone="purple"]')).toBeNull();
+    expect(cards[2].querySelector('[data-tone="purple"]')).toBeNull();
+  });
+
   it('moves cards and counts live, without treating acknowledgement as a workflow change', async () => {
     addTask('1', 'idle');
     const { conversation } = addTask('2', 'working');

@@ -1,8 +1,13 @@
 import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { ChatComposer } from '@emdash/ui/react/components';
-import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
-import { Field, Switch } from '@emdash/ui/react/primitives';
+import type {
+  CommandItem,
+  ComposerAttachment,
+  MentionItem,
+  PromptEditorRef,
+} from '@emdash/ui/react/components';
+import { Field, Switch, toast } from '@emdash/ui/react/primitives';
 import {
   useCallback,
   useEffect,
@@ -17,6 +22,7 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import type { AgentDisableReason } from '@core/features/agents/api/browser/components/agent-selector/agent-selector-options';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
+import { toAcpImageAttachmentMimeType } from '@core/features/conversations/api/browser/acp-image-attachment';
 import {
   patchProviderSettings,
   readProviderSettings,
@@ -26,7 +32,11 @@ import {
   type ConversationLaunchSettings,
 } from '@core/features/conversations/api/browser/use-conversation-launch-settings';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
-import type { ProviderSettingsSnapshot } from '@core/features/conversations/api/provider-settings';
+import {
+  defaultConversationModel,
+  initialProviderOptions,
+  type ProviderSettingsSnapshot,
+} from '@core/features/conversations/api/provider-settings';
 import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
 import {
   providerComposerOptions,
@@ -59,6 +69,8 @@ export type InitialConversationState = {
   projectId?: string;
   prompt: string;
   setPrompt: Dispatch<SetStateAction<string>>;
+  imageAttachments: InitialImageAttachment[];
+  setImageAttachments: Dispatch<SetStateAction<InitialImageAttachment[]>>;
   issueContext: string | null;
   setIssueContext: (ctx: string | null) => void;
   autoApprove: boolean;
@@ -83,6 +95,20 @@ export type InitialConversationState = {
   setIssueMentionContext: (token: string, context: string | null) => void;
 };
 
+export type InitialImageAttachment = { id: string; file: File; previewUrl?: string };
+
+function readImagePreview(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('Could not read image'));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read image'));
+    reader.readAsDataURL(file);
+  });
+}
+
 interface InitialConversationStateOptions {
   resetPromptOnProjectChange?: boolean;
   launchSettings?: ConversationLaunchSettings;
@@ -99,6 +125,7 @@ export function useInitialConversationState(
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
   const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
   const [prompt, setPrompt] = useState('');
+  const [imageAttachments, setImageAttachments] = useState<InitialImageAttachment[]>([]);
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
   const launchSettings = useConversationLaunchSettings(
@@ -108,8 +135,13 @@ export function useInitialConversationState(
     options.launchSettings
   );
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
-  const [model, setModel] = useState<string | null>(null);
+  const defaultModel = defaultConversationModel(providerId);
+  const [model, setModel] = useState<string | null>(defaultModel);
   const [draftOptions, setDraftOptions] = useState(options.initialOptions);
+  const savedOptions = useMemo(
+    () => initialProviderOptions(providerId, launchSettings.settings.acp.options),
+    [providerId, launchSettings.settings.acp.options]
+  );
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
@@ -123,19 +155,20 @@ export function useInitialConversationState(
     if (resetPromptOnProjectChange) {
       setPrompt('');
     }
+    setImageAttachments([]);
     setIssueContext(null);
     setIssueContextEditorOpen(false);
-    setModel(null);
+    setModel(defaultModel);
     setDraftOptions(undefined);
     setIssueMentionContexts({});
   } else if (providerChanged) {
     setPrevProviderId(providerId);
-    setModel(null);
+    setModel(defaultModel);
     setDraftOptions(undefined);
   }
 
   const { useChatUi, autoApprove } = launchSettings;
-  const providerOptions = draftOptions ?? launchSettings.settings.acp.options ?? {};
+  const providerOptions = draftOptions ?? savedOptions;
   if (options.initialOptions !== undefined && draftOptions === undefined && launchSettings.ready) {
     setDraftOptions({ ...providerOptions });
   }
@@ -147,6 +180,8 @@ export function useInitialConversationState(
     projectId,
     prompt,
     setPrompt,
+    imageAttachments,
+    setImageAttachments,
     issueContext,
     setIssueContext,
     autoApprove,
@@ -246,6 +281,7 @@ export function InitialConversationField({
 }: InitialConversationFieldProps) {
   const autoApproveSwitchId = useId();
   const editorApiRef = useRef<PromptEditorRef | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
   const modelOptions = useModelOptions(state.provider, state.connectionId);
@@ -316,6 +352,7 @@ export function InitialConversationField({
   const { isDragOver, dropHandlers } = usePromptFileDrop({
     // Local paths would not exist on the remote host of an SSH project.
     disableLocalFiles: Boolean(state.connectionId),
+    ignoreImages: state.useChatUi || (canToggleChatUi && state.settingsReady),
     workspaceId: state.projectId,
     onDropText: (text) =>
       state.setPrompt((current) => appendInitialConversationText(current, text)),
@@ -402,6 +439,50 @@ export function InitialConversationField({
     [canDeliverInitialPrompt, linkedIssueMention, state]
   );
 
+  const addImageFiles = useCallback(
+    async (files: File[]) => {
+      const supported = files.filter((file) => toAcpImageAttachmentMimeType(file) !== null);
+      if (supported.length !== files.length) {
+        toast.error('Unsupported image format', {
+          description: 'Use PNG, JPEG, GIF, or WebP images.',
+        });
+      }
+      const additions = supported.map((file) => ({ id: crypto.randomUUID(), file }));
+      state.setImageAttachments((current) => [...current, ...additions]);
+      await Promise.all(
+        additions.map(async ({ id, file }) => {
+          try {
+            const previewUrl = await readImagePreview(file);
+            state.setImageAttachments((current) =>
+              current.map((attachment) =>
+                attachment.id === id ? { ...attachment, previewUrl } : attachment
+              )
+            );
+          } catch {
+            toast.error(`Could not preview ${file.name || 'image'}`);
+          }
+        })
+      );
+    },
+    [state]
+  );
+
+  const composerAttachments = useMemo<ComposerAttachment[]>(
+    () =>
+      state.imageAttachments.map(({ id, file, previewUrl }) => ({
+        id,
+        name: file.name || 'image',
+        kind: 'image',
+        previewUrl,
+        mimeType: toAcpImageAttachmentMimeType(file) ?? undefined,
+      })),
+    [state.imageAttachments]
+  );
+  const canAttachImages = state.useChatUi || (canToggleChatUi && state.settingsReady);
+  const prepareImageAttachments = () => {
+    if (!state.useChatUi) state.setUseChatUi(true);
+  };
+
   return (
     <Field.Root>
       <div
@@ -412,6 +493,18 @@ export function InitialConversationField({
         onBlur={onPromptBlur}
         {...(canDeliverInitialPrompt ? dropHandlers : {})}
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          hidden
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            event.target.value = '';
+            void addImageFiles(files);
+          }}
+        />
         <AgentSelector
           value={state.provider}
           onChange={(provider) => state.setProvider(provider)}
@@ -449,6 +542,43 @@ export function InitialConversationField({
           }
           onSubmit={() => {}}
           onInputChange={handleComposerInputChange}
+          attachments={composerAttachments}
+          onAttachmentsChange={(next) => {
+            const ids = new Set(next.map((attachment) => attachment.id));
+            state.setImageAttachments((current) =>
+              current.filter((attachment) => ids.has(attachment.id))
+            );
+          }}
+          onAttach={
+            canAttachImages
+              ? () => {
+                  prepareImageAttachments();
+                  fileInputRef.current?.click();
+                }
+              : undefined
+          }
+          onImageFilesDropped={
+            canAttachImages
+              ? (files) => {
+                  prepareImageAttachments();
+                  void addImageFiles(files);
+                }
+              : undefined
+          }
+          onFilesDropped={
+            canAttachImages
+              ? (files) => {
+                  const images = files.filter(
+                    (file) =>
+                      !file.type.toLowerCase().startsWith('image/') &&
+                      toAcpImageAttachmentMimeType(file) !== null
+                  );
+                  if (images.length === 0) return;
+                  prepareImageAttachments();
+                  void addImageFiles(images);
+                }
+              : undefined
+          }
           disabled={!canDeliverInitialPrompt}
           editorApiRef={editorApiRef}
           renderMentionIcon={renderMentionIcon}
@@ -467,6 +597,9 @@ export function InitialConversationField({
           className={textareaClassName}
         />
         {initialPromptInfo ? <Field.Description>{initialPromptInfo}</Field.Description> : null}
+        {!state.useChatUi && state.imageAttachments.length > 0 ? (
+          <Field.Description>Enable Chat UI to send attached images.</Field.Description>
+        ) : null}
       </div>
     </Field.Root>
   );
