@@ -87,9 +87,12 @@ const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTas
       >
         <div className="flex w-full min-w-0 flex-col gap-3 py-3 text-left whitespace-normal">
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-xs text-foreground-muted">
-              {issueKey || 'No linked issue'}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              {linkedIssue?.provider === 'jira' && <Badge tone="purple">Jira</Badge>}
+              <span className="truncate text-xs text-foreground-muted">
+                {issueKey || 'No linked issue'}
+              </span>
+            </div>
             <AgentStatus status={conversation?.status ?? null} />
           </div>
           <span className="line-clamp-3 text-sm font-medium">{title}</span>
