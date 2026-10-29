@@ -21,9 +21,8 @@ export function taskBoardColumn(
   if (
     pr?.status === 'open' ||
     task.status === 'review' ||
-    conversations.some((c) => c.status === 'completed' || c.data.sessionId)
+    conversations.some((c) => c.status === 'completed')
   ) {
-    // A started but idle/cancelled session has no separate finished signal. Show it for review.
     return 'Review';
   }
   return 'Backlog';

@@ -46,6 +46,7 @@ const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTas
   const issueKey = linkedIssue && linkedIssueDisplayIdentifier(linkedIssue);
   const title = linkedIssue?.title || task.data.name;
   const archived = Boolean(task.data.archivedAt);
+  const column = taskBoardColumn(task.data, conversations, pr);
 
   const open = async () => {
     setOpening(true);
@@ -92,6 +93,11 @@ const TaskBoardCard = observer(function TaskBoardCard({ task }: { task: ReadyTas
             <AgentStatus status={conversation?.status ?? null} />
           </div>
           <span className="line-clamp-3 text-sm font-medium">{title}</span>
+          {(column === 'Awaiting Input' || column === 'Review') && (
+            <div>
+              <Badge>{column}</Badge>
+            </div>
+          )}
           {linkedIssue && title !== task.data.name && (
             <span className="truncate text-xs text-foreground-muted">{task.data.name}</span>
           )}
@@ -147,8 +153,8 @@ export const TaskBoard = observer(function TaskBoard({ projectId }: { projectId:
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
       <p className="text-xs text-foreground-muted">
-        Live agent and pull request status. Errors need input; started idle sessions appear in
-        Review.
+        Live agent and pull request status. Questions, permissions, and errors need input; completed
+        turns and open pull requests appear in Review.
       </p>
       <div
         className="flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto pb-2"
