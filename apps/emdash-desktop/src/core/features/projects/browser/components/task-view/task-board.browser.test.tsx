@@ -157,12 +157,23 @@ describe('project task board', () => {
     );
     expect(column('Running')?.querySelector('h2')?.textContent).toBe('Running 0');
     expect(column('Awaiting Input')?.querySelector('h2')?.textContent).toBe('Awaiting Input 1');
+    expect(column('Awaiting Input')?.querySelector('button')?.textContent).toContain(
+      'Awaiting Input'
+    );
+    await act(async () =>
+      runInAction(() => {
+        conversation.status = 'working';
+      })
+    );
+    expect(column('Running')?.querySelector('h2')?.textContent).toBe('Running 1');
+    expect(column('Awaiting Input')?.querySelector('button')).toBeNull();
     await act(async () =>
       runInAction(() => {
         conversation.status = 'completed';
       })
     );
     expect(column('Review')?.querySelector('h2')?.textContent).toBe('Review 2');
+    expect(column('Review')?.querySelector('button')?.textContent).toContain('Review');
 
     await act(async () =>
       association.setAssociation([{ status: 'merged' } as PullRequest], { kind: 'unknown' })

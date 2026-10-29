@@ -30,6 +30,11 @@ export class ProjectViewStore {
     this.handle.update((current) => ({ ...current, activeView: view }));
   }
 
+  applyDefaultTaskView(boardByDefault: boolean) {
+    // Preserve explicit navigation to Settings, PRs, and Workspaces.
+    if (boardByDefault && this.activeView === 'tasks') this.setProjectView('board');
+  }
+
   setSelectedIssueProvider(provider: IssueProviderType | null) {
     this.handle.update((current) => ({
       ...current,

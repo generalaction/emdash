@@ -34,9 +34,16 @@ describe('taskBoardColumn', () => {
     ['awaiting-input', 'Awaiting Input'],
     ['error', 'Awaiting Input'],
     ['completed', 'Review'],
-    ['idle', 'Review'],
+    ['idle', 'Backlog'],
   ] as const)('maps a started %s session to %s', (status, column) => {
     expect(taskBoardColumn(task, [conversation(status, 'session-1')])).toBe(column);
+  });
+
+  it('does not treat an idle or cancelled session id as proof of completion', () => {
+    expect(taskBoardColumn(task, [conversation('idle', 'existing-session')])).toBe('Backlog');
+    expect(
+      taskBoardColumn({ status: 'cancelled' }, [conversation('idle', 'existing-session')])
+    ).toBe('Backlog');
   });
 
   it('keeps attention ahead of work, and work ahead of completed siblings and open PRs', () => {
