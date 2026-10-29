@@ -8,7 +8,7 @@ import type {
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 
-export type ProjectView = 'tasks' | 'pull-request' | 'workspaces' | 'settings';
+export type ProjectView = ProjectViewState['activeView'];
 
 export class ProjectViewStore {
   readonly taskView: TaskViewStore;
