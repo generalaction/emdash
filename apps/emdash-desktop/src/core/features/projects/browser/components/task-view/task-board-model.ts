@@ -7,13 +7,17 @@ export type BoardColumn = (typeof BOARD_COLUMNS)[number];
 
 type BoardConversation = Pick<ConversationStore, 'data' | 'status'>;
 
+export function isTaskDone(task: Pick<Task, 'status'>, pr?: Pick<PullRequest, 'status'>): boolean {
+  return task.status === 'done' || pr?.status === 'merged';
+}
+
 /** A presentation of existing facts, never a persisted task workflow. Ignore notification `seen`. */
 export function taskBoardColumn(
   task: Pick<Task, 'archivedAt' | 'status'>,
   conversations: readonly BoardConversation[],
   pr?: Pick<PullRequest, 'status'>
 ): BoardColumn {
-  if (task.archivedAt || task.status === 'done' || pr?.status === 'merged') return 'Done';
+  if (task.archivedAt || isTaskDone(task, pr)) return 'Done';
   if (conversations.some((c) => c.status === 'awaiting-input' || c.status === 'error')) {
     return 'Awaiting Input';
   }
