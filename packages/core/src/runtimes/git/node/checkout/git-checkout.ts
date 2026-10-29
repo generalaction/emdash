@@ -221,8 +221,8 @@ export class GitCheckout {
 
   // -- Content / history reads ----------------------------------------------------
 
-  getFileContent(key: BoundGitFileContentKey): Promise<GitFileContentState> {
-    return readGitFileContent(this.exec, this.toRelativePath(key.path), key.source);
+  getFileContent(key: BoundGitFileContentKey, signal?: AbortSignal): Promise<GitFileContentState> {
+    return readGitFileContent(this.exec, this.toRelativePath(key.path), key.source, signal);
   }
 
   /** One-shot text read over the same machinery as the content live model. */

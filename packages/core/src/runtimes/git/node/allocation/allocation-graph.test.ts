@@ -1,6 +1,9 @@
 import { err, ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import { deferred } from '@emdash/shared/testing';
+import { snapshot } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { hostPath } from '#runtimes/git/node/testing/paths';
+import { gitPath, hostPath } from '#runtimes/git/node/testing/paths';
 import type { BoundExec } from '#services/exec/api';
 import {
   gitMetadataWatchProfile,
@@ -48,6 +51,119 @@ const exec: BoundExec = {
 
 describe('GitAllocationGraph', () => {
   afterEach(() => vi.useRealTimers());
+
+  it('loads diff content while a background repository job is still running', async () => {
+    const background = deferred<void>();
+    const started = deferred<void>();
+    const read = vi.fn(async () => ({ stdout: Buffer.from('before\n'), stderr: '' }));
+    const graph = new GitAllocationGraph({
+      exec: {
+        ...exec,
+        exec: async () => ({ stdout: 'blob-oid\n', stderr: '' }),
+        execBuffer: read,
+      },
+      watcher: {
+        watch: () => ({ ready: () => new Promise(() => {}), release: async () => {} }),
+        dispose: async () => {},
+      },
+      identityResolver: resolver,
+    });
+    const scope = createScope();
+    const lease = graph.acquireCheckout({ checkout: hostPath('/repo') });
+    try {
+      const checkout = await lease.ready();
+      const job = checkout.repository.execute(async () => {
+        started.resolve();
+        await background.promise;
+      });
+      await started.promise;
+      const content = checkout.fileContent(
+        { path: gitPath('a.txt'), source: { kind: 'head' } },
+        scope
+      );
+      const refreshed = content.refresh();
+      await vi.waitFor(() => expect(read).toHaveBeenCalledOnce());
+      await refreshed;
+      expect(snapshot(content).value).toMatchObject({ kind: 'text', content: 'before\n' });
+      background.resolve();
+      await job;
+    } finally {
+      background.resolve();
+      await scope.dispose();
+      await lease.release();
+      await graph.dispose();
+    }
+  });
+
+  it('bounds repository content reads and drops cancelled queued reads', async () => {
+    const graph = new GitAllocationGraph({
+      exec,
+      watcher: {
+        watch: () => ({ ready: () => new Promise(() => {}), release: async () => {} }),
+        dispose: async () => {},
+      },
+      identityResolver: resolver,
+    });
+    const lease = graph.acquireRepository({ repository: hostPath('/repo') });
+    const release = deferred<void>();
+    try {
+      const repository = await lease.ready();
+      const signal = new AbortController().signal;
+      const started: string[] = [];
+      const read = (name: string, readSignal = signal) =>
+        repository.readContent(readSignal, async () => {
+          started.push(name);
+          await release.promise;
+        });
+      const first = read('first');
+      const second = read('second');
+      const cancelled = new AbortController();
+      const third = read('cancelled', cancelled.signal);
+      const rejection = expect(third).rejects.toThrow('no longer visible');
+      const fourth = read('fourth');
+      await vi.waitFor(() => expect(started).toEqual(['first', 'second']));
+      cancelled.abort(new Error('no longer visible'));
+      await rejection;
+      expect(started).toEqual(['first', 'second']);
+      release.resolve();
+      await Promise.all([first, second, fourth]);
+      expect(started).toEqual(['first', 'second', 'fourth']);
+    } finally {
+      release.resolve();
+      await lease.release();
+      await graph.dispose();
+    }
+  });
+
+  it('cancels active and queued content reads when the repository is disposed', async () => {
+    const graph = new GitAllocationGraph({
+      exec,
+      watcher: {
+        watch: () => ({ ready: () => new Promise(() => {}), release: async () => {} }),
+        dispose: async () => {},
+      },
+      identityResolver: resolver,
+    });
+    const lease = graph.acquireRepository({ repository: hostPath('/repo') });
+    const repository = await lease.ready();
+    const started: AbortSignal[] = [];
+    const read = () =>
+      repository.readContent(new AbortController().signal, async (signal) => {
+        started.push(signal);
+        await new Promise<void>((resolve) =>
+          signal.addEventListener('abort', () => resolve(), { once: true })
+        );
+        return 'cancelled';
+      });
+    const reads = [read(), read(), read()];
+    const results = Promise.allSettled(reads);
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    await graph.dispose();
+    await results;
+    expect(started).toHaveLength(2);
+    expect(started.every((signal) => signal.aborted)).toBe(true);
+    await lease.release();
+  });
 
   it('evicts failed mount creation so the same selector can retry', async () => {
     let fail = true;

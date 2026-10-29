@@ -1,11 +1,13 @@
+import { Spinner } from '@emdash/ui/react/primitives';
 import { autorun, observable, runInAction } from 'mobx';
-import { useObserver } from 'mobx-react-lite';
+import { observer, useObserver } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 import type { Facet } from '@core/features/editor/api/browser/open-file-store/facet-handle';
 import {
   openFileStore,
   type OpenFileEntry,
+  type SeamErrorCode,
 } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { DIFF_EDITOR_BASE_OPTIONS } from '@core/features/editor/browser/monaco/editorConfig';
 import { installMonacoFacetBinder } from '@core/features/editor/browser/monaco/install-monaco-facet-binder';
@@ -48,6 +50,7 @@ function sideUri(side: DiffSideModel): string {
 
 type ResolvedSide =
   | { type: 'pending' }
+  | { type: 'error'; code: SeamErrorCode }
   | { type: 'empty' }
   | { type: 'model'; model: monaco.editor.ITextModel };
 
@@ -56,7 +59,7 @@ type ResolvedSide =
  * facet handles (both MobX-observable — callers run this inside a reaction).
  * A git ref that does not contain the path (added files) and a working tree
  * where the file is gone (deleted files, `orphaned`) resolve to the empty
- * half instead of a model; other errors and loading stay pending.
+ * half instead of a model; other errors stay visible until the store recovers.
  */
 function resolveSide(side: DiffSideModel): ResolvedSide {
   if (side.kind === 'empty') return { type: 'empty' };
@@ -71,8 +74,38 @@ function resolveSide(side: DiffSideModel): ResolvedSide {
   }
   if (status.kind === 'orphaned') return { type: 'empty' };
   if (status.kind === 'error' && status.code === 'not-found') return { type: 'empty' };
+  if (status.kind === 'error') return { type: 'error', code: status.code };
   return { type: 'pending' };
 }
+
+const DiffStatusOverlay = observer(function DiffStatusOverlay({
+  original,
+  modified,
+}: Pick<StickyDiffEditorProps, 'original' | 'modified'>) {
+  const sides = [original, modified].map(
+    (side): ResolvedSide => (side ? resolveSide(side) : { type: 'pending' })
+  );
+  const error = sides.find((side) => side.type === 'error');
+  if (!error && sides.every((side) => side.type !== 'pending')) return null;
+  const message = error
+    ? error.code === 'no-permissions'
+      ? 'Permission denied'
+      : error.code === 'too-large'
+        ? 'File too large to display in the editor'
+        : error.code === 'binary'
+          ? 'Binary file — no diff available'
+          : 'Could not load file'
+    : 'Loading diff...';
+  return (
+    <div
+      role={error ? 'alert' : 'status'}
+      className="absolute inset-0 flex items-center justify-center gap-2 bg-(--em-surface) text-xs text-foreground-passive"
+    >
+      {!error && <Spinner size="sm" />}
+      <span>{message}</span>
+    </div>
+  );
+});
 
 /**
  * Saves the diff's editable buffer through the same store machinery file
@@ -227,7 +260,13 @@ export function StickyDiffEditor({
 
       const origResolved = resolveSide(original); // reactive via entry observables
       const modResolved = resolveSide(modified);
-      if (origResolved.type === 'pending' || modResolved.type === 'pending') return;
+      if (
+        origResolved.type === 'pending' ||
+        origResolved.type === 'error' ||
+        modResolved.type === 'pending' ||
+        modResolved.type === 'error'
+      )
+        return;
 
       const origModel = origResolved.type === 'model' ? origResolved.model : emptyModel('original');
       const modModel = modResolved.type === 'model' ? modResolved.model : emptyModel('modified');
@@ -285,5 +324,10 @@ export function StickyDiffEditor({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [originalKey, modifiedKey, revealFirstChange]);
 
-  return <div ref={mountRef} className="h-full" />;
+  return (
+    <div className="relative h-full">
+      <div ref={mountRef} className="h-full" />
+      <DiffStatusOverlay original={original} modified={modified} />
+    </div>
+  );
 }

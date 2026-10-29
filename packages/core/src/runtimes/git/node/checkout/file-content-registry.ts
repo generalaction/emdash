@@ -8,7 +8,7 @@ type ContentInvalidation = 'index' | 'refs' | 'history';
 
 export type GitFileContentRegistryOptions = Readonly<{
   commands: GitCheckout;
-  execute: <T>(run: () => Promise<T>) => Promise<T>;
+  execute: <T>(run: (signal: AbortSignal) => Promise<T>, signal: AbortSignal) => Promise<T>;
   maxEntries?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
@@ -74,7 +74,11 @@ export class GitFileContentRegistry {
       key,
       scope,
       state: query({
-        fetch: async () => this.options.execute(() => this.options.commands.getFileContent(key)),
+        fetch: async ({ signal }) =>
+          this.options.execute(
+            (readSignal) => this.options.commands.getFileContent(key, readSignal),
+            signal
+          ),
         debounceMs: CONTENT_DEBOUNCE_MS,
         revalidateEveryMs: isImmutableSource(key.source) ? undefined : CONTENT_REVALIDATE_MS,
         scope,
