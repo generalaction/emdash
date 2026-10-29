@@ -93,7 +93,7 @@ describe('ProjectViewStore memento state', () => {
 
 function createHandle(): MementoHandle<ProjectViewState> {
   let value: ProjectViewState = {
-    version: '1',
+    version: '2',
     activeView: 'tasks',
     taskViewTab: 'active',
   };

@@ -28,6 +28,7 @@ import {
   getProjectStore,
   projectDisplayName,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import { ReturnToBoard } from '@core/features/projects/contributions/browser/return-to-board';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
@@ -85,6 +86,7 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2 text-sm text-foreground-muted">
+          <ReturnToBoard projectId={projectId} />
           <span className="flex items-center gap-1">
             <button
               type="button"
@@ -145,6 +147,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
+          <ReturnToBoard projectId={projectId} />
           <button
             type="button"
             className="text-sm text-foreground-passive hover:text-foreground"

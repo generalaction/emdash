@@ -7,6 +7,7 @@ import type { ProjectContextError } from '@core/features/projects/api/browser/st
 import {
   getProjectManagerStore,
   getProjectStore,
+  getProjectViewStore,
   projectDisplayName,
   projectViewKind,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -15,6 +16,7 @@ import { useConfirmDeleteProject } from '@core/features/projects/contributions/b
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { BorderlessTitlebar } from '@core/features/workbench/contributions/browser/BorderlessTitlebar';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { ProjectErrorDetails } from '../project-error-details';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
@@ -79,22 +81,26 @@ const ProjectMainPanelContent = observer(function ProjectMainPanelContent() {
   );
 });
 
-export function ProjectPageShell({
+export const ProjectPageShell = observer(function ProjectPageShell({
   children,
   projectId,
 }: {
   children: ReactNode;
   projectId: string;
 }) {
+  const isBoard = getProjectViewStore(projectId)?.activeView === 'board';
   return (
     <div
       data-project-page-scroll
       className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto"
     >
-      <div className="flex min-h-full w-full px-8 py-10">
+      <div className="flex min-h-full w-full min-w-0 px-8 py-10">
         <div
           data-project-page-content
-          className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-6"
+          className={cn(
+            'mx-auto flex min-h-0 min-w-0 w-full flex-1 flex-col gap-6',
+            isBoard ? 'max-w-none' : 'max-w-4xl'
+          )}
         >
           <ProjectHeader projectId={projectId} />
           {children}
@@ -102,7 +108,7 @@ export function ProjectPageShell({
       </div>
     </div>
   );
-}
+});
 
 function ProjectContextHydratingPanel() {
   return (
