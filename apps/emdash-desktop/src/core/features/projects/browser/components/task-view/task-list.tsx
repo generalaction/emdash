@@ -4,6 +4,7 @@ import { Button, ToggleGroup } from '@emdash/ui/react/primitives';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useState } from 'react';
+import { jiraSyncAction } from '@core/features/issues/contributions/browser/sync-jira-action';
 import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { TaskViewStore } from '@core/features/projects/browser/stores/project-view';
 import { projectAvailabilityUiContribution as projectAvailabilityUi } from '@core/features/projects/contributions/browser/project-availability-ui';
@@ -126,6 +127,11 @@ const TasksToolbar = observer(function TasksToolbar({
       >
         Create Task <BoundShortcut command="app.newTask" variant="keycaps" />
       </Button>
+      <jiraSyncAction.Component
+        key={projectId}
+        projectId={projectId}
+        disabledReason={createDisabledReason}
+      />
     </CollectionToolbar.Root>
   );
 });

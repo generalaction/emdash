@@ -3,6 +3,37 @@ import { DesktopProjectSettingsAuthority } from './durable-project-settings';
 import type { ProjectSettingsStorage, StoredProjectSettings } from './project-settings-storage';
 
 describe('DesktopProjectSettingsAuthority', () => {
+  it('persists, reads, and clears Jira JQL without changing unrelated settings', async () => {
+    const row: StoredProjectSettings = {
+      baseProjectSettingsJson: '{"baseRemote":"origin"}',
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: null,
+    };
+    const authority = new DesktopProjectSettingsAuthority({
+      get: vi.fn(async () => row),
+      insertIfMissing: vi.fn(),
+      mutate: vi.fn(async (_id, patch) => {
+        Object.assign(row, patch(row));
+        return row;
+      }),
+    });
+    expect((await authority.patch('p1', { jiraSync: { jql: ' project = ENG ' } })).success).toBe(
+      true
+    );
+    expect(await authority.read('p1')).toMatchObject({
+      success: true,
+      data: {
+        jiraSync: { jql: 'project = ENG' },
+        gitIdentity: { stored: { baseRemote: 'origin' } },
+      },
+    });
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
+      baseRemote: 'origin',
+      jiraSyncJql: 'project = ENG',
+    });
+    await authority.patch('p1', { jiraSync: { jql: null } });
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({ baseRemote: 'origin' });
+  });
   it('normalizes an ancient account pin before applying a different provider patch', async () => {
     const row: StoredProjectSettings = {
       baseProjectSettingsJson: JSON.stringify({ githubAccountId: 'github.com:42' }),

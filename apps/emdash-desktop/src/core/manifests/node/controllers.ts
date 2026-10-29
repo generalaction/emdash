@@ -33,6 +33,7 @@ import type { GitCredentialsService } from '@core/features/github/api/node/servi
 import { createGithubWireController } from '@core/features/github/node/wire-controller';
 import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
 import type { IssueProviderRegistry } from '@core/features/issues/node/registry';
+import { createJiraSync } from '@core/features/issues/node/sync-jira';
 import { createIssuesWireController } from '@core/features/issues/node/wire-controller';
 import {
   createLegacyPortWireController,
@@ -430,8 +431,20 @@ export const desktopNodeControllers = {
     create: () => createIntegrationsWireController(),
   },
   issues: {
-    create: ({ issueProviders, projects }) =>
-      createIssuesWireController({ projects, providers: issueProviders }),
+    create: ({ issueProviders, projects, projectSettings, taskService, telemetry }) => {
+      const provider = issueProviders.get('jira');
+      if (!provider) throw new Error('Jira issue provider is not registered.');
+      return createIssuesWireController(
+        { projects, providers: issueProviders },
+        createJiraSync({
+          provider,
+          projects,
+          settings: projectSettings,
+          tasks: taskService,
+          telemetry,
+        })
+      );
+    },
   },
   ssh: {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),

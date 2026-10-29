@@ -1,3 +1,4 @@
+import { InlineMarkdown } from '@emdash/ui/react/components';
 import {
   Badge,
   Button,
@@ -289,6 +290,21 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 projectPath={workspace.path}
                 excludeTaskId={taskId}
               />
+              {taskPayload.linkedIssue?.provider === 'jira' &&
+                (taskPayload.linkedIssue.context || taskPayload.linkedIssue.description) && (
+                  <details className="text-xs text-foreground-muted">
+                    <summary>Saved Jira description and comments</summary>
+                    <div className="max-h-80 overflow-auto pt-2">
+                      <InlineMarkdown
+                        content={
+                          taskPayload.linkedIssue.context ||
+                          taskPayload.linkedIssue.description ||
+                          ''
+                        }
+                      />
+                    </div>
+                  </details>
+                )}
             </Popover.Content>
           </Popover.Root>
           {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
