@@ -38,6 +38,17 @@ import type { ChatState, ScrollMode } from './state/chat-state';
 
 export type { ComposerPlacement, ComposerPlacementOptions } from './ChatRoot';
 
+export type UserMessageNavigation = {
+  /** Loaded user messages in transcript order, including a pending prompt. */
+  items: readonly { id: string; text: string }[];
+  /** The user message at the viewport's reading position, or null for empty history. */
+  currentId: string | null;
+  /** Space occupied by the composer and bottom content padding. */
+  bottomInset: number;
+  /** Full scroll viewport height, before subtracting the composer inset. */
+  viewportHeight: number;
+};
+
 export type ChatViewOptions = {
   /** Global services (theme, shared caches, measureEpoch). */
   context: ChatContext;
@@ -78,6 +89,8 @@ export type ChatViewOptions = {
    * See ChatRoot prop of the same name for full semantics.
    */
   onActiveUserMessageVisibilityChange?: (visible: boolean) => void;
+  /** Emitted when loaded user messages, the reading position, or composer height change. */
+  onUserMessageNavigationChange?: (navigation: UserMessageNavigation) => void;
   /**
    * Called once after the Solid root mounts (after ChatRoot.onMount).
    * At this point `view.composerSlot` is set and all controls are wired.
@@ -254,6 +267,7 @@ export function createChatView(opts: ChatViewOptions): ChatView {
         onReachStart={onReachStart}
         onAtBottomChange={onAtBottomChange}
         onActiveUserMessageVisibilityChange={onActiveUserMessageVisibilityChange}
+        onUserMessageNavigationChange={opts.onUserMessageNavigationChange}
         controls={controls}
         pinUserMessages={opts.pinUserMessages}
         composer={opts.composer}

@@ -117,3 +117,19 @@ export const LongContent: Story = {
     </Tooltip.Root>
   ),
 };
+
+export const SurfacePreview: Story = {
+  render: () => (
+    <Tooltip.Root>
+      <Tooltip.Trigger render={<Button variant="ghost">Preview message</Button>} />
+      <Tooltip.Content tone="surface" side="right" sideOffset={8} showArrow={false}>
+        <div style={{ width: 256 }}>
+          <div style={{ color: 'var(--em-foreground-muted)', fontSize: 12, marginBottom: 6 }}>
+            Message 3 of 12
+          </div>
+          Use the existing theme tokens for light and dark mode.
+        </div>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  ),
+};

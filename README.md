@@ -34,6 +34,8 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 - Send issues and tickets from Linear, GitHub, Jira, GitLab, Asana, Featurebase,
   Monday.com, Forgejo, Plain, or YouTrack into an agent.
 - Review diffs, create pull requests, inspect CI checks, and merge from one place.
+- Navigate chat history using the prompt rail: preview sent messages, jump to a
+  prompt, or load earlier messages without losing your place.
 - Work locally or on your own remote machines over SSH/SFTP.
 
 ## Installation
