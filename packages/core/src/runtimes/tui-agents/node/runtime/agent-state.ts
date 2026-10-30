@@ -58,6 +58,15 @@ export class TuiAgentStates {
     }
 
     if (event.type === 'start') {
+      const current = this.current(conversationId);
+      if (
+        current?.status === 'awaiting-input' &&
+        current.attentionToolUseId &&
+        event.toolUseId &&
+        current.attentionToolUseId !== event.toolUseId
+      ) {
+        return;
+      }
       this.setStatus(conversationId, {
         providerId,
         source: 'hook',
@@ -93,6 +102,13 @@ export class TuiAgentStates {
       return;
     }
 
+    // An idle reminder after Stop does not supersede explicit completion.
+    if (
+      event.notificationType === 'idle_prompt' &&
+      this.current(conversationId)?.status === 'completed'
+    ) {
+      return;
+    }
     const status =
       event.notificationType && ATTENTION_NOTIFICATION_TYPES.has(event.notificationType)
         ? 'awaiting-input'
@@ -102,6 +118,7 @@ export class TuiAgentStates {
       source: 'hook',
       status,
       notificationType: event.notificationType,
+      attentionToolUseId: status === 'awaiting-input' ? event.toolUseId : undefined,
       title: event.title,
       message: event.message,
       lastAssistantMessage: event.lastAssistantMessage,
@@ -195,6 +212,7 @@ export class TuiAgentStates {
         status: patch.status ?? previous?.status ?? 'idle',
         source: patch.source ?? previous?.source,
         notificationType: patch.notificationType,
+        attentionToolUseId: patch.attentionToolUseId,
         title: patch.title,
         message: patch.message,
         lastAssistantMessage: patch.lastAssistantMessage,
@@ -207,6 +225,7 @@ export class TuiAgentStates {
         previous.status === next.status &&
         previous.source === next.source &&
         previous.notificationType === next.notificationType &&
+        previous.attentionToolUseId === next.attentionToolUseId &&
         previous.title === next.title &&
         previous.message === next.message &&
         previous.lastAssistantMessage === next.lastAssistantMessage

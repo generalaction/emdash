@@ -19,7 +19,10 @@ export interface DurableProjectSettingsAuthority {
   ): Promise<Result<ProjectDurableSettingsDomains, UpdateProjectSettingsError>>;
   patch(
     projectId: string,
-    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'integrationAccounts' | 'placement'>
+    patch: Pick<
+      ProjectSettingsDomainPatch,
+      'gitIdentity' | 'integrationAccounts' | 'placement' | 'jiraSync'
+    >
   ): Promise<Result<void, UpdateProjectSettingsError>>;
 }
 
@@ -40,7 +43,10 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
 
   async patch(
     projectId: string,
-    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'integrationAccounts' | 'placement'>
+    patch: Pick<
+      ProjectSettingsDomainPatch,
+      'gitIdentity' | 'integrationAccounts' | 'placement' | 'jiraSync'
+    >
   ): Promise<Result<void, UpdateProjectSettingsError>> {
     try {
       await this.storage.insertIfMissing(projectId, {
@@ -65,6 +71,11 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
           }
         }
         applyIntegrationAccountsPatch(next, patch.integrationAccounts?.stored);
+        if (patch.jiraSync) {
+          const jql = patch.jiraSync.jql?.trim();
+          if (jql) next.jiraSyncJql = jql;
+          else delete next.jiraSyncJql;
+        }
         const tmux = patch.placement?.stored.tmux;
         if (patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')) {
           next.tmuxDefaultMigrated = true;
@@ -123,10 +134,12 @@ function durableDomains(stored: StoredBaseProjectSettings): ProjectDurableSettin
     worktreeRoot,
     tmux,
     integrationAccounts,
+    jiraSyncJql,
     tmuxDefaultMigrated: _migration,
     ...gitIdentity
   } = stored;
   return {
+    ...(jiraSyncJql ? { jiraSync: { jql: jiraSyncJql } } : {}),
     gitIdentity: { stored: gitIdentity },
     integrationAccounts: { stored: integrationAccounts ?? {} },
     placement: {

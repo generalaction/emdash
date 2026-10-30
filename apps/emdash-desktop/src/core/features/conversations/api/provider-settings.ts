@@ -38,6 +38,19 @@ export const emptyProviderSettings: ProviderSettingsSnapshot = {
   pty: { version: '1', autoApprove: false },
   catalogs: [],
 };
+
+export function defaultConversationModel(providerId: string | null): string | null {
+  return providerId === 'codex' ? 'gpt-6-sol' : null;
+}
+
+export function initialProviderOptions(
+  providerId: string | null,
+  options: ProviderSettingsSnapshot['acp']['options']
+): ProviderSettingsSnapshot['acp']['options'] {
+  const model = defaultConversationModel(providerId);
+  return model ? { model, ...options } : options;
+}
+
 export const providerPreferencePatchSchema = z.discriminatedUnion('transport', [
   z.object({ transport: z.literal('acp'), options: providerOptionValuesSchema }).strict(),
   z.object({ transport: z.literal('pty'), autoApprove: z.boolean() }).strict(),

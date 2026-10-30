@@ -31,6 +31,7 @@ const interfaceSettingsSchema = z.object({
   showLeftSidebarPrStatus: z.boolean(),
   showLeftSidebarTimestamps: z.boolean(),
   hideContextBar: z.boolean(),
+  boardByDefault: z.boolean(),
 });
 
 const themeSchema = z.enum(['emlight', 'emdark']).nullable().catch(null).optional().default(null);
@@ -63,6 +64,7 @@ export const interfaceSettingsContribution = defineSettingsContribution<
     showLeftSidebarPrStatus: true,
     showLeftSidebarTimestamps: true,
     hideContextBar: false,
+    boardByDefault: false,
   },
 });
 
