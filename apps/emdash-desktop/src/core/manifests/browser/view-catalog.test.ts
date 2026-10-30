@@ -29,8 +29,11 @@ describe('viewCatalog', () => {
   it('validates optional view params against their declared literals', () => {
     expect(automationsViewDef.safeRef({ automationId: 'automation-1' })).toBeDefined();
     expect(automationsViewDef.safeRef({ automationId: 1 })).toBeUndefined();
+    expect(automationsViewDef.safeRef({ tab: 'activity' })).toBeDefined();
+    expect(automationsViewDef.safeRef({ tab: 'unknown' })).toBeUndefined();
     expect(settingsViewDef.safeRef({ tab: 'browser' })).toBeDefined();
     expect(settingsViewDef.safeRef({ tab: 'unknown' })).toBeUndefined();
+
   });
 
   it('requires the params expected by project and task guards', () => {
