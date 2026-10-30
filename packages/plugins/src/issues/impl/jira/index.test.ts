@@ -93,7 +93,7 @@ describe('jira issues plugin', () => {
     });
     expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
     expect(searchParams(0)).toEqual({
-      jql: 'updated >= -90d ORDER BY updated DESC',
+      jql: '(updated >= -90d) AND (statusCategory != Done) ORDER BY updated DESC',
       maxResults: 2,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
@@ -115,7 +115,7 @@ describe('jira issues plugin', () => {
     });
     expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
     expect(searchParams(0)).toEqual({
-      jql: '(key = "ENG-976" OR text ~ "ENG-976") ORDER BY updated DESC',
+      jql: '((key = "ENG-976" OR text ~ "ENG-976")) AND (statusCategory != Done) ORDER BY updated DESC',
       maxResults: 5,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
@@ -137,7 +137,7 @@ describe('jira issues plugin', () => {
     });
     expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
     expect(searchParams(0)).toEqual({
-      jql: 'text ~ "deprecated \\"search\\" endpoint" ORDER BY updated DESC',
+      jql: '(text ~ "deprecated \\"search\\" endpoint") AND (statusCategory != Done) ORDER BY updated DESC',
       maxResults: 5,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
@@ -177,7 +177,9 @@ describe('jira issues plugin', () => {
 
     await issues.listIssues(host, { limit: 10 });
 
-    expect(searchParams(0)).toMatchObject({ jql: 'project = WEB ORDER BY updated DESC' });
+    expect(searchParams(0)).toMatchObject({
+      jql: '(project = WEB) AND (statusCategory != Done) ORDER BY updated DESC',
+    });
   });
 
   it('ANDs the account filter with the search term', async () => {
@@ -188,7 +190,7 @@ describe('jira issues plugin', () => {
     await issues.searchIssues(host, { searchTerm: 'certificate', limit: 5 });
 
     expect(searchParams(0)).toMatchObject({
-      jql: '(project = WEB OR project = IT) AND (text ~ "certificate") ORDER BY updated DESC',
+      jql: '(project = WEB OR project = IT) AND (text ~ "certificate") AND (statusCategory != Done) ORDER BY updated DESC',
     });
   });
 
@@ -200,8 +202,19 @@ describe('jira issues plugin', () => {
     await issues.listIssues(host, { limit: 10, issueFilter: '"Epic Link" = WEB-123' });
 
     expect(searchParams(0)).toMatchObject({
-      jql: '(project = WEB) AND ("Epic Link" = WEB-123) ORDER BY updated DESC',
+      jql: '(project = WEB) AND ("Epic Link" = WEB-123) AND (statusCategory != Done) ORDER BY updated DESC',
     });
+  });
+
+  it('leaves completed issues out of lists and searches, even under a status filter', async () => {
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'status = Done' };
+
+    await issues.listIssues(host, { limit: 5 });
+    await issues.searchIssues(host, { searchTerm: 'certificate', limit: 5 });
+
+    expect(searchParams(0).jql).toContain('(statusCategory != Done)');
+    expect(searchParams(1).jql).toContain('(statusCategory != Done)');
   });
 
   it('rejects a project filter that brings its own ORDER BY without querying Jira', async () => {

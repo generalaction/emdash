@@ -18,6 +18,8 @@ import { toIssueData } from './mapper';
 const SEARCH_FIELDS = ['summary', 'description', 'updated', 'project', 'status', 'assignee'];
 const JIRA_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RECENT_CLAUSE = 'updated >= -90d';
+// Resolved work is not something to start a task from; this holds even under a user's own filter.
+const NOT_DONE_CLAUSE = 'statusCategory != Done';
 
 export async function listIssues(
   host: ConnectedIntegrationHostContext,
@@ -100,9 +102,9 @@ function listJql(filters: string[]): string {
   return scopedJql(filters.length > 0 ? filters : [RECENT_CLAUSE]);
 }
 
-/** ANDs the clauses, parenthesizing each only when there is more than one. */
+/** ANDs the clauses with the completed-issue exclusion, parenthesizing each. */
 function scopedJql(clauses: string[]): string {
-  const where = clauses.length === 1 ? clauses[0] : clauses.map((c) => `(${c})`).join(' AND ');
+  const where = [...clauses, NOT_DONE_CLAUSE].map((c) => `(${c})`).join(' AND ');
   return `${where} ORDER BY updated DESC`;
 }
 
