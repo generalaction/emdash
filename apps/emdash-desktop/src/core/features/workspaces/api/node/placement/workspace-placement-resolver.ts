@@ -78,6 +78,7 @@ export class WorkspacePlacementResolver {
       builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory, homeResult.data.profile),
       homeDirectory,
       pathProfile: homeResult.data.profile,
+      projectPath: project.path,
     });
     if (resolved.provenance.kind === 'broken-setting') {
       log.warn('Configured worktree root is unusable; degrading to the next layer', {

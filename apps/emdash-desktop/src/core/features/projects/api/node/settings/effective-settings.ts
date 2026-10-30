@@ -59,6 +59,7 @@ export async function resolveProjectEffectiveSettings(
       builtInWorktreeRoot: placementContext.builtInWorktreeRoot,
       homeDirectory: placementContext.homeDirectory,
       pathProfile: placementContext.pathProfile,
+      projectPath: placementContext.projectPath,
     },
     facts ?? { remotes: [], localBranches: [] }
   );

@@ -243,7 +243,7 @@ describe('WorkspacePlacementResolver', () => {
     const { resolver } = makeResolver({
       home: '/home/jona',
       hostWorktreeRoot: '~/host-worktrees',
-      projectOverride: 'relative/never-works',
+      projectOverride: 'C:\\never-works',
     });
 
     const result = await resolver.resolveWorktreePool(project);
@@ -257,8 +257,8 @@ describe('WorkspacePlacementResolver', () => {
   it('degrades unusable project and host roots to the built-in root', async () => {
     const { resolver } = makeResolver({
       home: '/home/jona',
-      hostWorktreeRoot: 'also-relative',
-      projectOverride: 'relative/never-works',
+      hostWorktreeRoot: 'D:\\also-foreign',
+      projectOverride: 'C:\\never-works',
     });
 
     const result = await resolver.resolveWorktreePool(project);
@@ -266,6 +266,22 @@ describe('WorkspacePlacementResolver', () => {
     expect(result).toMatchObject({
       success: true,
       data: expect.stringMatching(/^\/home\/jona\/emdash\/worktrees\/emdash-[a-f0-9]{8}$/u),
+    });
+  });
+
+  it('resolves a relative host root inside the project', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/jona',
+      hostWorktreeRoot: '.worktrees',
+    });
+
+    const result = await resolver.resolveWorktreePool(project);
+
+    expect(result).toMatchObject({
+      success: true,
+      data: expect.stringMatching(
+        /^\/home\/jona\/emdash\/repositories\/emdash\/\.worktrees\/emdash-[a-f0-9]{8}$/u
+      ),
     });
   });
 

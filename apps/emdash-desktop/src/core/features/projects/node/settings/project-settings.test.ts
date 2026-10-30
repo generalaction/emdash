@@ -727,16 +727,16 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     );
   });
 
-  it('rejects local relative worktreeDirectory values', async () => {
+  it('resolves local relative worktreeDirectory values inside the project', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
     const provider = makeLocalProvider(projectPath);
-    const result = await provider.setWorktreeRoot('worktrees');
+    const result = await provider.setWorktreeRoot('.worktrees');
 
-    expect(result).toEqual({
-      success: false,
-      error: { type: 'invalid-worktree-directory' },
+    expect(result).toEqual({ success: true });
+    expect(await provider.getStoredGitSettings()).toMatchObject({
+      worktreeRoot: fs.realpathSync(path.join(projectPath, '.worktrees')),
     });
   });
 

@@ -43,6 +43,7 @@ export class HostProjectSettingsProvider extends DbProjectSettingsProvider {
       pathPlatform: pathPlatformFor(placement),
       fs: this.hostOptions.worktreeDirectoryFileSystem,
       homeDirectory: placement.homeDirectory,
+      projectPath: this.projectPath,
     });
   }
 

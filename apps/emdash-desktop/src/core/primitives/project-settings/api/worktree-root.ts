@@ -32,6 +32,11 @@ export type WorktreeRootContext = {
   homeDirectory: string;
   /** Owning filesystem semantics. Optional only for older serialized snapshots. */
   pathProfile?: PathProfile;
+  /**
+   * The project's repository path, so a relative root such as `.worktrees`
+   * resolves per project. Without it relative roots are unusable.
+   */
+  projectPath?: string | null;
 };
 
 /** The built-in (last) worktree-root layer: `<home>/emdash/worktrees`. */
@@ -46,15 +51,17 @@ export function builtInWorktreeRootFor(homeDirectory: string, pathProfile?: Path
 
 /**
  * Normalizes a configured worktree root the way placement consumes it: trim,
- * expand `~` against the host home, require an absolute path, resolve `.`/`..`
- * segments. Returns null when the value is unusable (relative, `~` with no
- * home, empty) — read-path validation matches execution, which never checks
- * existence (git creates missing directories).
+ * expand `~` against the host home, resolve a relative root against the
+ * project path, resolve `.`/`..` segments. Returns null when the value is
+ * unusable (relative with no project path, `~` with no home, empty) —
+ * read-path validation matches execution, which never checks existence (git
+ * creates missing directories).
  */
 export function normalizeWorktreeRootPath(
   configuredRoot: string,
   homeDirectory: string,
-  pathProfile?: PathProfile
+  pathProfile?: PathProfile,
+  projectPath?: string | null
 ): string | null {
   const trimmed = configuredRoot.trim();
   if (!trimmed) return null;
@@ -69,7 +76,23 @@ export function normalizeWorktreeRootPath(
       : trimmed.startsWith('~/') || trimmed.startsWith('~\\')
         ? joinAbsolute(home.data, trimmed.slice(2))
         : parseAbsolute(trimmed, { profile });
-  return parsed.success ? formatForProfile(parsed.data, profile) : null;
+  if (parsed.success) return formatForProfile(parsed.data, profile);
+  if (!projectPath || !isRelativeRoot(trimmed)) return null;
+
+  // Join as text and re-parse so `..` can step out of the project directory
+  // (e.g. `../app-worktrees` for a sibling folder).
+  const project = parseAbsolute(projectPath.trim(), { profile });
+  if (!project.success) return null;
+  const separator = profile.style === 'win32' ? '\\' : '/';
+  const joined = parseAbsolute(`${formatForProfile(project.data, profile)}${separator}${trimmed}`, {
+    profile,
+  });
+  return joined.success ? formatForProfile(joined.data, profile) : null;
+}
+
+/** True for `pool`, `./pool`, `../pool`; false for anything rooted in either dialect or `~`. */
+function isRelativeRoot(value: string): boolean {
+  return !/^([\\/~]|[A-Za-z]:)/.test(value);
 }
 
 function pathProfileFor(absolutePath: string): PathProfile {

@@ -334,6 +334,31 @@ describe('resolveEffectiveSettings', () => {
           provenance: { kind: 'broken-setting', staleValue: 'bad-project' },
         });
       });
+
+      it('resolves a relative host default inside the project', () => {
+        const result = resolveEffectiveSettings(
+          stored(
+            {},
+            { ...home, hostWorktreeRoot: './.worktrees', projectPath: '/home/me/work/app' }
+          ),
+          facts()
+        );
+        expect(result.worktreeRoot).toEqual({
+          value: '/home/me/work/app/.worktrees',
+          provenance: { kind: 'inferred', from: 'host default' },
+        });
+      });
+
+      it('still treats a relative root as broken when the project path is unknown', () => {
+        const result = resolveEffectiveSettings(
+          stored({}, { ...home, hostWorktreeRoot: '.worktrees' }),
+          facts()
+        );
+        expect(result.worktreeRoot).toEqual({
+          value: '/home/me/emdash/worktrees',
+          provenance: { kind: 'broken-setting', staleValue: '.worktrees' },
+        });
+      });
     });
   });
 });
