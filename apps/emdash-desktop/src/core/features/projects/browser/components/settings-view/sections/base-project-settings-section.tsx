@@ -19,6 +19,7 @@ import {
   ResetProvenanceButton,
 } from '@core/features/projects/contributions/browser/settings-provenance';
 import type { ProvenanceFlavor } from '@core/features/projects/contributions/browser/settings-provenance-labels';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
@@ -28,7 +29,11 @@ import type {
   Provenance,
   Resolved,
 } from '@core/primitives/project-settings/api';
-import { formatDefaultBranch, resolveTmux } from '@core/primitives/project-settings/api';
+import {
+  formatDefaultBranch,
+  resolveBranchPrefix,
+  resolveTmux,
+} from '@core/primitives/project-settings/api';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { ProjectPlacementDomainSnapshot } from '../../../../api/project-settings-page';
@@ -145,6 +150,11 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
       )
     : null;
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
+  const { value: appProjectSettings } = useAppSettingsKey('project');
+  const effectiveBranchPrefix = resolveBranchPrefix({
+    projectBranchPrefix: gitIdentityForm.branchPrefix,
+    appBranchPrefix: appProjectSettings?.branchPrefix ?? '',
+  });
 
   const inheritedWorktreeRoot =
     placement.layers.hostWorktreeRoot ?? placement.layers.builtInWorktreeRoot;
@@ -276,6 +286,24 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
           projectId={projectId}
           value={gitIdentityForm.defaultBranch ?? effectiveDefaultBranchRef ?? undefined}
           onValueChange={(branch: GitBranchRef) => updateGitIdentity('defaultBranch', branch)}
+        />
+      </ProvenanceField>
+
+      <Separator />
+
+      <ProvenanceField
+        label="Branch prefix"
+        description="Added to the start of new task branch names. Leave empty for no prefix."
+        resolved={effectiveBranchPrefix}
+        flavor="inherited"
+        isExplicit={gitIdentityForm.branchPrefix !== undefined}
+        onReset={() => updateGitIdentity('branchPrefix', undefined)}
+      >
+        <Input
+          aria-label="Branch prefix"
+          placeholder="No prefix"
+          value={effectiveBranchPrefix.value}
+          onChange={(e) => updateGitIdentity('branchPrefix', e.target.value)}
         />
       </ProvenanceField>
 

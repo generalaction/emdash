@@ -39,6 +39,7 @@ const SOURCE_LABELS: Record<string, string> = {
   'only host-matching account': 'from the only matching account',
   'no host-matching account': 'no account matches this repository',
   'host default': 'from the host default',
+  'app default': 'from the app settings',
   'built-in default': 'from the built-in default',
 };
 
