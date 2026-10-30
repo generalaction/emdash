@@ -105,7 +105,9 @@ once deletion succeeds. A failed reset stays visible above the disclosures so it
 ## Diff Content
 
 Text diffs keep their Monaco editor mounted while both OpenFileStore facets load.
-Loading and non-missing errors appear over the editor and clear when the facets recover.
+Until a diff is first shown, loading and non-missing errors cover the editor. After that, a
+failing side keeps the last loaded diff visible and read-only under a banner; editing and saving
+resume when both facets recover.
 Missing Git sides and orphaned buffers render as empty sides for added and deleted files.
 
 ## Tests
