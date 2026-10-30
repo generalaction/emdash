@@ -78,14 +78,12 @@ function resolveSide(side: DiffSideModel): ResolvedSide {
   return { type: 'pending' };
 }
 
-type DiffNotice =
-  | { placement: 'cover'; message: string; loading: boolean }
-  | { placement: 'banner'; message: string };
+type DiffNotice = { placement: 'cover' | 'banner'; message: string; loading: boolean };
 
 /**
  * What to show while a side is not ready. Until a diff is attached the notice
  * covers the empty editor. Once one is attached it stays visible and read-only
- * (see the content autorun), so a failure only adds a banner above it.
+ * (see the content autorun), so a failure or reload only adds a banner above it.
  */
 function diffNotice(
   original: DiffSideModel | null,
@@ -95,17 +93,22 @@ function diffNotice(
   const sides = [original, modified].map(
     (side): ResolvedSide => (side ? resolveSide(side) : { type: 'pending' })
   );
+  const placement = attached ? 'banner' : 'cover';
   const error = sides.find((side) => side.type === 'error');
-  if (attached) {
-    if (!error) return null;
+  if (error) {
+    const message = errorMessage(error.code);
     return {
-      placement: 'banner',
-      message: `${errorMessage(error.code)}. Showing the last loaded version.`,
+      placement,
+      message: attached ? `${message}. Showing the last loaded version.` : message,
+      loading: false,
     };
   }
-  if (error) return { placement: 'cover', message: errorMessage(error.code), loading: false };
   if (sides.some((side) => side.type === 'pending')) {
-    return { placement: 'cover', message: 'Loading diff...', loading: true };
+    return {
+      placement,
+      message: attached ? 'Reloading diff...' : 'Loading diff...',
+      loading: true,
+    };
   }
   return null;
 }
@@ -365,10 +368,11 @@ export function StickyDiffEditor({
     <div className="relative flex h-full flex-col">
       {notice?.placement === 'banner' && (
         <div
-          role="alert"
-          className="shrink-0 border-b border-border px-3 py-1 text-xs text-foreground-passive"
+          role={notice.loading ? 'status' : 'alert'}
+          className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-xs text-foreground-passive"
         >
-          {notice.message}
+          {notice.loading && <Spinner size="sm" />}
+          <span>{notice.message}</span>
         </div>
       )}
       <div ref={mountRef} className="min-h-0 flex-1" />

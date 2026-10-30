@@ -244,9 +244,17 @@ it('keeps a loaded diff visible but read-only while a side fails', async () => {
   await pressSave();
   expect(save).toHaveBeenCalledOnce();
 
+  // Retrying the failed side reloads it; the diff stays read-only and says so.
+  await act(async () => runInAction(() => original.set({ kind: 'loading' })));
+  expect(diff.getModel()?.modified.getValue()).toBe('changed');
+  expect(readOnly()).toBe(true);
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(host.querySelector('[role="status"]')?.textContent).toBe('Reloading diff...');
+
   await act(async () => runInAction(() => original.set({ kind: 'ready' })));
   expect(readOnly()).toBe(false);
   expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(host.querySelector('[role="status"]')).toBeNull();
   // Toggling readOnly schedules Monaco's 100ms debounced hunk-menu update, whose timer survives
   // disposal and then throws from the disposed context key service. Let it flush first.
   await new Promise((resolve) => setTimeout(resolve, 150));
