@@ -223,8 +223,11 @@ describe('workspace registry contract', () => {
         error: {
           type: 'inspect-failed',
           path: repoPath,
-          message: expect.stringContaining(
-            kind === 'config' ? 'bad config line' : 'not a git repository:'
+          // Git 2.56 reworded the broken-gitfile error.
+          message: expect.stringMatching(
+            kind === 'config'
+              ? /bad config line/
+              : /not a git repository:|gitfile does not point to a valid repository:/
           ),
         },
       });
