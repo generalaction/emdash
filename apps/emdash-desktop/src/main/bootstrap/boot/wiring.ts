@@ -105,6 +105,7 @@ export function createDesktopWireOptions(
     loggingOperations: {
       writeRendererLog: (input) => writeRendererLogEntry(input),
     },
+    mcpSelfServer: services.mcpServer,
     notifications: services.notifications,
     previewServerAccess: services.previewServerAccess,
     projectDeletion: services.projectDeletion,
