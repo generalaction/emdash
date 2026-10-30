@@ -83,7 +83,10 @@ describe('inspectWorkspacePath', () => {
 
     await expect(inspectWorkspacePath(root)).resolves.toMatchObject({
       kind: 'inspect-failed',
-      message: expect.stringContaining('not a git repository:'),
+      // Git 2.56 reworded the broken-gitfile error.
+      message: expect.stringMatching(
+        /not a git repository:|gitfile does not point to a valid repository:/
+      ),
     });
   });
 
