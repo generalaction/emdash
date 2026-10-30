@@ -3,6 +3,7 @@ import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import { act } from 'react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
+import type { AiAnnotation } from '@core/features/source-control/api/browser/diff-view/stores/ai-annotations-store';
 import { DraftCommentsStore } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import {
   getDraftCommentTargetKey,
@@ -25,7 +26,8 @@ afterEach(async () => {
 async function mountComments(
   store: DraftCommentsStore,
   renderSideBySide: boolean,
-  getTarget: () => DraftCommentTarget = () => target
+  getTarget: () => DraftCommentTarget = () => target,
+  getAnnotations: () => readonly AiAnnotation[] = () => []
 ) {
   const host = document.createElement('div');
   host.style.cssText = 'width: 800px; height: 600px';
@@ -36,6 +38,7 @@ async function mountComments(
   await act(async () => {
     manager = new MonacoCommentManager(editor, {
       getComments: () => store.getCommentsForTarget(getDraftCommentTargetKey(getTarget())),
+      getAnnotations,
       onAddComment: (lineNumber, content, lineContent) => {
         store.addComment({ target: getTarget(), lineNumber, content, lineContent });
       },
@@ -163,4 +166,44 @@ it('stops observing drafts when the editor binding is disposed', async () => {
   store.addComment({ target, lineNumber: 2, content: 'After disposal' });
   expect(getTarget).not.toHaveBeenCalled();
   expect(mounted.renderedComments()).toEqual([]);
+});
+
+it('reanchors observable explanations and restores them after a model swap', async () => {
+  const store = new DraftCommentsStore('task');
+  const annotations = observable.box<readonly AiAnnotation[]>([]);
+  const mounted = await mountComments(
+    store,
+    false,
+    () => target,
+    () => annotations.get()
+  );
+  await mounted.attachModels();
+  await act(async () => {
+    annotations.set([
+      {
+        id: 'explanation',
+        targetKey: getDraftCommentTargetKey(target),
+        path: 'a.ts',
+        lineNumber: 1,
+        lineContent: 'after',
+        body: 'Explains the changed line',
+      },
+    ]);
+  });
+  await expect.poll(() => mounted.renderedComments()).toEqual(['Explains the changed line']);
+  await act(async () => {
+    const updated = new Promise<void>((resolve) => {
+      const subscription = mounted.editor.onDidUpdateDiff(() => {
+        subscription.dispose();
+        resolve();
+      });
+    });
+    mounted.editor.getModifiedEditor().getModel()!.setValue('replacement\n');
+    await updated;
+  });
+  await expect.poll(() => mounted.renderedComments()).toEqual([]);
+  await mounted.attachModels();
+  await expect.poll(() => mounted.renderedComments()).toEqual(['Explains the changed line']);
+  await act(async () => annotations.set([]));
+  await expect.poll(() => mounted.renderedComments()).toEqual([]);
 });
