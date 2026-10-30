@@ -43,6 +43,32 @@
   concurrent callers and cached for 5 minutes; a workspace nested inside another one measured in
   the same request counts only in its own row; closing the view cancels walks still running
 
+## Inspecting another local worktree
+
+Open the worktree picker above the Changed and Staged sections in a task's Changes
+panel. It lists the repository root and local worktrees in the same repository,
+including worktrees created by subagents outside Emdash. The list refreshes when
+opened and updates as the workspace registry discovers changes.
+
+Selecting another worktree shows its staged and unstaged changes in read-only
+mode. Each open diff tab stays attached to its source worktree, and activating a
+tab selects that worktree in the panel. Inspection does not move the task or run
+workspace setup scripts. Clean worktrees show no uncommitted changes; this picker
+does not compare committed branches. Missing or pending-removal worktrees cannot
+be selected.
+
+For review screenshots, run the renderer integration test with capture enabled:
+
+```bash
+VITE_EMDASH_CAPTURE_WORKTREE_SCREENS=1 pnpm --filter @emdash/emdash-desktop test --skip-nx-cache -- --project browser src/renderer/tests/browser/worktree-inspection.test.tsx --maxWorkers=1
+```
+
+The test writes picker, read-only diff, and unavailable-worktree screenshots to
+`/tmp/emdash-worktree-{picker,diff,unavailable}.png`.
+
+Reviewed examples are kept in `docs/screenshots/worktree-*.png`, including the
+unavailable-worktree state. The README includes the picker and read-only diff.
+
 ## `.emdash.json`
 
 `.emdash.json` stores optional shareable project settings. Supported runtime keys:

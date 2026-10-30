@@ -31,6 +31,7 @@ import {
   UnstagedSectionBody,
   UnstagedSectionHeader,
 } from '@core/features/source-control/browser/diff-view/changes-panel/unstaged-section';
+import { WorktreePicker } from '@core/features/source-control/browser/diff-view/changes-panel/worktree-picker';
 import type { ChangesViewStore } from '@core/features/source-control/browser/diff-view/stores/changes-view-store';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
@@ -54,9 +55,23 @@ const SECTIONS_STORAGE_ID = 'changes-panel-sections';
 const SECTION_COLLAPSE_THRESHOLD = 8;
 
 export const ChangesPanel = observer(function ChangesPanel() {
+  const view = useTaskComposition().diffView;
+  const taskWorkspace = useWorkspace();
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {view && !taskWorkspace.sshConnectionId && <WorktreePicker view={view} />}
+      <div className="min-h-0 flex-1">
+        <ChangesPanelContent />
+      </div>
+    </div>
+  );
+});
+
+const ChangesPanelContent = observer(function ChangesPanelContent() {
   const { projectId } = useTaskViewContext();
   const taskView = useTaskComposition();
-  const workspace = useWorkspace();
+  const taskWorkspace = useWorkspace();
+  const workspace = taskView.diffView?.workspace ?? taskWorkspace;
   const gitCheckout = workspace.get(gitCheckoutStoreToken);
   const project = asAvailableProject(getProjectStore(projectId))?.project;
   const diffView = taskView.diffView;
@@ -125,7 +140,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
   });
 
   if (!diffView || !changesView) return null;
-  if (!gitCheckout.hasData) {
+  if (!gitCheckout.hasData || gitCheckout.error) {
     const status = repositoryStatusQuery.data;
     if (status?.isDirectory && !status.error && status.isGitRepo === false) {
       return (
@@ -133,18 +148,20 @@ export const ChangesPanel = observer(function ChangesPanel() {
           label="This folder is not a Git repository"
           description="Initialize Git to enable changes, commits, branches, and worktree-based tasks."
           action={
-            <Button
-              variant="primary"
-              type="button"
-              size="sm"
-              onClick={() => initializeRepositoryMutation.mutate()}
-              disabled={initializeRepositoryMutation.isPending}
-            >
-              <GitBranchPlus className="size-3.5" />
-              {initializeRepositoryMutation.isPending
-                ? 'Initializing…'
-                : 'Initialize Git repository'}
-            </Button>
+            !diffView.readOnly ? (
+              <Button
+                variant="primary"
+                type="button"
+                size="sm"
+                onClick={() => initializeRepositoryMutation.mutate()}
+                disabled={initializeRepositoryMutation.isPending}
+              >
+                <GitBranchPlus className="size-3.5" />
+                {initializeRepositoryMutation.isPending
+                  ? 'Initializing…'
+                  : 'Initialize Git repository'}
+              </Button>
+            ) : undefined
           }
         />
       );
@@ -205,7 +222,8 @@ const ChangesPanelSections = observer(function ChangesPanelSections({
   );
 
   const expanded = changesView.expandedSections;
-  const expandedIds = SECTION_IDS.filter((id) => expanded[id]);
+  const visibleIds = taskView.diffView?.readOnly ? SECTION_IDS.slice(0, 2) : SECTION_IDS;
+  const expandedIds = visibleIds.filter((id) => expanded[id]);
 
   const { defaultLayout, onLayoutChanged: persist } = useResizableDefaultLayout({
     id: SECTIONS_STORAGE_ID,
@@ -237,7 +255,7 @@ const ChangesPanelSections = observer(function ChangesPanelSections({
   const [prSyncError, setPrSyncError] = useState<string | null>(null);
 
   const hasLaterExpanded = (id: SectionId) =>
-    SECTION_IDS.slice(SECTION_IDS.indexOf(id) + 1).some((later) => expanded[later]);
+    visibleIds.slice(visibleIds.indexOf(id) + 1).some((later) => expanded[later]);
 
   const sections: Array<{
     id: SectionId;
@@ -266,19 +284,21 @@ const ChangesPanelSections = observer(function ChangesPanelSections({
         onLayoutChanged={handleLayoutChanged}
         disableCursor
       >
-        {sections.map(({ id, header, body }) => (
-          // Fragments create no DOM nodes, so headers, panels, and handles
-          // stay direct DOM children of the Group as the library requires.
-          <Fragment key={id}>
-            {header}
-            {expanded[id] && (
-              <Resizable.Panel id={id} minSize="0%" className="flex flex-col overflow-hidden">
-                {body}
-              </Resizable.Panel>
-            )}
-            {expanded[id] && hasLaterExpanded(id) && <Resizable.Handle variant="ghost" />}
-          </Fragment>
-        ))}
+        {sections
+          .filter(({ id }) => visibleIds.includes(id))
+          .map(({ id, header, body }) => (
+            // Fragments create no DOM nodes, so headers, panels, and handles
+            // stay direct DOM children of the Group as the library requires.
+            <Fragment key={id}>
+              {header}
+              {expanded[id] && (
+                <Resizable.Panel id={id} minSize="0%" className="flex flex-col overflow-hidden">
+                  {body}
+                </Resizable.Panel>
+              )}
+              {expanded[id] && hasLaterExpanded(id) && <Resizable.Handle variant="ghost" />}
+            </Fragment>
+          ))}
       </Resizable.Group>
       <GitStatusSection />
     </div>

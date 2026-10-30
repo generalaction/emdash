@@ -13,7 +13,7 @@ let workspaceGroupsRemotePromise:
   | Promise<RemoteModel<typeof projectWorkspacesContract.workspaceGroups>>
   | undefined;
 
-function getWorkspaceGroupsRemote(): Promise<
+export function getWorkspaceGroupsRemote(): Promise<
   RemoteModel<typeof projectWorkspacesContract.workspaceGroups>
 > {
   workspaceGroupsRemotePromise ??= getProjectWorkspacesClient().then((client) =>

@@ -86,5 +86,49 @@ async function resolveWorkspaceProjectId(db: AppDb, workspaceId: string): Promis
     .from(projects)
     .where(and(eq(projects.repositoryWorkspaceId, workspaceId), isNull(projects.deletedAt)))
     .limit(1);
-  return projectRows[0]?.projectId ?? null;
+  if (projectRows[0]) return projectRows[0].projectId;
+
+  const child = workspaces;
+  const parent = await db
+    .select()
+    .from(child)
+    .where(and(eq(child.id, workspaceId), eq(child.kind, 'worktree'), liveWorkspaces()))
+    .limit(1);
+  const record = parent[0];
+  if (
+    !record?.parentId ||
+    record.observedStatus === 'missing' ||
+    record.observedGit?.prunable ||
+    record.deletionTombstone
+  )
+    return null;
+  const repositoryRows = await db
+    .select({
+      projectId: projects.id,
+      location: workspaces.location,
+      sshConnectionId: workspaces.sshConnectionId,
+      path: workspaces.path,
+      observedStatus: workspaces.observedStatus,
+      deletionTombstone: workspaces.deletionTombstone,
+    })
+    .from(projects)
+    .innerJoin(workspaces, eq(projects.repositoryWorkspaceId, workspaces.id))
+    .where(
+      and(
+        eq(workspaces.id, record.parentId),
+        eq(workspaces.kind, 'repository'),
+        liveWorkspaces(),
+        isNull(projects.deletedAt)
+      )
+    )
+    .limit(1);
+  const repository = repositoryRows[0];
+  return repository &&
+    repository.path &&
+    repository.observedStatus !== 'missing' &&
+    !repository.deletionTombstone &&
+    repository.location === record.location &&
+    repository.sshConnectionId === record.sshConnectionId
+    ? repository.projectId
+    : null;
 }
