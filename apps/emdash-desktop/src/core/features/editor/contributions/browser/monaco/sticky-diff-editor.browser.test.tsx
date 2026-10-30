@@ -5,11 +5,17 @@ import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import { act, StrictMode, type RefCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
+import { page, userEvent } from 'vitest/browser';
 import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
 import { MonacoFacetBinder } from '@core/features/editor/api/browser/facet-binder/monaco-facet-binder';
-import type { OpenFileEntry } from '@core/features/editor/api/browser/open-file-store/open-file-store';
+import {
+  openFileStore,
+  type ContentStatus,
+  type OpenFileEntry,
+} from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { StickyDiffEditor, type DiffSideModel } from './sticky-diff-editor';
+import '@emdash/ui/style.css';
 
 const runtime = vi.hoisted(() => ({ binder: null as MonacoFacetBinder | null }));
 vi.mock('@core/features/editor/browser/monaco/install-monaco-facet-binder', () => ({
@@ -86,6 +92,173 @@ async function createDiffSides(binder: MonacoFacetBinder, name: string, modified
 }
 
 const longFile = Array.from({ length: 1000 }, (_, i) => `line ${i + 1}`).join('\n');
+
+it('shows loading and failed diff sides and recovers without recreating the editor', async () => {
+  await page.viewport(900, 500);
+  const binder = new MonacoFacetBinder(async () => monaco);
+  runtime.binder = binder;
+  const sides = await createDiffSides(binder, 'load-state', 'changed');
+  const state = observable.object({
+    original: { kind: 'loading' } as ContentStatus,
+    modified: { kind: 'ready' } as ContentStatus,
+  });
+  const entry: OpenFileEntry = {
+    ...sides.original.entry,
+    get status() {
+      return state.modified;
+    },
+    gitStatus: () => state.original,
+  };
+  sides.original.entry = entry;
+  sides.modified.entry = entry;
+  const host = document.createElement('div');
+  host.style.cssText = 'width: 800px; height: 400px';
+  document.body.append(host);
+  cleanups.push(() => host.remove());
+  const root = createRoot(host);
+  cleanups.push(async () => {
+    await act(async () => root.unmount());
+  });
+  let editor: monaco.editor.IStandaloneDiffEditor | null = null;
+  await act(async () =>
+    root.render(
+      <StickyDiffEditor
+        {...sides}
+        filePath="load-state.txt"
+        diffStyle="split"
+        ref={(value) => {
+          editor = value;
+        }}
+      />
+    )
+  );
+  expect(host.textContent).toContain('Loading diff...');
+  for (const side of ['original', 'modified'] as const) {
+    for (const [code, message] of [
+      ['no-permissions', 'Permission denied'],
+      ['unavailable', 'Could not load file'],
+      ['too-large', 'File too large to display in the editor'],
+    ] as const) {
+      await act(async () =>
+        runInAction(() => {
+          state[side] = { kind: 'error', code };
+        })
+      );
+      expect(host.textContent).toContain(message);
+    }
+    await act(async () =>
+      runInAction(() => {
+        state[side] = { kind: 'ready' };
+      })
+    );
+  }
+  const diff = editor as monaco.editor.IStandaloneDiffEditor | null;
+  if (!diff) throw new Error('diff editor missing');
+  expect(host.textContent).not.toContain('Loading diff...');
+  expect(diff.getModel()?.modified.getValue()).toBe('changed');
+  for (const side of ['original', 'modified'] as const) {
+    await act(async () =>
+      runInAction(() => {
+        state[side] = { kind: 'error', code: 'not-found' };
+      })
+    );
+    expect(diff.getModel()?.[side].getValue()).toBe('');
+    expect(host.textContent).not.toContain('Could not load file');
+    await act(async () =>
+      runInAction(() => {
+        state[side] = { kind: 'ready' };
+      })
+    );
+  }
+  const updated = new Promise<void>((resolve) => {
+    const listener = diff.onDidUpdateDiff(() => {
+      listener.dispose();
+      resolve();
+    });
+    cleanups.push(() => listener.dispose());
+  });
+  await act(async () =>
+    runInAction(() => {
+      state.modified = { kind: 'orphaned' };
+    })
+  );
+  expect(diff.getModel()?.modified.getValue()).toBe('');
+  await updated;
+});
+
+it('keeps a loaded diff visible but read-only while a side fails', async () => {
+  const binder = new MonacoFacetBinder(async () => monaco);
+  runtime.binder = binder;
+  const sides = await createDiffSides(binder, 'refresh-failure', 'changed');
+  const original = observable.box<ContentStatus>({ kind: 'ready' });
+  const entry: OpenFileEntry = {
+    ...sides.modified.entry,
+    dirty: true,
+    gitStatus: () => original.get(),
+  };
+  sides.original.entry = entry;
+  sides.modified.entry = entry;
+  const save = vi.mocked(openFileStore.save);
+  save.mockReset();
+  save.mockResolvedValue({ success: true, data: undefined });
+  const host = document.createElement('div');
+  host.style.cssText = 'width: 800px; height: 400px';
+  document.body.append(host);
+  cleanups.push(() => host.remove());
+  const root = createRoot(host);
+  cleanups.push(async () => {
+    await act(async () => root.unmount());
+  });
+  let editor: monaco.editor.IStandaloneDiffEditor | null = null;
+  await act(async () =>
+    root.render(
+      <StickyDiffEditor
+        {...sides}
+        filePath="refresh-failure.txt"
+        diffStyle="split"
+        ref={(value) => {
+          editor = value;
+        }}
+      />
+    )
+  );
+  const diff = editor as monaco.editor.IStandaloneDiffEditor | null;
+  if (!diff) throw new Error('diff editor missing');
+  const modifiedEditor = diff.getModifiedEditor();
+  const readOnly = () => modifiedEditor.getOption(monaco.editor.EditorOption.readOnly);
+  const modifier = navigator.userAgent.includes('Mac') ? 'Meta' : 'Control';
+  const pressSave = async () => {
+    modifiedEditor.focus();
+    await userEvent.keyboard(`{${modifier}>}s{/${modifier}}`);
+  };
+  await pressSave();
+  expect(save).toHaveBeenCalledOnce();
+  expect(readOnly()).toBe(false);
+
+  await act(async () => runInAction(() => original.set({ kind: 'error', code: 'unavailable' })));
+  expect(diff.getModel()?.modified.getValue()).toBe('changed');
+  expect(readOnly()).toBe(true);
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+    'Could not load file. Showing the last loaded version.'
+  );
+  await pressSave();
+  expect(save).toHaveBeenCalledOnce();
+
+  // Retrying the failed side reloads it; the diff stays read-only and says so.
+  await act(async () => runInAction(() => original.set({ kind: 'loading' })));
+  expect(diff.getModel()?.modified.getValue()).toBe('changed');
+  expect(readOnly()).toBe(true);
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(host.querySelector('[role="status"]')?.textContent).toBe('Reloading diff...');
+
+  await act(async () => runInAction(() => original.set({ kind: 'ready' })));
+  expect(readOnly()).toBe(false);
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(host.querySelector('[role="status"]')).toBeNull();
+  // Toggling readOnly schedules Monaco's 100ms debounced hunk-menu update, whose timer survives
+  // disposal and then throws from the disposed context key service. Let it flush first.
+  await new Promise((resolve) => setTimeout(resolve, 150));
+});
 
 it.each([false, true])(
   'rebinds editor refs without recreating the editor (strict: %s)',

@@ -102,6 +102,14 @@ and a Reset UI state and reload fallback under "Still having trouble?". Reset di
 memento writes before clearing saved presentation state (including unsent drafts), and only reloads
 once deletion succeeds. A failed reset stays visible above the disclosures so it can be retried.
 
+## Diff Content
+
+Text diffs keep their Monaco editor mounted while both OpenFileStore facets load.
+Until a diff is first shown, loading and non-missing errors cover the editor. After that, a
+failing or reloading side keeps the last loaded diff visible and read-only under a banner;
+editing and saving resume when both facets recover.
+Missing Git sides and orphaned buffers render as empty sides for added and deleted files.
+
 ## Tests
 
 - Renderer unit tests: `src/renderer/tests/`

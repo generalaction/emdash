@@ -1,3 +1,4 @@
+import { Spinner } from '@emdash/ui/react/primitives';
 import { autorun, observable, runInAction } from 'mobx';
 import { useObserver } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
@@ -6,6 +7,7 @@ import type { Facet } from '@core/features/editor/api/browser/open-file-store/fa
 import {
   openFileStore,
   type OpenFileEntry,
+  type SeamErrorCode,
 } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { DIFF_EDITOR_BASE_OPTIONS } from '@core/features/editor/browser/monaco/editorConfig';
 import { installMonacoFacetBinder } from '@core/features/editor/browser/monaco/install-monaco-facet-binder';
@@ -48,6 +50,7 @@ function sideUri(side: DiffSideModel): string {
 
 type ResolvedSide =
   | { type: 'pending' }
+  | { type: 'error'; code: SeamErrorCode }
   | { type: 'empty' }
   | { type: 'model'; model: monaco.editor.ITextModel };
 
@@ -56,7 +59,7 @@ type ResolvedSide =
  * facet handles (both MobX-observable — callers run this inside a reaction).
  * A git ref that does not contain the path (added files) and a working tree
  * where the file is gone (deleted files, `orphaned`) resolve to the empty
- * half instead of a model; other errors and loading stay pending.
+ * half instead of a model; other errors stay visible until the store recovers.
  */
 function resolveSide(side: DiffSideModel): ResolvedSide {
   if (side.kind === 'empty') return { type: 'empty' };
@@ -71,7 +74,56 @@ function resolveSide(side: DiffSideModel): ResolvedSide {
   }
   if (status.kind === 'orphaned') return { type: 'empty' };
   if (status.kind === 'error' && status.code === 'not-found') return { type: 'empty' };
+  if (status.kind === 'error') return { type: 'error', code: status.code };
   return { type: 'pending' };
+}
+
+type DiffNotice = { placement: 'cover' | 'banner'; message: string; loading: boolean };
+
+/**
+ * What to show while a side is not ready. Until a diff is attached the notice
+ * covers the empty editor. Once one is attached it stays visible and read-only
+ * (see the content autorun), so a failure or reload only adds a banner above it.
+ */
+function diffNotice(
+  original: DiffSideModel | null,
+  modified: DiffSideModel | null,
+  attached: boolean
+): DiffNotice | null {
+  const sides = [original, modified].map(
+    (side): ResolvedSide => (side ? resolveSide(side) : { type: 'pending' })
+  );
+  const placement = attached ? 'banner' : 'cover';
+  const error = sides.find((side) => side.type === 'error');
+  if (error) {
+    const message = errorMessage(error.code);
+    return {
+      placement,
+      message: attached ? `${message}. Showing the last loaded version.` : message,
+      loading: false,
+    };
+  }
+  if (sides.some((side) => side.type === 'pending')) {
+    return {
+      placement,
+      message: attached ? 'Reloading diff...' : 'Loading diff...',
+      loading: true,
+    };
+  }
+  return null;
+}
+
+function errorMessage(code: SeamErrorCode): string {
+  switch (code) {
+    case 'no-permissions':
+      return 'Permission denied';
+    case 'too-large':
+      return 'File too large to display in the editor';
+    case 'binary':
+      return 'Binary file — no diff available';
+    default:
+      return 'Could not load file';
+  }
 }
 
 /**
@@ -111,8 +163,11 @@ export function StickyDiffEditor({
 
   // URI pair of the models currently attached to the editor. The unmount save
   // must key by this, not the side props: the props can already point at a new
-  // diff whose models never attached.
-  const attachedUrisRef = useRef<{ original: string; modified: string } | null>(null);
+  // diff whose models never attached. Observable so the status notice can tell
+  // a first load from a failure after a diff was shown.
+  const attachedUris = useRef(
+    observable.box<{ original: string; modified: string } | null>(null, { deep: false })
+  ).current;
 
   // Blank ITextModels standing in for "nothing at this side" (added/deleted
   // files). Created lazily per component instance, disposed on unmount.
@@ -131,6 +186,16 @@ export function StickyDiffEditor({
 
   const editor = useObserver(() => editorBox.get());
   useImperativeHandle<typeof editor, typeof editor>(ref, () => editor, [editor]);
+  const notice = useObserver(() => {
+    const attached = attachedUris.get();
+    const shown =
+      attached !== null &&
+      original !== null &&
+      modified !== null &&
+      attached.original === sideUri(original) &&
+      attached.modified === sideUri(modified);
+    return diffNotice(original, modified, shown);
+  });
 
   const { effectiveTheme } = useTheme();
 
@@ -150,6 +215,9 @@ export function StickyDiffEditor({
     modifiedEditor.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => {
       const side = modifiedRef.current;
       if (side?.kind !== 'facet' || side.facet.kind !== 'buffer') return;
+      // Read-only also covers a side that failed after load: never save a buffer the diff
+      // cannot currently show as editable.
+      if (modifiedEditor.getOption(m.editor.EditorOption.readOnly)) return;
       void saveDiffBuffer(side.entry, filePathRef.current);
     });
 
@@ -168,7 +236,7 @@ export function StickyDiffEditor({
       heightDisposable.dispose();
       // Save the viewport before disposal. The sides effect's cleanup can't
       // cover unmount: it runs after this one, when editorBox is already null.
-      const attached = attachedUrisRef.current;
+      const attached = attachedUris.get();
       if (attached) {
         installMonacoFacetBinder().saveDiffViewState(attached.original, attached.modified, editor);
       }
@@ -205,7 +273,7 @@ export function StickyDiffEditor({
     const current = editorBox.get();
     if (current?.getModel()) {
       current.setModel(null);
-      attachedUrisRef.current = null;
+      runInAction(() => attachedUris.set(null));
     }
     if (!original || !modified) return;
 
@@ -227,7 +295,16 @@ export function StickyDiffEditor({
 
       const origResolved = resolveSide(original); // reactive via entry observables
       const modResolved = resolveSide(modified);
-      if (origResolved.type === 'pending' || modResolved.type === 'pending') return;
+      if (
+        origResolved.type === 'pending' ||
+        origResolved.type === 'error' ||
+        modResolved.type === 'pending' ||
+        modResolved.type === 'error'
+      ) {
+        // An attached diff stays on screen under the notice; block edits until both sides recover.
+        editor.updateOptions({ readOnly: true });
+        return;
+      }
 
       const origModel = origResolved.type === 'model' ? origResolved.model : emptyModel('original');
       const modModel = modResolved.type === 'model' ? modResolved.model : emptyModel('modified');
@@ -246,7 +323,9 @@ export function StickyDiffEditor({
       if (attached) editor.setModel(null);
 
       editor.setModel({ original: origModel, modified: modModel });
-      attachedUrisRef.current = { original: sideUri(original), modified: sideUri(modified) };
+      runInAction(() =>
+        attachedUris.set({ original: sideUri(original), modified: sideUri(modified) })
+      );
       editor.layout();
       // Restore scroll/cursor for the incoming side pair.
       const restored = installMonacoFacetBinder().restoreDiffViewState(
@@ -285,5 +364,27 @@ export function StickyDiffEditor({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [originalKey, modifiedKey, revealFirstChange]);
 
-  return <div ref={mountRef} className="h-full" />;
+  return (
+    <div className="relative flex h-full flex-col">
+      {notice?.placement === 'banner' && (
+        <div
+          role={notice.loading ? 'status' : 'alert'}
+          className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-xs text-foreground-passive"
+        >
+          {notice.loading && <Spinner size="sm" />}
+          <span>{notice.message}</span>
+        </div>
+      )}
+      <div ref={mountRef} className="min-h-0 flex-1" />
+      {notice?.placement === 'cover' && (
+        <div
+          role={notice.loading ? 'status' : 'alert'}
+          className="absolute inset-0 flex items-center justify-center gap-2 bg-(--em-surface) text-xs text-foreground-passive"
+        >
+          {notice.loading && <Spinner size="sm" />}
+          <span>{notice.message}</span>
+        </div>
+      )}
+    </div>
+  );
 }
