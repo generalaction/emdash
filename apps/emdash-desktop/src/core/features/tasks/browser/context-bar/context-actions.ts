@@ -8,7 +8,7 @@ export { buildIssueContextText } from '@core/primitives/issues/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'prompt';
+export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'prompt' | 'terminal-output';
 
 export interface IssueContextAction {
   id: string;
@@ -31,11 +31,25 @@ export interface PromptContextAction {
   prompt: PromptLibraryPrompt;
 }
 
-export type ContextAction = IssueContextAction | DraftCommentsContextAction | PromptContextAction;
+export interface TerminalOutputContextAction {
+  id: string;
+  kind: 'terminal-output';
+  terminalName: string;
+  /** Read when the action is applied so the agent gets the terminal's current output. */
+  readOutput: () => Promise<string>;
+}
+
+export type ContextAction =
+  | IssueContextAction
+  | DraftCommentsContextAction
+  | PromptContextAction
+  | TerminalOutputContextAction;
+
+type StaticContextAction = Exclude<ContextAction, TerminalOutputContextAction>;
 
 // ─── Text building ───────────────────────────────────────────────────────────
 
-export function buildContextActionText(action: ContextAction): string {
+export function buildContextActionText(action: StaticContextAction): string {
   switch (action.kind) {
     case 'linked-issue':
       return buildIssueContextText(action.issue);
@@ -44,6 +58,21 @@ export function buildContextActionText(action: ContextAction): string {
     case 'prompt':
       return action.prompt.prompt;
   }
+}
+
+export async function readContextActionText(action: ContextAction): Promise<string> {
+  if (action.kind !== 'terminal-output') return buildContextActionText(action);
+  return formatTerminalOutputForAgent(action.terminalName, await action.readOutput());
+}
+
+export function formatTerminalOutputForAgent(terminalName: string, output: string): string {
+  if (!output.trim()) return '';
+  let longestBacktickRun = 0;
+  for (const match of output.matchAll(/`+/g)) {
+    longestBacktickRun = Math.max(longestBacktickRun, match[0].length);
+  }
+  const fence = '`'.repeat(Math.max(3, longestBacktickRun + 1));
+  return `Output from terminal "${terminalName}":\n${fence}\n${output}\n${fence}`;
 }
 
 // ─── Builders ────────────────────────────────────────────────────────────────
@@ -84,14 +113,27 @@ export function buildPromptLibraryContextActions(
     }));
 }
 
+export function buildTerminalOutputContextActions(
+  terminals: { id: string; name: string; readOutput: () => Promise<string> }[]
+): TerminalOutputContextAction[] {
+  return terminals.map((terminal) => ({
+    id: `terminal-output:${terminal.id}`,
+    kind: 'terminal-output' as const,
+    terminalName: terminal.name,
+    readOutput: terminal.readOutput,
+  }));
+}
+
 export function buildTaskContextActions(
   issue: LinkedIssue | undefined,
   comments: DraftComment[],
-  prompts: PromptLibraryPrompt[]
+  prompts: PromptLibraryPrompt[],
+  terminals: TerminalOutputContextAction[] = []
 ): ContextAction[] {
   return [
     buildLinkedIssueContextAction(issue),
     buildDraftCommentsContextAction(comments),
+    ...terminals,
     ...buildPromptLibraryContextActions(prompts),
   ].filter((a): a is ContextAction => a !== null);
 }
