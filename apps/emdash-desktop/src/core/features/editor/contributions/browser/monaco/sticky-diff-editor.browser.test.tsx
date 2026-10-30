@@ -153,13 +153,17 @@ function mountDiff(diffStyle: 'split' | 'unified', revealFirstChange = true) {
     await act(async () => root.unmount());
   });
   let editor: monaco.editor.IStandaloneDiffEditor | null = null;
-  return async (sides: { original: DiffSideModel; modified: DiffSideModel }) => {
+  return async (
+    sides: { original: DiffSideModel; modified: DiffSideModel },
+    collapseUnchanged = false
+  ) => {
     await act(async () => {
       root.render(
         <StickyDiffEditor
           {...sides}
           filePath="scroll.txt"
           diffStyle={diffStyle}
+          collapseUnchanged={collapseUnchanged}
           revealFirstChange={revealFirstChange}
           ref={(value) => {
             editor = value;
@@ -245,6 +249,49 @@ it('keeps stacked diffs at the top', async () => {
   const diff = await mountDiff('split', false)(sides);
   expect(diff.getModifiedEditor().getScrollTop()).toBe(0);
 });
+
+it.each(['split', 'unified'] as const)(
+  'collapses unchanged regions in a %s diff when enabled',
+  async (diffStyle) => {
+    const binder = new MonacoFacetBinder(async () => monaco);
+    runtime.binder = binder;
+    const sides = await createDiffSides(
+      binder,
+      'collapsed',
+      longFile.replace('line 500', 'changed 500')
+    );
+    const other = await createDiffSides(
+      binder,
+      'collapsed-other',
+      longFile.replace('line 700', 'changed 700')
+    );
+    const render = mountDiff(diffStyle);
+    const diff = await render(sides);
+    const right = diff.getModifiedEditor();
+    const fullHeight = right.getContentHeight();
+    const shows = (line: number) =>
+      right
+        .getVisibleRanges()
+        .some((range) => range.startLineNumber <= line && line <= range.endLineNumber);
+
+    await render(sides, true);
+    await expect.poll(() => right.getContentHeight()).toBeLessThan(fullHeight / 10);
+    const visible = right.getVisibleRanges();
+    expect(visible[0]?.startLineNumber).toBeGreaterThan(400);
+    expect(visible.at(-1)?.endLineNumber).toBeLessThan(600);
+    expect(shows(500)).toBe(true);
+
+    // The change stays in view across a file switch while collapsed.
+    await render(other, true);
+    await expect.poll(() => shows(700)).toBe(true);
+    await render(sides, true);
+    await expect.poll(() => shows(500)).toBe(true);
+
+    await render(sides, false);
+    await expect.poll(() => right.getContentHeight()).toBe(fullHeight);
+    expect(shows(500)).toBe(true);
+  }
+);
 
 it('does not jump when an initially unchanged file gains a change', async () => {
   const binder = new MonacoFacetBinder(async () => monaco);
