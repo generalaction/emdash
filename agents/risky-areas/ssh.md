@@ -17,6 +17,13 @@
 - use shared escaping and validation helpers
 - do not bypass path-safety or shell validation helpers
 - verify how a change affects both connection setup and command execution
+- Host keys are verified against OpenSSH known_hosts (`connect/known-hosts.ts`): the files
+  `ssh -G` resolves for the alias, else `~/.ssh/known_hosts*` and the system file. A first-seen
+  host is recorded (trust on first use); a changed, `@revoked`, or differently-typed key for a
+  recorded host refuses the connection (nobody can approve it interactively), and an unreadable
+  file fails closed. Hostnames are lowercased for lookup like OpenSSH does; a `HostKeyAlias` is
+  used verbatim. ssh2 accepts any host key without this verifier, so never drop `hostVerifier`
+  from the connect config.
 - Fence callbacks and late resources by physical generation; preserve logical client identity
   across outages, but never across destination identity edits.
 - Do not automatically restart a healthy-but-unresponsive workspace daemon to repair transport;

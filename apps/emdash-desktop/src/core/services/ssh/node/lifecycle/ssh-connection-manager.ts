@@ -255,7 +255,11 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
         );
       });
       client.on('error', (error: Error) => {
-        const failure = classifyError(error);
+        // ssh2 reports a refused host key only as "Host denied"; the verifier knows why.
+        const rejection = resolved.hostKeyRejection?.();
+        const failure = rejection
+          ? new SshConnectionFailure('host-key', rejection.message, { cause: error })
+          : classifyError(error);
         const wasCurrent = current();
         lose(failure);
         if (wasCurrent)
@@ -293,7 +297,11 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
 function classifyError(error: Error): SshConnectionFailure {
   if (error instanceof SshConnectionFailure) return error;
   const message = error.message.toLowerCase();
-  if (message.includes('host key') || message.includes('host fingerprint')) {
+  if (
+    message.includes('host key') ||
+    message.includes('host fingerprint') ||
+    message.includes('host denied')
+  ) {
     return new SshConnectionFailure('host-key', error.message, { cause: error });
   }
   if (

@@ -55,6 +55,24 @@ serveralivecountmax 2
   });
 });
 
+describe('parseSshGOutput known hosts options', () => {
+  it('exposes HostKeyAlias and the known_hosts file lists when present', () => {
+    expect(
+      parseSshGOutput(`
+hostname 10.0.0.5
+hostkeyalias bastion
+userknownhostsfile ~/.ssh/known_hosts ~/.ssh/known_hosts2
+globalknownhostsfile none
+`)
+    ).toMatchObject({
+      hostKeyAlias: 'bastion',
+      userKnownHostsFile: ['~/.ssh/known_hosts', '~/.ssh/known_hosts2'],
+      globalKnownHostsFile: [],
+    });
+    expect(parseSshGOutput('hostname 10.0.0.5\n')).not.toHaveProperty('userKnownHostsFile');
+  });
+});
+
 describe('resolveSshConfig', () => {
   it('rejects aliases that could be interpreted as ssh options', async () => {
     await expect(resolveSshConfig('-F/tmp/config')).rejects.toThrow('Invalid SSH config alias');
