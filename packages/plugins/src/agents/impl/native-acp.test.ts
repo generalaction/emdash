@@ -21,6 +21,7 @@ const nativeAcpProviders: Array<{
   },
   { id: 'cline', args: ['--acp'] },
   { id: 'codebuddy', args: ['--acp'] },
+  { id: 'codewhale', args: ['serve', '--acp'] },
   { id: 'copilot', args: ['--acp'] },
   { id: 'cursor', args: ['acp'] },
   { id: 'devin', args: ['acp'] },
