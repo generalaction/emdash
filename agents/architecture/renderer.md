@@ -108,10 +108,6 @@ Text diffs keep their Monaco editor mounted while both OpenFileStore facets load
 Loading and non-missing errors appear over the editor and clear when the facets recover.
 Missing Git sides and orphaned buffers render as empty sides for added and deleted files.
 
-Git snapshot reads use a separate, bounded lane per repository family so slow status scans
-do not hold up the editor. Disposing a content query cancels its queued or active read.
-Mutating Git operations retain their existing ordering and object-store locks.
-
 ## Tests
 
 - Renderer unit tests: `src/renderer/tests/`

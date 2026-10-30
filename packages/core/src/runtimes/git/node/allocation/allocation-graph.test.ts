@@ -165,6 +165,57 @@ describe('GitAllocationGraph', () => {
     await lease.release();
   });
 
+  it('cancels a content read once its last owner releases it', async () => {
+    const reads: { spec: string; signal: AbortSignal }[] = [];
+    const graph = new GitAllocationGraph({
+      exec: {
+        ...exec,
+        exec: (args, options) => {
+          const signal = options?.signal ?? new AbortController().signal;
+          reads.push({ spec: args[args.length - 1], signal });
+          return new Promise((_, reject) =>
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          );
+        },
+      },
+      watcher: {
+        watch: () => ({ ready: () => new Promise(() => {}), release: async () => {} }),
+        dispose: async () => {},
+      },
+      identityResolver: resolver,
+    });
+    const lease = graph.acquireCheckout({ checkout: hostPath('/repo') });
+    const owners: ReturnType<typeof createScope>[] = [];
+    const open = (checkout: Awaited<ReturnType<typeof lease.ready>>, path: string) => {
+      const owner = createScope();
+      owners.push(owner);
+      const content = checkout.fileContent(
+        { path: gitPath(path), source: { kind: 'head' } },
+        owner
+      );
+      void content.refresh().catch(() => {});
+      return owner;
+    };
+    try {
+      const checkout = await lease.ready();
+      const closed = [open(checkout, 'a.txt'), open(checkout, 'b.txt')];
+      await vi.waitFor(() => expect(reads).toHaveLength(2));
+      await Promise.all(closed.map((owner) => owner.dispose()));
+      await vi.waitFor(() => expect(reads.every((read) => read.signal.aborted)).toBe(true));
+
+      open(checkout, 'c.txt');
+      open(checkout, 'a.txt');
+      await vi.waitFor(() =>
+        expect(reads.slice(2).map((read) => read.spec)).toEqual(['HEAD:c.txt', 'HEAD:a.txt'])
+      );
+      expect(reads.slice(2).some((read) => read.signal.aborted)).toBe(false);
+    } finally {
+      await Promise.all(owners.map((owner) => owner.dispose()));
+      await lease.release();
+      await graph.dispose();
+    }
+  });
+
   it('evicts failed mount creation so the same selector can retry', async () => {
     let fail = true;
     const watcher: IWatchService = {

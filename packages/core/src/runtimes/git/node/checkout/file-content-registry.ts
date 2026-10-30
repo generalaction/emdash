@@ -14,10 +14,13 @@ export type GitFileContentRegistryOptions = Readonly<{
 }>;
 
 type Entry = {
+  readonly id: string;
   readonly key: BoundGitFileContentKey;
   readonly scope: Scope;
   readonly state: Query<GitFileContentState>;
   leases: number;
+  /** Reads queued or running for this entry. */
+  reads: number;
   lastUsed: number;
 };
 
@@ -40,7 +43,7 @@ export class GitFileContentRegistry {
     const id = JSON.stringify([key.path, key.source]);
     let entry = this.entries.get(id);
     if (!entry) {
-      entry = this.createEntry(key);
+      entry = this.createEntry(id, key);
       this.entries.set(id, entry);
     }
     entry.leases += 1;
@@ -68,44 +71,63 @@ export class GitFileContentRegistry {
     this.entries.clear();
   }
 
-  private createEntry(key: BoundGitFileContentKey): Entry {
+  private createEntry(id: string, key: BoundGitFileContentKey): Entry {
     const scope = createScope({ label: 'git-file-content-state' });
-    return {
+    const entry: Entry = {
+      id,
       key,
       scope,
       state: query({
-        fetch: async ({ signal }) =>
-          this.options.execute(
-            (readSignal) => this.options.commands.getFileContent(key, readSignal),
-            signal
-          ),
+        fetch: async ({ signal }) => {
+          entry.reads += 1;
+          try {
+            return await this.options.execute(
+              (readSignal) => this.options.commands.getFileContent(key, readSignal),
+              signal
+            );
+          } finally {
+            entry.reads -= 1;
+          }
+        },
         debounceMs: CONTENT_DEBOUNCE_MS,
         revalidateEveryMs: isImmutableSource(key.source) ? undefined : CONTENT_REVALIDATE_MS,
         scope,
-        onError: (error) =>
-          this.options.onError?.(`git content ${key.path} ${key.source.kind}`, error),
+        onError: (error) => {
+          // Evicting an entry cancels its read; that is not a failure worth reporting.
+          if (scope.disposed) return;
+          this.options.onError?.(`git content ${key.path} ${key.source.kind}`, error);
+        },
       }),
       leases: 0,
+      reads: 0,
       lastUsed: Date.now(),
     };
+    return entry;
   }
 
   private evictIdleEntries(): void {
     if (this.entries.size <= this.maxEntries) return;
-    const idle = [...this.entries.entries()]
-      .filter(([, entry]) => entry.leases === 0)
-      .sort((left, right) => left[1].lastUsed - right[1].lastUsed);
-    for (const [id, entry] of idle) {
+    const idle = [...this.entries.values()]
+      .filter((entry) => entry.leases === 0)
+      .sort((left, right) => left.lastUsed - right.lastUsed);
+    for (const entry of idle) {
       if (this.entries.size <= this.maxEntries) break;
-      this.entries.delete(id);
-      void entry.scope.dispose();
+      this.evict(entry);
     }
   }
 
   private release(entry: Entry): void {
     entry.leases = Math.max(0, entry.leases - 1);
     entry.lastUsed = Date.now();
+    // Content reads share a few slots per repository. A read nobody waits for would hold one
+    // and delay the next diff, so drop the entry; disposing its query cancels the read.
+    if (entry.leases === 0 && entry.reads > 0) this.evict(entry);
     this.evictIdleEntries();
+  }
+
+  private evict(entry: Entry): void {
+    if (this.entries.get(entry.id) === entry) this.entries.delete(entry.id);
+    void entry.scope.dispose();
   }
 
   private assertActive(): void {
