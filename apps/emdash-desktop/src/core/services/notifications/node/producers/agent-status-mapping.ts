@@ -46,6 +46,14 @@ export function notificationMapping(event: AgentEvent): {
     };
   }
 
+  if (event.type === 'error') {
+    return {
+      kind: 'agent-attention',
+      body: 'Your agent encountered an error and needs attention',
+      sound: 'needs_attention',
+    };
+  }
+
   if (event.type === 'notification' && isAttentionNotification(event.payload.notificationType)) {
     return {
       kind: 'agent-attention',

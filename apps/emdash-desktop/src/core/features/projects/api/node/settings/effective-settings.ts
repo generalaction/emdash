@@ -90,6 +90,7 @@ export function storedGitSettingsFromRow(
 ): StoredProjectGitSettings {
   const {
     integrationAccounts: _accounts,
+    jiraSyncJql: _jiraSyncJql,
     tmux: _tmux,
     tmuxDefaultMigrated: _migration,
     ...git

@@ -39,6 +39,8 @@ export type CanonicalHookEvent =
       message?: string;
       lastAssistantMessage?: string;
       providerSessionId?: string;
+      /** Correlate an interactive tool with its answer; unrelated parallel tools cannot resume it. */
+      toolUseId?: string;
     }
   | { kind: 'session'; providerSessionId: string }
   | { kind: 'ignore' };

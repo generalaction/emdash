@@ -611,10 +611,18 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async updateLinkedIssue(
     taskId: string,
     issue: LinkedIssue | undefined,
-    telemetry: Pick<TelemetryService, 'capture'>
-  ): Promise<void> {
-    const task = await updateLinkedIssue(this.dependencies.db, taskId, issue, telemetry);
+    telemetry: Pick<TelemetryService, 'capture'>,
+    onlyWithoutConversations = false
+  ): Promise<boolean> {
+    const task = await updateLinkedIssue(
+      this.dependencies.db,
+      taskId,
+      issue,
+      telemetry,
+      onlyWithoutConversations
+    );
     if (task) this._hooks.callHookBackground('task:updated', task);
+    return task !== undefined;
   }
 
   async convertAutomationTask(taskId: string): Promise<Task | null> {

@@ -29,6 +29,34 @@ installed by the `tui-agents` runtime in `packages/core/src/runtimes/tui-agents/
 does not infer agent status from terminal output. If a provider has no hook/plugin integration
 for an event, the renderer should not show or notify an inferred status for that event.
 
+Codex's `UserPromptSubmit` reports working; `PreToolUse` for `request_user_input` reports
+`elicitation_dialog`; `PermissionRequest` reports `permission_prompt`; `PostToolUse` restores
+working after the answer or approved tool returns; `Stop` reports completion. Claude uses the
+same lifecycle with `AskUserQuestion`, and `PostToolUseFailure` also resumes after a rejected
+or failed tool. Question tool-call IDs travel through the existing hook event and runtime state
+so an unrelated parallel tool result cannot clear an open question. Idle reminders after an
+explicit completion are ignored. Existing user hooks and Codex trust state are preserved.
+Codex must have hooks
+enabled and the installed definitions trusted in its hook review UI. No hook grants approval.
+
+The project board derives Awaiting Input and Review from these existing conversation states.
+A session ID alone is not completion. Attention and completion events use the existing app
+notification producer, even while the board is closed; sound and OS banners respect notification
+settings and focus rules. Card badges remain visible after notification acknowledgement.
+Questions written only as final prose cannot be distinguished from completion without an explicit
+provider event. Other providers retain their existing hook capabilities.
+
+To smoke-test this flow, enable notifications in General settings, create a fresh Codex TUI task,
+review/trust its installed hooks if prompted, and enter `/plan`. Ask: "Use request_user_input to
+ask whether I prefer blue or green. Wait for my answer, then run sleep 10 and finish. Do not edit
+files." While the question is open, return to Board: the card should be in Awaiting Input with a
+badge and an attention notification in the app feed. Answer the question, then return to Board
+during the sleep: the card should be Running. After completion it should be in Review with a badge
+and a completion notification. To see an OS banner, unfocus Emdash before the event occurs.
+Repeat with Claude's `AskUserQuestion` tool. Test permission prompts with auto-approve disabled;
+working resumes when the tool result returns. Settings → Interface → Board by default opens Board
+instead of Tasks on project entry; explicit Settings, PR, and Workspaces selections are retained.
+
 ACP conversations project agent status from runtime session summaries. Pending permission
 requests set `awaiting-input`, including requests already present on first observation.
 Resolving the final request restores `working` if generation continues and the session is
@@ -113,6 +141,11 @@ you select an OrcaRouter model from the OpenCode model picker.
   compatible with the provider's ACP catalog and terminal model flag. Preserve saved IDs that are
   absent from the static suggestions; only the live ACP catalog can determine whether a chat
   selection is unsupported on that host.
+- Codex TUI launches include `--no-daemon` (requires a CLI that supports that flag). Recent
+  shared Codex daemons inherit the first client's environment, which can drop or misattribute
+  Emdash hook callbacks across conversations. A per-conversation process preserves the existing
+  hook endpoint and PTY identity without changing approval or sandbox settings. See
+  [upstream environment attribution issue](https://github.com/openai/codex/issues/48500).
 - Codex ACP exposes collaboration mode separately from permission mode. The ACP runtime maps the
   provider-owned `collaboration_mode` config category to the chat composer's Default/Plan selector
   and persists that selection with the conversation; filesystem and approval controls remain in

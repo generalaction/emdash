@@ -54,6 +54,7 @@ export const storedBaseProjectSettingsSchema = z.object({
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   integrationAccounts: storedIntegrationAccountsSchema.optional(),
+  jiraSyncJql: z.string().trim().optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
   /** Lazy-migration marker; not a user setting. */

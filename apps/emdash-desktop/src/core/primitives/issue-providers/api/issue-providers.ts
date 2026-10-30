@@ -64,6 +64,8 @@ export type IssueListResult = Result<LinkedIssue[], IssueListError>;
 export type IssueContextResult = Result<LinkedIssue, IssueListError>;
 
 export type IssueQueryOpts = {
+  /** Jira sync query; when present, list all matching pages. */
+  jql?: string;
   accountContext?: string;
   limit?: number;
   projectId?: string;
