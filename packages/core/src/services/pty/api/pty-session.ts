@@ -39,8 +39,9 @@ export class PtySession {
       this.options.onStateChange?.();
     });
     this.process.onExit((info) => {
+      if (this.disposed) return;
       const pending = capabilities?.finish();
-      if (pending && !this.disposed) {
+      if (pending) {
         this.output.append(pending);
         this.options.onData?.(pending);
       }
@@ -75,8 +76,8 @@ export class PtySession {
 
   dispose(): void {
     if (this.disposed) return;
-    this.kill();
     this.disposed = true;
+    this.process.kill();
   }
 
   getPid(): number | undefined {
