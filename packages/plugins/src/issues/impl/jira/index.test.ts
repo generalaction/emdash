@@ -228,6 +228,16 @@ describe('jira issues plugin', () => {
     expect(mockSearchForIssues).not.toHaveBeenCalled();
   });
 
+  it('rejects a project filter that closes its own parenthesis early without querying Jira', async () => {
+    const result = await issues.listIssues(makeHost(), {
+      limit: 5,
+      issueFilter: 'project = WEB) OR (project = IT',
+    });
+
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mockSearchForIssues).not.toHaveBeenCalled();
+  });
+
   it('lists Data Center issues through the v2 search with plain-text descriptions', async () => {
     const mockV2Search = vi.fn().mockResolvedValueOnce({
       issues: [

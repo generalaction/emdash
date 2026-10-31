@@ -5,6 +5,7 @@ import type { ConnectedIntegrationHostContext } from '../../../integrations/host
 import { createJiraClient, readJiraCredentials } from '../../../integrations/impl/jira/client';
 import {
   jqlHasOrderBy,
+  jqlParenthesesBalanced,
   type JiraClient,
   type JiraCredentials,
   type JiraIssue,
@@ -92,6 +93,12 @@ function issueFilters(
       type: 'invalid_input',
       message:
         "Remove ORDER BY from this project's Jira issue filter; issues are sorted by last update.",
+    });
+  }
+  if (projectFilter && !jqlParenthesesBalanced(projectFilter)) {
+    return err({
+      type: 'invalid_input',
+      message: "Close every parenthesis in this project's Jira issue filter.",
     });
   }
   return ok([credentials.jqlFilter, projectFilter].filter((filter): filter is string => !!filter));

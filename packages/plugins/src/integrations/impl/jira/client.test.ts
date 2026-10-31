@@ -259,6 +259,31 @@ describe('Jira connection verification', () => {
     expect(mocks.createV2Client).not.toHaveBeenCalled();
   });
 
+  it.each(['project = A) OR (project = B', '(project = A', 'summary ~ "a)"  OR (x'])(
+    'rejects the issue filter %s that would escape its own clause',
+    async (jqlFilter) => {
+      const result = await verifyJiraCredentials(
+        { siteUrl: 'https://jira.example.com', personalAccessToken: 'dc-token', jqlFilter },
+        'pat'
+      );
+      expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+      expect(mocks.createV2Client).not.toHaveBeenCalled();
+    }
+  );
+
+  it('accepts an issue filter with balanced parentheses, including inside quotes', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const result = await verifyJiraCredentials(
+      {
+        siteUrl: 'https://jira.example.com',
+        personalAccessToken: 'dc-token',
+        jqlFilter: '(project = A OR project = B) AND summary ~ "fix )"',
+      },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: true });
+  });
+
   it('rejects an unknown selected method before calling either API', async () => {
     const result = await verifyJiraCredentials(
       {
