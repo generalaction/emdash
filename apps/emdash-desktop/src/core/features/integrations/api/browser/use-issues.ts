@@ -56,12 +56,14 @@ export function useIssues(
   const [debouncedTerm, setDebouncedTerm] = useState('');
   const accountInventory = useAccounts();
   const projectAccountContext = useObserver(() => {
-    if (!projectId) return { ready: true, choice: undefined, error: null };
+    if (!projectId) return { ready: true, choice: undefined, filter: '', error: null };
     const settings = getProjectSettingsStore(projectId);
     const accounts = settings?.durableDomains?.integrationAccounts;
     return {
       ready: accounts !== undefined,
       choice: provider ? accounts?.stored[provider] : undefined,
+      // The server reads the saved filter itself; it is keyed here so a save refreshes the lists.
+      filter: (provider && settings?.durableDomains?.issueFilters?.stored[provider]) || '',
       error: settings?.pageData.error ?? null,
     };
   });
@@ -76,6 +78,7 @@ export function useIssues(
     repositoryUrl ?? '',
     searchLimit,
     accountKey,
+    projectAccountContext.filter,
   ]);
 
   useEffect(() => {
@@ -103,6 +106,7 @@ export function useIssues(
       repositoryUrl ?? '',
       initialLimit,
       accountKey,
+      projectAccountContext.filter,
     ],
     queryFn: async () => {
       if (!provider) return { success: true as const, data: [] as LinkedIssue[] };

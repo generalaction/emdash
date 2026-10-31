@@ -260,6 +260,40 @@ describe('createPluginIssueProvider', () => {
     expect(mockGetCredentials).toHaveBeenCalledWith('linear', 'linear:acct-2');
   });
 
+  it("hands the project's issue filter to the plugin, and none without a project", async () => {
+    const listIssues = vi.fn(async () => ok([]));
+    const getProjectIssueFilter = vi.fn(async () => '"Epic Link" = WEB-123');
+    const provider = createPluginIssueProvider(makePlugin({ listIssues }), {
+      resolveProjectIntegrationAccount: vi.fn(async () => ({
+        value: {
+          providerId: 'linear',
+          accountId: 'linear:acct-2',
+          displayName: 'Second workspace',
+          isDefault: false,
+        },
+        provenance: { kind: 'set' as const },
+        accounts: [],
+        contextKey: '',
+      })),
+      getProjectIssueFilter,
+    });
+
+    await provider.listIssues({ projectId: 'p1' });
+    await provider.listIssues({});
+
+    expect(getProjectIssueFilter).toHaveBeenCalledWith('p1', 'linear');
+    expect(listIssues).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({ issueFilter: '"Epic Link" = WEB-123' })
+    );
+    expect(listIssues).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.not.objectContaining({ issueFilter: expect.anything() })
+    );
+  });
+
   it('fails closed when the integration is explicitly disabled for the project', async () => {
     const provider = createPluginIssueProvider(makePlugin({}), {
       resolveProjectIntegrationAccount: vi.fn(async () => ({

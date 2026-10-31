@@ -3,6 +3,7 @@ import { log } from '@emdash/shared/logger';
 import type {
   ProjectDurableSettingsDomains,
   ProjectIntegrationAccountsPatch,
+  ProjectIssueFiltersPatch,
   ProjectSettingsDomainPatch,
 } from '@core/features/projects/api/project-settings-page';
 import type { StoredBaseProjectSettings } from '@core/primitives/project-settings/api';
@@ -19,7 +20,10 @@ export interface DurableProjectSettingsAuthority {
   ): Promise<Result<ProjectDurableSettingsDomains, UpdateProjectSettingsError>>;
   patch(
     projectId: string,
-    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'integrationAccounts' | 'placement'>
+    patch: Pick<
+      ProjectSettingsDomainPatch,
+      'gitIdentity' | 'integrationAccounts' | 'issueFilters' | 'placement'
+    >
   ): Promise<Result<void, UpdateProjectSettingsError>>;
 }
 
@@ -40,7 +44,10 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
 
   async patch(
     projectId: string,
-    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'integrationAccounts' | 'placement'>
+    patch: Pick<
+      ProjectSettingsDomainPatch,
+      'gitIdentity' | 'integrationAccounts' | 'issueFilters' | 'placement'
+    >
   ): Promise<Result<void, UpdateProjectSettingsError>> {
     try {
       await this.storage.insertIfMissing(projectId, {
@@ -65,6 +72,7 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
           }
         }
         applyIntegrationAccountsPatch(next, patch.integrationAccounts?.stored);
+        applyIssueFiltersPatch(next, patch.issueFilters?.stored);
         const tmux = patch.placement?.stored.tmux;
         if (patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')) {
           next.tmuxDefaultMigrated = true;
@@ -118,17 +126,35 @@ export function applyIntegrationAccountsPatch(
   else next.integrationAccounts = merged;
 }
 
+/** Same merge semantics as the account patch; a blank filter clears like null. */
+export function applyIssueFiltersPatch(
+  next: StoredBaseProjectSettings,
+  patch: ProjectIssueFiltersPatch | undefined
+): void {
+  if (patch === undefined) return;
+  const merged = { ...(next.issueFilters ?? {}) };
+  for (const [providerId, value] of Object.entries(patch)) {
+    const filter = value?.trim();
+    if (filter) merged[providerId] = filter;
+    else delete merged[providerId];
+  }
+  if (Object.keys(merged).length === 0) delete next.issueFilters;
+  else next.issueFilters = merged;
+}
+
 function durableDomains(stored: StoredBaseProjectSettings): ProjectDurableSettingsDomains {
   const {
     worktreeRoot,
     tmux,
     integrationAccounts,
+    issueFilters,
     tmuxDefaultMigrated: _migration,
     ...gitIdentity
   } = stored;
   return {
     gitIdentity: { stored: gitIdentity },
     integrationAccounts: { stored: integrationAccounts ?? {} },
+    issueFilters: { stored: issueFilters ?? {} },
     placement: {
       stored: {
         ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),

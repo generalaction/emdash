@@ -1,4 +1,4 @@
-import { Field, Select, Separator } from '@emdash/ui/react/primitives';
+import { Field, Input, Select, Separator } from '@emdash/ui/react/primitives';
 import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
@@ -22,7 +22,11 @@ import {
 } from '@core/primitives/provider-accounts/api';
 import { ProviderAccountLabel } from '@core/primitives/provider-accounts/browser/account-label';
 import { cn } from '@core/primitives/styling/browser/cn';
-import type { FormUpdate, IntegrationAccountsFormState } from '../project-settings-form-model';
+import type {
+  FormUpdate,
+  IntegrationAccountsFormState,
+  IssueFiltersFormState,
+} from '../project-settings-form-model';
 
 /** File-local Select option encodings; never stored or exported. */
 const NO_ACCOUNT_OPTION = '__no_provider_account__';
@@ -32,10 +36,14 @@ const CONNECT_OPTION = '__connect_provider_account__';
 export const IntegrationAccountsSection = observer(function IntegrationAccountsSection({
   integrationAccountsForm,
   updateIntegrationAccounts,
+  issueFiltersForm,
+  updateIssueFilters,
   repositoryHost,
 }: {
   integrationAccountsForm: IntegrationAccountsFormState;
   updateIntegrationAccounts: FormUpdate<IntegrationAccountsFormState>;
+  issueFiltersForm: IssueFiltersFormState;
+  updateIssueFilters: FormUpdate<IssueFiltersFormState>;
   /** Effective base-remote host; undefined while repository facts are loading. */
   repositoryHost: string | null | undefined;
 }) {
@@ -85,6 +93,15 @@ export const IntegrationAccountsSection = observer(function IntegrationAccountsS
               fallbackIcon={<IntegrationIcon provider={integration.id} icon={integration.icon} />}
               loadError={accountsQuery.isError}
               onOverrideChange={(value) => updateIntegrationAccounts(integration.id, value)}
+              filter={
+                integration.issueCapabilities.issueFilter
+                  ? {
+                      ...integration.issueCapabilities.issueFilter,
+                      value: issueFiltersForm[integration.id] ?? '',
+                      onChange: (value) => updateIssueFilters(integration.id, value),
+                    }
+                  : undefined
+              }
               onConnect={() => void openIntegrationSetup({ integration: integration.id })}
               unresolvableHint={
                 integration.issueCapabilities.requiresRepositoryUrl
@@ -110,6 +127,7 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
   unresolvableHint,
   loadError,
   fallbackIcon,
+  filter,
 }: {
   name: string;
   accounts: ProviderAccountSummary[];
@@ -121,6 +139,13 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
   onOverrideChange: (value: StoredIntegrationAccount | null) => void;
   onConnect: () => void;
   unresolvableHint?: string;
+  /** Per-project issue filter, shown when the provider supports one. */
+  filter?: {
+    label: string;
+    placeholder?: string;
+    value: string;
+    onChange: (value: string) => void;
+  };
 }) {
   const unresolvable = resolution?.provenance.kind === 'unresolvable';
   const isExplicit = override !== undefined;
@@ -205,6 +230,19 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
           {unresolvableHint ??
             `The account set for this project is no longer connected. ${name} stays paused until you pick an account or reset.`}
         </span>
+      ) : null}
+      {filter ? (
+        <div className="flex min-h-9 items-center justify-between gap-4 pb-2">
+          <span className="text-xs text-foreground-muted">{filter.label}</span>
+          <Input
+            aria-label={`${name} ${filter.label}`}
+            className="min-w-0 shrink-0"
+            style={{ width: '18rem', maxWidth: '65%' }}
+            placeholder={filter.placeholder}
+            value={filter.value}
+            onChange={(event) => filter.onChange(event.target.value)}
+          />
+        </div>
       ) : null}
     </div>
   );

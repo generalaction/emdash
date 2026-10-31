@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { Version3Client } from 'jira.js';
+import { Version2Client, Version3Client } from 'jira.js';
 import { parseCredentials } from '../../helpers/credentials';
 import { toIntegrationError } from '../../helpers/error';
 import type { IntegrationCredentials } from '../../host';
@@ -27,6 +27,14 @@ export function createJiraClient(credentials: JiraCredentials): JiraClient {
     });
   }
 
+  if (credentials.authMethod === 'pat') {
+    // Data Center reads a personal access token as a plain Bearer header, which oauth2 sends.
+    return new Version2Client({
+      host: credentials.siteUrl,
+      authentication: { oauth2: { accessToken: credentials.personalAccessToken } },
+    });
+  }
+
   return new Version3Client({
     host: credentials.siteUrl,
     authentication: {
@@ -47,6 +55,12 @@ export async function verifyJiraCredentials(
     methodId === undefined ? rawCredentials : { ...rawCredentials, authMethod: methodId }
   );
   if (!credentials.success) return err(credentials.error);
+  if (!sendsTokensSecurely(credentials.data.siteUrl)) {
+    return err({
+      type: 'invalid_input',
+      message: 'Use an https:// Jira site URL; over http:// your token would be sent unencrypted.',
+    });
+  }
 
   try {
     const verifiedCredentials: JiraCredentials =
@@ -60,26 +74,47 @@ export async function verifyJiraCredentials(
           }
         : credentials.data;
     const client = createJiraClient(verifiedCredentials);
-    const user = await client.myself.getCurrentUser();
+    const user =
+      verifiedCredentials.authMethod === 'pat'
+        ? await (client as Version2Client).myself.getCurrentUser()
+        : await (client as Version3Client).myself.getCurrentUser();
     const host = new URL(verifiedCredentials.siteUrl).host;
-    const isBearer = verifiedCredentials.authMethod === 'bearer';
     const email =
       verifiedCredentials.authMethod === 'basic' ? verifiedCredentials.email : undefined;
+    // Data Center users have no accountId; their user key is the stable identifier.
+    const accountId = user.accountId ?? user.key;
+    const login = email ?? (verifiedCredentials.authMethod === 'pat' ? user.name : undefined);
     return ok({
-      ...(user.accountId
+      ...(accountId
         ? {
             account: {
-              id: user.accountId,
-              ...(email ? { login: email } : {}),
+              id: accountId,
+              ...(login ? { login } : {}),
               host,
+              // Data Center sites can share a host under different context paths.
+              ...(verifiedCredentials.authMethod === 'pat'
+                ? { scope: verifiedCredentials.siteUrl }
+                : {}),
             },
           }
         : {}),
       displayName: user.displayName,
-      displayDetail: `${isBearer ? 'Bearer token' : email} · ${host}`,
+      displayDetail: `${authLabel(verifiedCredentials, email)} · ${host}`,
       credentials: verifiedCredentials,
     });
   } catch (error) {
     return err(toIntegrationError(error, 'Jira'));
   }
+}
+
+function authLabel(credentials: JiraCredentials, email: string | undefined): string {
+  if (credentials.authMethod === 'bearer') return 'Bearer token';
+  if (credentials.authMethod === 'pat') return 'Personal access token';
+  return email ?? '';
+}
+
+/** Tokens travel as request headers, so only TLS or the local machine keeps them private. */
+function sendsTokensSecurely(siteUrl: string): boolean {
+  const { protocol, hostname } = new URL(siteUrl);
+  return protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(hostname);
 }

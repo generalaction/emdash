@@ -49,6 +49,9 @@ export type EnvironmentFormState = {
  */
 export type IntegrationAccountsFormState = Partial<Record<string, StoredIntegrationAccount | null>>;
 
+/** Per-provider issue filter text; blank clears the stored filter on save. */
+export type IssueFiltersFormState = Partial<Record<string, string>>;
+
 export type GitIdentityFormState = {
   defaultBranch: GitBranchRef | null;
   baseRemote: string;
@@ -68,6 +71,7 @@ export type FormState = {
   environment: EnvironmentFormState;
   gitIdentity: GitIdentityFormState;
   integrationAccounts: IntegrationAccountsFormState;
+  issueFilters: IssueFiltersFormState;
   placement: PlacementFormState;
 };
 
@@ -157,6 +161,7 @@ export function projectSettingsDomainsToForm(
     environment: environmentToForm(domains.environment),
     gitIdentity: gitIdentityToForm(domains.gitIdentity, remotes),
     integrationAccounts: domains.integrationAccounts.stored,
+    issueFilters: domains.issueFilters.stored,
     placement: placementToForm(domains.placement),
   };
 }
@@ -276,6 +281,11 @@ export function formToProjectSettingsDomainPatch(
       isTouched(touchedFields, `integrationAccounts.${providerId}`)
     )
   );
+  const issueFilters = Object.fromEntries(
+    Object.entries(form.issueFilters).filter(([providerId]) =>
+      isTouched(touchedFields, `issueFilters.${providerId}`)
+    )
+  );
   const placement = placementToPatch(form.placement, touchedFields);
   return {
     ...(lifecycle ? { lifecycle } : {}),
@@ -285,6 +295,7 @@ export function formToProjectSettingsDomainPatch(
     ...(Object.keys(integrationAccounts).length > 0
       ? { integrationAccounts: { stored: integrationAccounts } }
       : {}),
+    ...(Object.keys(issueFilters).length > 0 ? { issueFilters: { stored: issueFilters } } : {}),
     ...(placement ? { placement } : {}),
   };
 }
