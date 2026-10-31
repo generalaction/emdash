@@ -216,7 +216,12 @@ describe('Jira connection verification', () => {
     expect(result).toEqual({
       success: true,
       data: {
-        account: { id: 'JIRAUSER10100', login: 'ada', host: 'jira.example.com' },
+        account: {
+          id: 'JIRAUSER10100',
+          login: 'ada',
+          host: 'jira.example.com',
+          scope: 'https://jira.example.com',
+        },
         displayName: 'Ada Lovelace',
         displayDetail: 'Personal access token · jira.example.com',
         credentials: {
@@ -270,6 +275,31 @@ describe('Jira connection verification', () => {
       expect(mocks.createV2Client).not.toHaveBeenCalled();
     }
   );
+
+  it('tells apart two Data Center sites that share a host and a user key', async () => {
+    mocks.getCurrentUser.mockResolvedValue({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const [a, b] = await Promise.all(
+      ['https://jira.example.com/jira-a', 'https://jira.example.com/jira-b'].map((siteUrl) =>
+        verifyJiraCredentials({ siteUrl, personalAccessToken: 'dc-token' }, 'pat')
+      )
+    );
+    const scope = (result: typeof a) => (result.success ? result.data.account?.scope : undefined);
+    expect(scope(a)).toBe('https://jira.example.com/jira-a');
+    expect(scope(b)).toBe('https://jira.example.com/jira-b');
+  });
+
+  it('accepts an issue filter that quotes the words order by', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const result = await verifyJiraCredentials(
+      {
+        siteUrl: 'https://jira.example.com',
+        personalAccessToken: 'dc-token',
+        jqlFilter: 'summary ~ "order by"',
+      },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: true });
+  });
 
   it('accepts an issue filter with balanced parentheses, including inside quotes', async () => {
     mocks.getCurrentUser.mockResolvedValueOnce({ key: 'JIRAUSER1', displayName: 'Ada' });

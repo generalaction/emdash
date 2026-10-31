@@ -91,6 +91,10 @@ export async function verifyJiraCredentials(
               id: accountId,
               ...(login ? { login } : {}),
               host,
+              // Data Center sites can share a host under different context paths.
+              ...(verifiedCredentials.authMethod === 'pat'
+                ? { scope: verifiedCredentials.siteUrl }
+                : {}),
             },
           }
         : {}),
