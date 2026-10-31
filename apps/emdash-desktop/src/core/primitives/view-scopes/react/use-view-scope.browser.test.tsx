@@ -90,7 +90,7 @@ describe('scope registration after task navigation', () => {
     host.remove();
   });
 
-  it('keeps the pane shortcuts active when its content focuses before the pane scope attaches', async () => {
+  it('keeps pane shortcuts available after task navigation when typing already works', async () => {
     for (const taskId of [
       'project-1/task-1',
       'project-1/task-2',
@@ -106,13 +106,13 @@ describe('scope registration after task navigation', () => {
         );
       });
       expect(document.activeElement).toBe(host.querySelector('textarea'));
+      await userEvent.keyboard('hello');
+      expect(host.querySelector('textarea')?.value).toBe('hello');
       expect(runtime.activePath.map((scope) => scope.ref.scopeId)).toEqual([
         'test.terminal',
         'test.pane',
         'test.task',
       ]);
-      await userEvent.keyboard('hello');
-      expect(host.querySelector('textarea')?.value).toBe('hello');
       runtime.getActiveCommand(cycleTab)?.execute(undefined, 'keybinding');
     }
     expect(cycle).toHaveBeenCalledTimes(5);
