@@ -72,7 +72,12 @@ export type JiraVerifiedConnection = {
 
 /** Filters are ANDed with other clauses, so one carrying its own sort would break the query. */
 export function jqlHasOrderBy(jql: string): boolean {
-  return /\border\s+by\b/i.test(jql);
+  return /\border\s+by\b/i.test(withoutQuotedText(jql));
+}
+
+/** Quoted values are data, so `summary ~ "order by"` is not a sort clause. */
+function withoutQuotedText(jql: string): string {
+  return jql.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
 }
 
 /** Each filter is wrapped in parentheses, so one that closes early would escape its own clause. */
