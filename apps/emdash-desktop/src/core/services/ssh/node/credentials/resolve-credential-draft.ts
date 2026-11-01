@@ -38,6 +38,20 @@ export async function resolveCredentialDraft(
       : reuse.passphrase && previous
         ? await credentials.getPassphrase(previous.id, identity)
         : null;
+  } else if (draft.authType === 'key+password') {
+    // Server 2FA: password is the mandatory second factor; passphrase (if the
+    // key is encrypted) is optional and bound to the key's identity.
+    password = draft.password
+      ? secret(draft.password, 'ssh-password')
+      : reuse.password && previous
+        ? await credentials.getPassword(previous.id, identity)
+        : null;
+    if (!password) throw new Error('Enter a password for this connection.');
+    passphrase = draft.passphrase
+      ? secret(draft.passphrase, 'ssh-passphrase')
+      : reuse.passphrase && previous
+        ? await credentials.getPassphrase(previous.id, identity)
+        : null;
   }
   return { password, passphrase, identity };
 }

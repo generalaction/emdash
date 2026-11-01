@@ -135,4 +135,58 @@ describe('resolveCredentialDraft', () => {
     expect(store.getPassword).not.toHaveBeenCalled();
     expect(store.getPassphrase).not.toHaveBeenCalled();
   });
+
+  describe('key+password (server 2FA)', () => {
+    const twoFactor = {
+      ...saved,
+      authType: 'key+password' as const,
+      privateKeyPath: '/keys/work',
+    };
+
+    it('accepts an entered password and passphrase without any lookup', async () => {
+      const store = credentials();
+      const result = await resolveCredentialDraft(
+        { ...twoFactor, password: 'second factor', passphrase: 'key phrase' },
+        undefined,
+        store,
+        'fingerprint'
+      );
+      expect(result.password?.expose()).toBe('second factor');
+      expect(result.passphrase?.expose()).toBe('key phrase');
+      expect(store.getPassword).not.toHaveBeenCalled();
+      expect(store.getPassphrase).not.toHaveBeenCalled();
+    });
+
+    it('requires the second-factor password when none is entered or saved', async () => {
+      const store = credentials();
+      await expect(
+        resolveCredentialDraft(twoFactor, undefined, store, 'fingerprint')
+      ).rejects.toThrow('Enter a password');
+      expect(store.getPassword).not.toHaveBeenCalled();
+    });
+
+    it('retains saved password and passphrase only for the same key selection', async () => {
+      const store = credentials();
+      const result = await resolveCredentialDraft(twoFactor, twoFactor, store, 'fingerprint');
+      expect(result.password?.expose()).toBe('saved password');
+      expect(result.passphrase?.expose()).toBe('saved passphrase');
+      store.getPassphrase.mockClear();
+      const changed = await resolveCredentialDraft(
+        { ...twoFactor, privateKeyPath: '/keys/new' },
+        twoFactor,
+        store,
+        'other-fingerprint'
+      );
+      expect(changed.passphrase).toBeNull();
+      expect(store.getPassphrase).not.toHaveBeenCalled();
+    });
+
+    it('does not reuse a password when switching from plain password auth', async () => {
+      const store = credentials();
+      await expect(
+        resolveCredentialDraft(twoFactor, saved, store, 'fingerprint')
+      ).rejects.toThrow('Enter a password');
+      expect(store.getPassword).not.toHaveBeenCalled();
+    });
+  });
 });

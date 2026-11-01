@@ -84,11 +84,14 @@ export function MachineAuthenticationFields({
                       ? 'SSH Key'
                       : field.state.value === 'agent'
                         ? 'Agent'
-                        : 'Password'}
+                        : field.state.value === 'key+password'
+                          ? 'SSH Key + Password'
+                          : 'Password'}
                   </Select.Value>
                 </Select.Trigger>
                 <Select.Content>
                   <Select.Item value="key">SSH Key</Select.Item>
+                  <Select.Item value="key+password">SSH Key + Password (2FA)</Select.Item>
                   <Select.Item value="agent">Agent</Select.Item>
                   <Select.Item value="password">Password</Select.Item>
                 </Select.Content>
@@ -103,7 +106,7 @@ export function MachineAuthenticationFields({
         })}
       >
         {({ authType }) =>
-          authType === 'key' ? (
+          authType === 'key' || authType === 'key+password' ? (
             <>
               <form.AppField name={`${mode}.privateKeyPath`}>
                 {() => <PrivateKeyField key={alias} alias={alias} inheritedKey={inheritedKey} />}
@@ -118,6 +121,18 @@ export function MachineAuthenticationFields({
                   />
                 )}
               </form.AppField>
+              {authType === 'key+password' && (
+                <form.AppField name={`${mode}.password`}>
+                  {(field) => (
+                    <field.TextField
+                      label="Password (second factor)"
+                      type="password"
+                      autoComplete="current-password"
+                      placeholder={reuse.password ? 'Leave blank to keep existing' : undefined}
+                    />
+                  )}
+                </form.AppField>
+              )}
             </>
           ) : authType === 'password' ? (
             <form.AppField name={`${mode}.password`}>

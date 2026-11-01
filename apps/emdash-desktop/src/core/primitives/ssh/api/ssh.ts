@@ -9,7 +9,8 @@ export interface SshConfig {
   port: number;
   username: string;
   sshConfigAlias?: string;
-  authType: 'password' | 'key' | 'agent';
+  /** 'key+password' = server 2FA (AuthenticationMethods publickey,password): key first, then password in one session. */
+  authType: 'password' | 'key' | 'agent' | 'key+password';
   privateKeyPath?: string;
   useAgent?: boolean;
   forwardAgent?: boolean;

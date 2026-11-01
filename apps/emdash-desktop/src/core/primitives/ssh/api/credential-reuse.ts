@@ -19,11 +19,12 @@ export function sshCredentialReuse(next: CredentialIdentity, previous?: Credenti
     (!!next.sshConfigAlias || (next.proxyJump || '') === (previous.proxyJump || '')) &&
     next.authType === previous.authType;
 
+  const isKeyMode = next.authType === 'key' || next.authType === 'key+password';
+  const sameKeyPath =
+    (next.privateKeyPath?.trim() || '') === (previous?.privateKeyPath?.trim() || '');
   return {
-    password: sameConnection && next.authType === 'password',
-    passphrase:
-      sameConnection &&
-      next.authType === 'key' &&
-      (next.privateKeyPath?.trim() || '') === (previous?.privateKeyPath?.trim() || ''),
+    password:
+      sameConnection && (next.authType === 'password' || next.authType === 'key+password'),
+    passphrase: sameConnection && isKeyMode && sameKeyPath,
   };
 }
