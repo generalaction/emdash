@@ -9,13 +9,34 @@ import type { GitRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
+/** The pause after a fetch is at least this many times its duration. */
+const SLOW_FETCH_BACKOFF_FACTOR = 10;
+const MAX_SLOW_FETCH_DELAY_MS = 30 * 60 * 1000;
 
 type GitRepositoryFetchResult = Result<void, FetchError>;
 
+/**
+ * The pause before the next background fetch, measured from the end of the last one.
+ * A slow fetch (large repository, many refs) stretches the pause so background
+ * fetching stays a small share of the time instead of running back to back.
+ */
+export function nextBackgroundFetchDelay(
+  lastFetchDurationMs: number,
+  intervalMs = DEFAULT_INTERVAL_MS
+): number {
+  const backoff = Math.min(
+    lastFetchDurationMs * SLOW_FETCH_BACKOFF_FACTOR,
+    MAX_SLOW_FETCH_DELAY_MS
+  );
+  return Math.max(intervalMs, backoff);
+}
+
 export class GitRepositoryFetchService {
-  private _timer: ReturnType<typeof setInterval> | undefined;
+  private _timer: ReturnType<typeof setTimeout> | undefined;
   private _inflight: Promise<GitRepositoryFetchResult> | undefined;
-  private readonly intervalMs = DEFAULT_INTERVAL_MS;
+  /** Bumped by start/stop so a loop that was stopped never reschedules itself. */
+  private _generation = 0;
+  private _running = false;
 
   constructor(
     private readonly git: GitRuntimeClient,
@@ -24,17 +45,26 @@ export class GitRepositoryFetchService {
     private readonly getRemote: () => Promise<string | null>
   ) {}
 
-  /** Start the background fetch loop: immediate fetch, then every `intervalMs`. */
+  /** Start the background fetch loop: immediate fetch, then one after each pause. */
   start(): void {
-    void this._canBackgroundFetchWithoutPrompt().then((canFetch) => {
-      if (canFetch) void this._doFetch();
-    });
-    this._scheduleNext();
+    if (this._running) return;
+    this._running = true;
+    void this._tick(++this._generation);
   }
 
   stop(): void {
-    clearInterval(this._timer);
+    this._running = false;
+    this._generation++;
+    clearTimeout(this._timer);
     this._timer = undefined;
+  }
+
+  private async _tick(generation: number): Promise<void> {
+    const startedAt = Date.now();
+    if (await this._canBackgroundFetchWithoutPrompt()) await this._doFetch();
+    if (generation !== this._generation) return;
+    const delay = nextBackgroundFetchDelay(Date.now() - startedAt);
+    this._timer = setTimeout(() => void this._tick(generation), delay);
   }
 
   private _doFetch(): Promise<GitRepositoryFetchResult> {
@@ -57,14 +87,6 @@ export class GitRepositoryFetchService {
         this._inflight = undefined;
       });
     return this._inflight;
-  }
-
-  private _scheduleNext(): void {
-    this._timer = setInterval(() => {
-      void this._canBackgroundFetchWithoutPrompt().then((canFetch) => {
-        if (canFetch) void this._doFetch();
-      });
-    }, this.intervalMs);
   }
 
   private async _canBackgroundFetchWithoutPrompt(): Promise<boolean> {
