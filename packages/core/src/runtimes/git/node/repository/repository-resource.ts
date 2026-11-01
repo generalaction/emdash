@@ -243,4 +243,4 @@ export class RepositoryResource {
   private assertActive(): void {
     if (this.disposed) throw new Error('RepositoryResource is disposed');
   }
-      }
+  }
