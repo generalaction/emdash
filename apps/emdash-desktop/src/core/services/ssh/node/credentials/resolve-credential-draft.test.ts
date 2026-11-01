@@ -183,9 +183,9 @@ describe('resolveCredentialDraft', () => {
 
     it('does not reuse a password when switching from plain password auth', async () => {
       const store = credentials();
-      await expect(
-        resolveCredentialDraft(twoFactor, saved, store, 'fingerprint')
-      ).rejects.toThrow('Enter a password');
+      await expect(resolveCredentialDraft(twoFactor, saved, store, 'fingerprint')).rejects.toThrow(
+        'Enter a password'
+      );
       expect(store.getPassword).not.toHaveBeenCalled();
     });
   });

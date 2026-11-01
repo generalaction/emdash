@@ -37,8 +37,7 @@ export function sshCredentialIdentity(
   keyFingerprint?: string
 ): string {
   const isKeyMode = config.authType === 'key' || config.authType === 'key+password';
-  if (isKeyMode && !keyFingerprint)
-    throw new Error('Private key identity is required');
+  if (isKeyMode && !keyFingerprint) throw new Error('Private key identity is required');
   return createHash('sha256')
     .update(
       JSON.stringify([

@@ -23,8 +23,7 @@ export function sshCredentialReuse(next: CredentialIdentity, previous?: Credenti
   const sameKeyPath =
     (next.privateKeyPath?.trim() || '') === (previous?.privateKeyPath?.trim() || '');
   return {
-    password:
-      sameConnection && (next.authType === 'password' || next.authType === 'key+password'),
+    password: sameConnection && (next.authType === 'password' || next.authType === 'key+password'),
     passphrase: sameConnection && isKeyMode && sameKeyPath,
   };
 }
