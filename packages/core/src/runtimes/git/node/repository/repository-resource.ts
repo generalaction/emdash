@@ -249,4 +249,3 @@ export class RepositoryResource {
     if (this.disposed) throw new Error('RepositoryResource is disposed');
   }
 }
-//EOF
