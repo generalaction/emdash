@@ -100,6 +100,35 @@ describe('GitRepository', () => {
     }
   );
 
+  it('skips the FETCH_HEAD write when noWriteFetchHead is set', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    const remoteRepo = await makeRepo();
+    try {
+      await git(remoteRepo, ['checkout', '-b', 'topic']);
+      await writeFile(path.join(remoteRepo, 'topic.txt'), 'topic\n', 'utf8');
+      await git(remoteRepo, ['add', 'topic.txt']);
+      await git(remoteRepo, ['commit', '-m', 'topic']);
+      await git(remoteRepo, ['checkout', 'main']);
+      await git(repo, ['remote', 'add', 'origin', remoteRepo]);
+
+      // Baseline: a default fetch writes FETCH_HEAD.
+      await expect(repository.fetch('origin')).resolves.toMatchObject({ success: true });
+      await expect(realpath(path.join(repo, '.git', 'FETCH_HEAD'))).resolves.toBeTruthy();
+
+      await rm(path.join(repo, '.git', 'FETCH_HEAD'), { force: true });
+
+      await expect(
+        repository.fetch('origin', {}, { noWriteFetchHead: true, noAutoMaintenance: true })
+      ).resolves.toMatchObject({ success: true });
+      // Tracking refs still freshened, but no FETCH_HEAD was rewritten.
+      expect((await git(repo, ['rev-parse', 'refs/remotes/origin/topic'])).trim()).toBeTruthy();
+      await expect(realpath(path.join(repo, '.git', 'FETCH_HEAD'))).rejects.toThrow();
+    } finally {
+      await cleanup();
+      await rm(remoteRepo, { recursive: true, force: true });
+    }
+  });
+
   it('reports a missing MR ref without creating a review branch', async () => {
     const { repo, repository, cleanup } = await makeRepository();
     const remoteRepo = await makeRepo();
