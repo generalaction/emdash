@@ -105,7 +105,12 @@ export class RepositoryResource {
   async fetch(
     remote: string | undefined,
     context: GitOperationContext,
-    options: { refspec?: string; force?: boolean; noWriteFetchHead?: boolean; noAutoMaintenance?: boolean } = {}
+    options: {
+      refspec?: string;
+      force?: boolean;
+      noWriteFetchHead?: boolean;
+      noAutoMaintenance?: boolean;
+    } = {}
   ) {
     const result = await this.execute(() => this.commands.fetch(remote, context, options), true);
     this.invalidate('refs');
@@ -243,4 +248,4 @@ export class RepositoryResource {
   private assertActive(): void {
     if (this.disposed) throw new Error('RepositoryResource is disposed');
   }
-}
+        }
