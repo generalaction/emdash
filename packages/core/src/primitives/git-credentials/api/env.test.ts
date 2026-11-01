@@ -10,8 +10,8 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import {
   applyGitCredentialsToEnv,
-  GIT_CREDENTIAL_HELPER_COMMAND,
   GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS,
+  gitCredentialHelperCommand,
   gitCredentialOperationEnv,
   type GitCredentialsSessionSpec,
 } from './env';
@@ -61,7 +61,7 @@ function runHelper(action: string, request?: string): string {
     chmodSync(join(bin, 'curl'), 0o755);
     return execFileSync(
       'sh',
-      ['-c', `${GIT_CREDENTIAL_HELPER_COMMAND.slice(1)} "$@"`, 'sh', action],
+      ['-c', `${gitCredentialHelperCommand().slice(1)} "$@"`, 'sh', action],
       {
         env: {
           PATH: `${bin}:${process.env.PATH}`,
@@ -77,9 +77,20 @@ function runHelper(action: string, request?: string): string {
   }
 }
 
-describe('GIT_CREDENTIAL_HELPER_COMMAND', () => {
+describe('gitCredentialHelperCommand', () => {
   it('contains no single quotes, so GIT_CONFIG_PARAMETERS carries it verbatim', () => {
-    expect(GIT_CREDENTIAL_HELPER_COMMAND).not.toContain("'");
+    for (const platform of ['linux', 'darwin', 'win32'] as const) {
+      expect(gitCredentialHelperCommand(platform)).not.toContain("'");
+    }
+  });
+
+  it('passes the nonce to native Windows curl without an inherited fd', () => {
+    const command = gitCredentialHelperCommand('win32');
+    expect(command).not.toContain('/dev/fd');
+    expect(command).toContain(
+      'curl -q --noproxy 127.0.0.1 --variable %EMDASH_GIT_CREDENTIAL_NONCE ' +
+        '--expand-header "X-Emdash-Token: {{EMDASH_GIT_CREDENTIAL_NONCE}}" '
+    );
   });
 
   it.skipIf(process.platform === 'win32')('forwards get and erase to their endpoints', () => {
@@ -92,7 +103,7 @@ describe('GIT_CREDENTIAL_HELPER_COMMAND', () => {
 
   it('waits longer than a credential read that renews the token', () => {
     expect(GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS).toBeGreaterThan(60);
-    expect(GIT_CREDENTIAL_HELPER_COMMAND).toContain(`-m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} `);
+    expect(gitCredentialHelperCommand()).toContain(`-m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} `);
   });
 
   it.skipIf(process.platform === 'win32')('sends nothing for other actions', () => {
@@ -197,7 +208,7 @@ async function processArgvs(): Promise<string> {
 const credentialRequest = 'protocol=https\nhost=github.com\n\n';
 const credentialResponse = 'username=emdash-test\npassword=synthetic-test-password\n';
 
-describe.skipIf(process.platform === 'win32')('GIT_CREDENTIAL_HELPER_COMMAND with git', () => {
+describe.skipIf(process.platform === 'win32')('gitCredentialHelperCommand with git', () => {
   it('reaches the loopback service directly when proxy variables are set', async () => {
     const proxy = `http://127.0.0.1:${await unusedLoopbackPort()}`;
     await withCredentialService(
@@ -298,6 +309,108 @@ describe.skipIf(process.platform === 'win32')('GIT_CREDENTIAL_HELPER_COMMAND wit
   });
 });
 
+/** The real curl, if it can import env vars (`--variable`, curl 8.3+). */
+function curlWithVariables(): string | undefined {
+  if (process.platform === 'win32') return undefined;
+  try {
+    const curl = execFileSync('sh', ['-c', 'command -v curl'], { encoding: 'utf8' }).trim();
+    const [, major = 0, minor = 0] =
+      /^curl (\d+)\.(\d+)/
+        .exec(execFileSync(curl, ['--version'], { encoding: 'utf8' }))
+        ?.map(Number) ?? [];
+    return major > 8 || (major === 8 && minor >= 3) ? curl : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const realCurl = curlWithVariables();
+
+/**
+ * Runs `fn` with a `curl` first on PATH that, like a native Windows curl started by
+ * Git for Windows' MSYS sh, inherits only stdin, stdout, and stderr.
+ */
+async function withStdioOnlyCurl(fn: (path: string) => Promise<void>): Promise<void> {
+  const bin = mkdtempSync(join(tmpdir(), 'emdash-native-curl-'));
+  try {
+    writeFileSync(join(bin, 'curl'), `#!/bin/sh\nexec 3<&- 4<&-\nexec "${realCurl}" "$@"\n`);
+    chmodSync(join(bin, 'curl'), 0o755);
+    await fn(`${bin}:${process.env.PATH}`);
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
+}
+
+function windowsHelperEnvFor(port: number, nonce = channel.nonce): Record<string, string> {
+  return applyGitCredentialsToEnv(
+    {},
+    { mode: 'effective-account', channel: { port, nonce }, hosts: ['github.com'] },
+    'win32'
+  );
+}
+
+describe.skipIf(!realCurl)('the win32 gitCredentialHelperCommand with git', () => {
+  it('authenticates through a curl that inherits no fd beyond stdio', async () => {
+    const proxy = `http://127.0.0.1:${await unusedLoopbackPort()}`;
+    await withStdioOnlyCurl(async (path) => {
+      await withCredentialService(
+        (response) => response.end(credentialResponse),
+        async (port, requests) => {
+          const result = await runGitCredential(
+            'fill',
+            windowsHelperEnvFor(port),
+            credentialRequest,
+            { env: { PATH: path, http_proxy: proxy, HTTP_PROXY: proxy, ALL_PROXY: proxy } }
+          );
+          expect(result.stderr).toBe('');
+          expect(result.stdout).toContain('username=emdash-test');
+          expect(requests).toEqual([`POST /git-credential/get ${channel.nonce}`]);
+        }
+      );
+    });
+  });
+
+  it('keeps the nonce out of every process argv while the request is in flight', async () => {
+    const nonce = randomUUID();
+    let argvs = '';
+    let servicePort = 0;
+    await withStdioOnlyCurl(async (path) => {
+      await withCredentialService(
+        async (response) => {
+          argvs = await processArgvs();
+          response.end(credentialResponse);
+        },
+        async (port) => {
+          servicePort = port;
+          const result = await runGitCredential(
+            'fill',
+            windowsHelperEnvFor(port, nonce),
+            credentialRequest,
+            { env: { PATH: path } }
+          );
+          expect(result.stdout).toContain('username=emdash-test');
+        }
+      );
+    });
+    const curl = argvs.split('\n').find((argv) => argv.includes(`127.0.0.1:${servicePort}/`));
+    expect(curl).toMatch(/curl -q --noproxy 127\.0\.0\.1 --variable %EMDASH_GIT_CREDENTIAL_NONCE /);
+    expect(argvs).not.toContain(nonce);
+  });
+
+  it('reports an unreachable credential service instead of failing silently', async () => {
+    const port = await unusedLoopbackPort();
+    await withStdioOnlyCurl(async (path) => {
+      const result = await runGitCredential('fill', windowsHelperEnvFor(port), credentialRequest, {
+        env: { PATH: path },
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(
+        `emdash: cannot reach the Emdash Git credential service at 127.0.0.1:${port};`
+      );
+    });
+  });
+});
+
 describe('applyGitCredentialsToEnv', () => {
   it('returns the env untouched for system mode and for no spec', () => {
     const env = {
@@ -319,7 +432,7 @@ describe('applyGitCredentialsToEnv', () => {
       expect(env.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-nonce-1234');
       expect(gitConfigPairs(env)).toEqual([
         ['credential.https://github.com.helper', ''],
-        ['credential.https://github.com.helper', GIT_CREDENTIAL_HELPER_COMMAND],
+        ['credential.https://github.com.helper', gitCredentialHelperCommand()],
       ]);
     });
 
@@ -335,7 +448,7 @@ describe('applyGitCredentialsToEnv', () => {
       expect(gitConfigPairs(env)).toEqual([
         ['user.name', 'Someone'],
         ['credential.https://github.com.helper', ''],
-        ['credential.https://github.com.helper', GIT_CREDENTIAL_HELPER_COMMAND],
+        ['credential.https://github.com.helper', gitCredentialHelperCommand()],
       ]);
     });
 
@@ -407,7 +520,15 @@ describe('gitCredentialOperationEnv', () => {
     expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('45678');
     expect(gitConfigPairs(env)).toEqual([
       ['credential.https://github.example.com.helper', ''],
-      ['credential.https://github.example.com.helper', GIT_CREDENTIAL_HELPER_COMMAND],
+      ['credential.https://github.example.com.helper', gitCredentialHelperCommand()],
+    ]);
+  });
+
+  it('wires the helper for the platform git runs on', () => {
+    const env = gitCredentialOperationEnv(channel, 'github.com', 'win32');
+    expect(gitConfigPairs(env).at(-1)).toEqual([
+      'credential.https://github.com.helper',
+      gitCredentialHelperCommand('win32'),
     ]);
   });
 });
