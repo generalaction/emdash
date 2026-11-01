@@ -34,9 +34,10 @@ export function assertPasswordDestination(
 
 export function sshCredentialIdentity(
   config: Omit<SshConfig, 'id'>,
-  keyFingerprint?: string
+  keyFingerprint?: string,
+  bindKey = true
 ): string {
-  const isKeyMode = config.authType === 'key' || config.authType === 'key+password';
+  const isKeyMode = (config.authType === 'key' || config.authType === 'key+password') && bindKey;
   if (isKeyMode && !keyFingerprint) throw new Error('Private key identity is required');
   return createHash('sha256')
     .update(

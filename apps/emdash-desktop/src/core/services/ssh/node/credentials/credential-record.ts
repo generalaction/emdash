@@ -52,7 +52,9 @@ export function sshCredentialChanges(connectionId: string, credentials: Resolved
     [keys.passphrase, null],
     [
       keys.boundPassword,
-      credentials.password ? bindCredential(credentials.password, credentials.identity) : null,
+      credentials.password
+        ? bindCredential(credentials.password, credentials.passwordIdentity)
+        : null,
     ],
     [
       keys.boundPassphrase,

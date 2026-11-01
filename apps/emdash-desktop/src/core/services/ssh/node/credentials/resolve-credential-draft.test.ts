@@ -165,11 +165,24 @@ describe('resolveCredentialDraft', () => {
       expect(store.getPassword).not.toHaveBeenCalled();
     });
 
-    it('retains saved password and passphrase only for the same key selection', async () => {
+    it('retains the saved password even when the key changes', async () => {
+      const store = credentials();
+      const changed = await resolveCredentialDraft(
+        { ...twoFactor, privateKeyPath: '/keys/new' },
+        twoFactor,
+        store,
+        'other-fingerprint'
+      );
+      expect(changed.password?.expose()).toBe('saved password');
+      expect(store.getPassword).toHaveBeenCalledWith('saved', expect.any(String));
+      expect(changed.passwordIdentity).not.toBe(changed.identity);
+    });
+
+    it('retains the saved passphrase only for the same key selection', async () => {
       const store = credentials();
       const result = await resolveCredentialDraft(twoFactor, twoFactor, store, 'fingerprint');
-      expect(result.password?.expose()).toBe('saved password');
       expect(result.passphrase?.expose()).toBe('saved passphrase');
+      expect(result.passwordIdentity).not.toBe(result.identity);
       store.getPassphrase.mockClear();
       const changed = await resolveCredentialDraft(
         { ...twoFactor, privateKeyPath: '/keys/new' },
