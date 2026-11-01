@@ -69,6 +69,13 @@ export class GitRepository {
     return this.commandMutation(() => this.exec.exec(['remote', 'add', name, url]));
   }
 
+  /**
+   * Freshen remote-tracking refs. Same hygiene as the workspace-registry fetches
+   * (spec: git concurrency model): nothing reads FETCH_HEAD, which costs a line per
+   * fetched ref on every run, and an auto-maintenance child would race the other git
+   * operations running against this repository. A refspec therefore needs a
+   * destination to leave a result behind.
+   */
   async fetch(
     remote?: string,
     context: GitOperationContext = {},
@@ -81,6 +88,8 @@ export class GitRepository {
         [
           'fetch',
           '--progress',
+          '--no-write-fetch-head',
+          '--no-auto-maintenance',
           ...(options.force ? ['--force'] : []),
           ...(remote ? [remote] : []),
           ...(options.refspec ? [options.refspec] : []),
