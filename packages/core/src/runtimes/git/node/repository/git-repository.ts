@@ -72,7 +72,12 @@ export class GitRepository {
   async fetch(
     remote?: string,
     context: GitOperationContext = {},
-    options: { refspec?: string; force?: boolean; noWriteFetchHead?: boolean; noAutoMaintenance?: boolean } = {}
+    options: {
+      refspec?: string;
+      force?: boolean;
+      noWriteFetchHead?: boolean;
+      noAutoMaintenance?: boolean;
+    } = {}
   ): Promise<Result<void, FetchError>> {
     try {
       throwIfGitOpAborted(context.signal);
