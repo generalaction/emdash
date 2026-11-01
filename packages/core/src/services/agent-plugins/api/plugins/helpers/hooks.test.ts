@@ -1,7 +1,8 @@
+import { Buffer } from 'node:buffer';
 import { execFile, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -61,15 +62,17 @@ describe('hook command helpers', () => {
     }
   );
 
-  it('builds Windows hook commands without a quoted cmd.exe body', () => {
+  it('builds Windows hook commands as one powershell.exe call every outer shell reads alike', () => {
     const command = makeNotificationHookCommand('idle_prompt', { platform: 'win32' });
 
     expect(command).toMatch(
-      /^cmd\.exe \/d \/c set EMDASH_HOOK_MARKER=EMDASH_HOOK_CONFIG_VERSION=1 EMDASH_HOOK_PORT&&powershell\.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand [A-Za-z0-9+/]+=*$/
+      /^powershell\.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand [A-Za-z0-9+/]+=*$/
     );
-    expect(command).toContain(EMDASH_MARKER);
-    expect(command).not.toContain('/c "');
-    expect(command).not.toContain('& powershell.exe');
+    // Git Bash rewrites arguments that start with `/` into drive paths.
+    expect(command.split(' ').filter((arg) => arg.startsWith('/'))).toEqual([]);
+    expect(decodeWindowsHookScript(command)).toContain(
+      `$payload = '{"notification_type":"idle_prompt"}'`
+    );
   });
 
   it('emits no redirects (an outer shell parsing >NUL creates a stray NUL file)', () => {
@@ -104,17 +107,70 @@ describe('hook command helpers', () => {
     }
   );
 
-  it('keeps the Emdash markers visible to hook config cleanup without PowerShell args', () => {
+  it('marks Windows hook scripts so hook config cleanup can find them', () => {
     const command = makeWindowsPowerShellHookCommand('Write-Output "ok"');
 
-    expect(
-      command.startsWith(
-        `cmd.exe /d /c set EMDASH_HOOK_MARKER=${EMDASH_HOOK_VERSION_MARKER} ${EMDASH_MARKER}&&powershell.exe `
-      )
-    ).toBe(true);
-    expect(filterUserHooks([{ command }])).toHaveLength(0);
+    expect(decodeWindowsHookScript(command)).toBe(
+      `# ${EMDASH_HOOK_VERSION_MARKER} ${EMDASH_MARKER}\nWrite-Output "ok"`
+    );
+    expect(filterUserHooks([{ command }])).toEqual([]);
   });
+
+  it('keeps user PowerShell hooks and drops legacy cmd.exe-wrapped Emdash hooks', () => {
+    const userEncoded = Buffer.from('Write-Output "mine"', 'utf16le').toString('base64');
+    const userHook = { command: `powershell.exe -EncodedCommand ${userEncoded}` };
+    const legacyHook = {
+      command:
+        `cmd.exe /d /c set EMDASH_HOOK_MARKER=${EMDASH_HOOK_VERSION_MARKER} ${EMDASH_MARKER}&&` +
+        `powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${userEncoded}`,
+    };
+
+    expect(filterUserHooks([userHook, legacyHook])).toEqual([userHook]);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'hands the hook payload only to PowerShell when a POSIX shell such as Git Bash runs it',
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), 'emdash-windows-hook-'));
+      try {
+        // Stand-ins record what each Windows program receives.
+        for (const program of ['powershell.exe', 'cmd.exe']) {
+          const stub = join(dir, program);
+          writeFileSync(
+            stub,
+            `#!/bin/sh\nprintf '%s\\n' "$@" > "${stub}.argv"\ncat > "${stub}.stdin"\n`
+          );
+          chmodSync(stub, 0o755);
+        }
+        // Quotes and cmd.exe operators, as prompt text can carry them.
+        const payload = '{"prompt":"a \\"quoted\\" & b | c > d"}';
+        const command = makeStdinHookCommand('start', { platform: 'win32' });
+
+        const result = spawnSync('/bin/sh', ['-c', command], {
+          cwd: dir,
+          encoding: 'utf8',
+          env: { PATH: `${dir}:${process.env.PATH ?? ''}` },
+          input: payload,
+        });
+
+        expect(result.status).toBe(0);
+        expect(existsSync(join(dir, 'cmd.exe.argv'))).toBe(false);
+        expect(readFileSync(join(dir, 'powershell.exe.stdin'), 'utf8')).toBe(payload);
+        expect(
+          readFileSync(join(dir, 'powershell.exe.argv'), 'utf8').trimEnd().split('\n')
+        ).toEqual(command.split(' ').slice(1));
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  );
 });
+
+/** The PowerShell script a Windows hook command carries in `-EncodedCommand`. */
+function decodeWindowsHookScript(command: string): string {
+  const encoded = command.split(' -EncodedCommand ')[1] ?? '';
+  return Buffer.from(encoded, 'base64').toString('utf16le');
+}
 
 type RecordedRequest = { url?: string; headers: IncomingMessage['headers']; body: string };
 
