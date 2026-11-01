@@ -31,6 +31,8 @@ export const fetchJobInputSchema = repositorySelectorSchema.extend({
   remote: z.string().optional(),
   refspec: z.string().optional(),
   force: z.boolean().optional(),
+  noWriteFetchHead: z.boolean().optional(),
+  noAutoMaintenance: z.boolean().optional(),
   credentials: gitOperationCredentialsSchema.optional(),
 });
 export type FetchJobInput = z.infer<typeof fetchJobInputSchema>;
