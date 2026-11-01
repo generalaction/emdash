@@ -46,6 +46,12 @@ export class GitRepositoryFetchService {
         return runGitJob(gitContract.repository.fetch, this.git.repository.fetch, {
           ...this.repository,
           remote,
+          // Background freshening must not rewrite FETCH_HEAD or spawn an
+          // auto-maintenance child on a fixed cadence (races other git
+          // operations; heavy on large repos) - same hygiene flags as the
+          // workspace fetch-refs background step.
+          noWriteFetchHead: true,
+          noAutoMaintenance: true,
         });
       })
       .catch((e): GitRepositoryFetchResult => {
