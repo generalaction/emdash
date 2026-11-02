@@ -24,7 +24,7 @@ export type GitCredentialChannel = z.infer<typeof gitCredentialChannelSchema>;
 
 /**
  * The per-session credentials behavior, resolved desktop-side from the
- * per-project "agent git credentials" setting and the effective account:
+ * per-project git credentials setting and the effective account:
  *
  * - `effective-account`: wire the emdash helper for the given hosts; other
  *   hosts keep native behavior.

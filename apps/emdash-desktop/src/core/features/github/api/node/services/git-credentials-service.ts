@@ -26,11 +26,15 @@ import type {
  * (spec: github-git-settings §4):
  *
  * - agent/terminal PTY sessions get a session spec derived from the
- *   per-project "agent git credentials" setting and the effective account.
+ *   per-project git credentials setting and the effective account.
  *   A session keeps one channel while it runs (hydrating it again reuses it),
  *   and its session runtime releases the channel when the session ends;
- * - emdash's own git operations get operation-scoped credentials for the
- *   effective account on its host, revoked when the operation finishes.
+ * - emdash's own git operations (push, pull, fetch, ...) get operation-scoped
+ *   credentials for the effective account on its host, revoked when the
+ *   operation finishes. Under `system` they get none and git uses the
+ *   machine's own credentials; `none` only restricts sessions, so operations
+ *   keep the effective account there. An account selected for the operation
+ *   itself is explicit intent and wins over the setting.
  *
  * Channels only exist for local hosts: the credential server listens on the
  * desktop loopback, which a remote (SSH) workspace cannot reach. Remote
@@ -79,7 +83,11 @@ export type GitCredentialsService = {
     projectId: string;
     host: HostRef;
   }): Promise<GitCredentialsSessionSpec | undefined>;
-  /** Operation-scoped credentials for emdash's own git ops in a project. */
+  /**
+   * Operation-scoped credentials for emdash's own git ops in a project: the selected
+   * `account` if given; otherwise none under the `system` setting, else the effective
+   * account's. `undefined` leaves git on the machine's own credentials.
+   */
   mintOperationCredentials(params: {
     projectId: string;
     host: HostRef;
@@ -186,6 +194,7 @@ export function createGitCredentialsService(
     async mintOperationCredentials({ projectId, host, account: selectedAccount }) {
       if (!isLocalHostRef(host)) return undefined;
       if (selectedAccount) return mintAccountLease(selectedAccount);
+      if ((await deps.getAgentGitCredentialsSetting(projectId)) === 'system') return undefined;
       const account = await resolveEffectiveAccount(projectId);
       if (!account) return undefined;
       return mintProjectLease(
