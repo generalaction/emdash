@@ -277,6 +277,41 @@ describe('ViewScopes', () => {
     scopes.dispose();
   });
 
+  it.each(['parent-first', 'child-first'] as const)(
+    'registers already-focused content in %s attachment order without stealing focus',
+    (order) => {
+      const dom = new JSDOM(
+        '<div id="parent"><div id="terminal"><textarea></textarea></div></div><div id="other"></div>'
+      );
+      const scopes = new ViewScopes(dom.window.document);
+      const outer = scopes.instantiate(windowScope(), {
+        impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+      });
+      const terminal = scopes.instantiate(focusScope({ terminalId: 'terminal-1' }), {
+        parent: outer,
+        impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+      });
+      const other = scopes.instantiate(focusScope({ terminalId: 'terminal-2' }), {
+        parent: outer,
+        impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+      });
+      scopes.activate(outer);
+      const input = dom.window.document.querySelector('textarea')!;
+      input.focus();
+      const attachParent = () => outer.attachRef(dom.window.document.querySelector('#parent'));
+      const attachChild = () => terminal.attachRef(dom.window.document.querySelector('#terminal'));
+      for (const attach of order === 'parent-first'
+        ? [attachParent, attachChild]
+        : [attachChild, attachParent])
+        attach();
+      other.attachRef(dom.window.document.querySelector('#other'));
+
+      expect(dom.window.document.activeElement).toBe(input);
+      expect(scopes.activePath).toEqual([terminal, outer]);
+      scopes.dispose();
+    }
+  );
+
   it('rejects focus scopes in the logical activation channel', () => {
     const scopes = new ViewScopes(undefined);
     const terminal = scopes.instantiate(focusScope({ terminalId: 'terminal-1' }), {
