@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { loopbackCurlCommand } from '#primitives/exec/api';
+import { loopbackCurlCommand, type LoopbackCurlPlatform } from '#primitives/exec/api';
 
 /**
  * Session-env construction for the emdash git credential helper
@@ -24,7 +24,7 @@ export type GitCredentialChannel = z.infer<typeof gitCredentialChannelSchema>;
 
 /**
  * The per-session credentials behavior, resolved desktop-side from the
- * per-project "agent git credentials" setting and the effective account:
+ * per-project git credentials setting and the effective account:
  *
  * - `effective-account`: wire the emdash helper for the given hosts; other
  *   hosts keep native behavior.
@@ -79,25 +79,32 @@ const NEW_SESSION_HINT = 'open a new terminal or agent session';
  * minted its channel (e.g. a reattached tmux session after a restart). Failing
  * closed still means no other helper answers for the host. A failed `erase`
  * stays quiet.
+ *
+ * `platform` is the one git runs the helper on. Channels only exist for the
+ * local host, so node-side callers pass the platform Emdash runs on.
  */
-export const GIT_CREDENTIAL_HELPER_COMMAND =
-  '!f() { case "$1" in get|erase) ' +
-  `if [ -z "${HELPER_PORT}" ] || [ -z "${HELPER_NONCE}" ]; then ` +
-  `[ "$1" = get ] && echo "emdash: this session has no Emdash Git credential channel; ` +
-  `${NEW_SESSION_HINT}." >&2; return 1; fi; ` +
-  loopbackCurlCommand(
-    GIT_CREDENTIAL_NONCE_ENV_VAR,
-    `-s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
-      `"http://127.0.0.1:${HELPER_PORT}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1"`
-  ) +
-  ' || { rc=$?; ' +
-  '[ "$1" = get ] && case $rc in ' +
-  `7) echo "emdash: cannot reach the Emdash Git credential service at 127.0.0.1:${HELPER_PORT}; ` +
-  `if Emdash restarted since this session started, ${NEW_SESSION_HINT}." >&2;; ` +
-  '22) echo "emdash: Emdash did not return a Git credential for this session; ' +
-  `check the GitHub or GitLab account in the project settings, or ${NEW_SESSION_HINT}." >&2;; ` +
-  '*) echo "emdash: the Git credential request to Emdash failed (curl exit $rc)." >&2;; ' +
-  'esac; return $rc; };; esac; }; f';
+export function gitCredentialHelperCommand(platform: LoopbackCurlPlatform): string {
+  return (
+    '!f() { case "$1" in get|erase) ' +
+    `if [ -z "${HELPER_PORT}" ] || [ -z "${HELPER_NONCE}" ]; then ` +
+    `[ "$1" = get ] && echo "emdash: this session has no Emdash Git credential channel; ` +
+    `${NEW_SESSION_HINT}." >&2; return 1; fi; ` +
+    loopbackCurlCommand(
+      GIT_CREDENTIAL_NONCE_ENV_VAR,
+      `-s -f -m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} -X POST --data-binary @- ` +
+        `"http://127.0.0.1:${HELPER_PORT}${GIT_CREDENTIAL_HELPER_PATH_PREFIX}$1"`,
+      platform
+    ) +
+    ' || { rc=$?; ' +
+    '[ "$1" = get ] && case $rc in ' +
+    `7) echo "emdash: cannot reach the Emdash Git credential service at 127.0.0.1:${HELPER_PORT}; ` +
+    `if Emdash restarted since this session started, ${NEW_SESSION_HINT}." >&2;; ` +
+    '22) echo "emdash: Emdash did not return a Git credential for this session; ' +
+    `check the GitHub or GitLab account in the project settings, or ${NEW_SESSION_HINT}." >&2;; ` +
+    '*) echo "emdash: the Git credential request to Emdash failed (curl exit $rc)." >&2;; ' +
+    'esac; return $rc; };; esac; }; f'
+  );
+}
 
 const CREDENTIAL_HELPER_CONFIG_KEY = /^credential(\..+)?\.helper$/i;
 
@@ -111,10 +118,13 @@ type GitConfigPair = { key: string; value: string };
  */
 export function applyGitCredentialsToEnv(
   env: Record<string, string>,
-  spec: GitCredentialsSessionSpec | undefined
+  spec: GitCredentialsSessionSpec | undefined,
+  platform: LoopbackCurlPlatform
 ): Record<string, string> {
   if (!spec || spec.mode === 'system') return env;
-  return spec.mode === 'none' ? scrubCredentialHelpers(env) : injectEmdashHelper(env, spec);
+  return spec.mode === 'none'
+    ? scrubCredentialHelpers(env)
+    : injectEmdashHelper(env, spec, platform);
 }
 
 /**
@@ -124,7 +134,8 @@ export function applyGitCredentialsToEnv(
  */
 export function gitCredentialOperationEnv(
   channel: GitCredentialChannel,
-  host: string
+  host: string,
+  platform: LoopbackCurlPlatform
 ): Record<string, string> {
   // This is an overlay onto the Git runtime's env, not a complete session env.
   // Keep indexed config here so we do not replace inherited PARAMETERS. These
@@ -134,29 +145,31 @@ export function gitCredentialOperationEnv(
     [GIT_CREDENTIAL_NONCE_ENV_VAR]: channel.nonce,
     GIT_CONFIG_COUNT: '2',
   };
-  helperConfigPairs([host]).forEach((pair, index) => {
+  helperConfigPairs([host], platform).forEach((pair, index) => {
     env[`GIT_CONFIG_KEY_${index}`] = pair.key;
     env[`GIT_CONFIG_VALUE_${index}`] = pair.value;
   });
   return env;
 }
 
-function helperConfigPairs(hosts: string[]): GitConfigPair[] {
+function helperConfigPairs(hosts: string[], platform: LoopbackCurlPlatform): GitConfigPair[] {
   const pairs: GitConfigPair[] = [];
+  const helperCommand = gitCredentialHelperCommand(platform);
   for (const host of hosts) {
     const key = `credential.https://${host}.helper`;
     // An empty entry resets previously-configured helpers for this host so
     // the session authenticates as exactly the effective account there;
     // other hosts keep native behavior.
     pairs.push({ key, value: '' });
-    pairs.push({ key, value: GIT_CREDENTIAL_HELPER_COMMAND });
+    pairs.push({ key, value: helperCommand });
   }
   return pairs;
 }
 
 function injectEmdashHelper(
   env: Record<string, string>,
-  spec: Extract<GitCredentialsSessionSpec, { mode: 'effective-account' }>
+  spec: Extract<GitCredentialsSessionSpec, { mode: 'effective-account' }>,
+  platform: LoopbackCurlPlatform
 ): Record<string, string> {
   return {
     ...withoutGitConfigEntries(env),
@@ -165,7 +178,7 @@ function injectEmdashHelper(
     ...gitConfigEnv(
       readGitConfigPairs(env),
       env.GIT_CONFIG_PARAMETERS,
-      helperConfigPairs(spec.hosts)
+      helperConfigPairs(spec.hosts, platform)
     ),
   };
 }

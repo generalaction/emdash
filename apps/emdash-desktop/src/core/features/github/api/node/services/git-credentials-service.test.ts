@@ -178,6 +178,80 @@ describe('mintOperationCredentials', () => {
     expect(revokeSession).toHaveBeenCalledWith('nonce-1');
   });
 
+  it.each(['effective-account', 'none'] as const)(
+    'leases the effective account under the %s setting',
+    async (setting) => {
+      const { service, mintSession } = makeService({ setting });
+      const lease = await service.mintOperationCredentials({
+        projectId: 'p1',
+        host: LOCAL_HOST_REF,
+      });
+      expect(lease?.credentials).toEqual({ port: 45678, nonce: 'nonce-1', host: 'github.com' });
+      expect(mintSession).toHaveBeenCalledExactlyOnceWith({
+        kind: 'project',
+        projectId: 'p1',
+        providerId: 'github',
+      });
+    }
+  );
+
+  it.each(['effective-account', 'none'] as const)(
+    'falls back to native credentials under the %s setting when no account resolves',
+    async (setting) => {
+      const { service, mintSession } = makeService({
+        setting,
+        resolution: { value: null, provenance: { kind: 'inferred', from: 'none' } },
+      });
+      await expect(
+        service.mintOperationCredentials({ projectId: 'p1', host: LOCAL_HOST_REF })
+      ).resolves.toBeUndefined();
+      expect(mintSession).not.toHaveBeenCalled();
+    }
+  );
+
+  it('leaves git on native credentials under the system setting', async () => {
+    const { service, mintSession } = makeService({ setting: 'system' });
+    await expect(
+      service.mintOperationCredentials({ projectId: 'p1', host: LOCAL_HOST_REF })
+    ).resolves.toBeUndefined();
+    expect(mintSession).not.toHaveBeenCalled();
+  });
+
+  it.each(['effective-account', 'system', 'none'] as const)(
+    'leases an account selected for the operation under the %s setting',
+    async (setting) => {
+      const selected = { ...account, accountId: 'selected-work', isDefault: false };
+      const { service, mintSession } = makeService({ setting, accounts: [account, selected] });
+      const lease = await service.mintOperationCredentials({
+        projectId: 'p1',
+        host: LOCAL_HOST_REF,
+        account: { providerId: 'github', accountId: 'selected-work' },
+      });
+      expect(lease?.credentials).toEqual({ port: 45678, nonce: 'nonce-1', host: 'github.com' });
+      expect(mintSession).toHaveBeenCalledExactlyOnceWith({
+        kind: 'account',
+        providerId: 'github',
+        accountId: 'selected-work',
+        host: 'github.com',
+      });
+    }
+  );
+
+  it.each(['effective-account', 'system', 'none'] as const)(
+    'keeps native credentials on remote hosts under the %s setting',
+    async (setting) => {
+      const { service, mintSession } = makeService({ setting });
+      await expect(
+        service.mintOperationCredentials({
+          projectId: 'p1',
+          host: REMOTE_HOST,
+          account: { providerId: 'github', accountId: account.accountId },
+        })
+      ).resolves.toBeUndefined();
+      expect(mintSession).not.toHaveBeenCalled();
+    }
+  );
+
   it('rejects a removed selected account without minting credentials', async () => {
     const { service, mintSession } = makeService();
     await expect(
@@ -323,6 +397,16 @@ describe('mintCloneCredentials', () => {
     });
     lease?.release();
     expect(revokeSession).toHaveBeenCalledWith('nonce-1');
+  });
+
+  it('ignores the project git credentials setting, since no project exists yet', async () => {
+    const { service, mintSession } = makeService({ setting: 'system' });
+    const lease = await service.mintCloneCredentials({
+      repositoryUrl: 'https://github.com/org/repo.git',
+      host: LOCAL_HOST_REF,
+    });
+    expect(lease?.credentials).toEqual({ port: 45678, nonce: 'nonce-1', host: 'github.com' });
+    expect(mintSession).toHaveBeenCalledOnce();
   });
 
   it('leaves ssh clones and unmatched hosts on native behavior', async () => {

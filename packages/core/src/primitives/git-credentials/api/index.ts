@@ -1,11 +1,11 @@
 export {
   applyGitCredentialsToEnv,
-  GIT_CREDENTIAL_HELPER_COMMAND,
   GIT_CREDENTIAL_HELPER_ERASE_URL_PATH,
   GIT_CREDENTIAL_HELPER_URL_PATH,
   GIT_CREDENTIAL_NONCE_ENV_VAR,
   GIT_CREDENTIAL_PORT_ENV_VAR,
   gitCredentialChannelSchema,
+  gitCredentialHelperCommand,
   gitCredentialOperationEnv,
   gitCredentialsSessionSpecSchema,
   type GitCredentialChannel,
