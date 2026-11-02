@@ -74,6 +74,8 @@ export class GitRepositoryRuntime {
         {
           refspec: input.refspec,
           force: input.force,
+          noWriteFetchHead: input.noWriteFetchHead,
+          noAutoMaintenance: input.noAutoMaintenance,
         }
       )
     );

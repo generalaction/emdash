@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -99,6 +99,72 @@ describe('GitRepository', () => {
       }
     }
   );
+
+  it('passes the hygiene flags to git and skips the FETCH_HEAD write', async () => {
+    const { repo, cleanup } = await makeRepository();
+    const remoteRepo = await makeRepo();
+    const binDir = await mkdtemp(path.join(tmpdir(), 'emdash-git-shim-'));
+    const argLog = path.join(binDir, 'argv.log');
+    const shim = path.join(binDir, 'git');
+    await writeFile(shim, '#!/bin/sh\necho "$@" >> "$GIT_ARG_LOG"\nexec /usr/bin/git "$@"\n', {
+      mode: 0o755,
+    });
+    const gitCommonDir = await realpath(path.join(repo, '.git'));
+    const objectStoreDir = await realpath(path.join(gitCommonDir, 'objects'));
+    const identity = {
+      repositoryId: gitCommonDir,
+      objectStoreId: objectStoreDir,
+      gitCommonDir,
+      objectStoreDir,
+    } as RepositoryIdentity;
+    const repository = new GitRepository({
+      identity,
+      exec: bindGitDir(createBoundExec({ file: shim, cwd: tmpdir() }), gitCommonDir),
+    });
+    const previousLogEnv = process.env.GIT_ARG_LOG;
+    process.env.GIT_ARG_LOG = argLog;
+    try {
+      await git(remoteRepo, ['checkout', '-b', 'topic']);
+      await writeFile(path.join(remoteRepo, 'topic.txt'), 'topic\n', 'utf8');
+      await git(remoteRepo, ['add', 'topic.txt']);
+      await git(remoteRepo, ['commit', '-m', 'topic']);
+      await git(remoteRepo, ['checkout', 'main']);
+      await git(repo, ['remote', 'add', 'origin', remoteRepo]);
+
+      // Baseline: a default fetch writes FETCH_HEAD and passes no hygiene flags.
+      await expect(repository.fetch('origin')).resolves.toMatchObject({ success: true });
+      await expect(realpath(path.join(repo, '.git', 'FETCH_HEAD'))).resolves.toBeTruthy();
+
+      // Advance topic so the flagged fetch has a new commit to pick up.
+      await git(remoteRepo, ['checkout', 'topic']);
+      await writeFile(path.join(remoteRepo, 'topic.txt'), 'topic v2\n', 'utf8');
+      await git(remoteRepo, ['add', 'topic.txt']);
+      await git(remoteRepo, ['commit', '-m', 'topic v2']);
+      const newHead = (await git(remoteRepo, ['rev-parse', 'topic'])).trim();
+      await git(remoteRepo, ['checkout', 'main']);
+      await rm(path.join(repo, '.git', 'FETCH_HEAD'), { force: true });
+
+      await expect(
+        repository.fetch('origin', {}, { noWriteFetchHead: true, noAutoMaintenance: true })
+      ).resolves.toMatchObject({ success: true });
+
+      // The tracking ref moved to the new commit, FETCH_HEAD was not rewritten,
+      // and git received both hygiene flags.
+      expect((await git(repo, ['rev-parse', 'refs/remotes/origin/topic'])).trim()).toBe(newHead);
+      await expect(realpath(path.join(repo, '.git', 'FETCH_HEAD'))).rejects.toThrow();
+      const loggedArgs = await readFile(argLog, 'utf8');
+      const fetchLines = loggedArgs.split('\n').filter((line) => line.includes(' fetch '));
+      expect(fetchLines.at(-1)).toContain('--no-write-fetch-head');
+      expect(fetchLines.at(-1)).toContain('--no-auto-maintenance');
+      expect(fetchLines[0]).not.toContain('--no-write-fetch-head');
+    } finally {
+      if (previousLogEnv === undefined) delete process.env.GIT_ARG_LOG;
+      else process.env.GIT_ARG_LOG = previousLogEnv;
+      await cleanup();
+      await rm(remoteRepo, { recursive: true, force: true });
+      await rm(binDir, { recursive: true, force: true });
+    }
+  });
 
   it('reports a missing MR ref without creating a review branch', async () => {
     const { repo, repository, cleanup } = await makeRepository();

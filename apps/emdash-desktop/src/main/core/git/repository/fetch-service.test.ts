@@ -37,4 +37,33 @@ describe('GitRepositoryFetchService', () => {
     );
     service.stop();
   });
+
+  it('passes the fetch hygiene flags so background fetches skip FETCH_HEAD and auto-maintenance', async () => {
+    const fetch = {};
+    const snapshot = vi.fn().mockResolvedValue({
+      data: { remotes: [{ name: 'origin', url: 'git@github.com:owner/repo.git' }] },
+    });
+    const getRemote = vi.fn().mockResolvedValue('origin');
+    runtime.runGitJob.mockResolvedValue({ success: true, data: undefined });
+    const git = {
+      repository: {
+        fetch,
+        model: { state: vi.fn(() => ({ snapshot })) },
+      },
+    };
+    const repository = { repository: { root: { kind: 'posix' }, segments: ['repo'] } };
+
+    const service = new GitRepositoryFetchService(git as never, repository as never, getRemote);
+
+    service.start();
+
+    await vi.waitFor(() =>
+      expect(runtime.runGitJob).toHaveBeenCalledWith(
+        expect.anything(),
+        fetch,
+        expect.objectContaining({ noWriteFetchHead: true, noAutoMaintenance: true })
+      )
+    );
+    service.stop();
+  });
 });
