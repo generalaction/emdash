@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { loopbackCurlCommand } from '#primitives/exec/api';
+import { loopbackCurlCommand, type LoopbackCurlPlatform } from '#primitives/exec/api';
 
 /**
  * Session-env construction for the emdash git credential helper
@@ -80,10 +80,10 @@ const NEW_SESSION_HINT = 'open a new terminal or agent session';
  * closed still means no other helper answers for the host. A failed `erase`
  * stays quiet.
  *
- * Channels only exist for the local host, so the helper runs where Emdash does,
- * and the env builders below default `platform` to this process's.
+ * `platform` is the one git runs the helper on. Channels only exist for the
+ * local host, so node-side callers pass the platform Emdash runs on.
  */
-export function gitCredentialHelperCommand(platform: NodeJS.Platform = process.platform): string {
+export function gitCredentialHelperCommand(platform: LoopbackCurlPlatform): string {
   return (
     '!f() { case "$1" in get|erase) ' +
     `if [ -z "${HELPER_PORT}" ] || [ -z "${HELPER_NONCE}" ]; then ` +
@@ -119,7 +119,7 @@ type GitConfigPair = { key: string; value: string };
 export function applyGitCredentialsToEnv(
   env: Record<string, string>,
   spec: GitCredentialsSessionSpec | undefined,
-  platform: NodeJS.Platform = process.platform
+  platform: LoopbackCurlPlatform
 ): Record<string, string> {
   if (!spec || spec.mode === 'system') return env;
   return spec.mode === 'none'
@@ -135,7 +135,7 @@ export function applyGitCredentialsToEnv(
 export function gitCredentialOperationEnv(
   channel: GitCredentialChannel,
   host: string,
-  platform: NodeJS.Platform = process.platform
+  platform: LoopbackCurlPlatform
 ): Record<string, string> {
   // This is an overlay onto the Git runtime's env, not a complete session env.
   // Keep indexed config here so we do not replace inherited PARAMETERS. These
@@ -152,7 +152,7 @@ export function gitCredentialOperationEnv(
   return env;
 }
 
-function helperConfigPairs(hosts: string[], platform: NodeJS.Platform): GitConfigPair[] {
+function helperConfigPairs(hosts: string[], platform: LoopbackCurlPlatform): GitConfigPair[] {
   const pairs: GitConfigPair[] = [];
   const helperCommand = gitCredentialHelperCommand(platform);
   for (const host of hosts) {
@@ -169,7 +169,7 @@ function helperConfigPairs(hosts: string[], platform: NodeJS.Platform): GitConfi
 function injectEmdashHelper(
   env: Record<string, string>,
   spec: Extract<GitCredentialsSessionSpec, { mode: 'effective-account' }>,
-  platform: NodeJS.Platform
+  platform: LoopbackCurlPlatform
 ): Record<string, string> {
   return {
     ...withoutGitConfigEntries(env),

@@ -47,7 +47,8 @@ export function makePosixHookCurl(eventType: string, payloadArgs: string): strin
       '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
       `-H "X-Emdash-Event-Type: ${eventType}" ` +
       payloadArgs +
-      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook"'
+      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook"',
+    'posix'
   );
 }
 

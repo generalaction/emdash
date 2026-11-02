@@ -61,7 +61,7 @@ function runHelper(action: string, request?: string): string {
     chmodSync(join(bin, 'curl'), 0o755);
     return execFileSync(
       'sh',
-      ['-c', `${gitCredentialHelperCommand().slice(1)} "$@"`, 'sh', action],
+      ['-c', `${gitCredentialHelperCommand('posix').slice(1)} "$@"`, 'sh', action],
       {
         env: {
           PATH: `${bin}:${process.env.PATH}`,
@@ -79,13 +79,13 @@ function runHelper(action: string, request?: string): string {
 
 describe('gitCredentialHelperCommand', () => {
   it('contains no single quotes, so GIT_CONFIG_PARAMETERS carries it verbatim', () => {
-    for (const platform of ['linux', 'darwin', 'win32'] as const) {
+    for (const platform of ['posix', 'windows'] as const) {
       expect(gitCredentialHelperCommand(platform)).not.toContain("'");
     }
   });
 
   it('passes the nonce to native Windows curl without an inherited fd', () => {
-    const command = gitCredentialHelperCommand('win32');
+    const command = gitCredentialHelperCommand('windows');
     expect(command).not.toContain('/dev/fd');
     expect(command).toContain(
       'curl -q --noproxy 127.0.0.1 --variable %EMDASH_GIT_CREDENTIAL_NONCE ' +
@@ -103,7 +103,9 @@ describe('gitCredentialHelperCommand', () => {
 
   it('waits longer than a credential read that renews the token', () => {
     expect(GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS).toBeGreaterThan(60);
-    expect(gitCredentialHelperCommand()).toContain(`-m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} `);
+    expect(gitCredentialHelperCommand('posix')).toContain(
+      `-m ${GIT_CREDENTIAL_HELPER_TIMEOUT_SECONDS} `
+    );
   });
 
   it.skipIf(process.platform === 'win32')('sends nothing for other actions', () => {
@@ -195,7 +197,8 @@ async function unusedLoopbackPort(): Promise<number> {
 function helperEnvFor(port: number): Record<string, string> {
   return applyGitCredentialsToEnv(
     {},
-    { mode: 'effective-account', channel: { ...channel, port }, hosts: ['github.com'] }
+    { mode: 'effective-account', channel: { ...channel, port }, hosts: ['github.com'] },
+    'posix'
   );
 }
 
@@ -252,7 +255,8 @@ describe.skipIf(process.platform === 'win32')('gitCredentialHelperCommand with g
         servicePort = port;
         const env = applyGitCredentialsToEnv(
           {},
-          { mode: 'effective-account', channel: { port, nonce }, hosts: ['github.com'] }
+          { mode: 'effective-account', channel: { port, nonce }, hosts: ['github.com'] },
+          'posix'
         );
         const result = await runGitCredential('fill', env, credentialRequest);
         expect(result.stdout).toContain('username=emdash-test');
@@ -290,7 +294,7 @@ describe.skipIf(process.platform === 'win32')('gitCredentialHelperCommand with g
   });
 
   it('reports a session that lost its credential channel', async () => {
-    const env = applyGitCredentialsToEnv({}, helperSpec);
+    const env = applyGitCredentialsToEnv({}, helperSpec, 'posix');
     delete env.EMDASH_GIT_CREDENTIAL_PORT;
     delete env.EMDASH_GIT_CREDENTIAL_NONCE;
     const result = await runGitCredential('fill', env, credentialRequest);
@@ -345,7 +349,7 @@ function windowsHelperEnvFor(port: number, nonce = channel.nonce): Record<string
   return applyGitCredentialsToEnv(
     {},
     { mode: 'effective-account', channel: { port, nonce }, hosts: ['github.com'] },
-    'win32'
+    'windows'
   );
 }
 
@@ -421,18 +425,18 @@ describe('applyGitCredentialsToEnv', () => {
       GIT_CONFIG_VALUE_0: '',
       GIT_CONFIG_PARAMETERS: "'user.name'='Inherited'",
     };
-    expect(applyGitCredentialsToEnv(env, { mode: 'system' })).toBe(env);
-    expect(applyGitCredentialsToEnv(env, undefined)).toEqual(env);
+    expect(applyGitCredentialsToEnv(env, { mode: 'system' }, 'posix')).toBe(env);
+    expect(applyGitCredentialsToEnv(env, undefined, 'posix')).toEqual(env);
   });
 
   describe('effective-account mode', () => {
     it('wires the helper for each host with a reset entry first', () => {
-      const env = applyGitCredentialsToEnv({ PATH: '/bin' }, helperSpec);
+      const env = applyGitCredentialsToEnv({ PATH: '/bin' }, helperSpec, 'posix');
       expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('45678');
       expect(env.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-nonce-1234');
       expect(gitConfigPairs(env)).toEqual([
         ['credential.https://github.com.helper', ''],
-        ['credential.https://github.com.helper', gitCredentialHelperCommand()],
+        ['credential.https://github.com.helper', gitCredentialHelperCommand('posix')],
       ]);
     });
 
@@ -443,17 +447,18 @@ describe('applyGitCredentialsToEnv', () => {
           GIT_CONFIG_KEY_0: 'user.name',
           GIT_CONFIG_VALUE_0: 'Someone',
         },
-        helperSpec
+        helperSpec,
+        'posix'
       );
       expect(gitConfigPairs(env)).toEqual([
         ['user.name', 'Someone'],
         ['credential.https://github.com.helper', ''],
-        ['credential.https://github.com.helper', gitCredentialHelperCommand()],
+        ['credential.https://github.com.helper', gitCredentialHelperCommand('posix')],
       ]);
     });
 
     it('references the channel through env vars, never inline in config values', () => {
-      const env = applyGitCredentialsToEnv({}, helperSpec);
+      const env = applyGitCredentialsToEnv({}, helperSpec, 'posix');
       for (const [, value] of gitConfigPairs(env)) {
         expect(value).not.toContain(channel.nonce);
         expect(value).not.toContain(String(channel.port));
@@ -461,7 +466,7 @@ describe('applyGitCredentialsToEnv', () => {
     });
 
     it('does not touch askpass behavior', () => {
-      const env = applyGitCredentialsToEnv({ GIT_ASKPASS: '/usr/bin/x' }, helperSpec);
+      const env = applyGitCredentialsToEnv({ GIT_ASKPASS: '/usr/bin/x' }, helperSpec, 'posix');
       expect(env.GIT_ASKPASS).toBe('/usr/bin/x');
     });
   });
@@ -470,7 +475,8 @@ describe('applyGitCredentialsToEnv', () => {
     it('scrubs askpass and resets credential helpers', () => {
       const env = applyGitCredentialsToEnv(
         { PATH: '/bin', GIT_ASKPASS: '/usr/bin/x', SSH_ASKPASS: '/usr/bin/y' },
-        { mode: 'none' }
+        { mode: 'none' },
+        'posix'
       );
       expect(env.GIT_ASKPASS).toBe('');
       expect(env.SSH_ASKPASS).toBe('');
@@ -488,7 +494,8 @@ describe('applyGitCredentialsToEnv', () => {
           GIT_CONFIG_KEY_2: 'credential.https://github.com.helper',
           GIT_CONFIG_VALUE_2: '!leaky-too',
         },
-        { mode: 'none' }
+        { mode: 'none' },
+        'posix'
       );
       expect(gitConfigPairs(env)).toEqual([
         ['user.name', 'Someone'],
@@ -497,8 +504,8 @@ describe('applyGitCredentialsToEnv', () => {
     });
 
     it('removes an emdash helper channel if one is present', () => {
-      const helperEnv = applyGitCredentialsToEnv({ PATH: '/bin' }, helperSpec);
-      const scrubbed = applyGitCredentialsToEnv(helperEnv, { mode: 'none' });
+      const helperEnv = applyGitCredentialsToEnv({ PATH: '/bin' }, helperSpec, 'posix');
+      const scrubbed = applyGitCredentialsToEnv(helperEnv, { mode: 'none' }, 'posix');
       expect(scrubbed.EMDASH_GIT_CREDENTIAL_PORT).toBeUndefined();
       expect(scrubbed.EMDASH_GIT_CREDENTIAL_NONCE).toBeUndefined();
       expect(gitConfigPairs(scrubbed).at(-1)).toEqual(['credential.helper', '']);
@@ -510,25 +517,25 @@ describe('gitCredentialOperationEnv', () => {
   it('preserves unrelated inherited parameters when used as an operation overlay', () => {
     const env = {
       GIT_CONFIG_PARAMETERS: "'user.name'='Inherited'",
-      ...gitCredentialOperationEnv(channel, 'github.com'),
+      ...gitCredentialOperationEnv(channel, 'github.com', 'posix'),
     };
     expect(gitConfigPairs(env)).toContainEqual(['user.name', 'Inherited']);
   });
 
   it('produces a standalone overlay for one host', () => {
-    const env = gitCredentialOperationEnv(channel, 'github.example.com');
+    const env = gitCredentialOperationEnv(channel, 'github.example.com', 'posix');
     expect(env.EMDASH_GIT_CREDENTIAL_PORT).toBe('45678');
     expect(gitConfigPairs(env)).toEqual([
       ['credential.https://github.example.com.helper', ''],
-      ['credential.https://github.example.com.helper', gitCredentialHelperCommand()],
+      ['credential.https://github.example.com.helper', gitCredentialHelperCommand('posix')],
     ]);
   });
 
   it('wires the helper for the platform git runs on', () => {
-    const env = gitCredentialOperationEnv(channel, 'github.com', 'win32');
+    const env = gitCredentialOperationEnv(channel, 'github.com', 'windows');
     expect(gitConfigPairs(env).at(-1)).toEqual([
       'credential.https://github.com.helper',
-      gitCredentialHelperCommand('win32'),
+      gitCredentialHelperCommand('windows'),
     ]);
   });
 });

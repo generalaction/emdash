@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { devNull, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { currentAgentEnvPlatform } from '#primitives/agent-env/api';
 import {
   applyGitCredentialsToEnv,
   type GitCredentialsSessionSpec,
@@ -72,7 +73,8 @@ describe('credential config across child environment filtering', () => {
           GIT_CONFIG_VALUE_1: '',
           GIT_CONFIG_PARAMETERS: "'test.value'='inherited'",
         },
-        spec
+        spec,
+        currentAgentEnvPlatform()
       )
     );
     expect(git(env, ['config', '--get-all', 'test.value'])).toBe(`${value}\ninherited\n`);
@@ -88,7 +90,8 @@ describe('credential config across child environment filtering', () => {
         {
           GIT_CONFIG_PARAMETERS: "'credential.helper'='!echo username=wrong; echo password=wrong'",
         },
-        mode
+        mode,
+        currentAgentEnvPlatform()
       )
     );
     // The Emdash test channel is deliberately unavailable. Neither mode may

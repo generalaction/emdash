@@ -1,4 +1,10 @@
 /**
+ * Which curl a loopback command's POSIX shell runs: a POSIX curl, or the native Windows
+ * curl that Git for Windows' MSYS sh starts.
+ */
+export type LoopbackCurlPlatform = 'posix' | 'windows';
+
+/**
  * A POSIX shell command that runs `curl <args>` against an Emdash loopback endpoint,
  * such as the Git credential helper's or the agent hooks', authenticated by the nonce in
  * the environment variable `nonceVar`.
@@ -8,7 +14,7 @@
  *   on fd 3, and curl's stdin stays the caller's, e.g. the request body for `@-`. The
  *   inner group keeps curl's stdin redirected once; zsh would otherwise merge the pipe
  *   into it (MULTIOS).
- * - On `win32` the shell is Git for Windows' MSYS sh, but curl is a native Windows
+ * - On `windows` the shell is Git for Windows' MSYS sh, but curl is a native Windows
  *   program: it inherits no fds beyond stdio and cannot open `/dev/fd/3`. curl imports
  *   the nonce from the environment itself instead (`--variable`, curl 8.3+, which Git
  *   for Windows bundles), so the header still never enters argv. `--noproxy` names the
@@ -19,15 +25,14 @@
  *   `--noproxy` ignores proxy variables, so neither can send the request and its nonce
  *   elsewhere or reshape the response.
  *
- * `args` must target `127.0.0.1` and must not use fds 3 or 4. `platform` is the one the
- * command runs on; omit it for commands that only run in a POSIX environment.
+ * `args` must target `127.0.0.1` and must not use fds 3 or 4.
  */
 export function loopbackCurlCommand(
   nonceVar: string,
   args: string,
-  platform?: NodeJS.Platform
+  platform: LoopbackCurlPlatform
 ): string {
-  if (platform === 'win32') {
+  if (platform === 'windows') {
     return (
       `curl -q --noproxy 127.0.0.1 --variable %${nonceVar} ` +
       `--expand-header "X-Emdash-Token: {{${nonceVar}}}" ${args}`
