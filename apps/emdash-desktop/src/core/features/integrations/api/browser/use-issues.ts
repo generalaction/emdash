@@ -77,8 +77,8 @@ export function useIssues(
     projectPath ?? '',
     repositoryUrl ?? '',
     searchLimit,
-    accountKey,
     projectAccountContext.filter,
+    accountKey,
   ]);
 
   useEffect(() => {
@@ -105,8 +105,8 @@ export function useIssues(
       projectPath ?? '',
       repositoryUrl ?? '',
       initialLimit,
-      accountKey,
       projectAccountContext.filter,
+      accountKey,
     ],
     queryFn: async () => {
       if (!provider) return { success: true as const, data: [] as LinkedIssue[] };
