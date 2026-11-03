@@ -48,6 +48,11 @@ const workspacePackages = [
   '@emdash/wire',
 ];
 
+// ssh2 is pure JavaScript, so bundling it into the main process keeps the
+// packaged app independent of the asar node_modules copy, which has shipped
+// without ssh2 and crashed Windows launches with "Cannot find package".
+const bundledDependencies = ['ssh2'];
+
 export default defineConfig({
   main: {
     root: 'src/main',
@@ -61,9 +66,13 @@ export default defineConfig({
     },
     build: {
       externalizeDeps: {
-        exclude: workspacePackages,
+        exclude: [...workspacePackages, ...bundledDependencies],
       },
       rollupOptions: {
+        // Optional native binding that ssh2 probes in a try/catch. Keeping it
+        // external preserves the pure-JavaScript fallback the app already runs
+        // with, since cpu-features' build script is disabled in this repo.
+        external: ['cpu-features'],
         input: {
           index: resolve('src/entry/main.ts'),
           ...desktopWorkerBuildInputs(),
