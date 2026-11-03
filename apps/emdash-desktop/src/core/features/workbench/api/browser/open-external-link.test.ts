@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { confirmOpenExternalLink } from './open-external-link';
 
 const mocks = vi.hoisted(() => ({
+  browserSettings: undefined as { openLinksIn: string } | undefined,
   clipboardWriteText: vi.fn(),
   getTaskComposition: vi.fn(),
   navigationRef: {
@@ -12,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   openExternal: vi.fn(),
   openModal: vi.fn(),
   toast: Object.assign(vi.fn(), { error: vi.fn() }),
+}));
+
+vi.mock('@core/features/settings/api/browser/app-settings-client', () => ({
+  getAppSettingValueSnapshot: () => mocks.browserSettings,
 }));
 
 vi.mock('@core/features/workbench/api/browser/task-composition-selectors', () => ({
@@ -51,6 +56,7 @@ function getModalArgs(): ExternalLinkModalArgs {
 describe('confirmOpenExternalLink', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.browserSettings = undefined;
     mocks.clipboardWriteText.mockResolvedValue({ success: true });
     mocks.navigationRef.viewId = 'home';
     mocks.navigationRef.params = {};
@@ -137,5 +143,44 @@ describe('confirmOpenExternalLink', () => {
     await Promise.resolve();
 
     expect(mocks.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('opens in the Emdash browser without asking when that is the preferred target', () => {
+    const taskView = {
+      paneLayout: { open: vi.fn() },
+      setFocusedRegion: vi.fn(),
+    };
+    mocks.browserSettings = { openLinksIn: 'emdash-browser' };
+    mocks.navigationRef.viewId = 'task';
+    mocks.navigationRef.params = { projectId: 'project-1', taskId: 'task-1' };
+    mocks.getTaskComposition.mockReturnValue(taskView);
+
+    confirmOpenExternalLink('https://example.com/docs');
+
+    expect(mocks.openModal).not.toHaveBeenCalled();
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {
+      initialUrl: 'https://example.com/docs',
+    });
+    expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
+  });
+
+  it('falls back to the system browser when Emdash is preferred but no task is open', () => {
+    mocks.browserSettings = { openLinksIn: 'emdash-browser' };
+    mocks.openExternal.mockResolvedValue(undefined);
+
+    confirmOpenExternalLink('https://example.com/docs');
+
+    expect(mocks.openModal).not.toHaveBeenCalled();
+    expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/docs');
+  });
+
+  it('opens in the system browser without asking when that is the preferred target', () => {
+    mocks.browserSettings = { openLinksIn: 'external-browser' };
+    mocks.openExternal.mockResolvedValue(undefined);
+
+    confirmOpenExternalLink('https://example.com/docs');
+
+    expect(mocks.openModal).not.toHaveBeenCalled();
+    expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/docs');
   });
 });
