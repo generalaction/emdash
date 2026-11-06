@@ -55,6 +55,7 @@ export type InterfaceSettings = {
   showLeftSidebarPrStatus: boolean;
   showLeftSidebarTimestamps: boolean;
   hideContextBar: boolean;
+  boardByDefault: boolean;
 };
 
 export type ProviderCustomConfig = {
