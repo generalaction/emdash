@@ -12,6 +12,8 @@ export interface ResolvedCredentialDraft {
   password: Secret<string> | null;
   passphrase: Secret<string> | null;
   identity: string;
+  /** Identity the password is (re)bound to; differs from `identity` in 2FA mode, where the password follows the destination/account, not the key. */
+  passwordIdentity: string;
 }
 
 /** Shared by transient tests and saves. Retained secrets never cross the renderer boundary. */
@@ -23,6 +25,12 @@ export async function resolveCredentialDraft(
 ): Promise<ResolvedCredentialDraft> {
   const reuse = sshCredentialReuse(draft, previous);
   const identity = sshCredentialIdentity(draft, keyFingerprint);
+  // 2FA mode: the password is a server-account credential, so it is bound to the
+  // destination and account, not the key — swapping keys must not invalidate it.
+  const passwordIdentity =
+    draft.authType === 'key+password'
+      ? sshCredentialIdentity(draft, undefined, false)
+      : identity;
   let password: Secret<string> | null = null;
   let passphrase: Secret<string> | null = null;
   if (draft.authType === 'password') {
@@ -38,6 +46,21 @@ export async function resolveCredentialDraft(
       : reuse.passphrase && previous
         ? await credentials.getPassphrase(previous.id, identity)
         : null;
+  } else if (draft.authType === 'key+password') {
+    // Server 2FA: password is the mandatory second factor, bound to the
+    // destination/account; passphrase (if the key is encrypted) is optional
+    // and bound to the key's identity.
+    password = draft.password
+      ? secret(draft.password, 'ssh-password')
+      : reuse.password && previous
+        ? await credentials.getPassword(previous.id, passwordIdentity)
+        : null;
+    if (!password) throw new Error('Enter a password for this connection.');
+    passphrase = draft.passphrase
+      ? secret(draft.passphrase, 'ssh-passphrase')
+      : reuse.passphrase && previous
+        ? await credentials.getPassphrase(previous.id, identity)
+        : null;
   }
-  return { password, passphrase, identity };
+  return { password, passphrase, identity, passwordIdentity };
 }
