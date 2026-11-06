@@ -28,6 +28,12 @@ export interface ResolvedSshConfig {
   connectTimeout?: number;
   serverAliveInterval?: number;
   serverAliveCountMax?: number;
+  /** `HostKeyAlias`: the name host keys are looked up under instead of the hostname. */
+  hostKeyAlias?: string;
+  /** `UserKnownHostsFile` entries, unexpanded (`~` allowed); the first one records new hosts. */
+  userKnownHostsFile?: string[];
+  /** `GlobalKnownHostsFile` entries, read-only. */
+  globalKnownHostsFile?: string[];
 }
 
 export interface ResolveSshConfigOptions {
@@ -86,6 +92,17 @@ export function parseSshGOutput(output: string): ResolvedSshConfig {
   const normalizedForwardAgent = forwardAgentValue?.toLowerCase();
   const forwardAgent = forwardAgentValue ? normalizedForwardAgent !== 'no' : false;
 
+  // `ssh -G` prints a file list as one space-separated line; `none` disables the list.
+  const latestPaths = (key: string): string[] | undefined => {
+    const value = latest(key);
+    if (value === undefined) return undefined;
+    if (value.trim().toLowerCase() === 'none') return [];
+    return value.split(/\s+/).filter(Boolean);
+  };
+  const hostKeyAlias = latestOptional('hostkeyalias');
+  const userKnownHostsFile = latestPaths('userknownhostsfile');
+  const globalKnownHostsFile = latestPaths('globalknownhostsfile');
+
   return {
     hostname: latestOptional('hostname') ?? '',
     user: latestOptional('user') ?? '',
@@ -104,6 +121,9 @@ export function parseSshGOutput(output: string): ResolvedSshConfig {
     connectTimeout: latestInt('connecttimeout'),
     serverAliveInterval: latestInt('serveraliveinterval'),
     serverAliveCountMax: latestInt('serveralivecountmax'),
+    ...(hostKeyAlias !== undefined && { hostKeyAlias }),
+    ...(userKnownHostsFile !== undefined && { userKnownHostsFile }),
+    ...(globalKnownHostsFile !== undefined && { globalKnownHostsFile }),
   };
 }
 
