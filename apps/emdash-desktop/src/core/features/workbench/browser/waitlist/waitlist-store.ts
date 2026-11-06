@@ -32,12 +32,12 @@ class WaitlistStore {
     this.errorMessage = null;
   }
 
-  async join(email: string, message = ''): Promise<boolean> {
+  async join(email: string, note = ''): Promise<boolean> {
     if (this.submitting) return false;
     this.submitting = true;
     this.errorMessage = null;
     try {
-      const result = await (await getHostClient()).joinWaitlist({ email, message });
+      const result = await (await getHostClient()).joinWaitlist({ email, note });
       runInAction(() => {
         if (result.success) {
           this.showJoinedConfirmation = true;

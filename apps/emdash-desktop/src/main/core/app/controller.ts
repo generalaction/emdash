@@ -211,9 +211,10 @@ export const appOperations = {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
-  joinWaitlist: async (args: { email: string; message: string }) => {
+  joinWaitlist: async (args: { email: string; note: string }) => {
     try {
-      await joinWaitlist(args);
+      const version = await appService.getCachedAppVersion();
+      await joinWaitlist({ ...args, source: `desktop app v${version}` });
       return { success: true };
     } catch (error) {
       log.error('app:joinWaitlist failed', {

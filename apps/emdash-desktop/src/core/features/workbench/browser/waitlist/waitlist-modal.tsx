@@ -15,11 +15,11 @@ export const WaitlistModal = observer(function WaitlistModal() {
   const { data: session } = useAccountSession();
   const [emailDraft, setEmail] = useState<string | null>(null);
   const email = emailDraft ?? session?.user?.email ?? '';
-  const [message, setMessage] = useState('');
+  const [note, setNote] = useState('');
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (await store.join(email, message)) controller.complete();
+    if (await store.join(email, note)) controller.complete();
   };
 
   const onEdit = () => {
@@ -67,20 +67,20 @@ export const WaitlistModal = observer(function WaitlistModal() {
           />
 
           <label
-            htmlFor="waitlist-message"
+            htmlFor="waitlist-note"
             className="mt-4 mb-1.5 block text-xs text-foreground-muted"
           >
             Anything we should know? <span className="text-foreground-passive">(optional)</span>
           </label>
           <Textarea
-            id="waitlist-message"
+            id="waitlist-note"
             rows={3}
             className="resize-none"
             placeholder="Your team, workflow, or infrastructure needs..."
-            value={message}
+            value={note}
             disabled={store.submitting}
             onChange={(event) => {
-              setMessage(event.target.value);
+              setNote(event.target.value);
               onEdit();
             }}
           />
