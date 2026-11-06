@@ -69,4 +69,32 @@ describe('PtyRegistry', () => {
       argv: [],
     });
   });
+
+  it('ignores a delayed exit from a replaced session', async () => {
+    const spawner = new FakePtySpawner({ exitOnKill: false });
+    const onSessionChanged = vi.fn();
+    const registry = new PtyRegistry(spawner, { onSessionChanged });
+
+    const retired = await registry.create('auth:claude', spec);
+    const current = await registry.create('auth:claude', spec);
+    onSessionChanged.mockClear();
+
+    spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+
+    expect(registry.get('auth:claude')).toBe(current);
+    expect(retired.exitStatus).toBeNull();
+    expect(onSessionChanged).not.toHaveBeenCalled();
+  });
+
+  it('does not report an exit emitted synchronously while disposing', async () => {
+    const spawner = new FakePtySpawner();
+    const onSessionChanged = vi.fn();
+    const registry = new PtyRegistry(spawner, { onSessionChanged });
+    await registry.create('auth:claude', spec);
+    onSessionChanged.mockClear();
+
+    registry.dispose('auth:claude');
+
+    expect(onSessionChanged).toHaveBeenCalledExactlyOnceWith('auth:claude', null);
+  });
 });

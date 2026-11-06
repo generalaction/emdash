@@ -284,6 +284,29 @@ describe('TerminalsRuntime', () => {
     await scope.dispose();
   });
 
+  it('keeps a restarted terminal running when the retired PTY exits late', async () => {
+    const spawner = new FakePtySpawner({ exitOnKill: false });
+    const scope = createScope({ label: 'test-terminals-late-exit' });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
+    const workspace = testWorkspace();
+    const key = { workspace, id: 'terminal-1' };
+    const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
+
+    try {
+      await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+      await runtime.kill(key);
+      await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+      expect((await sessions(runtime))[sessionKey]).toMatchObject({ status: 'running', pid: 2 });
+
+      spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+
+      expect((await sessions(runtime))[sessionKey]).toMatchObject({ status: 'running', pid: 2 });
+    } finally {
+      runtime.dispose();
+      await scope.dispose();
+    }
+  });
+
   it('kill also evicts a retained exited terminal', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
