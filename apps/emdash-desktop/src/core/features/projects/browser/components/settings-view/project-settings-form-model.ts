@@ -8,6 +8,7 @@ import type {
   StoredIntegrationAccounts,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
+import { normalizeBranchPrefix } from '@core/primitives/tasks/api';
 import type {
   ProjectFileHandlingDomainSnapshot,
   ProjectEnvironmentDomainSnapshot,
@@ -54,6 +55,8 @@ export type GitIdentityFormState = {
   baseRemote: string;
   pushRemote: string;
   agentGitCredentials: AgentGitCredentialsSetting;
+  /** Undefined means inherit the app-wide branch prefix; empty means no prefix. */
+  branchPrefix: string | undefined;
 };
 
 export type PlacementFormState = {
@@ -137,6 +140,7 @@ export function gitIdentityToForm(
     baseRemote: domain.stored.baseRemote ?? '',
     pushRemote: domain.stored.pushRemote ?? '',
     agentGitCredentials: domain.stored.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS,
+    branchPrefix: domain.stored.branchPrefix,
   };
 }
 
@@ -247,6 +251,10 @@ export function gitIdentityToPatch(
   if (isTouched(touchedFields, 'gitIdentity.agentGitCredentials')) {
     stored.agentGitCredentials =
       form.agentGitCredentials === DEFAULT_AGENT_GIT_CREDENTIALS ? null : form.agentGitCredentials;
+  }
+  if (isTouched(touchedFields, 'gitIdentity.branchPrefix')) {
+    stored.branchPrefix =
+      form.branchPrefix === undefined ? null : normalizeBranchPrefix(form.branchPrefix);
   }
   return Object.keys(stored).length > 0 ? { stored } : undefined;
 }

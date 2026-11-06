@@ -27,6 +27,9 @@ describe('provenance rendering labels', () => {
     expect(provenanceSourceText({ kind: 'inferred', from: 'host default' })).toBe(
       'from the host default'
     );
+    expect(provenanceSourceText({ kind: 'inferred', from: 'app default' })).toBe(
+      'from the app settings'
+    );
     expect(provenanceSourceText({ kind: 'set' })).toBeNull();
     expect(provenanceSourceText({ kind: 'unresolvable' })).toBeNull();
   });
