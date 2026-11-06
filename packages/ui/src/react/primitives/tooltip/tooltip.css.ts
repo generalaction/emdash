@@ -27,6 +27,22 @@ export const content = style([
       '--kbd-border': `color-mix(in srgb, ${vars.foregroundNeutral} 20%, transparent)`,
       '--kbd-color': vars.foregroundNeutral,
     },
+    selectors: {
+      '&[data-tone="surface"]': {
+        backgroundColor: `color-mix(in srgb, ${vars.surface} 94%, transparent)`,
+        backdropFilter: 'blur(12px)',
+        color: vars.foreground,
+        borderRadius: tokenVars.radiusLg,
+        padding: '0.75rem',
+        fontSize: tokenVars.textSm,
+        lineHeight: tokenVars.textSmLineHeight,
+        vars: {
+          '--kbd-bg': `color-mix(in srgb, ${vars.foreground} 8%, transparent)`,
+          '--kbd-border': `color-mix(in srgb, ${vars.foreground} 12%, transparent)`,
+          '--kbd-color': vars.foreground,
+        },
+      },
+    },
   },
 ]);
 
@@ -38,6 +54,9 @@ export const arrow = style({
   backgroundColor: vars.backgroundNeutral,
   transform: 'translateY(calc(-50% - 2px)) rotate(45deg)',
   selectors: {
+    '&[data-tone="surface"]': {
+      backgroundColor: `color-mix(in srgb, ${vars.surface} 94%, transparent)`,
+    },
     '&[data-side="bottom"]': { top: '0.25rem' },
     '&[data-side="top"]': { bottom: '-0.625rem' },
     '&[data-side="left"], &[data-side="inline-start"]': {

@@ -2,6 +2,7 @@ import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emd
 import {
   sessionNotFoundErrorSchema,
   type AcpSessionStartMode,
+  type HistoryPage,
   type PromptAttachment,
   type PromptInput,
   type ProviderConfigOption,
@@ -104,6 +105,9 @@ export class AcpChatStore {
   session: AcpLiveSession | null = null;
   historyLoading = true;
   historyKnown: boolean;
+  hasOlderHistory = false;
+  olderHistoryLoading = false;
+  olderHistoryError: string | null = null;
   loadError: AcpLoadError | null = null;
   messageCount = 0;
   private readonly _draftText = observable.box('');
@@ -130,6 +134,8 @@ export class AcpChatStore {
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
   private _historyEpoch = 0;
+  private _olderHistoryCursor: number | null = null;
+  private _olderHistoryGeneration: string | undefined;
   private _disposed = false;
   private _attachmentRecovery: Scope | null = null;
   private _attachedHostGeneration: number | undefined;
@@ -158,6 +164,9 @@ export class AcpChatStore {
       session: observable.ref,
       historyLoading: observable,
       historyKnown: observable,
+      hasOlderHistory: observable,
+      olderHistoryLoading: observable,
+      olderHistoryError: observable,
       loadError: observable,
       messageCount: observable,
       draftText: computed,
@@ -185,6 +194,7 @@ export class AcpChatStore {
       removeDraftAttachment: action,
       exportTranscript: action,
       retry: action,
+      loadOlderHistory: action,
     });
     this._scope.add(
       reaction(
@@ -356,6 +366,88 @@ export class AcpChatStore {
 
   bindView(view: ChatView | null): void {
     this._view = view;
+  }
+
+  async loadOlderHistory(): Promise<void> {
+    const session = this.session;
+    const cursor = this._olderHistoryCursor;
+    const generation = this._olderHistoryGeneration;
+    const epoch = this._historyEpoch;
+    if (
+      this._disposed ||
+      this.historyLoading ||
+      this.olderHistoryLoading ||
+      !this.hasOlderHistory ||
+      cursor === null ||
+      generation === undefined ||
+      !session ||
+      !this.liveActionsEnabled ||
+      session.sessionState.current().transcript?.generation !== generation
+    )
+      return;
+
+    const isCurrent = () =>
+      !this._disposed &&
+      this.session === session &&
+      this._historyEpoch === epoch &&
+      this._olderHistoryCursor === cursor &&
+      this._olderHistoryGeneration === generation &&
+      this.liveActionsEnabled &&
+      session.sessionState.current().transcript?.generation === generation;
+    this.olderHistoryLoading = true;
+    this.olderHistoryError = null;
+    try {
+      const history = await session.loadHistory(cursor, 100);
+      if (!isCurrent()) return;
+      if (!history.success) throw new AcpStartError(history.error);
+      const page = history.data;
+      if (page.kind === 'unavailable') {
+        throw new Error('Earlier history is unavailable. Retry loading earlier messages.');
+      }
+      if (page.nextCursor !== null && page.nextCursor >= cursor) {
+        throw new Error('Earlier history did not advance. Retry loading earlier messages.');
+      }
+      if (
+        page.coverage.beforeSeq !== cursor ||
+        page.coverage.fromSeq !== page.nextCursor ||
+        page.turns.some(
+          (turn) => turn.seq >= cursor || (page.nextCursor !== null && turn.seq < page.nextCursor)
+        )
+      ) {
+        throw new Error('Earlier history does not match the requested range. Retry loading it.');
+      }
+      const head = session.sessionState.current().transcript;
+      if (
+        page.position.generation !== generation ||
+        (head && page.position.historyRevision < head.historyRevision) ||
+        !this.chatState.transcript.applyPage(page)
+      ) {
+        throw new Error('Conversation history changed. Retry loading earlier messages.');
+      }
+      runInAction(() => {
+        this._updateOlderHistoryCursor(page);
+        this._syncMessageCount();
+      });
+      // An older page can observe a newer revision before the live head does.
+      // Refresh the tail explicitly so applying that revision cannot hide new turns.
+      if (head && page.position.historyRevision > head.historyRevision) {
+        this._requestHistoryRefresh();
+      }
+    } catch (error) {
+      if (!isCurrent()) return;
+      runInAction(() => {
+        this.olderHistoryError =
+          error instanceof Error
+            ? error.message
+            : 'Failed to load earlier messages. Retry loading them.';
+      });
+    } finally {
+      if (!this._disposed && this.session === session && this._historyEpoch === epoch) {
+        runInAction(() => {
+          this.olderHistoryLoading = false;
+        });
+      }
+    }
   }
 
   async uploadAttachment(input: AcpAttachmentUploadInput): Promise<AttachmentRef | null> {
@@ -589,6 +681,9 @@ export class AcpChatStore {
 
   dispose(): void {
     this._disposed = true;
+    runInAction(() => {
+      this.olderHistoryLoading = false;
+    });
     this._disposeHostReaction();
     unregisterConversationCommands(this.conversationId);
     this._unsubs.splice(0).forEach((unsub) => unsub());
@@ -605,6 +700,10 @@ export class AcpChatStore {
   private async _runBootstrap(mode?: AcpSessionStartMode): Promise<void> {
     const epoch = ++this._historyEpoch;
     if (this._disposed) return;
+    runInAction(() => {
+      this.olderHistoryLoading = false;
+      this.olderHistoryError = null;
+    });
     if (this.hostAccess?.liveAction.kind === 'disabled') {
       runInAction(() => {
         this.historyLoading = false;
@@ -652,7 +751,10 @@ export class AcpChatStore {
         return;
       runInAction(() => {
         const applied = this.chatState.transcript.applyPage(history.data);
-        if (applied) this.historyKnown = true;
+        if (applied) {
+          this.historyKnown = true;
+          if (history.data.kind === 'available') this._updateOlderHistoryCursor(history.data);
+        }
         this.historyLoading = false;
         this.loadError = null;
         this._bootstrapFailed = false;
@@ -696,6 +798,10 @@ export class AcpChatStore {
 
   private _recoverAttachment(session: AcpLiveSession, generation: number | undefined): void {
     this._historyEpoch++;
+    runInAction(() => {
+      this.olderHistoryLoading = false;
+      this.olderHistoryError = null;
+    });
     void this._attachmentRecovery?.dispose();
     const scope = this._scope.child('attachment-recovery');
     this._attachmentRecovery = scope;
@@ -1007,10 +1113,12 @@ export class AcpChatStore {
           return false;
         revision = position.historyRevision;
         generation = position.generation;
+        const page = history.data;
         let applied = false;
         runInAction(() => {
-          applied = transcript.applyPage(history.data);
+          applied = transcript.applyPage(page);
           if (!applied) return;
+          this._updateOlderHistoryCursor(page);
           this.historyKnown = true;
           this.loadError = null;
           this._bootstrapFailed = false;
@@ -1058,6 +1166,21 @@ export class AcpChatStore {
     const activeCount = state.activeTurnSnapshot?.items.length ?? 0;
     const pendingPromptCount = this.chatState.session.state.pendingPrompt ? 1 : 0;
     this.messageCount = committedCount + activeCount + pendingPromptCount;
+  }
+
+  private _updateOlderHistoryCursor(page: Extract<HistoryPage, { kind: 'available' }>): void {
+    const oldestLoadedSeq = this.chatState.transcript.state.displayTurns[0]?.seq;
+    // Refreshing the head must not move the boundary above history already loaded by the user.
+    if (
+      page.nextCursor !== null &&
+      oldestLoadedSeq !== undefined &&
+      page.nextCursor > oldestLoadedSeq
+    )
+      return;
+    this._olderHistoryCursor = page.nextCursor;
+    this._olderHistoryGeneration = page.position.generation;
+    this.hasOlderHistory = page.nextCursor !== null;
+    this.olderHistoryError = null;
   }
 
   private _toastError(title: string, error: unknown): void {
