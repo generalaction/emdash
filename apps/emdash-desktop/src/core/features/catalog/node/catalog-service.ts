@@ -14,7 +14,7 @@ import {
 } from '@emdash/core/primitives/skills/api';
 import { log } from '@emdash/shared/logger';
 import { app } from 'electron';
-import { catalogData } from '@core/primitives/mcp/api';
+import { catalogData, MCP_MANAGED_META_KEY } from '@core/primitives/mcp/api';
 import bundledCatalog from './bundled-catalog.json';
 
 export type CatalogServiceError = {
@@ -712,6 +712,7 @@ function loadStaticMcpCatalog(): McpCatalogEntry[] {
     docsUrl: entry.docsUrl,
     defaultConfig: entry.config,
     credentialKeys: entry.credentialKeys,
+    ...(entry.managed && { _meta: { [MCP_MANAGED_META_KEY]: true } }),
   }));
 }
 
