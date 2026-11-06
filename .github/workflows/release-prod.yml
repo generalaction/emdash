@@ -52,6 +52,8 @@ jobs:
     secrets:
       POSTHOG_PROJECT_API_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
       POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+      WAITLIST_SUPABASE_URL: ${{ secrets.WAITLIST_SUPABASE_URL }}
+      WAITLIST_SUPABASE_ANON_KEY: ${{ secrets.WAITLIST_SUPABASE_ANON_KEY }}
 
   release-win:
     needs: [prepare-release]
@@ -65,6 +67,8 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          waitlist-supabase-url: ${{ secrets.WAITLIST_SUPABASE_URL }}
+          waitlist-supabase-anon-key: ${{ secrets.WAITLIST_SUPABASE_ANON_KEY }}
           windows-native: 'true'
       - name: Export Python path for native modules
         shell: bash
@@ -132,6 +136,8 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          waitlist-supabase-url: ${{ secrets.WAITLIST_SUPABASE_URL }}
+          waitlist-supabase-anon-key: ${{ secrets.WAITLIST_SUPABASE_ANON_KEY }}
 
       - name: Import Apple signing certificate
         uses: apple-actions/import-codesign-certs@v2
