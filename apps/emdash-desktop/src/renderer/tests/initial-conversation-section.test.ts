@@ -318,6 +318,7 @@ describe('useInitialConversationState', () => {
     vi.stubGlobal('Element', dom.window.Element);
     vi.stubGlobal('Node', dom.window.Node);
     vi.stubGlobal('Event', dom.window.Event);
+    vi.stubGlobal('FileReader', dom.window.FileReader);
     vi.stubGlobal('localStorage', dom.window.localStorage);
     dom.window.localStorage.clear();
 
@@ -353,6 +354,29 @@ describe('useInitialConversationState', () => {
     await renderProbe('project-2');
 
     expect(latestState?.prompt).toBe('');
+  });
+
+  it('defaults Codex to GPT 6 Sol and retains a model selected in the form', async () => {
+    mocks.providerId = 'codex';
+    await renderProbe('project-1');
+    expect(latestState?.model).toBe('gpt-6-sol');
+    expect(latestState?.options).toEqual({ model: 'gpt-6-sol' });
+
+    await act(async () => {
+      latestState?.setModel('gpt-6-luna');
+      latestState?.setOption('model', 'gpt-6-luna');
+    });
+    expect(latestState?.model).toBe('gpt-6-luna');
+    expect(latestState?.options).toEqual({ model: 'gpt-6-luna' });
+
+    await renderProbe('project-2');
+    expect(latestState?.model).toBe('gpt-6-sol');
+    expect(latestState?.options).toEqual({ model: 'gpt-6-luna' });
+
+    mocks.providerId = 'claude';
+    await renderProbe('project-2');
+    expect(latestState?.model).toBeNull();
+    expect(latestState?.options).toEqual({});
   });
 
   it('can preserve the prompt when the project changes', async () => {
@@ -646,7 +670,10 @@ describe('useInitialConversationState', () => {
       expect(mocks.updateAutomation).toHaveBeenCalledWith(
         expect.objectContaining({
           patch: expect.objectContaining({
-            conversationConfig: expect.objectContaining({ provider: 'codex', options: {} }),
+            conversationConfig: expect.objectContaining({
+              provider: 'codex',
+              options: { model: 'gpt-6-sol' },
+            }),
           }),
         })
       );
@@ -657,7 +684,7 @@ describe('useInitialConversationState', () => {
           { transport: 'acp', options: { model: 'astra' } }
         );
       });
-      expect(latestAutomation?.initialConversation.options).toEqual({});
+      expect(latestAutomation?.initialConversation.options).toEqual({ model: 'gpt-6-sol' });
       expect(mocks.updateAutomation).not.toHaveBeenCalled();
     }
   );
@@ -810,7 +837,7 @@ describe('useInitialConversationState', () => {
     await renderProbe('project-2');
     expect(latestState?.useChatUi).toBe(true);
     expect(latestState?.autoApprove).toBe(false);
-    expect(latestState?.options).toEqual({});
+    expect(latestState?.options).toEqual({ model: 'gpt-6-sol' });
     await act(async () => latestState?.setUseChatUi(false));
     mocks.providerId = 'claude';
     mocks.getProjectSshConnectionId.mockReturnValue(undefined);
@@ -865,6 +892,7 @@ describe('InitialConversationField', () => {
     vi.stubGlobal('Element', dom.window.Element);
     vi.stubGlobal('Node', dom.window.Node);
     vi.stubGlobal('Event', dom.window.Event);
+    vi.stubGlobal('FileReader', dom.window.FileReader);
     vi.stubGlobal('localStorage', dom.window.localStorage);
     dom.window.localStorage.clear();
 
@@ -903,6 +931,37 @@ describe('InitialConversationField', () => {
     const props = chatComposerProps();
     expect(props.placeholder).toBe('Add a prompt to the automation...');
     expect(props.mentionProvider).toBeUndefined();
+  });
+
+  it('keeps pasted images in the ACP draft and allows removing them', async () => {
+    mocks.preferredConversationType = 'acp';
+    await renderField();
+
+    const file = new dom.window.File(['image bytes'], 'ticket.png', { type: 'image/png' });
+    await act(async () => {
+      chatComposerProps().onImageFilesDropped?.([file]);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    const attachments = chatComposerProps().attachments;
+    expect(attachments).toEqual([
+      expect.objectContaining({ name: 'ticket.png', kind: 'image', mimeType: 'image/png' }),
+    ]);
+    await act(async () => chatComposerProps().onAttachmentsChange?.([]));
+    expect(chatComposerProps().attachments).toEqual([]);
+  });
+
+  it('switches to Chat UI when an image is pasted into a terminal draft', async () => {
+    await renderField();
+    const file = new dom.window.File(['image bytes'], 'ticket.png', { type: 'image/png' });
+
+    await act(async () => {
+      chatComposerProps().onImageFilesDropped?.([file]);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    expect(mocks.preferredConversationType).toBe('acp');
+    expect(chatComposerProps().attachments).toHaveLength(1);
   });
 
   it('preserves the selected linked issue pill', async () => {

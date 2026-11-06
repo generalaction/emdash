@@ -10,6 +10,7 @@ import { readProviderSettings } from '@core/features/conversations/api/browser/p
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { useConversationLaunchSettings } from '@core/features/conversations/api/browser/use-conversation-launch-settings';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
+import { initialProviderOptions } from '@core/features/conversations/api/provider-settings';
 import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -90,7 +91,10 @@ export const CreateConversationModal = observer(function CreateConversationModal
         autoApprove: showAutoApproveToggle && settings.pty.autoApprove,
         provider: providerId,
         title,
-        options: conversationType === 'acp' ? settings.acp.options : undefined,
+        options:
+          conversationType === 'acp'
+            ? initialProviderOptions(providerId, settings.acp.options)
+            : undefined,
         type: conversationType,
       });
       setIsSubmitting(false);

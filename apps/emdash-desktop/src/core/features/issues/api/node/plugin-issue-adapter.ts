@@ -37,6 +37,7 @@ export function createIssueListOperations(
         ? await plugin.behavior.issues?.listIssues(host, {
             limit: clampIssueProviderLimit(opts.limit, DEFAULT_LIST_LIMIT),
             repositoryUrl,
+            ...(opts.jql !== undefined ? { jql: opts.jql } : {}),
           })
         : await plugin.behavior.issues?.searchIssues(host, {
             limit: clampIssueProviderLimit(opts.limit, DEFAULT_SEARCH_LIMIT),

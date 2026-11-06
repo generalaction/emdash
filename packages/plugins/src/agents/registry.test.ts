@@ -50,7 +50,9 @@ describe('agent plugin registry', () => {
       isResuming: false,
       model,
     });
-    expect(command.args).toEqual([flag, model]);
+    expect(command.args).toEqual(
+      providerId === 'codex' ? ['--no-daemon', flag, model] : [flag, model]
+    );
   });
 
   it('keeps every shipped hook integration user-global', () => {

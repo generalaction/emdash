@@ -96,7 +96,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'config',
       scope: 'global',
-      supportedEvents: ['notification', 'stop', 'session'],
+      supportedEvents: ['start', 'notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({
       id: 'codex',
@@ -175,6 +175,9 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        // The shared Codex daemon inherits another TUI's hook endpoint and PTY identity.
+        // Keep hook execution in this conversation's process environment.
+        defaultArgs: ['--no-daemon'],
         autoApproveFlag:
           '-c approval_policy=never -c sandbox_mode=danger-full-access --dangerously-bypass-hook-trust',
         initialPromptFlag: '',

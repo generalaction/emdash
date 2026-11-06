@@ -87,6 +87,8 @@ function Probe({
     setProvider: () => {},
     prompt,
     setPrompt,
+    imageAttachments: [],
+    setImageAttachments: () => {},
     issueContext,
     setIssueContext,
     autoApprove: false,

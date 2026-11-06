@@ -123,6 +123,20 @@ describe('conversation creation settings', () => {
       expect.objectContaining({ type: 'acp', options: {} })
     );
   });
+  it('defaults new Codex chats to GPT 6 Sol while preserving explicit choices', async () => {
+    mocks.providerId = 'codex';
+    await createConversation();
+    expect(mocks.createConversation).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'acp', options: { model: 'gpt-6-sol' } })
+    );
+
+    vi.clearAllMocks();
+    mocks.preferences!.acp.options = { model: 'gpt-6-luna' };
+    await createConversation();
+    expect(mocks.createConversation).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'acp', options: { model: 'gpt-6-luna' } })
+    );
+  });
   it('leaves native CLI model selection to the CLI when creating a TUI conversation', async () => {
     mocks.useChatUi = false;
     mocks.preferences!.acp.options = { model: 'chat-only' };
