@@ -1,14 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { joinWaitlist } from './join-waitlist';
 
-const mockEnv = vi.hoisted(() => ({
-  build: {} as Record<string, string | undefined>,
-  dev: {} as Record<string, string | undefined>,
-}));
-
-vi.mock('@main/lib/env', () => ({ env: mockEnv }));
-
 const SOURCE = 'desktop app v1.2.10';
+const CONFIG = { url: 'https://example.supabase.co/', anonKey: 'anon-key', source: SOURCE };
 
 describe('joinWaitlist', () => {
   const fetchMock = vi.fn<typeof fetch>();
@@ -21,11 +15,6 @@ describe('joinWaitlist', () => {
     }));
 
   beforeEach(() => {
-    mockEnv.build = {
-      VITE_WAITLIST_SUPABASE_URL: 'https://example.supabase.co/',
-      VITE_WAITLIST_SUPABASE_ANON_KEY: 'anon-key',
-    };
-    mockEnv.dev = {};
     vi.stubGlobal('fetch', fetchMock);
   });
 
@@ -37,7 +26,7 @@ describe('joinWaitlist', () => {
   it('inserts a normalized signup tagged with its source, like the website', async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 201 }));
 
-    await joinWaitlist({ email: '  Jane@Example.COM ', note: '   ', source: SOURCE });
+    await joinWaitlist(CONFIG, { email: '  Jane@Example.COM ', note: '   ' });
 
     expect(requests()).toEqual([
       {
@@ -54,7 +43,7 @@ describe('joinWaitlist', () => {
   it('sends the note as a separate waitlist_notes row', async () => {
     fetchMock.mockImplementation(async () => new Response(null, { status: 201 }));
 
-    await joinWaitlist({ email: 'jane@example.com', note: '  Team of 12  ', source: SOURCE });
+    await joinWaitlist(CONFIG, { email: 'jane@example.com', note: '  Team of 12  ' });
 
     expect(requests()[1]).toMatchObject({
       url: 'https://example.supabase.co/rest/v1/waitlist_notes',
@@ -67,9 +56,9 @@ describe('joinWaitlist', () => {
       .mockResolvedValueOnce(new Response('{"code":"23505"}', { status: 409 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }));
 
-    await expect(
-      joinWaitlist({ email: 'jane@example.com', note: 'Hi', source: SOURCE })
-    ).resolves.toBe(undefined);
+    await expect(joinWaitlist(CONFIG, { email: 'jane@example.com', note: 'Hi' })).resolves.toBe(
+      undefined
+    );
     expect(requests().map((request) => request.url)).toEqual([
       'https://example.supabase.co/rest/v1/cloud_inquiries',
       'https://example.supabase.co/rest/v1/waitlist_notes',
@@ -79,9 +68,9 @@ describe('joinWaitlist', () => {
   it('throws on other signup errors without sending the note', async () => {
     fetchMock.mockResolvedValue(new Response('nope', { status: 401 }));
 
-    await expect(
-      joinWaitlist({ email: 'jane@example.com', note: 'Hi', source: SOURCE })
-    ).rejects.toThrow('Waitlist signup returned 401: nope');
+    await expect(joinWaitlist(CONFIG, { email: 'jane@example.com', note: 'Hi' })).rejects.toThrow(
+      'Waitlist signup returned 401: nope'
+    );
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
@@ -90,16 +79,14 @@ describe('joinWaitlist', () => {
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(new Response('bad', { status: 400 }));
 
-    await expect(
-      joinWaitlist({ email: 'jane@example.com', note: 'Hi', source: SOURCE })
-    ).rejects.toThrow('Waitlist note returned 400: bad');
+    await expect(joinWaitlist(CONFIG, { email: 'jane@example.com', note: 'Hi' })).rejects.toThrow(
+      'Waitlist note returned 400: bad'
+    );
   });
 
   it('throws without calling the network when not configured', async () => {
-    mockEnv.build = {};
-
     await expect(
-      joinWaitlist({ email: 'jane@example.com', note: '', source: SOURCE })
+      joinWaitlist({ source: SOURCE }, { email: 'jane@example.com', note: '' })
     ).rejects.toThrow('not configured');
     expect(fetchMock).not.toHaveBeenCalled();
   });

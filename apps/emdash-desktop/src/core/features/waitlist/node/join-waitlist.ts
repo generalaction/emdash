@@ -1,18 +1,21 @@
-import { env } from '@main/lib/env';
-
 // Mirrors lib/waitlist.ts in emdash.com: the signup is a cloud_inquiries row so
 // the existing notification pipeline picks it up, and the optional note is a
 // separate waitlist_notes insert, so it survives an email that already signed up.
 const WAITLIST_MESSAGE_PREFIX = 'Emdash 2.0 waitlist';
 const NOTE_MAX_LENGTH = 2000;
 
-export async function joinWaitlist(args: {
-  email: string;
-  note: string;
+export type WaitlistSignupConfig = {
+  url?: string;
+  anonKey?: string;
+  /** Where the signup came from, e.g. "desktop app v1.2.10". */
   source: string;
-}): Promise<void> {
-  const url = env.dev.WAITLIST_SUPABASE_URL ?? env.build.VITE_WAITLIST_SUPABASE_URL;
-  const anonKey = env.dev.WAITLIST_SUPABASE_ANON_KEY ?? env.build.VITE_WAITLIST_SUPABASE_ANON_KEY;
+};
+
+export async function joinWaitlist(
+  config: WaitlistSignupConfig,
+  args: { email: string; note: string }
+): Promise<void> {
+  const { url, anonKey, source } = config;
   if (!url || !anonKey) throw new Error('Waitlist signup is not configured');
 
   const email = args.email.trim().toLowerCase();
@@ -32,7 +35,7 @@ export async function joinWaitlist(args: {
 
   const signup = await insert('cloud_inquiries', {
     email,
-    message: `${WAITLIST_MESSAGE_PREFIX}\n\nSource: ${args.source}`,
+    message: `${WAITLIST_MESSAGE_PREFIX}\n\nSource: ${source}`,
   });
   // 409 is a unique violation: the email is already on the list, which the
   // website also treats as a successful signup.
@@ -40,7 +43,7 @@ export async function joinWaitlist(args: {
 
   const note = args.note.trim().slice(0, NOTE_MAX_LENGTH);
   if (!note) return;
-  const noteResponse = await insert('waitlist_notes', { email, note, source: args.source });
+  const noteResponse = await insert('waitlist_notes', { email, note, source });
   if (!noteResponse.ok) await throwResponseError('note', noteResponse);
 }
 

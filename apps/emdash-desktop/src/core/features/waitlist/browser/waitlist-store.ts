@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from 'mobx';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import { getWaitlistClient } from '../api/browser/client';
 import { releaseKey, type WaitlistPersistedState } from './waitlist-visibility';
 
 const STORAGE_KEY = 'emdash:waitlist-card';
@@ -37,7 +37,7 @@ class WaitlistStore {
     this.submitting = true;
     this.errorMessage = null;
     try {
-      const result = await (await getHostClient()).joinWaitlist({ email, note });
+      const result = await (await getWaitlistClient()).join({ email, note });
       runInAction(() => {
         if (result.success) {
           this.showJoinedConfirmation = true;

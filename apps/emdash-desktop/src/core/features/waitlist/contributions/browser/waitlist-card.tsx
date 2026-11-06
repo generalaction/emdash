@@ -2,9 +2,9 @@ import { ArrowRight, Check, XIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { WaitlistBrand } from './waitlist-brand';
-import { getWaitlistStore } from './waitlist-store';
-import { getWaitlistCardMode } from './waitlist-visibility';
+import { WaitlistBrand } from '../../browser/waitlist-brand';
+import { getWaitlistStore } from '../../browser/waitlist-store';
+import { getWaitlistCardMode } from '../../browser/waitlist-visibility';
 
 export const WaitlistCard = observer(function WaitlistCard() {
   const update = getUpdateStore();

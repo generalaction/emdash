@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { WaitlistCard } from '@core/features/waitlist/contributions/browser/waitlist-card';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/workbench-layout';
@@ -12,7 +13,6 @@ import {
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { WaitlistCard } from '../waitlist/waitlist-card';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
 import {
