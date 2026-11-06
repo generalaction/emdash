@@ -70,6 +70,10 @@ export default defineConfig({
         },
         output: {
           entryFileNames: '[name].js',
+          // Windows packaged launches fail in Electron's legacy ESM main resolver for ssh2.
+          // Address its real entry directly, retaining the package layout for agent helpers
+          // and optional native crypto instead of relocating them into a bundled chunk.
+          paths: { ssh2: 'ssh2/lib/index.js' },
         },
       },
     },

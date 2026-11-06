@@ -22,6 +22,7 @@ import {
   verifyPackagedLanguageServers,
   type PackagedLanguageServerApp,
 } from './lib/packaged-language-servers.ts';
+import { verifyPackagedSsh } from './lib/packaged-ssh.ts';
 import { releaseHasOwnership } from './lib/release-ownership.ts';
 import { resolveReleaseVersion } from './lib/version.ts';
 import type { ReleaseChannel } from './lib/version.ts';
@@ -174,11 +175,13 @@ try {
     if (arch === process.arch && ebPlatform.nodeName === process.platform) {
       if (packagedApps.length !== 1)
         fail('Expected one finished app for language-server verification');
+      step('Verifying SSH imports and runtime resources in the finished app');
+      await verifyPackagedSsh(packagedApps[0]);
       step('Verifying bundled language servers in the finished app with an empty PATH');
       await verifyPackagedLanguageServers(packagedApps[0]);
     } else {
       warn(
-        `Cannot execute the ${platform}/${arch} app on this host; run verify-language-servers on a matching host`
+        `Cannot execute the ${platform}/${arch} app on this host; SSH and language-server runtime verification require a matching host`
       );
     }
 
