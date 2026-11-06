@@ -16,6 +16,7 @@ const browserSettingsSchema = z
   .object({
     defaultProfileId: z.union([browserProfileIdSchema, z.literal(BROWSER_ISOLATED_PROFILE_ID)]),
     relaxCorsForLocalhost: z.boolean(),
+    openLinksIn: z.enum(['ask', 'emdash-browser', 'external-browser']),
     profiles: z
       .array(
         z.object({
@@ -41,6 +42,7 @@ export const browserSettingsContribution = defineSettingsContribution<'browser',
   defaults: {
     defaultProfileId: DEFAULT_BROWSER_PROFILE_ID,
     relaxCorsForLocalhost: false,
+    openLinksIn: 'ask',
     profiles: DEFAULT_BROWSER_PROFILES,
   },
 });
