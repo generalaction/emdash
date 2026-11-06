@@ -1,3 +1,4 @@
+import { observable, runInAction } from 'mobx';
 import { getProjectHostAccess } from '@core/features/projects/api/browser/stores/project-selectors';
 import { AcpChatStore } from './acp-chat-store';
 
@@ -17,7 +18,8 @@ type Entry = {
  * after GRACE_MS once the last retain is released.
  */
 export class AcpChatResourceManager {
-  private readonly _entries = new Map<string, Entry>();
+  // Observable so views listing the task's chats re-render when one opens or closes.
+  private readonly _entries = observable.map<string, Entry>(undefined, { deep: false });
 
   constructor(
     private readonly projectId: string,
@@ -25,7 +27,7 @@ export class AcpChatResourceManager {
   ) {}
 
   acquire(conversationId: string): AcpChatStore {
-    let entry = this._entries.get(conversationId);
+    const entry = this._entries.get(conversationId);
     if (entry) {
       entry.refCount++;
       if (entry.graceTimer !== null) {
@@ -40,9 +42,13 @@ export class AcpChatResourceManager {
       this.taskId,
       getProjectHostAccess(this.projectId)
     );
-    entry = { store, refCount: 1, graceTimer: null };
-    this._entries.set(conversationId, entry);
+    const created: Entry = { store, refCount: 1, graceTimer: null };
+    runInAction(() => this._entries.set(conversationId, created));
     return store;
+  }
+
+  get stores(): AcpChatStore[] {
+    return Array.from(this._entries.values(), (entry) => entry.store);
   }
 
   get(conversationId: string): AcpChatStore | undefined {
@@ -60,7 +66,7 @@ export class AcpChatResourceManager {
       const e = this._entries.get(conversationId);
       if (!e || e.refCount > 0) return;
       e.store.dispose();
-      this._entries.delete(conversationId);
+      runInAction(() => this._entries.delete(conversationId));
     }, GRACE_MS);
   }
 
@@ -69,7 +75,7 @@ export class AcpChatResourceManager {
       if (entry.graceTimer !== null) clearTimeout(entry.graceTimer);
       entry.store.dispose();
     }
-    this._entries.clear();
+    runInAction(() => this._entries.clear());
   }
 }
 
