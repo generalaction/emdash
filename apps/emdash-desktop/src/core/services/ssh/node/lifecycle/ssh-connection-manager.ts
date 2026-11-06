@@ -269,6 +269,9 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
       client.on('close', () => lose(new SshConnectionError('SSH connection closed before ready')));
       try {
         client.connect(resolved.config);
+        // ssh2 assigns its socket during connect; disable Nagle before handshake traffic.
+        // For proxy streams without setNoDelay, ssh2 safely leaves the transport unchanged.
+        client.setNoDelay(true);
       } catch (error) {
         lose(error instanceof Error ? error : new Error(String(error)));
         client.destroy();

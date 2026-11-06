@@ -317,6 +317,7 @@ describe('SshService.testConnection', () => {
   it('defaults readyTimeout to 10 seconds and captures ssh2 debug output', async () => {
     let receivedConfig: ConnectConfig | undefined;
     class DebugClient extends EventEmitter {
+      setNoDelay() {}
       connect(config: ConnectConfig) {
         receivedConfig = config;
         config.debug?.('ssh2 debug output');
@@ -368,6 +369,7 @@ describe('SshService.testConnection', () => {
 
     const cleanups: string[] = [];
     class ErrorClient extends EventEmitter {
+      setNoDelay() {}
       connect() {
         queueMicrotask(() => this.emit('error', new Error('auth failed')));
       }
@@ -397,6 +399,7 @@ describe('SshService.testConnection', () => {
 
   it('maps close-before-ready and synchronous connect failures', async () => {
     class ClosingClient extends EventEmitter {
+      setNoDelay() {}
       connect() {
         queueMicrotask(() => this.emit('close'));
       }
