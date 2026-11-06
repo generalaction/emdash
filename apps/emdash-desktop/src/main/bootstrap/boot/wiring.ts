@@ -18,6 +18,7 @@ import { createDevPerfOperations } from '@main/host/dev-perf/controller-operatio
 import { writeRendererLogEntry } from '@main/host/file-logger';
 import { setTrayVisible } from '@main/host/tray';
 import { updateOperations } from '@main/host/updates/controller-operations';
+import { waitlistOperations } from '@main/host/waitlist/controller-operations';
 import { applyNativeTheme } from '@main/host/window';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -133,6 +134,7 @@ export function createDesktopWireOptions(
     },
     updateOperations,
     usage: services.usage,
+    waitlistOperations,
     workspaceIdentity: database.workspaceIdentity,
     workspacePlacement: services.workspacePlacement,
     workspaces: {
