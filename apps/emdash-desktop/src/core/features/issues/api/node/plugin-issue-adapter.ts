@@ -95,6 +95,7 @@ export function toLinkedIssue(
     context: issue.context,
     branchName: issue.branchName,
     status: issue.status,
+    statusCategory: issue.statusCategory,
     assignees: issue.assignees,
     project: issue.project,
     updatedAt: issue.updatedAt,

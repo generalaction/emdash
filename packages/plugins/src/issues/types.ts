@@ -12,6 +12,8 @@ export type IssueData = {
   description?: string;
   branchName?: string;
   status?: string;
+  /** Provider-neutral bucket for custom status names the UI cannot recognize. */
+  statusCategory?: 'todo' | 'in_progress' | 'done';
   assignees?: string[];
   project?: string;
   updatedAt?: string;
