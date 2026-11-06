@@ -5,6 +5,7 @@ import { feedbackModal } from '../browser/feedback-modal/feedback-modal';
 import { homeViewRuntime } from '../browser/home-view';
 import { quitUnsavedChangesModal } from '../browser/quit-unsaved-changes-dialog';
 import { unsavedChangesModal } from '../browser/unsaved-changes-dialog';
+import { waitlistModal } from '../browser/waitlist/waitlist-modal';
 
 export const workbenchBrowserContributions = {
   views: [homeViewRuntime],
@@ -15,5 +16,6 @@ export const workbenchBrowserContributions = {
     quitUnsavedChangesModal,
     unsavedChangesModal,
     feedbackModal,
+    waitlistModal,
   ],
 } as const;

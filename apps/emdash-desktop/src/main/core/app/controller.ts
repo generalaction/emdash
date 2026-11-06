@@ -8,6 +8,7 @@ import {
   markShutdownReady,
   resolveQuitConfirmation,
 } from '@main/bootstrap/shutdown';
+import { joinWaitlist } from '@main/core/app/join-waitlist';
 import {
   cleanupExpiredDroppedBlobs,
   persistClipboardImagePath,
@@ -205,6 +206,17 @@ export const appOperations = {
       return { success: true };
     } catch (error) {
       log.error('app:submitFeedback failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  joinWaitlist: async (args: { email: string; message: string }) => {
+    try {
+      await joinWaitlist(args);
+      return { success: true };
+    } catch (error) {
+      log.error('app:joinWaitlist failed', {
         error: error instanceof Error ? error.message : String(error),
       });
       return { success: false, error: error instanceof Error ? error.message : String(error) };

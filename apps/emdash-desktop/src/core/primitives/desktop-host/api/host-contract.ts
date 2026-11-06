@@ -192,5 +192,9 @@ export const desktopHostContract = defineContract({
     }),
     output: z.custom<ActionResult>(),
   }),
+  joinWaitlist: procedure({
+    input: z.object({ email: z.string(), message: z.string() }),
+    output: z.custom<ActionResult>(),
+  }),
   events: eventStream({ key: z.void(), event: z.custom<DesktopHostEvent>() }),
 });

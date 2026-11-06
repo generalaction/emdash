@@ -12,6 +12,7 @@ import {
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { WaitlistCard } from '../waitlist/waitlist-card';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
 import {
@@ -68,6 +69,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <WaitlistCard />
         <SidebarFooter>
           <SidebarMenu>
             <SidebarSearchTrigger />
