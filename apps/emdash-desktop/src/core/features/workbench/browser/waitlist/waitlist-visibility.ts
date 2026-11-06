@@ -1,5 +1,3 @@
-export const WAITLIST_FEATURE_FLAG = 'emdash-2-waitlist';
-
 export type WaitlistPersistedState = {
   /** Release (see `releaseKey`) in which the user last dismissed the card. */
   dismissedRelease?: string;
@@ -18,13 +16,11 @@ export function releaseKey(version: string): string {
 }
 
 export function getWaitlistCardMode(args: {
-  enabled: boolean;
   currentVersion: string;
   persisted: WaitlistPersistedState;
   /** True for the rest of the session after joining, to show the confirmation. */
   showJoinedConfirmation: boolean;
 }): WaitlistCardMode {
-  if (!args.enabled) return 'hidden';
   if (args.persisted.joinedEmail) return args.showJoinedConfirmation ? 'joined' : 'hidden';
   const release = releaseKey(args.currentVersion);
   if (!release) return 'hidden';

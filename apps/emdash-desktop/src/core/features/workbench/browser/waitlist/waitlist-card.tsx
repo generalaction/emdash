@@ -1,31 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Check, XIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { getTelemetryClient } from '@core/primitives/telemetry/browser/telemetry-client';
 import { WaitlistBrand } from './waitlist-brand';
 import { getWaitlistStore } from './waitlist-store';
-import { getWaitlistCardMode, WAITLIST_FEATURE_FLAG } from './waitlist-visibility';
-
-// Shares the renderer FeatureFlagProvider's query, which owns refetching until flags load.
-function useWaitlistEnabled(): boolean {
-  const { data: flags } = useQuery({
-    queryKey: ['feature-flags'],
-    queryFn: async () => (await getTelemetryClient()).getFeatureFlags(),
-    staleTime: Infinity,
-  });
-  return flags?.[WAITLIST_FEATURE_FLAG] ?? false;
-}
+import { getWaitlistCardMode } from './waitlist-visibility';
 
 export const WaitlistCard = observer(function WaitlistCard() {
-  const enabled = useWaitlistEnabled();
   const update = getUpdateStore();
   const store = getWaitlistStore();
   const openWaitlistModal = useOpenModal('waitlistModal');
 
   const mode = getWaitlistCardMode({
-    enabled,
     currentVersion: update.currentVersion,
     persisted: store.persisted,
     showJoinedConfirmation: store.showJoinedConfirmation,

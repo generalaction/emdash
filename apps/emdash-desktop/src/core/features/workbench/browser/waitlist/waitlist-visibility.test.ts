@@ -12,18 +12,13 @@ describe('releaseKey', () => {
 
 describe('getWaitlistCardMode', () => {
   const base = {
-    enabled: true,
     currentVersion: '1.2.10',
     persisted: {},
     showJoinedConfirmation: false,
   };
 
-  it('invites when enabled and never dismissed', () => {
+  it('invites when never dismissed', () => {
     expect(getWaitlistCardMode(base)).toBe('invite');
-  });
-
-  it('hides when the feature flag is off', () => {
-    expect(getWaitlistCardMode({ ...base, enabled: false })).toBe('hidden');
   });
 
   it('hides until the version is known', () => {
