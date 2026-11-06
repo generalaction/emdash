@@ -4,6 +4,10 @@ import { PassThrough } from 'node:stream';
 import type { Client } from 'ssh2';
 import { describe, expect, it, vi } from 'vitest';
 
+class TestClient extends PassThrough {
+  setNoDelay() {}
+}
+
 describe('SshConnectionManager', () => {
   it('cleans up a proxied transport when dropped during handshake', async () => {
     const { SshConnectionManager } = await import('./ssh-connection-manager');
@@ -63,7 +67,7 @@ describe('SshConnectionManager', () => {
     });
     const manager = new SshConnectionManager({
       createClient: () =>
-        new (class extends PassThrough {
+        new (class extends TestClient {
           connect() {}
         })() as unknown as Client,
     });
@@ -116,7 +120,7 @@ describe('SshConnectionManager', () => {
     const manager = new SshConnectionManager({
       createClient: () => {
         createClientCalls.push('client');
-        return new (class extends PassThrough {
+        return new (class extends TestClient {
           connect() {}
         })() as unknown as Client;
       },
@@ -149,7 +153,7 @@ describe('SshConnectionManager', () => {
     const cleanupCalls: string[] = [];
     const manager = new SshConnectionManager({
       createClient: () =>
-        new (class extends PassThrough {
+        new (class extends TestClient {
           connect() {
             throw new Error('sync connect failure');
           }
@@ -172,7 +176,7 @@ describe('SshConnectionManager', () => {
     vi.useFakeTimers();
     try {
       const { SshConnectionManager } = await import('./ssh-connection-manager');
-      class StuckCloseClient extends PassThrough {
+      class StuckCloseClient extends TestClient {
         destroyCalls = 0;
         connect() {
           queueMicrotask(() => this.emit('ready'));
@@ -210,7 +214,7 @@ describe('SshConnectionManager', () => {
 
   it('destroys a pending client when dropped before ready', async () => {
     const { SshConnectionManager } = await import('./ssh-connection-manager');
-    class StuckHandshakeClient extends PassThrough {
+    class StuckHandshakeClient extends TestClient {
       destroyCalls = 0;
       connect() {}
       destroy() {
@@ -282,7 +286,7 @@ describe('SshConnectionManager', () => {
     vi.useFakeTimers();
     try {
       const { SshConnectionManager } = await import('./ssh-connection-manager');
-      class FakeReadyClient extends PassThrough {
+      class FakeReadyClient extends TestClient {
         connectedUsername: string | undefined;
         connect(config: { username?: string }) {
           this.connectedUsername = config.username;
@@ -348,7 +352,7 @@ describe('SshConnectionManager', () => {
     vi.useFakeTimers();
     try {
       const { SshConnectionManager } = await import('./ssh-connection-manager');
-      class FakeReadyClient extends PassThrough {
+      class FakeReadyClient extends TestClient {
         connect() {
           queueMicrotask(() => this.emit('ready'));
         }
@@ -402,7 +406,7 @@ describe('SshConnectionManager', () => {
 
   it('rejects a stale in-flight handshake that becomes ready after drop and recreate', async () => {
     const { SshConnectionManager } = await import('./ssh-connection-manager');
-    class ManualReadyClient extends PassThrough {
+    class ManualReadyClient extends TestClient {
       connect() {}
       destroy() {
         return this;
@@ -448,7 +452,7 @@ describe('SshConnectionManager', () => {
   it('classifies handshake authentication and timeout errors', async () => {
     const { SshAuthError, SshConnectionManager, SshTimeoutError } =
       await import('./ssh-connection-manager');
-    class ErrorClient extends PassThrough {
+    class ErrorClient extends TestClient {
       constructor(private readonly error: Error) {
         super();
       }
@@ -479,7 +483,7 @@ describe('SshConnectionManager', () => {
     vi.useFakeTimers();
     try {
       const { SshAuthError, SshConnectionManager } = await import('./ssh-connection-manager');
-      class FakeReadyClient extends PassThrough {
+      class FakeReadyClient extends TestClient {
         connect() {
           queueMicrotask(() => this.emit('ready'));
         }
@@ -524,7 +528,7 @@ describe('SshConnectionManager', () => {
     vi.useFakeTimers();
     try {
       const { SshConnectionManager } = await import('./ssh-connection-manager');
-      class FakeReadyClient extends PassThrough {
+      class FakeReadyClient extends TestClient {
         connect() {
           queueMicrotask(() => this.emit('ready'));
         }

@@ -24,6 +24,10 @@
 - Test and Save share credential-draft resolution. Blank secrets can retain stored credentials
   only for an unchanged destination/account/authentication method (and unchanged key selection
   for passphrases). Changing identity must not silently carry an old secret forward.
+- Enable TCP_NODELAY on every physical ssh2 client immediately after `connect()` assigns its
+  socket, before waiting for authentication/ready. ProxyJump and ProxyCommand use child-stdio
+  Duplex streams without `setNoDelay`; ssh2 safely skips these, so this does not configure
+  the proxy child's TCP sockets.
 - An edit test loads the saved identity in the main process, tests the draft on a separate
   ephemeral connection, and never writes secrets or disconnects the saved connection.
   Stored secrets remain wrapped until SSH connect-config assembly; never send them to the UI.
