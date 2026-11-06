@@ -80,6 +80,36 @@ describe('DesktopProjectSettingsAuthority', () => {
     expect(JSON.parse(row.baseProjectSettingsJson)).not.toHaveProperty('baseRemote');
   });
 
+  it('stores per-provider issue filters, clearing one saved blank', async () => {
+    const row: StoredProjectSettings = {
+      baseProjectSettingsJson: JSON.stringify({ issueFilters: { jira: 'project = WEB' } }),
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: null,
+    };
+    const storage: ProjectSettingsStorage = {
+      get: vi.fn(async () => row),
+      insertIfMissing: vi.fn(),
+      mutate: vi.fn(async (_projectId, patch) => {
+        Object.assign(row, patch(row));
+        return row;
+      }),
+    };
+    const authority = new DesktopProjectSettingsAuthority(storage);
+
+    await authority.patch('project-1', {
+      issueFilters: { stored: { jira: '  "Epic Link" = WEB-123  ', youtrack: 'for: me' } },
+    });
+    await expect(authority.read('project-1')).resolves.toMatchObject({
+      success: true,
+      data: {
+        issueFilters: { stored: { jira: '"Epic Link" = WEB-123', youtrack: 'for: me' } },
+      },
+    });
+
+    await authority.patch('project-1', { issueFilters: { stored: { jira: '', youtrack: null } } });
+    expect(JSON.parse(row.baseProjectSettingsJson)).not.toHaveProperty('issueFilters');
+  });
+
   it('preserves lifecycle migration sources during a durable patch', async () => {
     const shareable = JSON.stringify({
       preservePatterns: ['.env.local'],

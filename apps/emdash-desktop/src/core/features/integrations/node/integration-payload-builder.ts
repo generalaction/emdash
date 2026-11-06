@@ -9,9 +9,11 @@ import type { IntegrationProviderDescriptor } from '../api/contract';
 function issueCapabilities(integrationId: string): IssueProviderCapabilities {
   const plugin = issuesPluginRegistry.get(integrationId);
   const requiredInputs = plugin?.capabilities.issues.requiredInputs ?? [];
+  const issueFilter = plugin?.capabilities.issues.issueFilter;
   return {
     requiresRepositoryUrl: requiredInputs.includes('repositoryUrl'),
     supportsIssueContext: !!plugin?.behavior.issues?.getIssue,
+    ...(issueFilter ? { issueFilter } : {}),
   };
 }
 

@@ -8,6 +8,8 @@ export type IssueProviderType = LinkedIssue['provider'];
 export type IssueProviderCapabilities = {
   requiresRepositoryUrl: boolean;
   supportsIssueContext: boolean;
+  /** Present when the provider accepts a per-project filter, e.g. JQL for Jira. */
+  issueFilter?: { label: string; placeholder?: string };
 };
 
 export type ConnectionStatus = {

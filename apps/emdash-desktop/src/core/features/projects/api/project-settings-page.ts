@@ -13,6 +13,7 @@ import type {
   StoredDefaultBranch,
   StoredIntegrationAccount,
   StoredIntegrationAccounts,
+  StoredIssueFilters,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -71,6 +72,10 @@ export type ProjectIntegrationAccountsDomainSnapshot = {
   stored: StoredIntegrationAccounts;
 };
 
+export type ProjectIssueFiltersDomainSnapshot = {
+  stored: StoredIssueFilters;
+};
+
 export type ProjectPlacementDomainSnapshot = {
   stored: {
     worktreeRoot?: string;
@@ -89,12 +94,14 @@ export type ProjectSettingsDomains = {
   environment: ProjectEnvironmentDomainSnapshot;
   gitIdentity: ProjectGitIdentityDomainSnapshot;
   integrationAccounts: ProjectIntegrationAccountsDomainSnapshot;
+  issueFilters: ProjectIssueFiltersDomainSnapshot;
   placement: ProjectPlacementDomainSnapshot;
 };
 
 export type ProjectDurableSettingsDomains = {
   gitIdentity: ProjectGitIdentityDomainSnapshot;
   integrationAccounts: ProjectIntegrationAccountsDomainSnapshot;
+  issueFilters: ProjectIssueFiltersDomainSnapshot;
   placement: Pick<ProjectPlacementDomainSnapshot, 'stored'>;
 };
 
@@ -119,6 +126,9 @@ export type ProjectIntegrationAccountsPatch = Partial<
   Record<string, StoredIntegrationAccount | null>
 >;
 
+/** Values set one provider's filter; null clears it; absent keys are untouched. */
+export type ProjectIssueFiltersPatch = Partial<Record<string, string | null>>;
+
 export type ProjectPlacementStoredPatch = {
   worktreeRoot?: string | null;
   tmux?: boolean | null;
@@ -139,6 +149,9 @@ export type ProjectSettingsDomainPatch = {
   };
   integrationAccounts?: {
     stored: ProjectIntegrationAccountsPatch;
+  };
+  issueFilters?: {
+    stored: ProjectIssueFiltersPatch;
   };
   placement?: {
     stored: ProjectPlacementStoredPatch;

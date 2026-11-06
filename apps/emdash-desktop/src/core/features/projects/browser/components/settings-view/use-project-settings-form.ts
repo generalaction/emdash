@@ -32,6 +32,7 @@ import {
   type FormUpdate,
   type GitIdentityFormState,
   type IntegrationAccountsFormState,
+  type IssueFiltersFormState,
   type LifecycleFormState,
   type PlacementFormState,
 } from './project-settings-form-model';
@@ -156,6 +157,10 @@ export function useProjectSettingsForm({
   );
   const updateIntegrationAccounts = useCallback<FormUpdate<IntegrationAccountsFormState>>(
     (providerId, value) => updateSection('integrationAccounts', providerId, value),
+    [updateSection]
+  );
+  const updateIssueFilters = useCallback<FormUpdate<IssueFiltersFormState>>(
+    (providerId, value) => updateSection('issueFilters', providerId, value),
     [updateSection]
   );
 
@@ -311,6 +316,7 @@ export function useProjectSettingsForm({
     updateEnvironment,
     updateGitIdentity,
     updateIntegrationAccounts,
+    updateIssueFilters,
     updatePlacement,
     getOverrideSources,
     handleSave,
@@ -331,6 +337,7 @@ function mergeProjectSettingsPage(
     environment: host.environment,
     gitIdentity: page.durable.gitIdentity,
     integrationAccounts: page.durable.integrationAccounts,
+    issueFilters: page.durable.issueFilters,
     placement: {
       ...host.placement,
       ...page.durable.placement,

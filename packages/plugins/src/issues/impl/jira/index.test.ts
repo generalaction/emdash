@@ -93,7 +93,7 @@ describe('jira issues plugin', () => {
     });
     expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
     expect(searchParams(0)).toEqual({
-      jql: 'updated >= -90d ORDER BY updated DESC',
+      jql: '(updated >= -90d) AND (statusCategory != Done) ORDER BY updated DESC',
       maxResults: 2,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
@@ -115,7 +115,7 @@ describe('jira issues plugin', () => {
     });
     expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
     expect(searchParams(0)).toEqual({
-      jql: '(key = "ENG-976" OR text ~ "ENG-976") ORDER BY updated DESC',
+      jql: '((key = "ENG-976" OR text ~ "ENG-976")) AND (statusCategory != Done) ORDER BY updated DESC',
       maxResults: 5,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
@@ -137,7 +137,7 @@ describe('jira issues plugin', () => {
     });
     expect(mockSearchForIssues).toHaveBeenCalledTimes(1);
     expect(searchParams(0)).toEqual({
-      jql: 'text ~ "deprecated \\"search\\" endpoint" ORDER BY updated DESC',
+      jql: '(text ~ "deprecated \\"search\\" endpoint") AND (statusCategory != Done) ORDER BY updated DESC',
       maxResults: 5,
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
@@ -168,6 +168,112 @@ describe('jira issues plugin', () => {
         message: 'Jira authentication failed. Check your credentials.',
       },
     });
+  });
+
+  it('scopes the list to the account filter instead of the recent-activity window', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({ issues: [] });
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'project = WEB' };
+
+    await issues.listIssues(host, { limit: 10 });
+
+    expect(searchParams(0)).toMatchObject({
+      jql: '(project = WEB) AND (statusCategory != Done) ORDER BY updated DESC',
+    });
+  });
+
+  it('ANDs the account filter with the search term', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({ issues: [] });
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'project = WEB OR project = IT' };
+
+    await issues.searchIssues(host, { searchTerm: 'certificate', limit: 5 });
+
+    expect(searchParams(0)).toMatchObject({
+      jql: '(project = WEB OR project = IT) AND (text ~ "certificate") AND (statusCategory != Done) ORDER BY updated DESC',
+    });
+  });
+
+  it('narrows the account filter with the project filter', async () => {
+    mockSearchForIssues.mockResolvedValueOnce({ issues: [] });
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'project = WEB' };
+
+    await issues.listIssues(host, { limit: 10, issueFilter: '"Epic Link" = WEB-123' });
+
+    expect(searchParams(0)).toMatchObject({
+      jql: '(project = WEB) AND ("Epic Link" = WEB-123) AND (statusCategory != Done) ORDER BY updated DESC',
+    });
+  });
+
+  it('leaves completed issues out of lists and searches, even under a status filter', async () => {
+    const host = makeHost();
+    host.credentials = { ...host.credentials, jqlFilter: 'status = Done' };
+
+    await issues.listIssues(host, { limit: 5 });
+    await issues.searchIssues(host, { searchTerm: 'certificate', limit: 5 });
+
+    expect(searchParams(0).jql).toContain('(statusCategory != Done)');
+    expect(searchParams(1).jql).toContain('(statusCategory != Done)');
+  });
+
+  it('rejects a project filter that brings its own ORDER BY without querying Jira', async () => {
+    const result = await issues.searchIssues(makeHost(), {
+      searchTerm: 'cert',
+      limit: 5,
+      issueFilter: 'project = WEB order by created',
+    });
+
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mockSearchForIssues).not.toHaveBeenCalled();
+  });
+
+  it('rejects a project filter that closes its own parenthesis early without querying Jira', async () => {
+    const result = await issues.listIssues(makeHost(), {
+      limit: 5,
+      issueFilter: 'project = WEB) OR (project = IT',
+    });
+
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mockSearchForIssues).not.toHaveBeenCalled();
+  });
+
+  it('lists Data Center issues through the v2 search with plain-text descriptions', async () => {
+    const mockV2Search = vi.fn().mockResolvedValueOnce({
+      issues: [
+        {
+          ...jiraIssue('OPS-7', 'Renew certificate'),
+          fields: {
+            ...jiraIssue('OPS-7', 'Renew certificate').fields,
+            description: 'h3. Steps\n* renew the cert',
+          },
+        },
+      ],
+    });
+    mockCreateJiraClient.mockReturnValue({
+      issueSearch: { searchForIssuesUsingJqlPost: mockV2Search },
+    } as unknown as JiraClient);
+    const host = makeHost();
+    host.credentials = {
+      authMethod: 'pat',
+      siteUrl: 'https://jira.example.com',
+      personalAccessToken: 'dc-token',
+    };
+
+    const result = await issues.listIssues(host, { limit: 10 });
+
+    expect(result).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          identifier: 'OPS-7',
+          title: 'Renew certificate',
+          url: 'https://jira.example.com/browse/OPS-7',
+          description: 'h3. Steps\n* renew the cert',
+        }),
+      ],
+    });
+    expect(mockSearchForIssues).not.toHaveBeenCalled();
   });
 
   it('returns invalid input for incomplete stored bearer credentials before constructing a client', async () => {
