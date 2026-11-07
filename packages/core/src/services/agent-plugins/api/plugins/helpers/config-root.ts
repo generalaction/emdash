@@ -5,6 +5,7 @@ export type ConfigRootContext = {
   env: Record<string, string | undefined>;
   homeDir: string;
   platform: Platform;
+  cwd?: string;
 };
 
 export type ConfigRootResolver = (context: ConfigRootContext) => string;

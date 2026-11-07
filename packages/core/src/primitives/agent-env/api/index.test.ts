@@ -50,6 +50,29 @@ function expandEnvironmentStrings(value: string, env: Record<string, string>): s
 }
 
 describe('buildAllowlistedAgentEnv', () => {
+  it.each([
+    'OMO_CODING_AGENT_DIR',
+    'SENPI_CODING_AGENT_DIR',
+    'PI_CODING_AGENT_DIR',
+    'PI_CONFIG_DIR',
+  ])('forwards %s with platform-specific casing', (key) => {
+    const source = { [key.toLowerCase()]: '/lowercase', [key]: '/canonical' };
+    expect(buildAllowlistedAgentEnv(source, { platform: 'posix' })[key]).toBe('/canonical');
+    expect(buildAllowlistedAgentEnv(source, { platform: 'windows' })[key]).toBe('/canonical');
+    expect(
+      buildAllowlistedAgentEnv({ [key.toLowerCase()]: '/lowercase' }, { platform: 'posix' })
+    ).not.toHaveProperty(key);
+    const windowsEnv = buildAllowlistedAgentEnv(
+      { [key.toLowerCase()]: '/lowercase' },
+      { platform: 'windows' }
+    );
+    expect(windowsEnv[key]).toBe('/lowercase');
+    expect(windowsEnv).not.toHaveProperty(key.toLowerCase());
+    expect(mergeAgentEnvLayers('windows', source, { [key.toLowerCase()]: '/project' })[key]).toBe(
+      '/project'
+    );
+  });
+
   it('reads the full allowlist case-insensitively and emits canonical Windows names', () => {
     const env = buildAllowlistedAgentEnv(
       {
