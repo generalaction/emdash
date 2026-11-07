@@ -37,6 +37,15 @@ describe('opencodeAuthStatus', () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
+  it('reports authenticated from a Wally API key without probing the CLI', async () => {
+    const exec = vi.fn();
+
+    await expect(
+      opencodeAuthStatus(ctx({ env: { WALLY_API_KEY: 'wally-test' }, exec }))
+    ).resolves.toEqual({ kind: 'authenticated' });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('reports authenticated when opencode auth list reports credentials', async () => {
     const exec = vi.fn().mockResolvedValue({
       stdout: 'Credentials ~/.local/share/opencode/auth.json\nAnthropic api\n1 credentials',
