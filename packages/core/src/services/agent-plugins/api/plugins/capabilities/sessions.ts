@@ -10,5 +10,7 @@ export const sessionsCapability = definePluginCapability<ISessionsBehavior>()(
   'sessions',
   z.object({
     kind: z.enum(['resumable', 'stateless']),
+    /** Whether a failed resume may silently create a fresh session (legacy default). */
+    resumeFallback: z.enum(['fresh', 'error']).optional(),
   })
 );
