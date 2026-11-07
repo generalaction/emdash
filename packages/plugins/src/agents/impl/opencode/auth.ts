@@ -10,6 +10,7 @@ const PROVIDER_API_ENV_VARS = [
   'OPENAI_API_KEY',
   'GEMINI_API_KEY',
   'ORCAROUTER_API_KEY',
+  'WALLY_API_KEY',
 ];
 
 export async function opencodeAuthStatus(ctx: AgentAuthContext): Promise<AgentAuthStatus> {
