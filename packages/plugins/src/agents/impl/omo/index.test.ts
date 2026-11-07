@@ -88,6 +88,7 @@ describe('OmO launch contract', () => {
   it('declares a valid independent npm provider without disabling lifecycle scripts', () => {
     expect(plugin.validate()).toEqual([]);
     expect(plugin.metadata.id).toBe('omo');
+    expect(plugin.capabilities.hooks).toMatchObject({ kind: 'plugin', required: true });
     expect(plugin.capabilities.acp.kind).not.toBe('supported');
     expect(plugin.capabilities.hostDependency).toMatchObject({
       id: 'omo',

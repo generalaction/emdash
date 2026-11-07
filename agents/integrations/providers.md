@@ -115,7 +115,9 @@ you select an OrcaRouter model from the OpenCode model picker.
   commands with arguments, such as `srt claude`.
 - Claude uses deterministic `--session-id` values for conversation isolation.
 - OmO Native launches `omo` from `omo-ai`, not `omp` or `senpi`, and uses terminal sessions
-  rather than ACP. Its installer requires npm lifecycle scripts. Directory overrides are trimmed
+  rather than ACP. Its hooks are required: extension installation or hook-server failure blocks
+  launch instead of losing the extension-delivered initial prompt. Other providers retain optional
+  hook behavior. Its installer requires npm lifecycle scripts. Directory overrides are trimmed
   and resolved against the task's launch directory; a literal `~` is not expanded. A relative
   override cannot be inspected from the agent settings page without a launch directory.
   The global extension records the actual session file for exact `--session` resume.

@@ -49,6 +49,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'global',
+      required: true,
       supportedEvents: ['session', 'start', 'stop', 'notification'],
     },
     hostDependency: npmDependency({ id: 'omo', package: 'omo-ai' }),

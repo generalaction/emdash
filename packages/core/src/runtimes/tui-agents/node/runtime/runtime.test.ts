@@ -13,6 +13,7 @@ import type {
   ITrustBehavior,
   ResolvedTuiProvider,
 } from '#services/agent-plugins/api/plugins';
+import { AgentHookInstaller } from '#services/agent-plugins/node/hook-installer';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import type { IExecutionContext } from '#services/exec/api';
@@ -24,6 +25,7 @@ import {
   mapContainer,
   type LeakCheckContainer,
 } from '#services/session-lifecycle/node/testing';
+import { TuiHookServer } from '../hooks/hook-server';
 import type { PromptSpillResult } from './prompt-spill';
 import { TuiAgentsRuntime } from './runtime';
 
@@ -116,6 +118,88 @@ function startInput(overrides: Partial<TuiAgentStartInput> = {}): TuiAgentStartI
 }
 
 describe('TuiAgentsRuntime', () => {
+  it.each([
+    ['startSession', 'installation'],
+    ['startSession', 'server'],
+    ['resumeSession', 'installation'],
+    ['resumeSession', 'server'],
+  ] as const)('rejects %s when required hook %s fails', async (operation, failure) => {
+    const { runtime, spawner } = createRuntime({
+      hooks: {
+        kind: 'plugin',
+        scope: 'global',
+        required: true,
+        supportedEvents: ['session', 'start', 'stop'],
+      },
+    });
+    const install = vi
+      .spyOn(AgentHookInstaller.prototype, 'ensureHooksInstalled')
+      .mockResolvedValue(failure !== 'installation');
+    const server = vi
+      .spyOn(TuiHookServer.prototype, 'ensureStarted')
+      .mockRejectedValue(new Error('listen EACCES'));
+    try {
+      expect(await runtime[operation](startInput({ sessionId: 'native-session' }))).toMatchObject({
+        success: false,
+        error: { type: 'spawn-failed', conversationId: 'conversation-1' },
+      });
+      expect(spawner.specs).toHaveLength(0);
+      expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toMatchObject({
+        'conversation-1': { status: 'exited', exit: { signal: 'spawn-failed' } },
+      });
+      expect(server).toHaveBeenCalledTimes(failure === 'installation' ? 0 : 1);
+    } finally {
+      await runtime.dispose();
+      install.mockRestore();
+      server.mockRestore();
+    }
+  });
+
+  it.each([false, true])(
+    'launches with required hooks=%s when setup succeeds',
+    async (required) => {
+      const { runtime, spawner } = createRuntime({
+        hooks: { kind: 'plugin', scope: 'global', required, supportedEvents: ['start'] },
+      });
+      const install = vi
+        .spyOn(AgentHookInstaller.prototype, 'ensureHooksInstalled')
+        .mockResolvedValue(true);
+      try {
+        expect(await runtime.startSession(startInput())).toEqual(ok({ outcome: 'started' }));
+        expect(spawner.specs).toHaveLength(1);
+        expect(spawner.specs[0]!.env).toMatchObject({
+          EMDASH_HOOK_PORT: expect.stringMatching(/^\d+$/),
+          EMDASH_PTY_ID: 'conversation-1',
+          EMDASH_HOOK_TOKEN: expect.any(String),
+        });
+      } finally {
+        await runtime.dispose();
+        install.mockRestore();
+      }
+    }
+  );
+
+  it('launches without optional hooks when the server fails', async () => {
+    const { runtime, spawner } = createRuntime({
+      hooks: { kind: 'plugin', scope: 'global', supportedEvents: ['start'] },
+    });
+    const install = vi
+      .spyOn(AgentHookInstaller.prototype, 'ensureHooksInstalled')
+      .mockResolvedValue(true);
+    const server = vi
+      .spyOn(TuiHookServer.prototype, 'ensureStarted')
+      .mockRejectedValue(new Error('listen EACCES'));
+    try {
+      expect(await runtime.startSession(startInput())).toEqual(ok({ outcome: 'started' }));
+      expect(spawner.specs).toHaveLength(1);
+      expect(spawner.specs[0]!.env).not.toHaveProperty('EMDASH_HOOK_PORT');
+    } finally {
+      await runtime.dispose();
+      install.mockRestore();
+      server.mockRestore();
+    }
+  });
+
   it.each(['fresh', 'resume'] as const)(
     'recovers a %s launch using the session id captured after switching sessions',
     async (mode) => {
