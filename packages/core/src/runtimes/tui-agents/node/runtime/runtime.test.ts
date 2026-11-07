@@ -538,6 +538,32 @@ describe('TuiAgentsRuntime', () => {
     expect(spawner.specs[0]!.cols).toBe(120);
   });
 
+  it('reports a rejected resume command without spawning a fresh session', async () => {
+    const { runtime, spawner, agentHost } = createRuntime();
+    vi.mocked(agentHost.buildPromptCommand).mockRejectedValueOnce(
+      new Error('A provider session file is required to resume')
+    );
+
+    try {
+      const result = await runtime.resumeSession(startInput());
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          type: 'spawn-failed',
+          conversationId: 'conversation-1',
+          message: expect.stringContaining('A provider session file is required to resume'),
+        },
+      });
+      expect(spawner.specs).toHaveLength(0);
+      expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toMatchObject({
+        'conversation-1': { status: 'exited' },
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('returns a typed spawn failure when the PTY cannot be created', async () => {
     const { runtime, spawner } = createRuntime();
     spawner.failWith = new Error('spawn failed');
