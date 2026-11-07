@@ -360,12 +360,13 @@ export class TuiAgentsRuntime {
       const active = this.sessions.get(input.conversationId);
       if (active?.pty) return ok({ outcome: 'attached' });
 
-      const intent = input.sessionId ? 'resume' : 'fresh';
+      const intent =
+        input.sessionId || provider.data.resumeFallback === 'error' ? 'resume' : 'fresh';
       const preparedInput = intent === 'fresh' ? await this.preparePromptInput(input) : input;
       const config: TuiSessionConfig = {
         input: preparedInput,
         intent,
-        ...(input.sessionId ? {} : { resumeFallback: true }),
+        ...(intent === 'resume' ? {} : { resumeFallback: true }),
       };
       this.configs.set(input.conversationId, config);
       await this.gitCredentialChannels.hold(input.conversationId, input.gitCredentials);
@@ -373,7 +374,7 @@ export class TuiAgentsRuntime {
       this.unexpectedRespawns.delete(input.conversationId);
       this.setResumeState(input.conversationId, {
         requested: true,
-        outcome: input.sessionId ? 'pending' : 'fresh-fallback',
+        outcome: intent === 'resume' ? 'pending' : 'fresh-fallback',
         reason: input.sessionId ? undefined : 'missing-provider-session-id',
       });
 
@@ -389,7 +390,7 @@ export class TuiAgentsRuntime {
         return result;
       }
 
-      return ok({ outcome: input.sessionId ? 'resumed' : 'fresh-fallback' });
+      return ok({ outcome: intent === 'resume' ? 'resumed' : 'fresh-fallback' });
     });
   }
 
@@ -619,7 +620,11 @@ export class TuiAgentsRuntime {
           onExit: (info) => {
             if (!this.isCurrentGeneration(config.input.conversationId, generation)) return;
             if (session.pty === pty) session.pty = null;
-            if (isResuming && this.clock.now() - startedAt <= RESUME_FALLBACK_WINDOW_MS) {
+            if (
+              isResuming &&
+              provider.resumeFallback !== 'error' &&
+              this.clock.now() - startedAt <= RESUME_FALLBACK_WINDOW_MS
+            ) {
               this.setResumeState(config.input.conversationId, {
                 requested: true,
                 outcome: 'fresh-fallback',

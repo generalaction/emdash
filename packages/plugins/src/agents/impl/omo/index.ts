@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import path from 'node:path';
 import {
   definePlugin,
@@ -52,8 +53,8 @@ export const plugin = definePlugin(
     },
     hostDependency: npmDependency({ id: 'omo', package: 'omo-ai' }),
     plugins: { kind: 'file-drop', scope: 'global' },
-    prompt: { kind: 'argv', flag: '' },
-    sessions: { kind: 'resumable' },
+    prompt: { kind: 'argv', flag: '--emdash-initial-prompt' },
+    sessions: { kind: 'resumable', resumeFallback: 'error' },
   },
   { icon }
 );
@@ -62,13 +63,25 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) => {
       if (ctx.isResuming && !ctx.providerSessionId?.trim()) throw new MissingOmOSessionError();
-      return buildStandardCommand(ctx, {
-        initialPromptFlag: '',
+      if (ctx.isResuming) {
+        const file = ctx.providerSessionId!;
+        if (!path.isAbsolute(file)) throw new MissingOmOSessionError();
+        const stat = statSync(file);
+        if (!stat.isFile() || stat.size === 0) {
+          throw new Error(`OmO Native cannot resume an empty or non-file session: ${file}`);
+        }
+      }
+      const command = buildStandardCommand(ctx, {
         modelFlag: '--model',
         resumeFlag: '--session',
         sessionIdFlag: '--session',
         sessionIdOnResumeOnly: true,
       });
+      // The extension receives literal text; `--` alone still leaves @file expansion active.
+      if (!ctx.isResuming && ctx.initialPrompt) {
+        command.args.push(`--emdash-initial-prompt=${ctx.initialPrompt}`);
+      }
+      return command;
     },
   },
   plugins: createFileDropPlugin({

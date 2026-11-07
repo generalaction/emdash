@@ -35,6 +35,7 @@ function createRuntime(
     intents?: ReturnType<typeof createMemorySessionIntentStore>;
     conversationReports?: ConversationLifecycleReporter;
     hooks?: ResolvedTuiProvider['hooks'];
+    resumeFallback?: 'fresh' | 'error';
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
     platform?: NodeJS.Platform;
@@ -51,6 +52,7 @@ function createRuntime(
     name: 'Test Agent',
     prompt: { kind: 'argv' },
     hooks,
+    resumeFallback: options.resumeFallback,
     buildCommand: () => ({ command: 'agent', args: ['run'], env: {} }),
   };
   const agentHost = {
@@ -564,6 +566,23 @@ describe('TuiAgentsRuntime', () => {
     }
   });
 
+  it('preserves resume intent for a strict provider when the native ID is missing', async () => {
+    const { runtime, spawner, agentHost } = createRuntime({ resumeFallback: 'error' });
+    vi.mocked(agentHost.buildPromptCommand).mockImplementation(async (_providerId, ctx) => {
+      if (ctx.isResuming && !ctx.providerSessionId) throw new Error('Missing native session');
+      return ok({ command: 'agent', args: [], env: {} });
+    });
+    try {
+      expect(await runtime.resumeSession(startInput())).toMatchObject({
+        success: false,
+        error: { type: 'spawn-failed' },
+      });
+      expect(spawner.specs).toHaveLength(0);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('returns a typed spawn failure when the PTY cannot be created', async () => {
     const { runtime, spawner } = createRuntime();
     spawner.failWith = new Error('spawn failed');
@@ -655,6 +674,24 @@ describe('TuiAgentsRuntime', () => {
       'test',
       expect.objectContaining({ isResuming: false, initialPrompt: 'hello' })
     );
+  });
+
+  it('does not replace history when a strict provider exits during resume', async () => {
+    const { runtime, spawner, agentHost } = createRuntime({ resumeFallback: 'error' });
+    try {
+      await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+      spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+      // The explicit request queues behind any implicit exit recovery.
+      await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+      expect(agentHost.buildPromptCommand).toHaveBeenNthCalledWith(
+        2,
+        'test',
+        expect.objectContaining({ isResuming: true, providerSessionId: 'provider-session' })
+      );
+      expect(spawner.specs).toHaveLength(2);
+    } finally {
+      await runtime.dispose();
+    }
   });
 
   it('deactivates idle sessions after the configured output inactivity period', async () => {

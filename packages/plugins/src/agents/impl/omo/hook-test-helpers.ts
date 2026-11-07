@@ -7,7 +7,13 @@ import { pathToFileURL } from 'node:url';
 import { createLocalPluginFs } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { provider } from './index';
 
-type HookContext = { sessionManager: { getSessionFile(): string | undefined } };
+type SessionEntry = { id: string; type: string; customType?: string };
+type HookContext = {
+  sessionManager: {
+    getSessionFile(): string | undefined;
+    getEntries(): readonly SessionEntry[];
+  };
+};
 type HookEvent = {
   messages?: readonly { role: string; stopReason?: string; errorMessage?: string }[];
   aborted?: boolean;
@@ -17,7 +23,12 @@ type HookEvent = {
   reason?: string;
 };
 type Callback = (event: HookEvent, ctx: HookContext) => void | Promise<void>;
-export type ExtensionApi = { on(event: string, callback: Callback): void };
+export type ExtensionApi = {
+  on(event: string, callback: Callback): void;
+  registerFlag(name: string, options: { type: 'string' }): void;
+  getFlag(name: string): string | undefined;
+  sendUserMessage(content: string): void;
+};
 export type HookRequest = {
   readonly headers: IncomingHttpHeaders;
   readonly body: unknown;
@@ -39,10 +50,22 @@ export async function installedExtension() {
   };
 }
 
-export function callbacks(load: (api: ExtensionApi) => void) {
+export function callbacks(load: (api: ExtensionApi) => void, initialPrompt?: string) {
   const handlers = new Map<string, Callback>();
+  const flags = new Set<string>();
+  const messages: string[] = [];
   let sessionFile: string | undefined = '/sessions/first session.jsonl';
+  let entries: readonly SessionEntry[] = [];
   load({
+    registerFlag(name) {
+      flags.add(name);
+    },
+    getFlag(name) {
+      return flags.has(name) && name === 'emdash-initial-prompt' ? initialPrompt : undefined;
+    },
+    sendUserMessage(content) {
+      messages.push(content);
+    },
     on(event, callback) {
       if (handlers.has(event)) throw new Error('Duplicate handler: ' + event);
       handlers.set(event, callback);
@@ -50,12 +73,16 @@ export function callbacks(load: (api: ExtensionApi) => void) {
   });
   return {
     handlers,
+    messages,
     setSessionFile(value: string | undefined) {
       sessionFile = value;
     },
+    setEntries(value: readonly SessionEntry[]) {
+      entries = value;
+    },
     async emit(name: string, event: HookEvent = {}) {
       await handlers.get(name)?.(event, {
-        sessionManager: { getSessionFile: () => sessionFile },
+        sessionManager: { getSessionFile: () => sessionFile, getEntries: () => entries },
       });
     },
   };

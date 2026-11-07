@@ -58,6 +58,22 @@ describe('installed OmO extension execution', () => {
     expect(await extension.fs.read('extensions/other.js')).toBe('export default () => {}');
   });
 
+  it.each(['--help', '- review this', '@private-file', 'a "quote"\n$(touch /tmp/unwanted)'])(
+    'submits %j literally once, without replaying it after a session switch',
+    async (prompt) => {
+      hook = callbacks(load, prompt);
+      await hook.emit('session_start', { reason: 'startup' });
+      expect(hook.messages).toEqual([prompt]);
+      await hook.emit('session_start', { reason: 'resume' });
+      await hook.emit('session_start', { reason: 'new' });
+      expect(hook.messages).toEqual([prompt]);
+      await hook.emit('session_shutdown');
+      hook = callbacks(load, prompt);
+      await hook.emit('session_start', { reason: 'reload' });
+      expect(hook.messages).toEqual([]);
+    }
+  );
+
   it('delivers session files on startup, switch and agent start with real routing headers', async () => {
     const received = server.next();
     await hook.emit('session_start', { reason: 'startup' });
@@ -85,7 +101,12 @@ describe('installed OmO extension execution', () => {
 
   it('waits for settlement and replaces a failed retry outcome with success', async () => {
     await hook.emit('agent_start');
-    await hook.emit('agent_end', { ...failure, willRetry: true });
+    await hook.emit('agent_end', {
+      ...failure,
+      aborted: true,
+      abortSource: 'system',
+      willRetry: true,
+    });
     expect(server.requests.map(parsed).filter((event) => event.kind === 'status')).toEqual([
       expect.objectContaining({ type: 'start' }),
     ]);
@@ -100,6 +121,35 @@ describe('installed OmO extension execution', () => {
     ]);
   });
 
+  it('reports a deadline stop from this turn, not a historical deadline or a user cancel', async () => {
+    const oldDeadline = { id: 'old', type: 'custom', customType: 'deadline-stop' };
+    hook.setEntries([oldDeadline]);
+    await hook.emit('agent_start');
+    await hook.emit('agent_end', { ...success, aborted: true, abortSource: 'system' });
+    await hook.emit('agent_settled');
+    expect(parsed(server.requests.at(-1)!)).toMatchObject({ type: 'notification' });
+
+    await hook.emit('agent_start');
+    hook.setEntries([oldDeadline, { ...oldDeadline, id: 'current' }]);
+    await hook.emit('agent_end', {
+      messages: [{ role: 'assistant', stopReason: 'aborted' }],
+      aborted: true,
+      abortSource: 'system',
+      willRetry: false,
+    });
+    await hook.emit('agent_settled');
+    expect(parsed(server.requests.at(-1)!)).toMatchObject({
+      type: 'error',
+      message: expect.any(String),
+    });
+
+    await hook.emit('agent_start');
+    hook.setEntries([{ ...oldDeadline, id: 'user-overrode' }]);
+    await hook.emit('agent_end', { ...failure, aborted: true, abortSource: 'user' });
+    await hook.emit('agent_settled');
+    expect(parsed(server.requests.at(-1)!)).toMatchObject({ type: 'notification' });
+  });
+
   it.each([
     { end: { ...success, aborted: true }, settled: {}, type: 'notification' },
     {
@@ -112,19 +162,64 @@ describe('installed OmO extension execution', () => {
       settled: {},
       type: 'notification',
     },
-    { end: failure, settled: {}, type: 'error' },
-    { end: { ...failure, willRetry: true }, settled: {}, type: 'error' },
-    { end: success, settled: { fallbackExhausted: {} }, type: 'error' },
-    { end: { messages: [] }, settled: {}, type: 'error' },
-  ])('settles $type without falsely completing', async ({ end, settled, type }) => {
+    {
+      end: { ...success, aborted: true, abortSource: 'system', willRetry: false } as const,
+      settled: {},
+      type: 'notification',
+    },
+    {
+      end: { ...failure, aborted: true, abortSource: 'system', willRetry: false } as const,
+      settled: {},
+      type: 'error',
+      message: 'provider unavailable',
+    },
+    {
+      end: { ...failure, aborted: true, abortSource: 'system', willRetry: true } as const,
+      settled: {},
+      type: 'error',
+      message: 'provider unavailable',
+    },
+    {
+      end: { ...success, aborted: true, abortSource: 'system', willRetry: false } as const,
+      settled: { fallbackExhausted: {} },
+      type: 'error',
+      message: expect.any(String),
+    },
+    {
+      end: { messages: [{ role: 'assistant', stopReason: 'aborted' }] },
+      settled: { fallbackExhausted: { resumeAt: 1234 } },
+      type: 'error',
+      message: expect.any(String),
+    },
+    { end: failure, settled: {}, type: 'error', message: 'provider unavailable' },
+    {
+      end: { ...failure, willRetry: true },
+      settled: {},
+      type: 'error',
+      message: 'provider unavailable',
+    },
+    {
+      end: success,
+      settled: { fallbackExhausted: {} },
+      type: 'error',
+      message: expect.any(String),
+    },
+    {
+      end: { messages: [] },
+      settled: {},
+      type: 'error',
+      message: expect.any(String),
+    },
+  ])('settles $type without falsely completing', async ({ end, settled, type, message }) => {
     await hook.emit('agent_start');
     await hook.emit('agent_end', end);
     await hook.emit('agent_settled', settled);
     await hook.emit('session_shutdown', { reason: 'quit' });
     expect(server.requests.map(parsed).filter((event) => event.kind === 'status')).toEqual([
       expect.objectContaining({ type: 'start' }),
-      expect.objectContaining({ type }),
+      expect.objectContaining({ type, message }),
     ]);
+    expect(server.requests.at(-1)?.body).toEqual(message ? { message } : {});
   });
 
   it('reports an unknown settled outcome as error rather than success', async () => {

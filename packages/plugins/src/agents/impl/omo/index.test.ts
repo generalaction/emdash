@@ -21,24 +21,58 @@ describe('OmO launch contract', () => {
       })
     ).toEqual({
       command: commandContext.cli,
-      args: ['--model', 'provider/model', '--thinking', 'high', prompt],
+      args: [
+        '--model',
+        'provider/model',
+        '--thinking',
+        'high',
+        `--emdash-initial-prompt=${prompt}`,
+      ],
       env: {},
     });
   });
 
-  it('resumes only the captured session file without resending the prompt', () => {
-    expect(
+  it('resumes only the captured session file without resending the prompt', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'omo-session-'));
+    const file = join(root, 'a "quoted" session.jsonl');
+    try {
+      await writeFile(file, '{"type":"session","id":"native-id","version":3}\n');
+      expect(
+        provider.behavior.prompt?.buildCommand({
+          ...commandContext,
+          isResuming: true,
+          providerSessionId: file,
+          initialPrompt: 'must not repeat',
+        })
+      ).toEqual({
+        command: commandContext.cli,
+        args: ['--session', file],
+        env: {},
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects deleted, empty and directory session paths before launching the CLI', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'omo-session-'));
+    const file = join(root, 'session.jsonl');
+    const build = (providerSessionId: string) =>
       provider.behavior.prompt?.buildCommand({
         ...commandContext,
         isResuming: true,
-        providerSessionId: '/sessions/a "quoted" session.jsonl',
-        initialPrompt: 'must not repeat',
-      })
-    ).toEqual({
-      command: commandContext.cli,
-      args: ['--session', '/sessions/a "quoted" session.jsonl'],
-      env: {},
-    });
+        providerSessionId,
+      });
+    try {
+      await writeFile(file, '');
+      expect(() => build(file)).toThrow();
+      expect(() => build(root)).toThrow();
+      await rm(file);
+      expect(() => build(file)).toThrow();
+      expect(() => build('emdash-uuid')).toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it.each([undefined, '', ' \t\n'])('rejects resume with missing identifier %j', (id) => {
@@ -121,3 +155,6 @@ describe('OmO agent directory', () => {
     ).toBe(expected);
   });
 });
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';

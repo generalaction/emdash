@@ -119,9 +119,13 @@ you select an OrcaRouter model from the OpenCode model picker.
   and resolved against the task's launch directory; a literal `~` is not expanded. A relative
   override cannot be inspected from the agent settings page without a launch directory.
   The global extension records the actual session file for exact `--session` resume.
-  A resume request without that file identifier fails before launch rather than opening an
-  unrelated session. Completion is emitted only after the engine settles; cancellation returns
-  to idle, failures remain errors, and blocking extension dialogs request user input.
+  A missing identifier, deleted file, empty file or directory fails before launch; a failed
+  resume never falls back to fresh history. Initial prompts use an extension string flag and
+  are submitted literally once at startup, so leading options and `@` are not CLI syntax.
+  Completion is emitted only after the engine settles; explicit user cancellation returns
+  to idle, failures remain errors, and blocking extension dialogs request user input. The
+  extension also recognizes a new structured `deadline-stop` session entry because the engine
+  does not include deadline metadata in its extension lifecycle event.
 - Static plugin model catalogs supply suggestions before a conversation starts. Keep their IDs
   compatible with the provider's ACP catalog and terminal model flag. Preserve saved IDs that are
   absent from the static suggestions; only the live ACP catalog can determine whether a chat
