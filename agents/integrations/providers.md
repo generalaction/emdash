@@ -7,9 +7,9 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (37)
+## Current Providers (38)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, omo, pi, prime-agent, autohand, letta, mimocode, zero
 
 ## Current ACP-Capable Providers (23)
 
@@ -66,6 +66,7 @@ The global roots used by the built-in integrations are:
 | OpenCode, MiMoCode, Devin | Provider override where supported, then XDG config on POSIX or APPDATA on Windows |
 | Pi | `$PI_CODING_AGENT_DIR` with `~/.pi/agent` fallback |
 | Oh My Pi | `$PI_CODING_AGENT_DIR`, then `$PI_CONFIG_DIR`, with `~/.omp/agent` fallback |
+| OmO Native | First nonblank `$OMO_CODING_AGENT_DIR`, `$SENPI_CODING_AGENT_DIR`, or `$PI_CODING_AGENT_DIR`; otherwise `.omo/agent` under HOME, USERPROFILE, or the host home |
 | Prime Agent | `$PRIME_AGENT_CODING_AGENT_DIR` with `~/.prime/agent` fallback |
 | Antigravity CLI | `~/.gemini/config` |
 | Muse Code | `$XDG_CONFIG_HOME/muse`, falling back to `~/.config/muse` on macOS and Linux |
@@ -113,6 +114,14 @@ you select an OrcaRouter model from the OpenCode model picker.
   with a `command` field. Overrides accept executable files or PATH names; use a wrapper script for
   commands with arguments, such as `srt claude`.
 - Claude uses deterministic `--session-id` values for conversation isolation.
+- OmO Native launches `omo` from `omo-ai`, not `omp` or `senpi`, and uses terminal sessions
+  rather than ACP. Its installer requires npm lifecycle scripts. Directory overrides are trimmed
+  and resolved against the task's launch directory; a literal `~` is not expanded. A relative
+  override cannot be inspected from the agent settings page without a launch directory.
+  The global extension records the actual session file for exact `--session` resume.
+  A resume request without that file identifier fails before launch rather than opening an
+  unrelated session. Completion is emitted only after the engine settles; cancellation returns
+  to idle, failures remain errors, and blocking extension dialogs request user input.
 - Static plugin model catalogs supply suggestions before a conversation starts. Keep their IDs
   compatible with the provider's ACP catalog and terminal model flag. Preserve saved IDs that are
   absent from the static suggestions; only the live ACP catalog can determine whether a chat
