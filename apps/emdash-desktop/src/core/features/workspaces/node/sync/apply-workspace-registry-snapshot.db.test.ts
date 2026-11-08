@@ -1,7 +1,8 @@
 import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
 import { openFixture } from '@tooling/utils/db';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import {
   applyWorkspaceRegistrySnapshot,
   WorkspaceIdentityConflictError,
@@ -61,6 +62,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     fixture.close();
   });
 
@@ -148,6 +150,63 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       untracked: 0,
       purgedTombstones: 0,
     });
+  });
+
+  it('replays an unchanged snapshot without writes or invalidations', async () => {
+    const input = {
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: { first: hostRecord({ id: 'first' }), second: hostRecord({ id: 'second' }) },
+    };
+    await applyWorkspaceRegistrySnapshot(input);
+    const before = fixture.sqlite.prepare('SELECT total_changes() AS count').get();
+    const poke = vi.spyOn(appDbPokes.workspaces, 'poke');
+
+    expect(await applyWorkspaceRegistrySnapshot(input)).toMatchObject({ refreshed: 0 });
+
+    expect(fixture.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(before);
+    expect(poke).not.toHaveBeenCalled();
+  });
+
+  it('updates one observation without rewriting or repeatedly selecting unrelated rows', async () => {
+    const records = Object.fromEntries(
+      Array.from({ length: 32 }, (_, index) => {
+        const record = hostRecord({ id: `workspace-${index}` });
+        return [record.id, record];
+      })
+    );
+    const input = { db: fixture.db, host: LOCAL_HOST, records };
+    await applyWorkspaceRegistrySnapshot(input);
+    const registry = createWorkspaceRegistry(fixture.db);
+    const unchanged = registry.getLive('workspace-1');
+    const before = fixture.sqlite.prepare('SELECT total_changes() AS count').get() as {
+      count: number;
+    };
+    const prepare = vi.spyOn(fixture.sqlite, 'prepare');
+
+    records['workspace-0'] = {
+      ...records['workspace-0'],
+      lastObservedAt: records['workspace-0'].lastObservedAt + 1,
+    };
+    expect(await applyWorkspaceRegistrySnapshot(input)).toMatchObject({ refreshed: 1 });
+
+    expect(prepare.mock.calls.filter(([sql]) => /^select /i.test(sql)).length).toBeLessThan(10);
+    const after = fixture.sqlite.prepare('SELECT total_changes() AS count').get() as {
+      count: number;
+    };
+    expect(after.count - before.count).toBe(1);
+    expect(registry.getLive('workspace-0')?.observedAt).toBe(records['workspace-0'].lastObservedAt);
+    expect(registry.getLive('workspace-1')).toEqual(unchanged);
+  });
+
+  it('does not rewrite a canonical path just because its Windows casing differs', async () => {
+    const record = hostRecord({ id: 'workspace', path: 'C:\\Repo' });
+    const input = { db: fixture.db, host: LOCAL_HOST, records: { workspace: record } };
+    await applyWorkspaceRegistrySnapshot(input);
+
+    record.path = 'c:\\REPO';
+    expect(await applyWorkspaceRegistrySnapshot(input)).toMatchObject({ refreshed: 0 });
+    expect(createWorkspaceRegistry(fixture.db).getLive('workspace')?.path).toBe('C:\\Repo');
   });
 
   it('treats a stored v1 observedGit payload as not yet observed and rewrites it as v2', async () => {
@@ -348,6 +407,14 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       observedAt: Date.parse('2026-01-07T00:00:00.000Z'),
     });
     expect(registry.getLive('wt-mirror')).toBeUndefined();
+
+    const missing = registry.getLive('wt-linked');
+    const poke = vi.spyOn(appDbPokes.workspaces, 'poke');
+    expect(
+      await applyWorkspaceRegistrySnapshot({ db: fixture.db, host: LOCAL_HOST, records: {} })
+    ).toMatchObject({ markedMissing: 0 });
+    expect(registry.getLive('wt-linked')).toEqual(missing);
+    expect(poke).not.toHaveBeenCalled();
   });
 
   it('purges a tombstoned row once the delivery confirms the record gone — annotation included', async () => {
