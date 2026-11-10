@@ -266,8 +266,13 @@ export class WorkspaceRegistry {
     if (path !== undefined && path !== null) {
       const current = this.getLive(id, tx);
       if (current?.location) {
-        const owner = this.findLiveByPath(current.location, current.sshConnectionId, path, tx);
-        if (owner && owner.id !== id) throw workspacePathCollision(path, id, owner.id);
+        if (
+          current.path === null ||
+          workspacePathIdentityKey(current.path) !== workspacePathIdentityKey(path)
+        ) {
+          const owner = this.findLiveByPath(current.location, current.sshConnectionId, path, tx);
+          if (owner && owner.id !== id) throw workspacePathCollision(path, id, owner.id);
+        }
         if (current.path !== null) persistedPath = stableWorkspacePathDisplay(current.path, path);
       }
     }
