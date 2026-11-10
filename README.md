@@ -31,8 +31,8 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 
 - Run multiple coding agents at once without juggling terminals.
 - Keep every agent isolated in its own Git worktree and branch.
-- Send issues and tickets from Linear, GitHub, Jira, GitLab, Asana, Featurebase,
-  Monday.com, Forgejo, Plain, or YouTrack into an agent.
+- Send issues and tickets from Linear, GitHub, Jira (Cloud or Data Center), GitLab,
+  Asana, Featurebase, Monday.com, Forgejo, Plain, or YouTrack into an agent.
 - Review diffs, create pull requests, inspect CI checks, and merge from one place.
 - Work locally or on your own remote machines over SSH/SFTP.
 

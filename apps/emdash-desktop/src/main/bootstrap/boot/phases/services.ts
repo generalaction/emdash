@@ -69,6 +69,7 @@ import { projectEvents } from '@core/features/projects/api/node/project-events';
 import {
   loadStoredGitSettings,
   loadStoredIntegrationAccounts,
+  loadStoredIssueFilters,
 } from '@core/features/projects/api/node/settings/effective-settings';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
@@ -596,7 +597,11 @@ export async function bootServices(
     channels: gitCredentialServer,
     logger: log,
   });
-  const issueProviders = createIssueProviderRegistry({ resolveProjectIntegrationAccount });
+  const issueProviders = createIssueProviderRegistry({
+    resolveProjectIntegrationAccount,
+    getProjectIssueFilter: async (projectId, provider) =>
+      (await loadStoredIssueFilters(db, projectId))[provider],
+  });
   const pullRequestsRegistration = new PullRequestsRegistration({
     getClient: getPullRequestsRuntimeClient,
     onResume: (handler) => {

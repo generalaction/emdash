@@ -123,6 +123,7 @@ function fixture() {
   const readDurable = vi.fn(async () =>
     ok({
       integrationAccounts: { stored: {} },
+      issueFilters: { stored: {} },
       gitIdentity: {
         stored: {
           baseRemote: 'origin',

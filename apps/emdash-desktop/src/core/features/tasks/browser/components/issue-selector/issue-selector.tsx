@@ -93,7 +93,7 @@ export function IssueRow({ issue, linkedTo }: { issue: LinkedIssue; linkedTo?: L
         {issue.status ? (
           <Tooltip.Root>
             <Tooltip.Trigger
-              render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />}
+              render={<IssueStatusIndicator status={toIssueStatus(issue.status, issue.statusCategory)} />}
             />
             <Tooltip.Content>{issue.status}</Tooltip.Content>
           </Tooltip.Root>
@@ -352,7 +352,7 @@ export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
         <div className="flex w-full min-w-0 gap-2">
           {issue.status ? (
             <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
-              <IssueStatusIndicator status={toIssueStatus(issue.status)} />
+              <IssueStatusIndicator status={toIssueStatus(issue.status, issue.statusCategory)} />
             </span>
           ) : null}
           <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">
