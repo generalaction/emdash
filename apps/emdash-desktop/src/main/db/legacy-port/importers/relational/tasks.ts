@@ -55,20 +55,20 @@ function inferLegacyTaskLayout(args: {
   return { sourceBranch: null, taskBranch: branch };
 }
 
-export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promise<TaskPortResult> {
+export function portTasks({ appDb, legacyDb, remap }: PortContext): TaskPortResult {
   const summary = createPortSummary('tasks');
   const mergedLegacyTaskIds = new Set<string>();
   const workspacePaths = new Map<string, string>();
   const nowIso = new Date().toISOString();
 
-  const existingTaskRows = await appDb
+  const existingTaskRows = appDb
     .select({
       id: tasks.id,
       projectId: tasks.projectId,
       taskBranch: tasks.taskBranch,
     })
     .from(tasks)
-    .execute();
+    .all();
 
   const existingTaskIds = new Set<string>();
   const branchKeyToTaskId = new Map<string, string>();
@@ -160,14 +160,14 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
       isPinned: 0,
     };
 
-    const insertResult = await insertWithRegeneratedId({
+    const insertResult = insertWithRegeneratedId({
       initialId: legacyTaskId,
       existingIds: existingTaskIds,
       uniqueConstraintDetail: 'tasks.id',
       setId: (id) => {
         insertValues.id = id;
       },
-      insert: () => appDb.insert(tasks).values(insertValues).execute(),
+      insert: () => appDb.insert(tasks).values(insertValues).run(),
     });
 
     if (!insertResult.inserted) {

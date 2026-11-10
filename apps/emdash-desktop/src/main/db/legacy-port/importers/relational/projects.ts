@@ -44,10 +44,8 @@ function pickDefaultProjectName(projectPath: string, fallbackId: string): string
   return derived.length > 0 ? derived : `Legacy Project ${fallbackId.slice(0, 8)}`;
 }
 
-async function loadConnectionFingerprintById(
-  appDb: PortContext['appDb']
-): Promise<Map<string, string>> {
-  const rows = (await appDb
+function loadConnectionFingerprintById(appDb: PortContext['appDb']): Map<string, string> {
+  const rows = appDb
     .select({
       id: sshConnections.id,
       host: sshConnections.host,
@@ -55,7 +53,7 @@ async function loadConnectionFingerprintById(
       username: sshConnections.username,
     })
     .from(sshConnections)
-    .execute()) as ConnectionFingerprintRow[];
+    .all() as ConnectionFingerprintRow[];
 
   const result = new Map<string, string>();
   for (const row of rows) {
@@ -68,7 +66,7 @@ async function loadConnectionFingerprintById(
  * Finds or creates the live repository workspace row that will own the
  * imported project's path + host identity. Returns undefined on failure.
  */
-async function resolveRepositoryWorkspace(
+function resolveRepositoryWorkspace(
   appDb: PortContext['appDb'],
   input: {
     path: string;
@@ -77,7 +75,7 @@ async function resolveRepositoryWorkspace(
     createdAt: string;
     updatedAt: string;
   }
-): Promise<string | undefined> {
+): string | undefined {
   const pathScope = and(
     isNull(workspaces.untrackedAt),
     eq(workspaces.location, input.location),
@@ -86,26 +84,26 @@ async function resolveRepositoryWorkspace(
       ? eq(workspaces.sshConnectionId, input.sshConnectionId)
       : undefined
   );
-  const [existing] = await appDb
+  const [existing] = appDb
     .select({ id: workspaces.id, kind: workspaces.kind })
     .from(workspaces)
     .where(pathScope)
     .limit(1)
-    .execute();
+    .all();
   if (existing) {
     if (existing.kind !== 'repository') {
-      await appDb
+      appDb
         .update(workspaces)
         .set({ kind: 'repository', updatedAt: input.updatedAt })
         .where(eq(workspaces.id, existing.id))
-        .execute();
+        .run();
     }
     return existing.id;
   }
 
   const workspaceId = randomUUID();
   try {
-    await appDb
+    appDb
       .insert(workspaces)
       .values({
         id: workspaceId,
@@ -117,17 +115,17 @@ async function resolveRepositoryWorkspace(
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
       })
-      .execute();
+      .run();
     return workspaceId;
   } catch (error) {
     // Unique path index race (SQLite names the partial index): another row won — reuse it.
     if (isUniqueConstraintError(error, 'idx_workspaces')) {
-      const [raced] = await appDb
+      const [raced] = appDb
         .select({ id: workspaces.id })
         .from(workspaces)
         .where(pathScope)
         .limit(1)
-        .execute();
+        .all();
       if (raced) return raced.id;
     }
     log.warn('legacy-port: projects: repository workspace insert failed', {
@@ -137,18 +135,18 @@ async function resolveRepositoryWorkspace(
   }
 }
 
-export async function portProjects({
+export function portProjects({
   appDb,
   legacyDb,
   remap,
   skipLegacyProjectIds,
 }: PortContext & {
   skipLegacyProjectIds?: ReadonlySet<string>;
-}): Promise<PortSummary> {
+}): PortSummary {
   const summary = createPortSummary('projects');
   const nowIso = new Date().toISOString();
 
-  const existingProjectRows = (await appDb
+  const existingProjectRows = appDb
     .select({
       id: projects.id,
       path: workspaces.path,
@@ -161,7 +159,7 @@ export async function portProjects({
     .from(projects)
     .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
     .leftJoin(sshConnections, eq(workspaces.sshConnectionId, sshConnections.id))
-    .execute()) as ExistingProjectRow[];
+    .all() as ExistingProjectRow[];
 
   const projectIds = new Set<string>();
   const localKeyToProjectId = new Map<string, string>();
@@ -180,7 +178,7 @@ export async function portProjects({
     localKeyToProjectId.set(localProjectIdentityKey(row.path), row.id);
   }
 
-  const connectionFingerprintById = await loadConnectionFingerprintById(appDb);
+  const connectionFingerprintById = loadConnectionFingerprintById(appDb);
 
   const legacyRows = readLegacyRows(legacyDb, 'projects', [
     'id',
@@ -298,7 +296,7 @@ export async function portProjects({
       continue;
     }
 
-    const repositoryWorkspaceId = await resolveRepositoryWorkspace(appDb, {
+    const repositoryWorkspaceId = resolveRepositoryWorkspace(appDb, {
       path: projectPath,
       location: workspaceProvider === 'ssh' ? 'remote' : 'local',
       sshConnectionId: mappedSshConnectionId,
@@ -323,14 +321,14 @@ export async function portProjects({
       updatedAt,
     };
 
-    const insertResult = await insertWithRegeneratedId({
+    const insertResult = insertWithRegeneratedId({
       initialId: legacyProjectId,
       existingIds: projectIds,
       uniqueConstraintDetail: 'projects.id',
       setId: (id) => {
         insertValues.id = id;
       },
-      insert: () => appDb.insert(projects).values(insertValues).execute(),
+      insert: () => appDb.insert(projects).values(insertValues).run(),
     });
 
     if (!insertResult.inserted) {

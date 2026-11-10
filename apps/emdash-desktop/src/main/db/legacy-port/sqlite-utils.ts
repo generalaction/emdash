@@ -44,6 +44,15 @@ export function withForeignKeysDisabled<T>(sqlite: Database.Database, action: ()
   }
 }
 
+/**
+ * Runs `action` as one synchronous IMMEDIATE transaction with foreign keys disabled. Being
+ * synchronous, no other work on the shared connection can run (and silently join it) before it
+ * commits or rolls back.
+ */
+export function importAtomically<T>(sqlite: Database.Database, action: () => T): T {
+  return withForeignKeysDisabled(sqlite, () => sqlite.transaction(action).immediate());
+}
+
 export function withForeignKeysEnabled<T>(sqlite: Database.Database, action: () => T): T {
   const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) as number;
   sqlite.pragma('foreign_keys = ON');

@@ -1,9 +1,34 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type * as HostApi from '@emdash/core/primitives/host/api';
+import { openFixture, type FixtureDb } from '@tooling/utils/db';
 import Database from 'better-sqlite3';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type * as Exec from '@main/core/utils/exec';
+import { log } from '@main/lib/logger';
 import { runLegacyPort, type LegacyPortStateStore } from './service';
+
+const fakes = vi.hoisted(() => ({
+  tmux: vi.fn(async (_command: string, _args?: string[]) => ({ stdout: '', stderr: '' })),
+  failImportAfterConversations: false,
+}));
+
+vi.mock('@main/core/utils/exec', async (importOriginal) => ({
+  ...(await importOriginal<typeof Exec>()),
+  runLocalCommand: (command: string, args?: string[]) => fakes.tmux(command, args),
+}));
+
+vi.mock('@emdash/core/primitives/host/api', async (importOriginal) => {
+  const original = await importOriginal<typeof HostApi>();
+  return {
+    ...original,
+    hostRefKey: (...args: Parameters<typeof original.hostRefKey>) => {
+      if (fakes.failImportAfterConversations) throw new Error('simulated import failure');
+      return original.hostRefKey(...args);
+    },
+  };
+});
 
 function createAppDb(): Database.Database {
   const db = new Database(':memory:');
@@ -391,5 +416,105 @@ describe('runLegacyPort', () => {
         name: 'Existing Project',
       },
     ]);
+  });
+
+  describe('with a legacy tmux session to rename', () => {
+    const legacyPtyId = 'codex-chat-legacy-conv-1';
+    const fixtures: FixtureDb[] = [];
+    let tmuxCalls: Array<{ args: string[]; appInTransaction: boolean }>;
+
+    async function prepareLegacyImport(
+      prefix: string
+    ): Promise<{ appDb: Database.Database; tmpDir: string }> {
+      const fixture = await openFixture('empty');
+      fixtures.push(fixture);
+      const appDb = fixture.sqlite;
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+      tempDirs.push(tmpDir);
+      seedLegacyDb(path.join(tmpDir, 'emdash.db'));
+      fs.writeFileSync(
+        path.join(tmpDir, 'pty-session-map.json'),
+        JSON.stringify({ [legacyPtyId]: {} })
+      );
+
+      tmuxCalls = [];
+      fakes.tmux.mockImplementation(async (_command, args = []) => {
+        // A real tmux subprocess yields to the event loop, letting other main-process work run.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        tmuxCalls.push({ args, appInTransaction: appDb.inTransaction });
+        if (args[0] === 'has-session' && args[2] !== `=emdash-${legacyPtyId}`) {
+          throw new Error("can't find session");
+        }
+        return { stdout: '', stderr: '' };
+      });
+      return { appDb, tmpDir };
+    }
+
+    afterEach(() => {
+      for (const fixture of fixtures.splice(0)) fixture.close();
+      fakes.failImportAfterConversations = false;
+      fakes.tmux.mockReset();
+      vi.restoreAllMocks();
+    });
+
+    function writeUnrelatedKvRowSoon(appDb: Database.Database): Promise<void> {
+      return new Promise((resolve) =>
+        setImmediate(() => {
+          appDb.prepare(`INSERT INTO kv (key, value) VALUES ('unrelated-write', 'kept')`).run();
+          resolve();
+        })
+      );
+    }
+
+    it('renames tmux sessions only after the import has committed', async () => {
+      const { appDb, tmpDir } = await prepareLegacyImport('legacy-port-tmux-');
+      const stateStore = new InMemoryLegacyPortStateStore();
+
+      await runLegacyPort(tmpDir, { appDb, stateStore });
+
+      expect(await stateStore.getStatus()).toBe('completed');
+      expect(tmuxCalls.map((call) => call.args[0])).toContain('rename-session');
+      expect(tmuxCalls.filter((call) => call.appInTransaction)).toEqual([]);
+    });
+
+    it('keeps other main-process writes when the import rolls back', async () => {
+      const { appDb, tmpDir } = await prepareLegacyImport('legacy-port-concurrent-write-');
+      fakes.failImportAfterConversations = true;
+      const stateStore = new InMemoryLegacyPortStateStore();
+
+      const unrelatedWrite = writeUnrelatedKvRowSoon(appDb);
+      await runLegacyPort(tmpDir, { appDb, stateStore });
+      await unrelatedWrite;
+
+      expect(await stateStore.getStatus()).toBeNull();
+      expect(appDb.prepare(`SELECT COUNT(*) AS count FROM conversations`).get()).toEqual({
+        count: 0,
+      });
+      expect(appDb.prepare(`SELECT value FROM kv WHERE key = 'unrelated-write'`).get()).toEqual({
+        value: 'kept',
+      });
+      expect(tmuxCalls.map((call) => call.args[0])).not.toContain('rename-session');
+    });
+
+    it('rejects an import that overlaps one already running', async () => {
+      const { appDb, tmpDir } = await prepareLegacyImport('legacy-port-overlap-');
+      const warn = vi.spyOn(log, 'warn');
+      const stateStore = new InMemoryLegacyPortStateStore();
+
+      const results = await Promise.allSettled([
+        runLegacyPort(tmpDir, { appDb, stateStore }),
+        runLegacyPort(tmpDir, { appDb, stateStore }),
+      ]);
+
+      expect(warn.mock.calls.map(([message, context]) => [message, context])).toEqual([]);
+      expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected']);
+      expect((results[1] as PromiseRejectedResult).reason).toMatchObject({
+        message: 'A legacy import is already running',
+      });
+      expect(await stateStore.getStatus()).toBe('completed');
+      expect(appDb.prepare(`SELECT COUNT(*) AS count FROM conversations`).get()).toEqual({
+        count: 1,
+      });
+    });
   });
 });
