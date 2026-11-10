@@ -52,7 +52,7 @@ describe('SshConnectionManager', () => {
 
   it("reports why the host key verifier refused the server instead of ssh2's generic error", async () => {
     const { SshConnectionManager } = await import('./ssh-connection-manager');
-    const client = new (class extends PassThrough {
+    const client = new (class extends TestClient {
       connect() {}
     })();
     const manager = new SshConnectionManager({ createClient: () => client as unknown as Client });
@@ -89,7 +89,7 @@ describe('SshConnectionManager', () => {
 
   it("classifies ssh2's host denial as a host-key failure even without verifier detail", async () => {
     const { SshConnectionManager } = await import('./ssh-connection-manager');
-    const client = new (class extends PassThrough {
+    const client = new (class extends TestClient {
       connect() {}
     })();
     const manager = new SshConnectionManager({ createClient: () => client as unknown as Client });
