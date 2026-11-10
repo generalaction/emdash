@@ -80,6 +80,10 @@ describe('buildAllowlistedAgentEnv', () => {
         number_of_processors: '8',
         anthropic_api_key: 'secret',
         https_proxy: 'https://proxy.test',
+        omo_coding_agent_dir: 'C:\\Agents\\omo',
+        senpi_coding_agent_dir: 'C:\\Agents\\senpi',
+        pi_coding_agent_dir: 'C:\\Agents\\pi',
+        pi_config_dir: 'C:\\Agents\\omp',
         unsafe_env: 'excluded',
       },
       { platform: 'windows' }
@@ -115,6 +119,10 @@ describe('buildAllowlistedAgentEnv', () => {
       NUMBER_OF_PROCESSORS: '8',
       ANTHROPIC_API_KEY: 'secret',
       HTTPS_PROXY: 'https://proxy.test',
+      OMO_CODING_AGENT_DIR: 'C:\\Agents\\omo',
+      SENPI_CODING_AGENT_DIR: 'C:\\Agents\\senpi',
+      PI_CODING_AGENT_DIR: 'C:\\Agents\\pi',
+      PI_CONFIG_DIR: 'C:\\Agents\\omp',
     });
     expect(env).not.toHaveProperty('Path');
     expect(env).not.toHaveProperty('username');
@@ -211,6 +219,12 @@ describe('buildAllowlistedAgentEnv', () => {
         anthropic_api_key: 'excluded',
         ANTHROPIC_API_KEY: 'included',
         META_API_KEY: 'meta-secret',
+        omo_coding_agent_dir: '/wrong-omo',
+        OMO_CODING_AGENT_DIR: '/agents/omo',
+        senpi_coding_agent_dir: '/wrong-senpi',
+        SENPI_CODING_AGENT_DIR: '/agents/senpi',
+        PI_CODING_AGENT_DIR: '/agents/pi',
+        PI_CONFIG_DIR: '/agents/omp',
       },
       { platform: 'posix' }
     );
@@ -218,6 +232,12 @@ describe('buildAllowlistedAgentEnv', () => {
     expect(env.PATH).toBe('/bin');
     expect(env.ANTHROPIC_API_KEY).toBe('included');
     expect(env.META_API_KEY).toBe('meta-secret');
+    expect(env.OMO_CODING_AGENT_DIR).toBe('/agents/omo');
+    expect(env.SENPI_CODING_AGENT_DIR).toBe('/agents/senpi');
+    expect(env.PI_CODING_AGENT_DIR).toBe('/agents/pi');
+    expect(env.PI_CONFIG_DIR).toBe('/agents/omp');
+    expect(env).not.toHaveProperty('omo_coding_agent_dir');
+    expect(env).not.toHaveProperty('senpi_coding_agent_dir');
   });
 
   it('forwards all persistent XDG base-directory variables', () => {

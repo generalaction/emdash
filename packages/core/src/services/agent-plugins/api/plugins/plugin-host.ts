@@ -47,6 +47,7 @@ export type ResolvedTuiProvider = {
   name: string;
   prompt: CLIAgentPluginProvider['capabilities']['prompt'];
   hooks: CLIAgentPluginProvider['capabilities']['hooks'];
+  resumeFallback?: CLIAgentPluginProvider['capabilities']['sessions']['resumeFallback'];
   buildCommand: NonNullable<CLIAgentPluginProvider['behavior']['prompt']>['buildCommand'];
   parseHookEvent?: NonNullable<CLIAgentPluginProvider['behavior']['hooks']>['parseHookEvent'];
   validateSessionId?: NonNullable<
@@ -174,6 +175,7 @@ export class AgentPluginHost {
       name: plugin.metadata.name,
       prompt: plugin.capabilities.prompt,
       hooks: plugin.capabilities.hooks,
+      resumeFallback: plugin.capabilities.sessions.resumeFallback,
       buildCommand: prompt.buildCommand,
       parseHookEvent: plugin.behavior.hooks?.parseHookEvent,
       validateSessionId: plugin.behavior.sessions?.validateSessionId,

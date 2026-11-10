@@ -360,12 +360,13 @@ export class TuiAgentsRuntime {
       const active = this.sessions.get(input.conversationId);
       if (active?.pty) return ok({ outcome: 'attached' });
 
-      const intent = input.sessionId ? 'resume' : 'fresh';
+      const intent =
+        input.sessionId || provider.data.resumeFallback === 'error' ? 'resume' : 'fresh';
       const preparedInput = intent === 'fresh' ? await this.preparePromptInput(input) : input;
       const config: TuiSessionConfig = {
         input: preparedInput,
         intent,
-        ...(input.sessionId ? {} : { resumeFallback: true }),
+        ...(intent === 'resume' ? {} : { resumeFallback: true }),
       };
       this.configs.set(input.conversationId, config);
       await this.gitCredentialChannels.hold(input.conversationId, input.gitCredentials);
@@ -373,7 +374,7 @@ export class TuiAgentsRuntime {
       this.unexpectedRespawns.delete(input.conversationId);
       this.setResumeState(input.conversationId, {
         requested: true,
-        outcome: input.sessionId ? 'pending' : 'fresh-fallback',
+        outcome: intent === 'resume' ? 'pending' : 'fresh-fallback',
         reason: input.sessionId ? undefined : 'missing-provider-session-id',
       });
 
@@ -389,7 +390,7 @@ export class TuiAgentsRuntime {
         return result;
       }
 
-      return ok({ outcome: input.sessionId ? 'resumed' : 'fresh-fallback' });
+      return ok({ outcome: intent === 'resume' ? 'resumed' : 'fresh-fallback' });
     });
   }
 
@@ -532,15 +533,22 @@ export class TuiAgentsRuntime {
       startedAt,
     });
 
-    const commandResult = await this.deps.agentHost.buildPromptCommand(config.input.providerId, {
-      extraArgs: config.input.extraArgs,
-      autoApprove: config.input.autoApprove ?? false,
-      initialPrompt: isResuming ? undefined : config.input.initialPrompt,
-      sessionId: config.input.conversationId,
-      providerSessionId: config.input.sessionId ?? undefined,
-      isResuming,
-      model: config.input.model ?? '',
-    });
+    const commandResult = await this.deps.agentHost
+      .buildPromptCommand(config.input.providerId, {
+        extraArgs: config.input.extraArgs,
+        autoApprove: config.input.autoApprove ?? false,
+        initialPrompt: isResuming ? undefined : config.input.initialPrompt,
+        sessionId: config.input.conversationId,
+        providerSessionId: config.input.sessionId ?? undefined,
+        isResuming,
+        model: config.input.model ?? '',
+      })
+      .catch((error: unknown) =>
+        err({
+          type: 'command-build-failed',
+          message: error instanceof Error ? error.message : String(error),
+        })
+      );
     if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
       return this.cancelledSpawn(config.input.conversationId);
     }
@@ -556,11 +564,17 @@ export class TuiAgentsRuntime {
         workspacePath: config.input.cwd,
       });
     }
-    const { env: hookEnv, startHooksActive } = await this.prepareHookEnv(config.input, provider);
-    session.startHooksActive = startHooksActive;
+    const hookResult = await this.prepareHookEnv(config.input, provider);
     if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
       return this.cancelledSpawn(config.input.conversationId);
     }
+    if (!hookResult.success) {
+      const message = hookResult.error;
+      this.markSpawnFailed(config, resumeState, startedAt, message);
+      return err({ type: 'spawn-failed', conversationId: config.input.conversationId, message });
+    }
+    const { env: hookEnv, startHooksActive } = hookResult.data;
+    session.startHooksActive = startHooksActive;
 
     // Git-credential behavior is applied last through the blessed construction (spec:
     // github-git-settings §4) so a "none" scrub wins over provider and hook env.
@@ -612,7 +626,11 @@ export class TuiAgentsRuntime {
           onExit: (info) => {
             if (!this.isCurrentGeneration(config.input.conversationId, generation)) return;
             if (session.pty === pty) session.pty = null;
-            if (isResuming && this.clock.now() - startedAt <= RESUME_FALLBACK_WINDOW_MS) {
+            if (
+              isResuming &&
+              provider.resumeFallback !== 'error' &&
+              this.clock.now() - startedAt <= RESUME_FALLBACK_WINDOW_MS
+            ) {
               this.setResumeState(config.input.conversationId, {
                 requested: true,
                 outcome: 'fresh-fallback',
@@ -852,10 +870,10 @@ export class TuiAgentsRuntime {
   private async prepareHookEnv(
     input: TuiAgentStartInput,
     provider: ResolvedTuiProvider
-  ): Promise<{ env: Record<string, string>; startHooksActive: boolean }> {
+  ): Promise<Result<{ env: Record<string, string>; startHooksActive: boolean }, string>> {
     const declaresStart =
       provider.hooks.kind !== 'none' && provider.hooks.supportedEvents.includes('start');
-    if (provider.hooks.kind === 'none') return { env: {}, startHooksActive: false };
+    if (provider.hooks.kind === 'none') return ok({ env: {}, startHooksActive: false });
 
     const hooksAvailable = await this.hookInstaller.ensureHooksInstalled({
       providerId: input.providerId,
@@ -863,6 +881,9 @@ export class TuiAgentsRuntime {
       env: input.providerVars,
     });
     if (!hooksAvailable) {
+      if (provider.hooks.required) {
+        return err(`Required hooks could not be installed for ${provider.name}.`);
+      }
       this.deps.logger.warn(
         'TuiAgentsRuntime: hook installation unavailable; continuing with hook endpoint',
         {
@@ -876,15 +897,18 @@ export class TuiAgentsRuntime {
     try {
       hook = await this.hookServer.ensureStarted();
     } catch (error) {
+      if (provider.hooks.required) {
+        return err(`Required hook server could not start for ${provider.name}: ${String(error)}`);
+      }
       this.deps.logger.warn('TuiAgentsRuntime: hook server unavailable; spawning without hooks', {
         conversationId: input.conversationId,
         providerId: input.providerId,
         error: String(error),
       });
-      return { env: {}, startHooksActive: false };
+      return ok({ env: {}, startHooksActive: false });
     }
 
-    return {
+    return ok({
       env: {
         EMDASH_HOOK_PORT: String(hook.port),
         EMDASH_PTY_ID: input.conversationId,
@@ -893,7 +917,7 @@ export class TuiAgentsRuntime {
       },
       // Suppress Enter→working only when start hooks were actually installed.
       startHooksActive: declaresStart && hooksAvailable,
-    };
+    });
   }
 
   private syncSessionState(state: TuiSessionState): void {
