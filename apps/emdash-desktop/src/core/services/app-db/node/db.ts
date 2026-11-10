@@ -14,6 +14,8 @@ export type DrizzleTx = Omit<DrizzleNativeTx, 'transaction'> & {
 /**
  * The shared app database. better-sqlite3 transactions are synchronous, so `transaction`
  * callbacks may not return a promise: work after an `await` would run outside the transaction.
+ * The `emdash/no-async-transaction-callback` lint rule also rejects `async` callbacks whose
+ * result type is forced to `void`, which this type cannot see.
  */
 export type AppDb = Omit<DrizzleAppDb, 'transaction'> & {
   transaction<T>(

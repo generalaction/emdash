@@ -62,6 +62,7 @@ describe('SQLite store lifecycle', () => {
     const handle = await store.openTemp();
 
     try {
+      /* oxlint-disable emdash/no-async-transaction-callback -- the async callback is the case under test */
       expect(() =>
         // @ts-expect-error transaction callbacks must be synchronous
         handle.transaction(async () => {
@@ -69,6 +70,7 @@ describe('SQLite store lifecycle', () => {
           await Promise.resolve();
         })
       ).toThrow('SQLite store transactions must be synchronous');
+      /* oxlint-enable emdash/no-async-transaction-callback */
       expect(handle.connection.get('SELECT 1 FROM records WHERE id = 1')).toBeUndefined();
     } finally {
       handle.close();

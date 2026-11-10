@@ -26,6 +26,8 @@ export interface MigrationInterop {
 /**
  * The result of a transaction callback. A promise-returning (async) callback resolves to `never`,
  * so it fails to type-check: work after its first `await` would run outside the transaction.
+ * An explicit `void` result type defeats this check; the `emdash/no-async-transaction-callback`
+ * lint rule rejects async callbacks syntactically.
  */
 export type SynchronousResult<T> = T extends PromiseLike<unknown> ? never : T;
 
