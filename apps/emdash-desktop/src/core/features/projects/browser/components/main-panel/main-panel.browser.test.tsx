@@ -5,6 +5,7 @@ import { ProjectContextErrorPanel, ProjectMainPanel } from './main-panel';
 
 const panelState = vi.hoisted(() => ({
   kind: 'ready',
+  view: undefined as { activeView: 'tasks' | 'board' } | undefined,
   store: {
     id: 'project-1',
     name: 'Emdash',
@@ -24,6 +25,7 @@ const panelState = vi.hoisted(() => ({
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectManagerStore: () => ({ hydrateProjectContext: vi.fn() }),
   getProjectStore: () => panelState.store,
+  getProjectViewStore: () => panelState.view,
   projectDisplayName: () => 'Emdash',
   projectViewKind: () => panelState.kind,
 }));
@@ -151,6 +153,7 @@ describe('ProjectMainPanel layout', () => {
 
   beforeEach(() => {
     panelState.kind = 'ready';
+    panelState.view = observable({ activeView: 'tasks' as const });
     panelState.store.context = undefined;
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -178,6 +181,27 @@ describe('ProjectMainPanel layout', () => {
     ).toEqual(['header', 'banner', 'tabs', 'panel']);
   });
 
+  it('uses the full project width for Board and restores the reading width for other sections', async () => {
+    await act(async () => root.render(<ProjectMainPanel />));
+    const content = host.querySelector('[data-project-page-content]');
+    expect(content?.classList.contains('max-w-4xl')).toBe(true);
+
+    await act(async () =>
+      runInAction(() => {
+        if (panelState.view) panelState.view.activeView = 'board';
+      })
+    );
+    expect(content?.classList.contains('max-w-none')).toBe(true);
+    expect(content?.classList.contains('max-w-4xl')).toBe(false);
+
+    await act(async () =>
+      runInAction(() => {
+        if (panelState.view) panelState.view.activeView = 'tasks';
+      })
+    );
+    expect(content?.classList.contains('max-w-4xl')).toBe(true);
+  });
+
   it.each([
     ['hydrating', 'Loading project'],
     ['context_error', 'Could not load Project'],
@@ -202,3 +226,4 @@ describe('ProjectMainPanel layout', () => {
     expect(host.querySelector('[data-project-page-scroll]')).not.toBeNull();
   });
 });
+import { observable, runInAction } from 'mobx';

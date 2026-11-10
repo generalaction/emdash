@@ -67,4 +67,15 @@ describe('agent status notification producer', () => {
       notificationMapping(event({ payload: { notificationType: 'auth_success' } }))
     ).toBeNull();
   });
+
+  it('notifies for questions and stays silent when work resumes', () => {
+    expect(
+      notificationMapping(event({ payload: { notificationType: 'elicitation_dialog' } }))
+    ).toMatchObject({ kind: 'agent-attention', sound: 'needs_attention' });
+    expect(notificationMapping(event({ type: 'start', payload: {} }))).toBeNull();
+    expect(notificationMapping(event({ type: 'error', payload: {} }))).toMatchObject({
+      kind: 'agent-attention',
+      sound: 'needs_attention',
+    });
+  });
 });

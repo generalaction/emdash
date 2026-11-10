@@ -65,6 +65,35 @@ Feature views, modals, and task tabs are exposed through `contributions/` and ag
 `src/core/manifests/browser/browser-contributions.ts` and
 `src/core/manifests/browser/task-tab-contributions.ts`.
 
+### Project task board
+
+The project Board section is part of the existing project view and its versioned view memento.
+`projects/browser/components/task-view/task-board.tsx` observes the same task manager,
+conversation registry, checkout, and PR-association stores as the task list. The derived column
+comes from archived tasks, lifecycle `done`, and merged current PRs first, followed by
+waiting/errors, working agents, and completed/open-PR/review tasks. No agent status falls back to
+Backlog. Waiting wins over working sibling conversations. Raw conversation statuses are used
+because acknowledging a notification must not change the board column. Manual moves are saved in
+the existing project view memento with the current conversation-status key; they expire when a
+conversation appears or reports a different status. Derived Done always takes precedence.
+
+Dragging Backlog to Running provisions the task workspace and creates a conversation with the
+selected installed provider. Its initial prompt uses the saved linked issue context, including
+Jira description and comments. ACP sessions are explicitly started after creation; PTY sessions
+start during creation. Dropping on Done uses the shared confirmation modal before archiving.
+
+Cards show the existing linked issue snapshot (including Jira key/title), provider metadata,
+observed branch, and latest saved task/conversation interaction timestamp. There is no Jira
+workflow sync, universal successful-completion signal for idle/cancelled sessions, or timestamp
+for every agent output chunk. Providers without status hooks can therefore fall back to Review
+after starting. Branch observations can be unavailable for inactive workspaces.
+
+Opening a card focuses an existing conversation tab using `conversationTabKind`. Archived
+cards explicitly offer **Restore and open**, since archived tasks have no operational session
+stores. The task titlebar's return control navigates to the existing project view, whose saved
+section remains Board. Automation runs and optimistic unregistered rows are omitted, matching
+the project task list.
+
 The command palette uses the same static contribution model. Owning slices export
 `PaletteProviderDef` arrays from `contributions/browser/`, and
 `src/core/manifests/browser/palette-provider-catalog.ts` aggregates the five providers for

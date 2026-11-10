@@ -19,6 +19,7 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import { useAgentMetadata } from '@core/features/agents/api/browser/use-agent-metadata';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
+import { toAcpImageAttachmentMimeType } from '@core/features/conversations/api/browser/acp-image-attachment';
 import { ChatTranscript } from '@core/features/conversations/api/browser/chat/chat-transcript';
 import type {
   ChatCommands,
@@ -64,11 +65,7 @@ import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pa
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
-import {
-  shouldUseAcpImageAttachment,
-  toAcpImageAttachmentMimeType,
-  uploadDroppedFile,
-} from './acp-dropped-file';
+import { shouldUseAcpImageAttachment, uploadDroppedFile } from './acp-dropped-file';
 import { appendDraftCommentsContext } from './draft-comments-context';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
 import { createTranscriptFileCommands } from './transcript-file-commands';

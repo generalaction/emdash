@@ -14,7 +14,29 @@ const projectViewV1Schema = z.object({
   selectedIssueProvider: z.string().optional(),
 });
 
-export const projectViewSchema = defineVersionedSchema().initial('1', projectViewV1Schema).build();
+const projectViewV2Schema = projectViewV1Schema.extend({
+  version: z.literal('2'),
+  activeView: z.enum(['tasks', 'board', 'pull-request', 'workspaces', 'settings']),
+});
+
+const projectViewV3Schema = projectViewV2Schema.extend({
+  version: z.literal('3'),
+  boardOverrides: z
+    .record(
+      z.string(),
+      z.object({
+        column: z.enum(['Backlog', 'Running', 'Awaiting Input', 'Review']),
+        agentStatusKey: z.string(),
+      })
+    )
+    .optional(),
+});
+
+export const projectViewSchema = defineVersionedSchema()
+  .initial('1', projectViewV1Schema)
+  .version('2', projectViewV2Schema, (previous) => ({ ...previous, version: '2' as const }))
+  .version('3', projectViewV3Schema, (previous) => ({ ...previous, version: '3' as const }))
+  .build();
 
 export type ProjectViewState = typeof projectViewSchema.Type;
 
@@ -23,7 +45,7 @@ export const projectViewMemento = defineMemento({
   subject: projectSubject,
   schema: projectViewSchema,
   default: {
-    version: '1' as const,
+    version: '3' as const,
     activeView: 'tasks' as const,
     taskViewTab: 'active' as const,
   },

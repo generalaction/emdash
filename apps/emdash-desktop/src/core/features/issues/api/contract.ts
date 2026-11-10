@@ -10,12 +10,18 @@ import type {
   IssueQueryOpts,
   IssueSearchOpts,
 } from '@core/primitives/issue-providers/api';
+import type { JiraSyncResult } from './jira-sync';
 
 const voidInput = z.void();
 
 export const issuesDomain = 'issues' as const;
 
 export const issuesContract = defineContract({
+  syncAssignedJiraIssues: procedure({
+    input: z.object({ projectId: z.string().min(1) }),
+    output: z.custom<JiraSyncResult>(),
+    callTimeoutMs: 0,
+  }),
   checkConnection: procedure({
     input: z.object({ provider: z.custom<IssueProviderType>() }),
     output: z.custom<ConnectionStatus>(),

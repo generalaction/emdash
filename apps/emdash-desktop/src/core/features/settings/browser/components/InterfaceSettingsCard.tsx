@@ -21,6 +21,26 @@ const InterfaceSettingsCard: React.FC = () => {
     <SettingsCard>
       <SeparatedList gap="1rem" direction="column">
         <SettingRow
+          title="Board by default"
+          description="Open Board instead of Tasks when entering a project. Other selected sections are remembered."
+          control={
+            <>
+              <ResetToDefaultButton
+                visible={isFieldOverridden('boardByDefault')}
+                defaultLabel="off"
+                onReset={() => resetField('boardByDefault')}
+                disabled={loading || saving}
+              />
+              <Switch
+                aria-label="Board by default"
+                checked={interfaceSettings?.boardByDefault ?? false}
+                disabled={loading || saving}
+                onCheckedChange={(checked) => update({ boardByDefault: checked })}
+              />
+            </>
+          }
+        />
+        <SettingRow
           title="Context bar"
           description="Hide the on-screen context trigger. The keyboard shortcut still works."
           control={

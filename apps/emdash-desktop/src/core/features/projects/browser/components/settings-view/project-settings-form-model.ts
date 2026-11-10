@@ -63,6 +63,7 @@ export type PlacementFormState = {
 };
 
 export type FormState = {
+  jiraSync: { jql: string };
   lifecycle: LifecycleFormState;
   fileHandling: FileHandlingFormState;
   environment: EnvironmentFormState;
@@ -157,6 +158,7 @@ export function projectSettingsDomainsToForm(
     environment: environmentToForm(domains.environment),
     gitIdentity: gitIdentityToForm(domains.gitIdentity, remotes),
     integrationAccounts: domains.integrationAccounts.stored,
+    jiraSync: { jql: domains.jiraSync?.jql ?? '' },
     placement: placementToForm(domains.placement),
   };
 }
@@ -278,6 +280,9 @@ export function formToProjectSettingsDomainPatch(
   );
   const placement = placementToPatch(form.placement, touchedFields);
   return {
+    ...(isTouched(touchedFields, 'jiraSync.jql')
+      ? { jiraSync: { jql: blankToUndefined(form.jiraSync.jql) ?? null } }
+      : {}),
     ...(lifecycle ? { lifecycle } : {}),
     ...(fileHandling ? { fileHandling } : {}),
     ...(environment ? { environment } : {}),

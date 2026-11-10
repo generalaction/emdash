@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
-import { parse as parseToml } from 'smol-toml';
+import { parse as parseToml, stringify } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { CODEX_CONFIG_PATH, CODEX_LEGACY_HOOKS_PATH, buildCodexHookConfig } from './hooks';
 
@@ -30,6 +30,50 @@ function createMemoryFs(initial: Record<string, string> = {}): PluginFs & {
 }
 
 describe('buildCodexHookConfig', () => {
+  it('reports questions, approvals, resumed work, and completion through canonical events', () => {
+    const parse = buildCodexHookConfig().parseHookEvent;
+    expect(
+      parse('pre-tool-use', { tool_name: 'request_user_input', tool_use_id: 'question-1' })
+    ).toEqual({
+      kind: 'status',
+      type: 'notification',
+      notificationType: 'elicitation_dialog',
+      toolUseId: 'question-1',
+    });
+    expect(parse('pre-tool-use', { tool_name: 'exec_command' })).toEqual({ kind: 'ignore' });
+    expect(parse('notification', { notification_type: 'permission_prompt' })).toMatchObject({
+      kind: 'status',
+      type: 'notification',
+      notificationType: 'permission_prompt',
+    });
+    expect(parse('start', { hook_event_name: 'PostToolUse' })).toMatchObject({
+      kind: 'status',
+      type: 'start',
+    });
+    expect(parse('notification', { notification_type: 'idle_prompt' })).toEqual({
+      kind: 'status',
+      type: 'stop',
+    });
+    expect(parse('notification', { type: 'agent-turn-complete' })).toEqual({
+      kind: 'status',
+      type: 'stop',
+    });
+  });
+
+  it('upgrades a completion-only install', async () => {
+    const fs = createMemoryFs();
+    const hooks = buildCodexHookConfig();
+    await hooks.writeHooks(fs, []);
+    const config = parseToml((await fs.read(CODEX_CONFIG_PATH)) ?? '') as {
+      hooks: Record<string, unknown>;
+    };
+    for (const name of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse']) delete config.hooks[name];
+    await fs.write(CODEX_CONFIG_PATH, stringify(config));
+    expect(await hooks.getHooksInstalled(fs)).toBe(false);
+    await hooks.writeHooks(fs, []);
+    expect(await hooks.getHooksInstalled(fs)).toBe(true);
+  });
+
   it('writes Codex hooks to config.toml and removes legacy hooks.json', async () => {
     const fs = createMemoryFs({
       [CODEX_CONFIG_PATH]: 'model = "gpt-5"\n',
