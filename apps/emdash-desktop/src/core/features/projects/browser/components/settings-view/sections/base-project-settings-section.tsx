@@ -316,11 +316,12 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
       <Separator />
 
       <Field.Root>
-        <Field.Label>Agent git credentials</Field.Label>
+        <Field.Label>Git credentials</Field.Label>
         <Field.Description className="text-foreground-muted">
-          Which git credentials agent and terminal sessions use in this project. Effective account
-          wires the account above, system keeps your machine's credentials, none disables credential
-          helpers in sessions.
+          Which git credentials this project uses. Effective account uses the account above for
+          agent and terminal sessions and for Emdash's own pushes, pulls, and fetches. System uses
+          your machine's credentials for both. None disables credential helpers in agent and
+          terminal sessions; Emdash's own git operations still use the account above.
         </Field.Description>
         <Select.Root
           value={gitIdentityForm.agentGitCredentials}

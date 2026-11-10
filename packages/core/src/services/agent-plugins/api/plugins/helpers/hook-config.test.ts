@@ -3,9 +3,11 @@ import type { PluginFs } from '#primitives/plugin-fs/api';
 import {
   buildFlatJsonHookConfig,
   buildFlatTomlHookConfig,
+  buildNestedJsonHookConfig,
   readJsonConfig,
   readTomlConfig,
 } from './hook-config';
+import { EMDASH_HOOK_VERSION_MARKER, EMDASH_MARKER, makeStdinHookCommand } from './hooks';
 
 function configFs(content: string): PluginFs {
   return {
@@ -52,5 +54,43 @@ describe('hook config parsing', () => {
 
     await expect(hooks.writeHooks(fs, [])).rejects.toThrow('expected "hooks" to be an object');
     expect(fs.write).not.toHaveBeenCalled();
+  });
+});
+
+describe('nested JSON hook config on Windows', () => {
+  function memoryFs(content: string): PluginFs & { content: () => string } {
+    let current = content;
+    return {
+      read: async () => current,
+      write: async (_path, next) => {
+        current = next;
+      },
+      delete: async () => {},
+      exists: async () => true,
+      list: async () => [],
+      content: () => current,
+    };
+  }
+
+  it('replaces legacy cmd.exe-wrapped entries and keeps user hooks', async () => {
+    const userEntry = { hooks: [{ type: 'command', command: 'powershell.exe -File mine.ps1' }] };
+    const legacyCommand =
+      `cmd.exe /d /c set EMDASH_HOOK_MARKER=${EMDASH_HOOK_VERSION_MARKER} ${EMDASH_MARKER}&&` +
+      'powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand AAAA';
+    const legacyEntry = { hooks: [{ type: 'command', command: legacyCommand }] };
+    const fs = memoryFs(JSON.stringify({ hooks: { Stop: [userEntry, legacyEntry] } }));
+    const command = makeStdinHookCommand('stop', { platform: 'win32' });
+    const hooks = buildNestedJsonHookConfig('settings.json', [{ hookKey: 'Stop', command }]);
+
+    expect(await hooks.getHooksInstalled(fs)).toBe(false);
+    await hooks.writeHooks(fs, []);
+    expect(JSON.parse(fs.content()).hooks.Stop).toEqual([
+      userEntry,
+      { hooks: [{ type: 'command', command }] },
+    ]);
+    expect(await hooks.getHooksInstalled(fs)).toBe(true);
+
+    await hooks.deleteHooks(fs);
+    expect(JSON.parse(fs.content()).hooks.Stop).toEqual([userEntry]);
   });
 });

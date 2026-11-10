@@ -54,4 +54,6 @@
   tmux-backed session keeps its channel until it is killed or evicted; the desktop server
   reuses a live session's channel and never evicts one to make room
 - shell commands that call an Emdash loopback endpoint build curl with `loopbackCurlCommand`
-  so proxies and the user's curlrc cannot reroute them and the nonce never enters argv
+  so proxies and the user's curlrc cannot reroute them and the nonce never enters argv; pass
+  `windows` when the command runs under Git for Windows' sh, whose native curl cannot read the
+  POSIX form's `/dev/fd/3` config

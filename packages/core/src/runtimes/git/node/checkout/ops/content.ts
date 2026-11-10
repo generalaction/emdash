@@ -9,19 +9,19 @@ const MAX_CONTENT_BYTES = 10 * 1024 * 1024;
 export async function readGitFileContent(
   exec: BoundExec,
   path: PortableRelativePath,
-  source: GitFileSource
+  source: GitFileSource,
+  signal?: AbortSignal
 ): Promise<GitFileContentState> {
   const spec = sourceSpec(source, path);
   try {
-    const { stdout: oidOutput } = await exec.exec([
-      'rev-parse',
-      '--verify',
-      '--end-of-options',
-      spec,
-    ]);
+    const { stdout: oidOutput } = await exec.exec(
+      ['rev-parse', '--verify', '--end-of-options', spec],
+      { signal }
+    );
     const oid = oidOutput.trim();
     const { stdout } = await exec.execBuffer(['cat-file', 'blob', oid], {
       maxBuffer: MAX_CONTENT_BYTES,
+      signal,
     });
     const base = { path, source, oid, byteSize: stdout.length } as const;
     if (stdout.includes(0)) return { kind: 'binary', ...base };

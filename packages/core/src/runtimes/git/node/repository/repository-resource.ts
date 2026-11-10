@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { createScope } from '@emdash/shared/concurrency';
+import { createConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import type { KeyedMutex } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query } from '@emdash/wire/state';
 import {
@@ -45,6 +45,7 @@ export class RepositoryResource {
 
   private readonly commands: GitRepository;
   private readonly lane = new RepositoryFamilyLane();
+  private readonly contentReads = createConcurrencyLimiter(2);
   private readonly statesScope = createScope({ label: 'git-repository-states' });
   private readonly states: {
     refs: Query<GitRefsState>;
@@ -140,6 +141,18 @@ export class RepositoryResource {
         ? this.options.objectStoreMutex.runExclusive(this.identity.objectStoreId, run)
         : run()
     );
+  }
+
+  /** Blob reads pin an OID and need not wait for status scans or the mutation lane. */
+  readContent<T>(signal: AbortSignal, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    this.assertActive();
+    const task = this.statesScope.run('git-content-read', (scopeSignal) =>
+      this.contentReads.run(scopeSignal, () => run(scopeSignal))
+    );
+    const cancel = () => task.cancel(signal.reason);
+    if (signal.aborted) cancel();
+    else signal.addEventListener('abort', cancel, { once: true });
+    return task.value().finally(() => signal.removeEventListener('abort', cancel));
   }
 
   async dispose(): Promise<void> {

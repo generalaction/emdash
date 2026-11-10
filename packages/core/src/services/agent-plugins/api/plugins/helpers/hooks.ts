@@ -12,10 +12,23 @@ export const EMDASH_HOOK_VERSION_MARKER = `EMDASH_HOOK_CONFIG_VERSION=${EMDASH_H
 export const EMDASH_HOOK_POSIX_GUARD =
   'if [ -z "${EMDASH_HOOK_PORT:-}" ] || [ -z "${EMDASH_HOOK_NONCE:-}" ] || [ -z "${EMDASH_PTY_ID:-}" ]; then exit 0; fi';
 
+const WINDOWS_ENCODED_COMMAND = /-EncodedCommand ([A-Za-z0-9+/]+={0,2})/g;
+
+/**
+ * Whether serialized hook config carries the Emdash marker, either in plain text (POSIX and
+ * legacy Windows commands) or inside a Windows encoded command, whose script is opaque base64.
+ */
+function hasEmdashMarker(serialized: string): boolean {
+  if (serialized.includes(EMDASH_MARKER)) return true;
+  return [...serialized.matchAll(WINDOWS_ENCODED_COMMAND)].some(([, encoded]) =>
+    Buffer.from(encoded, 'base64').toString('utf16le').includes(EMDASH_MARKER)
+  );
+}
+
 /** Filter out emdash-managed entries from a hook array. */
 export function filterUserHooks<T>(entries: T[], stringify?: (entry: T) => string): T[] {
   const toStr = stringify ?? JSON.stringify;
-  return entries.filter((entry) => !toStr(entry).includes(EMDASH_MARKER));
+  return entries.filter((entry) => !hasEmdashMarker(toStr(entry)));
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
@@ -47,7 +60,8 @@ export function makePosixHookCurl(eventType: string, payloadArgs: string): strin
       '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
       `-H "X-Emdash-Event-Type: ${eventType}" ` +
       payloadArgs +
-      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook"'
+      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook"',
+    'posix'
   );
 }
 
@@ -80,17 +94,21 @@ function makeWindowsHookPostCommand(
   );
 }
 
+/**
+ * Agents hand a hook command to whichever shell they use on Windows: Git Bash, cmd.exe or
+ * PowerShell. A lone `powershell.exe` call whose arguments are `-` switches and base64 means
+ * the same in all three, and its stdin (the hook payload) reaches the script untouched.
+ *
+ * Nothing may wrap it: Git Bash rewrites `/`-style switches into drive paths, so a
+ * `cmd.exe /d /c` wrapper loses `/c`, starts interactively and runs the payload as commands.
+ * Redirects and quotes are parsed differently by each outer shell, too. The markers ride in a
+ * leading comment instead, where {@link filterUserHooks} decodes them; it also keeps the base64
+ * from starting with `/`.
+ */
 export function makeWindowsPowerShellHookCommand(script: string): string {
-  const encoded = Buffer.from(script, 'utf16le').toString('base64');
-  // A silent `set` no-op embeds both markers so hook-config cleanup can find
-  // our entries. No `>NUL`: an outer shell (Git Bash/PowerShell) parses the
-  // redirect before cmd.exe and creates a real `NUL` file. No quotes either —
-  // they break when the body is re-wrapped in `cmd.exe /c`. Markers go in the
-  // value, not the var name, so they can't shadow EMDASH_HOOK_PORT/NONCE/PTY_ID.
-  return (
-    `cmd.exe /d /c set EMDASH_HOOK_MARKER=${EMDASH_HOOK_VERSION_MARKER} ${EMDASH_MARKER}&&` +
-    `powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}`
-  );
+  const markedScript = `# ${EMDASH_HOOK_VERSION_MARKER} ${EMDASH_MARKER}\n${script}`;
+  const encoded = Buffer.from(markedScript, 'utf16le').toString('base64');
+  return `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`;
 }
 
 /** Post an event with an arbitrary payload, platform-aware. */

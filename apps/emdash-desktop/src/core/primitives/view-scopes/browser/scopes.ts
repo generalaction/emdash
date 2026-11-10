@@ -108,7 +108,8 @@ export class ViewScopeInstance extends ScopeHandle {
       this.attachedElement?.removeAttribute('data-view-scope');
       this.attachedElement = element ?? undefined;
       this.attachedElement?.setAttribute('data-view-scope', this.id);
-      if (!element) this.owner.handleElementDetached(this);
+      if (element) this.owner.handleElementAttached(element);
+      else this.owner.handleElementDetached(this);
     };
     this.attachFocusDelegate = (element) => {
       this.focusDelegate = element ?? undefined;
@@ -294,6 +295,12 @@ export class ViewScopes {
     }
   }
 
+  /** @internal Content can autofocus before React attaches its scope root. */
+  handleElementAttached(element: HTMLElement): void {
+    const focused = this.document?.activeElement;
+    if (focused && element.contains(focused)) this.updateFocus(focused);
+  }
+
   /** @internal Called when an instance's attached DOM root is removed. */
   handleElementDetached(instance: ViewScopeInstance): void {
     this.clearCaptureFocus(instance);
@@ -435,7 +442,10 @@ export class ViewScopes {
   }
 
   private readonly handleFocusIn = (event: FocusEvent): void => {
-    const target = event.target;
+    this.updateFocus(event.target);
+  };
+
+  private updateFocus(target: EventTarget | null): void {
     const ElementConstructor = this.document?.defaultView?.Element;
     const element =
       ElementConstructor && target instanceof ElementConstructor
@@ -463,7 +473,7 @@ export class ViewScopes {
       return;
     }
     this.focusActive.set(instance);
-  };
+  }
 }
 
 export const scopes = new ViewScopes();

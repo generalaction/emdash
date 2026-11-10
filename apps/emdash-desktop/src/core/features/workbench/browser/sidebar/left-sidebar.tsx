@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { WaitlistCard } from '@core/features/waitlist/contributions/browser/waitlist-card';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/workbench-layout';
@@ -68,6 +69,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <WaitlistCard />
         <SidebarFooter>
           <SidebarMenu>
             <SidebarSearchTrigger />

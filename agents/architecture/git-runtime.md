@@ -48,6 +48,12 @@ The pooled values are deep resource objects:
 2. `CheckoutResource` represents one canonical worktree. It owns checkout live states, the
    worktree watcher, file-diff staleness, explicit checkout operations, and their reconciliation.
 
+Repository-family command ordering is one FIFO lane shared by every checkout of the repository:
+mutations and the status, head, refs, and remotes scans run through it. File-content reads do not.
+They resolve a blob OID first, so they need no ordering and run in a separate lane of at most two
+reads per repository family; slow status scans and object transfers do not hold up the diff editor.
+Releasing the last owner of a content query cancels its queued or active read.
+
 The checkout head state is authoritative for the current branch's canonical full ref, configured
 upstream, tracking ref, and divergence. Upstream state distinguishes local tracking from remote
 tracking; only a remote upstream means the branch is published. Repository refs are inventory for

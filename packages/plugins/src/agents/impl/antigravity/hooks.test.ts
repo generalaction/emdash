@@ -74,7 +74,7 @@ describe('Antigravity hooks', () => {
       ['Stop', '{"decision":"stop"}'],
     ]) {
       const command = read(hooksPath).emdash[event][0].command;
-      expect(command).toMatch(/^cmd\.exe .* -EncodedCommand [A-Za-z0-9+/]+=*$/);
+      expect(command).toMatch(/^powershell\.exe .* -EncodedCommand [A-Za-z0-9+/]+=*$/);
       expect(command).not.toContain('/dev/null');
       expect(command).not.toContain('printf');
       const script = Buffer.from(command.split(' -EncodedCommand ')[1], 'base64').toString(

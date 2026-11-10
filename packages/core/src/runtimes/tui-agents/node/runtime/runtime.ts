@@ -564,9 +564,10 @@ export class TuiAgentsRuntime {
 
     // Git-credential behavior is applied last through the blessed construction (spec:
     // github-git-settings §4) so a "none" scrub wins over provider and hook env.
+    const platform = currentAgentEnvPlatform(this.deps.platform);
     const env = applyGitCredentialsToEnv(
       mergeAgentEnvLayers(
-        currentAgentEnvPlatform(this.deps.platform),
+        platform,
         {
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
@@ -577,7 +578,8 @@ export class TuiAgentsRuntime {
         config.input.providerVars ?? {},
         hookEnv
       ),
-      config.input.gitCredentials
+      config.input.gitCredentials,
+      platform
     );
     const spawnSpec = await this.spawnSpec(command, config.input, env);
     if (!this.isCurrentGeneration(config.input.conversationId, generation)) {

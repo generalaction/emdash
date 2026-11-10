@@ -11,6 +11,8 @@ class FaultSshClient extends EventEmitter {
   handshakeError: Error | undefined;
   openReply: Parameters<Client['openssh_forwardOutStreamLocal']>[1] | undefined;
 
+  setNoDelay() {}
+
   connect() {
     queueMicrotask(() => {
       if (this.handshakeError) {

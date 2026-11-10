@@ -12,10 +12,16 @@ export type DefaultBranchSetting = z.infer<typeof defaultBranchSettingSchema>;
 export type ShareableProjectSettings = EmdashConfig;
 
 /**
- * Per-project git credential behavior for agent/terminal PTY sessions
- * (spec: github-git-settings §4). Absence means the default,
- * `effective-account`; emdash's own git operations are unaffected by this
- * setting and always authenticate as the effective account.
+ * Per-project git credential behavior (spec: github-git-settings §4). Absence
+ * means the default, `effective-account`.
+ *
+ * - `effective-account`: agent/terminal sessions and emdash's own git
+ *   operations authenticate as the effective account where one resolves.
+ * - `system`: both use the machine's native git credentials.
+ * - `none`: sessions get no credential helpers; emdash's own operations still
+ *   authenticate as the effective account.
+ *
+ * The stored name predates operations following the setting.
  */
 export const agentGitCredentialsSettingSchema = z.enum(['effective-account', 'system', 'none']);
 
