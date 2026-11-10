@@ -31,6 +31,10 @@ function isNativeAbsolute(input: string, platform: PathPlatform): boolean {
   return isPosixAbsolute(input);
 }
 
+function isRelative(input: string): boolean {
+  return !/^([\\/~]|[A-Za-z]:)/.test(input);
+}
+
 export async function normalizeWorktreeDirectory(
   input: string,
   options: {
@@ -38,6 +42,8 @@ export async function normalizeWorktreeDirectory(
     pathPlatform: PathPlatform;
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
+    /** Base for relative inputs such as `.worktrees`; relative inputs are rejected without it. */
+    projectPath?: string;
   }
 ): Promise<Result<string, UpdateProjectSettingsError>> {
   try {
@@ -54,6 +60,10 @@ export async function normalizeWorktreeDirectory(
       }
       normalized =
         trimmed === '~' ? homeDirectory : options.pathApi.join(homeDirectory, trimmed.slice(2));
+    } else if (options.projectPath && isRelative(trimmed)) {
+      // Joined as text: `..` segments are resolved when the directory is canonicalized.
+      const separator = options.pathPlatform === 'win32' ? '\\' : '/';
+      normalized = `${options.projectPath.replace(/[\\/]+$/, '')}${separator}${trimmed}`;
     }
 
     if (isNativeAbsolute(normalized, options.pathPlatform)) {
@@ -85,6 +95,7 @@ export async function resolveAndValidateWorktreeDirectory(
     fs: WorktreeDirectoryFileSystem;
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
+    projectPath?: string;
   }
 ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
   const trimmed = input?.trim();
@@ -97,6 +108,7 @@ export async function resolveAndValidateWorktreeDirectory(
     pathPlatform: options.pathPlatform,
     homeDirectory: options.homeDirectory,
     resolveHomeDirectory: options.resolveHomeDirectory,
+    projectPath: options.projectPath,
   });
   if (!normalized.success) {
     return normalized;

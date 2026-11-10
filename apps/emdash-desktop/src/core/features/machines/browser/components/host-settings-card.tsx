@@ -124,8 +124,9 @@ export const HostSettingsCard = observer(function HostSettingsCard({
         <Field.Root>
           <Field.Label>Worktree root</Field.Label>
           <Field.Description className="text-foreground-muted">
-            Default directory new worktrees are created under on this host. Project settings can
-            override it per project.
+            Default directory new worktrees are created under on this host. A relative path like
+            .worktrees is resolved inside each project. Project settings can override it per
+            project.
           </Field.Description>
           <Input
             placeholder="~/emdash/worktrees"
