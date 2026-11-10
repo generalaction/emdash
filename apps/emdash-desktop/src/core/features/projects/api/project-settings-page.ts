@@ -84,6 +84,7 @@ export type ProjectPlacementDomainSnapshot = {
 };
 
 export type ProjectSettingsDomains = {
+  jiraSync?: { jql?: string };
   lifecycle: ProjectLifecycleDomainSnapshot;
   fileHandling: ProjectFileHandlingDomainSnapshot;
   environment: ProjectEnvironmentDomainSnapshot;
@@ -93,6 +94,7 @@ export type ProjectSettingsDomains = {
 };
 
 export type ProjectDurableSettingsDomains = {
+  jiraSync?: { jql?: string };
   gitIdentity: ProjectGitIdentityDomainSnapshot;
   integrationAccounts: ProjectIntegrationAccountsDomainSnapshot;
   placement: Pick<ProjectPlacementDomainSnapshot, 'stored'>;
@@ -125,6 +127,7 @@ export type ProjectPlacementStoredPatch = {
 };
 
 export type ProjectSettingsDomainPatch = {
+  jiraSync?: { jql: string | null };
   lifecycle?: {
     personal: Pick<PersonalProjectConfigPatch, 'scripts' | 'autoRunSetup' | 'autoRunRun'>;
   };

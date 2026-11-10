@@ -58,6 +58,7 @@ export function defaultHookEventParser(
     return {
       kind: 'status',
       type: eventType,
+      toolUseId: typeof body.tool_use_id === 'string' ? body.tool_use_id : undefined,
       lastAssistantMessage: typeof rawLam === 'string' ? rawLam : undefined,
       title: typeof body.title === 'string' ? body.title : undefined,
       message: typeof body.message === 'string' ? body.message : undefined,

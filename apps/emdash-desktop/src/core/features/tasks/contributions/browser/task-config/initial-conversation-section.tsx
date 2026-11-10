@@ -26,7 +26,11 @@ import {
   type ConversationLaunchSettings,
 } from '@core/features/conversations/api/browser/use-conversation-launch-settings';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
-import type { ProviderSettingsSnapshot } from '@core/features/conversations/api/provider-settings';
+import {
+  defaultConversationModel,
+  initialProviderOptions,
+  type ProviderSettingsSnapshot,
+} from '@core/features/conversations/api/provider-settings';
 import { ConversationTransportToggle } from '@core/features/conversations/contributions/browser/conversation-transport-toggle';
 import {
   providerComposerOptions,
@@ -108,8 +112,13 @@ export function useInitialConversationState(
     options.launchSettings
   );
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
-  const [model, setModel] = useState<string | null>(null);
+  const defaultModel = defaultConversationModel(providerId);
+  const [model, setModel] = useState<string | null>(defaultModel);
   const [draftOptions, setDraftOptions] = useState(options.initialOptions);
+  const savedOptions = useMemo(
+    () => initialProviderOptions(providerId, launchSettings.settings.acp.options),
+    [providerId, launchSettings.settings.acp.options]
+  );
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
@@ -125,17 +134,17 @@ export function useInitialConversationState(
     }
     setIssueContext(null);
     setIssueContextEditorOpen(false);
-    setModel(null);
+    setModel(defaultModel);
     setDraftOptions(undefined);
     setIssueMentionContexts({});
   } else if (providerChanged) {
     setPrevProviderId(providerId);
-    setModel(null);
+    setModel(defaultModel);
     setDraftOptions(undefined);
   }
 
   const { useChatUi, autoApprove } = launchSettings;
-  const providerOptions = draftOptions ?? launchSettings.settings.acp.options ?? {};
+  const providerOptions = draftOptions ?? savedOptions;
   if (options.initialOptions !== undefined && draftOptions === undefined && launchSettings.ready) {
     setDraftOptions({ ...providerOptions });
   }

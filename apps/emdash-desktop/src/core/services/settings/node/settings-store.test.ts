@@ -67,6 +67,20 @@ async function roundTripDefault<K extends AppSettingsKey>(key: K): Promise<void>
 }
 
 describe('SettingsStore contributions', () => {
+  it('defaults old settings to the remembered view and persists/resets Board by default', async () => {
+    rows.clear();
+    rows.set('interface', JSON.stringify({ hideContextBar: true }));
+    const settings = new SettingsStore(db, appSettingsContributions);
+    const value = await settings.get('interface');
+    expect(value.boardByDefault).toBe(false);
+    await settings.update('interface', { ...value, boardByDefault: true });
+    const restarted = new SettingsStore(db, appSettingsContributions);
+    expect((await restarted.get('interface')).boardByDefault).toBe(true);
+    await restarted.resetField('interface', 'boardByDefault');
+    expect((await restarted.get('interface')).boardByDefault).toBe(false);
+    expect((await restarted.get('interface')).hideContextBar).toBe(true);
+  });
+
   it('remembers the last conversation interface globally across restarts', async () => {
     rows.clear();
     const settings = new SettingsStore(db, appSettingsContributions);
