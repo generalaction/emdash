@@ -129,6 +129,7 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
           modified={sides.modified}
           filePath={tab.path}
           diffStyle={diffView.diffStyle}
+          collapseUnchanged={diffView.collapseUnchanged}
           ref={bindComments}
         />
       </div>
