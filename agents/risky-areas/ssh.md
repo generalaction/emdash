@@ -17,6 +17,21 @@
 - use shared escaping and validation helpers
 - do not bypass path-safety or shell validation helpers
 - verify how a change affects both connection setup and command execution
+- Host keys are verified against OpenSSH known_hosts (`connect/known-hosts.ts`): the files
+  `ssh -G` resolves for the alias, else `~/.ssh/known_hosts*` and the system file. A first-seen
+  host is recorded (trust on first use); a changed, `@revoked`, or differently-typed key for a
+  recorded host refuses the connection (nobody can approve it interactively), and an unreadable
+  file fails closed. A host is looked up under the one name OpenSSH uses: the `HostKeyAlias`
+  alone when set, else the host (an IPv6 address in its shortest spelling), written
+  `[host]:port` for ports other than 22. Only A-Z is lowercased. ssh2 accepts any host key
+  without this verifier, so never drop `hostVerifier` from the connect config.
+- The key types on file for a host are moved to the front of ssh2's `algorithms.serverHostKey`;
+  OpenSSH prefers them too. ssh2 otherwise asks for Ed25519 first, so a server recorded by its
+  ECDSA or RSA key would present a key that is not on file and be refused. Keep that ordering
+  when touching `algorithms`.
+- The refusal message for a changed key ends with an `ssh-keygen -f <file> -R <name>` command
+  the user pastes into a terminal. Build it with the shared `quoteArg` helper, and double quotes
+  on Windows, where cmd.exe keeps single quotes as part of the value.
 - Fence callbacks and late resources by physical generation; preserve logical client identity
   across outages, but never across destination identity edits.
 - Do not automatically restart a healthy-but-unresponsive workspace daemon to repair transport;

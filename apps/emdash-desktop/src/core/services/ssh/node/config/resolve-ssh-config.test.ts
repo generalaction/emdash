@@ -55,6 +55,60 @@ serveralivecountmax 2
   });
 });
 
+describe('parseSshGOutput known hosts options', () => {
+  it('exposes HostKeyAlias and the known_hosts file lists when present', () => {
+    expect(
+      parseSshGOutput(`
+hostname 10.0.0.5
+hostkeyalias bastion
+userknownhostsfile ~/.ssh/known_hosts ~/.ssh/known_hosts2
+globalknownhostsfile none
+`)
+    ).toMatchObject({
+      hostKeyAlias: 'bastion',
+      userKnownHostsFile: ['~/.ssh/known_hosts', '~/.ssh/known_hosts2'],
+      globalKnownHostsFile: [],
+    });
+    expect(parseSshGOutput('hostname 10.0.0.5\n')).not.toHaveProperty('userKnownHostsFile');
+  });
+
+  it('keeps a space inside a known_hosts path instead of splitting the path there', () => {
+    // ssh -G prints the list unquoted, and a home directory with a space is common on Windows.
+    // Split there, the real file is never read and every host looks like a first sighting.
+    expect(
+      parseSshGOutput(
+        'userknownhostsfile /home/Jane Doe/.ssh/known_hosts /home/Jane Doe/.ssh/known_hosts2\n'
+      ).userKnownHostsFile
+    ).toEqual(['/home/Jane Doe/.ssh/known_hosts', '/home/Jane Doe/.ssh/known_hosts2']);
+    expect(
+      parseSshGOutput(
+        [
+          'userknownhostsfile C:\\Users\\Jane Doe/.ssh/known_hosts ~/.ssh/known hosts 2',
+          'globalknownhostsfile __PROGRAMDATA__\\ssh/ssh_known_hosts __PROGRAMDATA__\\ssh/ssh_known_hosts2',
+        ].join('\n')
+      )
+    ).toMatchObject({
+      userKnownHostsFile: ['C:\\Users\\Jane Doe/.ssh/known_hosts', '~/.ssh/known hosts 2'],
+      globalKnownHostsFile: [
+        '__PROGRAMDATA__\\ssh/ssh_known_hosts',
+        '__PROGRAMDATA__\\ssh/ssh_known_hosts2',
+      ],
+    });
+  });
+
+  it('splits known_hosts paths that are relative to the working directory', () => {
+    // OpenSSH prints these as written. Joined into one name, neither file would be read.
+    expect(parseSshGOutput('userknownhostsfile hosts_a hosts_b\n').userKnownHostsFile).toEqual([
+      'hosts_a',
+      'hosts_b',
+    ]);
+    expect(
+      parseSshGOutput('userknownhostsfile hosts_a /home/Jane Doe/.ssh/known_hosts\n')
+        .userKnownHostsFile
+    ).toEqual(['hosts_a', '/home/Jane Doe/.ssh/known_hosts']);
+  });
+});
+
 describe('resolveSshConfig', () => {
   it('rejects aliases that could be interpreted as ssh options', async () => {
     await expect(resolveSshConfig('-F/tmp/config')).rejects.toThrow('Invalid SSH config alias');

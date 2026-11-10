@@ -26,7 +26,9 @@ export interface CreateSshServiceDeps {
 export function createSshService(deps: CreateSshServiceDeps): SshServiceHandle {
   const scope = deps.scope.child('ssh-service');
   const connections = scope.use(new SshConnectionsModel());
-  const resolveConnectConfig = createProductionSshConnectConfigResolver(deps.credentials);
+  const resolveConnectConfig = createProductionSshConnectConfigResolver(deps.credentials, {
+    log: deps.logger,
+  });
   const manager = new SshConnectionManager({
     publishEvent: (event) => connections.publishEvent(event),
     log: deps.logger,
