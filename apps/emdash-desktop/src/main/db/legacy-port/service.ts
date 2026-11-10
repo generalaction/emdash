@@ -4,6 +4,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
+import type { AppDb } from '@core/services/app-db/node/db';
 import * as schema from '@core/services/app-db/node/schema';
 import { runLocalCommand } from '@main/core/utils/exec';
 import { getAppDb, getSqlite } from '@main/db/instance';
@@ -35,7 +36,7 @@ import { importAtomically } from './sqlite-utils';
 import { createLegacyPortStateStore } from './state-store';
 import { ensureImportedTaskWorkspaces } from './task-workspace-backfill';
 
-type LegacyPortDb = ReturnType<typeof drizzle<typeof schema>>;
+type LegacyPortDb = AppDb;
 
 type AppTarget = {
   db: LegacyPortDb;

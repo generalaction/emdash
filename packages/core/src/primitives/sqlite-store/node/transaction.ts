@@ -1,6 +1,9 @@
-import type { SqliteConnection } from '../api';
+import type { SqliteConnection, SynchronousResult } from '../api';
 
-export function inTransaction<T>(connection: SqliteConnection, operation: () => T): T {
+export function inTransaction<T>(
+  connection: SqliteConnection,
+  operation: () => SynchronousResult<T>
+): T {
   connection.exec('BEGIN IMMEDIATE');
   try {
     const result = operation();

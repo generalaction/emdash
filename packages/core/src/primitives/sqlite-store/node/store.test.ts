@@ -53,6 +53,28 @@ describe('SQLite store lifecycle', () => {
     }
   });
 
+  it('rejects async transaction callbacks and rolls back their synchronous part', async () => {
+    const store = defineDurableSqliteStore({
+      name: 'async-transaction-test',
+      driver: betterSqlite3Driver,
+      migrations,
+    });
+    const handle = await store.openTemp();
+
+    try {
+      expect(() =>
+        // @ts-expect-error transaction callbacks must be synchronous
+        handle.transaction(async () => {
+          handle.connection.run('INSERT INTO records (id, value) VALUES (1, ?)', ['before-await']);
+          await Promise.resolve();
+        })
+      ).toThrow('SQLite store transactions must be synchronous');
+      expect(handle.connection.get('SELECT 1 FROM records WHERE id = 1')).toBeUndefined();
+    } finally {
+      handle.close();
+    }
+  });
+
   it('opens a pre-migration state and migrates it to latest', () => {
     const store = defineDurableSqliteStore({
       name: 'migration-boundary-test',
