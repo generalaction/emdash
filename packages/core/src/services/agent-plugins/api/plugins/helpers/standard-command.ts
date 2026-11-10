@@ -142,7 +142,7 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
       if (spec.initialPromptFlag === '') {
         args.push(ctx.initialPrompt);
       } else {
-        args.push(...splitFlag(spec.initialPromptFlag), ctx.initialPrompt);
+        appendFlagValue(args, spec.initialPromptFlag, ctx.initialPrompt);
       }
     }
   }
