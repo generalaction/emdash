@@ -329,6 +329,20 @@ describe('SidebarStore project groups', () => {
     expect(handle.value.groupByProjectId).toEqual({ a: 'g' });
   });
 
+  it('keeps group edits made before the memento is attached', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Early', 'a');
+    const handle = groupsMementoHandle({
+      version: '1',
+      groups: [{ id: 'saved', name: 'Saved', collapsed: false }],
+      groupByProjectId: { b: 'saved' },
+    });
+    store.attachGroupsMemento(handle);
+
+    expect(handle.value.groups.map((g) => g.name)).toEqual(['Saved', 'Early']);
+    expect(handle.value.groupByProjectId).toEqual({ a: groupId, b: 'saved' });
+  });
+
   it('ungroups projects when their group is deleted', () => {
     const store = threeProjects();
     const groupId = store.createGroup('Customers', 'b');

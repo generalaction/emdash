@@ -66,6 +66,10 @@ export class SidebarStore {
   private readonly _revealedProjectIds = observable.set<string>();
   private _groupsHandle: MementoHandle<WorkbenchSidebarGroupsState> | undefined;
   private _fallbackGroupsState: WorkbenchSidebarGroupsState = workbenchSidebarGroupsMemento.default;
+  /** Group edits made before the memento is attached, replayed onto the stored state on attach. */
+  private _pendingGroupUpdates: Array<
+    (current: WorkbenchSidebarGroupsState) => WorkbenchSidebarGroupsState
+  > = [];
   /** Collapsed groups temporarily opened to show a navigation target; never persisted. */
   private readonly _revealedGroupIds = observable.set<string>();
 
@@ -79,6 +83,7 @@ export class SidebarStore {
       | '_handle'
       | '_revealedProjectIds'
       | '_fallbackGroupsState'
+      | '_pendingGroupUpdates'
       | '_groupsHandle'
       | '_revealedGroupIds'
       | 'projectManager'
@@ -87,6 +92,7 @@ export class SidebarStore {
       _handle: observable.ref,
       _revealedProjectIds: false,
       _fallbackGroupsState: false,
+      _pendingGroupUpdates: false,
       _groupsHandle: observable.ref,
       _revealedGroupIds: false,
       projectManager: false,
@@ -121,6 +127,9 @@ export class SidebarStore {
   attachGroupsMemento(handle: MementoHandle<WorkbenchSidebarGroupsState>): void {
     if (this._groupsHandle) throw new Error('Sidebar groups memento is already attached');
     this._groupsHandle = handle;
+    const pending = this._pendingGroupUpdates;
+    this._pendingGroupUpdates = [];
+    for (const update of pending) handle.update(update);
   }
 
   get orderedProjects(): ProjectStore[] {
@@ -444,6 +453,7 @@ export class SidebarStore {
       this._groupsHandle.update(update);
     } else {
       this._fallbackGroupsState = update(this._fallbackGroupsState);
+      this._pendingGroupUpdates.push(update);
     }
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupDropTarget } from './group-drop-target';
+import { groupDropTarget, projectDropTarget } from './group-drop-target';
 import type { SidebarRow } from './sidebar-store';
 
 // 0 p-ungrouped | 1 [A] | 2 p-a | 3 t-a | 4 [B] | 5 p-b | 6 [C] (collapsed)
@@ -52,5 +52,26 @@ describe('groupDropTarget', () => {
       indicatorRowIndex: 6,
       edge: 'bottom',
     });
+  });
+});
+
+describe('projectDropTarget', () => {
+  it('puts the project first in a group when dropped on either half of its header', () => {
+    expect(projectDropTarget(rows, 1, true, 'p-ungrouped')).toEqual({ groupId: 'A', index: 0 });
+    expect(projectDropTarget(rows, 6, true, 'p-a')).toEqual({ groupId: 'C', index: 0 });
+    expect(projectDropTarget(rows, 6, false, 'p-a')).toEqual({ groupId: 'C', index: 0 });
+  });
+
+  it('uses the section of the nearest header above the insertion point', () => {
+    expect(projectDropTarget(rows, 3, false, 'p-b')).toEqual({ groupId: 'A', index: 1 });
+    expect(projectDropTarget(rows, 5, true, 'p-a')).toEqual({ groupId: 'B', index: 0 });
+  });
+
+  it('targets the ungrouped section above the first group', () => {
+    expect(projectDropTarget(rows, 0, true, 'p-a')).toEqual({ groupId: null, index: 0 });
+  });
+
+  it('does not count the dragged project itself', () => {
+    expect(projectDropTarget(rows, 3, false, 'p-a')).toEqual({ groupId: 'A', index: 0 });
   });
 });

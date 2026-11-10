@@ -34,7 +34,7 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
-import { groupDropTarget } from './group-drop-target';
+import { groupDropTarget, projectDropTarget } from './group-drop-target';
 import { SidebarProjectGroupItem } from './project-group-item';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
@@ -183,22 +183,12 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     } else if (aParsed.kind === 'project') {
       const overRowIdx = rows.findIndex((r) => rowToDndId(r) === String(over.id));
       if (overRowIdx === -1) return;
-      const insertionRowIdx = isAbove ? overRowIdx : overRowIdx + 1;
-      // The drop lands in the section (ungrouped or a group) whose header is the
-      // nearest group row above the insertion point.
-      let sectionStart = 0;
-      let targetGroupId: string | null = null;
-      for (let i = insertionRowIdx - 1; i >= 0; i--) {
-        const row = rows[i];
-        if (row?.kind === 'group') {
-          sectionStart = i + 1;
-          targetGroupId = row.groupId;
-          break;
-        }
-      }
-      const index = rows
-        .slice(sectionStart, insertionRowIdx)
-        .filter((r) => r.kind === 'project' && r.projectId !== aParsed.projectId).length;
+      const { groupId: targetGroupId, index } = projectDropTarget(
+        rows,
+        overRowIdx,
+        isAbove,
+        aParsed.projectId
+      );
       const currentGroupId = getSidebarStore().groupIdForProject(aParsed.projectId) ?? null;
       const currentIndex = getSidebarStore()
         .projectSections.find((section) => (section.group?.id ?? null) === currentGroupId)
@@ -393,6 +383,10 @@ function InsertionIndicator({ pointerY, rows, listRef }: InsertionIndicatorProps
   if (!overRect) return null;
   const isAbove = isCursorAbove(pointerY, active.rect.current.translated, overRect);
   let top = isAbove ? overRect.top : overRect.top + overRect.height;
+  if (activeParsed.kind === 'project' && overParsed.kind === 'group') {
+    // A project dropped on a group header goes first in that group.
+    top = overRect.top + overRect.height;
+  }
   if (activeParsed.kind === 'group') {
     // A group lands before or after a whole section, which can end off-screen;
     // place the line from the row's layout position and keep it in view.
