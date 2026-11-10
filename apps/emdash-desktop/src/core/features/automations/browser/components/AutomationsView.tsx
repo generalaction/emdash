@@ -5,7 +5,7 @@ import {
   PageLayout,
   useQueryListSource,
 } from '@emdash/ui/react/patterns';
-import { Button, Sheet, toast } from '@emdash/ui/react/primitives';
+import { Button, Sheet, Tabs, toast } from '@emdash/ui/react/primitives';
 import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -25,6 +25,7 @@ import {
 } from '../automations-list-model';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
 import { useAutomations, useDeleteAutomation, useUpdateAutomation } from '../use-automations';
+import { ActivityView } from './ActivityView';
 import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationRow } from './AutomationRow';
 import { AutomationTemplatesEmptyState } from './AutomationTemplatesEmptyState';
@@ -41,6 +42,8 @@ export function AutomationsView() {
   const { navigate } = useNavigate();
   const { params, setParams } = useCurrentViewParams(automationsViewDef);
 
+  const currentTab = params.tab ?? 'automations';
+
   const source = useQueryListSource(automations, (rows: Automation[]) => rows);
   const [view] = useState(() => createAutomationsListView(source));
 
@@ -51,7 +54,7 @@ export function AutomationsView() {
     : null;
 
   function closeSheet() {
-    setParams({ automationId: undefined });
+    setParams((prev) => ({ ...prev, automationId: undefined }));
     setCreating(false);
     setInitialTemplate(undefined);
   }
@@ -105,48 +108,76 @@ export function AutomationsView() {
               title="Automations"
               description="Run agents on a schedule across your projects"
             />
-            <view.Root>
-              {/* With zero automations the templates render on the page background —
-                  the tiles are cards themselves, so no list card should wrap them. */}
-              {!hasAutomations && !automations.isLoading && !automations.isError ? (
-                <div className="flex w-full flex-col gap-3">
-                  <AutomationsToolbar view={view} onNewAutomation={() => openCreateSheet()} />
-                  <AutomationTemplatesEmptyState
-                    templates={emptyStateAutomationTemplates}
-                    onSelectTemplate={openCreateSheet}
-                  />
-                </div>
-              ) : (
-                <CollectionView
-                  view={view}
-                  renderRow={(automation) => (
-                    <AutomationRow
-                      automation={automation}
-                      onToggleEnabled={(enabled) => handleToggleEnabled(automation, enabled)}
-                    />
-                  )}
-                  estimateSize={68}
-                  toolbar={
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <Tabs.Root
+                value={currentTab}
+                onValueChange={(tab) =>
+                  setParams((prev) => ({
+                    ...prev,
+                    tab: tab === 'automations' ? undefined : (tab as 'activity'),
+                  }))
+                }
+              >
+                <Tabs.List>
+                  <Tabs.Tab value="automations">Automations</Tabs.Tab>
+                  <Tabs.Tab value="activity">Activity</Tabs.Tab>
+                </Tabs.List>
+              </Tabs.Root>
+            </div>
+            {currentTab === 'activity' ? (
+              <ActivityView
+                automations={automations.data ?? []}
+                isLoading={automations.isLoading}
+                error={automations.error}
+                onOpenAutomation={(automation) =>
+                  setParams((prev) => ({ ...prev, automationId: automation.id }))
+                }
+              />
+            ) : (
+              <view.Root>
+                {/* With zero automations the templates render on the page background —
+                    the tiles are cards themselves, so no list card should wrap them. */}
+                {!hasAutomations && !automations.isLoading && !automations.isError ? (
+                  <div className="flex w-full flex-col gap-3">
                     <AutomationsToolbar view={view} onNewAutomation={() => openCreateSheet()} />
-                  }
-                  onItemClick={(automation) =>
-                    navigate(automationsViewDef({ automationId: automation.id }))
-                  }
-                  // The slot element is built on every render even though it only
-                  // shows on error — guard so a null error is never formatted.
-                  errorSlot={
-                    automations.isError ? (
-                      <EmptyState
-                        bare
-                        label="Could not load automations."
-                        description={formatAutomationError(automations.error)}
+                    <AutomationTemplatesEmptyState
+                      templates={emptyStateAutomationTemplates}
+                      onSelectTemplate={openCreateSheet}
+                    />
+                  </div>
+                ) : (
+                  <CollectionView
+                    view={view}
+                    renderRow={(automation) => (
+                      <AutomationRow
+                        automation={automation}
+                        onToggleEnabled={(enabled) => handleToggleEnabled(automation, enabled)}
                       />
-                    ) : undefined
-                  }
-                  emptySlot={<EmptyState bare label="No automations match your search." />}
-                />
-              )}
-            </view.Root>
+                    )}
+                    estimateSize={68}
+                    toolbar={
+                      <AutomationsToolbar view={view} onNewAutomation={() => openCreateSheet()} />
+                    }
+                    onItemClick={(automation) =>
+                      navigate(automationsViewDef({ automationId: automation.id }))
+                    }
+                    // The slot element is built on every render even though it only
+                    // shows on error — guard so a null error is never formatted.
+                    errorSlot={
+                      automations.isError ? (
+                        <EmptyState
+                          bare
+                          label="Could not load automations."
+                          description={formatAutomationError(automations.error)}
+                        />
+                      ) : undefined
+                    }
+                    emptySlot={<EmptyState bare label="No automations match your search." />}
+                  />
+                )}
+              </view.Root>
+            )}
+
           </div>
         </div>
       </div>
