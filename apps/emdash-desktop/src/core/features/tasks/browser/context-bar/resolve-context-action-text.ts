@@ -3,6 +3,7 @@ import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import {
   buildContextActionText,
   buildLinkedIssueContextAction,
+  readContextActionText,
   type ContextAction,
 } from '../context-bar/context-actions';
 
@@ -13,7 +14,7 @@ export async function resolveContextActionText(args: {
 }): Promise<string> {
   const { action, linkedIssue, projectId } = args;
   if (action.kind !== 'linked-issue' || !linkedIssue) {
-    return buildContextActionText(action);
+    return readContextActionText(action);
   }
 
   const refreshedIssue = await refreshLinkedIssueContext(linkedIssue, projectId);
