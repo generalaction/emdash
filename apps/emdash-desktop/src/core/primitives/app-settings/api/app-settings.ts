@@ -70,9 +70,12 @@ export type ChangesViewMode = {
   commits: 'flat' | 'tree';
 };
 
+export type LinkOpenTarget = 'ask' | 'emdash-browser' | 'external-browser';
+
 export type BrowserSettings = {
   defaultProfileId: BrowserProfileSelection;
   relaxCorsForLocalhost: boolean;
+  openLinksIn: LinkOpenTarget;
   profiles: BrowserProfile[];
 };
 
