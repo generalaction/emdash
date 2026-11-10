@@ -174,7 +174,7 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
     const effective = effectiveSshConfig(draft, resolved);
     assertPasswordDestination(draft, effective);
     const key =
-      draft.authType === 'key'
+      draft.authType === 'key' || draft.authType === 'key+password'
         ? await readSshPrivateKey(draft, resolved, this.deps.readFile ?? readFile)
         : undefined;
     const credentials = await resolveCredentialDraft(

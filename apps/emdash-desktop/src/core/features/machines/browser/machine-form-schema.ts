@@ -40,7 +40,7 @@ export function createMachineFormSchema(previous?: SshConfig) {
         .min(1, 'Port must be at least 1')
         .max(65535, 'Port must be at most 65535'),
       username: z.string(),
-      authType: z.enum(['password', 'key', 'agent']),
+      authType: z.enum(['password', 'key', 'agent', 'key+password']),
       password: z.string(),
       privateKeyPath: z.string(),
       passphrase: z.string(),
@@ -58,7 +58,10 @@ export function createMachineFormSchema(previous?: SshConfig) {
       if (hasLeadingOrTrailingWhitespace(val.username)) {
         addWhitespaceIssue(ctx, 'username', 'Username');
       }
-      if (val.authType === 'key' && hasLeadingOrTrailingWhitespace(val.privateKeyPath)) {
+      if (
+        (val.authType === 'key' || val.authType === 'key+password') &&
+        hasLeadingOrTrailingWhitespace(val.privateKeyPath)
+      ) {
         addWhitespaceIssue(ctx, 'privateKeyPath', 'Private key path');
       }
       if (hasLeadingOrTrailingWhitespace(val.sshConfigAlias)) {
@@ -94,7 +97,7 @@ export function createMachineFormSchema(previous?: SshConfig) {
         });
       }
       if (
-        val.authType === 'password' &&
+        (val.authType === 'password' || val.authType === 'key+password') &&
         !val.password &&
         !sshCredentialReuse(val, previous).password
       ) {
@@ -104,7 +107,11 @@ export function createMachineFormSchema(previous?: SshConfig) {
           path: ['password'],
         });
       }
-      if (val.authType === 'key' && !val.sshConfigAlias && !val.privateKeyPath) {
+      if (
+        (val.authType === 'key' || val.authType === 'key+password') &&
+        !val.sshConfigAlias &&
+        !val.privateKeyPath
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Private key path is required',

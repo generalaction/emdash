@@ -147,6 +147,24 @@ export async function buildAuthConfig(
       return { config: { privateKey, ...(passphrase ? { passphrase } : {}) } };
     }
 
+    case 'key+password': {
+      // Server 2FA (AuthenticationMethods publickey,password): the key succeeds
+      // partially and the password is the second factor in the same session.
+      const { privateKey, fingerprint } = await readSshPrivateKey(base, resolved, deps.readFile);
+      const credentials = await resolveCredentialDraft(effective, previous, deps, fingerprint);
+      const password = credentials.password?.expose();
+      if (!password) throw new Error(`No password found for SSH connection '${base.name}'`);
+      const passphrase = credentials.passphrase?.expose();
+      return {
+        config: {
+          privateKey,
+          ...(passphrase ? { passphrase } : {}),
+          password,
+          authHandler: ['publickey', 'password'],
+        },
+      };
+    }
+
     case 'agent': {
       const agentSocket = resolved
         ? resolveAgentSocketFromResolved(resolved, deps.env)
