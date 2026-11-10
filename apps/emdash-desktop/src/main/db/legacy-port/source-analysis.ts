@@ -51,15 +51,15 @@ type AppProjectRemoteRow = {
   remoteUrl: string;
 };
 
-async function readAppProjectRemoteRows(appDb: RelationalImportDb): Promise<AppProjectRemoteRow[]> {
+function readAppProjectRemoteRows(appDb: RelationalImportDb): AppProjectRemoteRow[] {
   try {
-    return (await appDb
+    return appDb
       .select({
         projectId: projectRemotes.projectId,
         remoteUrl: projectRemotes.remoteUrl,
       })
       .from(projectRemotes)
-      .execute()) as AppProjectRemoteRow[];
+      .all() as AppProjectRemoteRow[];
   } catch (error) {
     if (error instanceof Error && error.message.includes('no such table: project_remotes')) {
       return [];
@@ -176,14 +176,14 @@ export function readLegacyProjectInfos(legacyDb: Database.Database): SourceProje
   return result;
 }
 
-export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<SourceProjectInfo[]> {
-  const taskCounts = await appDb.select({ projectId: tasks.projectId }).from(tasks).execute();
+export function readAppProjectInfos(appDb: RelationalImportDb): SourceProjectInfo[] {
+  const taskCounts = appDb.select({ projectId: tasks.projectId }).from(tasks).all();
   const taskCountByProject = new Map<string, number>();
   for (const task of taskCounts) {
     taskCountByProject.set(task.projectId, (taskCountByProject.get(task.projectId) ?? 0) + 1);
   }
 
-  const remoteRows = await readAppProjectRemoteRows(appDb);
+  const remoteRows = readAppProjectRemoteRows(appDb);
   const gitRemoteKeysByProject = new Map<string, string[]>();
   for (const row of remoteRows) {
     const keys = gitRemoteKeysByProject.get(row.projectId) ?? [];
@@ -191,7 +191,7 @@ export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<So
     gitRemoteKeysByProject.set(row.projectId, [...new Set(keys)]);
   }
 
-  const rows = (await appDb
+  const rows = appDb
     .select({
       id: projects.id,
       name: projects.name,
@@ -206,7 +206,7 @@ export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<So
     .from(projects)
     .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
     .leftJoin(sshConnections, eq(workspaces.sshConnectionId, sshConnections.id))
-    .execute()) as AppProjectRow[];
+    .all() as AppProjectRow[];
 
   const result: SourceProjectInfo[] = [];
   for (const row of rows) {
@@ -244,12 +244,12 @@ export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<So
   return result;
 }
 
-export async function findLegacyProjectConflicts(
+export function findLegacyProjectConflicts(
   appDb: RelationalImportDb,
   legacyDb: Database.Database
-): Promise<LegacyProjectConflict[]> {
+): LegacyProjectConflict[] {
   const legacyProjects = readLegacyProjectInfos(legacyDb);
-  const appProjects = await readAppProjectInfos(appDb);
+  const appProjects = readAppProjectInfos(appDb);
   return findProjectConflicts(legacyProjects, appProjects);
 }
 
@@ -295,15 +295,15 @@ function findProjectConflicts(
   return conflicts;
 }
 
-export async function buildLegacyProjectSelection(args: {
+export function buildLegacyProjectSelection(args: {
   appDb: RelationalImportDb;
   legacyDb: Database.Database;
   selectedSources: ReadonlySet<LegacyImportSource>;
   conflictChoices: Record<string, LegacyImportSource>;
-}): Promise<LegacyProjectSelection> {
+}): LegacyProjectSelection {
   const legacyProjects = readLegacyProjectInfos(args.legacyDb);
   const legacyByIdentity = new Map(legacyProjects.map((project) => [project.identityKey, project]));
-  const conflicts = await findLegacyProjectConflicts(args.appDb, args.legacyDb);
+  const conflicts = findLegacyProjectConflicts(args.appDb, args.legacyDb);
   const skipLegacyProjectIds = new Set<string>();
   const replaceAppProjectIds = new Set<string>();
   const allowedLegacySshConnectionIds = new Set<string>();
@@ -333,14 +333,14 @@ export async function buildLegacyProjectSelection(args: {
   };
 }
 
-export async function createLegacyPortPreview(args: {
+export function createLegacyPortPreview(args: {
   appDb: RelationalImportDb;
   betaDb?: RelationalImportDb | null;
   legacyDb: Database.Database | null;
   hasLegacyDb: boolean;
   hasBetaDb: boolean;
-}): Promise<LegacyPortPreview> {
-  const betaProjects = args.hasBetaDb && args.betaDb ? await readAppProjectInfos(args.betaDb) : [];
+}): LegacyPortPreview {
+  const betaProjects = args.hasBetaDb && args.betaDb ? readAppProjectInfos(args.betaDb) : [];
   const betaTaskCount = betaProjects.reduce((total, project) => total + project.taskCount, 0);
 
   if (!args.legacyDb) {

@@ -314,44 +314,47 @@ function pickLegacyPtyIdForConversation(params: {
   );
 }
 
-async function renameLegacyTmuxSession(params: {
-  tmuxExec: CommandRunner | undefined;
-  legacyPtyId: string | undefined;
-  mappedProjectId: string;
-  mappedTaskId: string;
-  conversationId: string;
-}): Promise<void> {
-  const { tmuxExec, legacyPtyId, mappedProjectId, mappedTaskId, conversationId } = params;
-  if (!tmuxExec || !legacyPtyId) return;
+export type LegacyTmuxSessionRename = {
+  legacyPtyId: string;
+  oldName: string;
+  newName: string;
+};
 
-  const oldName = makeV0TmuxSessionName(legacyPtyId);
-  const newName = makeLegacyTmuxSessionName(
-    makePtySessionId(mappedProjectId, mappedTaskId, conversationId)
-  );
-  if (oldName === newName) return;
+export type ConversationPortResult = {
+  summary: PortSummary;
+  /** Renames for imported conversations; apply with `renameLegacyTmuxSessions` after commit. */
+  tmuxSessionRenames: LegacyTmuxSessionRename[];
+};
 
-  try {
-    await tmuxExec('tmux', ['has-session', '-t', `=${oldName}`]);
-  } catch {
-    return;
-  }
+/** Renames live v0 tmux sessions to the names their imported v1 conversations look up. */
+export async function renameLegacyTmuxSessions(
+  renames: readonly LegacyTmuxSessionRename[],
+  tmuxExec: CommandRunner
+): Promise<void> {
+  for (const { legacyPtyId, oldName, newName } of renames) {
+    try {
+      await tmuxExec('tmux', ['has-session', '-t', `=${oldName}`]);
+    } catch {
+      continue;
+    }
 
-  try {
-    await tmuxExec('tmux', ['has-session', '-t', `=${newName}`]);
-    return;
-  } catch {
-    // Expected when the v1 session name has not been created yet.
-  }
+    try {
+      await tmuxExec('tmux', ['has-session', '-t', `=${newName}`]);
+      continue;
+    } catch {
+      // Expected when the v1 session name has not been created yet.
+    }
 
-  try {
-    await tmuxExec('tmux', ['rename-session', '-t', `=${oldName}`, newName]);
-  } catch (error) {
-    log.debug('legacy-port: conversations: failed to rename legacy tmux session', {
-      legacyPtyId,
-      oldName,
-      newName,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    try {
+      await tmuxExec('tmux', ['rename-session', '-t', `=${oldName}`, newName]);
+    } catch (error) {
+      log.debug('legacy-port: conversations: failed to rename legacy tmux session', {
+        legacyPtyId,
+        oldName,
+        newName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 
@@ -416,24 +419,23 @@ function pickClaudeResumeIdForInsert(params: {
   return candidateResumeUuid;
 }
 
-export async function portConversations({
+export function portConversations({
   appDb,
   legacyDb,
   remap,
   mergedLegacyTaskIds,
   userDataPath,
-  tmuxExec,
 }: PortContext & {
   mergedLegacyTaskIds: Set<string>;
   userDataPath?: string;
-  tmuxExec?: CommandRunner;
-}): Promise<PortSummary> {
+}): ConversationPortResult {
   const summary = createPortSummary('conversations');
+  const tmuxSessionRenames: LegacyTmuxSessionRename[] = [];
   const nowIso = new Date().toISOString();
   const legacyPtySessionTargets = readLegacyPtySessionTargets(userDataPath);
   const registry = createConversationRegistry(appDb);
 
-  const taskRows = await appDb
+  const taskRows = appDb
     .select({
       id: tasks.id,
       projectId: tasks.projectId,
@@ -443,7 +445,7 @@ export async function portConversations({
     })
     .from(tasks)
     .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
-    .execute();
+    .all();
 
   const taskIdToProjectId = new Map<string, string>();
   const taskWorkspaces = new Map(taskRows.map((row) => [row.id, row]));
@@ -451,10 +453,7 @@ export async function portConversations({
     taskIdToProjectId.set(row.id, row.projectId);
   }
 
-  const existingConversationRows = await appDb
-    .select({ id: conversations.id })
-    .from(conversations)
-    .execute();
+  const existingConversationRows = appDb.select({ id: conversations.id }).from(conversations).all();
   const conversationIds = new Set<string>(existingConversationRows.map((row) => row.id));
 
   const legacyRows = readLegacyRows(legacyDb, 'conversations', [
@@ -530,7 +529,7 @@ export async function portConversations({
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
 
-    const insertResult = await insertWithRegeneratedId({
+    const insertResult = insertWithRegeneratedId({
       initialId: preferredConversationId,
       existingIds: conversationIds,
       uniqueConstraintDetail: 'conversations.id',
@@ -538,9 +537,7 @@ export async function portConversations({
         insertValues.id = id;
         if (id !== preferredConversationId) insertValues.providerSessionId = null;
       },
-      insert: async () => {
-        registry.register(insertValues);
-      },
+      insert: () => registry.register(insertValues),
     });
 
     if (!insertResult.inserted) {
@@ -555,17 +552,17 @@ export async function portConversations({
       continue;
     }
 
-    await renameLegacyTmuxSession({
-      tmuxExec,
-      legacyPtyId,
-      mappedProjectId,
-      mappedTaskId,
-      conversationId: insertResult.id,
-    });
+    if (legacyPtyId) {
+      const oldName = makeV0TmuxSessionName(legacyPtyId);
+      const newName = makeLegacyTmuxSessionName(
+        makePtySessionId(mappedProjectId, mappedTaskId, insertResult.id)
+      );
+      if (oldName !== newName) tmuxSessionRenames.push({ legacyPtyId, oldName, newName });
+    }
 
     conversationIds.add(insertResult.id);
     summary.inserted += 1;
   }
 
-  return summary;
+  return { summary, tmuxSessionRenames };
 }

@@ -4,6 +4,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
+import type { AppDb } from '@core/services/app-db/node/db';
 import * as schema from '@core/services/app-db/node/schema';
 import { runLocalCommand } from '@main/core/utils/exec';
 import { getAppDb, getSqlite } from '@main/db/instance';
@@ -14,7 +15,7 @@ import {
   withBetaDatabaseAttached,
 } from './beta-import';
 import { deleteProjectsById } from './destination-cleanup';
-import { portConversations } from './importers/relational/conversations';
+import { portConversations, renameLegacyTmuxSessions } from './importers/relational/conversations';
 import { portProjects } from './importers/relational/projects';
 import { createRemapTables } from './importers/relational/remap';
 import { portSshConnections } from './importers/relational/ssh-connections';
@@ -31,10 +32,11 @@ import {
 } from './legacy-source/path';
 import { clearDestinationDataPreservingSignIn } from './reset';
 import { buildLegacyProjectSelection } from './source-analysis';
+import { importAtomically } from './sqlite-utils';
 import { createLegacyPortStateStore } from './state-store';
 import { ensureImportedTaskWorkspaces } from './task-workspace-backfill';
 
-type LegacyPortDb = ReturnType<typeof drizzle<typeof schema>>;
+type LegacyPortDb = AppDb;
 
 type AppTarget = {
   db: LegacyPortDb;
@@ -86,35 +88,28 @@ async function markStatus(
   }
 }
 
-async function withAtomicDestinationImport<T>(
-  sqlite: Database.Database,
-  action: () => Promise<T>
-): Promise<T> {
-  const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) as number;
-  sqlite.pragma('foreign_keys = OFF');
-  sqlite.exec('BEGIN IMMEDIATE');
-
-  try {
-    const result = await action();
-    sqlite.exec('COMMIT');
-    return result;
-  } catch (error) {
-    if (sqlite.inTransaction) {
-      sqlite.exec('ROLLBACK');
-    }
-    throw error;
-  } finally {
-    sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
-  }
-}
-
 export async function createDefaultLegacyPortStateStore(): Promise<LegacyPortStateStore> {
   return createLegacyPortStateStore();
 }
 
+let legacyPortRunning = false;
+
 export async function runLegacyPort(
   userDataPath: string,
   options: RunLegacyPortOptions = {}
+): Promise<void> {
+  if (legacyPortRunning) throw new Error('A legacy import is already running');
+  legacyPortRunning = true;
+  try {
+    await runLegacyPortExclusive(userDataPath, options);
+  } finally {
+    legacyPortRunning = false;
+  }
+}
+
+async function runLegacyPortExclusive(
+  userDataPath: string,
+  options: RunLegacyPortOptions
 ): Promise<void> {
   const appTarget = await resolveAppTarget(options.appDb);
   const stateStore = options.stateStore ?? (await createDefaultLegacyPortStateStore());
@@ -175,13 +170,8 @@ export async function runLegacyPort(
 
   const betaPath = resolveExistingBetaDatabasePath(userDataPath);
   const shouldCopyBeta = selectedSources.has('v1-beta') && hasBetaDatabaseFile(userDataPath);
-  const runImport = async (): Promise<{
-    sshSummary: PortSummary;
-    projectsSummary: PortSummary;
-    taskResult: Awaited<ReturnType<typeof portTasks>>;
-    conversationsSummary: PortSummary;
-  }> =>
-    await withAtomicDestinationImport(appTarget.sqlite, async () => {
+  const runImport = () =>
+    importAtomically(appTarget.sqlite, () => {
       const remap = createRemapTables();
       if (selectedSources.has('v1-beta')) {
         if (shouldCopyBeta) {
@@ -195,7 +185,7 @@ export async function runLegacyPort(
         clearDestinationDataPreservingSignIn(appTarget.sqlite);
       }
 
-      const selection = await buildLegacyProjectSelection({
+      const selection = buildLegacyProjectSelection({
         appDb: appTarget.db,
         legacyDb,
         selectedSources,
@@ -206,27 +196,26 @@ export async function runLegacyPort(
         deleteProjectsById(appTarget.sqlite, selection.replaceAppProjectIds);
       }
 
-      const sshSummary = await portSshConnections({
+      const sshSummary = portSshConnections({
         appDb: appTarget.db,
         legacyDb,
         remap,
         allowedLegacyConnectionIds: selection.allowedLegacySshConnectionIds,
       });
-      const projectsSummary = await portProjects({
+      const projectsSummary = portProjects({
         appDb: appTarget.db,
         legacyDb,
         remap,
         skipLegacyProjectIds: selection.skipLegacyProjectIds,
       });
-      const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
+      const taskResult = portTasks({ appDb: appTarget.db, legacyDb, remap });
       ensureImportedTaskWorkspaces(appTarget.db, taskResult.workspacePaths);
-      const conversationsSummary = await portConversations({
+      const conversationsResult = portConversations({
         appDb: appTarget.db,
         legacyDb,
         remap,
         mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
         userDataPath: legacyUserDataPath,
-        tmuxExec: runLocalCommand,
       });
 
       const importedProjectIds = [...new Set(remap.projectId.values())];
@@ -252,18 +241,20 @@ export async function runLegacyPort(
         }
       }
 
-      return { sshSummary, projectsSummary, taskResult, conversationsSummary };
+      return { sshSummary, projectsSummary, taskResult, conversationsResult };
     });
 
   try {
-    const { sshSummary, projectsSummary, taskResult, conversationsSummary } = shouldCopyBeta
-      ? await withBetaDatabaseAttached(appTarget.sqlite, betaPath, runImport)
-      : await runImport();
+    const { sshSummary, projectsSummary, taskResult, conversationsResult } = shouldCopyBeta
+      ? withBetaDatabaseAttached(appTarget.sqlite, betaPath, runImport)
+      : runImport();
 
     logSummary(sshSummary);
     logSummary(projectsSummary);
     logSummary(taskResult.summary);
-    logSummary(conversationsSummary);
+    logSummary(conversationsResult.summary);
+
+    await renameLegacyTmuxSessions(conversationsResult.tmuxSessionRenames, runLocalCommand);
 
     try {
       const settingsSummary = await portLegacySettings(legacyUserDataPath, {

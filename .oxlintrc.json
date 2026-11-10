@@ -48,6 +48,7 @@
     "typescript/unbound-method": "off",
     "emdash/core-host-boundaries": "error",
     "emdash/core-module-boundaries": "error",
+    "emdash/no-async-transaction-callback": "error",
     "emdash/no-dynamic-imports": "error",
     "emdash/no-tsx-in-api": "error"
   },
