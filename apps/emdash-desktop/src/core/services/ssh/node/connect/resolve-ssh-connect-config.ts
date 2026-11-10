@@ -148,6 +148,14 @@ export async function resolveSshConnectConfig(
     ...(deps.log ? { log: deps.log } : {}),
   });
   config.hostVerifier = hostKeys.verify;
+  if (hostKeys.algorithms.length > 0) {
+    // Move the key types on file to the front of ssh2's own list. It applies these in
+    // order, and `prepend` skips a name that is still in the list, hence the `remove`.
+    config.algorithms = {
+      ...config.algorithms,
+      serverHostKey: { remove: hostKeys.algorithms, prepend: hostKeys.algorithms, append: [] },
+    };
+  }
 
   let debugLogs: string[] = [];
   let cleanup = () => {};

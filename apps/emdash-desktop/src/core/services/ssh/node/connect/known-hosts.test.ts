@@ -8,11 +8,11 @@ import {
   createHostKeyVerifier,
   defaultKnownHostsFiles,
   fileKnownHostsStore,
-  formatKnownHostsLine,
   hostKeyFingerprint,
   hostKeyType,
   judgeHostKey,
-  knownHostsNames,
+  knownHostKeyAlgorithms,
+  knownHostsName,
   loadKnownHosts,
   matchesHostPatterns,
   parseKnownHosts,
@@ -96,77 +96,92 @@ describe('hostKeyType / hostKeyFingerprint', () => {
   });
 });
 
+describe('knownHostsName', () => {
+  it('is the bare host on port 22 and the bracketed host and port otherwise, in lowercase', () => {
+    expect(knownHostsName('Dev.Example.com', 22)).toBe('dev.example.com');
+    expect(knownHostsName('Dev.Example.com', 2222)).toBe('[dev.example.com]:2222');
+    expect(knownHostsName('::1', 2222)).toBe('[::1]:2222');
+  });
+
+  it('is the lowercased HostKeyAlias alone, whatever the port', () => {
+    // OpenSSH records "bastion", never "[bastion]:2222": the alias replaces host and port.
+    expect(knownHostsName('10.0.0.5', 22, 'Bastion')).toBe('bastion');
+    expect(knownHostsName('10.0.0.5', 2222, 'Bastion')).toBe('bastion');
+  });
+
+  it('lowercases A-Z only, as OpenSSH does', () => {
+    // OpenSSH records this alias as "Ämter.example". Lowercased further, its line is not found.
+    expect(knownHostsName('10.0.0.5', 22, 'ÄMTER.Example')).toBe('Ämter.example');
+    expect(knownHostsName('ÄMTER.Example', 2222)).toBe('[Ämter.example]:2222');
+  });
+
+  it('spells an IPv6 address the short way OpenSSH records it', () => {
+    // OpenSSH rewrites the address before it looks it up, whatever was typed.
+    expect(knownHostsName('2001:0DB8:0000:0000:0000:0000:0000:0001', 22)).toBe('2001:db8::1');
+    expect(knownHostsName('0:0:0:0:0:0:0:1', 2222)).toBe('[::1]:2222');
+    expect(knownHostsName('FE80:0:0:0:0:0:0:1%eth0', 22)).toBe('fe80::1%eth0');
+    expect(knownHostsName('10.0.0.5', 22)).toBe('10.0.0.5');
+  });
+});
+
 describe('matchesHostPatterns', () => {
   it('matches plain names, bracketed ports, wildcards, and hashed entries', () => {
-    expect(matchesHostPatterns(['Dev.Example.com'], knownHostsNames('dev.example.com', 22))).toBe(
-      true
-    );
+    const host = knownHostsName('dev.example.com', 22);
+    const hostOnPort = knownHostsName('dev.example.com', 2222);
+    expect(matchesHostPatterns(['Dev.Example.com'], host)).toBe(true);
+    expect(matchesHostPatterns(['dev.example.com'], hostOnPort)).toBe(false);
+    expect(matchesHostPatterns(['[dev.example.com]:2222'], hostOnPort)).toBe(true);
+    expect(matchesHostPatterns(['*.example.com'], host)).toBe(true);
+    expect(matchesHostPatterns(['dev?example.com'], host)).toBe(true);
+    expect(matchesHostPatterns(['dev.example.co'], host)).toBe(false);
+    expect(matchesHostPatterns([hashedPattern('dev.example.com')], host)).toBe(true);
+    expect(matchesHostPatterns([hashedPattern('[dev.example.com]:2222')], hostOnPort)).toBe(true);
+    expect(matchesHostPatterns([hashedPattern('other.example.com')], host)).toBe(false);
+  });
+
+  it('does not match a line that spells port 22 in brackets, which OpenSSH never looks up', () => {
+    // Blaming such a line would suggest "ssh-keygen -R dev.example.com", which cannot remove it.
     expect(
-      matchesHostPatterns(['[dev.example.com]:22'], knownHostsNames('dev.example.com', 22))
-    ).toBe(true);
-    expect(matchesHostPatterns(['dev.example.com'], knownHostsNames('dev.example.com', 2222))).toBe(
-      false
-    );
-    expect(
-      matchesHostPatterns(['[dev.example.com]:2222'], knownHostsNames('dev.example.com', 2222))
-    ).toBe(true);
-    expect(matchesHostPatterns(['*.example.com'], knownHostsNames('dev.example.com', 22))).toBe(
-      true
-    );
-    expect(matchesHostPatterns(['dev?example.com'], knownHostsNames('dev.example.com', 22))).toBe(
-      true
-    );
-    expect(matchesHostPatterns(['dev.example.co'], knownHostsNames('dev.example.com', 22))).toBe(
-      false
-    );
-    expect(
-      matchesHostPatterns(
-        [hashedPattern('dev.example.com')],
-        knownHostsNames('dev.example.com', 22)
-      )
-    ).toBe(true);
-    expect(
-      matchesHostPatterns(
-        [hashedPattern('[dev.example.com]:2222')],
-        knownHostsNames('dev.example.com', 2222)
-      )
-    ).toBe(true);
-    expect(
-      matchesHostPatterns(
-        [hashedPattern('other.example.com')],
-        knownHostsNames('dev.example.com', 22)
-      )
+      matchesHostPatterns(['[dev.example.com]:22'], knownHostsName('dev.example.com', 22))
     ).toBe(false);
   });
 
   it('lets a negated pattern exclude a line that would otherwise match', () => {
-    const names = knownHostsNames('dev.example.com', 22);
-    expect(matchesHostPatterns(['*.example.com', '!dev.example.com'], names)).toBe(false);
-    expect(matchesHostPatterns(['!dev.example.com', '*.example.com'], names)).toBe(false);
-    expect(matchesHostPatterns(['*.example.com', '!other.example.com'], names)).toBe(true);
-    expect(matchesHostPatterns(['!dev.example.com'], names)).toBe(false);
+    const name = knownHostsName('dev.example.com', 22);
+    expect(matchesHostPatterns(['*.example.com', '!dev.example.com'], name)).toBe(false);
+    expect(matchesHostPatterns(['!dev.example.com', '*.example.com'], name)).toBe(false);
+    expect(matchesHostPatterns(['*.example.com', '!other.example.com'], name)).toBe(true);
+    expect(matchesHostPatterns(['!dev.example.com'], name)).toBe(false);
+  });
+
+  it('matches a letter outside A-Z only as written, like ssh-keygen -R', () => {
+    const name = knownHostsName('10.0.0.5', 22, 'ÄMTER.Example');
+    expect(matchesHostPatterns(['Ämter.Example'], name)).toBe(true);
+    expect(matchesHostPatterns([hashedPattern('Ämter.example')], name)).toBe(true);
+    // "ssh-keygen -R" could not remove this line, so it must not be blamed either.
+    expect(matchesHostPatterns(['ämter.example'], name)).toBe(false);
   });
 });
 
 describe('judgeHostKey', () => {
-  const names = knownHostsNames('dev.example.com', 22);
+  const name = knownHostsName('dev.example.com', 22);
 
   it('knows an identical key, flags a different key of the same type, and a different type', () => {
     const recorded = hostKey();
     const entries = parseKnownHosts(line('dev.example.com', recorded), 'f');
 
-    expect(judgeHostKey(entries, names, recorded)).toMatchObject({ kind: 'known' });
-    expect(judgeHostKey(entries, names, hostKey())).toMatchObject({
+    expect(judgeHostKey(entries, name, recorded)).toMatchObject({ kind: 'known' });
+    expect(judgeHostKey(entries, name, hostKey())).toMatchObject({
       kind: 'changed',
       entry: { line: 1 },
     });
     // A recorded host offering an algorithm it was never seen with is not "new": that
     // would let an impersonator sidestep the saved key by picking another type.
-    expect(judgeHostKey(entries, names, hostKey('ssh-rsa'))).toMatchObject({
+    expect(judgeHostKey(entries, name, hostKey('ssh-rsa'))).toMatchObject({
       kind: 'mismatched-type',
       entry: { line: 1 },
     });
-    expect(judgeHostKey(entries, knownHostsNames('other.example.com', 22), recorded)).toEqual({
+    expect(judgeHostKey(entries, knownHostsName('other.example.com', 22), recorded)).toEqual({
       kind: 'unknown',
     });
   });
@@ -178,11 +193,11 @@ describe('judgeHostKey', () => {
       [line('dev.example.com', rsa), line('dev.example.com', ed25519)].join('\n'),
       'f'
     );
-    expect(judgeHostKey(entries, names, hostKey())).toMatchObject({
+    expect(judgeHostKey(entries, name, hostKey())).toMatchObject({
       kind: 'changed',
       entry: { line: 2 },
     });
-    expect(judgeHostKey(entries, names, rsa)).toMatchObject({ kind: 'known', entry: { line: 1 } });
+    expect(judgeHostKey(entries, name, rsa)).toMatchObject({ kind: 'known', entry: { line: 1 } });
   });
 
   it('refuses a revoked key even when another line still lists it', () => {
@@ -191,7 +206,7 @@ describe('judgeHostKey', () => {
       [line('dev.example.com', key), line('*', key, '@revoked ')].join('\n'),
       'f'
     );
-    expect(judgeHostKey(entries, names, key)).toMatchObject({
+    expect(judgeHostKey(entries, name, key)).toMatchObject({
       kind: 'revoked',
       entry: { line: 2 },
     });
@@ -200,7 +215,73 @@ describe('judgeHostKey', () => {
   it('never treats a certificate authority line as the host key', () => {
     const key = hostKey();
     const entries = parseKnownHosts(line('*.example.com', key, '@cert-authority '), 'f');
-    expect(judgeHostKey(entries, names, key)).toEqual({ kind: 'unknown' });
+    expect(judgeHostKey(entries, name, key)).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('knownHostKeyAlgorithms', () => {
+  const name = knownHostsName('dev.example.com', 22);
+
+  it('lists the algorithms for the key types on file, in ssh2 order of preference', () => {
+    const entries = parseKnownHosts(
+      [
+        line('dev.example.com', hostKey('ssh-rsa')),
+        line('*.example.com', hostKey('ecdsa-sha2-nistp256')),
+      ].join('\n'),
+      'f'
+    );
+    expect(knownHostKeyAlgorithms(entries, name)).toEqual([
+      'ecdsa-sha2-nistp256',
+      'rsa-sha2-512',
+      'rsa-sha2-256',
+      'ssh-rsa',
+    ]);
+  });
+
+  it('ignores other hosts, marker lines, and key types ssh2 does not offer by default', () => {
+    const entries = parseKnownHosts(
+      [
+        line('other.example.com', hostKey('ssh-rsa')),
+        line('dev.example.com', hostKey(), '@revoked '),
+        line('dev.example.com', hostKey(), '@cert-authority '),
+        line('dev.example.com', hostKey('ssh-dss')),
+      ].join('\n'),
+      'f'
+    );
+    expect(knownHostKeyAlgorithms(entries, name)).toEqual([]);
+  });
+
+  it('leaves out a key type whose key on file is revoked', () => {
+    // OpenSSH asks this host for its ECDSA key. Asking for the revoked Ed25519 key first
+    // would refuse a server that still has a good key on file.
+    const revoked = hostKey();
+    const entries = parseKnownHosts(
+      [
+        line('dev.example.com', revoked),
+        line('dev.example.com', hostKey('ecdsa-sha2-nistp256')),
+        line('*', revoked, '@revoked '),
+      ].join('\n'),
+      'f'
+    );
+    expect(knownHostKeyAlgorithms(entries, name)).toEqual(['ecdsa-sha2-nistp256']);
+  });
+
+  it('judges a key type by its first key on file, as OpenSSH does', () => {
+    const revoked = hostKey();
+    const revokedLine = line('dev.example.com', revoked);
+    const otherLine = line('dev.example.com', hostKey());
+    const rest = [
+      line('dev.example.com', hostKey('ecdsa-sha2-nistp256')),
+      line('*', revoked, '@revoked '),
+    ];
+    const algorithms = (lines: string[]) =>
+      knownHostKeyAlgorithms(parseKnownHosts(lines.join('\n'), 'f'), name);
+
+    expect(algorithms([revokedLine, otherLine, ...rest])).toEqual(['ecdsa-sha2-nistp256']);
+    expect(algorithms([otherLine, revokedLine, ...rest])).toEqual([
+      'ssh-ed25519',
+      'ecdsa-sha2-nistp256',
+    ]);
   });
 });
 
@@ -278,20 +359,54 @@ describe('createHostKeyVerifier', () => {
     });
   });
 
-  it('records under the HostKeyAlias and looks the alias up afterwards', async () => {
+  it('records under the HostKeyAlias alone and finds that line on any port', async () => {
     const key = hostKey();
     const store = memoryStore();
     const verifier = createHostKeyVerifier({
       host: '10.0.0.5',
-      port: 22,
-      hostKeyAlias: 'bastion',
+      port: 2222,
+      hostKeyAlias: 'Bastion',
       entries: [],
       recordTo: '/home/u/.ssh/known_hosts',
       store,
     });
     expect(verifier.verify(key)).toBe(true);
     await vi.waitFor(() => expect(store.appended).toHaveLength(1));
-    expect(store.appended[0]!.line).toBe(formatKnownHostsLine('bastion', 22, key));
+    // What OpenSSH writes for the same options: the lowercased alias, no port.
+    const recorded = store.appended[0]!.line;
+    expect(recorded).toBe(`bastion ssh-ed25519 ${key.toString('base64')}\n`);
+
+    for (const port of [22, 2222]) {
+      const next = createHostKeyVerifier({
+        host: '10.0.0.5',
+        port,
+        hostKeyAlias: 'Bastion',
+        entries: parseKnownHosts(recorded, '/home/u/.ssh/known_hosts'),
+        store: memoryStore(),
+      });
+      expect(next.verify(key)).toBe(true);
+      expect(next.verify(hostKey())).toBe(false);
+    }
+  });
+
+  it('refuses a changed key for a HostKeyAlias on a non-default port', () => {
+    // The line OpenSSH wrote is "bastion ..."; looking up "[bastion]:2222" would miss it
+    // and trust whatever key the server presents.
+    const recorded = hostKey();
+    const verifier = createHostKeyVerifier({
+      host: '10.0.0.5',
+      port: 2222,
+      hostKeyAlias: 'Bastion',
+      entries: parseKnownHosts(line(hashedPattern('bastion'), recorded), '/home/u/.ssh/kh'),
+      store: memoryStore(),
+      platform: 'linux',
+    });
+    expect(verifier.verify(recorded)).toBe(true);
+    expect(verifier.verify(hostKey())).toBe(false);
+    expect(verifier.rejection()?.verdict.kind).toBe('changed');
+    expect(verifier.rejection()?.message.endsWith('ssh-keygen -f /home/u/.ssh/kh -R bastion')).toBe(
+      true
+    );
   });
 
   it('refuses a changed key with a message naming both fingerprints and the stale line', () => {
@@ -304,6 +419,7 @@ describe('createHostKeyVerifier', () => {
       entries: parseKnownHosts(line('dev.example.com', recorded), '/home/u/.ssh/known_hosts'),
       recordTo: '/home/u/.ssh/known_hosts',
       store,
+      platform: 'linux',
     });
 
     expect(verifier.verify(presented)).toBe(false);
@@ -313,24 +429,99 @@ describe('createHostKeyVerifier', () => {
     expect(rejection?.message).toContain(hostKeyFingerprint(presented));
     expect(rejection?.message).toContain(hostKeyFingerprint(recorded));
     expect(rejection?.message).toContain('/home/u/.ssh/known_hosts:1');
-    // The hint must target the file that holds the stale line, not ssh-keygen's default.
-    expect(rejection?.message).toContain(
-      '"ssh-keygen -f /home/u/.ssh/known_hosts -R dev.example.com"'
-    );
   });
 
-  it('quotes the recovery command for files and names the shell would split', () => {
-    const recorded = hostKey();
-    const verifier = createHostKeyVerifier({
-      host: 'dev.example.com',
-      port: 2222,
-      entries: parseKnownHosts(line('[dev.example.com]:2222', recorded), "/Users/o'brien/kh"),
-      store: memoryStore(),
+  describe('recovery command', () => {
+    function adviceFor(options: {
+      file: string;
+      port?: number;
+      platform: NodeJS.Platform;
+    }): string {
+      const port = options.port ?? 22;
+      // Another host comes first, in the file new keys are recorded to. The command must
+      // name neither the first file read nor that one, only the file with the stale line.
+      const recordTo = '/home/u/.ssh/recorded_here';
+      const verifier = createHostKeyVerifier({
+        host: 'dev.example.com',
+        port,
+        entries: [
+          ...parseKnownHosts(line('other.example.com', hostKey()), recordTo),
+          ...parseKnownHosts(
+            line(knownHostsName('dev.example.com', port), hostKey()),
+            options.file
+          ),
+        ],
+        recordTo,
+        store: memoryStore(),
+        platform: options.platform,
+      });
+      expect(verifier.verify(hostKey())).toBe(false);
+      const message = verifier.rejection()!.message;
+      return message.slice(message.indexOf('remove the old key'));
+    }
+
+    it('names the file that holds the stale line and ends the message, unpunctuated', () => {
+      // A custom UserKnownHostsFile: plain "ssh-keygen -R" would edit ~/.ssh/known_hosts.
+      // Nothing follows the command, so copying to the end of the text copies only it.
+      expect(adviceFor({ file: '/home/u/.ssh/work_hosts', platform: 'linux' })).toBe(
+        'remove the old key with: ssh-keygen -f /home/u/.ssh/work_hosts -R dev.example.com'
+      );
     });
-    expect(verifier.verify(hostKey())).toBe(false);
-    expect(verifier.rejection()?.message).toContain(
-      `"ssh-keygen -f '/Users/o'\\''brien/kh' -R [dev.example.com]:2222"`
-    );
+
+    it('quotes a bracketed name, which zsh would otherwise reject as a failed glob', () => {
+      expect(adviceFor({ file: '/home/u/.ssh/known_hosts', port: 2222, platform: 'darwin' })).toBe(
+        "remove the old key with: ssh-keygen -f /home/u/.ssh/known_hosts -R '[dev.example.com]:2222'"
+      );
+    });
+
+    it('quotes a path a POSIX shell would split or expand', () => {
+      expect(adviceFor({ file: "/Users/o'brien/my hosts", platform: 'darwin' })).toBe(
+        "remove the old key with: ssh-keygen -f '/Users/o'\\''brien/my hosts' -R dev.example.com"
+      );
+    });
+
+    it('double-quotes for Windows, where cmd.exe keeps single quotes as part of the value', () => {
+      expect(
+        adviceFor({
+          file: 'C:\\Users\\Jane Doe\\.ssh\\known_hosts',
+          port: 2222,
+          platform: 'win32',
+        })
+      ).toBe(
+        'remove the old key with: ' +
+          'ssh-keygen -f "C:\\Users\\Jane Doe\\.ssh\\known_hosts" -R "[dev.example.com]:2222"'
+      );
+    });
+
+    it.each([
+      [
+        'a percent sign',
+        'C:\\Users\\me\\50% off\\known_hosts',
+        "'C:\\Users\\me\\50% off\\known_hosts'",
+      ],
+      [
+        'a dollar sign',
+        'C:\\Users\\pay$x\\.ssh\\known_hosts',
+        "'C:\\Users\\pay$x\\.ssh\\known_hosts'",
+      ],
+      ['a backtick', 'C:\\Users\\a`b\\.ssh\\known_hosts', "'C:\\Users\\a`b\\.ssh\\known_hosts'"],
+      [
+        'an exclamation mark',
+        'C:\\Users\\wow!\\.ssh\\known_hosts',
+        'C:\\Users\\wow!\\.ssh\\known_hosts',
+      ],
+      // Git Bash halves the doubled backslash inside double quotes.
+      [
+        'a network path',
+        '\\\\fs01\\home\\jane\\.ssh\\known_hosts',
+        '\\\\fs01\\home\\jane\\.ssh\\known_hosts',
+      ],
+    ])('names PowerShell when another Windows shell would rewrite %s', (_what, file, argument) => {
+      expect(adviceFor({ file, platform: 'win32' })).toBe(
+        'remove the old key by running this in PowerShell: ' +
+          `ssh-keygen -f ${argument} -R dev.example.com`
+      );
+    });
   });
 
   it('refuses a key type the host was never recorded with, and records nothing', () => {
@@ -342,6 +533,7 @@ describe('createHostKeyVerifier', () => {
       entries: parseKnownHosts(line('dev.example.com', recorded), '/home/u/.ssh/known_hosts'),
       recordTo: '/home/u/.ssh/known_hosts',
       store,
+      platform: 'linux',
     });
     const presented = hostKey('ssh-rsa');
 
@@ -349,8 +541,11 @@ describe('createHostKeyVerifier', () => {
     expect(store.appended).toEqual([]);
     const rejection = verifier.rejection();
     expect(rejection?.verdict.kind).toBe('mismatched-type');
-    expect(rejection?.message).toContain('unexpected type');
+    expect(rejection?.message).toContain('it presented ssh-rsa');
     expect(rejection?.message).toContain('only records ssh-ed25519');
+    expect(
+      rejection?.message.endsWith('ssh-keygen -f /home/u/.ssh/known_hosts -R dev.example.com')
+    ).toBe(true);
     expect(rejection?.message).toContain(hostKeyFingerprint(presented));
   });
 
@@ -378,18 +573,6 @@ describe('createHostKeyVerifier', () => {
     expect(fresh.verify(recorded)).toBe(true);
     await vi.waitFor(() => expect(store.appended).toHaveLength(1));
     expect(store.appended[0]!.line.startsWith('new.example.com ')).toBe(true);
-  });
-
-  it('keeps a HostKeyAlias verbatim rather than lowercasing it', () => {
-    const recorded = hostKey();
-    const verifier = createHostKeyVerifier({
-      host: '10.0.0.5',
-      port: 22,
-      hostKeyAlias: 'Bastion',
-      entries: parseKnownHosts(line(hashedPattern('Bastion'), recorded), 'f'),
-      store: memoryStore(),
-    });
-    expect(verifier.verify(recorded)).toBe(true);
   });
 
   it('refuses a revoked key', () => {
@@ -485,6 +668,19 @@ describe('defaultKnownHostsFiles', () => {
         { userKnownHostsFile: ['~/.ssh/kh', '/abs/kh'], globalKnownHostsFile: [] }
       )
     ).toEqual({ user: ['/home/u/.ssh/kh', '/abs/kh'], global: [] });
+  });
+
+  it('expands the system directory placeholder OpenSSH for Windows prints', () => {
+    expect(
+      defaultKnownHostsFiles(
+        'C:\\Users\\me',
+        { ProgramData: 'D:\\ProgramData' },
+        {
+          userKnownHostsFile: [],
+          globalKnownHostsFile: ['__PROGRAMDATA__\\ssh/ssh_known_hosts'],
+        }
+      ).global
+    ).toEqual(['D:\\ProgramData\\ssh/ssh_known_hosts']);
   });
 
   it.skipIf(process.platform === 'win32')('falls back to the OpenSSH defaults', () => {

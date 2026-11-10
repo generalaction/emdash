@@ -45,6 +45,9 @@ export interface ResolveSshConfigOptions {
 }
 
 const SSH_ALIAS_PATTERN = /^[A-Za-z0-9._@%+:/[\]-]+$/;
+// How a path in `ssh -G` output can begin: POSIX root, home, Windows drive or share, or the
+// `__PROGRAMDATA__` placeholder OpenSSH for Windows prints for its system directory.
+const STARTS_PATH = /^(?:[/~]|[A-Za-z]:[\\/]|\\\\|__PROGRAMDATA__)/;
 const DEFAULT_SSH_G_TIMEOUT_MS = 10_000;
 const DEFAULT_SSH_G_MAX_BUFFER = 256 * 1024;
 
@@ -92,12 +95,25 @@ export function parseSshGOutput(output: string): ResolvedSshConfig {
   const normalizedForwardAgent = forwardAgentValue?.toLowerCase();
   const forwardAgent = forwardAgentValue ? normalizedForwardAgent !== 'no' : false;
 
-  // `ssh -G` prints a file list as one space-separated line; `none` disables the list.
+  // `ssh -G` prints a file list on one line, separated by spaces and unquoted, so a space
+  // inside a path (C:\Users\Jane Doe) looks like a separator. A token that does not start
+  // like an absolute or `~` path therefore continues the entry before it, when that entry
+  // is such a path. Entries relative to the working directory are split at every space,
+  // since nothing tells a space inside one from a separator. `none` disables the list.
   const latestPaths = (key: string): string[] | undefined => {
     const value = latest(key);
     if (value === undefined) return undefined;
     if (value.trim().toLowerCase() === 'none') return [];
-    return value.split(/\s+/).filter(Boolean);
+    const paths: string[] = [];
+    for (const token of value.split(' ')) {
+      const last = paths.length - 1;
+      if (last >= 0 && STARTS_PATH.test(paths[last]!) && !STARTS_PATH.test(token)) {
+        paths[last] += ` ${token}`;
+      } else if (token) {
+        paths.push(token);
+      }
+    }
+    return paths;
   };
   const hostKeyAlias = latestOptional('hostkeyalias');
   const userKnownHostsFile = latestPaths('userknownhostsfile');

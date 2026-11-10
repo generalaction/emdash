@@ -4,9 +4,11 @@
 // changed key is refused.
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { isIPv6, SocketAddress } from 'node:net';
 import { dirname, join } from 'node:path';
+import { quoteArg } from '@emdash/core/primitives/exec/api';
 import type { Logger } from '@emdash/shared/logger';
-import type { SyncHostVerifier } from 'ssh2';
+import type { ServerHostKeyAlgorithm, SyncHostVerifier } from 'ssh2';
 import { SshConnectionFailure } from '@core/primitives/ssh/api/node/connection-control';
 import type { ResolvedSshConfig } from '../config/resolve-ssh-config';
 
@@ -45,6 +47,26 @@ export interface KnownHostsStore {
 
 const HASHED_PREFIX = '|1|';
 const MAX_KEY_TYPE_LENGTH = 64;
+/** How OpenSSH for Windows spells its system directory in the paths `ssh -G` prints. */
+const PROGRAM_DATA_PLACEHOLDER = '__PROGRAMDATA__';
+// What cmd.exe, PowerShell or Git Bash still rewrite inside double quotes: the characters
+// they expand, and the doubled backslash of a network path, which Git Bash halves.
+const REWRITTEN_IN_DOUBLE_QUOTES = /[$`%!"]|\\\\/;
+
+/**
+ * ssh2's host key algorithms in its default order of preference, each with the key type
+ * it signs with. `ssh-dss` and the `sk-` types are left out: ssh2 does not offer them by
+ * default, and a line in known_hosts is no reason to start.
+ */
+const HOST_KEY_ALGORITHMS: ReadonlyArray<readonly [ServerHostKeyAlgorithm, keyType: string]> = [
+  ['ssh-ed25519', 'ssh-ed25519'],
+  ['ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp256'],
+  ['ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp384'],
+  ['ecdsa-sha2-nistp521', 'ecdsa-sha2-nistp521'],
+  ['rsa-sha2-512', 'ssh-rsa'],
+  ['rsa-sha2-256', 'ssh-rsa'],
+  ['ssh-rsa', 'ssh-rsa'],
+];
 
 export const fileKnownHostsStore: KnownHostsStore = {
   async read(path) {
@@ -81,12 +103,16 @@ export function defaultKnownHostsFiles(
   env: Record<string, string | undefined>,
   resolved?: Pick<ResolvedSshConfig, 'userKnownHostsFile' | 'globalKnownHostsFile'>
 ): KnownHostsFiles {
-  const expand = (file: string) => expandHomePath(file, home);
+  const programData = env.ProgramData ?? 'C:\\ProgramData';
+  const expand = (file: string) =>
+    file.startsWith(PROGRAM_DATA_PLACEHOLDER)
+      ? programData + file.slice(PROGRAM_DATA_PLACEHOLDER.length)
+      : expandHomePath(file, home);
   const user = resolved?.userKnownHostsFile ?? ['~/.ssh/known_hosts', '~/.ssh/known_hosts2'];
   const global =
     resolved?.globalKnownHostsFile ??
     (process.platform === 'win32'
-      ? [join(env.ProgramData ?? 'C:\\ProgramData', 'ssh', 'ssh_known_hosts')]
+      ? [join(programData, 'ssh', 'ssh_known_hosts')]
       : ['/etc/ssh/ssh_known_hosts', '/etc/ssh/ssh_known_hosts2']);
   return { user: user.map(expand), global: global.map(expand) };
 }
@@ -146,30 +172,47 @@ export function hostKeyFingerprint(key: Buffer): string {
 }
 
 /**
- * The names a host appears under in known_hosts. OpenSSH writes a bare hostname for
- * port 22 and `[host]:port` otherwise; the bracketed form of 22 is accepted too. Pass
- * the name already normalized (see {@link knownHostsLookupName}).
+ * The one name OpenSSH looks a destination up under, and records it as. A `HostKeyAlias`
+ * replaces host and port alike, so every port shares the alias's keys. Otherwise it is
+ * the host name, in brackets with the port unless the port is 22. OpenSSH lowercases
+ * either before it matches or hashes, so `Dev.Example.com` finds the hashed line written
+ * for `dev.example.com`, and it spells an IPv6 address the shortest way. One difference
+ * remains: OpenSSH also expands an IPv4 address typed in a short form (`127.1`), which
+ * stays as typed here.
  */
-export function knownHostsNames(host: string, port: number): string[] {
-  const bracketed = `[${host}]:${port}`;
-  return port === 22 ? [host, bracketed] : [bracketed];
+export function knownHostsName(host: string, port: number, hostKeyAlias?: string): string {
+  if (hostKeyAlias) return lowercaseAscii(hostKeyAlias);
+  const name = shortestIPv6(lowercaseAscii(host));
+  return port === 22 ? name : `[${name}]:${port}`;
+}
+
+/** `2001:0db8:0:0:0:0:0:1` as `2001:db8::1`, keeping any `%zone`; other hosts unchanged. */
+function shortestIPv6(host: string): string {
+  const [address = host, ...zone] = host.split('%');
+  if (!isIPv6(address)) return host;
+  return [new SocketAddress({ address, family: 'ipv6' }).address, ...zone].join('%');
+}
+
+/** Lowercases A-Z and nothing else, as OpenSSH does: `Ä` stays `Ä` in the name it uses. */
+function lowercaseAscii(value: string): string {
+  return value.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
 
 /**
- * Whether a line's patterns select any of `names`: a hashed pattern must reproduce its
- * HMAC, a plain one is a case-insensitive glob (`*`, `?`), and a `!`-negated match
+ * Whether a line's patterns select `name`: a hashed pattern must reproduce its HMAC, a
+ * plain one is a glob (`*`, `?`) lowercased the way the name is, and a `!`-negated match
  * excludes the whole line.
  */
-export function matchesHostPatterns(patterns: string[], names: string[]): boolean {
+export function matchesHostPatterns(patterns: string[], name: string): boolean {
   let matched = false;
   for (const pattern of patterns) {
     if (pattern.startsWith(HASHED_PREFIX)) {
-      if (names.some((name) => matchesHashedPattern(pattern, name))) matched = true;
+      if (matchesHashedPattern(pattern, name)) matched = true;
       continue;
     }
     const negated = pattern.startsWith('!');
     const glob = globToRegExp(negated ? pattern.slice(1) : pattern);
-    if (!glob || !names.some((name) => glob.test(name))) continue;
+    if (!glob?.test(name)) continue;
     if (negated) return false;
     matched = true;
   }
@@ -177,26 +220,16 @@ export function matchesHostPatterns(patterns: string[], names: string[]): boolea
 }
 
 /**
- * The name a destination is looked up and recorded under. DNS names are case-insensitive
- * and OpenSSH lowercases them before hashing or matching, so `Dev.Example.com` must find
- * the hashed line written for `dev.example.com`. A `HostKeyAlias` is an opaque label the
- * user chose and is kept verbatim.
- */
-export function knownHostsLookupName(host: string, hostKeyAlias?: string): string {
-  return hostKeyAlias ?? host.toLowerCase();
-}
-
-/**
- * How `key` relates to the recorded entries for `host:port`. A revoked match wins over
+ * How `key` relates to the entries recorded for `name`. A revoked match wins over
  * everything; otherwise an identical key is known, a different key of the same type is a
  * change, a key of a type the host was never recorded with is a type mismatch, and only
  * a host with no lines at all is a first sighting. The mismatch is refused rather than
- * recorded: with no one to approve it, "offer a different algorithm" would otherwise be
- * a free bypass of every saved key.
+ * recorded, as OpenSSH does: with no one to approve it, "offer a different algorithm"
+ * would otherwise be a free bypass of every saved key.
  */
 export function judgeHostKey(
   entries: readonly KnownHostsEntry[],
-  names: string[],
+  name: string,
   key: Buffer
 ): HostKeyVerdict {
   const keyType = hostKeyType(key);
@@ -204,7 +237,7 @@ export function judgeHostKey(
   let changed: KnownHostsEntry | undefined;
   let otherType: KnownHostsEntry | undefined;
   for (const entry of entries) {
-    if (!matchesHostPatterns(entry.patterns, names)) continue;
+    if (!matchesHostPatterns(entry.patterns, name)) continue;
     const same = entry.key.length === key.length && timingSafeEqual(entry.key, key);
     if (entry.marker === 'revoked') {
       if (same) return { kind: 'revoked', entry };
@@ -222,8 +255,26 @@ export function judgeHostKey(
   return { kind: 'unknown' };
 }
 
-export function formatKnownHostsLine(host: string, port: number, key: Buffer): string {
-  const name = port === 22 ? host : `[${host}]:${port}`;
+/**
+ * The host key algorithms to ask `name` for first: those whose key type is on file for
+ * it. As in OpenSSH, a type counts unless the first key of that type on file is revoked.
+ * ssh2 otherwise asks every server for an Ed25519 key first, so a server recorded years
+ * ago by its ECDSA or RSA key would present a key that is not on file and be refused.
+ */
+export function knownHostKeyAlgorithms(
+  entries: readonly KnownHostsEntry[],
+  name: string
+): ServerHostKeyAlgorithm[] {
+  const matching = entries.filter((entry) => matchesHostPatterns(entry.patterns, name));
+  const revoked = matching.filter((entry) => entry.marker === 'revoked');
+  return HOST_KEY_ALGORITHMS.filter(([, keyType]) => {
+    const first = matching.find((entry) => !entry.marker && entry.keyType === keyType);
+    return first !== undefined && !revoked.some((line) => line.key.equals(first.key));
+  }).map(([algorithm]) => algorithm);
+}
+
+/** One known_hosts line for `name`, which {@link knownHostsName} builds. */
+function formatKnownHostsLine(name: string, key: Buffer): string {
   return `${name} ${hostKeyType(key) ?? 'unknown'} ${key.toString('base64')}\n`;
 }
 
@@ -256,19 +307,23 @@ export async function loadKnownHosts(
 export interface HostKeyVerifierOptions {
   host: string;
   port: number;
-  /** Lookup name override (OpenSSH `HostKeyAlias`); the port still applies. */
+  /** OpenSSH `HostKeyAlias`: looked up and recorded in place of the host and port. */
   hostKeyAlias?: string;
   entries: readonly KnownHostsEntry[];
   /** Where a first-seen key is recorded; omit to accept without recording. */
   recordTo?: string;
   store: KnownHostsStore;
   log?: Logger;
+  /** Whose shells the recovery command is quoted for; defaults to this machine's. */
+  platform?: NodeJS.Platform;
 }
 
 export interface HostKeyVerifier {
   verify: SyncHostVerifier;
   /** Set once `verify` refused a key, so the connection error can say why. */
   rejection(): HostKeyRejection | undefined;
+  /** Host key algorithms to ask for first, so the server presents a key type on file. */
+  algorithms: ServerHostKeyAlgorithm[];
 }
 
 /**
@@ -278,14 +333,16 @@ export interface HostKeyVerifier {
  */
 export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyVerifier {
   const { host, port, store, log } = options;
-  const lookupName = knownHostsLookupName(host, options.hostKeyAlias);
-  const names = knownHostsNames(lookupName, port);
+  const name = knownHostsName(host, port, options.hostKeyAlias);
   const target = port === 22 ? host : `${host}:${port}`;
+  const forget = (entry: KnownHostsEntry) =>
+    forgetHostAdvice(entry.file, name, options.platform ?? process.platform);
   let rejection: HostKeyRejection | undefined;
   return {
+    algorithms: knownHostKeyAlgorithms(options.entries, name),
     rejection: () => rejection,
     verify: (key) => {
-      const verdict = judgeHostKey(options.entries, names, key);
+      const verdict = judgeHostKey(options.entries, name, key);
       const fingerprint = hostKeyFingerprint(key);
       switch (verdict.kind) {
         case 'known':
@@ -294,15 +351,13 @@ export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyV
           log?.info('SSH host key: recording first-seen key', { host: target, fingerprint });
           if (options.recordTo) {
             const file = options.recordTo;
-            store
-              .append(file, formatKnownHostsLine(lookupName, port, key))
-              .catch((error: unknown) => {
-                log?.warn('SSH host key: could not record first-seen key', {
-                  host: target,
-                  file,
-                  error: error instanceof Error ? error.message : String(error),
-                });
+            store.append(file, formatKnownHostsLine(name, key)).catch((error: unknown) => {
+              log?.warn('SSH host key: could not record first-seen key', {
+                host: target,
+                file,
+                error: error instanceof Error ? error.message : String(error),
               });
+            });
           }
           return true;
         }
@@ -312,21 +367,18 @@ export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyV
             message:
               `SSH host key for ${target} has changed: it presented ${hostKeyType(key)} ` +
               `${fingerprint}, but ${verdict.entry.file}:${verdict.entry.line} records ` +
-              `${hostKeyFingerprint(verdict.entry.key)}. Refusing to connect; if the host ` +
-              `was reinstalled, remove the old line with ` +
-              `${forgetHostCommand(verdict.entry.file, names[0]!)}.`,
+              `${hostKeyFingerprint(verdict.entry.key)}. Refusing to connect. If the host ` +
+              `was reinstalled, ${forget(verdict.entry)}`,
           };
           break;
         case 'mismatched-type':
           rejection = {
             verdict,
             message:
-              `SSH host key for ${target} is of an unexpected type: it presented ` +
-              `${hostKeyType(key)} ${fingerprint}, but ${verdict.entry.file}:` +
-              `${verdict.entry.line} only records ${verdict.entry.keyType} ` +
-              `${hostKeyFingerprint(verdict.entry.key)}. Refusing to connect; if the host ` +
-              `really added this key, accept it once from a terminal with ssh, or remove ` +
-              `the old line with ${forgetHostCommand(verdict.entry.file, names[0]!)}.`,
+              `SSH host key for ${target} has changed: it presented ${hostKeyType(key)} ` +
+              `${fingerprint}, but ${verdict.entry.file}:${verdict.entry.line} only ` +
+              `records ${verdict.entry.keyType} ${hostKeyFingerprint(verdict.entry.key)}. ` +
+              `Refusing to connect. If the host's keys were replaced, ${forget(verdict.entry)}`,
           };
           break;
         case 'revoked':
@@ -344,13 +396,27 @@ export function createHostKeyVerifier(options: HostKeyVerifierOptions): HostKeyV
   };
 }
 
-/** The `ssh-keygen` invocation that drops a host's lines from the file that holds them. */
-function forgetHostCommand(file: string, name: string): string {
-  return `"ssh-keygen -f ${shellQuote(file)} -R ${shellQuote(name)}"`;
-}
-
-function shellQuote(value: string): string {
-  return /^[\w./:@[\]-]+$/u.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
+/**
+ * How to drop a host's keys from the file that holds them. The text ends with the
+ * `ssh-keygen` command, so copying it picks up no closing quote or full stop. The command
+ * is quoted for the shells it is pasted into: POSIX rules, or on Windows double quotes,
+ * which cmd.exe (Emdash's default terminal there), PowerShell and Git Bash group alike.
+ * When a value holds something one of those still rewrites, only PowerShell's literal
+ * single quotes are safe, and the text says so.
+ */
+function forgetHostAdvice(file: string, name: string, platform: NodeJS.Platform): string {
+  const command = (quote: (value: string) => string) =>
+    `ssh-keygen -f ${quote(file)} -R ${quote(name)}`;
+  if (platform !== 'win32') {
+    return `remove the old key with: ${command((value) => quoteArg(value, 'posix'))}`;
+  }
+  if (!REWRITTEN_IN_DOUBLE_QUOTES.test(file + name)) {
+    return `remove the old key with: ${command((value) => `"${value}"`)}`;
+  }
+  return (
+    'remove the old key by running this in PowerShell: ' +
+    command((value) => quoteArg(value, 'powershell'))
+  );
 }
 
 function matchesHashedPattern(pattern: string, name: string): boolean {
@@ -364,13 +430,13 @@ function matchesHashedPattern(pattern: string, name: string): boolean {
 
 function globToRegExp(pattern: string): RegExp | undefined {
   if (!pattern) return undefined;
-  const source = pattern
+  const source = lowercaseAscii(pattern)
     .split('')
     .map((char) =>
       char === '*' ? '.*' : char === '?' ? '.' : char.replace(/[.+^${}()|[\]\\]/gu, '\\$&')
     )
     .join('');
-  return new RegExp(`^${source}$`, 'iu');
+  return new RegExp(`^${source}$`, 'u');
 }
 
 function decodeBase64(value: string): Buffer | undefined {

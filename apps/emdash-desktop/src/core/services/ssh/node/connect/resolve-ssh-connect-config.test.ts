@@ -859,7 +859,25 @@ describe('resolveSshConnectConfig', () => {
     expect(verify(key)).toBe(true);
     expect(result.hostKeyRejection?.()).toBeUndefined();
     expect(verify(otherKey)).toBe(false);
-    expect(result.hostKeyRejection?.()?.message).toContain('resolved.internal:2201 has changed');
+    const message = result.hostKeyRejection?.()?.message ?? '';
+    expect(message).toContain('resolved.internal:2201 has changed');
+    // The recovery command edits the file that holds the stale line, not ssh-keygen's default.
+    expect(message).toMatch(
+      /ssh-keygen -f \S*custom_hosts\S* -R \S*\[resolved\.internal\]:2201\S*$/
+    );
+    // The server is asked for the key type on file first, as OpenSSH would ask.
+    expect(result.config.algorithms).toEqual({
+      serverHostKey: { remove: ['ssh-ed25519'], prepend: ['ssh-ed25519'], append: [] },
+    });
+  });
+
+  it('leaves the host key algorithm order alone for a host with no key on file', async () => {
+    const result = await resolveSshConnectConfig(
+      { kind: 'persisted', row: row({ authType: 'password' }) },
+      deps()
+    );
+    expect(result.config.hostVerifier).toBeTypeOf('function');
+    expect(result.config.algorithms).toBeUndefined();
   });
 
   it('refuses to connect when a known_hosts file cannot be read', async () => {
