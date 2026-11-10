@@ -1,7 +1,9 @@
 import { ContextMenu, Tooltip } from '@emdash/ui/react/primitives';
 import {
+  Check,
   ChevronRight,
   FolderClosed,
+  FolderPlus,
   FolderInput,
   FolderOpen,
   Loader2,
@@ -62,6 +64,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const openCreateTaskModal = useOpenModal('taskModal');
   const confirmDeleteProject = useConfirmDeleteProject();
   const openRenameProject = useOpenModal('renameProjectModal');
+  const openGroupNameModal = useOpenModal('projectGroupNameModal');
 
   const project = getProjectStore(projectId);
 
@@ -85,7 +88,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     if (isProjectActive) prefetchRepository();
   }, [isProjectActive, prefetchRepository]);
 
-  const isExpanded = getSidebarStore().expandedProjectIds.has(projectId);
+  const sidebar = getSidebarStore();
+  const isExpanded = sidebar.expandedProjectIds.has(projectId);
+  const currentGroupId = sidebar.groupIdForProject(projectId);
 
   if (!project) return null;
 
@@ -236,6 +241,34 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           <Pencil className="size-4" />
           Rename Project
         </ContextMenu.Item>
+        <ContextMenu.Separator />
+        <ContextMenu.Group>
+          <ContextMenu.Label>Move to group</ContextMenu.Label>
+          {sidebar.projectGroups.map((group) => (
+            <ContextMenu.Item
+              key={group.id}
+              disabled={group.id === currentGroupId}
+              onClick={() => sidebar.moveProjectToGroup(projectId, group.id)}
+            >
+              {group.id === currentGroupId ? (
+                <Check className="size-4" />
+              ) : (
+                <span className="size-4" />
+              )}
+              <span className="truncate">{group.name}</span>
+            </ContextMenu.Item>
+          ))}
+          {currentGroupId && (
+            <ContextMenu.Item onClick={() => sidebar.moveProjectToGroup(projectId, null)}>
+              <span className="size-4" />
+              No group
+            </ContextMenu.Item>
+          )}
+          <ContextMenu.Item onClick={() => void openGroupNameModal({ mode: 'create', projectId })}>
+            <FolderPlus className="size-4" />
+            New Group…
+          </ContextMenu.Item>
+        </ContextMenu.Group>
         <ContextMenu.Separator />
         <ContextMenu.Item
           variant="destructive"

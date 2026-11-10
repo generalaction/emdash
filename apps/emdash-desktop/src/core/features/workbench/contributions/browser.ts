@@ -4,6 +4,7 @@ import { confirmExternalLinkModal } from '../browser/external-link-choice-dialog
 import { feedbackModal } from '../browser/feedback-modal/feedback-modal';
 import { homeViewRuntime } from '../browser/home-view';
 import { quitUnsavedChangesModal } from '../browser/quit-unsaved-changes-dialog';
+import { projectGroupNameModal } from '../browser/sidebar/project-group-name-modal';
 import { unsavedChangesModal } from '../browser/unsaved-changes-dialog';
 
 export const workbenchBrowserContributions = {
@@ -15,5 +16,6 @@ export const workbenchBrowserContributions = {
     quitUnsavedChangesModal,
     unsavedChangesModal,
     feedbackModal,
+    projectGroupNameModal,
   ],
 } as const;

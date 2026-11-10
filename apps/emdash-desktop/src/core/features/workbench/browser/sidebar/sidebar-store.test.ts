@@ -1,7 +1,11 @@
 import { observable, runInAction } from 'mobx';
 import { describe, expect, it, vi } from 'vitest';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
-import type { WorkbenchSidebarState } from '@core/features/workbench/contributions/mementos';
+import {
+  workbenchSidebarGroupsMemento,
+  type WorkbenchSidebarGroupsState,
+  type WorkbenchSidebarState,
+} from '@core/features/workbench/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { SidebarStore } from './sidebar-store';
 
@@ -246,3 +250,145 @@ describe('SidebarStore project ordering', () => {
     expect(store.sidebarRows).toEqual([{ kind: 'project', projectId: 'project-1' }]);
   });
 });
+
+describe('SidebarStore project groups', () => {
+  function threeProjects() {
+    // Default order is newest first: c, b, a.
+    return new SidebarStore(
+      projectManager([
+        { id: 'a', createdAt: '2026-01-01T00:00:00.000Z' },
+        { id: 'b', createdAt: '2026-01-02T00:00:00.000Z' },
+        { id: 'c', createdAt: '2026-01-03T00:00:00.000Z' },
+      ])
+    );
+  }
+
+  it('lists ungrouped projects first, then each group with its projects', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Customers', 'b');
+
+    expect(store.sidebarRows).toEqual([
+      { kind: 'project', projectId: 'c' },
+      { kind: 'project', projectId: 'a' },
+      { kind: 'group', groupId },
+      { kind: 'project', projectId: 'b' },
+    ]);
+  });
+
+  it('hides projects of a collapsed group but keeps the header', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Customers', 'b');
+    store.toggleGroupCollapsed(groupId);
+
+    expect(store.sidebarRows).toEqual([
+      { kind: 'project', projectId: 'c' },
+      { kind: 'project', projectId: 'a' },
+      { kind: 'group', groupId },
+    ]);
+  });
+
+  it('reveals a collapsed group for navigation without persisting it', () => {
+    const store = threeProjects();
+    const handle = groupsMementoHandle();
+    store.attachGroupsMemento(handle);
+    const groupId = store.createGroup('Customers', 'b');
+    store.toggleGroupCollapsed(groupId);
+
+    store.revealProject('b');
+    expect(store.isGroupCollapsed(groupId)).toBe(false);
+    expect(store.sidebarRows).toContainEqual({ kind: 'project', projectId: 'b' });
+    expect(handle.value.groups[0]?.collapsed).toBe(true);
+
+    store.toggleGroupCollapsed(groupId);
+    expect(store.isGroupCollapsed(groupId)).toBe(true);
+    expect(handle.value.groups[0]?.collapsed).toBe(true);
+  });
+
+  it('places a project inside a group, expanding it and persisting display order', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Customers', 'b');
+    store.toggleGroupCollapsed(groupId);
+    store.placeProject('c', groupId, 1);
+
+    expect(store.groupIdForProject('c')).toBe(groupId);
+    expect(store.isGroupCollapsed(groupId)).toBe(false);
+    expect(store.projectSections.map((s) => s.projectIds)).toEqual([['a'], ['b', 'c']]);
+    expect(store.projectOrder).toEqual(['a', 'b', 'c']);
+  });
+
+  it('drops mappings for projects that no longer exist when writing', () => {
+    const store = threeProjects();
+    const handle = groupsMementoHandle({
+      version: '1',
+      groups: [{ id: 'g', name: 'Old', collapsed: false }],
+      groupByProjectId: { removed: 'g' },
+    });
+    store.attachGroupsMemento(handle);
+    store.moveProjectToGroup('a', 'g');
+
+    expect(handle.value.groupByProjectId).toEqual({ a: 'g' });
+  });
+
+  it('ungroups projects when their group is deleted', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Customers', 'b');
+    store.deleteGroup(groupId);
+
+    expect(store.projectGroups).toEqual([]);
+    expect(store.groupIdForProject('b')).toBeUndefined();
+    expect(store.sidebarRows.every((row) => row.kind === 'project')).toBe(true);
+  });
+
+  it('moves groups up and down within bounds', () => {
+    const store = threeProjects();
+    store.createGroup('First');
+    const second = store.createGroup('Second');
+    store.moveGroup(second, -1);
+    expect(store.projectGroups.map((g) => g.name)).toEqual(['Second', 'First']);
+
+    store.moveGroup(second, -1);
+    expect(store.projectGroups.map((g) => g.name)).toEqual(['Second', 'First']);
+  });
+
+  it('moves a group to a drop position counted before removal', () => {
+    const store = threeProjects();
+    const a = store.createGroup('A');
+    store.createGroup('B');
+    store.createGroup('C');
+
+    store.moveGroupTo(a, 3);
+    expect(store.projectGroups.map((g) => g.name)).toEqual(['B', 'C', 'A']);
+
+    store.moveGroupTo(a, 0);
+    expect(store.projectGroups.map((g) => g.name)).toEqual(['A', 'B', 'C']);
+
+    store.moveGroupTo(a, 1);
+    expect(store.projectGroups.map((g) => g.name)).toEqual(['A', 'B', 'C']);
+
+    store.moveGroup(a, 1);
+    expect(store.projectGroups.map((g) => g.name)).toEqual(['B', 'A', 'C']);
+  });
+});
+
+function groupsMementoHandle(
+  initial: WorkbenchSidebarGroupsState = workbenchSidebarGroupsMemento.default
+): MementoHandle<WorkbenchSidebarGroupsState> {
+  let value = initial;
+  return {
+    get value() {
+      return value;
+    },
+    ready: Promise.resolve(),
+    isPending: false,
+    hasStoredValue: true,
+    read: () => value,
+    update: (next) => {
+      value = typeof next === 'function' ? next(value) : next;
+    },
+    reset: async () => {},
+    flush: async () => {},
+    autoPersist: () =>
+      (() => {}) as ReturnType<MementoHandle<WorkbenchSidebarGroupsState>['autoPersist']>,
+    dispose: async () => {},
+  };
+}

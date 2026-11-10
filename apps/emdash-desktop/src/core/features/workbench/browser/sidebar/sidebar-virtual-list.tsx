@@ -34,6 +34,8 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
+import { groupDropTarget } from './group-drop-target';
+import { SidebarProjectGroupItem } from './project-group-item';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
@@ -49,6 +51,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const projectParams = useViewParams(projectViewDef) ?? { projectId: undefined };
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const initialPointerYRef = useRef<number | null>(null);
   const initialScrollTopRef = useRef(0);
   const dragPointerYRef = useRef<number | null>(null);
@@ -61,6 +64,18 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     currentView === 'task' && taskParams.projectId
       ? getSidebarStore().expandedProjectIds.has(taskParams.projectId)
       : null;
+  const activeProjectId =
+    currentView === 'task'
+      ? taskParams.projectId
+      : currentView === 'project'
+        ? projectParams.projectId
+        : undefined;
+  const activeGroupId = activeProjectId
+    ? getSidebarStore().groupIdForProject(activeProjectId)
+    : undefined;
+  const activeGroupCollapsed = activeGroupId
+    ? getSidebarStore().isGroupCollapsed(activeGroupId)
+    : null;
   const allDndIds = useMemo(() => rows.map(rowToDndId), [rows]);
 
   const virtualizer = useVirtualizer({
@@ -71,7 +86,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   });
 
   // Scroll the active project/task into view only when the navigation target itself
-  // changes, plus the active task's project expansion state. Re-running on every
+  // changes, plus the active task's project expansion state and its group's collapse state. Re-running on every
   // `rows` change would yank the user back to the active row whenever the
   // sidebar mutates (e.g. deleting an unrelated task), but direct navigation to a
   // task in a collapsed project needs one rerun after `revealProject`.
@@ -115,6 +130,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     taskParams.taskId,
     projectParams.projectId,
     activeTaskProjectExpanded,
+    activeGroupCollapsed,
     virtualizer,
   ]);
 
@@ -159,23 +175,41 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
 
     const isAbove = isCursorAbove(pointerY, active.rect.current.translated, over.rect);
 
-    if (aParsed.kind === 'project') {
+    if (aParsed.kind === 'group') {
+      const overRowIdx = rows.findIndex((r) => rowToDndId(r) === String(over.id));
+      const target = groupDropTarget(rows, overRowIdx, isAbove);
+      if (overRowIdx === -1 || !target) return;
+      getSidebarStore().moveGroupTo(aParsed.groupId, target.index);
+    } else if (aParsed.kind === 'project') {
       const overRowIdx = rows.findIndex((r) => rowToDndId(r) === String(over.id));
       if (overRowIdx === -1) return;
       const insertionRowIdx = isAbove ? overRowIdx : overRowIdx + 1;
-      const ids = getSidebarStore()
-        .orderedProjects.map((p) => (p.state === 'unregistered' ? p.id : (p.data?.id ?? '')))
-        .filter(Boolean);
-      const oldIdx = ids.indexOf(aParsed.projectId);
-      if (oldIdx === -1) return;
-      const projectsAbove = rows
-        .slice(0, insertionRowIdx)
-        .filter((r) => r.kind === 'project').length;
-      let newIdx = projectsAbove;
-      if (newIdx > oldIdx) newIdx -= 1;
-      if (newIdx === oldIdx) return;
-      getSidebarStore().setProjectOrder(arrayMove(ids, oldIdx, newIdx));
-    } else if (oParsed.kind === 'task' && oParsed.projectId === aParsed.projectId) {
+      // The drop lands in the section (ungrouped or a group) whose header is the
+      // nearest group row above the insertion point.
+      let sectionStart = 0;
+      let targetGroupId: string | null = null;
+      for (let i = insertionRowIdx - 1; i >= 0; i--) {
+        const row = rows[i];
+        if (row?.kind === 'group') {
+          sectionStart = i + 1;
+          targetGroupId = row.groupId;
+          break;
+        }
+      }
+      const index = rows
+        .slice(sectionStart, insertionRowIdx)
+        .filter((r) => r.kind === 'project' && r.projectId !== aParsed.projectId).length;
+      const currentGroupId = getSidebarStore().groupIdForProject(aParsed.projectId) ?? null;
+      const currentIndex = getSidebarStore()
+        .projectSections.find((section) => (section.group?.id ?? null) === currentGroupId)
+        ?.projectIds.indexOf(aParsed.projectId);
+      if (targetGroupId === currentGroupId && index === currentIndex) return;
+      getSidebarStore().placeProject(aParsed.projectId, targetGroupId, index);
+    } else if (
+      aParsed.kind === 'task' &&
+      oParsed.kind === 'task' &&
+      oParsed.projectId === aParsed.projectId
+    ) {
       const projectId = aParsed.projectId;
       const taskIds = rows
         .filter(
@@ -206,7 +240,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     >
       <SortableContext items={allDndIds} strategy={verticalListSortingStrategy}>
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          <div ref={listRef} style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((vItem) => {
               const row = rows[vItem.index];
               if (!row) return null;
@@ -218,6 +252,13 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
                 width: '100%',
                 height: `${vItem.size}px`,
               };
+              if (row.kind === 'group') {
+                return (
+                  <SortableRow key={dndId} dndId={dndId} style={vStyle}>
+                    <SidebarProjectGroupItem groupId={row.groupId} />
+                  </SortableRow>
+                );
+              }
               if (row.kind === 'project') {
                 return (
                   <SortableRow key={row.projectId} dndId={dndId} style={vStyle}>
@@ -237,24 +278,28 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       <DragOverlay dropAnimation={null}>
         {activeDragId ? <DragOverlayContent dndId={activeDragId} /> : null}
       </DragOverlay>
-      <InsertionIndicator pointerY={dragPointerY} />
+      <InsertionIndicator pointerY={dragPointerY} rows={rows} listRef={listRef} />
     </DndContext>
   );
 });
 
+const toGroupDndId = (id: string) => `group::${id}`;
 const toProjectDndId = (id: string) => `proj::${id}`;
 const toTaskDndId = (projectId: string, taskId: string) => `task::${projectId}::${taskId}`;
 
 type SidebarDndId =
+  | { kind: 'group'; groupId: string }
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string };
 
 function rowToDndId(row: SidebarRow): string {
+  if (row.kind === 'group') return toGroupDndId(row.groupId);
   if (row.kind === 'project') return toProjectDndId(row.projectId);
   return toTaskDndId(row.projectId, row.taskId);
 }
 
 function parseDndId(id: string): SidebarDndId | null {
+  if (id.startsWith('group::')) return { kind: 'group', groupId: id.slice(7) };
   if (id.startsWith('proj::')) return { kind: 'project', projectId: id.slice(6) };
   if (id.startsWith('task::')) {
     const [, projectId, taskId] = id.split('::');
@@ -265,7 +310,8 @@ function parseDndId(id: string): SidebarDndId | null {
 
 // Project drags consider every visible row so dropping over a task maps to its
 // owning project in onDragEnd without changing the virtualized list mid-drag.
-// Task drags stay restricted to their own project's tasks.
+// Group drags also consider every row: the drop is resolved per section by
+// `groupDropTarget`. Task drags stay restricted to their own project's tasks.
 const sidebarCollision: CollisionDetection = (args) => {
   const activeId = String(args.active.id);
   const parsed = parseDndId(activeId);
@@ -311,7 +357,9 @@ function DragOverlayContent({ dndId }: { dndId: string }) {
   return (
     <div className="px-3">
       <div className="rounded-lg bg-background-tertiary-2 shadow-md">
-        {parsed.kind === 'project' ? (
+        {parsed.kind === 'group' ? (
+          <SidebarProjectGroupItem groupId={parsed.groupId} />
+        ) : parsed.kind === 'project' ? (
           <SidebarProjectItem projectId={parsed.projectId} />
         ) : (
           <SidebarTaskItem projectId={parsed.projectId} taskId={parsed.taskId} />
@@ -321,7 +369,14 @@ function DragOverlayContent({ dndId }: { dndId: string }) {
   );
 }
 
-function InsertionIndicator({ pointerY }: { pointerY: number | null }) {
+interface InsertionIndicatorProps {
+  pointerY: number | null;
+  rows: SidebarRow[];
+  /** The virtualized list's content element; row `i` starts at `i * ROW_HEIGHT` inside it. */
+  listRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function InsertionIndicator({ pointerY, rows, listRef }: InsertionIndicatorProps) {
   const { active, over } = useDndContext();
   if (!active || !over || active.id === over.id) return null;
   const activeParsed = parseDndId(String(active.id));
@@ -337,7 +392,19 @@ function InsertionIndicator({ pointerY }: { pointerY: number | null }) {
   const overRect = over.rect;
   if (!overRect) return null;
   const isAbove = isCursorAbove(pointerY, active.rect.current.translated, overRect);
-  const top = isAbove ? overRect.top : overRect.top + overRect.height;
+  let top = isAbove ? overRect.top : overRect.top + overRect.height;
+  if (activeParsed.kind === 'group') {
+    // A group lands before or after a whole section, which can end off-screen;
+    // place the line from the row's layout position and keep it in view.
+    const overRowIdx = rows.findIndex((r) => rowToDndId(r) === String(over.id));
+    const target = groupDropTarget(rows, overRowIdx, isAbove);
+    const list = listRef.current;
+    const viewport = list?.parentElement?.getBoundingClientRect();
+    if (!target || !list || !viewport) return null;
+    const rowTop = list.getBoundingClientRect().top + target.indicatorRowIndex * ROW_HEIGHT;
+    top = target.edge === 'top' ? rowTop : rowTop + ROW_HEIGHT;
+    top = Math.min(Math.max(top, viewport.top), viewport.bottom);
+  }
   return createPortal(
     <div
       className="bg-primary"

@@ -26,6 +26,7 @@ const expectedModalIds = [
   'languageServicesDialog',
   'linkConversationModal',
   'projectConfigImportModal',
+  'projectGroupNameModal',
   'promptModal',
   'quitUnsavedChangesModal',
   'relinkProjectModal',

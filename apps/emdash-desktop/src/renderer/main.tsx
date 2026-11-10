@@ -14,7 +14,10 @@ import { getProjectManagerStore } from '@core/features/projects/api/browser/stor
 import { prefetchAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { initSoundPlayer, soundPlayer } from '@core/features/settings/browser/sound-player';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
-import { workbenchSidebarMemento } from '@core/features/workbench/contributions/mementos';
+import {
+  workbenchSidebarGroupsMemento,
+  workbenchSidebarMemento,
+} from '@core/features/workbench/contributions/mementos';
 import { appStoreContributions } from '@core/manifests/browser/app-scoped-stores';
 import { featureViewRuntimes } from '@core/manifests/browser/browser-contributions';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
@@ -133,6 +136,7 @@ async function bootstrap() {
   const historyHandle = appSpace.handle(workbenchHistoryMemento);
   const legacyNavigationHandle = appSpace.handle(workbenchNavigationMemento);
   const sidebarHandle = appSpace.handle(workbenchSidebarMemento);
+  const sidebarGroupsHandle = appSpace.handle(workbenchSidebarGroupsMemento);
   const projectsLoaded = getProjectManagerStore()
     .load()
     .then(() => bootMark('projects-loaded'));
@@ -144,6 +148,7 @@ async function bootstrap() {
     bootMark('memento-handles-ready');
     getNavigation().attachMemento(historyHandle, legacyNavigationHandle);
     getSidebarStore().attachMemento(sidebarHandle);
+    getSidebarStore().attachGroupsMemento(sidebarGroupsHandle);
     wireNavigationTelemetry(getNavigation());
   });
   const sidebarInitialized = Promise.all([navigationRestored, projectsLoaded]).then(() => {
