@@ -106,14 +106,26 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
       ),
 
     auth: createAuthModelProvider(options.runtimes),
-    hooksStatus: ({ host, providerId }, meta) =>
-      withHostRuntime(options.runtimes, host, (runtime) =>
-        runtime.agentConfig.hooksStatus({ providerId }, callOptions(meta))
-      ),
-    startLogin: (input, meta) =>
-      withAgentConfigResult(options.runtimes, input.host, (client) =>
-        client.startLogin(withoutHost(input), callOptions(meta))
-      ),
+    hooksStatus: async ({ host, providerId }, meta) => {
+      const { env, runtime } = await resolveProviderEnvAndRuntime(
+        agentOperations,
+        options.runtimes,
+        host,
+        providerId
+      );
+      if (!runtime.success) return err(runtime.error);
+      return ok(await runtime.data.agentConfig.hooksStatus({ providerId, env }, callOptions(meta)));
+    },
+    startLogin: async (input, meta) => {
+      const { env, runtime } = await resolveProviderEnvAndRuntime(
+        agentOperations,
+        options.runtimes,
+        input.host,
+        input.providerId
+      );
+      if (!runtime.success) return err(runtime.error);
+      return runtime.data.agentConfig.startLogin({ ...withoutHost(input), env }, callOptions(meta));
+    },
     cancelLogin: (input, meta) =>
       withAgentConfigResult(options.runtimes, input.host, (client) =>
         client.cancelLogin(withoutHost(input), callOptions(meta))
@@ -130,10 +142,19 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
       withAgentConfigResult(options.runtimes, input.host, (client) =>
         client.markUrlHandled(withoutHost(input), callOptions(meta))
       ),
-    refreshAuthStatus: (input, meta) =>
-      withAgentConfigResult(options.runtimes, input.host, (client) =>
-        client.refreshAuthStatus(withoutHost(input), callOptions(meta))
-      ),
+    refreshAuthStatus: async (input, meta) => {
+      const { env, runtime } = await resolveProviderEnvAndRuntime(
+        agentOperations,
+        options.runtimes,
+        input.host,
+        input.providerId
+      );
+      if (!runtime.success) return err(runtime.error);
+      return runtime.data.agentConfig.refreshAuthStatus(
+        { ...withoutHost(input), env },
+        callOptions(meta)
+      );
+    },
     loginOutput: async ({ host, providerId }) =>
       resolveRuntimeSource(options.runtimes, host, (runtime) =>
         runtime.agentConfig.loginOutput.handle({ providerId }).asLiveSource()
@@ -149,6 +170,29 @@ function createAuthModelProvider(
       runtime.agentConfig.agents.state(undefined, name).asLiveSource()
     )
   );
+}
+
+/**
+ * Resolves this specific instance's own Settings env override (e.g.
+ * CLAUDE_CONFIG_DIR for a second Claude account) alongside the host runtime
+ * client, so a hooks/auth/login call reaches that instance's own config root
+ * and credentials instead of the ambient environment. The two lookups are
+ * independent, so they run concurrently rather than serially.
+ */
+async function resolveProviderEnvAndRuntime(
+  agentOperations: AgentOperations,
+  runtimes: AgentsRuntimeBroker,
+  host: HostRef,
+  providerId: string
+): Promise<{
+  env: Record<string, string> | undefined;
+  runtime: Result<HostRuntimesClient, RuntimeResolveError>;
+}> {
+  const [settings, runtime] = await Promise.all([
+    agentOperations.getSettings(providerId),
+    runtimes.client(host),
+  ]);
+  return { env: settings.value.env, runtime };
 }
 
 async function withHostRuntime<T>(

@@ -12,20 +12,21 @@ import type { AgentAuthStatus } from '#services/agent-plugins/api/plugins';
 
 export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
   return {
-    hooksStatus(input: { providerId: string }): Promise<HooksStatus> {
-      return runtime.hooksStatus(input.providerId);
+    hooksStatus(input: { providerId: string; env?: Record<string, string> }): Promise<HooksStatus> {
+      return runtime.hooksStatus(input.providerId, input.env);
     },
     startLogin(input: {
       providerId: string;
       methodId: string;
       cols?: number;
       rows?: number;
+      env?: Record<string, string>;
     }): Promise<Result<void, AgentConfigAuthError>> {
       const dimensions =
         input.cols !== undefined && input.rows !== undefined
           ? { cols: input.cols, rows: input.rows }
           : undefined;
-      return runtime.startLogin(input.providerId, input.methodId, dimensions);
+      return runtime.startLogin(input.providerId, input.methodId, dimensions, input.env);
     },
     cancelLogin(input: { providerId: string }): Promise<Result<void, AgentConfigAuthError>> {
       return runtime.cancelLogin(input.providerId);
@@ -51,8 +52,9 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     },
     refreshAuthStatus(input: {
       providerId: string;
+      env?: Record<string, string>;
     }): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
-      return runtime.refreshAuthStatus(input.providerId);
+      return runtime.refreshAuthStatus(input.providerId, input.env);
     },
     saveMcpServer(input: { server: McpServer }): Promise<Result<void, AgentConfigMcpError>> {
       return runtime.saveMcpServer(input.server);
@@ -63,13 +65,15 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     removeMcpForAgent(input: {
       providerId: string;
       name: string;
+      env?: Record<string, string>;
     }): Promise<Result<void, AgentConfigMcpError>> {
-      return runtime.removeMcpForAgent(input.providerId, input.name);
+      return runtime.removeMcpForAgent(input.providerId, input.name, input.env);
     },
     async listMcpForAgent(input: {
       providerId: string;
+      env?: Record<string, string>;
     }): Promise<Result<{ servers: McpServer[] }, AgentConfigMcpError>> {
-      const listed = await runtime.listMcpForAgent(input.providerId);
+      const listed = await runtime.listMcpForAgent(input.providerId, input.env);
       return listed.success ? ok({ servers: listed.data }) : listed;
     },
     async installSkill(

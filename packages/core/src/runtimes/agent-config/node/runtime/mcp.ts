@@ -8,6 +8,7 @@ import {
 import type { AgentConfigMcpError } from '#runtimes/agent-config/api';
 import type { AgentConfigMcpModel } from '#runtimes/agent-config/node/state/live-models';
 import { publishLiveModelState } from '#runtimes/agent-config/node/state/live-models';
+import type { ProviderEnvCache } from './provider-env-cache';
 import type { AgentConfigRuntimeDeps } from './types';
 
 export class AgentMcpConfigManager {
@@ -16,7 +17,8 @@ export class AgentMcpConfigManager {
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
-    private readonly model: AgentConfigMcpModel
+    private readonly model: AgentConfigMcpModel,
+    private readonly providerEnv: ProviderEnvCache
   ) {}
 
   async initialize(): Promise<void> {
@@ -42,7 +44,8 @@ export class AgentMcpConfigManager {
         const selectedProviders = new Set(server.providers);
         for (const provider of this.getMcpProviders()) {
           const agentId = provider.metadata.id;
-          const read = await this.deps.agentHost.readMcpServers(agentId);
+          const env = this.providerEnv.get(agentId);
+          const read = await this.deps.agentHost.readMcpServers(agentId, env);
           let regs = read.success ? read.data : [];
           const idx = regs.findIndex((reg) => reg.name === server.name);
           if (selectedProviders.has(agentId)) {
@@ -52,7 +55,7 @@ export class AgentMcpConfigManager {
           } else if (idx >= 0) {
             regs.splice(idx, 1);
           }
-          const write = await this.deps.agentHost.writeMcpServers(agentId, regs);
+          const write = await this.deps.agentHost.writeMcpServers(agentId, regs, env);
           if (!write.success) throw new Error(agentHostErrorMessage(write.error));
         }
         await this.refresh();
@@ -67,7 +70,12 @@ export class AgentMcpConfigManager {
     try {
       return await this.withWriteLock(async () => {
         for (const provider of this.getMcpProviders()) {
-          const result = await this.deps.agentHost.removeMcpServer(provider.metadata.id, name);
+          const agentId = provider.metadata.id;
+          const result = await this.deps.agentHost.removeMcpServer(
+            agentId,
+            name,
+            this.providerEnv.get(agentId)
+          );
           if (!result.success) throw new Error(agentHostErrorMessage(result.error));
         }
         await this.refresh();
@@ -80,7 +88,8 @@ export class AgentMcpConfigManager {
 
   async removeServerForAgent(
     providerId: string,
-    name: string
+    name: string,
+    env?: Record<string, string>
   ): Promise<Result<void, AgentConfigMcpError>> {
     const provider = this.deps.agentHost.get(providerId);
     if (!provider) return err({ type: 'unknown-provider', providerId });
@@ -90,10 +99,20 @@ export class AgentMcpConfigManager {
         message: `Provider '${providerId}' does not support MCP`,
       });
     }
+    // This slice's only real caller (the separate mcp app-slice
+    // wire-controller) has no Settings access and always passes env
+    // undefined — that's "I don't know", not "the override was cleared", so
+    // only overwrite the shared cache when a future caller actually supplies
+    // something.
+    if (env !== undefined) this.providerEnv.set(providerId, env);
 
     try {
       return await this.withWriteLock(async () => {
-        const result = await this.deps.agentHost.removeMcpServer(providerId, name);
+        const result = await this.deps.agentHost.removeMcpServer(
+          providerId,
+          name,
+          this.providerEnv.get(providerId)
+        );
         if (!result.success) throw new Error(agentHostErrorMessage(result.error));
         await this.refresh();
         return ok();
@@ -103,12 +122,21 @@ export class AgentMcpConfigManager {
     }
   }
 
-  async listForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigMcpError>> {
+  async listForAgent(
+    providerId: string,
+    env?: Record<string, string>
+  ): Promise<Result<McpServer[], AgentConfigMcpError>> {
     const provider = this.deps.agentHost.get(providerId);
     if (!provider) return err({ type: 'unknown-provider', providerId });
     if (provider.capabilities.mcp.kind !== 'supported' || !provider.behavior.mcp) return ok([]);
+    // See removeServerForAgent: only an actually-informed caller should update
+    // the shared cache here.
+    if (env !== undefined) this.providerEnv.set(providerId, env);
     try {
-      const result = await this.deps.agentHost.readMcpServers(providerId);
+      const result = await this.deps.agentHost.readMcpServers(
+        providerId,
+        this.providerEnv.get(providerId)
+      );
       if (!result.success) return err(toIoError(agentHostErrorMessage(result.error)));
       const regs = result.data;
       return ok(regs.map((reg) => registrationToMcpServer(reg, [providerId])));
@@ -121,7 +149,10 @@ export class AgentMcpConfigManager {
     const serversByName = new Map<string, { server: McpServer; providers: Set<string> }>();
     for (const provider of this.getMcpProviders()) {
       const agentId = provider.metadata.id;
-      const result = await this.deps.agentHost.readMcpServers(agentId);
+      const result = await this.deps.agentHost.readMcpServers(
+        agentId,
+        this.providerEnv.get(agentId)
+      );
       if (!result.success) {
         this.deps.logger.warn(`Failed to read MCP config for ${agentId}:`, {
           error: agentHostErrorMessage(result.error),
