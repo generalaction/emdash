@@ -108,6 +108,23 @@ describe('createMcpAdapter (single path)', () => {
   });
 });
 
+// ── resolveConfigRoot passthrough ───────────────────────────────────────────
+
+describe('passthroughMcpAdapter resolveConfigRoot', () => {
+  it('exposes the caller-supplied resolver on the returned behavior', () => {
+    const resolveConfigRoot = () => '/custom/root';
+    const adapter = passthroughMcpAdapter('.claude.json', undefined, resolveConfigRoot);
+
+    expect(adapter.resolveConfigRoot).toBe(resolveConfigRoot);
+  });
+
+  it('omits resolveConfigRoot when the caller does not supply one', () => {
+    const adapter = passthroughMcpAdapter('.claude.json');
+
+    expect(adapter.resolveConfigRoot).toBeUndefined();
+  });
+});
+
 // ── legacyReadPaths: merge semantics ────────────────────────────────────────
 
 describe('createMcpAdapter with legacyReadPaths', () => {

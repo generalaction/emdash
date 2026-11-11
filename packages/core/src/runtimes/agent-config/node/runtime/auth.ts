@@ -17,6 +17,7 @@ import {
   type PtySession,
 } from '#services/pty/api';
 import type { AgentInstallManager } from './install';
+import type { ProviderEnvCache } from './provider-env-cache';
 import type { AgentConfigRuntimeDeps } from './types';
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -59,7 +60,8 @@ export class AgentAuthManager {
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
-    private readonly install: AgentInstallManager
+    private readonly install: AgentInstallManager,
+    private readonly providerEnv: ProviderEnvCache
   ) {
     this.scope = deps.scope.child('auth');
     this.ptys = new PtyRegistry(deps.ptySpawner);
@@ -94,6 +96,15 @@ export class AgentAuthManager {
     });
   }
 
+  /**
+   * Never touches providerEnv itself: this is called both by refreshAuthStatus
+   * (which has fresh, authoritative env and sets providerEnv before calling
+   * here) and by the live-model/internal-refresh paths below, which have no
+   * fresh env of their own. If this method set providerEnv from `options.env`
+   * directly, every internal call (options.env always absent) would look
+   * identical to "the user just cleared their override" and wipe out
+   * whatever refreshAuthStatus last warmed.
+   */
   async getStatus(
     providerId: string,
     options: { refresh?: boolean } = {}
@@ -111,18 +122,24 @@ export class AgentAuthManager {
   }
 
   async refreshAuthStatus(
-    providerId: string
+    providerId: string,
+    env?: Record<string, string>
   ): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
+    // Authoritative, fresh Settings data — always record it, including an
+    // explicit undefined clearing a previously-removed override.
+    this.providerEnv.set(providerId, env);
     return ok(await this.getStatus(providerId, { refresh: true }));
   }
 
   async startLogin(
     providerId: string,
     methodId: string,
-    dimensions?: LoginDimensions
+    dimensions?: LoginDimensions,
+    env?: Record<string, string>
   ): Promise<Result<void, AgentConfigAuthError>> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
+    this.providerEnv.set(providerId, env);
     await this.releaseLogin(providerId, undefined, { force: true });
     const generation = randomUUID();
     const key = { providerId, methodId, generation, dimensions };
@@ -189,7 +206,11 @@ export class AgentAuthManager {
 
   private async createLoginSession(key: LoginKey, scope: Scope): Promise<LoginSession> {
     const { providerId, methodId, generation, dimensions } = key;
-    const loginCommand = await this.deps.agentHost.buildLoginCommand(providerId, methodId);
+    const loginCommand = await this.deps.agentHost.buildLoginCommand(
+      providerId,
+      methodId,
+      this.providerEnv.get(providerId)
+    );
     if (!loginCommand.success) throw new Error(agentConfigAuthErrorMessage(loginCommand.error));
     const { command, args, env } = loginCommand.data;
     if (!this.isCurrentLogin(providerId, generation)) {
@@ -283,7 +304,10 @@ export class AgentAuthManager {
 
   private async probe(providerId: string): Promise<AgentAuthStatus> {
     try {
-      const status = await this.deps.agentHost.checkAuthStatus(providerId);
+      const status = await this.deps.agentHost.checkAuthStatus(
+        providerId,
+        this.providerEnv.get(providerId)
+      );
       if (!status.success) {
         this.deps.logger.warn('AgentAuthManager: spawn context resolution failed', {
           providerId,

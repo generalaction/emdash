@@ -13,6 +13,7 @@ import type {
   AgentPluginHost,
   IAcpBehavior,
 } from '#services/agent-plugins/api/plugins';
+import type { AgentHookInstaller } from '#services/agent-plugins/node';
 import {
   createAcpAgentConnection,
   type AcpConnectionError,
@@ -47,6 +48,13 @@ export interface CreateAcpConnectionSourceDeps {
   idleTtlMs?: number;
   buildClient: (agent: AcpAgentApi, context: AcpConnectionContext) => Client;
   onClosed: (key: string, generation: number, exitCode: number | null) => void;
+  /**
+   * Optional: ensures the provider's Emdash hooks (idle/permission-prompt
+   * notifications) are installed into this connection's own config root before
+   * the agent process starts, mirroring the PTY path's `prepareHookEnv`. Omitted
+   * in tests that don't care about hook installation.
+   */
+  hookInstaller?: AgentHookInstaller;
 }
 
 export interface AcpConnectionKey {
@@ -124,6 +132,14 @@ async function provisionAcpConnection(
       toSerializedError(new Error(`Provider '${key.providerId}' does not support ACP`))
     ).error;
   }
+
+  // Best-effort: a failed hook install must not block the agent from starting.
+  // ensureHooksInstalled already catches and logs internally, never throws.
+  await deps.hookInstaller?.ensureHooksInstalled({
+    providerId: key.providerId,
+    workspacePath: key.cwd,
+    env: key.env,
+  });
 
   const routeKey = makeAcpConnectionKey(key.providerId, key.cwd);
   const spawn = await deps.agentHost.buildAcpSpawn(key.providerId, {
