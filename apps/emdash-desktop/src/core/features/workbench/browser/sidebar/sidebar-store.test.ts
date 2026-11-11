@@ -172,6 +172,27 @@ describe('SidebarStore project ordering', () => {
     expect(handle.value.expandedProjectIds).toEqual([]);
   });
 
+  it('folds every project while dragging without changing the stored expansion', () => {
+    const store = new SidebarStore(projectManager([{ id: 'project-1', createdAt: '2026-01-01' }]));
+    const handle = mementoHandle({
+      version: '1',
+      expandedProjectIds: ['project-1'],
+      projectOrder: [],
+      taskOrderByProject: {},
+      taskSortBy: 'created-at',
+    });
+    store.attachMemento(handle);
+
+    store.beginDragFold('project');
+    expect(store.isDragFolded).toBe(true);
+    expect([...store.expandedProjectIds]).toEqual([]);
+
+    store.endDragFold();
+    expect(store.isDragFolded).toBe(false);
+    expect([...store.expandedProjectIds]).toEqual(['project-1']);
+    expect(handle.value.expandedProjectIds).toEqual(['project-1']);
+  });
+
   it('sorts projects newest first by default', () => {
     const store = new SidebarStore(
       projectManager([
@@ -285,6 +306,41 @@ describe('SidebarStore project groups', () => {
       { kind: 'project', projectId: 'a' },
       { kind: 'group', groupId },
     ]);
+  });
+
+  it('folds every group while a group is dragged and restores them afterwards', () => {
+    const store = threeProjects();
+    const handle = groupsMementoHandle();
+    store.attachGroupsMemento(handle);
+    const groupId = store.createGroup('Customers', 'b');
+
+    store.beginDragFold('group');
+    expect(store.isGroupCollapsed(groupId)).toBe(true);
+    expect(store.sidebarRows).not.toContainEqual({ kind: 'project', projectId: 'b' });
+
+    store.endDragFold();
+    expect(store.isGroupCollapsed(groupId)).toBe(false);
+    expect(handle.value.groups[0]?.collapsed).toBe(false);
+  });
+
+  it('opens a hovered group while dragging a project, keeping it open only when dropped into', () => {
+    const store = threeProjects();
+    const handle = groupsMementoHandle();
+    store.attachGroupsMemento(handle);
+    const groupId = store.createGroup('Customers', 'b');
+    store.toggleGroupCollapsed(groupId);
+
+    store.beginDragFold('project');
+    store.openGroupWhileDragging(groupId);
+    expect(store.sidebarRows).toContainEqual({ kind: 'project', projectId: 'b' });
+    store.endDragFold();
+    expect(store.isGroupCollapsed(groupId)).toBe(true);
+
+    store.beginDragFold('project');
+    store.openGroupWhileDragging(groupId);
+    store.endDragFold(groupId);
+    expect(store.isGroupCollapsed(groupId)).toBe(false);
+    expect(handle.value.groups[0]?.collapsed).toBe(false);
   });
 
   it('reveals a collapsed group for navigation without persisting it', () => {

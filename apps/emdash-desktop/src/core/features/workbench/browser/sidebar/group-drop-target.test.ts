@@ -1,77 +1,60 @@
 import { describe, expect, it } from 'vitest';
-import { groupDropTarget, projectDropTarget } from './group-drop-target';
+import { groupOrderAfterMove, projectPlacementAfterMove } from './group-drop-target';
 import type { SidebarRow } from './sidebar-store';
 
-// 0 p-ungrouped | 1 [A] | 2 p-a | 3 t-a | 4 [B] | 5 p-b | 6 [C] (collapsed)
+// Folded for a project drag: 0 p-ungrouped | 1 [A] | 2 p-a1 | 3 p-a2 | 4 [B] | 5 [C] | 6 p-c
 const rows: SidebarRow[] = [
   { kind: 'project', projectId: 'p-ungrouped' },
   { kind: 'group', groupId: 'A' },
-  { kind: 'project', projectId: 'p-a' },
-  { kind: 'task', projectId: 'p-a', taskId: 't-a' },
+  { kind: 'project', projectId: 'p-a1' },
+  { kind: 'project', projectId: 'p-a2' },
   { kind: 'group', groupId: 'B' },
-  { kind: 'project', projectId: 'p-b' },
   { kind: 'group', groupId: 'C' },
+  { kind: 'project', projectId: 'p-c' },
 ];
 
-describe('groupDropTarget', () => {
-  it('returns null when there are no groups', () => {
-    expect(groupDropTarget([{ kind: 'project', projectId: 'p' }], 0, true)).toBeNull();
+describe('groupOrderAfterMove', () => {
+  // Folded for a group drag: 0 p | 1 [A] | 2 [B] | 3 [C]
+  const folded: SidebarRow[] = [
+    { kind: 'project', projectId: 'p' },
+    { kind: 'group', groupId: 'A' },
+    { kind: 'group', groupId: 'B' },
+    { kind: 'group', groupId: 'C' },
+  ];
+
+  it('moves a group down past others', () => {
+    expect(groupOrderAfterMove(folded, 1, 3)).toEqual(['B', 'C', 'A']);
   });
 
-  it('treats the ungrouped section as "before the first group"', () => {
-    expect(groupDropTarget(rows, 0, false)).toEqual({
-      index: 0,
-      indicatorRowIndex: 1,
-      edge: 'top',
-    });
+  it('moves a group up to first', () => {
+    expect(groupOrderAfterMove(folded, 3, 1)).toEqual(['C', 'A', 'B']);
   });
 
-  it('inserts before a group when over the upper half of its header', () => {
-    expect(groupDropTarget(rows, 4, true)).toEqual({ index: 1, indicatorRowIndex: 4, edge: 'top' });
-  });
-
-  it('inserts after the whole section when below the header', () => {
-    expect(groupDropTarget(rows, 1, false)).toEqual({
-      index: 1,
-      indicatorRowIndex: 3,
-      edge: 'bottom',
-    });
-  });
-
-  it('inserts after the section when over one of its projects or tasks', () => {
-    expect(groupDropTarget(rows, 3, true)).toEqual({
-      index: 1,
-      indicatorRowIndex: 3,
-      edge: 'bottom',
-    });
-  });
-
-  it('inserts at the end when over the last (collapsed) group', () => {
-    expect(groupDropTarget(rows, 6, false)).toEqual({
-      index: 3,
-      indicatorRowIndex: 6,
-      edge: 'bottom',
-    });
+  it('keeps the order when nothing moves', () => {
+    expect(groupOrderAfterMove(folded, 2, 2)).toEqual(['A', 'B', 'C']);
   });
 });
 
-describe('projectDropTarget', () => {
-  it('puts the project first in a group when dropped on either half of its header', () => {
-    expect(projectDropTarget(rows, 1, true, 'p-ungrouped')).toEqual({ groupId: 'A', index: 0 });
-    expect(projectDropTarget(rows, 6, true, 'p-a')).toEqual({ groupId: 'C', index: 0 });
-    expect(projectDropTarget(rows, 6, false, 'p-a')).toEqual({ groupId: 'C', index: 0 });
+describe('projectPlacementAfterMove', () => {
+  it('reorders within a group', () => {
+    expect(projectPlacementAfterMove(rows, 2, 3)).toEqual({ groupId: 'A', index: 1 });
   });
 
-  it('uses the section of the nearest header above the insertion point', () => {
-    expect(projectDropTarget(rows, 3, false, 'p-b')).toEqual({ groupId: 'A', index: 1 });
-    expect(projectDropTarget(rows, 5, true, 'p-a')).toEqual({ groupId: 'B', index: 0 });
+  it('moves into the group under the header it lands below', () => {
+    expect(projectPlacementAfterMove(rows, 0, 1)).toEqual({ groupId: 'A', index: 0 });
+    expect(projectPlacementAfterMove(rows, 2, 4)).toEqual({ groupId: 'B', index: 0 });
   });
 
-  it('targets the ungrouped section above the first group', () => {
-    expect(projectDropTarget(rows, 0, true, 'p-a')).toEqual({ groupId: null, index: 0 });
+  it('moves into a following group after its projects', () => {
+    expect(projectPlacementAfterMove(rows, 0, 6)).toEqual({ groupId: 'C', index: 1 });
   });
 
-  it('does not count the dragged project itself', () => {
-    expect(projectDropTarget(rows, 3, false, 'p-a')).toEqual({ groupId: 'A', index: 0 });
+  it('ungroups when moved above the first group', () => {
+    expect(projectPlacementAfterMove(rows, 3, 1)).toEqual({ groupId: null, index: 1 });
+    expect(projectPlacementAfterMove(rows, 6, 0)).toEqual({ groupId: null, index: 0 });
+  });
+
+  it('ignores moves of anything but a project', () => {
+    expect(projectPlacementAfterMove(rows, 1, 0)).toBeNull();
   });
 });

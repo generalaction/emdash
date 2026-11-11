@@ -72,6 +72,13 @@ export class SidebarStore {
   > = [];
   /** Collapsed groups temporarily opened to show a navigation target; never persisted. */
   private readonly _revealedGroupIds = observable.set<string>();
+  /**
+   * What is folded while a drag is in progress, never persisted: dragging a
+   * group folds every group and project, dragging a project folds every project.
+   */
+  private _dragFold: 'groups' | 'projects' | null = null;
+  /** Collapsed groups opened by hovering them while dragging a project. */
+  private readonly _dragOpenedGroupIds = observable.set<string>();
 
   constructor(private readonly projectManager: ProjectManagerStore) {
     // `_handle` must stay observable: computeds reading `state` before the
@@ -86,6 +93,8 @@ export class SidebarStore {
       | '_pendingGroupUpdates'
       | '_groupsHandle'
       | '_revealedGroupIds'
+      | '_dragFold'
+      | '_dragOpenedGroupIds'
       | 'projectManager'
     >(this, {
       _fallbackState: false,
@@ -95,6 +104,7 @@ export class SidebarStore {
       _pendingGroupUpdates: false,
       _groupsHandle: observable.ref,
       _revealedGroupIds: false,
+      _dragOpenedGroupIds: false,
       projectManager: false,
       expandedProjectIds: computed.struct,
       sidebarRows: computed,
@@ -112,6 +122,7 @@ export class SidebarStore {
   }
 
   get expandedProjectIds(): ReadonlySet<string> {
+    if (this._dragFold) return new Set();
     return new Set([...this.state.expandedProjectIds, ...this._revealedProjectIds]);
   }
 
@@ -151,8 +162,41 @@ export class SidebarStore {
 
   /** Whether a group's projects are hidden: collapsed by the user and not revealed for navigation. */
   isGroupCollapsed(groupId: string): boolean {
+    if (this._dragFold === 'groups') return true;
     const group = this.projectGroups.find((g) => g.id === groupId);
-    return !!group?.collapsed && !this._revealedGroupIds.has(groupId);
+    return (
+      !!group?.collapsed &&
+      !this._revealedGroupIds.has(groupId) &&
+      !this._dragOpenedGroupIds.has(groupId)
+    );
+  }
+
+  /** Whether a drag has folded the sidebar; the folded state is temporary. */
+  get isDragFolded(): boolean {
+    return this._dragFold !== null;
+  }
+
+  /** Fold the sidebar for dragging a group or a project, until `endDragFold`. */
+  beginDragFold(kind: 'group' | 'project'): void {
+    this._dragFold = kind === 'group' ? 'groups' : 'projects';
+    this._dragOpenedGroupIds.clear();
+  }
+
+  /** Open a collapsed group while a project is dragged over it. */
+  openGroupWhileDragging(groupId: string): void {
+    if (this._dragFold === 'projects') this._dragOpenedGroupIds.add(groupId);
+  }
+
+  /**
+   * Restore the sidebar after a drag. A group opened by hovering stays open
+   * when the project was dropped into it (`keepOpenGroupId`).
+   */
+  endDragFold(keepOpenGroupId?: string | null): void {
+    if (keepOpenGroupId && this._dragOpenedGroupIds.has(keepOpenGroupId)) {
+      this.setGroupCollapsed(keepOpenGroupId, false);
+    }
+    this._dragFold = null;
+    this._dragOpenedGroupIds.clear();
   }
 
   /** The group a project belongs to, or `undefined` when it is ungrouped (or its group is gone). */
