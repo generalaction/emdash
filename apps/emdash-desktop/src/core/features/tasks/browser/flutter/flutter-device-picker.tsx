@@ -28,7 +28,11 @@ export const FlutterDevicePicker = observer(function FlutterDevicePicker() {
   );
 
   useEffect(() => {
-    runner.detectFlutter().catch((error) => log.warn('Flutter detection failed', { error }));
+    // Device list loads up front so the chip only names a device that is online.
+    runner
+      .detectFlutter()
+      .then(() => (runner.isFlutter && !runner.targets ? runner.refreshTargets() : undefined))
+      .catch((error) => log.warn('Flutter detection failed', { error }));
   }, [runner]);
 
   if (!runner.isFlutter) return null;
@@ -41,26 +45,19 @@ export const FlutterDevicePicker = observer(function FlutterDevicePicker() {
     runner.refreshTargets().catch((error) => log.warn('Listing Flutter devices failed', { error }));
   };
   const targets = runner.targets;
-  const current = runner.lastDevice;
-  // The remembered device is only listed by `flutter devices` while it is booted.
-  const offline = !!targets && !!current && !targets.devices.some((d) => d.id === current.id);
+  const current = runner.onlineDevice;
 
   return (
     <DropdownMenu.Root onOpenChange={onOpenChange}>
       <DropdownMenu.Trigger
         disabled={runner.state === 'busy'}
-        title={
-          current
-            ? `Run target: ${current.name}${offline ? ' (not running — boot it below)' : ''}`
-            : 'Select a device'
-        }
+        title={current ? `Run target: ${current.name}` : 'No running device'}
         className="flex min-w-0 items-center gap-1 rounded-sm hover:text-foreground disabled:opacity-50"
       >
         <Smartphone
           className={cn('size-3 shrink-0', runner.state === 'running' && 'text-foreground-success')}
         />
         <span className="truncate text-xs">{current?.name ?? 'No device'}</span>
-        {offline && <span className="shrink-0 text-xs text-foreground-passive">· off</span>}
       </DropdownMenu.Trigger>
       <DropdownMenu.Content width="content" align="start" side="top" className="min-w-56">
         <DropdownMenu.Group>
@@ -86,14 +83,7 @@ export const FlutterDevicePicker = observer(function FlutterDevicePicker() {
           <>
             <DropdownMenu.Group>
               <DropdownMenu.Label>Devices</DropdownMenu.Label>
-              {offline && current && (
-                <DropdownMenu.Item disabled>
-                  <Check className="size-3.5" />
-                  {current.name}
-                  <DropdownMenu.Shortcut>not running</DropdownMenu.Shortcut>
-                </DropdownMenu.Item>
-              )}
-              {targets.devices.length === 0 && !offline && (
+              {targets.devices.length === 0 && (
                 <DropdownMenu.Label>No running devices</DropdownMenu.Label>
               )}
               {targets.devices.map((device) => (

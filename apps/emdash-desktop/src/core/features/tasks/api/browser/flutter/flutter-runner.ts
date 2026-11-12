@@ -93,6 +93,7 @@ export class FlutterRunner {
       setMode: action,
       targets: observable.ref,
       state: computed,
+      onlineDevice: computed,
       onOutput: action,
     });
   }
@@ -101,6 +102,12 @@ export class FlutterRunner {
   get state(): FlutterRunner['phase'] {
     if (this.terminalId && !this.terminals.terminals.has(this.terminalId)) return 'idle';
     return this.phase;
+  }
+
+  /** The remembered device, but only while `flutter devices` lists it (booted / plugged in). */
+  get onlineDevice(): FlutterDevice | null {
+    const id = this.lastDevice?.id;
+    return this.targets?.devices.find((d) => d.id === id) ?? null;
   }
 
   /** The file index may still be building when the task opens, so a miss is retried. */

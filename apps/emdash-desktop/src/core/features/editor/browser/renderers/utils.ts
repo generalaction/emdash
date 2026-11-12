@@ -28,4 +28,6 @@ export const DEFAULT_EDITOR_OPTIONS = {
   smoothScrolling: true,
   formatOnPaste: true,
   formatOnType: true,
+  // Pinned scope headers ("class X {" on top) overlap the scrolling lines.
+  stickyScroll: { enabled: false },
 };

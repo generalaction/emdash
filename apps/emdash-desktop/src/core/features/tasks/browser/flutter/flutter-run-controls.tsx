@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { Loader2, Play, RotateCcw, Square } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
@@ -62,16 +62,24 @@ export const FlutterRunControls = observer(function FlutterRunControls() {
     );
   }
 
-  const device = runner.lastDevice;
+  const device = runner.onlineDevice;
   return (
     <IconButton
-      label={device ? `Run on ${device.name}` : 'Select a device in the status bar'}
-      disabled={state === 'busy' || !device}
+      label={device ? `Run on ${device.name}` : 'No device'}
+      disabled={state === 'busy'}
       onClick={() => {
-        if (!device) return;
-        runner
-          .run({ kind: 'device', device })
-          .then(() => runner.terminalId && taskView.revealTerminal(runner.terminalId))
+        // Re-list first: the device may have shut down since the list was loaded.
+        void runner
+          .refreshTargets()
+          .then(async () => {
+            const online = runner.onlineDevice;
+            if (!online) {
+              toast.error('No device');
+              return;
+            }
+            await runner.run({ kind: 'device', device: online });
+            if (runner.terminalId) taskView.revealTerminal(runner.terminalId);
+          })
           .catch((error) => log.warn('Flutter run failed', { error }));
       }}
     >

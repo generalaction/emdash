@@ -1,13 +1,16 @@
+import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { Button, toast } from '@emdash/ui/react/primitives';
 import { Check, Plus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { openFileInTaskEditor } from '@core/features/editor/api/browser/open-file-in-file-editor';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
-import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
-import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import {
+  useTaskComposition,
+  useWorkspace,
+} from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { commitRef } from '@core/primitives/git/api';
 import { ChangesListItem, RowAction } from './components/changes-list-item';
 import { SectionHeader } from './components/section-header';
 
@@ -20,8 +23,8 @@ const OPERATION_LABEL = {
 
 /** Conflicted files plus Continue/Abort while a merge-like operation is in progress. */
 export const MergeChangesSection = observer(function MergeChangesSection() {
-  const { projectId, taskId } = useTaskViewContext();
   const workspace = useWorkspace();
+  const taskView = useTaskComposition();
   const git = workspace.get(gitCheckoutStoreToken);
   const openConfirmActionModal = useOpenModal('confirmActionModal');
   const [busy, setBusy] = useState(false);
@@ -29,6 +32,21 @@ export const MergeChangesSection = observer(function MergeChangesSection() {
   const conflicts = git.conflictedChanges;
 
   if (!operation && conflicts.length === 0) return null;
+
+  const openConflictDiff = (change: GitChange, preview: boolean) =>
+    taskView.activePane.open(
+      'diff',
+      {
+        activeFile: {
+          path: change.path,
+          type: 'disk',
+          group: 'disk',
+          originalRef: commitRef('HEAD'),
+        },
+        status: change.status,
+      },
+      { preview }
+    );
 
   const run = async (action: () => ReturnType<typeof git.continueOperation>, label: string) => {
     setBusy(true);
@@ -92,7 +110,9 @@ export const MergeChangesSection = observer(function MergeChangesSection() {
             key={change.path}
             change={change}
             rootPath={workspace.path}
-            onClick={() => void openFileInTaskEditor(projectId, taskId, change.path)}
+            // Same as Changed rows: an editable diff vs HEAD; double-click pins the tab.
+            onClick={() => openConflictDiff(change, true)}
+            onDoubleClick={() => openConflictDiff(change, false)}
             rowActions={() => (
               <RowAction title="Mark as resolved (stage)" onClick={() => markResolved(change.path)}>
                 <Plus className="size-3.5" />
