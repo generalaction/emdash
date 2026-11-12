@@ -28,6 +28,9 @@ type OpenInAppConfigShape = {
   alwaysAvailable?: boolean;
   autoInstall?: boolean;
   supportsRemote?: boolean;
+  /** File-only app (e.g. Transporter for .ipa): offered on matching files in the file tree,
+   * never for folders or the workspace "Open in" menu. */
+  fileExtensions?: string[];
   platforms: Partial<Record<PlatformKey, PlatformConfig>>;
 };
 
@@ -40,6 +43,7 @@ const ICON_PATHS = {
   vscodium: 'vscodium.png',
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
+  transporter: 'transporter.png',
   terminal: 'terminal.png',
   kaku: 'kaku.png',
   alacritty: 'alacritty.svg',
@@ -201,6 +205,18 @@ const _OPEN_IN_APPS = {
         checkCommands: ['xed'],
         bundleIds: ['com.apple.dt.Xcode'],
         appNames: ['Xcode'],
+      },
+    },
+  },
+  transporter: {
+    id: 'transporter',
+    label: 'Transporter',
+    iconPath: ICON_PATHS.transporter,
+    fileExtensions: ['ipa'],
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "Transporter" {{path}}'],
+        appNames: ['Transporter'],
       },
     },
   },

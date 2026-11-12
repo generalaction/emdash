@@ -11,7 +11,12 @@ import { selectLanguageServer } from '@emdash/core/runtimes/lsp/api';
 export function getLanguageFromPath(path: string): string {
   const selected = selectLanguageServer(path);
   if (selected) return toMonacoLanguageId(selected.language.languageId);
-  const ext = path.split(/[\\/]/).at(-1)?.split('.').pop()?.toLowerCase() || '';
+  const name = path.split(/[\\/]/).at(-1) ?? '';
+  // Config files Monaco has no grammar for: borrow the closest one so they still get colors.
+  if (name === '.env' || name.startsWith('.env.') || name.endsWith('.env')) return 'ini';
+  if (RUBY_FILENAMES.has(name)) return 'ruby';
+  if (name === 'Podfile.lock' || name === 'pubspec.lock') return 'yaml';
+  const ext = name.split('.').pop()?.toLowerCase() || '';
   const langMap: Record<string, string> = {
     java: 'java',
     cs: 'csharp',
@@ -36,9 +41,32 @@ export function getLanguageFromPath(path: string): string {
     matlab: 'matlab',
     dockerfile: 'dockerfile',
     makefile: 'makefile',
+    ini: 'ini',
+    cfg: 'ini',
+    conf: 'ini',
+    properties: 'ini',
+    toml: 'ini',
+    xcconfig: 'ini',
+    plist: 'xml',
+    entitlements: 'xml',
+    gradle: 'java',
   };
   return langMap[ext] || 'text';
 }
+
+/** Ruby DSL files (CocoaPods, Bundler, fastlane) that have no extension. */
+const RUBY_FILENAMES = new Set([
+  'Podfile',
+  'Gemfile',
+  'Fastfile',
+  'Appfile',
+  'Matchfile',
+  'Pluginfile',
+  'Snapfile',
+  'Gymfile',
+  'Deliverfile',
+  'Scanfile',
+]);
 
 /** Monaco names a few languages differently from the LSP specification. */
 export function toMonacoLanguageId(languageId: string): string {

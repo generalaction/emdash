@@ -78,11 +78,12 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   );
 
   const sortedApps = useMemo(() => {
+    const workspaceApps = installedApps.filter((app) => !app.fileExtensions);
     const availableApps = isRemote
-      ? installedApps.filter(
+      ? workspaceApps.filter(
           (app) => app.supportsRemote && (app.id !== 'terminal' || platform === 'darwin')
         )
-      : installedApps;
+      : workspaceApps;
     if (!defaultApp) return availableApps;
     return [...availableApps].sort((a, b) => {
       if (a.id === defaultApp) return -1;

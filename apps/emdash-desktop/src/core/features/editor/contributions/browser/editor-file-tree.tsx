@@ -30,6 +30,7 @@ import {
   FilePen,
   FilePlus,
   FileText,
+  ExternalLink,
   FolderOpen,
   FolderPlus,
   Link2,
@@ -52,6 +53,7 @@ import { FileIcon, FolderIcon } from '@core/features/editor/contributions/browse
 import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { getFilesClient } from '@core/features/files/api/browser/client';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { useOpenInApps } from '@core/features/settings/api/browser/useOpenInApps';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { openFile as openWorkbenchFile } from '@core/features/workbench/api/browser/open-file';
 import {
@@ -77,6 +79,7 @@ import {
   setDraggedWorkspaceFile,
 } from '@core/primitives/drag-files/browser/drag-files';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
+import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
 
@@ -240,6 +243,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   );
   const liveActionsDisabled = Boolean(liveActionDisabledReason);
   const { value: filesSettings } = useAppSettingsKey('files');
+  const openInApps = useOpenInApps();
   const openConfirmActionModal = useOpenModal('confirmActionModal');
   const [searchQuery, setSearchQuery] = useState('');
   const [renamePath, setRenamePath] = useState<string | null>(null);
@@ -577,6 +581,38 @@ export const EditorFileTree = observer(function EditorFileTree() {
     }
   };
 
+  /** Opens the clicked item itself (e.g. `ios/Runner.xcworkspace` in Xcode), not the workspace root. */
+  const openInApp = async (appId: OpenInAppId, node: FileTreeNode) => {
+    const label = openInApps.labels[appId] ?? appId;
+    try {
+      const result = await (
+        await getHostClient()
+      ).openIn({ app: appId, path: node.path }, { timeoutMs: 75_000 });
+      if (!result?.success) {
+        toast.error(`Open in ${label} failed`, {
+          description: result?.error || 'Application not available.',
+        });
+      }
+    } catch (error) {
+      toast.error(`Open in ${label} failed`, {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  const openWithDefaultApp = async (node: FileTreeNode) => {
+    try {
+      const result = await (
+        await getHostClient()
+      ).openPath({ ref: hostFileRefFromNativePath(node.path) });
+      if (!result.success) toast.error('Open failed', { description: result.error });
+    } catch (error) {
+      toast.error('Open failed', {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
   const revealInFileManager = async (node: FileTreeNode) => {
     try {
       const result = await (
@@ -761,6 +797,36 @@ export const EditorFileTree = observer(function EditorFileTree() {
         icon: <FolderOpen size={14} />,
         onSelect: () => void revealInFileManager(node),
       });
+      // Excel/Word/PDF/images…: whatever macOS opens the file with on double-click.
+      if (node.type === 'file') {
+        items.push({
+          id: 'open-default-app',
+          label: 'Open with Default App',
+          icon: <ExternalLink size={14} />,
+          onSelect: () => void openWithDefaultApp(node),
+        });
+      }
+      // Finder is already covered by Reveal above.
+      for (const app of openInApps.installedApps) {
+        if (app.id === 'finder' || openInApps.availability[app.id] !== 'detected') continue;
+        const ext = node.name.split('.').pop()?.toLowerCase() ?? '';
+        if (app.fileExtensions && (node.type !== 'file' || !app.fileExtensions.includes(ext))) {
+          continue;
+        }
+        const icon = openInApps.icons[app.id];
+        items.push({
+          id: `open-in-${app.id}`,
+          label: `Open in ${openInApps.labels[app.id] ?? app.label}`,
+          icon: icon ? (
+            <img
+              src={icon}
+              alt=""
+              className={`size-3.5 rounded ${app.invertInDark ? 'emdark:invert' : ''}`}
+            />
+          ) : undefined,
+          onSelect: () => void openInApp(app.id, node),
+        });
+      }
     }
     items.push(
       {

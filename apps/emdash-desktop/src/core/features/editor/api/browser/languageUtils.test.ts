@@ -29,6 +29,15 @@ describe('language IDs for LSP-capable models', () => {
     ['style.css', 'css'],
     ['style.scss', 'scss'],
     ['style.less', 'less'],
+    ['.env', 'ini'],
+    ['fastlane/.env.example', 'ini'],
+    ['.env.development', 'ini'],
+    ['local.properties', 'ini'],
+    ['ios/Podfile', 'ruby'],
+    ['fastlane/Fastfile', 'ruby'],
+    ['ios/Podfile.lock', 'yaml'],
+    ['ios/Runner/Info.plist', 'xml'],
+    ['notes.txt', 'text'],
   ])('uses the Monaco language for %s', (filename, language) => {
     expect(getLanguageFromPath(`/workspace/${filename}`)).toBe(language);
   });
