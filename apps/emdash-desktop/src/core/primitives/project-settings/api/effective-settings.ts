@@ -32,6 +32,8 @@ export type StoredProjectGitSettings = {
   baseRemote?: string;
   pushRemote?: string;
   agentGitCredentials?: AgentGitCredentialsSetting;
+  /** Per-project branch prefix override; an empty string means no prefix. */
+  branchPrefix?: string;
   /** Per-project worktree root override. */
   worktreeRoot?: string;
 };
@@ -350,6 +352,27 @@ export function resolveTmux(
   }
   return {
     value: layers.appDefaultTmux,
+    provenance: { kind: 'inferred', from: 'app default' },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Branch prefix: project override → app default
+// ---------------------------------------------------------------------------
+
+/**
+ * Explicit per-project prefix (`set`, an empty string means no prefix) →
+ * app-wide prefix (`inferred` from "app default"). Absence means inherit.
+ */
+export function resolveBranchPrefix(layers: {
+  projectBranchPrefix?: string;
+  appBranchPrefix: string;
+}): Resolved<string> {
+  if (layers.projectBranchPrefix !== undefined) {
+    return { value: layers.projectBranchPrefix, provenance: { kind: 'set' } };
+  }
+  return {
+    value: layers.appBranchPrefix,
     provenance: { kind: 'inferred', from: 'app default' },
   };
 }

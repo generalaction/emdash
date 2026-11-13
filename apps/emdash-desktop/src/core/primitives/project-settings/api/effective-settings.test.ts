@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  resolveBranchPrefix,
   resolveEffectiveGitSettings,
   resolveEffectiveSettings,
   resolveTmux,
@@ -356,6 +357,28 @@ describe('resolveTmux', () => {
   it('inherits the app default when the host has no override', () => {
     expect(resolveTmux({ hostTmux: null, appDefaultTmux: true })).toEqual({
       value: true,
+      provenance: { kind: 'inferred', from: 'app default' },
+    });
+  });
+});
+
+describe('resolveBranchPrefix', () => {
+  it('uses an explicit project prefix before the app prefix', () => {
+    expect(resolveBranchPrefix({ projectBranchPrefix: 'feat', appBranchPrefix: 'emdash' })).toEqual(
+      { value: 'feat', provenance: { kind: 'set' } }
+    );
+  });
+
+  it('treats an empty project prefix as an explicit choice for no prefix', () => {
+    expect(resolveBranchPrefix({ projectBranchPrefix: '', appBranchPrefix: 'emdash' })).toEqual({
+      value: '',
+      provenance: { kind: 'set' },
+    });
+  });
+
+  it('inherits the app prefix when no project prefix exists', () => {
+    expect(resolveBranchPrefix({ appBranchPrefix: 'emdash' })).toEqual({
+      value: 'emdash',
       provenance: { kind: 'inferred', from: 'app default' },
     });
   });

@@ -11,7 +11,8 @@
 ## Current Behavior
 
 - task worktrees are created under the project's DB-backed worktree directory setting
-- branch prefix defaults to `emdash` and is configurable in app settings
+- branch prefix defaults to `emdash` and is configurable in app settings; a project can override it
+  (including no prefix) in its Project settings
 - generated task branch names use the configured prefix plus a random suffix by default; app repository settings can disable only the random suffix
 - worktree creation is managed by the project provider pattern
 - creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
