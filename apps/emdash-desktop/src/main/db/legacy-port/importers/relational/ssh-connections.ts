@@ -37,18 +37,18 @@ function pickUniqueConnectionName(baseName: string, usedNames: Set<string>): str
   }
 }
 
-export async function portSshConnections({
+export function portSshConnections({
   appDb,
   legacyDb,
   remap,
   allowedLegacyConnectionIds,
 }: PortContext & {
   allowedLegacyConnectionIds?: ReadonlySet<string>;
-}): Promise<PortSummary> {
+}): PortSummary {
   const summary = createPortSummary('ssh_connections');
   const nowIso = new Date().toISOString();
 
-  const existingConnections = (await appDb
+  const existingConnections = appDb
     .select({
       id: sshConnections.id,
       name: sshConnections.name,
@@ -57,7 +57,7 @@ export async function portSshConnections({
       username: sshConnections.username,
     })
     .from(sshConnections)
-    .execute()) as ExistingSshConnection[];
+    .all() as ExistingSshConnection[];
 
   const fingerprintToConnectionId = new Map<string, string>();
   const existingConnectionIds = new Set<string>();
@@ -135,14 +135,14 @@ export async function portSshConnections({
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
 
-    const insertResult = await insertWithRegeneratedId({
+    const insertResult = insertWithRegeneratedId({
       initialId: legacyId,
       existingIds: existingConnectionIds,
       uniqueConstraintDetail: 'ssh_connections.id',
       setId: (id) => {
         insertValues.id = id;
       },
-      insert: () => appDb.insert(sshConnections).values(insertValues).execute(),
+      insert: () => appDb.insert(sshConnections).values(insertValues).run(),
     });
 
     if (!insertResult.inserted) {

@@ -15,6 +15,7 @@ import { z } from 'zod';
 import {
   fsWatchContract,
   requireWatchReady,
+  type FsWatchKey,
   type IWatchService,
   type WatchEvent,
   type WatchHandle,
@@ -22,6 +23,7 @@ import {
 } from '#services/fs-watch/api';
 import { fsWatchComponent } from '#services/fs-watch/node/component';
 import { createFsWatchController } from './controller';
+import { realpathOrResolve } from './paths';
 import { processWatchBackend } from './process-backend';
 import { createWatchService } from './watch-service';
 
@@ -140,7 +142,7 @@ describe('processWatchBackend', () => {
     const controller = createFsWatchController({ scope, service });
     const firstWire = createTestWire(fsWatchContract, controller);
     const secondWire = createTestWire(fsWatchContract, controller);
-    const key = { root: '/tmp/project', ignore: [] };
+    const key: FsWatchKey = { root: '/tmp/project', ignore: [], backend: 'auto' };
 
     const firstSubscription = firstWire.client.events.subscribe(key, { onEvent: () => {} });
     const secondSubscription = secondWire.client.events.subscribe(key, { onEvent: () => {} });
@@ -164,7 +166,7 @@ describe('processWatchBackend', () => {
     const controller = createFsWatchController({ scope, service });
     const wire = createTestWire(fsWatchContract, controller);
     const subscription = wire.client.events.subscribe(
-      { root: '/tmp/project', ignore: [] },
+      { root: '/tmp/project', ignore: [], backend: 'auto' },
       { onEvent: () => {} }
     );
 
@@ -174,6 +176,45 @@ describe('processWatchBackend', () => {
     await expect(subscription).rejects.toThrow('native startup failed');
     expect(service.latest().released).toBe(true);
 
+    wire.dispose();
+    await scope.dispose();
+  });
+
+  it('forwards the ignore set and backend preference to the child watch service', async () => {
+    const childService = new FakeWatchService();
+    const scope = createScope({ label: 'test' });
+    const controller = createFsWatchController({ scope, service: childService });
+    const wire = createTestWire(fsWatchContract, controller);
+    const service = createWatchService({
+      backend: processWatchBackend({ client: wire.client }),
+      scope,
+    });
+    const pinned = service.watch('/tmp/project/.git', () => {}, {
+      ignore: ['objects/**'],
+      backend: 'os',
+    });
+    const defaulted = service.watch('/tmp/project', () => {}, { ignore: ['.git/**'] });
+
+    await waitFor(() => childService.watches.length === 2);
+    const options = new Map(
+      childService.watches.map((watch) => [
+        watch.root,
+        { ignore: watch.options?.ignore, backend: watch.options?.backend },
+      ])
+    );
+    expect(options.get(realpathOrResolve('/tmp/project/.git'))).toEqual({
+      ignore: ['objects/**'],
+      backend: 'os',
+    });
+    expect(options.get(realpathOrResolve('/tmp/project'))).toEqual({
+      ignore: ['.git/**'],
+      backend: 'auto',
+    });
+
+    for (const watch of childService.watches) watch.readyDeferred.resolve(ok(undefined));
+    await Promise.all([requireWatchReady(pinned), requireWatchReady(defaulted)]);
+    await pinned.release();
+    await defaulted.release();
     wire.dispose();
     await scope.dispose();
   });

@@ -56,6 +56,29 @@ describe('resolveInstanceRemote', () => {
       error: { type: 'invalid_input', message: 'A valid Forgejo instance URL is required.' },
     });
   });
+
+  it('parses a remote on an instance with a non-default port (#3395)', () => {
+    expect(
+      resolveInstanceRemote(
+        'http://192.0.2.10:3100/owner/repo.git',
+        'http://192.0.2.10:3100',
+        'Forgejo'
+      )
+    ).toEqual({
+      success: true,
+      data: { host: '192.0.2.10:3100', slug: 'owner/repo' },
+    });
+    expect(
+      resolveRemoteRepository(
+        'http://192.0.2.10:3100/owner/repo.git',
+        'http://192.0.2.10:3100',
+        'Forgejo'
+      )
+    ).toEqual({
+      success: true,
+      data: { owner: 'owner', repo: 'repo', slug: 'owner/repo' },
+    });
+  });
 });
 
 describe('resolveRemoteRepository', () => {

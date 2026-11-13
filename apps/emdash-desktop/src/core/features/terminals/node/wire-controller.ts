@@ -332,17 +332,16 @@ async function resolveTerminalContext(
   if (!launchContext.success) return launchContext;
 
   const identity = launchContext.data.workspace;
+  const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
   const gitCredentials = await options.resolveSessionGitCredentials({
+    sessionId,
     projectId: terminal.projectId,
     host: identity.host,
   });
   return ok({
     identity,
     workspace: workspaceRef(identity),
-    key: toTerminalKey(
-      identity,
-      makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
-    ),
+    key: toTerminalKey(identity, sessionId),
     tmuxEnabled: launchContext.data.tmux,
     shellSetup: launchContext.data.shellSetup,
     taskEnvVars: launchContext.data.env,

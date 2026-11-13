@@ -10,6 +10,7 @@ import type {
   DurableStoreConfig,
   SqliteConnection,
   StoreHandle,
+  SynchronousResult,
   TempMigrationHandle,
   TempStoreHandle,
 } from '../api';
@@ -68,7 +69,7 @@ function openStoreConnection<TDb, TNative, TSchemaResult>(
     return {
       db,
       connection,
-      transaction: <T>(operation: () => T) => {
+      transaction: <T>(operation: () => SynchronousResult<T>) => {
         if (closed) throw new Error(`SQLite store ${config.name} is closed`);
         return inTransaction(connection, operation);
       },

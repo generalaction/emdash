@@ -6,11 +6,14 @@ import {
   mkdtempSync,
   openSync,
   readdirSync,
+  readSync,
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { findUndeclaredLibraries, parseNeededLibraries } from './lib/linux-dependencies.ts';
+import type { LinuxPackageFormat } from './lib/linux-dependencies.ts';
 import {
   isLinuxArch,
   linuxArtifactName,
@@ -24,6 +27,7 @@ import type { LinuxArch, LinuxTarget } from './lib/linux-release.ts';
 import { fail, info } from './lib/log.ts';
 
 const DEFAULT_MAX_GLIBC = '2.35';
+const ELF_MAGIC = Buffer.from([0x7f, 0x45, 0x4c, 0x46]);
 const RELEASE_DIR = 'release';
 const maxGlibc = process.env.EMDASH_MAX_GLIBC ?? DEFAULT_MAX_GLIBC;
 
@@ -96,6 +100,68 @@ function verifyPackageMetadata(file: string, target: LinuxTarget, arch: LinuxArc
   }
 }
 
+function isElfFile(file: string): boolean {
+  const fd = openSync(file, 'r');
+  try {
+    const magic = Buffer.alloc(ELF_MAGIC.length);
+    return readSync(fd, magic, 0, magic.length, 0) === magic.length && magic.equals(ELF_MAGIC);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function declaredDependencies(artifact: string, format: LinuxPackageFormat): Set<string> {
+  const dependencies =
+    format === 'deb'
+      ? command('dpkg-deb', ['-f', artifact, 'Depends']).split(',')
+      : command('rpm', ['-qp', '--requires', artifact]).split('\n');
+  return new Set(dependencies.map((dependency) => dependency.trim()));
+}
+
+/**
+ * Checks that the package declares a dependency for every system library its Electron binaries
+ * and runtime native modules link against. Otherwise the package manager installs it on a minimal
+ * system and the executable fails to start with "cannot open shared object file".
+ */
+function verifyDeclaredLibraries(
+  artifact: string,
+  format: LinuxPackageFormat,
+  root: string,
+  executableFile: string,
+  nativeModules: readonly string[]
+): void {
+  const appDir = path.dirname(executableFile);
+  const appBinaries = readdirSync(appDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(appDir, entry.name))
+    .filter(isElfFile);
+  const neededByFile = new Map(
+    [...appBinaries, ...nativeModules].map((file) => [
+      path.relative(root, file),
+      parseNeededLibraries(command('objdump', ['-p', file])),
+    ])
+  );
+  const bundledLibraries = new Set(appBinaries.map((file) => path.basename(file)));
+  const undeclared = findUndeclaredLibraries(
+    format,
+    neededByFile,
+    bundledLibraries,
+    declaredDependencies(artifact, format)
+  );
+  if (undeclared.length > 0) {
+    const details = undeclared
+      .map(({ library, neededBy, dependency }) => {
+        const fix =
+          dependency === undefined
+            ? 'add it to SYSTEM_LIBRARIES in lib/linux-dependencies.ts'
+            : `${format} must depend on "${dependency}"`;
+        return `  ${library}: ${fix} (needed by ${neededBy.join(', ')})`;
+      })
+      .join('\n');
+    fail(`${artifact} does not declare dependencies for linked system libraries:\n${details}`);
+  }
+}
+
 function extractPackage(artifact: string, target: LinuxTarget, destination: string): string {
   const absoluteArtifact = path.resolve(artifact);
   mkdirSync(destination, { recursive: true });
@@ -134,6 +200,7 @@ function extractPackage(artifact: string, target: LinuxTarget, destination: stri
 }
 
 function verifyExtractedPayload(
+  artifact: string,
   root: string,
   target: LinuxTarget,
   arch: LinuxArch,
@@ -180,6 +247,9 @@ function verifyExtractedPayload(
     const details = violations.map(({ file, version }) => `  ${file}: GLIBC_${version}`).join('\n');
     fail(`${target} native modules require GLIBC newer than ${maxGlibc}:\n${details}`);
   }
+  if (target !== 'AppImage') {
+    verifyDeclaredLibraries(artifact, target, root, executables[0], nativeModules);
+  }
   return nativeModules.length;
 }
 
@@ -206,7 +276,13 @@ try {
 
     const destination = path.join(verificationDir, target.toLowerCase());
     const payload = extractPackage(artifact, target, destination);
-    inspectedNativeModules += verifyExtractedPayload(payload, target, archInput, executable);
+    inspectedNativeModules += verifyExtractedPayload(
+      artifact,
+      payload,
+      target,
+      archInput,
+      executable
+    );
   }
 } finally {
   rmSync(verificationDir, { recursive: true, force: true });

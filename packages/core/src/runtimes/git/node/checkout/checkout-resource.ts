@@ -81,7 +81,7 @@ export class CheckoutResource {
     };
     this.fileContents = new GitFileContentRegistry({
       commands: this.commands,
-      execute: (run) => this.repository.execute(run),
+      execute: (run, signal) => this.repository.readContent(signal, run),
       maxEntries: options.maxFileContentStates,
       onError: this.onError,
     });

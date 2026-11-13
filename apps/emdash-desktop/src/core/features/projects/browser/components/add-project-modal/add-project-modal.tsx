@@ -30,6 +30,7 @@ import type { SshConfig } from '@core/primitives/ssh/api';
 import { ClonePanel, CreateRepositoryPanel, PickExistingPanel } from './content';
 import { LocationSelector } from './location-selector';
 import { extractRepoName, useCloneMode, useCreateRepositoryMode, usePickMode } from './modes';
+import { UntrustedRepositoryNotice } from './untrusted-repository-notice';
 import { useProjectName } from './use-project-name';
 
 export type Strategy = 'local' | 'ssh';
@@ -70,6 +71,7 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
   const openIntegrationSetup = useOpenModal('integrationSetupModal');
+  const openConfirmAction = useOpenModal('confirmActionModal');
   const getProjectsClient = useCallback(async () => await getProjectsWireClient(), []);
 
   const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
@@ -192,6 +194,34 @@ export const AddProjectModal = observer(function AddProjectModal({
     !pickPathStatusQuery.data.error &&
     pickPathStatusQuery.data.isGitRepo === false;
   const isCheckingPickPathStatus = shouldCheckPickPathStatus && pickPathStatusQuery.isPending;
+
+  const renderUntrustedRepositoryNotice = () => {
+    if (pickPathInspectionError?.type !== 'inspect-failed') return undefined;
+    const { path, dubiousOwnership } = pickPathInspectionError;
+    if (!dubiousOwnership) return undefined;
+    const host: ProjectHostParams =
+      strategy === 'ssh' && selectedConnectionId
+        ? { type: 'ssh', connectionId: selectedConnectionId }
+        : { type: 'local' };
+    const machineName = availableConnections.find(
+      (connection) => connection.id === selectedConnectionId
+    )?.name;
+    return (
+      <UntrustedRepositoryNotice
+        dubiousOwnership={dubiousOwnership}
+        hostLabel={host.type === 'ssh' ? (machineName ?? 'the remote machine') : 'this computer'}
+        confirm={async (confirmation) => (await openConfirmAction(confirmation)).success}
+        trust={async () =>
+          (await getProjectsWireClient()).trustRepository({
+            host,
+            path,
+            safeDirectory: dubiousOwnership.safeDirectory,
+          })
+        }
+        onTrusted={() => pickPathStatusQuery.refetch()}
+      />
+    );
+  };
 
   const canSubmit =
     activeMode.isValid &&
@@ -371,6 +401,7 @@ export const AddProjectModal = observer(function AddProjectModal({
               state={pickState}
               getProjectsClient={getProjectsClient}
               inspectionError={pickPathInspectionError?.message}
+              untrustedRepositoryNotice={renderUntrustedRepositoryNotice()}
               showInitializeGitPrompt={requiresGitInitialization}
             />
           )}

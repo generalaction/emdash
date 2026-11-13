@@ -1,3 +1,4 @@
+import type { SynchronousResult } from '@emdash/core/primitives/sqlite-store/api';
 import type Database from 'better-sqlite3';
 
 export function quoteIdentifier(identifier: string): string {
@@ -42,6 +43,18 @@ export function withForeignKeysDisabled<T>(sqlite: Database.Database, action: ()
   } finally {
     sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
   }
+}
+
+/**
+ * Runs `action` as one synchronous IMMEDIATE transaction with foreign keys disabled. Being
+ * synchronous, no other work on the shared connection can run (and silently join it) before it
+ * commits or rolls back.
+ */
+export function importAtomically<T>(
+  sqlite: Database.Database,
+  action: () => SynchronousResult<T>
+): T {
+  return withForeignKeysDisabled(sqlite, () => sqlite.transaction(action).immediate());
 }
 
 export function withForeignKeysEnabled<T>(sqlite: Database.Database, action: () => T): T {

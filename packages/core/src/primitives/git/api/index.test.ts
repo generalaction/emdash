@@ -13,6 +13,7 @@ describe('Git discovery diagnostics', () => {
 
   it.each([
     'fatal: not a git repository: /repo/missing-git-directory',
+    'fatal: gitfile does not point to a valid repository: /repo/.git',
     'fatal: not a git directory: /repo/.git',
     'fatal: invalid gitfile format: /repo/.git',
     'fatal: this operation must be run in a work tree',

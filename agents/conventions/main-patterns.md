@@ -110,3 +110,17 @@ taskEvents.emit(undefined, { type: 'created', task });
 
 Event definitions belong to the owning slice's portable API. Use live models for replicated state
 and live jobs for cancellable long-running work.
+
+## Child Processes
+
+Run background commands through the shared launchers: `createBoundExec` / `NodeExecutionContext`
+(`packages/core/src/services/exec/api/`) or a direct `child_process` call that plans the command
+with `planExecutableLaunch` (`packages/core/src/primitives/exec/node/`).
+
+**Rules:**
+- Spawn every background child with `windowsHide: true`. Emdash has no console on Windows, so a
+  console program (git, `where`, cmd.exe running a `.cmd` shim) spawned without it gets its own
+  console window, which Windows 11 shows as a Windows Terminal tab.
+- Only launches of user-facing apps (open-in editors, external terminals) omit the flag, because
+  hiding also applies to the launched app's first window.
+- Interactive terminals and agent TUIs use the PTY plane instead (see `agents/risky-areas/pty.md`).

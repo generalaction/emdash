@@ -46,7 +46,7 @@ export const legacyPortOperations = {
     try {
       legacyDb = hasLegacyDb ? openLegacyReadOnly(legacyPath) : null;
       betaSqlite = hasBetaDb ? openLegacyReadOnly(betaPath) : null;
-      return await createLegacyPortPreview({
+      return createLegacyPortPreview({
         appDb: getAppDb(),
         betaDb: betaSqlite ? drizzle(betaSqlite, { schema }) : null,
         legacyDb,
@@ -57,7 +57,7 @@ export const legacyPortOperations = {
       log.warn('legacy-port controller: failed to read preview counts', {
         error: error instanceof Error ? error.message : String(error),
       });
-      return await createLegacyPortPreview({
+      return createLegacyPortPreview({
         appDb: getAppDb(),
         betaDb: null,
         legacyDb: null,

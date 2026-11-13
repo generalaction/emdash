@@ -46,6 +46,9 @@ export const tasksWireContract = defineContract({
     input: z.object({ projectId: z.string(), taskIds: z.array(z.string()) }),
     output: z.custom<DeletePreflightResult>(),
   }),
+  // Deleting (`deleteTask`, `deleteTasks`, `delete`) and tearing down a task wait for host
+  // work with no fixed bound — teardown scripts, worktree removal — so they carry no call
+  // deadline. Main bounds the teardown itself.
   deleteTask: procedure({
     input: z.object({
       projectId: z.string(),
@@ -53,6 +56,7 @@ export const tasksWireContract = defineContract({
       options: z.custom<DeleteTaskOptions>().optional(),
     }),
     output: z.void(),
+    callTimeoutMs: 0,
   }),
   deleteTasks: procedure({
     input: z.object({
@@ -61,10 +65,12 @@ export const tasksWireContract = defineContract({
       options: z.custom<DeleteTaskOptions>().optional(),
     }),
     output: z.void(),
+    callTimeoutMs: 0,
   }),
   teardownTask: procedure({
     input: z.object({ projectId: z.string(), taskId: z.string() }),
     output: z.custom<Result<void, { type: string; message: string; timeout?: number }>>(),
+    callTimeoutMs: 0,
   }),
   generateTaskName: procedure({
     input: z.object({ title: z.string().optional(), description: z.string().optional() }),
@@ -123,6 +129,7 @@ export const tasksWireContract = defineContract({
     input: deleteTaskInputSchema,
     data: mutationAckSchema,
     error: mutationErrorSchema,
+    callTimeoutMs: 0,
   }),
 });
 

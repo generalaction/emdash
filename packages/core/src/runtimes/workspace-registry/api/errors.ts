@@ -88,15 +88,43 @@ export const updateWorktreeErrorSchema = z.discriminatedUnion('type', [
 ]);
 export type UpdateWorktreeError = z.infer<typeof updateWorktreeErrorSchema>;
 
+/** `git clean -ndX` (the artifact-root listing) failed in the workspace. */
+const artifactListingFailedErrorSchema = z.object({
+  type: z.literal('git-command-failed'),
+  message: z.string(),
+});
+const artifactFilesystemErrorSchema = z.object({
+  type: z.literal('filesystem-error'),
+  message: z.string(),
+});
+/** git reported an ignored artifact outside the workspace tree; nothing is measured or removed. */
+const unsafeArtifactPathErrorSchema = z.object({
+  type: z.literal('unsafe-artifact-path'),
+  message: z.string(),
+});
+
 export const measureUsageErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('workspace-not-found'), workspaceId: z.string() }),
-  /** `git clean -ndX` (the artifact-root listing) failed in the workspace. */
-  z.object({ type: z.literal('git-command-failed'), message: z.string() }),
-  z.object({ type: z.literal('filesystem-error'), message: z.string() }),
-  /** git reported an ignored artifact outside the workspace tree; measurement refused. */
-  z.object({ type: z.literal('unsafe-artifact-path'), message: z.string() }),
+  artifactListingFailedErrorSchema,
+  artifactFilesystemErrorSchema,
+  unsafeArtifactPathErrorSchema,
 ]);
 export type MeasureUsageError = z.infer<typeof measureUsageErrorSchema>;
+
+/**
+ * cleanArtifacts' outcomes. Every refusal leaves the workspace untouched; a
+ * 'filesystem-error' after removal began means the artifacts that could go are gone.
+ */
+export const cleanArtifactsErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('workspace-not-found'), workspaceId: z.string() }),
+  z.object({ type: z.literal('workspace-missing'), workspaceId: z.string() }),
+  /** Live sessions under the workspace: artifacts never vanish under running tools. */
+  z.object({ type: z.literal('workspace-active'), workspaceId: z.string() }),
+  artifactListingFailedErrorSchema,
+  artifactFilesystemErrorSchema,
+  unsafeArtifactPathErrorSchema,
+]);
+export type CleanArtifactsError = z.infer<typeof cleanArtifactsErrorSchema>;
 
 export const createWorktreeErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('repository-not-found'), repositoryId: z.string() }),

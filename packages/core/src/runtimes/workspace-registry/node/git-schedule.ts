@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { nativePathIdentityKey } from '#primitives/path/api';
+import { ExecError } from '#services/exec/api';
 
 /**
  * Priority classes for registry-spawned subprocesses (spec: workspace-lifecycle-v2,
@@ -208,8 +209,14 @@ const TRANSIENT_LOCK_PATTERNS = [
 
 /** True for git's "another process holds the lock" failures — retryable by design. */
 export function isTransientLockError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return TRANSIENT_LOCK_PATTERNS.some((pattern) => pattern.test(message));
+  // Match git's raw stderr: an ExecError's message is redacted and truncated for sharing.
+  const diagnostic =
+    error instanceof ExecError
+      ? error.stderr
+      : error instanceof Error
+        ? error.message
+        : String(error);
+  return TRANSIENT_LOCK_PATTERNS.some((pattern) => pattern.test(diagnostic));
 }
 
 export type RetryTransientLockOptions = {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ExecError } from '#services/exec/api';
-import { gitFailure, isMissingObject, pushFailed } from './errors';
+import { commandFailed, gitFailure, isMissingObject, pushFailed } from './errors';
+
+// Shaped like a GitHub token without being one.
+const GITHUB_TOKEN = `ghp_${'a'.repeat(36)}`;
 
 function execError(stderr: string, exitCode = 128, stdout = ''): ExecError {
   return new ExecError('git', ['test'], exitCode, stdout, stderr);
@@ -12,11 +15,43 @@ describe('Git execution errors', () => {
       exitCode: 1,
       message: 'fatal: failed',
       stderr: 'fatal: failed',
-      stdout: 'fallback',
     });
 
     const bug = new TypeError('executor bug');
     expect(() => gitFailure(bug)).toThrow(bug);
+  });
+
+  it('shares Git diagnostics without the secrets they contain', () => {
+    const stderr = `fatal: unable to access 'https://ci:${GITHUB_TOKEN}@github.com/x/y.git/': The requested URL returned error: 403`;
+
+    const result = commandFailed(execError(stderr));
+
+    expect(JSON.stringify(result)).not.toContain(GITHUB_TOKEN);
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'git_error',
+        message: expect.stringContaining("'https://[REDACTED_CREDENTIALS]@github.com/x/y.git/'"),
+        stderr: expect.stringContaining('[REDACTED_CREDENTIALS]'),
+      },
+    });
+  });
+
+  it('shares a stdout-only diagnostic without its secrets', () => {
+    expect(gitFailure(execError('', 1, `hook: token=${GITHUB_TOKEN}`)).message).toBe(
+      'hook: token=[REDACTED]'
+    );
+  });
+
+  it('still classifies a diagnostic that carried a secret', () => {
+    const result = pushFailed(
+      execError(
+        `remote: Invalid username or token.\nfatal: Authentication failed for 'https://ci:${GITHUB_TOKEN}@github.com/x/y.git/'`
+      )
+    );
+
+    expect(result).toMatchObject({ success: false, error: { type: 'auth_required' } });
+    expect(JSON.stringify(result)).not.toContain(GITHUB_TOKEN);
   });
 
   it.each([

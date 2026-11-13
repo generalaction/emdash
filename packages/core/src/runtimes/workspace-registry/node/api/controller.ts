@@ -26,6 +26,7 @@ export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRunt
     patchPersonalProjectConfig: (input) => runtime.patchPersonalProjectConfig(input),
     importLegacyLifecycleSettings: (input) => runtime.importLegacyLifecycleSettings(input),
     activateWorkspace: (input) => runtime.activateWorkspace(input),
+    cleanArtifacts: (input) => runtime.cleanArtifacts(input),
     createWorkspace: (input) => runtime.createWorkspace(input),
     createWorktree: (input) => runtime.createWorktree(input),
     deactivateWorkspace: (input) => runtime.deactivateWorkspace(input),

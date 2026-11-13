@@ -20,6 +20,7 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
     triggerConfig,
     cronTz,
     canSave,
+    saveBlockedReason,
     buildTaskConfig,
     name,
     workspaceConfig,
@@ -27,15 +28,14 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
   } = formState;
   const availability = useAutomationTargetAvailability(effectiveProjectId);
 
-  function savePatch(overrideTrigger?: TriggerConfig) {
+  function savePatch() {
     if (!editable) return;
     if (!effectiveProjectId || !provider) return;
-    const activeTrigger = overrideTrigger ?? triggerConfig;
     const taskConfig = buildTaskConfig(effectiveProjectId);
     const conversationConfig = formState.buildConversationConfig();
     if (!taskConfig || !conversationConfig) return;
     try {
-      assertValidCronTrigger(activeTrigger);
+      assertValidCronTrigger(triggerConfig);
     } catch {
       return;
     }
@@ -43,7 +43,7 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
     void update.mutateAsync({
       id: automation.id,
       patch: {
-        triggerConfig: activeTrigger,
+        triggerConfig,
         conversationConfig,
         taskConfig,
         projectId: effectiveProjectId,
@@ -53,7 +53,17 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
 
   function setCronExpr(expr: string) {
     formState.setCronExpr(expr);
-    savePatch({ expr, tz: cronTz });
+    if (!editable) return;
+    // The schedule needs nothing else from the form, so save it on its own:
+    // an invalid form neither holds it back nor gets its fallback workspace
+    // config saved along with it.
+    const nextTrigger: TriggerConfig = { expr, tz: cronTz };
+    try {
+      assertValidCronTrigger(nextTrigger);
+    } catch {
+      return;
+    }
+    void update.mutateAsync({ id: automation.id, patch: { triggerConfig: nextTrigger } });
   }
 
   // These controls live inside the initialConversation sub-hook. Persist changes
@@ -105,7 +115,9 @@ export function useAutomationSettingsAutoSave(automation: Automation, editable =
     ? formatAutomationError(update.error)
     : availability.data?.available === false
       ? availability.data.reason
-      : null;
+      : // Edits other than the schedule autosave only while the form can be
+        // saved; say why they stopped.
+        (saveBlockedReason ?? null);
 
   return {
     formState,

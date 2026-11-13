@@ -132,6 +132,7 @@ running (doctor reports it). See
 | --- | --- | --- |
 | Local packaging | `pnpm run package` / `package:mac` / `package:linux` / `package:win` | `apps/emdash-desktop/` |
 | Packaged language-server regression check | `EMDASH_TEST_PACKAGED_LSP=1 pnpm exec vitest run --project scripts scripts/release/lib/packaged-language-servers.test.ts` | `apps/emdash-desktop/` |
+| Packaged SSH regression check | `EMDASH_TEST_PACKAGED_SSH=1 pnpm exec vitest run --project scripts scripts/release/lib/packaged-ssh.test.ts` | `apps/emdash-desktop/` |
 | Rebuild native deps | `pnpm run rebuild` | `apps/emdash-desktop/` |
 | Lint-infra allowlists | `pnpm run prune:boundary-allowlists` | root |
 | Task graph | `pnpm run graph` | root |
@@ -139,6 +140,11 @@ running (doctor reports it). See
 
 - Local packaging without signing identities still produces installable
   artifacts; mac builds are unsigned/un-notarized and Gatekeeper will warn.
+- The packaged SSH check builds small stable/canary apps through the production main-process
+  configuration and packaging rules, then imports the emitted `ssh2` specifiers using the shipped
+  Electron runtime. Windows also checks that the relative Pageant helper is present and unpacked.
+  Release builds run the same check on the full finished app when its architecture matches the
+  build host. Keep `ssh2` external: its helpers and optional native crypto use package-relative paths.
 - The packaged language-server check requires built workspace dependencies and
   lets electron-builder download/cache the pinned Electron binary. It builds small
   stable/canary apps using the production

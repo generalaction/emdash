@@ -16,6 +16,7 @@ import {
 import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
 import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/use-task-name';
 import {
+  MISSING_BRANCH_REASON,
   useWorkspaceConfig,
   type WorkspaceConfigInitial,
 } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
@@ -192,6 +193,9 @@ export function useAutomationFormState(
     providerSupportsAutomationPrompt &&
     !!effectiveProjectId &&
     workspaceConfig.isValid;
+  // The base branch is the one required input the form fills in by itself, out
+  // of sight in Workspace Settings, so it is the blocker worth explaining.
+  const saveBlockedReason = workspaceConfig.missingBranch ? MISSING_BRANCH_REASON : undefined;
 
   function buildTaskConfig(targetProjectId: string): StoredAutomationTaskConfig | null {
     const effectiveRepoWsId =
@@ -270,6 +274,7 @@ export function useAutomationFormState(
     provider,
     model,
     canSave,
+    saveBlockedReason,
     triggerConfig,
     applyTemplate,
     buildTaskConfig,

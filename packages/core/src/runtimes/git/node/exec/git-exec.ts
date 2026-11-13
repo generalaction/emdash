@@ -7,7 +7,7 @@ import {
   type ExecResult,
   type ExecSpawnOptions,
 } from '#services/exec/api';
-import { gitRuntimeEnv } from '../non-interactive-env';
+import { nonInteractiveGitEnv } from '#services/exec/node/git-exec';
 
 export type CreateGitExecOptions = {
   cwd: string;
@@ -15,29 +15,12 @@ export type CreateGitExecOptions = {
   env: NodeJS.ProcessEnv | EnvSource;
 };
 
-/**
- * Full child environment for git invocations. Git needs the process env (PATH, HOME,
- * SSH_AUTH_SOCK, credential helpers), so it is composed in deliberately — exec itself
- * never merges `process.env`.
- */
-export function gitEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env = gitRuntimeEnv(base);
-  return {
-    ...env,
-    LC_ALL: 'C',
-    LANG: 'C',
-    LANGUAGE: 'C',
-    GIT_TERMINAL_PROMPT: '0',
-    GCM_INTERACTIVE: 'never',
-    GIT_ASKPASS: '',
-    SSH_ASKPASS: '',
-    ...(env.GIT_SSH_COMMAND ? {} : { GIT_SSH_COMMAND: 'ssh -o BatchMode=yes' }),
-  };
-}
-
 export function createGitExec(options: CreateGitExecOptions): BoundExec {
   const source = options.env;
-  const env = typeof source === 'function' ? async () => gitEnv(await source()) : gitEnv(source);
+  const env =
+    typeof source === 'function'
+      ? async () => nonInteractiveGitEnv(await source())
+      : nonInteractiveGitEnv(source);
   return createBoundExec({
     file: options.executable ?? 'git',
     cwd: options.cwd,

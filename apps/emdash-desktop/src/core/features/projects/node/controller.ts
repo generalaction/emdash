@@ -16,6 +16,7 @@ import { getProjects } from './operations/getProjects';
 import { initializeRepository } from './operations/initialize-repository';
 import { renameProject } from './operations/renameProject';
 import { resolveRepositoryDestination } from './operations/resolve-repository-destination';
+import { trustProjectRepository } from './operations/trust-repository';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingProviderAccount } from './settings/count-projects-using-provider-account';
 
@@ -34,6 +35,8 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
       createProject(dependencies, params),
     inspectProjectPath: (params: Parameters<typeof inspectProjectPath>[1]) =>
       inspectProjectPath(dependencies, params),
+    trustRepository: (host: HostRef, path: string, safeDirectory: string) =>
+      trustProjectRepository(dependencies, host, path, safeDirectory),
     initializeRepository: (projectId: string) => initializeRepository(dependencies, projectId),
     resolveRepositoryDestination: (input: Parameters<typeof resolveRepositoryDestination>[1]) =>
       resolveRepositoryDestination(placement, input),

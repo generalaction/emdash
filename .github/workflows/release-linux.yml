@@ -16,6 +16,10 @@ on:
         required: false
       POSTHOG_HOST:
         required: false
+      WAITLIST_SUPABASE_URL:
+        required: false
+      WAITLIST_SUPABASE_ANON_KEY:
+        required: false
 
 permissions:
   contents: write
@@ -58,6 +62,8 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          waitlist-supabase-url: ${{ secrets.WAITLIST_SUPABASE_URL }}
+          waitlist-supabase-anon-key: ${{ secrets.WAITLIST_SUPABASE_ANON_KEY }}
           build-variant: ${{ inputs.channel == 'canary' && 'canary' || 'prod' }}
           setup-python: 'false'
 

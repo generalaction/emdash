@@ -484,7 +484,7 @@ function spawnSpec(input: {
   return {
     invocation: resolved.invocation,
     cwd: input.cwd,
-    env: input.env,
+    env: resolved.env,
     cols: input.cols,
     rows: input.rows,
   };

@@ -1,7 +1,7 @@
 import { createEmitter, err, ok, type Emitter } from '@emdash/shared';
 import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
 import { abortableWait } from '@emdash/shared/scheduling';
-import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
+import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
 
@@ -69,7 +69,7 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
       if (terminalError) throw terminalError;
       if (disposed || serviceScope.disposed) throw new Error('FsWatchService disposed');
 
-      const key = normalizeWatchKey(root, watchOptions.ignore);
+      const key = normalizeWatchKey(root, watchOptions);
       const lease = channels.acquire(key);
       const consumerScope = serviceScope.child('consumer');
       consumers.add(consumerScope);
@@ -125,10 +125,11 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
   };
 }
 
-function normalizeWatchKey(root: string, ignore: string[] | undefined): WatchKey {
+function normalizeWatchKey(root: string, options: WatchOptions): WatchKey {
   return {
     root: realpathOrResolve(root),
-    ignore: [...(ignore ?? [])].sort(),
+    ignore: [...(options.ignore ?? [])].sort(),
+    backend: options.backend ?? 'auto',
   };
 }
 

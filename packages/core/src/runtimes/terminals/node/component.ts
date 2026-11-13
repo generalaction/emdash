@@ -2,6 +2,7 @@ import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { terminalsContract } from '#runtimes/terminals/api';
 import { NodeExecutionContext } from '#services/exec/api';
+import { gitCredentialChannelsContract } from '#services/git-credential-channels/api';
 import { createNodeTerminalShellResolver, NodePtySpawner } from '#services/pty/node';
 import { idlePolicyConfigSchema } from '#services/session-lifecycle/api';
 import { userShellEnvContract } from '#services/shell-env/api';
@@ -22,6 +23,7 @@ export const terminalsComponent = defineWireComponent({
   contract: terminalsContract,
   requirements: {
     userEnv: requireContract(userShellEnvContract),
+    gitCredentialChannels: requireContract(gitCredentialChannelsContract),
   },
   configSchema: terminalsComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
@@ -32,6 +34,7 @@ export const terminalsComponent = defineWireComponent({
       scope,
       lifecycle: config.lifecycle,
       createShellResolver: (env) => createNodeTerminalShellResolver({ env }),
+      releaseGitCredentialChannel: (nonce) => dependencies.gitCredentialChannels.release({ nonce }),
       logger,
     });
     scope.add(() => runtime.dispose());

@@ -47,12 +47,16 @@ describe('createWatchService', () => {
       ]);
 
       expect(backend.subscribeCount).toBe(1);
-      backend.emit({ root, ignore: ['a', 'b'] }, [{ kind: 'create', path: path.join(root, 'a') }]);
+      backend.emit({ root, ignore: ['a', 'b'], backend: 'auto' }, [
+        { kind: 'create', path: path.join(root, 'a') },
+      ]);
       expect(firstEvents).toHaveLength(1);
       expect(secondEvents).toHaveLength(1);
 
       await first.release();
-      backend.emit({ root, ignore: ['a', 'b'] }, [{ kind: 'update', path: path.join(root, 'b') }]);
+      backend.emit({ root, ignore: ['a', 'b'], backend: 'auto' }, [
+        { kind: 'update', path: path.join(root, 'b') },
+      ]);
       expect(firstEvents).toHaveLength(1);
       expect(secondEvents).toHaveLength(2);
 
@@ -62,6 +66,70 @@ describe('createWatchService', () => {
       await service.dispose();
     }
   });
+
+  it('keeps watches with different backend preferences on separate subscriptions', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-fs-watch-backend-'));
+    const backend = new FakeWatchBackend();
+    const service = createWatchService({ backend });
+    const pinnedEvents: WatchEvent[] = [];
+    const defaultEvents: WatchEvent[] = [];
+
+    try {
+      const pinned = service.watch(root, (events) => pinnedEvents.push(...events), {
+        ignore: ['a'],
+        backend: 'os',
+      });
+      const defaulted = service.watch(root, (events) => defaultEvents.push(...events), {
+        ignore: ['a'],
+      });
+      await requireWatchReady(pinned);
+      await requireWatchReady(defaulted);
+
+      expect(backend.subscribeCount).toBe(2);
+      backend.emit({ root, ignore: ['a'], backend: 'os' }, [
+        { kind: 'create', path: path.join(root, 'b') },
+      ]);
+      expect(pinnedEvents).toHaveLength(1);
+      expect(defaultEvents).toHaveLength(0);
+
+      await pinned.release();
+      await defaulted.release();
+      expect(backend.activeCount).toBe(0);
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it.each([
+    { platform: 'linux', backend: 'os', expected: { ignore: ['objects/**'], backend: 'inotify' } },
+    { platform: 'win32', backend: 'os', expected: { ignore: ['objects/**'], backend: 'windows' } },
+    { platform: 'darwin', backend: 'os', expected: { ignore: ['objects/**'] } },
+    { platform: 'linux', backend: undefined, expected: { ignore: ['objects/**'] } },
+    { platform: 'win32', backend: 'auto', expected: { ignore: ['objects/**'] } },
+  ] as const)(
+    'maps backend preference $backend to the Parcel backend on $platform',
+    async ({ platform, backend, expected }) => {
+      const root = await mkdtemp(path.join(tmpdir(), 'emdash-native-backend-'));
+      const unsubscribe = vi.fn(async () => {});
+      const subscribe = vi.fn<ParcelSubscribeFn>(async () => ({ unsubscribe }));
+      const service = createWatchService({
+        backend: nativeWatchBackend({ subscribe, platform }),
+      });
+
+      try {
+        const handle = service.watch(root, () => {}, { ignore: ['objects/**'], backend });
+        await requireWatchReady(handle);
+
+        expect(subscribe).toHaveBeenCalledOnce();
+        expect(subscribe.mock.calls[0]?.[0]).toBe(realpathOrResolve(root));
+        expect(subscribe.mock.calls[0]?.[2]).toEqual(expected);
+        await handle.release();
+        expect(unsubscribe).toHaveBeenCalledOnce();
+      } finally {
+        await service.dispose();
+      }
+    }
+  );
 
   it('applies debounce per consumer and forwards resync signals', async () => {
     vi.useFakeTimers();
@@ -80,7 +148,7 @@ describe('createWatchService', () => {
       });
       await expect(handle.ready()).resolves.toEqual(ok(undefined));
 
-      backend.emit({ root, ignore: [] }, [
+      backend.emit({ root, ignore: [], backend: 'auto' }, [
         { kind: 'create', path: path.join(root, 'first') },
         { kind: 'update', path: path.join(root, 'second') },
       ]);
@@ -89,7 +157,7 @@ describe('createWatchService', () => {
       await vi.advanceTimersByTimeAsync(10);
       expect(events).toHaveLength(2);
 
-      backend.resync({ root, ignore: [] });
+      backend.resync({ root, ignore: [], backend: 'auto' });
       expect(resyncs).toBe(1);
 
       await handle.release();
@@ -700,7 +768,11 @@ function createNativeWatchService() {
 }
 
 function keyOf(key: WatchKey): string {
-  return JSON.stringify({ root: realpathOrResolve(key.root), ignore: [...key.ignore].sort() });
+  return JSON.stringify({
+    root: realpathOrResolve(key.root),
+    ignore: [...key.ignore].sort(),
+    backend: key.backend,
+  });
 }
 
 function deferred<T = void>(): {

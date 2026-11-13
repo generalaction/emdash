@@ -10,6 +10,7 @@ export type {
   MigrationInterop,
   SqliteStoreBase,
   StoreHandle,
+  SynchronousResult,
   TempMigrationHandle,
   TempStoreHandle,
 } from './types';

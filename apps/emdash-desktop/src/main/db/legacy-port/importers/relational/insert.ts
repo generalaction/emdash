@@ -7,19 +7,19 @@ export type InsertWithRegeneratedIdResult = {
   error?: unknown;
 };
 
-export async function insertWithRegeneratedId(args: {
+export function insertWithRegeneratedId(args: {
   initialId: string;
   existingIds: ReadonlySet<string>;
   uniqueConstraintDetail: string;
   setId: (id: string) => void;
-  insert: () => Promise<unknown>;
-}): Promise<InsertWithRegeneratedIdResult> {
+  insert: () => unknown;
+}): InsertWithRegeneratedIdResult {
   let nextId = args.existingIds.has(args.initialId) ? randomUUID() : args.initialId;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       args.setId(nextId);
-      await args.insert();
+      args.insert();
       return { inserted: true, id: nextId };
     } catch (error) {
       if (attempt === 0 && isUniqueConstraintError(error, args.uniqueConstraintDetail)) {

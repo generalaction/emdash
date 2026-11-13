@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { cp, glob, lstat, mkdir, readlink, rename, rm, stat, symlink } from 'node:fs/promises';
+import { cp, lstat, mkdir, readlink, rename, rm, stat, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { EMDASH_CONFIG_FILE } from '#primitives/emdash-config/api';
 import type { RegistryGitContext } from './git-context';
+import { resolvePreservedEntries, type PreservedEntries } from './preserve-patterns';
 
 const execFileAsync = promisify(execFile);
 
@@ -49,25 +49,16 @@ export async function executeCopyArtifacts(
     return { status: 'skipped', reason: 'No preservePatterns configured' };
   }
 
-  const warnings: string[] = [];
-  const safePatterns: string[] = [];
-  for (const pattern of input.preservePatterns) {
-    if (!isSafePattern(pattern)) {
-      warnings.push(`Skipped unsafe preserve pattern "${pattern}"`);
-      continue;
-    }
-    safePatterns.push(pattern);
-  }
-  if (safePatterns.length === 0) {
-    return { status: 'succeeded', engine: 'none', entries: 0, warnings };
-  }
-
-  let candidates: string[];
+  let preserved: PreservedEntries;
   try {
-    candidates = await resolvePatternMatches(input.repositoryPath, safePatterns);
+    preserved = await resolvePreservedEntries(input.repositoryPath, input.preservePatterns);
   } catch (error) {
     return { status: 'failed', message: `Could not resolve preserve patterns: ${message(error)}` };
   }
+  const warnings = preserved.unsafePatterns.map(
+    (pattern) => `Skipped unsafe preserve pattern "${pattern}"`
+  );
+  const candidates = preserved.entries;
 
   let accepted: string[];
   try {
@@ -112,34 +103,6 @@ export async function executeCopyArtifacts(
     };
   }
   return { status: 'succeeded', engine, entries, warnings };
-}
-
-/**
- * Resolves the preserve patterns against the source checkout and reduces the matches
- * to top-level entries: a match nested inside another matched directory rides its
- * parent. Matches are repo-relative POSIX paths.
- */
-async function resolvePatternMatches(
-  repositoryPath: string,
-  patterns: string[]
-): Promise<string[]> {
-  const matched = new Set<string>();
-  for await (const match of glob(patterns, { cwd: repositoryPath })) {
-    const relative = match.split(path.sep).join('/');
-    if (relative === EMDASH_CONFIG_FILE || relative === '.git' || relative.startsWith('.git/')) {
-      continue;
-    }
-    matched.add(relative);
-  }
-
-  const sorted = [...matched].sort();
-  const topLevel: string[] = [];
-  for (const entry of sorted) {
-    const last = topLevel[topLevel.length - 1];
-    if (last !== undefined && entry.startsWith(`${last}/`)) continue;
-    topLevel.push(entry);
-  }
-  return topLevel;
 }
 
 /**
@@ -291,11 +254,6 @@ async function cowClone(source: string, destination: string): Promise<void> {
     return;
   }
   throw new Error(`No copy-on-write tier on ${process.platform}`);
-}
-
-function isSafePattern(pattern: string): boolean {
-  if (!pattern || path.isAbsolute(pattern)) return false;
-  return !pattern.split(/[\\/]/).some((part) => part === '..');
 }
 
 function isContainedBy(root: string, target: string): boolean {

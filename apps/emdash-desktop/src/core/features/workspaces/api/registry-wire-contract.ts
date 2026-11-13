@@ -43,6 +43,7 @@ export const workspaceClaimErrorSchema = z.discriminatedUnion('type', [
  * longer reach. Verbs are 1:1 pass-throughs to the host registry contract plus the host
  * ref — the desktop mints UUIDs for the create verbs and fails fast with a typed
  * runtime-resolve error when the host is unreachable; nothing is queued, ever.
+ * Pass-throughs of the host verbs without a call deadline have none here either.
  */
 export const workspaceRegistryWireContract = defineContract({
   /** Mirror rows (record + annotations + host ref); never touches the host. */
@@ -88,30 +89,35 @@ export const workspaceRegistryWireContract = defineContract({
       workspaceClaimErrorSchema,
       runtimeResolveErrorSchema,
     ]),
+    callTimeoutMs: 0,
   }),
 
   activateWorkspace: fallible({
     input: workspaceKeyInput,
     data: workspaceRecordSchema,
     error: z.union([activateWorkspaceErrorSchema, runtimeResolveErrorSchema]),
+    callTimeoutMs: 0,
   }),
 
   deactivateWorkspace: fallible({
     input: workspaceKeyInput,
     data: z.void(),
     error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
+    callTimeoutMs: 0,
   }),
 
   deleteWorkspace: fallible({
     input: workspaceKeyInput,
     data: z.void(),
     error: z.union([deleteWorkspaceErrorSchema, runtimeResolveErrorSchema]),
+    callTimeoutMs: 0,
   }),
 
   deleteWorktree: fallible({
     input: workspaceKeyInput.extend({ deleteBranch: z.boolean().optional() }),
     data: z.void(),
     error: z.union([deleteWorktreeErrorSchema, runtimeResolveErrorSchema]),
+    callTimeoutMs: 0,
   }),
 
   refresh: fallible({
@@ -134,6 +140,7 @@ export const workspaceRegistryWireContract = defineContract({
     }),
     data: z.void(),
     error: z.union([updateWorktreeErrorSchema, runtimeResolveErrorSchema]),
+    callTimeoutMs: 0,
   }),
 
   /** Manual retry of a durably failed lifecycle step (copy-artifacts | push-branch). */
@@ -145,6 +152,7 @@ export const workspaceRegistryWireContract = defineContract({
       workspaceClaimErrorSchema,
       runtimeResolveErrorSchema,
     ]),
+    callTimeoutMs: 0,
   }),
 
   /**

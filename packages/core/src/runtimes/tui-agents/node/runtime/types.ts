@@ -6,6 +6,7 @@ import type { TuiAgentStartInput } from '#runtimes/tui-agents/api';
 import type { AgentPluginHost } from '#services/agent-plugins/api/plugins';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import type { IExecutionContext } from '#services/exec/api';
+import type { ReleaseGitCredentialChannel } from '#services/git-credential-channels/node';
 import type { PtySpawner } from '#services/pty/api';
 import type { SessionIntentStore } from '#services/session-intents/api';
 import type { IdlePolicyConfig } from '#services/session-lifecycle/api';
@@ -16,6 +17,8 @@ export interface TuiAgentsRuntimeDeps {
   env: EnvSource;
   exec: IExecutionContext;
   spawner: PtySpawner;
+  /** Returns a session's Git credential channel to the desktop once no session holds it. */
+  releaseGitCredentialChannel?: ReleaseGitCredentialChannel;
   intents: SessionIntentStore;
   /** Lifecycle reports into the conversation index (spec §3.3); defaults to a no-op. */
   conversationReports?: ConversationLifecycleReporter;

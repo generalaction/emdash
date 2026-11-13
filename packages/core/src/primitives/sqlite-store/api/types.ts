@@ -23,11 +23,19 @@ export interface MigrationInterop {
   onApplied?(connection: SqliteConnection, migration: BundledMigration): void;
 }
 
+/**
+ * The result of a transaction callback. A promise-returning (async) callback resolves to `never`,
+ * so it fails to type-check: work after its first `await` would run outside the transaction.
+ * An explicit `void` result type defeats this check; the `emdash/no-async-transaction-callback`
+ * lint rule rejects async callbacks syntactically.
+ */
+export type SynchronousResult<T> = T extends PromiseLike<unknown> ? never : T;
+
 export type StoreHandle<TDb, TNative = unknown> = {
   readonly db: TDb;
   readonly connection: SqliteConnection<TNative>;
   /** Transactions are synchronous; the callback must not return a promise. */
-  transaction<T>(operation: () => T): T;
+  transaction<T>(operation: () => SynchronousResult<T>): T;
   close(): void;
 };
 

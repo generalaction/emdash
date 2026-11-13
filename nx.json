@@ -42,6 +42,7 @@
       ],
       "inputs": [
         "default",
+        "{workspaceRoot}/tooling/vitest/**/*",
         {
           "env": "CI"
         },

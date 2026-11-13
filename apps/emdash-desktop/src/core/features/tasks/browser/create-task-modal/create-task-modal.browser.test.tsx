@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   accounts: vi.fn(),
   select: vi.fn(),
   list: vi.fn(),
+  missingBranch: false,
 }));
 const repositoryUrl = 'https://gitlab.com/group/nested/repo';
 const mr = {
@@ -32,6 +33,7 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   projectData: () => ({ path: '/repo' }),
   getProjectViewStore: () => ({}),
   firstAvailableProjectId: () => 'project-1',
+  getProjectSettingsStore: () => undefined,
 }));
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
   getGitRepositoryStore: () => ({
@@ -59,6 +61,7 @@ vi.mock('./use-create-task-state', async () => {
       const [linkedType, setLinkedType] = useState<string | null>(null);
       const [linkedPR, setLinkedPR] = useState(null);
       return {
+        workspaceConfig: { missingBranch: mocks.missingBranch },
         linkedType,
         setLinkedType,
         linkedPR,
@@ -147,6 +150,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.provider = 'gitlab';
   mocks.supported = true;
+  mocks.missingBranch = false;
   mocks.list.mockResolvedValue({ success: true, data: { prs: [mr] } });
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -217,4 +221,19 @@ it('hides the Based on section when opened without an issue or request strategy'
     )
   );
   expect(host.textContent).not.toContain('Based on');
+});
+it('explains a Create blocked on an unresolved base branch', async () => {
+  mocks.missingBranch = true;
+  await render();
+  const create = page.getByRole('button', { name: /^Create\b/ });
+  await expect.element(create).toBeDisabled();
+  await expect.element(create).toHaveAttribute('title', 'Select a branch in Workspace Settings.');
+  await expect
+    .element(create)
+    .toHaveAccessibleName('Create. Select a branch in Workspace Settings.');
+});
+it('leaves Create without a reason when a branch is selected', async () => {
+  await render();
+  const create = page.getByRole('button', { name: 'Create', exact: true });
+  await expect.element(create).not.toHaveAttribute('title');
 });

@@ -1,9 +1,19 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
-import type { GitPathInspection, InspectPathError } from '@emdash/core/runtimes/git/api';
+import {
+  runtimeHostUnavailable,
+  type RuntimeResolveError,
+} from '@emdash/core/primitives/runtime-resolution/api';
+import type {
+  GitPathInspection,
+  InspectPathError,
+  TrustRepositoryError,
+  TrustRepositoryResult,
+} from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { waitFor } from '@emdash/shared/testing';
+import { WireError } from '@emdash/wire/rpc';
 import { cell, observe, remote, snapshot, whenReady } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
@@ -165,6 +175,128 @@ describe('Projects Wire directory listing', () => {
     } finally {
       await wire.dispose();
       await controller.dispose();
+    }
+  });
+});
+
+describe('Projects Wire repository trust', () => {
+  const root: HostAbsolutePath = { root: { kind: 'posix' }, segments: ['workspace'] };
+  const remoteHost = hostRef('remote', 'ssh-nixos');
+  const sshHost = { type: 'ssh' as const, connectionId: remoteHost.id };
+  const dubiousOwnership = { repositoryPath: '/workspace', safeDirectory: '/workspace' };
+  const refusal = [
+    "fatal: detected dubious ownership in repository at '/workspace'",
+    'To add an exception for this directory, call:',
+    '',
+    '\tgit config --global --add safe.directory /workspace',
+  ].join('\n');
+
+  function hostRuntime() {
+    return {
+      files: { fs: { stat: vi.fn(async () => ok({ type: 'directory' as const })) } },
+      git: {
+        inspectPath: vi.fn(
+          async (): Promise<Result<GitPathInspection, InspectPathError>> =>
+            err({ type: 'inspect-failed', path: root, message: refusal, dubiousOwnership })
+        ),
+        trustRepository: vi.fn(
+          async (): Promise<Result<TrustRepositoryResult, TrustRepositoryError>> =>
+            ok({ added: true })
+        ),
+      },
+    };
+  }
+
+  function setup() {
+    const local = hostRuntime();
+    const remote = hostRuntime();
+    const client = vi.fn(
+      async (host: HostRef): Promise<Result<ReturnType<typeof hostRuntime>, RuntimeResolveError>> =>
+        ok(host.type === 'local' ? local : remote)
+    );
+    const dependencies = { runtimes: { client } } as unknown as ProjectOperationDependencies;
+    const controller = createProjectsWireController(dependencies);
+    const wire = createTestWire(projectsWireContract, controller.impl);
+    return {
+      local,
+      remote,
+      client,
+      dependencies,
+      wire,
+      async dispose() {
+        await wire.dispose();
+        await controller.dispose();
+      },
+    };
+  }
+
+  it("reports Git's ownership refusal and trusts the repository on the project's host", async () => {
+    const { local, remote, dependencies, wire, dispose } = setup();
+    try {
+      await expect(getProjectPathStatus(dependencies, remoteHost, '/workspace')).resolves.toEqual({
+        isDirectory: true,
+        isGitRepo: false,
+        error: { type: 'inspect-failed', path: '/workspace', message: refusal, dubiousOwnership },
+      });
+
+      await expect(
+        wire.client.trustRepository({
+          host: sshHost,
+          path: '/workspace',
+          safeDirectory: '/workspace',
+        })
+      ).resolves.toEqual(ok({ added: true }));
+      expect(remote.git.trustRepository).toHaveBeenCalledWith({
+        path: root,
+        safeDirectory: '/workspace',
+      });
+      expect(local.git.trustRepository).not.toHaveBeenCalled();
+    } finally {
+      await dispose();
+    }
+  });
+
+  it('explains when the workspace server is too old to trust repositories', async () => {
+    const { remote, wire, dispose } = setup();
+    remote.git.trustRepository.mockRejectedValueOnce(
+      new WireError('UNKNOWN_PROCEDURE', "Unknown procedure 'git.trustRepository'")
+    );
+    try {
+      await expect(
+        wire.client.trustRepository({
+          host: sshHost,
+          path: '/workspace',
+          safeDirectory: '/workspace',
+        })
+      ).resolves.toEqual({
+        success: false,
+        error: { type: 'unsupported', message: expect.stringContaining('too old') },
+      });
+    } finally {
+      await dispose();
+    }
+  });
+
+  it('passes declared trust failures and unavailable hosts through', async () => {
+    const { local, client, wire, dispose } = setup();
+    const failure: TrustRepositoryError = {
+      type: 'trust-failed',
+      reason: 'repository-changed',
+      path: root,
+      message: 'Git now asks to trust /elsewhere instead.',
+    };
+    local.git.trustRepository.mockResolvedValueOnce(err(failure));
+    try {
+      const input = { host: { type: 'local' as const }, path: '/workspace', safeDirectory: '/x' };
+      await expect(wire.client.trustRepository(input)).resolves.toEqual(err(failure));
+
+      const unavailable = runtimeHostUnavailable(remoteHost, 'offline', 'Machine is offline');
+      client.mockResolvedValueOnce(err(unavailable));
+      await expect(wire.client.trustRepository({ ...input, host: sshHost })).resolves.toEqual(
+        err(unavailable)
+      );
+    } finally {
+      await dispose();
     }
   });
 });

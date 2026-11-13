@@ -7,6 +7,7 @@ export {
 export { workspaceRegistryContract, type WorkspaceRegistryContract } from './contract';
 export {
   activateWorkspaceErrorSchema,
+  cleanArtifactsErrorSchema,
   createWorkspaceErrorSchema,
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
@@ -16,6 +17,7 @@ export {
   updateWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
   type ActivateWorkspaceError,
+  type CleanArtifactsError,
   type CreateWorkspaceError,
   type CreateWorktreeError,
   type DeleteWorkspaceError,
@@ -27,6 +29,7 @@ export {
 } from './errors';
 export {
   activateWorkspaceInputSchema,
+  cleanArtifactsInputSchema,
   createWorkspaceInputSchema,
   createWorktreeInputSchema,
   deactivateWorkspaceInputSchema,
@@ -68,6 +71,7 @@ export {
   workspaceUsageErrorSchema,
   workspaceUsageSchema,
   type ActivateWorkspaceInput,
+  type CleanArtifactsInput,
   type CreateWorkspaceInput,
   type CreateWorktreeInput,
   type DeactivateWorkspaceInput,

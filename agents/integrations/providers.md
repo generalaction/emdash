@@ -52,6 +52,10 @@ installer checks the complete expected entry set before taking a per-root write 
 under the lock, and writes only when missing or stale. Existing JSON or TOML that cannot be parsed
 is left untouched and reported through logging. Global hooks are harmless in sessions outside
 Emdash: their commands exit successfully when the Emdash hook server environment is absent.
+On Windows each hook command is a single `powershell.exe ... -EncodedCommand` call, because agents
+run hooks through Git Bash, cmd.exe or PowerShell. Do not wrap it in `cmd.exe /c` or add
+`/`-style switches, redirects, or quotes: Git Bash rewrites `/c` into a path, and cmd.exe then
+reads the hook payload from stdin as commands.
 
 The global roots used by the built-in integrations are:
 

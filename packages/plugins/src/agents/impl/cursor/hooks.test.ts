@@ -59,7 +59,7 @@ describe('Cursor hooks', () => {
     await buildCursorHookConfig({ platform: 'win32' }).writeHooks(fs, []);
     for (const event of ['sessionStart', 'beforeSubmitPrompt', 'stop'] as const) {
       const command = read(CURSOR_HOOKS_PATH).hooks[event][0].command;
-      expect(command).toMatch(/^cmd\.exe .* -EncodedCommand [A-Za-z0-9+/]+=*$/);
+      expect(command).toMatch(/^powershell\.exe .* -EncodedCommand [A-Za-z0-9+/]+=*$/);
       expect(command).not.toContain('/dev/null');
       expect(command).not.toContain('printf');
       const script = Buffer.from(command.split(' -EncodedCommand ')[1], 'base64').toString(

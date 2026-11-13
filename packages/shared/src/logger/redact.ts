@@ -2,6 +2,8 @@
  * String-based redaction: scans the serialized log line for secrets and PII.
  * Applied in the file transport as a defense-in-depth backstop for variadic
  * call sites that may embed secrets in message text or raw Error strings.
+ * `redactSecrets` also guards text that leaves the process without passing a
+ * log transport, such as exec failure messages.
  *
  * Also exports DEFAULT_REDACT_PATHS for structural (field-path) redaction
  * via pino/fast-redact.
@@ -13,21 +15,28 @@ const SECRET_KEY_NAMES =
   'authorization|api[_-]?key|token|password|passphrase|secret|access[_-]?token|refresh[_-]?token|client[_-]?secret';
 
 const SECRET_PATTERNS: Array<[RegExp, RedactionReplacement]> = [
+  // Any scheme://user:pass@ — covers postgres, mongodb, redis, mysql, amqp, https…
+  // Runs first so a credential URL keeps its host instead of matching as `token:value`.
+  [/\b([a-z][a-z0-9+.-]*:\/\/)[^\s:/?#@]+:[^\s@/?#]+@/gi, '$1[REDACTED_CREDENTIALS]@'],
   // JSON-quoted key/value: handles both "key":"value" and escaped \"key\":\"value\"
   [
     new RegExp(`(\\\\?")(${SECRET_KEY_NAMES})(\\\\?")(\\s*:\\s*)\\\\?"[^"\\\\]*\\\\?"`, 'gi'),
     (_match, openQuote: string, keyName: string, closeQuote: string, separator: string) =>
       `${openQuote}${keyName}${closeQuote}${separator}${openQuote}[REDACTED]${openQuote}`,
   ],
-  // Unquoted: key=value or key: bearer value
+  // Unquoted: key=value, or an HTTP credential such as "Authorization: Basic <value>"
   [
-    new RegExp(`\\b(${SECRET_KEY_NAMES})(\\s*[:=]\\s*)(?:bearer\\s+)?[^\\s,"'}]+`, 'gi'),
+    new RegExp(
+      `\\b(${SECRET_KEY_NAMES})(\\s*[:=]\\s*)(?:(?:basic|bearer|token)\\s+)?[^\\s,"'}]+`,
+      'gi'
+    ),
     '$1$2[REDACTED]',
   ],
   // PEM blocks (private keys)
   [/-----BEGIN[^-\n]{1,40}-----[\s\S]+?-----END[^-\n]{1,40}-----/g, '[REDACTED_PEM_BLOCK]'],
   // Known token prefixes — order matters: vendor-specific before generic
-  [/\bgh[opsu]_[A-Za-z0-9]{36,255}\b/g, '[REDACTED_GITHUB_TOKEN]'],
+  [/\bgh[oprsu]_[A-Za-z0-9]{36,255}\b/g, '[REDACTED_GITHUB_TOKEN]'],
+  [/\bgithub_pat_[A-Za-z0-9_]{22,255}\b/g, '[REDACTED_GITHUB_TOKEN]'],
   [/\bglpat-[A-Za-z0-9_-]{20,}\b/g, '[REDACTED_GITLAB_TOKEN]'],
   [/\bnpm_[A-Za-z0-9]{36,}\b/g, '[REDACTED_NPM_TOKEN]'],
   [/\bAKIA[0-9A-Z]{16}\b/g, '[REDACTED_AWS_KEY]'],
@@ -39,8 +48,6 @@ const SECRET_PATTERNS: Array<[RegExp, RedactionReplacement]> = [
 ];
 
 const PII_PATTERNS: Array<[RegExp, RedactionReplacement]> = [
-  // Any scheme://user:pass@ — covers postgres, mongodb, redis, mysql, amqp, https…
-  [/\b([a-z][a-z0-9+.-]*:\/\/)[^\s:/?#@]+:[^\s@/?#]+@/gi, '$1[REDACTED_CREDENTIALS]@'],
   [/\b(git|hg|svn)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g, '$1@[REDACTED_HOST]'],
   [/\b(?:[A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi, '[REDACTED_MAC]'],
   [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]'],

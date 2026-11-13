@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { createScope } from '@emdash/shared/concurrency';
+import { createConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import type { KeyedMutex } from '@emdash/shared/concurrency';
 import { peek, query, type ExposedMutationContext, type Query } from '@emdash/wire/state';
 import {
@@ -13,7 +13,7 @@ import type { CheckoutId, RepositoryIdentity } from '#runtimes/git/node/allocati
 import type { CheckoutResource } from '#runtimes/git/node/checkout/checkout-resource';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import {
-  gitMetadataWatchIgnore,
+  gitMetadataWatchProfile,
   type IWatchService,
   type WatchHandle,
 } from '#services/fs-watch/api';
@@ -46,6 +46,7 @@ export class RepositoryResource {
 
   private readonly commands: GitRepository;
   private readonly lane = new RepositoryFamilyLane();
+  private readonly contentReads = createConcurrencyLimiter(2);
   private readonly statesScope = createScope({ label: 'git-repository-states' });
   private readonly states: {
     refs: Query<GitRefsState>;
@@ -157,6 +158,18 @@ export class RepositoryResource {
     );
   }
 
+  /** Blob reads pin an OID and need not wait for status scans or the mutation lane. */
+  readContent<T>(signal: AbortSignal, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    this.assertActive();
+    const task = this.statesScope.run('git-content-read', (scopeSignal) =>
+      this.contentReads.run(scopeSignal, () => run(scopeSignal))
+    );
+    const cancel = () => task.cancel(signal.reason);
+    if (signal.aborted) cancel();
+    else signal.addEventListener('abort', cancel, { once: true });
+    return task.value().finally(() => signal.removeEventListener('abort', cancel));
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
@@ -186,7 +199,7 @@ export class RepositoryResource {
       this.identity.gitCommonDir,
       (events) => this.onCommonDirEvents(events),
       {
-        ignore: gitMetadataWatchIgnore(),
+        ...gitMetadataWatchProfile(),
         onResync: () => this.onCommonDirResync(),
       }
     );

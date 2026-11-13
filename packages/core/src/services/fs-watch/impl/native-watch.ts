@@ -10,13 +10,13 @@ const RESYNC_DELAY_MS = 250;
 export type ParcelSubscribeFn = typeof parcelWatcher.subscribe;
 
 /**
- * One native subscription per (root, ignore set), shared across consumers.
+ * One native subscription per (root, ignore set, backend), shared across consumers.
  * Owns event-gap recovery and serialized resubscribe-with-retry; signals resync whenever events
  * may have been lost.
  */
 export class NativeWatch implements Disposable {
   readonly root: string;
-  readonly ignore: string[];
+  private readonly options: parcelWatcher.Options;
   private readonly deliver: (events: WatchEvent[]) => void;
   private readonly resync: () => void;
   private readonly onError: (context: string, error: unknown) => void;
@@ -33,14 +33,14 @@ export class NativeWatch implements Disposable {
 
   constructor(
     root: string,
-    ignore: string[],
+    options: parcelWatcher.Options,
     deliver: (events: WatchEvent[]) => void,
     resync: () => void,
     onError: (context: string, error: unknown) => void,
     subscribeFn: ParcelSubscribeFn = parcelWatcher.subscribe
   ) {
     this.root = root;
-    this.ignore = ignore;
+    this.options = options;
     this.deliver = deliver;
     this.resync = resync;
     this.onError = onError;
@@ -98,7 +98,7 @@ export class NativeWatch implements Disposable {
         if (events.length === 0) return;
         this.deliver(events.map(toWatchEvent));
       },
-      { ignore: this.ignore }
+      this.options
     );
   }
 

@@ -49,7 +49,7 @@ export function createWorkspacesWireController(
       removeAndReprovision: (input) =>
         options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
       delete: (input) => options.mutations.delete(input),
-      archive: (input) => options.mutations.archive(input),
+      cleanArtifacts: (input) => options.mutations.cleanArtifacts(input),
     },
     async dispose() {},
   };

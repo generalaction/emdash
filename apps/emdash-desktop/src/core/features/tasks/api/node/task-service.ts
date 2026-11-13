@@ -275,7 +275,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const activated = await this.activateOnRegistry(
       access.data.client.workspaceRegistry,
       workspaceRow.id,
-      workspaceRow.path
+      signal
     );
     if (!activated.success) return activated;
     if (signal?.aborted) {
@@ -329,13 +329,17 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     });
   }
 
-  /** Activates one already-registered Workspace; unknown identity is an invariant failure. */
+  /**
+   * Activates one already-registered Workspace; unknown identity is an invariant failure.
+   * Activation waits for the prepare script, with no call deadline; a cancelled
+   * provision stops waiting while the host finishes prepare on its own.
+   */
   private async activateOnRegistry(
     registry: Pick<HostRuntimesClient['workspaceRegistry'], 'activateWorkspace'>,
     workspaceId: string,
-    _workspacePath: string
+    signal: AbortSignal | undefined
   ): Promise<Result<void, ProvisionWorkspaceError>> {
-    const activated = await registry.activateWorkspace({ workspaceId });
+    const activated = await registry.activateWorkspace({ workspaceId }, { signal });
     if (activated.success) return ok(undefined);
     if (activated.error.type === 'workspace-missing') {
       return err({ type: 'missing-workspace' });

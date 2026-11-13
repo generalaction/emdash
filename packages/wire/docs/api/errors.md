@@ -82,9 +82,10 @@ creating another one for the same key.
 ### `TIMEOUT`
 
 A Wire call or snapshot exceeded an infrastructure deadline. The connection
-applies a default 30s call deadline (`callTimeoutMs`, per-call `timeoutMs`
-override) spanning call-issued to result-received, including time spent held
-while disconnected; live attach traffic and blob streaming are exempt. Timeout
+applies a default 30s call deadline (`callTimeoutMs`, per-procedure
+`callTimeoutMs` and per-call `timeoutMs` overrides) spanning call-issued to
+result-received, including time spent held while disconnected; live attach
+traffic and blob streaming are exempt. Timeout
 is distinct from `CANCELLED`: cancellation is caller intent, while timeout means
 policy stopped waiting for the operation.
 

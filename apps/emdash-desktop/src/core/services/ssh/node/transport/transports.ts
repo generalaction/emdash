@@ -1,5 +1,9 @@
 import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { Duplex, type Readable, type Writable } from 'node:stream';
+import {
+  ProcessTreeTerminator,
+  type ProcessTreeTerminatorOptions,
+} from '@emdash/core/primitives/exec/node';
 
 type SshChild = ChildProcessByStdio<Writable, Readable, Readable>;
 
@@ -20,10 +24,11 @@ export interface TransportResult {
 export type SpawnProcess = (
   command: string,
   args: string[],
-  options: { shell?: boolean; stdio: ['pipe', 'pipe', 'pipe'] }
+  options: { shell?: boolean; stdio: ['pipe', 'pipe', 'pipe']; windowsHide: boolean }
 ) => SshChild;
 
 type TerminableProcess = {
+  pid?: number;
   exitCode: number | null;
   signalCode?: NodeJS.Signals | null;
   kill(signal: NodeJS.Signals): boolean;
@@ -46,6 +51,12 @@ const SAFE_HOSTNAME = /^[a-zA-Z0-9._\-[\]:]+$/;
 const SAFE_USERNAME = /^[a-zA-Z0-9._\-@]+$/;
 const SAFE_SSH_ALIAS = /^[A-Za-z0-9._@%+:/[\]-]+$/;
 const MAX_DEBUG_LOG_LINES = 64;
+const SILENT_PROXY_HINT =
+  'Proxy sent no data before the connection closed. Proxies run without a terminal, so one ' +
+  'waiting for a password or host-key confirmation cannot be answered; use key or agent ' +
+  'authentication and accept new host keys from a terminal first.';
+
+const windowsTreeTerminators = new WeakMap<TerminableProcess, ProcessTreeTerminator>();
 
 function hasExited(child: TerminableProcess): boolean {
   return child.exitCode !== null || child.signalCode !== null;
@@ -53,9 +64,31 @@ function hasExited(child: TerminableProcess): boolean {
 
 export function terminateProxyChild(
   child: TerminableProcess,
-  timerApi: TimerApi = { setTimeout }
+  timerApi: TimerApi = { setTimeout },
+  options: Pick<ProcessTreeTerminatorOptions, 'platform' | 'taskkill'> = {}
 ): void {
   if (hasExited(child)) return;
+  if ((options.platform ?? process.platform) === 'win32') {
+    // Windows signals end only the direct child, but a ProxyCommand runs under cmd.exe and
+    // earlier ProxyJump hops are nested ssh.exe processes. One blocked on a hidden prompt never
+    // notices its parent is gone, so kill the whole tree.
+    let terminator = windowsTreeTerminators.get(child);
+    if (!terminator) {
+      terminator = new ProcessTreeTerminator(
+        {
+          pid: child.pid,
+          isExited: () => hasExited(child),
+          kill: (signal) => {
+            child.kill(signal);
+          },
+        },
+        options
+      );
+      windowsTreeTerminators.set(child, terminator);
+    }
+    void terminator.terminate('SIGKILL');
+    return;
+  }
   child.kill('SIGTERM');
   const timer = timerApi.setTimeout(() => {
     if (!hasExited(child)) child.kill('SIGKILL');
@@ -223,7 +256,11 @@ function createTransport(child: SshChild): TransportResult {
   const debugLogs: string[] = [];
   const sock = childToDuplex(child);
   let cleanedUp = false;
+  let receivedData = false;
 
+  child.stdout.once('data', () => {
+    receivedData = true;
+  });
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk: string) => {
     const lines = chunk
@@ -239,6 +276,9 @@ function createTransport(child: SshChild): TransportResult {
   const cleanup = () => {
     if (cleanedUp) return;
     cleanedUp = true;
+    if (!receivedData && !child.stdout.readableEnded && !hasExited(child)) {
+      debugLogs.push(SILENT_PROXY_HINT);
+    }
     sock.destroy();
     child.stdin.destroy();
     child.stdout.destroy();
@@ -249,6 +289,12 @@ function createTransport(child: SshChild): TransportResult {
   return { sock, cleanup, process: child, debugLogs };
 }
 
+/**
+ * Proxies are background processes with piped stdio that live as long as the connection, so they
+ * run with `windowsHide`; otherwise Windows gives each one a console window. Nobody can answer
+ * their prompts: ProxyJump passes BatchMode, but OpenSSH does not forward it to earlier hops, and
+ * on Windows a hop or ProxyCommand that prompts anyway waits until the connection times out.
+ */
 export function spawnProxyJump(
   jumpSpec: string,
   destHost: string,
@@ -256,7 +302,9 @@ export function spawnProxyJump(
   spawnProcess: SpawnProcess = spawn as SpawnProcess
 ): TransportResult {
   const args = buildProxyJumpArgs(jumpSpec, destHost, destPort);
-  return createTransport(spawnProcess('ssh', args, { stdio: ['pipe', 'pipe', 'pipe'] }));
+  return createTransport(
+    spawnProcess('ssh', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  );
 }
 
 export function spawnProxyCommand(
@@ -274,6 +322,6 @@ export function spawnProxyCommandWithShell(
 ): TransportResult {
   const expanded = expandProxyCommandTokens(command, tokens);
   return createTransport(
-    spawnProcess(expanded, [], { shell: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    spawnProcess(expanded, [], { shell: true, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
   );
 }

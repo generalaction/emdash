@@ -244,10 +244,18 @@ function buildContractClient(
     }
 
     switch (def.kind) {
-      case 'procedure':
+      case 'procedure': {
+        const callTimeoutMs = def.callTimeoutMs;
         client[name] = (input: unknown, options?: ProcedureCallOptions) =>
-          connection.call(fullPath, input, options);
+          connection.call(
+            fullPath,
+            input,
+            callTimeoutMs === undefined || options?.timeoutMs !== undefined
+              ? options
+              : { ...options, timeoutMs: callTimeoutMs }
+          );
         break;
+      }
       case 'downloadFile':
         client[name] = async (input: unknown, options?: ProcedureCallOptions) => {
           const result = (await connection.call(fullPath, input, options)) as Result<

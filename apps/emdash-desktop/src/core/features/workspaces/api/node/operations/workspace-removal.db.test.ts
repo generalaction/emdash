@@ -1,3 +1,8 @@
+import { workspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
+import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
+import { defineContract } from '@emdash/wire/rpc';
+import { createTestWire } from '@emdash/wire/testing';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -110,6 +115,80 @@ describe('deleteWorkspaceThroughRegistry', () => {
     expect(registry.deleteWorkspace).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
     expect(registry.deleteWorktree).not.toHaveBeenCalled();
     expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeUndefined();
+  });
+
+  describe('slow host removal', () => {
+    /** A real Wire host whose `deleteWorktree` runs a slow teardown until finished. */
+    function createRemovingHost() {
+      const teardown = deferred();
+      const started = deferred();
+      const wire = createTestWire(
+        defineContract({
+          deleteWorktree: workspaceRegistryContract.deleteWorktree,
+          deleteWorkspace: workspaceRegistryContract.deleteWorkspace,
+        }),
+        {
+          deleteWorktree: async () => {
+            started.resolve();
+            await teardown.promise;
+            return ok(undefined);
+          },
+          deleteWorkspace: async () => ok(undefined),
+        }
+      );
+      return {
+        wire,
+        started: started.promise,
+        finishTeardown: () => teardown.resolve(),
+        runtimes: { client: async () => ok({ workspaceRegistry: wire.client }) } as never,
+      };
+    }
+
+    let host: ReturnType<typeof createRemovingHost>;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      host = createRemovingHost();
+    });
+
+    afterEach(async () => {
+      await host.wire.dispose();
+      vi.useRealTimers();
+    });
+
+    it('waits for a removal that outlasts the default call deadline', async () => {
+      await seedWorktree();
+      let settled = false;
+      const removal = deleteWorkspaceThroughRegistry(
+        fixture.db,
+        host.runtimes,
+        'workspace-1'
+      ).finally(() => {
+        settled = true;
+      });
+      await host.started;
+
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(settled).toBe(false);
+      expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeDefined();
+
+      host.finishTeardown();
+      expect((await removal).success).toBe(true);
+      expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeUndefined();
+    });
+
+    it('fails without untracking when the host connection drops mid-removal', async () => {
+      await seedWorktree();
+      const removal = deleteWorkspaceThroughRegistry(fixture.db, host.runtimes, 'workspace-1');
+      await host.started;
+
+      host.wire.pair.disconnect();
+
+      await expect(removal).rejects.toThrow('Wire transport disconnected');
+      const row = createWorkspaceRegistry(fixture.db).getLive('workspace-1');
+      expect(row).toBeDefined();
+      expect(row?.deletionTombstone).toBeNull();
+    });
   });
 
   describe('unreachable host: fail-fast without recovery work', () => {

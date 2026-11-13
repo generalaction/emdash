@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { currentAgentEnvPlatform } from '#primitives/agent-env/api';
 import {
-  GIT_CREDENTIAL_HELPER_COMMAND,
+  gitCredentialHelperCommand,
   type GitCredentialsSessionSpec,
 } from '#primitives/git-credentials/api';
 import { buildTerminalEnv } from './terminal-env';
@@ -39,7 +40,9 @@ describe('buildTerminalEnv git credentials', () => {
     expect(env.EMDASH_GIT_CREDENTIAL_NONCE).toBe('session-nonce');
     expect(env.GIT_CONFIG_COUNT).toBeUndefined();
     expect(env.GIT_CONFIG_PARAMETERS).toContain("'credential.https://github.com.helper'=''");
-    expect(env.GIT_CONFIG_PARAMETERS).toContain(GIT_CREDENTIAL_HELPER_COMMAND);
+    expect(env.GIT_CONFIG_PARAMETERS).toContain(
+      gitCredentialHelperCommand(currentAgentEnvPlatform())
+    );
   });
 
   it('none scrubs credential helpers even when overrides set them', () => {

@@ -1,7 +1,7 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
 import { Github, Gitlab } from 'lucide-react';
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import { ProviderIdentityStrip } from '@core/features/integrations/contributions/browser/provider-identity-strip';
 import { repositoryNameError } from '@core/features/repository/api/browser/repository-name';
 import type { Resolved } from '@core/primitives/project-settings/api';
@@ -18,6 +18,7 @@ export function PickExistingPanel({
   state,
   getProjectsClient,
   inspectionError,
+  untrustedRepositoryNotice,
   showInitializeGitPrompt,
 }: {
   strategy: Strategy;
@@ -25,6 +26,8 @@ export function PickExistingPanel({
   state: PickModeState;
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
   inspectionError?: string;
+  /** Replaces the inspection error when Git refused the repository for its ownership. */
+  untrustedRepositoryNotice?: ReactNode;
   showInitializeGitPrompt: boolean;
 }) {
   return (
@@ -41,7 +44,8 @@ export function PickExistingPanel({
           message="Select a project directory to open"
         />
       </Field.Root>
-      {inspectionError && (
+      {untrustedRepositoryNotice}
+      {!untrustedRepositoryNotice && inspectionError && (
         <div className="border-destructive/40 overflow-hidden rounded-md border">
           <p className="border-destructive/30 bg-destructive/10 text-destructive border-b px-2 py-1 text-xs">
             Could not inspect this directory.

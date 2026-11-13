@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
-import { createManualClock, type ManualClock } from '@emdash/shared/testing';
+import { createManualClock, deferred, type ManualClock } from '@emdash/shared/testing';
 import { ReplicaLog } from '@emdash/wire/live';
 import { defineContract } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
@@ -42,6 +42,7 @@ function createRuntime(
     commandEnv?: Record<string, string>;
     command?: string;
     args?: string[];
+    releaseGitCredentialChannel?: (nonce: string) => Promise<void>;
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -92,6 +93,7 @@ function createRuntime(
     platform: options.platform,
     lifecycle: options.lifecycle,
     spillPrompt: options.spillPrompt,
+    releaseGitCredentialChannel: options.releaseGitCredentialChannel,
     logger: noopLogger,
   });
   return { runtime, spawner, agentHost, exec };
@@ -459,8 +461,9 @@ describe('TuiAgentsRuntime', () => {
     const { invocation } = spawner.specs[0]!;
     expect(invocation.kind).toBe('argv');
     if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
-    expect(invocation.executable).toBe('/bin/bash');
-    expect(invocation.argv[0]).toBe('-lc');
+    expect(invocation.executable).toBe('/bin/sh');
+    expect(invocation.argv[0]).toBe('-c');
+    expect(invocation.argv[1]).toContain('/bin/bash -lc');
     expect(invocation.argv[1]).toContain('tmux -u attach-session');
     expect(invocation.argv[1]).toMatch(/workspace-[a-f0-9]{10}/u);
     expect(invocation.argv[1]).toContain('source ~/.profile && agent run');
@@ -811,11 +814,188 @@ describe('TuiAgentsRuntime', () => {
     await vi.waitFor(() => expect(intents.snapshot()).toEqual([]));
     expectNoSessionResidue('conversation-1', leakContainers(runtime));
   });
+
+  it('resolves dispose only after background intent writes settle', async () => {
+    const intents = createMemorySessionIntentStore();
+    const entered = deferred<void>();
+    const finish = deferred<void>();
+    const saveActive = intents.saveActive.bind(intents);
+    vi.spyOn(intents, 'saveActive').mockImplementationOnce(async (intent) => {
+      entered.resolve();
+      await finish.promise;
+      return saveActive(intent);
+    });
+    const { runtime } = createRuntime({ intents });
+    const order: string[] = [];
+    await runtime.startSession(startInput());
+    await entered.promise;
+    const disposing = runtime.dispose().then(() => order.push('disposed'));
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      order.push('released');
+    } finally {
+      finish.resolve();
+      await disposing;
+    }
+    expect(order).toEqual(['released', 'disposed']);
+    expect(intents.snapshot()).toHaveLength(1);
+  });
 });
 
 // Property conv.sole-writer / spec §7.4: session facts (spawn, hook-captured provider id,
 // activity, end, resume outcome) flow from the TUI runtime into the conversation index via
 // lifecycle reports.
+describe('TuiAgentsRuntime git credential channels', () => {
+  function credentialRuntime() {
+    const released: string[] = [];
+    const created = createRuntime({
+      releaseGitCredentialChannel: async (nonce) => {
+        released.push(nonce);
+      },
+    });
+    return { ...created, released };
+  }
+
+  function withChannel(nonce: string, overrides: Partial<TuiAgentStartInput> = {}) {
+    return startInput({
+      gitCredentials: {
+        mode: 'effective-account',
+        channel: { port: 4000, nonce },
+        hosts: ['github.com'],
+      },
+      ...overrides,
+    });
+  }
+
+  it('keeps a live session on its channel and releases one it did not start with', async () => {
+    const { runtime, spawner, released } = credentialRuntime();
+    await runtime.startSession(withChannel('channel-1'));
+
+    await runtime.startSession(withChannel('channel-1'));
+    await runtime.resumeSession(withChannel('channel-2', { sessionId: 'provider-session' }));
+
+    expect(spawner.processes).toHaveLength(1);
+    expect(spawner.specs[0]!.env?.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-1');
+    expect(released).toEqual(['channel-2']);
+    await runtime.dispose();
+  });
+
+  it('releases the channel when the session is stopped, and holds the next on resume', async () => {
+    const { runtime, released } = credentialRuntime();
+    await runtime.startSession(withChannel('channel-1'));
+
+    await runtime.stopSession('conversation-1');
+    await runtime.resumeSession(withChannel('channel-2', { sessionId: 'provider-session' }));
+    await runtime.deleteSession('conversation-1');
+
+    expect(released).toEqual(['channel-1', 'channel-2']);
+    expectNoSessionResidue('conversation-1', leakContainers(runtime));
+    await runtime.dispose();
+  });
+
+  it('keeps the channel across an unexpected-exit respawn and releases it on the final exit', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const clock = createManualClock();
+    const released: string[] = [];
+    const { runtime, spawner } = createRuntime({
+      clock,
+      releaseGitCredentialChannel: async (nonce) => {
+        released.push(nonce);
+      },
+    });
+    try {
+      await runtime.startSession(withChannel('channel-1'));
+      await clock.advanceBy(4_000);
+      spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawner.processes).toHaveLength(2);
+      expect(spawner.specs[1]!.env?.EMDASH_GIT_CREDENTIAL_NONCE).toBe('channel-1');
+      expect(released).toEqual([]);
+
+      spawner.processes[1]!.emitExit({ exitCode: 0, signal: null });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(released).toEqual(['channel-1']);
+    } finally {
+      await runtime.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the channel for a queued start when the start ahead of it fails', async () => {
+    const { runtime, spawner, released } = credentialRuntime();
+    const spawn = spawner.spawn.bind(spawner);
+    let spawns = 0;
+    spawner.spawn = (spec) => {
+      spawns += 1;
+      if (spawns === 1) throw new Error('spawn failed');
+      return spawn(spec);
+    };
+
+    const results = await Promise.all([
+      runtime.startSession(withChannel('channel-1')),
+      runtime.startSession(withChannel('channel-1')),
+    ]);
+
+    expect(results.map((result) => result.success)).toEqual([false, true]);
+    expect(released).toEqual([]);
+    await runtime.deleteSession('conversation-1');
+    expect(released).toEqual(['channel-1']);
+    await runtime.dispose();
+  });
+
+  it('keeps a tmux session on its channel when the client exits and reattaches', async () => {
+    const { runtime, spawner, released } = credentialRuntime();
+    const tmux = { identity: 'project:task:conversation-1' };
+    await runtime.startSession(withChannel('channel-1', { tmux }));
+
+    // A detach ends the client, not the agent running inside tmux.
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+    await runtime.startSession(withChannel('channel-1', { tmux }));
+    expect(spawner.processes).toHaveLength(2);
+    expect(released).toEqual([]);
+
+    await runtime.deleteSession('conversation-1');
+    expect(released).toEqual(['channel-1']);
+    await runtime.dispose();
+  });
+
+  it('releases the channel when an unexpected-exit respawn fails to spawn', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const clock = createManualClock();
+    const released: string[] = [];
+    const { runtime, spawner } = createRuntime({
+      clock,
+      releaseGitCredentialChannel: async (nonce) => {
+        released.push(nonce);
+      },
+    });
+    try {
+      await runtime.startSession(withChannel('channel-1'));
+      await clock.advanceBy(4_000);
+      spawner.failWith = new Error('spawn failed');
+      spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawner.processes).toHaveLength(1);
+      expect(released).toEqual(['channel-1']);
+    } finally {
+      await runtime.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('releases the channel of a session that fails to spawn', async () => {
+    const { runtime, spawner, released } = credentialRuntime();
+    spawner.failWith = new Error('spawn failed');
+
+    await runtime.startSession(withChannel('channel-1'));
+
+    expect(released).toEqual(['channel-1']);
+    await runtime.dispose();
+  });
+});
+
 describe('TuiAgentsRuntime conversation lifecycle reports', () => {
   it('reports a fresh session start with no provider session id and no resume outcome', async () => {
     const reports = createRecordingConversationLifecycleReporter();
@@ -908,6 +1088,7 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
 });
 
 type RuntimeInternals = {
+  gitCredentialChannels: { held: Map<string, unknown> };
   sessions: Map<string, unknown>;
   logs: Map<string, unknown>;
   configs: Map<string, unknown>;
@@ -920,6 +1101,7 @@ type RuntimeInternals = {
 function leakContainers(runtime: TuiAgentsRuntime): LeakCheckContainer[] {
   const internals = runtime as unknown as RuntimeInternals;
   return [
+    mapContainer('gitCredentialChannels', internals.gitCredentialChannels.held),
     mapContainer('sessions', internals.sessions),
     mapContainer('logs', internals.logs),
     mapContainer('configs', internals.configs),

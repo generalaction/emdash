@@ -13,6 +13,8 @@ export function createGitProcedures(
 ): GitProcedures {
   return {
     inspectPath: (input) => runtime.provisioning.inspectPath(input.path),
+    trustRepository: (input) =>
+      runtime.provisioning.trustRepository(input.path, input.safeDirectory),
     ensureRepository: (input) => runtime.provisioning.ensureRepository(input.path, input.options),
     cloneRepository: {
       run: (input, context) =>

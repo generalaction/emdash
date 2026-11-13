@@ -5,6 +5,7 @@ import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceGitSetup } from '../api/schemas';
 import type { RegistryGitContext } from './git-context';
 import { retryTransientLock } from './git-schedule';
+import { parseWorktreeList, type WorktreeListEntry } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';
 
 export type CreateWorktreeExecution = {
@@ -51,6 +52,7 @@ export async function executeCreateWorktree(
   let existing = false;
   let createdWorktree = false;
   let createdBranch = false;
+  let dwimUpstream: { remote: string; mergeRef: string } | undefined;
 
   const fail = async (stage: string, error: unknown): Promise<CreateWorktreeExecutionResult> => {
     await rollback(exec, execution, { createdWorktree, createdBranch });
@@ -71,9 +73,11 @@ export async function executeCreateWorktree(
     if (!safe.success) {
       return { status: 'failed', stage: 'inspect', message: safe.error.message };
     }
-    existing = (await listWorktreePaths(exec)).has(
-      nativePathIdentityKey(await canonicalOrResolved(execution.worktreePath))
-    );
+    const target = await pathIdentity(execution.worktreePath);
+    const worktrees = await listWorktrees(exec);
+    await pruneBlockingRegistrations(exec, worktrees, target, execution.branch);
+    // A prunable registration's directory is gone: there is nothing to reuse.
+    existing = worktrees.some((worktree) => !worktree.prunable && worktree.identity === target);
     if (existing) {
       const current = (
         await execution.git
@@ -159,6 +163,11 @@ export async function executeCreateWorktree(
         );
       } else if (execution.baseRef !== null) {
         const baseRef = execution.baseRef;
+        // A remote-only branch used by its own name: git's add DWIMs it from <remote>/<name>,
+        // but --no-track leaves it without upstream, so it would look unpublished.
+        if (baseRef === execution.branch && !(await refResolves(exec, baseRef))) {
+          dwimUpstream = await uniqueRemoteTracking(exec, baseRef);
+        }
         await retryTransientLock(() =>
           exec.exec([
             'worktree',
@@ -185,7 +194,8 @@ export async function executeCreateWorktree(
   // Unconditionally idempotent plain config sets, running on the fresh and the
   // reused-branch/replay path alike. Branch-scoped keys land in the repository's
   // common config — the same place branch.<name>.remote/.merge always live.
-  const { upstream, breadcrumb } = execution.gitSetup ?? {};
+  const { breadcrumb } = execution.gitSetup ?? {};
+  const upstream = execution.gitSetup?.upstream ?? dwimUpstream;
   if (upstream || breadcrumb) {
     execution.onStage('configure-branch');
     try {
@@ -209,7 +219,8 @@ export async function executeCreateWorktree(
   let finalPath: string;
   try {
     finalPath = await canonicalOrResolved(execution.worktreePath);
-    if (!(await listWorktreePaths(exec)).has(nativePathIdentityKey(finalPath))) {
+    const identity = nativePathIdentityKey(finalPath);
+    if (!(await listWorktrees(exec)).some((worktree) => worktree.identity === identity)) {
       return await fail(
         'verify',
         new Error(`Worktree was not listed after creation: ${execution.worktreePath}`)
@@ -256,14 +267,43 @@ async function rollback(
   }
 }
 
-async function listWorktreePaths(exec: BoundExec): Promise<Set<string>> {
+type RegisteredWorktree = WorktreeListEntry & { identity: string };
+
+async function listWorktrees(exec: BoundExec): Promise<RegisteredWorktree[]> {
   const result = await exec.exec(['worktree', 'list', '--porcelain']);
-  const paths = new Set<string>();
-  for (const line of result.stdout.split('\n')) {
-    if (!line.startsWith('worktree ')) continue;
-    paths.add(nativePathIdentityKey(await canonicalOrResolved(line.slice('worktree '.length))));
-  }
-  return paths;
+  return await Promise.all(
+    parseWorktreeList(result.stdout).map(async (entry) => ({
+      ...entry,
+      identity: await pathIdentity(entry.path),
+    }))
+  );
+}
+
+/**
+ * A worktree directory deleted out-of-band leaves its registration behind, and
+ * `worktree add` then refuses the path ("missing but already registered") or the
+ * branch ("already used by worktree") until someone prunes — so prune, but only when
+ * a stale registration blocks this creation.
+ *
+ * Prune, never `worktree remove <path>`: the listing is stale by the time cleanup
+ * runs, and a concurrent creation may have recreated that path; removing by path
+ * would delete its fresh checkout. Prune re-checks inside git that the directory is
+ * gone, skips locked registrations (including the lock `worktree add` holds while
+ * initializing), and never deletes working-tree files. The cost: other stale
+ * registrations go too, as they already do on every deleteWorktree.
+ */
+async function pruneBlockingRegistrations(
+  exec: BoundExec,
+  worktrees: RegisteredWorktree[],
+  target: string,
+  branch: string
+): Promise<void> {
+  const blocked = worktrees.some(
+    (worktree) => worktree.prunable && (worktree.identity === target || worktree.branch === branch)
+  );
+  if (!blocked) return;
+  // Best-effort: anything still blocking surfaces as add-worktree's git error.
+  await exec.exec(['worktree', 'prune']).catch(() => undefined);
 }
 
 async function branchExists(exec: BoundExec, branch: string): Promise<boolean> {
@@ -275,6 +315,21 @@ async function branchExists(exec: BoundExec, branch: string): Promise<boolean> {
   }
 }
 
+/** The one `refs/remotes/<remote>/<branch>` git's DWIM would pick; none if absent or ambiguous. */
+async function uniqueRemoteTracking(
+  exec: BoundExec,
+  branch: string
+): Promise<{ remote: string; mergeRef: string } | undefined> {
+  const remotes = (await exec.exec(['remote'])).stdout.trim().split('\n').filter(Boolean);
+  const matches: string[] = [];
+  for (const remote of remotes) {
+    if (await refResolves(exec, `refs/remotes/${remote}/${branch}`)) matches.push(remote);
+  }
+  return matches.length === 1
+    ? { remote: matches[0], mergeRef: `refs/heads/${branch}` }
+    : undefined;
+}
+
 async function refResolves(exec: BoundExec, ref: string): Promise<boolean> {
   try {
     await exec.exec(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
@@ -284,10 +339,22 @@ async function refResolves(exec: BoundExec, ref: string): Promise<boolean> {
   }
 }
 
+async function pathIdentity(target: string): Promise<string> {
+  return nativePathIdentityKey(await canonicalOrResolved(target));
+}
+
+/**
+ * Canonicalizes a missing path through its deepest existing ancestor, the way git
+ * records worktree paths — otherwise a deleted worktree under a symlinked root never
+ * matches its own stale registration.
+ */
 async function canonicalOrResolved(target: string): Promise<string> {
+  const resolved = path.resolve(target);
   try {
-    return await fs.realpath(target);
+    return await fs.realpath(resolved);
   } catch {
-    return path.resolve(target);
+    const parent = path.dirname(resolved);
+    if (parent === resolved) return resolved;
+    return path.join(await canonicalOrResolved(parent), path.basename(resolved));
   }
 }

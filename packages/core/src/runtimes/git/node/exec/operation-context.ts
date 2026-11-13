@@ -1,3 +1,4 @@
+import { currentAgentEnvPlatform } from '#primitives/agent-env/api';
 import { gitCredentialOperationEnv } from '#primitives/git-credentials/api';
 import type { GitOperationCredentials, GitTransferProgress } from '#runtimes/git/api';
 
@@ -21,6 +22,7 @@ export function credentialOperationEnv(
   if (!credentials) return undefined;
   return gitCredentialOperationEnv(
     { port: credentials.port, nonce: credentials.nonce },
-    credentials.host
+    credentials.host,
+    currentAgentEnvPlatform()
   );
 }

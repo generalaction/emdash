@@ -13,7 +13,7 @@ const unavailableProjects = {
 };
 
 describe('WorkspaceMutationService', () => {
-  it('refuses archive when Project attachment is unavailable', async () => {
+  it('refuses to clean artifacts when Project attachment is unavailable', async () => {
     const runtimeClient = vi.fn();
     const service = new WorkspaceMutationService({
       db: {} as never,
@@ -22,11 +22,7 @@ describe('WorkspaceMutationService', () => {
     });
 
     await expect(
-      service.archive({
-        projectId: 'project-1',
-        workspaceId: 'workspace-1',
-        workspacePath: '/repo/worktree',
-      })
+      service.cleanArtifacts({ projectId: 'project-1', workspaceId: 'workspace-1' })
     ).resolves.toEqual({
       success: false,
       error: {
@@ -35,6 +31,55 @@ describe('WorkspaceMutationService', () => {
       },
     });
     expect(runtimeClient).not.toHaveBeenCalled();
+  });
+
+  it('cleans artifacts in place through the attached host registry, never removing the worktree', async () => {
+    const cleanArtifacts = vi.fn(async () => ({ success: true as const, data: undefined }));
+    const deleteWorktree = vi.fn();
+    const attachedProjects = {
+      requireAttached: () => ({
+        success: true as const,
+        data: { workspaceRegistry: { cleanArtifacts, deleteWorktree } } as never,
+      }),
+    };
+    const service = new WorkspaceMutationService({
+      db: {} as never,
+      projects: attachedProjects,
+      runtimes: {} as never,
+    });
+
+    await expect(
+      service.cleanArtifacts({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).resolves.toEqual({ success: true, data: {} });
+    expect(cleanArtifacts).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
+    expect(deleteWorktree).not.toHaveBeenCalled();
+  });
+
+  it('explains a refusal while sessions run in the workspace', async () => {
+    const cleanArtifacts = vi.fn(async () => ({
+      success: false as const,
+      error: { type: 'workspace-active' as const, workspaceId: 'workspace-1' },
+    }));
+    const service = new WorkspaceMutationService({
+      db: {} as never,
+      projects: {
+        requireAttached: () => ({
+          success: true as const,
+          data: { workspaceRegistry: { cleanArtifacts } } as never,
+        }),
+      },
+      runtimes: {} as never,
+    });
+
+    await expect(
+      service.cleanArtifacts({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'workspace-active',
+        message: 'Agents or terminals are running in this workspace. Stop them, then try again.',
+      },
+    });
   });
 
   it('reports a missing Project when no live Task owns the workspace', async () => {

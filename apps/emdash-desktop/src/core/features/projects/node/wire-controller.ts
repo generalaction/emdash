@@ -49,6 +49,8 @@ export function createProjectsWireController(
     impl: {
       createProject: (input) => projectOperations.createProject(input),
       inspectProjectPath: (input) => projectOperations.inspectProjectPath(input),
+      trustRepository: ({ host, path, safeDirectory }) =>
+        projectOperations.trustRepository(hostRefForProjectHost(host), path, safeDirectory),
       initializeRepository: ({ projectId }) => projectOperations.initializeRepository(projectId),
       resolveRepositoryDestination: (input) =>
         projectOperations.resolveRepositoryDestination(input),

@@ -22,6 +22,7 @@ export function createFsWatchController(options: CreateFsWatchControllerOptions)
         (batch) => events.emit(key, { kind: 'events', events: batch }),
         {
           ignore: key.ignore,
+          backend: key.backend,
           onResync: () => events.emit(key, { kind: 'resync' }),
         }
       );

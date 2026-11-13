@@ -222,7 +222,7 @@ export class AgentAuthManager {
       {
         invocation: spawn.invocation,
         cwd: this.deps.agentHost.homeDir,
-        env,
+        env: spawn.env,
         cols: dimensions?.cols ?? DEFAULT_COLS,
         rows: dimensions?.rows ?? DEFAULT_ROWS,
       },

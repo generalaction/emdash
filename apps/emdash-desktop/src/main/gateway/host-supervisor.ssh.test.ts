@@ -8,6 +8,7 @@ import { ManagedHostConnection } from '@core/services/hosts/node/managed-host-co
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
 
 class PhysicalClient extends EventEmitter {
+  setNoDelay() {}
   connect() {}
   destroy() {
     this.emit('close');

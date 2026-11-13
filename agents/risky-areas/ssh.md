@@ -24,6 +24,10 @@
 - Test and Save share credential-draft resolution. Blank secrets can retain stored credentials
   only for an unchanged destination/account/authentication method (and unchanged key selection
   for passphrases). Changing identity must not silently carry an old secret forward.
+- Enable TCP_NODELAY on every physical ssh2 client immediately after `connect()` assigns its
+  socket, before waiting for authentication/ready. ProxyJump and ProxyCommand use child-stdio
+  Duplex streams without `setNoDelay`; ssh2 safely skips these, so this does not configure
+  the proxy child's TCP sockets.
 - An edit test loads the saved identity in the main process, tests the draft on a separate
   ephemeral connection, and never writes secrets or disconnects the saved connection.
   Stored secrets remain wrapped until SSH connect-config assembly; never send them to the UI.
@@ -38,9 +42,15 @@
 - An unchanged key with an unbound legacy passphrase must request re-entry before Save, Test,
   or reconnect. A rejected save preserves both the row and secret; never interpret an
   unverified legacy passphrase as absent and silently delete it during a name-only edit.
+- Local proxy children (ProxyJump `ssh -W`, ProxyCommand) and `ssh -G` run with `windowsHide`
+  and piped stdio, so nobody can answer their prompts. ProxyJump passes `BatchMode=yes`, but
+  OpenSSH does not forward it to earlier `-J` hops, and a ProxyCommand can prompt. On Windows such
+  a prompt waits on a hidden console until the connect timeout, so proxy cleanup must kill the
+  whole process tree there (signals end only `cmd.exe` or the outer `ssh.exe`).
 - Expand user-relative SSH key paths with the OS home-directory helper, not HOME alone;
   Windows environments may provide USERPROFILE without HOME.
 - `ssh2` is patched (`patches/ssh2@<version>.patch` via `pnpm.patchedDependencies`) to keep
-  OpenSSH certificates from the agent. When bumping `ssh2`, regenerate the patch, or drop it
-  once upstream releases certificate support (mscdex/ssh2#1495), and keep
-  `ssh-agent-certificate.test.ts` passing.
+  OpenSSH certificates from the agent and to spawn its Windows agent helpers (`pagent.exe`,
+  `cygpath`) with `windowsHide`. When bumping `ssh2`, regenerate the patch, dropping only the
+  parts upstream has released (certificates: mscdex/ssh2#1495), and keep
+  `ssh-agent-certificate.test.ts` and `ssh-agent-windows-helpers.test.ts` passing.

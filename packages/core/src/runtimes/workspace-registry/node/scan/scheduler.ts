@@ -3,8 +3,9 @@ import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import {
-  gitMetadataWatchIgnore,
+  gitMetadataWatchProfile,
   workspaceContentWatchIgnore,
+  type GitMetadataWatchProfile,
   type IWatchService,
   type WatchEvent,
   type WatchHandle,
@@ -80,7 +81,7 @@ export class WorkspaceScanScheduler {
   private readonly activeDebounceMs: number;
   private readonly pollIntervalMs: number;
   private readonly contentWatchIgnore: string[];
-  private readonly gitMetadataWatchIgnore: string[];
+  private readonly gitMetadataWatch: GitMetadataWatchProfile;
 
   private readonly watches = new Map<string, WatchHandle>();
   private readonly pending = new Map<string, PendingScan>();
@@ -103,7 +104,7 @@ export class WorkspaceScanScheduler {
     this.activeDebounceMs = options.activeDebounceMs ?? DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.contentWatchIgnore = workspaceContentWatchIgnore(options.watchIgnore);
-    this.gitMetadataWatchIgnore = gitMetadataWatchIgnore();
+    this.gitMetadataWatch = gitMetadataWatchProfile();
   }
 
   start(): Promise<void> {
@@ -156,7 +157,7 @@ export class WorkspaceScanScheduler {
             path.join(target.path, '.git'),
             (events) => this.onGitDirEvents(target.id, target.path, events),
             {
-              ignore: this.gitMetadataWatchIgnore,
+              ...this.gitMetadataWatch,
               onError,
               onResync: () => this.request({ kind: 'repository', id: target.id }),
             }

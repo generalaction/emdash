@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { redactSecrets } from '@emdash/shared/logger';
 import type { EnvSource } from '#primitives/exec/api';
 import { isGitDiscoveryMiss } from '#primitives/git/api';
 import { createBoundExec, ExecError } from '#services/exec/api';
@@ -71,7 +72,7 @@ export async function inspectWorkspacePath(
       kind: 'inspect-failed',
       message:
         error instanceof ExecError
-          ? error.stderr.trim() ||
+          ? redactSecrets(error.stderr.trim()) ||
             (error.cause instanceof Error ? error.cause.message : error.message)
           : error instanceof Error
             ? error.message

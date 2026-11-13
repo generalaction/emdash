@@ -32,10 +32,16 @@ export const projectWorkspacesContract = defineContract({
       list: liveState({ data: z.custom<HostWorkspaceGroupsData>() }),
     },
   }),
+  /**
+   * Waits for the host disk walks, which have no fixed bound on large trees; callers
+   * bound the call with a signal instead of a deadline.
+   */
   measureProjectWorkspaces: procedure({
     input: z.custom<MeasureProjectWorkspacesInput>(),
     output: z.custom<MeasureProjectWorkspacesResult>(),
+    callTimeoutMs: 0,
   }),
+  /** Waits for each host removal (teardown + worktree removal), so no call deadline. */
   deleteProjectWorkspaces: procedure({
     input: z.object({
       projectId: z.string(),
@@ -43,5 +49,6 @@ export const projectWorkspacesContract = defineContract({
       deleteConversations: z.boolean().optional(),
     }),
     output: z.custom<ProjectWorkspaceActionSummary>(),
+    callTimeoutMs: 0,
   }),
 });

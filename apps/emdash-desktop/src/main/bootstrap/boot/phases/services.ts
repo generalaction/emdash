@@ -30,6 +30,7 @@ import {
 import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
 import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
+import { bindGitCredentialChannels } from '@core/features/github/node/services/git-credential-channels-controller';
 import { GitCredentialServer } from '@core/features/github/node/services/git-credential-server';
 import { githubIdentityClient } from '@core/features/github/node/services/github-identity-client';
 import { LegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store';
@@ -297,8 +298,11 @@ export async function bootServices(
     getTerminalColorEnv,
     // Late-bound: the git-credentials service is constructed further down in
     // this phase; sessions only call this after boot completes.
-    resolveSessionGitCredentials: (params: { projectId: string; host: HostRef }) =>
-      gitCredentials.resolveSessionSpec(params),
+    resolveSessionGitCredentials: (params: {
+      sessionId: string;
+      projectId: string;
+      host: HostRef;
+    }) => gitCredentials.resolveSessionSpec(params),
   };
   const projectAttachmentAdapter = createProjectAttachmentAdapter({
     db,
@@ -577,6 +581,7 @@ export async function bootServices(
       integrationAccountStore.reportRejected(integrationId, accountId, credentials),
     logger: log,
   });
+  bindGitCredentialChannels(gitCredentialServer);
   appScope.add(() => {
     gitCredentialServer.stop();
   });

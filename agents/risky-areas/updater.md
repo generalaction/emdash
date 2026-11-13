@@ -137,6 +137,10 @@ Dependency assessment recorded on 2026-09-01:
   native-runner matrix inside the same Ubuntu 22.04 userspace baseline. Both architectures emit
   AppImage, DEB, and RPM artifacts. Verification extracts every package payload and checks the main
   executable, required native modules, binary architecture, package metadata, and GLIBC ceiling.
+  For DEB and RPM it also checks that every system library the Electron binaries and native modules
+  link against is declared as a package dependency. The dependency lists live in
+  `scripts/release/lib/linux-dependencies.ts`; extend `SYSTEM_LIBRARIES` there when an upgrade
+  links a new library.
 - Production and canary workflows have separate non-canceling concurrency groups. Every build and
   the finalizer receives the exact draft id; a run/commit marker prevents a different dispatch from
   adopting a stale draft.

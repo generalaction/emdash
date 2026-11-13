@@ -435,7 +435,6 @@ describe('ACP persistence boundaries', () => {
       expect((await runtime.startSession(input, 'fresh')).success).toBe(false);
       await rm(temporaryPath, { recursive: true });
       expect(await runtime.attachSession(input)).toMatchObject({ data: { sessionId: 'saved' } });
-      await new Promise<void>((resolve) => setImmediate(resolve));
       await runtime.dispose();
       runtime = new AcpRuntime({
         ...h.deps,
@@ -451,6 +450,31 @@ describe('ACP persistence boundaries', () => {
       await runtime.dispose();
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it('resolves dispose only after background intent writes settle', async () => {
+    const { intents, runtime, input } = await seededRuntime(false);
+    const entered = deferred<void>();
+    const finish = deferred<void>();
+    const saveActive = intents.saveActive.bind(intents);
+    vi.spyOn(intents, 'saveActive').mockImplementationOnce(async (intent) => {
+      entered.resolve();
+      await finish.promise;
+      return saveActive(intent);
+    });
+    const order: string[] = [];
+    // Attaching re-persists the pointer without waiting for the write.
+    expect(await runtime.attachSession(input)).toMatchObject({ data: { sessionId: 'saved' } });
+    await entered.promise;
+    const disposing = runtime.dispose().then(() => order.push('disposed'));
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      order.push('released');
+    } finally {
+      finish.resolve();
+      await disposing;
+    }
+    expect(order).toEqual(['released', 'disposed']);
   });
 });
 

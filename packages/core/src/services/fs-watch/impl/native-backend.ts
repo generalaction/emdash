@@ -6,6 +6,7 @@ import {
   TimeoutError,
 } from '@emdash/shared/scheduling';
 import parcelWatcher from '@parcel/watcher';
+import type { WatchBackendPreference } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { NativeWatch, type ParcelSubscribeFn } from './native-watch';
 
@@ -16,6 +17,8 @@ const NATIVE_STARTUP_WATCHDOG_MS = 10_000;
 export type NativeWatchBackendOptions = {
   onError?: WatchOnError;
   subscribe?: ParcelSubscribeFn;
+  /** Platform whose operating-system watcher serves the `'os'` preference; defaults to the host. */
+  platform?: NodeJS.Platform;
 };
 
 export type NativeWatchBackend = WatchBackend & {
@@ -46,6 +49,7 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Nat
     }
   };
   const subscribe = options.subscribe ?? parcelWatcher.subscribe;
+  const platform = options.platform ?? process.platform;
   const startLimiter = createConcurrencyLimiter(1);
   const failureController = new AbortController();
   let poisoned: Error | undefined;
@@ -125,7 +129,7 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Nat
         };
         const native = new NativeWatch(
           key.root,
-          key.ignore,
+          parcelOptions(key, platform),
           sink.events,
           sink.resync,
           reportError,
@@ -146,4 +150,30 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Nat
       });
     },
   };
+}
+
+function parcelOptions(key: WatchKey, platform: NodeJS.Platform): parcelWatcher.Options {
+  const backend = parcelBackend(key.backend, platform);
+  return backend ? { ignore: key.ignore, backend } : { ignore: key.ignore };
+}
+
+/**
+ * Names the operating system's watcher explicitly because Parcel's default prefers a reachable
+ * Watchman daemon on Linux and Windows. Parcel silently falls back to that default for a backend
+ * the platform build lacks, so the name must match the platform. macOS already defaults to
+ * FSEvents; naming it would only start a second FSEvents backend instance.
+ */
+function parcelBackend(
+  preference: WatchBackendPreference,
+  platform: NodeJS.Platform
+): parcelWatcher.BackendType | undefined {
+  if (preference === 'auto') return undefined;
+  switch (platform) {
+    case 'linux':
+      return 'inotify';
+    case 'win32':
+      return 'windows';
+    default:
+      return undefined;
+  }
 }

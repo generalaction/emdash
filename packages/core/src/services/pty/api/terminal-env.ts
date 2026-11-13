@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { currentAgentEnvPlatform } from '#primitives/agent-env/api';
 import {
   applyGitCredentialsToEnv,
   type GitCredentialsSessionSpec,
@@ -54,5 +55,5 @@ export function buildTerminalEnv(options: {
     else env[key] = val;
   }
 
-  return applyGitCredentialsToEnv(env, options.gitCredentials);
+  return applyGitCredentialsToEnv(env, options.gitCredentials, currentAgentEnvPlatform());
 }

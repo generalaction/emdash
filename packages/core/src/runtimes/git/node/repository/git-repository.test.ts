@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -99,6 +99,35 @@ describe('GitRepository', () => {
       }
     }
   );
+
+  it('fetches tracking refs without writing FETCH_HEAD or spawning auto-maintenance', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    const remoteRepo = await makeRepo();
+    const traceDir = await mkdtemp(path.join(tmpdir(), 'emdash-git-trace-'));
+    const traceFile = path.join(traceDir, 'trace.log');
+    try {
+      await git(repo, ['remote', 'add', 'origin', remoteRepo]);
+      await git(remoteRepo, ['commit', '--allow-empty', '-m', 'advance']);
+      const remoteHead = (await git(remoteRepo, ['rev-parse', 'main'])).trim();
+
+      await expect(repository.fetch('origin', { env: { GIT_TRACE: traceFile } })).resolves.toEqual({
+        success: true,
+        data: undefined,
+      });
+
+      expect((await git(repo, ['rev-parse', 'refs/remotes/origin/main'])).trim()).toBe(remoteHead);
+      await expect(stat(path.join(repo, '.git', 'FETCH_HEAD'))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+      const trace = await readFile(traceFile, 'utf8');
+      expect(trace).toContain('built-in: git fetch');
+      expect(trace).not.toMatch(/run_command: git (maintenance|gc)\b/);
+    } finally {
+      await cleanup();
+      await rm(remoteRepo, { recursive: true, force: true });
+      await rm(traceDir, { recursive: true, force: true });
+    }
+  });
 
   it('reports a missing MR ref without creating a review branch', async () => {
     const { repo, repository, cleanup } = await makeRepository();
@@ -249,6 +278,9 @@ describe('GitRepository', () => {
         await git(repo, ['remote', 'add', remoteName, remoteRepo]);
         await git(repo, ['fetch', remoteName]);
         await git(repo, ['remote', 'set-head', remoteName, '--auto']);
+        // Newer Git can recreate a dangling remote HEAD during fetch
+        // (`followRemoteHEAD` defaults to `create`); keep the stale pointer.
+        await git(repo, ['config', `remote.${remoteName}.followRemoteHEAD`, 'never']);
         await git(remoteRepo, ['branch', '-m', 'main', 'prod']);
         await git(repo, ['fetch', '--prune', remoteName]);
 

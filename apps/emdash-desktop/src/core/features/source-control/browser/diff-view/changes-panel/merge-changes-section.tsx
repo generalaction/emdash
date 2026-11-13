@@ -9,8 +9,8 @@ import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { commitRef } from '@core/primitives/git/api';
 import { ChangesListItem, RowAction } from './components/changes-list-item';
 import { SectionHeader } from './components/section-header';
 
@@ -33,18 +33,11 @@ export const MergeChangesSection = observer(function MergeChangesSection() {
 
   if (!operation && conflicts.length === 0) return null;
 
-  const openConflictDiff = (change: GitChange, preview: boolean) =>
+  /** The file editor highlights conflict blocks and offers Accept Current/Incoming/Both lenses. */
+  const openConflict = (change: GitChange, preview: boolean) =>
     taskView.activePane.open(
-      'diff',
-      {
-        activeFile: {
-          path: change.path,
-          type: 'disk',
-          group: 'disk',
-          originalRef: commitRef('HEAD'),
-        },
-        status: change.status,
-      },
+      'file',
+      { path: resolveWorkspacePath(workspace.path, change.path) },
       { preview }
     );
 
@@ -110,9 +103,8 @@ export const MergeChangesSection = observer(function MergeChangesSection() {
             key={change.path}
             change={change}
             rootPath={workspace.path}
-            // Same as Changed rows: an editable diff vs HEAD; double-click pins the tab.
-            onClick={() => openConflictDiff(change, true)}
-            onDoubleClick={() => openConflictDiff(change, false)}
+            onClick={() => openConflict(change, true)}
+            onDoubleClick={() => openConflict(change, false)}
             rowActions={() => (
               <RowAction title="Mark as resolved (stage)" onClick={() => markResolved(change.path)}>
                 <Plus className="size-3.5" />
