@@ -93,4 +93,44 @@ describe('AgentMcpConfigManager', () => {
       CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude',
     });
   });
+  it('republishes the list when a provider env changes', async () => {
+    const readMcpServers = vi.fn(async (_providerId: string, env?: Record<string, string>) => ({
+      success: true as const,
+      data: [
+        {
+          name: env ? 'configured-server' : 'default-server',
+          transport: 'stdio',
+          command: 'x',
+        } as unknown as McpServerRegistration,
+      ],
+    }));
+    const providerEnv = new ProviderEnvCache();
+    const model = createAgentConfigMcpModel();
+    const manager = new AgentMcpConfigManager(fakeDeps({ readMcpServers }), model, providerEnv);
+    await manager.initialize();
+    expect(readMcpServers).toHaveBeenLastCalledWith('claude', undefined);
+
+    providerEnv.set('claude', { CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude' });
+
+    await vi.waitFor(() =>
+      expect(readMcpServers).toHaveBeenLastCalledWith('claude', {
+        CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude',
+      })
+    );
+    manager.dispose();
+  });
+
+  it('writes to the config root the published list was read from', async () => {
+    const deps = fakeDeps({});
+    const providerEnv = new ProviderEnvCache();
+    const manager = new AgentMcpConfigManager(deps, createAgentConfigMcpModel(), providerEnv);
+    await manager.initialize();
+    // Stop the env-change refresh so the published list stays on the default root.
+    manager.dispose();
+
+    providerEnv.set('claude', { CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude' });
+    await manager.removeServer('foo');
+
+    expect(deps.agentHost.removeMcpServer).toHaveBeenCalledWith('claude', 'foo', undefined);
+  });
 });

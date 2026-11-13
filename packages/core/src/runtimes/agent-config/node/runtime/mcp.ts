@@ -14,20 +14,48 @@ import type { AgentConfigRuntimeDeps } from './types';
 export class AgentMcpConfigManager {
   private writeLock = Promise.resolve();
   private list: McpServer[] = [];
+  /**
+   * The env each provider's config was read with for the currently published
+   * list. Cross-provider writes (save/remove) target these, so an edit always
+   * lands in the config root the user is looking at, even if the shared env
+   * cache has since moved on and the follow-up refresh hasn't published yet.
+   */
+  private listedEnv = new Map<string, Record<string, string> | undefined>();
+  private refreshGeneration = 0;
+  private readonly unsubscribeEnv: () => void;
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
     private readonly model: AgentConfigMcpModel,
     private readonly providerEnv: ProviderEnvCache
-  ) {}
+  ) {
+    // A provider's config root can move (e.g. hooksStatus learns a configured
+    // CLAUDE_CONFIG_DIR after startup); republish so the list matches it.
+    this.unsubscribeEnv = providerEnv.onChange(() => {
+      void this.refresh().catch((error: unknown) => {
+        this.deps.logger.warn('Failed to refresh MCP config after env change', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    });
+  }
 
   async initialize(): Promise<void> {
     await this.refresh();
   }
 
+  dispose(): void {
+    this.unsubscribeEnv();
+  }
+
   async refresh(): Promise<McpServer[]> {
-    const installed = await this.readAll();
-    this.publish(installed);
+    const generation = ++this.refreshGeneration;
+    const { installed, envs } = await this.readAll();
+    // Overlapping refreshes: only the most recently started one publishes.
+    if (generation === this.refreshGeneration) {
+      this.listedEnv = envs;
+      this.publish(installed);
+    }
     return installed;
   }
 
@@ -44,7 +72,7 @@ export class AgentMcpConfigManager {
         const selectedProviders = new Set(server.providers);
         for (const provider of this.getMcpProviders()) {
           const agentId = provider.metadata.id;
-          const env = this.providerEnv.get(agentId);
+          const env = this.writeEnv(agentId);
           const read = await this.deps.agentHost.readMcpServers(agentId, env);
           let regs = read.success ? read.data : [];
           const idx = regs.findIndex((reg) => reg.name === server.name);
@@ -74,7 +102,7 @@ export class AgentMcpConfigManager {
           const result = await this.deps.agentHost.removeMcpServer(
             agentId,
             name,
-            this.providerEnv.get(agentId)
+            this.writeEnv(agentId)
           );
           if (!result.success) throw new Error(agentHostErrorMessage(result.error));
         }
@@ -145,14 +173,17 @@ export class AgentMcpConfigManager {
     }
   }
 
-  private async readAll(): Promise<McpServer[]> {
+  private async readAll(): Promise<{
+    installed: McpServer[];
+    envs: Map<string, Record<string, string> | undefined>;
+  }> {
     const serversByName = new Map<string, { server: McpServer; providers: Set<string> }>();
+    const envs = new Map<string, Record<string, string> | undefined>();
     for (const provider of this.getMcpProviders()) {
       const agentId = provider.metadata.id;
-      const result = await this.deps.agentHost.readMcpServers(
-        agentId,
-        this.providerEnv.get(agentId)
-      );
+      const env = this.providerEnv.get(agentId);
+      envs.set(agentId, env);
+      const result = await this.deps.agentHost.readMcpServers(agentId, env);
       if (!result.success) {
         this.deps.logger.warn(`Failed to read MCP config for ${agentId}:`, {
           error: agentHostErrorMessage(result.error),
@@ -177,7 +208,14 @@ export class AgentMcpConfigManager {
     for (const { server, providers } of serversByName.values()) {
       installed.push({ ...server, providers: Array.from(providers) });
     }
-    return installed;
+    return { installed, envs };
+  }
+
+  /** Env of the config root the published list was read from for this provider. */
+  private writeEnv(agentId: string): Record<string, string> | undefined {
+    return this.listedEnv.has(agentId)
+      ? this.listedEnv.get(agentId)
+      : this.providerEnv.get(agentId);
   }
 
   private getMcpProviders() {

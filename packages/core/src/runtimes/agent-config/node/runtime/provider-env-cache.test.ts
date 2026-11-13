@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ProviderEnvCache } from './provider-env-cache';
 
 describe('ProviderEnvCache', () => {
@@ -42,5 +42,29 @@ describe('ProviderEnvCache', () => {
     cache.clear();
 
     expect(cache.get('claude')).toBeUndefined();
+  });
+  it('notifies listeners only when a provider env actually changes', () => {
+    const cache = new ProviderEnvCache();
+    const listener = vi.fn();
+    cache.onChange(listener);
+
+    cache.set('claude', { A: '1', B: '2' });
+    cache.set('claude', { B: '2', A: '1' });
+    cache.set('claude', { A: '1', B: '3' });
+    cache.set('claude', undefined);
+    cache.set('claude', undefined);
+
+    expect(listener.mock.calls).toEqual([['claude'], ['claude'], ['claude']]);
+  });
+
+  it('stops notifying after unsubscribe', () => {
+    const cache = new ProviderEnvCache();
+    const listener = vi.fn();
+    const unsubscribe = cache.onChange(listener);
+
+    unsubscribe();
+    cache.set('claude', { A: '1' });
+
+    expect(listener).not.toHaveBeenCalled();
   });
 });

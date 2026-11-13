@@ -57,6 +57,7 @@ export class AgentConfigRuntime {
     this.hooks = new AgentHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
     this.deps.scope.add(async () => {
       await this.auth.dispose();
+      this.mcp.dispose();
       this.install.dispose();
       await this.agentsHost.dispose();
       await this.mcpHost.dispose();

@@ -17,17 +17,36 @@
  */
 export class ProviderEnvCache {
   private readonly byProvider = new Map<string, Record<string, string>>();
+  private readonly listeners = new Set<(providerId: string) => void>();
 
   get(providerId: string): Record<string, string> | undefined {
     return this.byProvider.get(providerId);
   }
 
   set(providerId: string, env: Record<string, string> | undefined): void {
+    const previous = this.byProvider.get(providerId);
     if (env === undefined) this.byProvider.delete(providerId);
     else this.byProvider.set(providerId, env);
+    if (envKey(previous) === envKey(env)) return;
+    for (const listener of this.listeners) listener(providerId);
+  }
+
+  /**
+   * Called with the provider id whenever `set` actually changes that
+   * provider's env content (setting an identical env is not a change).
+   * Returns an unsubscribe function.
+   */
+  onChange(listener: (providerId: string) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   clear(): void {
     this.byProvider.clear();
   }
+}
+
+function envKey(env: Record<string, string> | undefined): string | undefined {
+  if (env === undefined) return undefined;
+  return JSON.stringify(Object.entries(env).sort(([a], [b]) => a.localeCompare(b)));
 }
