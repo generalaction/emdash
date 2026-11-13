@@ -86,6 +86,21 @@ OpenAI, Anthropic, Google, DeepSeek, Qwen, and more through one API key (`sk-orc
 resolves `orcarouter/*` models through its models.dev catalog, so setting `ORCAROUTER_API_KEY` lets
 you select an OrcaRouter model from the OpenCode model picker.
 
+### Local OpenAI-Compatible Inference (OpenCode)
+
+Local inference servers that expose an OpenAI-compatible `/v1` API (such as `llama.cpp`, Ollama,
+LM Studio, vLLM, or Rapid-MLX) work with OpenCode inside Emdash without a cloud provider key:
+
+- Set `OPENAI_BASE_URL` to a loopback HTTP endpoint (for example `http://127.0.0.1:8080/v1` or
+  `http://localhost:11434/v1`). `opencodeAuthStatus` treats loopback `OPENAI_BASE_URL` endpoints
+  as ready without shelling out to `opencode auth list`, while non-loopback URLs still require an
+  API key or stored credentials.
+- Pass `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR`, `OPENCODE_MODEL`, and optional `OPENAI_API_KEY` /
+  `OPENAI_MODEL` through the allowlist when defining custom provider entries in `opencode.json`.
+- For remote workspaces over SSH where the inference server runs on the local workstation, forward
+  the loopback port with SSH (`ssh -L 8080:127.0.0.1:8080 <host>` or an equivalent `LocalForward`
+  entry in `~/.ssh/config`) so the remote OpenCode process reaches the local server on `127.0.0.1`.
+
 ## Provider Runtime Notes
 
 - Host dependencies are resolved by the host-scoped `HostDependencies` Wire component.

@@ -37,6 +37,33 @@ describe('opencodeAuthStatus', () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
+  it.each(['http://127.0.0.1:8080/v1', 'http://localhost:11434/v1', 'http://[::1]:8080/v1'])(
+    'reports authenticated for loopback OPENAI_BASE_URL (%s) without probing the CLI',
+    async (url) => {
+      const exec = vi.fn();
+
+      await expect(
+        opencodeAuthStatus(ctx({ env: { OPENAI_BASE_URL: url }, exec }))
+      ).resolves.toEqual({ kind: 'authenticated' });
+      expect(exec).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['https://api.example.com/v1', 'not-a-url', 'ftp://127.0.0.1/v1'])(
+    'falls back to opencode auth list when OPENAI_BASE_URL (%s) is not a loopback HTTP endpoint',
+    async (url) => {
+      const exec = vi.fn().mockResolvedValue({
+        stdout: 'Credentials ~/.local/share/opencode/auth.json\n0 credentials',
+        stderr: '',
+      });
+
+      await expect(
+        opencodeAuthStatus(ctx({ env: { OPENAI_BASE_URL: url }, exec }))
+      ).resolves.toEqual({ kind: 'unauthenticated' });
+      expect(exec).toHaveBeenCalledWith('opencode', ['auth', 'list'], { timeout: 5000 });
+    }
+  );
+
   it('reports authenticated when opencode auth list reports credentials', async () => {
     const exec = vi.fn().mockResolvedValue({
       stdout: 'Credentials ~/.local/share/opencode/auth.json\nAnthropic api\n1 credentials',
