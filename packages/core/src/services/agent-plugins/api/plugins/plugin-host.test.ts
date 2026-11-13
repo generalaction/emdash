@@ -288,6 +288,38 @@ describe('AgentPluginHost', () => {
     });
   });
 
+  it('passes OpenCode local endpoint and config env vars from the host environment to spawned agents', async () => {
+    const buildSpawn = vi.fn(() => ({ command: 'opencode', args: ['acp'], cwd: '/work' }));
+    const host = createHost(
+      [
+        plugin({
+          acp: { kind: 'supported' },
+          behavior: { acp: { buildSpawn } as unknown as IAcpBehavior },
+        }),
+      ],
+      async () => ({
+        HOME: '/home/test',
+        PATH: '/bin',
+        OPENAI_BASE_URL: 'http://127.0.0.1:8080/v1',
+        OPENCODE_CONFIG: '/home/test/.config/opencode/local.json',
+      })
+    );
+
+    const result = await host.buildAcpSpawn('test', {
+      cwd: '/work',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        env: expect.objectContaining({
+          OPENAI_BASE_URL: 'http://127.0.0.1:8080/v1',
+          OPENCODE_CONFIG: '/home/test/.config/opencode/local.json',
+        }),
+      },
+    });
+  });
+
   it('binds machine dependencies for auth status checks', async () => {
     const checkStatus = vi.fn(async () => ({ kind: 'authenticated' as const, account: 'ada' }));
     const host = createHost([

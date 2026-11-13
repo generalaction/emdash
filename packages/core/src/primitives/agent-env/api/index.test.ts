@@ -263,6 +263,26 @@ describe('buildAllowlistedAgentEnv', () => {
     });
     expect(env.PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN).toBeUndefined();
   });
+
+  it('forwards OpenCode custom config and OpenAI-compatible base URL environment variables', () => {
+    const env = buildAllowlistedAgentEnv({
+      HOME: '/home/ada',
+      PATH: '/usr/bin',
+      OPENAI_BASE_URL: 'http://127.0.0.1:8080/v1',
+      OPENCODE_CONFIG: '/home/ada/.config/opencode/local.json',
+      OPENCODE_CONFIG_DIR: '/home/ada/.config/opencode-local',
+      OPENCODE_MODEL: 'local/qwen3.5',
+      OPENCODE_UNRELATED_SECRET: 'do-not-forward',
+    });
+
+    expect(env).toMatchObject({
+      OPENAI_BASE_URL: 'http://127.0.0.1:8080/v1',
+      OPENCODE_CONFIG: '/home/ada/.config/opencode/local.json',
+      OPENCODE_CONFIG_DIR: '/home/ada/.config/opencode-local',
+      OPENCODE_MODEL: 'local/qwen3.5',
+    });
+    expect(env.OPENCODE_UNRELATED_SECRET).toBeUndefined();
+  });
 });
 
 describe('mergeAgentEnvLayers', () => {
