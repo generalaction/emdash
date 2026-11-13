@@ -21,7 +21,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
@@ -52,8 +52,8 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  /** The dragged row's offset from the top of the viewport, kept when the sidebar folds. */
-  const dragAnchorRef = useRef<number | null>(null);
+  /** Where the dragged row was and how tall the list was when the drag started. */
+  const [dragStart, setDragStart] = useState<{ index: number; totalSize: number } | null>(null);
   const openGroupTimerRef = useRef<{
     groupId: string;
     timer: ReturnType<typeof setTimeout>;
@@ -87,12 +87,22 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
 
   const allDndIds = useMemo(() => rows.map(rowToDndId), [rows]);
   const activeDragIndex = activeDragId ? allDndIds.indexOf(activeDragId) : -1;
+  // Folding removes rows above the dragged one. Reserve their space instead of
+  // scrolling (which the browser clamps near the top), so the dragged row stays
+  // exactly where it was picked up, under the pointer, and a drop without moving
+  // keeps the order. The list keeps at least its old height so the scroll
+  // position is never clamped either.
+  const foldOffset =
+    dragStart && sidebar.isDragFolded && activeDragIndex !== -1
+      ? Math.max(0, (dragStart.index - activeDragIndex) * ROW_HEIGHT)
+      : 0;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
+    paddingStart: foldOffset,
     // Keep the dragged row mounted even when folding moves it out of view.
     rangeExtractor: (range) => {
       const indexes = defaultRangeExtractor(range);
@@ -150,16 +160,6 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     virtualizer,
   ]);
 
-  // Once the sidebar has folded for a drag, scroll so the dragged row stays
-  // where it was picked up instead of jumping away from the pointer.
-  useLayoutEffect(() => {
-    const anchor = dragAnchorRef.current;
-    const scroller = scrollRef.current;
-    if (anchor === null || !scroller || !sidebar.isDragFolded || activeDragIndex === -1) return;
-    dragAnchorRef.current = null;
-    scroller.scrollTop = activeDragIndex * ROW_HEIGHT - anchor;
-  }, [activeDragIndex, sidebar.isDragFolded]);
-
   function cancelOpenGroupTimer() {
     if (openGroupTimerRef.current) clearTimeout(openGroupTimerRef.current.timer);
     openGroupTimerRef.current = null;
@@ -171,8 +171,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     setActiveDragId(id);
     if (!dragged || dragged.kind === 'task') return;
     const index = allDndIds.indexOf(id);
-    dragAnchorRef.current =
-      index === -1 ? null : index * ROW_HEIGHT - (scrollRef.current?.scrollTop ?? 0);
+    if (index !== -1) setDragStart({ index, totalSize: virtualizer.getTotalSize() });
     sidebar.beginDragFold(dragged.kind);
   }
 
@@ -200,7 +199,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
 
   function endDrag(droppedIntoGroupId?: string | null) {
     cancelOpenGroupTimer();
-    dragAnchorRef.current = null;
+    setDragStart(null);
     setActiveDragId(null);
     sidebar.endDragFold(droppedIntoGroupId);
   }
@@ -223,7 +222,12 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     >
       <SortableContext items={allDndIds} strategy={verticalListSortingStrategy}>
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          <div
+            style={{
+              height: Math.max(virtualizer.getTotalSize(), dragStart?.totalSize ?? 0),
+              position: 'relative',
+            }}
+          >
             {virtualizer.getVirtualItems().map((vItem) => {
               const row = rows[vItem.index];
               return row ? renderRow(row, vItem.start, vItem.size) : null;
