@@ -383,7 +383,11 @@ export function useWorkspaceConfig(opts: {
     if (presetId === 'checkout-pr' || presetId === 'pr-new-branch') {
       if (!pr) return false;
       if (presetId === 'pr-new-branch') {
-        return branchNameState.branchName.trim().length > 0 && !branchNameState.branchAlreadyExists;
+        return (
+          branchNameState.branchName.trim().length > 0 &&
+          !branchNameState.branchAlreadyExists &&
+          !branchNameState.branchPrefixPending
+        );
       }
       return true;
     }
@@ -397,6 +401,7 @@ export function useWorkspaceConfig(opts: {
     return (
       branchNameState.branchName.trim().length > 0 &&
       !branchNameState.branchAlreadyExists &&
+      !branchNameState.branchPrefixPending &&
       branchSelection.selectedBranch !== undefined
     );
   }, [
@@ -408,6 +413,7 @@ export function useWorkspaceConfig(opts: {
     workspaceOptions,
     branchNameState.branchName,
     branchNameState.branchAlreadyExists,
+    branchNameState.branchPrefixPending,
     branchSelection.selectedBranch,
     branchSelection.createBranchAndWorktree,
     branchConflict,
