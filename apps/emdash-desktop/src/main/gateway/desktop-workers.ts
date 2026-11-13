@@ -59,11 +59,11 @@ import {
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
 import { createUserShellEnvController } from '@emdash/core/services/shell-env/node';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import {
   CONFIGURED_AGENTS_ENV_VAR,
   loadConfiguredAgentInstances,
-  pluginRegistry,
-} from '@emdash/plugins/agents';
+} from '@emdash/plugins/agents/configured-instances';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { queuedClient, type ContractClient } from '@emdash/wire/rpc';

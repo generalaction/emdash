@@ -1,5 +1,6 @@
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
-import { applyConfiguredAgentInstancesFromEnv, pluginRegistry } from '@emdash/plugins/agents';
+import { pluginRegistry } from '@emdash/plugins/agents';
+import { applyConfiguredAgentInstancesFromEnv } from '@emdash/plugins/agents/configured-instances';
 import { runWireComponentWorker } from '@emdash/wire/worker';
 import { initWorkerProcessLogging } from '@emdash/wire/worker/node';
 

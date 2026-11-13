@@ -9,6 +9,7 @@ const mainConfig = {
   entry: {
     agents: 'src/agents/registry.ts',
     'agents/adapter-manifest': 'src/agents/adapter-manifest.ts',
+    'agents/configured-instances': 'src/agents/configured-instances.ts',
     'agents/helpers/adapter-assets': 'src/agents/helpers/adapter-assets.ts',
     'agents/helpers/adapter-validation': 'src/agents/helpers/adapter-validation.ts',
     'agents/types': 'src/agents/types.ts',

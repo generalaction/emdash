@@ -47,11 +47,11 @@ import {
   createUserShellEnvController,
   type ShellEnvManager,
 } from '@emdash/core/services/shell-env/node';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import {
   CONFIGURED_AGENTS_ENV_VAR,
   loadConfiguredAgentInstances,
-  pluginRegistry,
-} from '@emdash/plugins/agents';
+} from '@emdash/plugins/agents/configured-instances';
 import { ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';

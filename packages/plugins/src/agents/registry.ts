@@ -41,19 +41,6 @@ import { provider as zero } from './impl/zero';
 
 export { asAgentProviderId } from './types';
 export type { AgentProviderId } from './types';
-export {
-  applyConfiguredAgentInstances,
-  applyConfiguredAgentInstancesFromEnv,
-  CONFIGURED_AGENTS_ENV_VAR,
-  loadConfiguredAgentInstances,
-  parseConfiguredAgentInstances,
-} from './configured-instances';
-export type {
-  ApplyConfiguredAgentInstancesResult,
-  ConfiguredAgentInstance,
-  ConfiguredAgentInstanceDeps,
-  LoadConfiguredAgentInstancesResult,
-} from './configured-instances';
 
 export type AgentProviderFactory = (options: {
   id: string;

@@ -27,6 +27,11 @@ export type CreateClaudeProviderOptions = {
 export function createClaudeProvider(
   options: CreateClaudeProviderOptions = {}
 ): CLIAgentPluginProvider {
+  // The usage worker probes with the host's ambient env only, never an
+  // instance's own Settings env (e.g. its CLAUDE_CONFIG_DIR), so a configured
+  // instance would report the default account's usage. Leave usage limits off
+  // for those until per-instance env reaches the usage probe.
+  const reportsUsage = (options.id ?? 'claude') === 'claude';
   const plugin = definePlugin(
     {
       id: options.id ?? 'claude',
@@ -36,7 +41,7 @@ export function createClaudeProvider(
       websiteUrl: 'https://code.claude.com/docs/en/quickstart',
     },
     {
-      usageLimits: { kind: 'supported' },
+      usageLimits: reportsUsage ? { kind: 'supported' } : { kind: 'none' },
       acp: {
         kind: 'supported',
       },
@@ -152,7 +157,7 @@ export function createClaudeProvider(
   );
 
   return registerPluginBehavior(plugin, {
-    usageLimits: { probe: probeClaudeUsage },
+    ...(reportsUsage ? { usageLimits: { probe: probeClaudeUsage } } : {}),
     acp: {
       buildSpawn: (ctx) => ({
         // Run the adapter as plain Node inside the Electron binary.

@@ -1,5 +1,6 @@
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
-import { applyConfiguredAgentInstancesFromEnv, pluginRegistry } from '@emdash/plugins/agents';
+import { pluginRegistry } from '@emdash/plugins/agents';
+import { applyConfiguredAgentInstancesFromEnv } from '@emdash/plugins/agents/configured-instances';
 import { runWireComponentWorker } from '@emdash/wire/worker';
 import { initWorkerProcessLogging } from '@emdash/wire/worker/node';
 

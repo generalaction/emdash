@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { provider } from './index';
+import { createClaudeProvider, provider } from './index';
 
 describe('Claude Code host dependency', () => {
   const windows = provider.capabilities.hostDependency.installCommands?.windows ?? [];
@@ -24,5 +24,20 @@ describe('Claude Code host dependency', () => {
   it('does not offer WinGet on macOS or Linux', () => {
     const { macos = [], linux = [] } = provider.capabilities.hostDependency.installCommands ?? {};
     expect([...macos, ...linux].some((option) => option.method === 'winget')).toBe(false);
+  });
+});
+
+describe('Claude Code configured instances', () => {
+  it('reports usage limits for the built-in provider', () => {
+    expect(provider.capabilities.usageLimits).toEqual({ kind: 'supported' });
+    expect(provider.behavior.usageLimits).toBeDefined();
+  });
+
+  it('leaves usage limits off for a configured instance', () => {
+    const instance = createClaudeProvider({ id: 'claude-work', name: 'Claude (Work)' });
+
+    expect(instance.metadata.id).toBe('claude-work');
+    expect(instance.capabilities.usageLimits).toEqual({ kind: 'none' });
+    expect(instance.behavior.usageLimits).toBeUndefined();
   });
 });

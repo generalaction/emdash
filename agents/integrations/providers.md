@@ -162,8 +162,9 @@ state directory (`workspaceServerRuntimePaths().agentsFile`) for an SSH host:
 
 The loader, factory map, and registration logic (`loadConfiguredAgentInstances`,
 `agentFactories`, `applyConfiguredAgentInstances`, `applyConfiguredAgentInstancesFromEnv`)
-live in `packages/plugins/src/agents/configured-instances.ts` (re-exported from
-`registry.ts`) so both the desktop app and `apps/workspace-server` can use them. There is
+live in `packages/plugins/src/agents/configured-instances.ts`, exported as
+`@emdash/plugins/agents/configured-instances`, so both the desktop app and
+`apps/workspace-server` can use them. There is
 no live reload: editing the file requires a restart, matching `host-settings.json`.
 Validation is per-entry lenient — a malformed entry, an unknown `extends`, a factory that
 throws, or an id collision with an already-registered provider is dropped with a logged
@@ -182,7 +183,10 @@ workspace-server host or vice versa; each reads its own local `agents.json`.
 Once registered, a configured instance is a normal provider by id: it gets its own
 host-dependency detection row (Settings → Dependencies), and its own env vars / extra
 args / custom CLI path through the existing per-provider agent Settings UI. No other
-code needs to know the instance was user-declared rather than built in.
+code needs to know the instance was user-declared rather than built in. One exception:
+configured Claude instances do not report usage limits, because the `provider-usage` worker
+probes with the host's ambient env rather than an instance's own Settings env and would show
+the default account's usage.
 
 ## Adding Or Changing A Provider
 
