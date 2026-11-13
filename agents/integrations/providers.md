@@ -98,7 +98,7 @@ LM Studio, vLLM, or Rapid-MLX) work with OpenCode inside Emdash without a cloud 
 - Pass `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR`, `OPENCODE_MODEL`, and optional `OPENAI_API_KEY` /
   `OPENAI_MODEL` through the allowlist when defining custom provider entries in `opencode.json`.
 - For remote workspaces over SSH where the inference server runs on the local workstation, forward
-  the loopback port with SSH (`ssh -L 8080:127.0.0.1:8080 <host>` or an equivalent `LocalForward`
+  the loopback port with SSH (`ssh -R 8080:127.0.0.1:8080 <host>` or an equivalent `RemoteForward`
   entry in `~/.ssh/config`) so the remote OpenCode process reaches the local server on `127.0.0.1`.
 
 ## Provider Runtime Notes
