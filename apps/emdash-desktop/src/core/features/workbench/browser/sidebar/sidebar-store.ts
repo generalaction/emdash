@@ -104,6 +104,7 @@ export class SidebarStore {
       _pendingGroupUpdates: false,
       _groupsHandle: observable.ref,
       _revealedGroupIds: false,
+      _dragFold: true,
       _dragOpenedGroupIds: false,
       projectManager: false,
       expandedProjectIds: computed.struct,
