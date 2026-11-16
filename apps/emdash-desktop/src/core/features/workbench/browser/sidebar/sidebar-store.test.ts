@@ -308,6 +308,33 @@ describe('SidebarStore project groups', () => {
     ]);
   });
 
+  it('collapses and expands every group and project at once', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Customers', 'b');
+    store.toggleProjectExpanded('c');
+    expect(store.hasOpenItems).toBe(true);
+
+    store.collapseAll();
+    expect(store.hasOpenItems).toBe(false);
+    expect(store.isGroupCollapsed(groupId)).toBe(true);
+    expect([...store.expandedProjectIds]).toEqual([]);
+
+    store.expandAll();
+    expect(store.isGroupCollapsed(groupId)).toBe(false);
+    expect([...store.expandedProjectIds].sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('collapse all also closes groups and projects opened for navigation', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Customers', 'b');
+    store.toggleGroupCollapsed(groupId);
+    store.revealProject('b');
+    expect(store.hasOpenItems).toBe(true);
+
+    store.collapseAll();
+    expect(store.hasOpenItems).toBe(false);
+  });
+
   it('folds every group while a group is dragged and restores them afterwards', () => {
     const store = threeProjects();
     const handle = groupsMementoHandle();

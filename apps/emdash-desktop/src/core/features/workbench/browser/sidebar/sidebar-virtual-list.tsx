@@ -37,6 +37,8 @@ import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
+/** How far projects in a group, and their tasks, are indented under the group header. */
+const GROUP_INDENT_PX = 12;
 /** How long a project must hover over a collapsed group before it opens. */
 const OPEN_GROUP_DELAY_MS = 600;
 
@@ -250,6 +252,7 @@ function renderRow(row: SidebarRow, top: number, height: number) {
     left: 0,
     width: '100%',
     height: `${height}px`,
+    paddingLeft: rowIndent(row),
   };
   if (row.kind === 'group') {
     return (
@@ -270,6 +273,12 @@ function renderRow(row: SidebarRow, top: number, height: number) {
       <SidebarTaskItem projectId={row.projectId} taskId={row.taskId} />
     </SortableRow>
   );
+}
+
+/** Projects in a group and their tasks sit one step in from the group header. */
+function rowIndent(row: SidebarRow): number {
+  if (row.kind === 'group') return 0;
+  return getSidebarStore().groupIdForProject(row.projectId) ? GROUP_INDENT_PX : 0;
 }
 
 const toGroupDndId = (id: string) => `group::${id}`;

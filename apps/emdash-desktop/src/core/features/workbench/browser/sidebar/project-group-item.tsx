@@ -50,7 +50,7 @@ export const SidebarProjectGroupItem = observer(function SidebarProjectGroupItem
             />
           </SidebarItemMiniButton>
           <SidebarMenuAction aria-label={`Group ${group.name}`} className="gap-2">
-            <MicroLabel className="truncate font-medium text-foreground-tertiary-passive">
+            <MicroLabel className="truncate font-medium text-foreground-muted">
               {group.name}
             </MicroLabel>
             <MicroLabel className="ml-auto pr-2 text-foreground-tertiary-passive tabular-nums">

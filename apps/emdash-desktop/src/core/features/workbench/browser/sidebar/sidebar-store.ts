@@ -315,6 +315,28 @@ export class SidebarStore {
     }));
   }
 
+  /** Whether any group or project in the sidebar is open. */
+  get hasOpenItems(): boolean {
+    return (
+      this.expandedProjectIds.size > 0 ||
+      this.projectGroups.some((group) => !this.isGroupCollapsed(group.id))
+    );
+  }
+
+  /** Close every group and every project's task list. */
+  collapseAll(): void {
+    this._revealedProjectIds.clear();
+    this._revealedGroupIds.clear();
+    this.updateExpandedProjects(() => []);
+    this.updateGroups((groups) => groups.map((g) => ({ ...g, collapsed: true })));
+  }
+
+  /** Open every group and every project's task list. */
+  expandAll(): void {
+    this.expandAllProjects();
+    this.updateGroups((groups) => groups.map((g) => ({ ...g, collapsed: false })));
+  }
+
   toggleProjectExpanded(projectId: string): void {
     const isPersisted = this.state.expandedProjectIds.includes(projectId);
     const isRevealed = this._revealedProjectIds.has(projectId);
