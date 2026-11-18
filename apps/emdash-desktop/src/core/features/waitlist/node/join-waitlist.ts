@@ -2,7 +2,13 @@
 const NOTE_MAX_LENGTH = 1000;
 const SOURCE_MAX_LENGTH = 64;
 const SOURCE_DISALLOWED_CHARS = /[^\w .:/()-]/g;
-const DEFAULT_TIMEOUT_MS = 10_000;
+// Control characters other than tab and newline; the API strips them anyway,
+// and removing them here keeps the JSON body small.
+// eslint-disable-next-line no-control-regex
+const NOTE_DISALLOWED_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F]/g;
+// Longer than the API's worst case (two upstream calls), so a slow but
+// successful signup isn't reported as a failure.
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** Short messages shown to the user when a signup fails. */
 export const WAITLIST_ERROR_MESSAGES = {
@@ -17,7 +23,7 @@ export type WaitlistSignupConfig = {
   apiUrl: string;
   /** Where the signup came from, e.g. "desktop app v1.2.10". */
   source: string;
-  /** Request timeout in milliseconds. Defaults to 10 seconds. */
+  /** Request timeout in milliseconds. Defaults to 15 seconds. */
   timeoutMs?: number;
 };
 
@@ -43,7 +49,7 @@ export async function joinWaitlist(
   const email = args.email.trim().toLowerCase();
   if (!email) throw new WaitlistJoinError(WAITLIST_ERROR_MESSAGES.invalidEmail, 'empty email');
 
-  const note = truncate(args.note.trim(), NOTE_MAX_LENGTH);
+  const note = truncate(args.note.replace(NOTE_DISALLOWED_CHARS, '').trim(), NOTE_MAX_LENGTH);
   const source = normalizeSource(config.source);
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 

@@ -189,11 +189,21 @@ describe('joinWaitlist', () => {
     expect(error.detail).toBe('timed out after 20ms');
   });
 
-  it('uses a 10 second timeout by default', async () => {
+  it('uses a 15 second timeout by default', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout');
 
     await joinWaitlist(CONFIG, { email: 'jane@example.com', note: '' });
 
-    expect(timeout).toHaveBeenCalledWith(10_000);
+    expect(timeout).toHaveBeenCalledWith(15_000);
+  });
+
+  it('strips control characters from the note but keeps tabs and line breaks', async () => {
+    await joinWaitlist(CONFIG, {
+      email: 'jane@example.com',
+      note: '\u0000Team\tof 12\u0007\nthanks\u001B',
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as { note: string };
+    expect(body.note).toBe('Team\tof 12\nthanks');
   });
 });
