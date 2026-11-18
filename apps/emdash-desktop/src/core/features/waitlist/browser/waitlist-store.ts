@@ -3,6 +3,7 @@ import { getWaitlistClient } from '../api/browser/client';
 import { releaseKey, type WaitlistPersistedState } from './waitlist-visibility';
 
 const STORAGE_KEY = 'emdash:waitlist-card';
+const JOIN_FAILED_MESSAGE = "We couldn't add you to the waitlist. Please try again.";
 
 function readPersisted(): WaitlistPersistedState {
   try {
@@ -43,13 +44,13 @@ class WaitlistStore {
           this.showJoinedConfirmation = true;
           this.update({ joinedEmail: email.trim().toLowerCase() });
         } else {
-          this.errorMessage = "We couldn't add you to the waitlist. Please try again.";
+          this.errorMessage = result.error || JOIN_FAILED_MESSAGE;
         }
       });
       return result.success;
     } catch {
       runInAction(() => {
-        this.errorMessage = "We couldn't add you to the waitlist. Please try again.";
+        this.errorMessage = JOIN_FAILED_MESSAGE;
       });
       return false;
     } finally {
