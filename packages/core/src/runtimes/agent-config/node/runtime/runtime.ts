@@ -24,6 +24,7 @@ import { AgentHookInstaller } from '#services/agent-plugins/node';
 import { AgentAuthManager, type LoginDimensions } from './auth';
 import { AgentInstallManager } from './install';
 import { AgentMcpConfigManager } from './mcp';
+import { ProviderEnvCache } from './provider-env-cache';
 import { AgentSkillsManager } from './skills';
 import type { AgentConfigRuntimeDeps } from './types';
 
@@ -40,11 +41,18 @@ export class AgentConfigRuntime {
   readonly mcp: AgentMcpConfigManager;
   readonly skills: AgentSkillsManager;
   private readonly hooks: AgentHookInstaller;
+  /**
+   * Last known per-instance Settings env, shared by hooks/auth/mcp so that
+   * whichever of them a caller happens to reach first (typically hooksStatus,
+   * queried whenever an agent's Settings card is viewed) warms it for the
+   * others too.
+   */
+  private readonly providerEnv = new ProviderEnvCache();
 
   constructor(private readonly deps: AgentConfigRuntimeDeps) {
     this.install = new AgentInstallManager(deps, this.agentsModel);
-    this.auth = new AgentAuthManager(deps, this.install);
-    this.mcp = new AgentMcpConfigManager(deps, this.mcpModel);
+    this.auth = new AgentAuthManager(deps, this.install, this.providerEnv);
+    this.mcp = new AgentMcpConfigManager(deps, this.mcpModel, this.providerEnv);
     this.skills = new AgentSkillsManager(deps, this.skillsModel);
     this.hooks = new AgentHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
     this.deps.scope.add(async () => {
@@ -53,6 +61,7 @@ export class AgentConfigRuntime {
       await this.agentsHost.dispose();
       await this.mcpHost.dispose();
       await this.skillsHost.dispose();
+      this.providerEnv.clear();
     });
     this.install.initialize();
     void this.mcp.initialize();
@@ -71,22 +80,27 @@ export class AgentConfigRuntime {
     return this.skillsHost;
   }
 
-  async hooksStatus(providerId: string): Promise<HooksStatus> {
-    const status = await this.hooks.hooksStatus(providerId);
+  async hooksStatus(providerId: string, env?: Record<string, string>): Promise<HooksStatus> {
+    this.providerEnv.set(providerId, env);
+    const status = await this.hooks.hooksStatus(providerId, env);
     if (!status) throw new Error(`Provider '${providerId}' does not support hooks`);
     return status;
   }
 
-  refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
-    return this.auth.refreshAuthStatus(providerId);
+  refreshAuthStatus(
+    providerId: string,
+    env?: Record<string, string>
+  ): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
+    return this.auth.refreshAuthStatus(providerId, env);
   }
 
   startLogin(
     providerId: string,
     methodId: string,
-    dimensions?: LoginDimensions
+    dimensions?: LoginDimensions,
+    env?: Record<string, string>
   ): Promise<Result<void, AgentConfigAuthError>> {
-    return this.auth.startLogin(providerId, methodId, dimensions);
+    return this.auth.startLogin(providerId, methodId, dimensions, env);
   }
 
   cancelLogin(providerId: string): Promise<Result<void, AgentConfigAuthError>> {
@@ -117,12 +131,19 @@ export class AgentConfigRuntime {
     return this.mcp.removeServer(name);
   }
 
-  removeMcpForAgent(providerId: string, name: string): Promise<Result<void, AgentConfigMcpError>> {
-    return this.mcp.removeServerForAgent(providerId, name);
+  removeMcpForAgent(
+    providerId: string,
+    name: string,
+    env?: Record<string, string>
+  ): Promise<Result<void, AgentConfigMcpError>> {
+    return this.mcp.removeServerForAgent(providerId, name, env);
   }
 
-  listMcpForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigMcpError>> {
-    return this.mcp.listForAgent(providerId);
+  listMcpForAgent(
+    providerId: string,
+    env?: Record<string, string>
+  ): Promise<Result<McpServer[], AgentConfigMcpError>> {
+    return this.mcp.listForAgent(providerId, env);
   }
 
   installSkill(input: {

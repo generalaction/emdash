@@ -108,6 +108,42 @@ describe('AgentConfigRuntime', () => {
     await runtime.dispose();
   });
 
+  it('threads a per-instance env override into auth status checks, winning over the ambient env', async () => {
+    const authCheckStatus = vi.fn(async (_ctx: AgentAuthContext) => ({
+      kind: 'authenticated' as const,
+    }));
+    const { runtime } = makeRuntime({ authCheckStatus });
+
+    await runtime.refreshAuthStatus('claude', { ANTHROPIC_API_KEY: 'axoniq-secret' });
+
+    expect(authCheckStatus).toHaveBeenCalledTimes(1);
+    expect(authCheckStatus.mock.calls[0]?.[0]?.env.ANTHROPIC_API_KEY).toBe('axoniq-secret');
+
+    // refreshAuthStatus is always called with fresh, authoritative Settings
+    // data (from the wire-controller), so a follow-up call with no env means
+    // "the override was removed" and must clear it, reverting to ambient -
+    // not silently keep serving the deleted override.
+    await runtime.refreshAuthStatus('claude');
+    expect(authCheckStatus.mock.calls[1]?.[0]?.env.ANTHROPIC_API_KEY).toBe('secret');
+    await runtime.dispose();
+  });
+
+  it('does not clear a warmed env override when refreshed through the non-authoritative live-model path', async () => {
+    const authCheckStatus = vi.fn(async (_ctx: AgentAuthContext) => ({
+      kind: 'authenticated' as const,
+    }));
+    const { runtime } = makeRuntime({ authCheckStatus });
+
+    await runtime.refreshAuthStatus('claude', { ANTHROPIC_API_KEY: 'axoniq-secret' });
+    // Simulates an internally triggered refresh (e.g. the live-model
+    // subscription, or the post-login-exit refresh) - it has no fresh
+    // Settings data of its own, so it must not be treated as "no override".
+    await runtime.authStatusSource().getStatus('claude', { refresh: true });
+
+    expect(authCheckStatus.mock.calls[1]?.[0]?.env.ANTHROPIC_API_KEY).toBe('axoniq-secret');
+    await runtime.dispose();
+  });
+
   it('saves and lists MCP servers through provider behavior', async () => {
     const { runtime } = makeRuntime();
     const server: McpServer = {
