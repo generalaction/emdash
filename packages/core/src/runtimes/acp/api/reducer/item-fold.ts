@@ -566,8 +566,8 @@ function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[
     return { ...stripChildren(item), children };
   };
 
-  const attached = topLevel.map(
-    (item): TranscriptItem => (isToolCallItem(item) ? attachChildren(item) : item)
+  const attached = topLevel.map((item): TranscriptItem =>
+    isToolCallItem(item) ? attachChildren(item) : item
   );
 
   return wrapToolRuns(attached.sort(compareSeq)) as TranscriptItem[];

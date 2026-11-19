@@ -85,13 +85,11 @@ export class ProviderUsageRuntime {
       clock: this.clock,
     })
       .then((result) => (result.status === 'missing-cli' ? result : usageProbeSchema.parse(result)))
-      .catch(
-        (): UsageProbeResult => ({
-          status: 'unavailable',
-          windows: [],
-          message: 'Could not read usage from this machine. Try refreshing.',
-        })
-      )
+      .catch((): UsageProbeResult => ({
+        status: 'unavailable',
+        windows: [],
+        message: 'Could not read usage from this machine. Try refreshing.',
+      }))
       .then((result) => {
         if (owner.disposed) {
           this.readings.set(probe.providerId, { ...previous, refreshing: false });

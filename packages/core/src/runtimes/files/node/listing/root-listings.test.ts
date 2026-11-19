@@ -144,13 +144,14 @@ describe('RootListings', () => {
     const { state, refresh } = await acquire(listings, '');
     const original = ListingReader.prototype.readFolder;
     const release = deferred<void>();
-    vi.spyOn(ListingReader.prototype, 'readFolder').mockImplementationOnce(
-      async function (this: ListingReader, folder) {
-        const read = await original.call(this, folder);
-        await release.promise;
-        return read;
-      }
-    );
+    vi.spyOn(ListingReader.prototype, 'readFolder').mockImplementationOnce(async function (
+      this: ListingReader,
+      folder
+    ) {
+      const read = await original.call(this, folder);
+      await release.promise;
+      return read;
+    });
 
     const refreshing = refresh();
     await vi.waitFor(() => expect(ListingReader.prototype.readFolder).toHaveBeenCalled());

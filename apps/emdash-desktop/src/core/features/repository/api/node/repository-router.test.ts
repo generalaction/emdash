@@ -119,9 +119,8 @@ describe('RepositoryRouter', () => {
 
   it('still requires the probe to pass for an account-matched host that can be probed', async () => {
     accounts.set('github', [{ host: 'ghe.example.com' }]);
-    const probe = vi.fn(
-      async (hostname: string): Promise<RepositoryHostProbeResult> =>
-        err({ type: 'host_unreachable' as const, host: hostname, message: 'ENOTFOUND' })
+    const probe = vi.fn(async (hostname: string): Promise<RepositoryHostProbeResult> =>
+      err({ type: 'host_unreachable' as const, host: hostname, message: 'ENOTFOUND' })
     );
     expect(
       await router([plugin('github', { knownHosts: ['github.com'], probe })]).route(

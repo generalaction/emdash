@@ -72,7 +72,7 @@
   "dependencies": {
     "@emdash/shared": "workspace:*",
     "immer": "^10.1.1",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^20.19.42",
@@ -80,7 +80,7 @@
     "mobx": "^6.16.1",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.12"
   },
   "peerDependencies": {
     "mobx": "^6.16.1"

@@ -92,13 +92,13 @@
   "dependencies": {
     "fast-redact": "^3.5.0",
     "pino": "^9.14.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^20.19.42",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "tsdown": "^0.22.2",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.12"
   },
   "nx": {
     "targets": {

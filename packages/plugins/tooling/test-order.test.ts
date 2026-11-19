@@ -27,11 +27,12 @@ it('finishes the plugin build before testing plugins alongside their consumers',
     }
   );
   const graph = JSON.parse(stdout) as {
-    tasks: { dependencies: Record<string, string[]> };
+    tasks: { dependencies: Record<string, Array<string | { id: string }>> };
   };
   const prerequisites = new Set<string>();
   const visit = (task: string) => {
-    for (const dependency of graph.tasks.dependencies[task] ?? []) {
+    for (const entry of graph.tasks.dependencies[task] ?? []) {
+      const dependency = typeof entry === 'string' ? entry : entry.id;
       if (prerequisites.has(dependency)) continue;
       prerequisites.add(dependency);
       visit(dependency);

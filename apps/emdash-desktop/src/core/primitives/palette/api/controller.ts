@@ -144,15 +144,13 @@ export class PaletteController {
   ): void {
     const ranked = [...providerResults].flatMap(([provider, matches]) =>
       matches
-        .map(
-          (match, itemOrder): RankedResult => ({
-            identity: `${provider.kind}:${match.id}`,
-            provider,
-            match,
-            providerOrder: this.catalog.providers.indexOf(provider),
-            itemOrder,
-          })
-        )
+        .map((match, itemOrder): RankedResult => ({
+          identity: `${provider.kind}:${match.id}`,
+          provider,
+          match,
+          providerOrder: this.catalog.providers.indexOf(provider),
+          itemOrder,
+        }))
         .sort(compareResults)
         .slice(0, mode ? TOTAL_RESULT_LIMIT : PROVIDER_RESULT_LIMIT)
     );

@@ -57,12 +57,12 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.42",
-    "oxfmt": "^0.51.0",
+    "oxfmt": "^0.79.0",
     "oxlint": "^1.66.0",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.12"
   },
   "packageManager": "pnpm@10.28.2",
   "nx": {

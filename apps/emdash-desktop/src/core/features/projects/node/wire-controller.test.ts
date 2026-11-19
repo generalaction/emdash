@@ -124,9 +124,8 @@ describe('Projects Wire directory listing', () => {
           },
         },
         git: {
-          inspectPath: vi.fn(
-            async (): Promise<Result<GitPathInspection, InspectPathError>> =>
-              ok({ kind: 'repository' as const, rootPath: root, baseRef: 'main' })
+          inspectPath: vi.fn(async (): Promise<Result<GitPathInspection, InspectPathError>> =>
+            ok({ kind: 'repository' as const, rootPath: root, baseRef: 'main' })
           ),
         },
       };
@@ -195,9 +194,8 @@ describe('Projects Wire repository trust', () => {
     return {
       files: { fs: { stat: vi.fn(async () => ok({ type: 'directory' as const })) } },
       git: {
-        inspectPath: vi.fn(
-          async (): Promise<Result<GitPathInspection, InspectPathError>> =>
-            err({ type: 'inspect-failed', path: root, message: refusal, dubiousOwnership })
+        inspectPath: vi.fn(async (): Promise<Result<GitPathInspection, InspectPathError>> =>
+          err({ type: 'inspect-failed', path: root, message: refusal, dubiousOwnership })
         ),
         trustRepository: vi.fn(
           async (): Promise<Result<TrustRepositoryResult, TrustRepositoryError>> =>

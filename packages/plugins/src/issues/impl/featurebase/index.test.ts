@@ -16,7 +16,9 @@ if (!issues) throw new Error('Featurebase issues plugin has no issues behavior')
 const mockCreateClient = vi.mocked(createFeaturebaseClient);
 const host = { log: noopLogger, credentials: { apiKey: 'fb-token' } };
 
-function mockClient(list: ReturnType<typeof vi.fn>) {
+function mockClient(
+  list: ReturnType<typeof vi.fn<FeaturebaseClient['feedback']['posts']['list']>>
+) {
   const client: FeaturebaseClient = {
     feedback: {
       posts: {

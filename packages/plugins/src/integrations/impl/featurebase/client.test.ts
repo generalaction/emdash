@@ -9,13 +9,15 @@ import {
 
 const postsListMock = vi.hoisted(() => vi.fn());
 const FeaturebaseMock = vi.hoisted(() =>
-  vi.fn(() => ({
-    feedback: {
-      posts: {
-        list: postsListMock,
+  vi.fn(function () {
+    return {
+      feedback: {
+        posts: {
+          list: postsListMock,
+        },
       },
-    },
-  }))
+    };
+  })
 );
 
 vi.mock('featurebase-node', () => ({

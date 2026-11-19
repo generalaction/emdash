@@ -41,9 +41,8 @@ function fixture() {
   const applyDocumentEdit = vi.fn(async (_input: unknown) => ok(undefined));
   const closeDocument = vi.fn(async (_input: unknown) => ok(undefined));
   const restartServer = vi.fn(async (_input: unknown) => ok(undefined));
-  const hover = vi.fn(
-    async (_input: unknown): Promise<Result<LspHover, LspError>> =>
-      ok({ contents: 'type information' })
+  const hover = vi.fn(async (_input: unknown): Promise<Result<LspHover, LspError>> =>
+    ok({ contents: 'type information' })
   );
   const references = vi.fn(async (_input: unknown) => ok([]));
   const documentSaved = vi.fn(async (_input: unknown) => ok(undefined));

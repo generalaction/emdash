@@ -70,9 +70,8 @@ function makeResolver(options: {
     ),
   };
   const broker = {
-    client: vi.fn(
-      async (): Promise<RuntimeSessionResolution> =>
-        ok({ files: { getHomeDir, fs: { exists } }, hostSettings } as never)
+    client: vi.fn(async (): Promise<RuntimeSessionResolution> =>
+      ok({ files: { getHomeDir, fs: { exists } }, hostSettings } as never)
     ),
   };
   const resolver = new WorkspacePlacementResolver({

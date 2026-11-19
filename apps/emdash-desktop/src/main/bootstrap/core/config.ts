@@ -49,16 +49,14 @@ const rawAppConfigSchema = z
     installSource: z.string().trim().min(1, 'Install source cannot be empty').optional(),
     emdashForceBootFailure: flagIsOne,
   })
-  .transform(
-    (config): Omit<AppConfig, 'identity' | 'isDev'> => ({
-      dbFile: config.emdashDbFile,
-      userDataDir: config.emdashUserDataDir,
-      disableNativeDb: config.emdashDisableNativeDb,
-      telemetryEnabled: config.telemetryEnabled,
-      installSource: config.installSource,
-      forceBootFailure: config.emdashForceBootFailure,
-    })
-  );
+  .transform((config): Omit<AppConfig, 'identity' | 'isDev'> => ({
+    dbFile: config.emdashDbFile,
+    userDataDir: config.emdashUserDataDir,
+    disableNativeDb: config.emdashDisableNativeDb,
+    telemetryEnabled: config.telemetryEnabled,
+    installSource: config.installSource,
+    forceBootFailure: config.emdashForceBootFailure,
+  }));
 
 let appConfig: AppConfig | undefined;
 let userDataConfigured = false;

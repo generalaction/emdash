@@ -316,15 +316,13 @@ export class WorkspaceRegistryRuntime {
           // Overwrite, not append: drop past activations' script steps, seed this one's.
           const steps = sortSteps([
             ...lifecycle.steps.filter((step) => !SCRIPT_STEP_IDS.has(step.id)),
-            ...scripts.map(
-              (script): WorkspaceLifecycleStep => ({
-                id: script,
-                status: 'pending',
-                startedAt: null,
-                finishedAt: null,
-                params: {},
-              })
-            ),
+            ...scripts.map((script): WorkspaceLifecycleStep => ({
+              id: script,
+              status: 'pending',
+              startedAt: null,
+              finishedAt: null,
+              params: {},
+            })),
           ]);
           const updated: DurableWorkspaceRecord = {
             ...record,

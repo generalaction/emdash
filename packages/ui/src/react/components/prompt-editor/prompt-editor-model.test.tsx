@@ -186,7 +186,7 @@ describe('conversation-owned prompt editor models', () => {
       items: [],
       command: () => {},
       decorationNode: null,
-    };
+    } as unknown as Parameters<NonNullable<typeof oldRenderer.onStart>>[0];
     act(() => oldRenderer.onStart?.(props));
     expect(oldOpenChange).not.toHaveBeenCalled();
     expect(newOpenChange).not.toHaveBeenCalled();

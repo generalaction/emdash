@@ -113,13 +113,11 @@ describe('AgentPluginHost', () => {
   });
 
   it('builds prompt commands with resolved cli and allowlisted env', async () => {
-    const buildCommand = vi.fn(
-      (ctx: CommandContext): AgentCommand => ({
-        command: ctx.cli,
-        args: [ctx.model],
-        env: { COMMAND_ENV: '1' },
-      })
-    );
+    const buildCommand = vi.fn((ctx: CommandContext): AgentCommand => ({
+      command: ctx.cli,
+      args: [ctx.model],
+      env: { COMMAND_ENV: '1' },
+    }));
     const host = createHost(
       [
         plugin({
@@ -160,9 +158,11 @@ describe('AgentPluginHost', () => {
   });
 
   it('gives Windows TUI agents the system drive and directory variables', async () => {
-    const buildCommand = vi.fn(
-      (ctx: CommandContext): AgentCommand => ({ command: ctx.cli, args: [], env: {} })
-    );
+    const buildCommand = vi.fn((ctx: CommandContext): AgentCommand => ({
+      command: ctx.cli,
+      args: [],
+      env: {},
+    }));
     const host = createHost(
       [plugin({ behavior: { prompt: { buildCommand } } })],
       async () => ({

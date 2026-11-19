@@ -158,9 +158,8 @@ export class GitCheckoutRuntime {
   }
 
   private read<T>(selector: CheckoutSelector, read: (resource: CheckoutResource) => Promise<T>) {
-    return this.run(
-      selector,
-      async (resource): Promise<Result<T, never>> => ok(await read(resource))
+    return this.run(selector, async (resource): Promise<Result<T, never>> =>
+      ok(await read(resource))
     );
   }
 
