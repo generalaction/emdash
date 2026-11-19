@@ -296,9 +296,9 @@ export class WorkspaceScanScheduler {
     if (full) {
       // The common index belongs to the main checkout only: worktrees keep their own.
       this.request({ kind: 'workspace', id: repositoryId, mode: 'content' });
-      return;
     }
     if (refs) {
+      // Merges into the content request above when both arrived in one batch.
       this.request({ kind: 'workspace', id: repositoryId, mode: 'refs' });
       // Branch tips moved: every worktree's ahead/behind may have changed.
       for (const target of targets) {
@@ -318,6 +318,9 @@ export class WorkspaceScanScheduler {
       return;
     }
 
+    // A pending repository reconcile observes every child: drop their own pending scans.
+    if (request.kind === 'repository') this.dropPendingChildScans(request.id);
+
     const existing = this.pending.get(key);
     if (existing) {
       existing.request = mergeRequests(existing.request, request);
@@ -328,6 +331,14 @@ export class WorkspaceScanScheduler {
     const timer = setTimeout(() => this.fire(key), debounce);
     timer.unref?.();
     this.pending.set(key, { request, timer });
+  }
+
+  private dropPendingChildScans(repositoryId: string): void {
+    for (const [key, pending] of this.pending) {
+      if (this.targetsById.get(key)?.parentId !== repositoryId) continue;
+      clearTimeout(pending.timer);
+      this.pending.delete(key);
+    }
   }
 
   private requestFullScan(targetId: string): void {

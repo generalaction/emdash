@@ -440,6 +440,45 @@ describe('WorkspaceScanScheduler', () => {
     }
   });
 
+  it('a pending repository reconcile absorbs earlier pending worktree scans', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id, 'a');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA], { debounceMs: 30 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit('/worktrees/a', [{ kind: 'update', path: '/worktrees/a/file.txt' }]);
+      watcher.emit(gitDir, [{ kind: 'create', path: path.join(gitDir, 'worktrees/b') }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: 'repo-1' }]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(requests).toHaveLength(1);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('a commit in the main checkout (index + branch ref in one batch) still refreshes siblings', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id, 'a');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA], { debounceMs: 5 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit(gitDir, [
+        { kind: 'update', path: path.join(gitDir, 'index') },
+        { kind: 'update', path: path.join(gitDir, 'refs/heads/main') },
+      ]);
+      await eventually(() => {
+        expect(requests).toEqual([
+          { kind: 'workspace', id: 'repo-1', mode: 'content' },
+          { kind: 'workspace', id: 'wt-a', mode: 'refs' },
+        ]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
   it('defaults the active debounce to 1 s and the idle debounce to 2 s', () => {
     expect(DEFAULT_SCAN_DEBOUNCE_MS).toBe(2_000);
     expect(DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS).toBe(1_000);
