@@ -1,5 +1,5 @@
 import { Button, DropdownMenu, MicroLabel, Tooltip } from '@emdash/ui/react/primitives';
-import { FolderPlus, ListFilter } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, FolderPlus, FolderTree, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -7,6 +7,10 @@ import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
   const openAddProjectModal = useOpenModal('addProjectModal');
+  const openGroupNameModal = useOpenModal('projectGroupNameModal');
+  const sidebar = getSidebarStore();
+  const hasOpenItems = sidebar.hasOpenItems;
+  const toggleAllLabel = hasOpenItems ? 'Collapse All' : 'Expand All';
 
   return (
     <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
@@ -47,6 +51,40 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
             </DropdownMenu.Group>
           </DropdownMenu.Content>
         </DropdownMenu.Root>
+        <Tooltip.Root>
+          <Tooltip.Trigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                icon
+                onClick={() => (hasOpenItems ? sidebar.collapseAll() : sidebar.expandAll())}
+                aria-label={toggleAllLabel}
+              >
+                {hasOpenItems ? <ChevronsDownUp /> : <ChevronsUpDown />}
+              </Button>
+            }
+          />
+          <Tooltip.Content>{toggleAllLabel}</Tooltip.Content>
+        </Tooltip.Root>
+        <Tooltip.Root>
+          <Tooltip.Trigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                icon
+                onClick={() => void openGroupNameModal({ mode: 'create' })}
+                aria-label="New Group"
+              >
+                <FolderTree />
+              </Button>
+            }
+          />
+          <Tooltip.Content>New Group</Tooltip.Content>
+        </Tooltip.Root>
         <Tooltip.Root>
           <Tooltip.Trigger
             render={

@@ -30,6 +30,41 @@ export const workbenchSidebarMemento = defineMemento({
   },
 });
 
+const sidebarProjectGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  collapsed: z.boolean(),
+});
+
+export type SidebarProjectGroup = z.infer<typeof sidebarProjectGroupSchema>;
+
+// Kept apart from `workbench.sidebar` so app versions without project groups
+// ignore this memento instead of treating the whole sidebar state as unreadable.
+const workbenchSidebarGroupsV1Schema = z.object({
+  version: z.literal('1'),
+  /** User-defined project groups, in display order. */
+  groups: z.array(sidebarProjectGroupSchema),
+  /** Project id -> group id. Projects without an entry are ungrouped. */
+  groupByProjectId: z.record(z.string(), z.string()),
+});
+
+export const workbenchSidebarGroupsSchema = defineVersionedSchema()
+  .initial('1', workbenchSidebarGroupsV1Schema)
+  .build();
+
+export type WorkbenchSidebarGroupsState = typeof workbenchSidebarGroupsSchema.Type;
+
+export const workbenchSidebarGroupsMemento = defineMemento({
+  id: 'workbench.sidebar-groups',
+  subject: appSubject,
+  schema: workbenchSidebarGroupsSchema,
+  default: {
+    version: '1' as const,
+    groups: [],
+    groupByProjectId: {},
+  },
+});
+
 const workbenchPanelLayoutsV1Schema = z.object({
   version: z.literal('1'),
   layouts: z.record(z.string(), z.string()),
