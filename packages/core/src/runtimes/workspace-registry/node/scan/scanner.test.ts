@@ -112,6 +112,79 @@ describe('RegistryScanner', () => {
     expect(log.events).toEqual([`config:${worktree.id}`, `observation:${worktree.id}`]);
   });
 
+  it('a content request observes only that worktree — no sibling or repository sweep', async () => {
+    const repository = await standaloneRecord('repo-content');
+    repository.kind = 'repository';
+    const worktree = await standaloneRecord('wt-content');
+    worktree.parentId = repository.id;
+    worktree.git = { locked: true, prunable: false } as DurableWorkspaceRecord['git'];
+    const sibling = await standaloneRecord('wt-sibling');
+    sibling.parentId = repository.id;
+    const { landing, log } = fakeLanding([repository, worktree, sibling]);
+    const observed: { path: string; locked: boolean | undefined }[] = [];
+    const scanner = new RegistryScanner(landing, {
+      git: createRegistryGitContext(),
+      observe: {
+        full: async (workspacePath, listing) => {
+          observed.push({ path: workspacePath, locked: listing?.locked });
+          return null;
+        },
+        refs: async () => null,
+      },
+    });
+
+    await scanner.executeScanRequest({ kind: 'workspace', id: worktree.id, mode: 'content' });
+
+    // Locked/prunable come from the listing, which a content scan skips: carried forward.
+    expect(observed).toEqual([{ path: worktree.path, locked: true }]);
+    expect(log.events).toEqual([`config:${worktree.id}`, `observation:${worktree.id}`]);
+  });
+
+  it('a content request for a repository observes only the main checkout', async () => {
+    const repository = await standaloneRecord('repo-main');
+    repository.kind = 'repository';
+    const worktree = await standaloneRecord('wt-child');
+    worktree.parentId = repository.id;
+    const { landing, log } = fakeLanding([repository, worktree]);
+    const observed: string[] = [];
+    const scanner = new RegistryScanner(landing, {
+      git: createRegistryGitContext(),
+      observe: {
+        full: async (workspacePath) => {
+          observed.push(workspacePath);
+          return null;
+        },
+        refs: async () => null,
+      },
+    });
+
+    await scanner.executeScanRequest({ kind: 'workspace', id: repository.id, mode: 'content' });
+
+    expect(observed).toEqual([repository.path]);
+    expect(log.observations).toEqual([repository.id]);
+  });
+
+  it('a content request for a vanished worktree falls back to the reconcile pass', async () => {
+    const repository = await standaloneRecord('repo-reconcile');
+    repository.kind = 'repository';
+    const worktree = record({
+      id: 'wt-gone',
+      path: path.join(root, 'wt-gone'),
+      parentId: repository.id,
+    });
+    const { landing, log } = fakeLanding([repository, worktree]);
+    const scanner = new RegistryScanner(landing, {
+      git: createRegistryGitContext(),
+      observe: { full: async () => null, refs: async () => null },
+    });
+
+    await scanner.executeScanRequest({ kind: 'workspace', id: worktree.id, mode: 'content' });
+
+    // The repository pass owns vanish and relink handling: it observed the parent too.
+    expect(log.vanished).toEqual([worktree.id]);
+    expect(log.observations).toContain(repository.id);
+  });
+
   it('serializes scans on one lane — the second observation starts after the first lands', async () => {
     const first = await standaloneRecord('ws-first');
     const second = await standaloneRecord('ws-second');

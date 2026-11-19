@@ -12,10 +12,19 @@ import {
 } from '#services/fs-watch/api';
 import type { WorkspaceKind } from '../../api/schemas';
 
-/** What the scheduler asks the runtime to do. Repository scans reconcile worktree sets. */
+/**
+ * What the scheduler asks the runtime to do. Repository scans reconcile worktree sets.
+ *
+ * Workspace modes, narrowest first:
+ * - `refs`: ref-only change — no status, no untracked counting.
+ * - `content`: this record's working tree changed — observe this record only, with no
+ *   repository reconcile. Working-tree events and resyncs use it, so a change in one
+ *   worktree never rescans its siblings.
+ * - `full`: reconcile through the owning repository, so relinks and locked/prunable land.
+ */
 export type ScanRequest =
   | { kind: 'repository'; id: string }
-  | { kind: 'workspace'; id: string; mode: 'full' | 'refs' };
+  | { kind: 'workspace'; id: string; mode: 'content' | 'full' | 'refs' };
 
 /** The scheduler's view of one registry record. */
 export type ScanTarget = {
@@ -162,10 +171,10 @@ export class WorkspaceScanScheduler {
               onResync: () => this.request({ kind: 'repository', id: target.id }),
             }
           )
-        : this.watcher.watch(target.path, () => this.requestFullScan(target.id), {
+        : this.watcher.watch(target.path, () => this.requestContentScan(target.id), {
             ignore: this.contentWatchIgnore,
             onError,
-            onResync: () => this.requestFullScan(target.id),
+            onResync: () => this.requestContentScan(target.id),
           });
       handleRef.current = handle;
       this.watches.set(key, handle);
@@ -285,10 +294,11 @@ export class WorkspaceScanScheduler {
       }
     }
     if (full) {
-      this.request({ kind: 'workspace', id: repositoryId, mode: 'full' });
-      return;
+      // The common index belongs to the main checkout only: worktrees keep their own.
+      this.request({ kind: 'workspace', id: repositoryId, mode: 'content' });
     }
     if (refs) {
+      // Merges into the content request above when both arrived in one batch.
       this.request({ kind: 'workspace', id: repositoryId, mode: 'refs' });
       // Branch tips moved: every worktree's ahead/behind may have changed.
       for (const target of targets) {
@@ -308,6 +318,9 @@ export class WorkspaceScanScheduler {
       return;
     }
 
+    // A pending repository reconcile observes every child: drop their own pending scans.
+    if (request.kind === 'repository') this.dropPendingChildScans(request.id);
+
     const existing = this.pending.get(key);
     if (existing) {
       existing.request = mergeRequests(existing.request, request);
@@ -320,11 +333,38 @@ export class WorkspaceScanScheduler {
     this.pending.set(key, { request, timer });
   }
 
+  private dropPendingChildScans(repositoryId: string): void {
+    for (const [key, pending] of this.pending) {
+      if (this.targetsById.get(key)?.parentId !== repositoryId) continue;
+      clearTimeout(pending.timer);
+      this.pending.delete(key);
+    }
+  }
+
   private requestFullScan(targetId: string): void {
     const target = this.targetsById.get(targetId);
     if (!target) return;
     if (this.muted.has(target.id)) return;
     this.request(fullScanRequest(target, this.targetsById));
+  }
+
+  /**
+   * A working-tree change observes that record alone (#3428): escalating to the parent
+   * repository would run status + diff in every sibling worktree on each event.
+   */
+  private requestContentScan(targetId: string): void {
+    const target = this.targetsById.get(targetId);
+    if (!target) return;
+    if (this.muted.has(target.id)) return;
+    // A parent reconcile that has not started yet will observe this record anyway. One
+    // already in flight may have observed it before the change, so it does not count.
+    if (
+      target.parentId !== null &&
+      this.pending.get(target.parentId)?.request.kind === 'repository'
+    ) {
+      return;
+    }
+    this.request({ kind: 'workspace', id: target.id, mode: 'content' });
   }
 
   private fire(key: string): void {
@@ -370,14 +410,16 @@ function fullScanRequest(
   return { kind: 'workspace', id: target.id, mode: 'full' };
 }
 
-/** Full scans subsume ref scans; repository reconciliation subsumes both. */
+/** Repository reconciliation subsumes full, full subsumes content, content subsumes refs. */
 function mergeRequests(previous: ScanRequest | undefined, next: ScanRequest): ScanRequest {
   if (!previous) return next;
   if (previous.kind === 'repository' || next.kind === 'repository') {
     return { kind: 'repository', id: next.id };
   }
-  if (previous.mode === 'full' || next.mode === 'full') {
-    return { kind: 'workspace', id: next.id, mode: 'full' };
+  for (const mode of ['full', 'content'] as const) {
+    if (previous.mode === mode || next.mode === mode) {
+      return { kind: 'workspace', id: next.id, mode };
+    }
   }
   return next;
 }

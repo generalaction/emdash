@@ -26,6 +26,7 @@ type FakeWatchAttempt = {
   backend: WatchOptions['backend'];
   onEvents: (events: WatchEvent[]) => void;
   onError: ((error: unknown) => void) | undefined;
+  onResync: (() => void) | undefined;
   ready: Deferred<Result<void, unknown>>;
   released: boolean;
 };
@@ -44,6 +45,7 @@ class FakeWatchService implements IWatchService {
       backend: options?.backend,
       onEvents,
       onError: options?.onError,
+      onResync: options?.onResync,
       ready,
       released: false,
     };
@@ -69,6 +71,10 @@ class FakeWatchService implements IWatchService {
 
   emit(root: string, events: WatchEvent[]): void {
     this.roots.get(root)?.onEvents(events);
+  }
+
+  resync(root: string): void {
+    this.roots.get(root)?.onResync?.();
   }
 
   rejectReady(root: string, error: unknown): FakeWatchAttempt {
@@ -185,8 +191,16 @@ describe('WorkspaceScanScheduler', () => {
 
     try {
       void scheduler.start();
-      expect(watcher.roots.get('/repos/main')?.ignore).toEqual(['.git/**', '**/dist/**']);
-      expect(watcher.roots.get('/repos/wt')?.ignore).toEqual(['.git/**', '**/dist/**']);
+      expect(watcher.roots.get('/repos/main')?.ignore).toEqual([
+        '.git/**',
+        '**/.watchman-cookie-*',
+        '**/dist/**',
+      ]);
+      expect(watcher.roots.get('/repos/wt')?.ignore).toEqual([
+        '.git/**',
+        '**/.watchman-cookie-*',
+        '**/dist/**',
+      ]);
       expect(watcher.roots.get('/repos/main')?.backend).toBeUndefined();
       expect(watcher.roots.get('/repos/wt')?.backend).toBeUndefined();
       const gitDirWatch = watcher.roots.get(path.join('/repos/main', '.git'));
@@ -281,7 +295,7 @@ describe('WorkspaceScanScheduler', () => {
     }
   });
 
-  it('falls back to a standalone scan when a watched worktree loses its parent record', async () => {
+  it('scans only the worktree when a watched worktree loses its parent record', async () => {
     const repo = repoTarget('repo-1', '/repos/main');
     const worktree = worktreeTarget('wt-1', '/worktrees/wt', repo.id);
     const targets = [repo, worktree];
@@ -292,14 +306,14 @@ describe('WorkspaceScanScheduler', () => {
       watcher.emit(worktree.path, [{ kind: 'update', path: path.join(worktree.path, 'file.txt') }]);
 
       await eventually(() => {
-        expect(requests).toEqual([{ kind: 'workspace', id: worktree.id, mode: 'full' }]);
+        expect(requests).toEqual([{ kind: 'workspace', id: worktree.id, mode: 'content' }]);
       });
     } finally {
       await scheduler.dispose();
     }
   });
 
-  it('falls back to a standalone scan when a worktree parent is missing', async () => {
+  it('scans only the worktree when a worktree parent is missing', async () => {
     const repo = repoTarget('repo-1', '/repos/main');
     repo.observedStatus = 'missing';
     const worktree = worktreeTarget('wt-1', '/worktrees/wt', repo.id);
@@ -308,14 +322,14 @@ describe('WorkspaceScanScheduler', () => {
       watcher.emit(worktree.path, [{ kind: 'update', path: path.join(worktree.path, 'file.txt') }]);
 
       await eventually(() => {
-        expect(requests).toEqual([{ kind: 'workspace', id: worktree.id, mode: 'full' }]);
+        expect(requests).toEqual([{ kind: 'workspace', id: worktree.id, mode: 'content' }]);
       });
     } finally {
       await scheduler.dispose();
     }
   });
 
-  it('classifies ref-only gitdir events onto the cheap path, index onto the full path', async () => {
+  it('classifies ref-only gitdir events onto the cheap path, index onto the content path', async () => {
     const repo = repoTarget('repo-1', '/repos/main');
     const wt = worktreeTarget('wt-1', '/worktrees/wt', 'repo-1');
     const { watcher, requests, scheduler } = createHarness([repo, wt]);
@@ -333,7 +347,8 @@ describe('WorkspaceScanScheduler', () => {
       requests.length = 0;
       watcher.emit(gitDir, [{ kind: 'update', path: path.join(gitDir, 'index') }]);
       await eventually(() => {
-        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'full' }]);
+        // The common index belongs to the main checkout: no worktree sweep.
+        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'content' }]);
       });
     } finally {
       await scheduler.dispose();
@@ -369,6 +384,101 @@ describe('WorkspaceScanScheduler', () => {
     }
   });
 
+  it('a working-tree event in one worktree scans only that worktree, not its siblings', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id, 'a');
+    const wtB = worktreeTarget('wt-b', '/worktrees/b', repo.id, 'b');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA, wtB], { debounceMs: 5 });
+    try {
+      watcher.emit('/worktrees/a', [{ kind: 'update', path: '/worktrees/a/file.txt' }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'workspace', id: 'wt-a', mode: 'content' }]);
+      });
+
+      requests.length = 0;
+      watcher.emit('/repos/main', [{ kind: 'update', path: '/repos/main/file.txt' }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'content' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('a dropped-events resync on a working tree scans only that workspace', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id, 'a');
+    const wtB = worktreeTarget('wt-b', '/worktrees/b', repo.id, 'b');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA, wtB], { debounceMs: 5 });
+    try {
+      for (let i = 0; i < 5; i += 1) watcher.resync('/worktrees/b');
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'workspace', id: 'wt-b', mode: 'content' }]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(requests).toHaveLength(1);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('a content event defers to a pending reconcile of the parent repository', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id, 'a');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA], { debounceMs: 30 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit(gitDir, [{ kind: 'create', path: path.join(gitDir, 'worktrees/b') }]);
+      watcher.emit('/worktrees/a', [{ kind: 'update', path: '/worktrees/a/file.txt' }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: 'repo-1' }]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(requests).toHaveLength(1);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('a pending repository reconcile absorbs earlier pending worktree scans', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id, 'a');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA], { debounceMs: 30 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit('/worktrees/a', [{ kind: 'update', path: '/worktrees/a/file.txt' }]);
+      watcher.emit(gitDir, [{ kind: 'create', path: path.join(gitDir, 'worktrees/b') }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: 'repo-1' }]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(requests).toHaveLength(1);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('a commit in the main checkout (index + branch ref in one batch) still refreshes siblings', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id, 'a');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA], { debounceMs: 5 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit(gitDir, [
+        { kind: 'update', path: path.join(gitDir, 'index') },
+        { kind: 'update', path: path.join(gitDir, 'refs/heads/main') },
+      ]);
+      await eventually(() => {
+        expect(requests).toEqual([
+          { kind: 'workspace', id: 'repo-1', mode: 'content' },
+          { kind: 'workspace', id: 'wt-a', mode: 'refs' },
+        ]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
   it('defaults the active debounce to 1 s and the idle debounce to 2 s', () => {
     expect(DEFAULT_SCAN_DEBOUNCE_MS).toBe(2_000);
     expect(DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS).toBe(1_000);
@@ -390,7 +500,7 @@ describe('WorkspaceScanScheduler', () => {
     }
   });
 
-  it('coalesces rapid triggers into one scan, full subsuming refs', async () => {
+  it('coalesces rapid triggers into one scan, content subsuming refs', async () => {
     const repo = repoTarget('repo-1', '/repos/main');
     const { watcher, requests, scheduler } = createHarness([repo], { debounceMs: 30 });
     try {
@@ -400,7 +510,7 @@ describe('WorkspaceScanScheduler', () => {
         watcher.emit('/repos/main', [{ kind: 'update', path: '/repos/main/file.txt' }]);
       }
       await eventually(() => {
-        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'full' }]);
+        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'content' }]);
       });
       // Nothing further arrives once the burst has been absorbed.
       await new Promise((resolve) => setTimeout(resolve, 80));
@@ -625,7 +735,7 @@ describe('WorkspaceScanScheduler', () => {
       second();
       watcher.emit('/repos/main', [{ kind: 'update', path: '/repos/main/a.txt' }]);
       await eventually(() => {
-        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'full' }]);
+        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'content' }]);
       });
     } finally {
       await scheduler.dispose();

@@ -8,8 +8,12 @@ import type { WatchOptions } from './models';
 // consumer of a profile on the same root must build its options here to share one native
 // subscription.
 
-/** Structural exclusions of the workspace-content profile; host configuration cannot remove them. */
-const WORKSPACE_CONTENT_STRUCTURAL_IGNORE = ['.git/**'] as const;
+/**
+ * Structural exclusions of the workspace-content profile; host configuration cannot remove them.
+ * Watchman writes `.watchman-cookie-*` sync files into every root it watches about once a minute;
+ * they are never workspace content.
+ */
+const WORKSPACE_CONTENT_STRUCTURAL_IGNORE = ['.git/**', '**/.watchman-cookie-*'] as const;
 
 /**
  * Exclusions relative to a Git common directory; host configuration does not apply here. They
