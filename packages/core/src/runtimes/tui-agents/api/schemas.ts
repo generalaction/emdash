@@ -141,6 +141,7 @@ export const tuiAgentStateSchema = z.object({
   status: tuiAgentStateStatusSchema,
   source: z.enum(['hook', 'input']).optional(),
   notificationType: tuiNotificationTypeSchema.optional(),
+  attentionToolUseId: z.string().optional(),
   title: z.string().optional(),
   message: z.string().optional(),
   lastAssistantMessage: z.string().optional(),

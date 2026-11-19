@@ -6,10 +6,16 @@ import { getTaskPrAssociationStore } from '@core/features/source-control/api/bro
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import type { RegisteredTaskData } from '@core/primitives/task-state/browser/task-state';
 import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
+import { isTaskDone } from './task-board-model';
 
 export type ReadyTask = TaskStore & { data: RegisteredTaskData };
 
 export type TaskListTab = 'active' | 'archived';
+
+export function isTaskInArchivedList(task: ReadyTask): boolean {
+  const pr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
+  return Boolean(task.data.archivedAt) || isTaskDone(task.data, pr);
+}
 
 function latestInstant(task: ReadyTask) {
   return task.data.lastInteractedAt ?? task.data.updatedAt;
@@ -74,7 +80,7 @@ export function createTaskListView(options: {
       kind: 'sync',
       initial: { tab: options.initialTab },
       apply: (task, model: { tab: TaskListTab }) =>
-        (model.tab === 'archived') === Boolean(task.data.archivedAt),
+        (model.tab === 'archived') === isTaskInArchivedList(task),
     },
     sort: {
       keys: {

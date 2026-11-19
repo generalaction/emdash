@@ -13,6 +13,7 @@ import {
   hookMapFromConfig,
   makeHookPostCommand,
   makeNotificationHookCommand,
+  makeStdinHookCommand,
   readJsonConfig,
   readTomlConfig,
   writeJsonConfig,
@@ -141,12 +142,19 @@ function makeCodexSessionStartCommand(): string {
   return `INPUT="\${1:-$(cat)}"; printf '%s' "$INPUT" | { ${post}; }`;
 }
 
-/**
- * Codex sends `{ type: 'agent-turn-complete' }` as its stop signal instead
- * of a plain 'stop' event type, and uses fixed `notification_type` values
- * in its hook payloads rather than piping JSON.
- */
+/** Keep provider tool names at this edge; the runtime consumes canonical lifecycle events. */
 function parseCodexHookEvent(eventType: string, body: Record<string, unknown>): CanonicalHookEvent {
+  if (eventType === 'pre-tool-use') {
+    return body.tool_name === 'request_user_input'
+      ? {
+          kind: 'status',
+          type: 'notification',
+          notificationType: 'elicitation_dialog',
+          toolUseId: typeof body.tool_use_id === 'string' ? body.tool_use_id : undefined,
+        }
+      : { kind: 'ignore' };
+  }
+
   if (eventType === 'session-start') {
     const candidates = [body.session_id, body.resource_id, body.resourceId, body.sessionId];
     for (const candidate of candidates) {
@@ -178,6 +186,10 @@ export function buildCodexHookConfig() {
     ['Stop', stopCmd],
     ['PermissionRequest', permCmd],
     ['SessionStart', sessionCmd],
+    ['UserPromptSubmit', makeStdinHookCommand('start')],
+    ['PreToolUse', makeStdinHookCommand('pre-tool-use')],
+    // Answers and approval decisions return through the tool result, not UserPromptSubmit.
+    ['PostToolUse', makeStdinHookCommand('start')],
   ];
 
   return {

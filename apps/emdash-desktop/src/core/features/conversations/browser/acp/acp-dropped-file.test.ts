@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { toAcpImageAttachmentMimeType } from '@core/features/conversations/api/browser/acp-image-attachment';
 import {
   droppedFileMimeType,
   shouldUseAcpImageAttachment,
-  toAcpImageAttachmentMimeType,
   uploadDroppedFile,
   type BrowserDroppedFile,
 } from './acp-dropped-file';

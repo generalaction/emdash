@@ -4,7 +4,7 @@ import { cx } from '@styles/utilities/cx';
 import { badge } from './badge.css';
 
 export type BadgeVariant = 'soft' | 'outline';
-export type BadgeTone = 'neutral' | 'success' | 'warning' | 'error' | 'info';
+export type BadgeTone = 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'purple';
 
 export type BadgeProps = useRender.ComponentProps<'span'> & {
   /** Visual treatment: tinted background (soft) or hairline border (outline). */

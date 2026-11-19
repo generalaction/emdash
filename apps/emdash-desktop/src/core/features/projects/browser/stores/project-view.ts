@@ -1,6 +1,7 @@
 import type { ExternalSelectionStore } from '@emdash/ui/react/patterns';
 import { makeAutoObservable } from 'mobx';
 import type * as React from 'react';
+import type { BoardColumn } from '@core/features/projects/browser/components/task-view/task-board-model';
 import type {
   ProjectTaskSortBy,
   ProjectViewState,
@@ -8,7 +9,7 @@ import type {
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 
-export type ProjectView = 'tasks' | 'pull-request' | 'workspaces' | 'settings';
+export type ProjectView = ProjectViewState['activeView'];
 
 export class ProjectViewStore {
   readonly taskView: TaskViewStore;
@@ -30,11 +31,30 @@ export class ProjectViewStore {
     this.handle.update((current) => ({ ...current, activeView: view }));
   }
 
+  applyDefaultTaskView(boardByDefault: boolean) {
+    // Preserve explicit navigation to Settings, PRs, and Workspaces.
+    if (boardByDefault && this.activeView === 'tasks') this.setProjectView('board');
+  }
+
   setSelectedIssueProvider(provider: IssueProviderType | null) {
     this.handle.update((current) => ({
       ...current,
       selectedIssueProvider: provider ?? undefined,
     }));
+  }
+
+  boardOverride(taskId: string, agentStatusKey: string): BoardColumn | undefined {
+    const override = this.handle.value.boardOverrides?.[taskId];
+    return override?.agentStatusKey === agentStatusKey ? override.column : undefined;
+  }
+
+  setBoardOverride(taskId: string, column: BoardColumn | null, agentStatusKey = '') {
+    this.handle.update((current) => {
+      const boardOverrides = { ...current.boardOverrides };
+      if (column && column !== 'Done') boardOverrides[taskId] = { column, agentStatusKey };
+      else delete boardOverrides[taskId];
+      return { ...current, boardOverrides };
+    });
   }
 }
 

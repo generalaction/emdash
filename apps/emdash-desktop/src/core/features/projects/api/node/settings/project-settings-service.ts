@@ -131,11 +131,13 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
     if (project && !project.success) return project;
 
     if (
+      patch.jiraSync ||
       patch.gitIdentity ||
       patch.integrationAccounts ||
       patch.placement?.stored.tmux !== undefined
     ) {
       const durable = await this.durableSettings.patch(projectId, {
+        ...(patch.jiraSync ? { jiraSync: patch.jiraSync } : {}),
         ...(patch.gitIdentity ? { gitIdentity: patch.gitIdentity } : {}),
         ...(patch.integrationAccounts ? { integrationAccounts: patch.integrationAccounts } : {}),
         ...(patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')

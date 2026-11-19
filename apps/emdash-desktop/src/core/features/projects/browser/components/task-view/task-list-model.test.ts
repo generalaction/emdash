@@ -18,6 +18,7 @@ function task(overrides: {
   id: string;
   name?: string;
   archivedAt?: string;
+  status?: 'todo' | 'done';
   createdAt?: string;
   updatedAt?: string;
   lastInteractedAt?: string;
@@ -32,6 +33,7 @@ function task(overrides: {
       id: overrides.id,
       name: overrides.name ?? overrides.id,
       archivedAt: overrides.archivedAt,
+      status: overrides.status ?? 'todo',
       createdAt: overrides.createdAt ?? '2026-01-01T00:00:00Z',
       updatedAt: overrides.updatedAt ?? '2026-01-01T00:00:00Z',
       lastInteractedAt: overrides.lastInteractedAt,
@@ -83,6 +85,20 @@ describe('createTaskListView', () => {
     expect(visibleIds(view)).toEqual(['b']);
   });
 
+  it('places Done tasks and tasks with merged PRs in Archived', () => {
+    const { view } = createView([
+      task({ id: 'active' }),
+      task({ id: 'done', status: 'done' }),
+      task({ id: 'merged', prs: [{ status: 'merged', isDraft: false, createdAt: '2026-01-01' }] }),
+      task({ id: 'archived', archivedAt: '2026-02-01T00:00:00Z' }),
+    ]);
+
+    expect(visibleIds(view)).toEqual(['active']);
+
+    view.store.filter?.set({ tab: 'archived' });
+    expect(visibleIds(view)).toEqual(['archived', 'done', 'merged']);
+  });
+
   it('searches by task name', () => {
     const { view } = createView([
       task({ id: 'a', name: 'Fix login bug' }),
@@ -127,13 +143,13 @@ describe('createTaskListView', () => {
     ];
     const { view } = createView(
       [
-        task({ id: 'none' }),
-        task({ id: 'draft', prs: pr('open', true) }),
-        task({ id: 'closed', prs: pr('closed') }),
-        task({ id: 'open', prs: pr('open') }),
-        task({ id: 'merged', prs: pr('merged') }),
+        task({ id: 'none', archivedAt: '2026-02-01' }),
+        task({ id: 'draft', archivedAt: '2026-02-01', prs: pr('open', true) }),
+        task({ id: 'closed', archivedAt: '2026-02-01', prs: pr('closed') }),
+        task({ id: 'open', archivedAt: '2026-02-01', prs: pr('open') }),
+        task({ id: 'merged', archivedAt: '2026-02-01', prs: pr('merged') }),
       ],
-      { sortBy: 'pr-status' }
+      { tab: 'archived', sortBy: 'pr-status' }
     );
 
     expect(visibleIds(view)).toEqual(['merged', 'open', 'closed', 'draft', 'none']);
@@ -146,11 +162,20 @@ describe('createTaskListView', () => {
     expect(visibleIds(view)).toEqual(['a', 'b']);
 
     getTaskPrAssociationStore(second).setAssociation(
-      [{ status: 'merged', isDraft: false, createdAt: '2026-01-01T00:00:00Z' } as PullRequest],
+      [{ status: 'open', isDraft: false, createdAt: '2026-01-01T00:00:00Z' } as PullRequest],
       { kind: 'unknown' }
     );
 
     expect(visibleIds(view)).toEqual(['b', 'a']);
+
+    getTaskPrAssociationStore(second).setAssociation(
+      [{ status: 'merged', isDraft: false, createdAt: '2026-01-01T00:00:00Z' } as PullRequest],
+      { kind: 'unknown' }
+    );
+
+    expect(visibleIds(view)).toEqual(['a']);
+    view.store.filter?.set({ tab: 'archived' });
+    expect(visibleIds(view)).toEqual(['b']);
   });
 
   it('puts tasks needing attention first for the unread sort', () => {

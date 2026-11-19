@@ -21,6 +21,8 @@ function makeInitialConversationState(
     setProvider: () => {},
     prompt: 'Check this',
     setPrompt: () => {},
+    imageAttachments: [],
+    setImageAttachments: () => {},
     issueContext: null,
     setIssueContext: () => {},
     autoApprove,

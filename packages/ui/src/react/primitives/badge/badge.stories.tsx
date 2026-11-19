@@ -3,7 +3,7 @@ import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { GitBranchIcon } from 'lucide-react';
 
-const TONES: BadgeTone[] = ['neutral', 'success', 'warning', 'error', 'info'];
+const TONES: BadgeTone[] = ['neutral', 'success', 'warning', 'error', 'info', 'purple'];
 const VARIANTS: BadgeVariant[] = ['soft', 'outline'];
 
 const meta: Meta<typeof Badge> = {
