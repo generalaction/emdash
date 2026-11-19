@@ -86,6 +86,11 @@ OpenAI, Anthropic, Google, DeepSeek, Qwen, and more through one API key (`sk-orc
 resolves `orcarouter/*` models through its models.dev catalog, so setting `ORCAROUTER_API_KEY` lets
 you select an OrcaRouter model from the OpenCode model picker.
 
+[Wally](https://www.runwally.com) by RunAnywhere is an OpenAI-compatible API for open-weight models
+such as DeepSeek, GLM, Kimi, and MiniMax. OpenCode resolves `wally/*` models through its models.dev
+catalog, so setting `WALLY_API_KEY` (from https://console.runanywhere.ai) lets you select a Wally
+model from the OpenCode model picker.
+
 ## Provider Runtime Notes
 
 - Host dependencies are resolved by the host-scoped `HostDependencies` Wire component.

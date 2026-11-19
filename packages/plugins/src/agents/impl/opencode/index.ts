@@ -51,6 +51,7 @@ export const plugin = definePlugin(
             { name: 'OPENAI_API_KEY', label: 'OpenAI API key' },
             { name: 'GEMINI_API_KEY', label: 'Gemini API key' },
             { name: 'ORCAROUTER_API_KEY', label: 'OrcaRouter API key' },
+            { name: 'WALLY_API_KEY', label: 'Wally API key' },
           ],
         },
       ],
