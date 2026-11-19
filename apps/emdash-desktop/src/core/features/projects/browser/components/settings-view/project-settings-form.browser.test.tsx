@@ -19,6 +19,7 @@ vi.mock('./use-project-settings-form', () => ({
     form: {
       gitIdentity: {},
       placement: {},
+      jiraSync: { jql: '' },
       lifecycle: {},
       fileHandling: {},
     },

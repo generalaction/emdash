@@ -5,6 +5,8 @@ type AdfNode = {
   type?: string;
   text?: string;
   content?: AdfNode[];
+  attrs?: { text?: string; url?: string; alt?: string };
+  marks?: { type?: string; attrs?: { href?: string } }[];
 };
 
 export function toIssueData(issue: JiraIssue, siteUrl: string): IssueData {
@@ -25,15 +27,34 @@ export function toIssueData(issue: JiraIssue, siteUrl: string): IssueData {
   };
 }
 
-function flattenAdf(node: AdfNode | string | null | undefined): string {
+export function flattenAdf(node: AdfNode | string | null | undefined): string {
   if (!node) return '';
   if (typeof node === 'string') return node;
-  if (node.type === 'text') return node.text || '';
+  if (node.type === 'text') {
+    const href = node.marks?.find((mark) => mark.type === 'link')?.attrs?.href;
+    return href ? `[${node.text ?? ''}](${href})` : (node.text ?? '');
+  }
+  if (node.type === 'hardBreak') return '\n';
+  if (node.type === 'mention') return node.attrs?.text ?? '';
+  if (node.type === 'inlineCard' || node.type === 'blockCard') return node.attrs?.url ?? '';
+  if (node.type === 'media') return node.attrs?.alt ?? '';
 
   if (Array.isArray(node.content)) {
     const parts = node.content.map((item) => flattenAdf(item));
-    if (['doc', 'bulletList', 'orderedList'].includes(node.type ?? '')) return parts.join('\n');
-    if (['paragraph', 'heading', 'listItem'].includes(node.type ?? '')) return parts.join('');
+    if (
+      [
+        'doc',
+        'bulletList',
+        'orderedList',
+        'listItem',
+        'blockquote',
+        'table',
+        'tableCell',
+        'tableHeader',
+      ].includes(node.type ?? '')
+    )
+      return parts.join('\n');
+    if (node.type === 'tableRow') return parts.join(' | ');
     return parts.join('');
   }
 
