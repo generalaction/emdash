@@ -35,6 +35,8 @@ export const hooksCapability = definePluginCapability<IHooksBehavior>()(
     z.object({
       kind: z.literal('config'),
       scope: z.enum(['global', 'workspace']),
+      /** Fail launch if installation or hook routing is unavailable. */
+      required: z.boolean().optional(),
       supportedEvents: z.array(
         z.enum(['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'])
       ),
@@ -42,6 +44,8 @@ export const hooksCapability = definePluginCapability<IHooksBehavior>()(
     z.object({
       kind: z.literal('plugin'),
       scope: z.enum(['global', 'workspace']),
+      /** Fail launch if installation or hook routing is unavailable. */
+      required: z.boolean().optional(),
       supportedEvents: z.array(
         z.enum(['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'])
       ),

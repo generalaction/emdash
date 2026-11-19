@@ -13,6 +13,7 @@ import type {
   ITrustBehavior,
   ResolvedTuiProvider,
 } from '#services/agent-plugins/api/plugins';
+import { AgentHookInstaller } from '#services/agent-plugins/node/hook-installer';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import type { IExecutionContext } from '#services/exec/api';
@@ -24,6 +25,7 @@ import {
   mapContainer,
   type LeakCheckContainer,
 } from '#services/session-lifecycle/node/testing';
+import { TuiHookServer } from '../hooks/hook-server';
 import type { PromptSpillResult } from './prompt-spill';
 import { TuiAgentsRuntime } from './runtime';
 
@@ -35,6 +37,7 @@ function createRuntime(
     intents?: ReturnType<typeof createMemorySessionIntentStore>;
     conversationReports?: ConversationLifecycleReporter;
     hooks?: ResolvedTuiProvider['hooks'];
+    resumeFallback?: 'fresh' | 'error';
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
     platform?: NodeJS.Platform;
@@ -51,6 +54,7 @@ function createRuntime(
     name: 'Test Agent',
     prompt: { kind: 'argv' },
     hooks,
+    resumeFallback: options.resumeFallback,
     buildCommand: () => ({ command: 'agent', args: ['run'], env: {} }),
   };
   const agentHost = {
@@ -114,6 +118,88 @@ function startInput(overrides: Partial<TuiAgentStartInput> = {}): TuiAgentStartI
 }
 
 describe('TuiAgentsRuntime', () => {
+  it.each([
+    ['startSession', 'installation'],
+    ['startSession', 'server'],
+    ['resumeSession', 'installation'],
+    ['resumeSession', 'server'],
+  ] as const)('rejects %s when required hook %s fails', async (operation, failure) => {
+    const { runtime, spawner } = createRuntime({
+      hooks: {
+        kind: 'plugin',
+        scope: 'global',
+        required: true,
+        supportedEvents: ['session', 'start', 'stop'],
+      },
+    });
+    const install = vi
+      .spyOn(AgentHookInstaller.prototype, 'ensureHooksInstalled')
+      .mockResolvedValue(failure !== 'installation');
+    const server = vi
+      .spyOn(TuiHookServer.prototype, 'ensureStarted')
+      .mockRejectedValue(new Error('listen EACCES'));
+    try {
+      expect(await runtime[operation](startInput({ sessionId: 'native-session' }))).toMatchObject({
+        success: false,
+        error: { type: 'spawn-failed', conversationId: 'conversation-1' },
+      });
+      expect(spawner.specs).toHaveLength(0);
+      expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toMatchObject({
+        'conversation-1': { status: 'exited', exit: { signal: 'spawn-failed' } },
+      });
+      expect(server).toHaveBeenCalledTimes(failure === 'installation' ? 0 : 1);
+    } finally {
+      await runtime.dispose();
+      install.mockRestore();
+      server.mockRestore();
+    }
+  });
+
+  it.each([false, true])(
+    'launches with required hooks=%s when setup succeeds',
+    async (required) => {
+      const { runtime, spawner } = createRuntime({
+        hooks: { kind: 'plugin', scope: 'global', required, supportedEvents: ['start'] },
+      });
+      const install = vi
+        .spyOn(AgentHookInstaller.prototype, 'ensureHooksInstalled')
+        .mockResolvedValue(true);
+      try {
+        expect(await runtime.startSession(startInput())).toEqual(ok({ outcome: 'started' }));
+        expect(spawner.specs).toHaveLength(1);
+        expect(spawner.specs[0]!.env).toMatchObject({
+          EMDASH_HOOK_PORT: expect.stringMatching(/^\d+$/),
+          EMDASH_PTY_ID: 'conversation-1',
+          EMDASH_HOOK_TOKEN: expect.any(String),
+        });
+      } finally {
+        await runtime.dispose();
+        install.mockRestore();
+      }
+    }
+  );
+
+  it('launches without optional hooks when the server fails', async () => {
+    const { runtime, spawner } = createRuntime({
+      hooks: { kind: 'plugin', scope: 'global', supportedEvents: ['start'] },
+    });
+    const install = vi
+      .spyOn(AgentHookInstaller.prototype, 'ensureHooksInstalled')
+      .mockResolvedValue(true);
+    const server = vi
+      .spyOn(TuiHookServer.prototype, 'ensureStarted')
+      .mockRejectedValue(new Error('listen EACCES'));
+    try {
+      expect(await runtime.startSession(startInput())).toEqual(ok({ outcome: 'started' }));
+      expect(spawner.specs).toHaveLength(1);
+      expect(spawner.specs[0]!.env).not.toHaveProperty('EMDASH_HOOK_PORT');
+    } finally {
+      await runtime.dispose();
+      install.mockRestore();
+      server.mockRestore();
+    }
+  });
+
   it.each(['fresh', 'resume'] as const)(
     'recovers a %s launch using the session id captured after switching sessions',
     async (mode) => {
@@ -538,6 +624,49 @@ describe('TuiAgentsRuntime', () => {
     expect(spawner.specs[0]!.cols).toBe(120);
   });
 
+  it('reports a rejected resume command without spawning a fresh session', async () => {
+    const { runtime, spawner, agentHost } = createRuntime();
+    vi.mocked(agentHost.buildPromptCommand).mockRejectedValueOnce(
+      new Error('A provider session file is required to resume')
+    );
+
+    try {
+      const result = await runtime.resumeSession(startInput());
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          type: 'spawn-failed',
+          conversationId: 'conversation-1',
+          message: expect.stringContaining('A provider session file is required to resume'),
+        },
+      });
+      expect(spawner.specs).toHaveLength(0);
+      expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toMatchObject({
+        'conversation-1': { status: 'exited' },
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('preserves resume intent for a strict provider when the native ID is missing', async () => {
+    const { runtime, spawner, agentHost } = createRuntime({ resumeFallback: 'error' });
+    vi.mocked(agentHost.buildPromptCommand).mockImplementation(async (_providerId, ctx) => {
+      if (ctx.isResuming && !ctx.providerSessionId) throw new Error('Missing native session');
+      return ok({ command: 'agent', args: [], env: {} });
+    });
+    try {
+      expect(await runtime.resumeSession(startInput())).toMatchObject({
+        success: false,
+        error: { type: 'spawn-failed' },
+      });
+      expect(spawner.specs).toHaveLength(0);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('returns a typed spawn failure when the PTY cannot be created', async () => {
     const { runtime, spawner } = createRuntime();
     spawner.failWith = new Error('spawn failed');
@@ -629,6 +758,24 @@ describe('TuiAgentsRuntime', () => {
       'test',
       expect.objectContaining({ isResuming: false, initialPrompt: 'hello' })
     );
+  });
+
+  it('does not replace history when a strict provider exits during resume', async () => {
+    const { runtime, spawner, agentHost } = createRuntime({ resumeFallback: 'error' });
+    try {
+      await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+      spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+      // The explicit request queues behind any implicit exit recovery.
+      await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+      expect(agentHost.buildPromptCommand).toHaveBeenNthCalledWith(
+        2,
+        'test',
+        expect.objectContaining({ isResuming: true, providerSessionId: 'provider-session' })
+      );
+      expect(spawner.specs).toHaveLength(2);
+    } finally {
+      await runtime.dispose();
+    }
   });
 
   it('deactivates idle sessions after the configured output inactivity period', async () => {

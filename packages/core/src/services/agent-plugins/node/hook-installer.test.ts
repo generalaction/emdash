@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createScope } from '@emdash/shared/concurrency';
 import { createStubLogger, deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
 import type { IExecutionContext } from '#primitives/exec/api';
 import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import {
@@ -25,6 +26,50 @@ afterEach(async () => {
 });
 
 describe('AgentHookInstaller', () => {
+  it.each([false, true])(
+    'passes cwd and merged env to global plugin resolution (project override: %s)',
+    async (projectOverride) => {
+      const homeDir = await makeTempDir();
+      const workspacePath = path.join(homeDir, 'workspace');
+      const pluginPath = 'extensions/emdash.ts';
+      const behavior: IPlugins = {
+        resolveConfigRoot: ({ env, cwd }) => {
+          const override = env.OMO_CODING_AGENT_DIR;
+          if (!override || !cwd) return '';
+          return path.resolve(cwd, override, env.SENPI_CODING_AGENT_DIR ?? '');
+        },
+        installPlugin: async (fs) => {
+          await fs.write(pluginPath, 'installed');
+          return [pluginPath];
+        },
+        uninstallPlugin: async (fs) => fs.delete(pluginPath),
+        isPluginInstalled: async (fs) => fs.exists(pluginPath),
+        getPluginVersion: async () => '1',
+        getPluginPath: async () => pluginPath,
+      };
+      const installer = createInstaller(
+        homeDir,
+        { OMO_CODING_AGENT_DIR: 'shell-omo', SENPI_CODING_AGENT_DIR: 'senpi' },
+        [pluginProvider('omo', behavior)]
+      );
+      const env = projectOverride
+        ? buildAllowlistedAgentEnv({ OMO_CODING_AGENT_DIR: 'project-omo' })
+        : undefined;
+
+      await expect(installer.hooksStatus('omo')).resolves.toBeNull();
+      await expect(
+        installer.ensureHooksInstalled({ providerId: 'omo', workspacePath, env })
+      ).resolves.toBe(true);
+
+      const selectedRoot = projectOverride ? 'project-omo' : 'shell-omo';
+      await expect(
+        nodeFs.readFile(path.join(workspacePath, selectedRoot, 'senpi', pluginPath), 'utf8')
+      ).resolves.toBe('installed');
+      expect(await nodeFs.readdir(homeDir)).toEqual(['workspace']);
+      expect(await nodeFs.readdir(workspacePath)).toEqual([selectedRoot]);
+    }
+  );
+
   it('uses the allowlisted provider home seen by the spawned CLI and avoids steady-state writes', async () => {
     const homeDir = await makeTempDir();
     const configRoot = path.join(homeDir, 'custom-codex');
@@ -58,7 +103,10 @@ describe('AgentHookInstaller', () => {
     const providerRoot = path.join(homeDir, 'provider-codex');
     const projectRoot = path.join(homeDir, 'project-codex');
     const behavior = hookBehavior({
-      resolveConfigRoots: configRoots(envConfigRoot('CODEX_HOME', '.codex')),
+      resolveConfigRoots: (context) => {
+        expect(context.cwd).toBe('/workspace');
+        return configRoots(envConfigRoot('CODEX_HOME', '.codex'))(context);
+      },
       writeHooks: async (fs) => {
         await fs.write('hooks.json', 'installed');
         return ['hooks.json'];

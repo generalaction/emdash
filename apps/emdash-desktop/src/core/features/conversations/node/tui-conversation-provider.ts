@@ -182,10 +182,14 @@ export class TuiConversationProvider implements ConversationProvider {
 function resolveAgentSession(
   conversation: Conversation,
   mode: 'start' | 'resume'
-): { sessionId: string; isResuming: boolean } {
+): { sessionId: string | null; isResuming: boolean } {
   const isResuming = mode === 'resume';
   const nativeSessionId = conversation.sessionId;
   const hasNativeSessionId = Boolean(nativeSessionId) && nativeSessionId !== conversation.id;
+  // OmO only resumes captured file paths; let its runtime reject a missing handle.
+  if (conversation.providerId === 'omo') {
+    return { sessionId: hasNativeSessionId ? nativeSessionId! : null, isResuming };
+  }
   if (PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME.has(conversation.providerId) && isResuming) {
     if (hasNativeSessionId) return { sessionId: nativeSessionId!, isResuming: true };
     return { sessionId: conversation.id, isResuming: false };
