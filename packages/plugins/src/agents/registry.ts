@@ -6,7 +6,7 @@ import { provider as antigravity } from './impl/antigravity';
 import { provider as auggie } from './impl/auggie';
 import { provider as autohand } from './impl/autohand';
 import { provider as charm } from './impl/charm';
-import { provider as claude } from './impl/claude';
+import { createClaudeProvider, provider as claude } from './impl/claude';
 import { provider as cline } from './impl/cline';
 import { provider as codebuddy } from './impl/codebuddy';
 import { provider as codebuff } from './impl/codebuff';
@@ -41,6 +41,33 @@ import { provider as zero } from './impl/zero';
 
 export { asAgentProviderId } from './types';
 export type { AgentProviderId } from './types';
+export {
+  applyConfiguredAgentInstances,
+  applyConfiguredAgentInstancesFromEnv,
+  CONFIGURED_AGENTS_ENV_VAR,
+  loadConfiguredAgentInstances,
+  parseConfiguredAgentInstances,
+} from './configured-instances';
+export type {
+  ApplyConfiguredAgentInstancesResult,
+  ConfiguredAgentInstance,
+  ConfiguredAgentInstanceDeps,
+  LoadConfiguredAgentInstancesResult,
+} from './configured-instances';
+
+export type AgentProviderFactory = (options: {
+  id: string;
+  name: string;
+}) => CLIAgentPluginProvider;
+
+/**
+ * Base plugins that support being instantiated more than once under a
+ * different id/name (e.g. multiple Claude accounts). Keyed by the value a
+ * user-declared config entry's `extends` field must match.
+ */
+export const agentFactories: Record<string, AgentProviderFactory> = {
+  claude: createClaudeProvider,
+};
 
 export const pluginRegistry = createPluginRegistry<CLIAgentPluginProvider>();
 

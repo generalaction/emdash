@@ -31,6 +31,7 @@ import {
   type SpawnContextResolver,
 } from '#services/agent-plugins/api/spawn-context';
 import type { ConfigRootContext } from './helpers/config-root';
+import { createLocalPluginFs } from './helpers/local-plugin-fs';
 import type { CLIAgentPluginProvider } from './index';
 
 export type ResolvedAcpProvider = {
@@ -90,7 +91,8 @@ export class AgentPluginHost {
   private readonly agentEnvPlatform: AgentEnvPlatform;
   private readonly spawnContext: SpawnContextResolver;
   private readonly checkAuthStatusOnce: (
-    providerId: string
+    providerId: string,
+    env?: Record<string, string>
   ) => Promise<Result<AgentAuthStatus, AgentHostError>>;
 
   constructor(private readonly deps: AgentHostDeps) {
@@ -110,11 +112,25 @@ export class AgentPluginHost {
     });
     this.scope.add(() => this.invalidateSpawnContext());
     const checkAuthStatusOnce = compose(
-      async (providerId: string, _context: { signal?: AbortSignal }) =>
-        await this.checkAuthStatusUncached(providerId),
-      [deduplicate({ key: (providerId) => providerId })]
+      async (
+        input: { providerId: string; env?: Record<string, string> },
+        _context: { signal?: AbortSignal }
+      ) => await this.checkAuthStatusUncached(input.providerId, input.env),
+      [
+        deduplicate({
+          // Includes env so two concurrent calls for the same provider with
+          // different envs (e.g. two configured instances of one plugin
+          // checking auth at the same time) never coalesce into one shared
+          // result — only calls with matching providerId AND matching env
+          // content should share an in-flight probe.
+          key: (input) =>
+            `${input.providerId}:${JSON.stringify(
+              Object.entries(input.env ?? {}).sort(([a], [b]) => a.localeCompare(b))
+            )}`,
+        }),
+      ]
     );
-    this.checkAuthStatusOnce = (providerId) => checkAuthStatusOnce(providerId, {});
+    this.checkAuthStatusOnce = (providerId, env) => checkAuthStatusOnce({ providerId, env }, {});
   }
 
   get fs(): PluginFs {
@@ -192,20 +208,30 @@ export class AgentPluginHost {
     return this.scope.dispose();
   }
 
-  checkAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentHostError>> {
-    return this.checkAuthStatusOnce(providerId);
+  checkAuthStatus(
+    providerId: string,
+    env?: Record<string, string>
+  ): Promise<Result<AgentAuthStatus, AgentHostError>> {
+    return this.checkAuthStatusOnce(providerId, env);
   }
 
   async buildLoginCommand(
     providerId: string,
-    methodId: string
+    methodId: string,
+    callerEnv?: Record<string, string>
   ): Promise<Result<AgentHostLoginCommand, AgentHostError>> {
     const provider = this.resolveAuthProvider(providerId);
     if (!provider) return err({ type: 'unknown-provider', providerId });
 
     const spawnContext = await this.resolveSpawnContext(providerId);
     if (!spawnContext.success) return err(spawnContext.error);
-    const env = { ...spawnContext.data.agentEnv };
+    // User-configured provider env (from Settings) wins over the allowlisted
+    // agent env, mirroring buildAcpSpawn/buildPromptCommand.
+    const env = mergeAgentEnvLayers(
+      this.agentEnvPlatform,
+      spawnContext.data.agentEnv,
+      callerEnv ?? {}
+    );
 
     if (provider.auth.kind === 'none') {
       if (methodId !== 'cli-login') {
@@ -243,28 +269,56 @@ export class AgentPluginHost {
   }
 
   async readMcpServers(
-    providerId: string
+    providerId: string,
+    env?: Record<string, string>
   ): Promise<Result<McpServerRegistration[], AgentHostError>> {
     const behavior = this.resolveMcpBehavior(providerId);
     if (!behavior.success) return behavior;
-    return ok(await behavior.data.readServers(this.fs));
+    const fs = await this.resolveMcpFs(behavior.data, env);
+    return ok(await behavior.data.readServers(fs));
   }
 
   async writeMcpServers(
     providerId: string,
-    servers: McpServerRegistration[]
+    servers: McpServerRegistration[],
+    env?: Record<string, string>
   ): Promise<Result<void, AgentHostError>> {
     const behavior = this.resolveMcpBehavior(providerId);
     if (!behavior.success) return behavior;
-    await behavior.data.writeServers(this.fs, servers);
+    const fs = await this.resolveMcpFs(behavior.data, env);
+    await behavior.data.writeServers(fs, servers);
     return ok();
   }
 
-  async removeMcpServer(providerId: string, name: string): Promise<Result<void, AgentHostError>> {
+  async removeMcpServer(
+    providerId: string,
+    name: string,
+    env?: Record<string, string>
+  ): Promise<Result<void, AgentHostError>> {
     const behavior = this.resolveMcpBehavior(providerId);
     if (!behavior.success) return behavior;
-    await behavior.data.removeServer(this.fs, name);
+    const fs = await this.resolveMcpFs(behavior.data, env);
+    await behavior.data.removeServer(fs, name);
     return ok();
+  }
+
+  /**
+   * MCP behaviors without a resolveConfigRoot (most providers) keep using the
+   * host's fixed plugin fs. A provider that declares one (Claude) gets a fs
+   * rooted at that instance's own config root instead, honoring its
+   * Settings-configured env (e.g. CLAUDE_CONFIG_DIR) the same way hooks
+   * already do.
+   */
+  private async resolveMcpFs(
+    behavior: NonNullable<CLIAgentPluginProvider['behavior']['mcp']>,
+    env?: Record<string, string>
+  ): Promise<PluginFs> {
+    if (!behavior.resolveConfigRoot) return this.fs;
+    const baseContext = await this.configRootContext();
+    const context = env
+      ? { ...baseContext, env: mergeAgentEnvLayers(this.agentEnvPlatform, baseContext.env, env) }
+      : baseContext;
+    return createLocalPluginFs(behavior.resolveConfigRoot(context));
   }
 
   async buildPromptCommand(
@@ -320,7 +374,8 @@ export class AgentPluginHost {
   }
 
   private async checkAuthStatusUncached(
-    providerId: string
+    providerId: string,
+    callerEnv?: Record<string, string>
   ): Promise<Result<AgentAuthStatus, AgentHostError>> {
     const provider = this.resolveAuthProvider(providerId);
     if (!provider) return err({ type: 'unknown-provider', providerId });
@@ -328,7 +383,13 @@ export class AgentPluginHost {
 
     const spawnContext = await this.resolveSpawnContext(providerId);
     if (!spawnContext.success) return err(spawnContext.error);
-    const agentEnv = { ...spawnContext.data.agentEnv };
+    // User-configured provider env (from Settings) wins over the allowlisted
+    // agent env, mirroring buildAcpSpawn/buildPromptCommand.
+    const agentEnv = mergeAgentEnvLayers(
+      this.agentEnvPlatform,
+      spawnContext.data.agentEnv,
+      callerEnv ?? {}
+    );
 
     return ok(
       await provider.behavior.checkStatus({
