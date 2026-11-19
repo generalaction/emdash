@@ -18,8 +18,15 @@ export const issueRequiredInputSchema = z.enum(['repositoryUrl']);
 
 export type IssueRequiredInput = z.infer<typeof issueRequiredInputSchema>;
 
+/** A project-level filter field the host shows in project settings, passed back as `issueFilter`. */
+const issueFilterDescriptorSchema = z.object({
+  label: z.string().trim().min(1),
+  placeholder: z.string().optional(),
+});
+
 const issuesDescriptorSchema = z.object({
   requiredInputs: z.array(issueRequiredInputSchema).default([]),
+  issueFilter: issueFilterDescriptorSchema.optional(),
 });
 
 export type IssuesDescriptor = z.infer<typeof issuesDescriptorSchema>;

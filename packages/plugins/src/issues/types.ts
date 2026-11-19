@@ -12,6 +12,8 @@ export type IssueData = {
   description?: string;
   branchName?: string;
   status?: string;
+  /** Provider-neutral bucket for custom status names the UI cannot recognize. */
+  statusCategory?: 'todo' | 'in_progress' | 'done';
   assignees?: string[];
   project?: string;
   updatedAt?: string;
@@ -26,6 +28,8 @@ export type IssueQueryOpts = {
   limit: number;
   /** Resolved repository URL, present when the descriptor requires it. */
   repositoryUrl?: string;
+  /** The project's filter for this provider, in its own query language (JQL for Jira). */
+  issueFilter?: string;
 };
 
 export type IssueSearchOpts = IssueQueryOpts & {

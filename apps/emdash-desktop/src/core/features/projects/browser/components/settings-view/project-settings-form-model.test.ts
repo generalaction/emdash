@@ -53,6 +53,7 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       ...overrides.gitIdentity,
     },
     integrationAccounts: overrides.integrationAccounts ?? {},
+    issueFilters: {},
     placement: { tmux: undefined, worktreeDirectory: '', ...overrides.placement },
   };
 }
@@ -86,6 +87,7 @@ function domains(): ProjectSettingsDomains {
     },
     gitIdentity: { stored: { baseRemote: 'origin' } },
     integrationAccounts: { stored: {} },
+    issueFilters: { stored: {} },
     placement: {
       stored: { tmux: false },
       layers: {
@@ -118,6 +120,14 @@ describe('project settings form model', () => {
     ).toEqual({
       integrationAccounts: { stored: { jira: { kind: 'account', accountId: 'jira:new' } } },
     });
+  });
+
+  it('patches only the issue filter that was edited', () => {
+    const form = projectSettingsDomainsToForm(domains(), [origin]);
+    form.issueFilters = { jira: '"Epic Link" = WEB-123', youtrack: 'for: me' };
+    expect(
+      formToProjectSettingsDomainPatch(form, new Set<FormFieldPath>(['issueFilters.jira']))
+    ).toEqual({ issueFilters: { stored: { jira: '"Epic Link" = WEB-123' } } });
   });
 
   it('clears only the reset provider even when another provider has a stored pin', () => {

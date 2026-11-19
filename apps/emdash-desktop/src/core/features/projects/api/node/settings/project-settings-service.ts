@@ -133,11 +133,13 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
     if (
       patch.gitIdentity ||
       patch.integrationAccounts ||
+      patch.issueFilters ||
       patch.placement?.stored.tmux !== undefined
     ) {
       const durable = await this.durableSettings.patch(projectId, {
         ...(patch.gitIdentity ? { gitIdentity: patch.gitIdentity } : {}),
         ...(patch.integrationAccounts ? { integrationAccounts: patch.integrationAccounts } : {}),
+        ...(patch.issueFilters ? { issueFilters: patch.issueFilters } : {}),
         ...(patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')
           ? { placement: { stored: { tmux: patch.placement.stored.tmux } } }
           : {}),

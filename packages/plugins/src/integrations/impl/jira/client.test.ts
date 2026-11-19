@@ -3,8 +3,18 @@ import { createJiraClient, verifyJiraCredentials } from './client';
 import { provider as integration } from './index';
 import { jiraCredentialsSchema } from './types';
 
-const mocks = vi.hoisted(() => ({ createClient: vi.fn(), getCurrentUser: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  createClient: vi.fn(),
+  createV2Client: vi.fn(),
+  getCurrentUser: vi.fn(),
+}));
 vi.mock('jira.js', () => ({
+  Version2Client: class {
+    myself = { getCurrentUser: mocks.getCurrentUser };
+    constructor(config: unknown) {
+      mocks.createV2Client(config);
+    }
+  },
   Version3Client: class {
     myself = { getCurrentUser: mocks.getCurrentUser };
     constructor(config: unknown) {
@@ -90,7 +100,7 @@ describe('Jira connection verification', () => {
       'https://api.atlassian.com/oauth/token/accessible-resources',
       { headers: { Authorization: 'Bearer scoped-token' } }
     );
-    expect(integration.capabilities.auth.methods).toHaveLength(2);
+    expect(integration.capabilities.auth.methods).toHaveLength(3);
   });
 
   it('rejects a bearer token that cannot access the selected Jira site', async () => {
@@ -183,6 +193,125 @@ describe('Jira connection verification', () => {
         credentials: { authMethod: 'basic', email: 'user@example.com', apiToken: 'api-token' },
       },
     });
+  });
+
+  it('verifies a Data Center personal access token against the site itself', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({
+      key: 'JIRAUSER10100',
+      name: 'ada',
+      displayName: 'Ada Lovelace',
+    });
+
+    const result = await verifyJiraCredentials(
+      { siteUrl: 'https://jira.example.com/', personalAccessToken: 'dc-token' },
+      'pat'
+    );
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.createV2Client).toHaveBeenCalledWith({
+      host: 'https://jira.example.com',
+      authentication: { oauth2: { accessToken: 'dc-token' } },
+    });
+    expect(result).toEqual({
+      success: true,
+      data: {
+        account: {
+          id: 'JIRAUSER10100',
+          login: 'ada',
+          host: 'jira.example.com',
+          scope: 'https://jira.example.com',
+        },
+        displayName: 'Ada Lovelace',
+        displayDetail: 'Personal access token · jira.example.com',
+        credentials: {
+          authMethod: 'pat',
+          siteUrl: 'https://jira.example.com',
+          personalAccessToken: 'dc-token',
+        },
+      },
+    });
+  });
+
+  it('refuses to send a token to a plain http:// site', async () => {
+    const result = await verifyJiraCredentials(
+      { siteUrl: 'http://jira.example.com', personalAccessToken: 'dc-token' },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mocks.createV2Client).not.toHaveBeenCalled();
+  });
+
+  it('allows http:// for a Jira running on this machine', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const result = await verifyJiraCredentials(
+      { siteUrl: 'http://localhost:8080', personalAccessToken: 'dc-token' },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: true });
+  });
+
+  it('rejects an issue filter that brings its own ORDER BY', async () => {
+    const result = await verifyJiraCredentials(
+      {
+        siteUrl: 'https://jira.example.com',
+        personalAccessToken: 'dc-token',
+        jqlFilter: 'project = WEB ORDER BY created',
+      },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+    expect(mocks.createV2Client).not.toHaveBeenCalled();
+  });
+
+  it.each(['project = A) OR (project = B', '(project = A', 'summary ~ "a)"  OR (x'])(
+    'rejects the issue filter %s that would escape its own clause',
+    async (jqlFilter) => {
+      const result = await verifyJiraCredentials(
+        { siteUrl: 'https://jira.example.com', personalAccessToken: 'dc-token', jqlFilter },
+        'pat'
+      );
+      expect(result).toMatchObject({ success: false, error: { type: 'invalid_input' } });
+      expect(mocks.createV2Client).not.toHaveBeenCalled();
+    }
+  );
+
+  it('tells apart two Data Center sites that share a host and a user key', async () => {
+    mocks.getCurrentUser.mockResolvedValue({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const [a, b] = await Promise.all(
+      ['https://jira.example.com/jira-a', 'https://jira.example.com/jira-b'].map((siteUrl) =>
+        verifyJiraCredentials({ siteUrl, personalAccessToken: 'dc-token' }, 'pat')
+      )
+    );
+    const scope = (result: typeof a) => (result.success ? result.data.account?.scope : undefined);
+    expect(scope(a)).toBe('https://jira.example.com/jira-a');
+    expect(scope(b)).toBe('https://jira.example.com/jira-b');
+  });
+
+  it('accepts an issue filter that quotes the words order by', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const result = await verifyJiraCredentials(
+      {
+        siteUrl: 'https://jira.example.com',
+        personalAccessToken: 'dc-token',
+        jqlFilter: 'summary ~ "order by"',
+      },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: true });
+  });
+
+  it('accepts an issue filter with balanced parentheses, including inside quotes', async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ key: 'JIRAUSER1', displayName: 'Ada' });
+    const result = await verifyJiraCredentials(
+      {
+        siteUrl: 'https://jira.example.com',
+        personalAccessToken: 'dc-token',
+        jqlFilter: '(project = A OR project = B) AND summary ~ "fix )"',
+      },
+      'pat'
+    );
+    expect(result).toMatchObject({ success: true });
   });
 
   it('rejects an unknown selected method before calling either API', async () => {

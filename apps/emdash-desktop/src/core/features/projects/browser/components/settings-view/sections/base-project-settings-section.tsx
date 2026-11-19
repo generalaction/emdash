@@ -38,6 +38,7 @@ import {
   type FormUpdate,
   type GitIdentityFormState,
   type IntegrationAccountsFormState,
+  type IssueFiltersFormState,
   type PlacementFormState,
 } from '../project-settings-form-model';
 import { IntegrationAccountsSection } from './integration-accounts-section';
@@ -52,6 +53,7 @@ type BaseProjectSettingsSectionProps = {
   projectId: string;
   gitIdentityForm: GitIdentityFormState;
   integrationAccountsForm: IntegrationAccountsFormState;
+  issueFiltersForm: IssueFiltersFormState;
   placementForm: PlacementFormState;
   placement: ProjectPlacementDomainSnapshot;
   projectType: Project['type'];
@@ -59,6 +61,7 @@ type BaseProjectSettingsSectionProps = {
   worktreeDirectoryError: string | null;
   updateGitIdentity: FormUpdate<GitIdentityFormState>;
   updateIntegrationAccounts: FormUpdate<IntegrationAccountsFormState>;
+  updateIssueFilters: FormUpdate<IssueFiltersFormState>;
   updatePlacement: FormUpdate<PlacementFormState>;
   hostActionReason: string | null;
   hostObservationKind: 'fresh' | 'stale' | 'unavailable';
@@ -126,6 +129,7 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
   projectId,
   gitIdentityForm,
   integrationAccountsForm,
+  issueFiltersForm,
   placementForm,
   placement,
   projectType,
@@ -133,6 +137,7 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
   worktreeDirectoryError,
   updateGitIdentity,
   updateIntegrationAccounts,
+  updateIssueFilters,
   updatePlacement,
   hostActionReason,
   hostObservationKind,
@@ -192,6 +197,8 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
       <IntegrationAccountsSection
         integrationAccountsForm={integrationAccountsForm}
         updateIntegrationAccounts={updateIntegrationAccounts}
+        issueFiltersForm={issueFiltersForm}
+        updateIssueFilters={updateIssueFilters}
         repositoryHost={
           inputs && effective
             ? (inputs.repoFacts.remotes.find((remote) => remote.name === effective.baseRemote.value)

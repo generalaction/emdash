@@ -180,6 +180,26 @@ describe('useIssues', () => {
     expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('0');
   });
 
+  it('fetches again when the project saves a new issue filter', async () => {
+    mocks.listIssues.mockResolvedValueOnce({ success: true, data: [{ identifier: 'A-1' }] });
+    await renderProbe();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('1');
+    mocks.listIssues.mockReturnValue(new Promise(() => {}));
+    mocks.getProjectSettingsStore.mockReturnValue({
+      durableDomains: {
+        integrationAccounts: { stored: { github: { kind: 'account', accountId: 'a' } } },
+        issueFilters: { stored: { github: 'label = bug' } },
+      },
+      pageData: { error: null },
+    });
+    await renderProbe();
+    expect(mocks.listIssues).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('0');
+  });
+
   it('does not retain another account search results as placeholder data', async () => {
     mocks.searchIssues.mockResolvedValueOnce({ success: true, data: [{ identifier: 'A-1' }] });
     await renderProbe();
