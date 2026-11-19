@@ -29,7 +29,8 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
     verticalSliderSize: 4,
     horizontalSliderSize: 4,
   },
-  // Collapsed unchanged regions break drag-selection across large diffs (ENG-1248).
+  // Collapsed unchanged regions break drag-selection across large diffs (ENG-1248),
+  // so they stay off unless the user opts in from the diff toolbar.
   hideUnchangedRegions: { enabled: false },
   diffWordWrap: 'on',
   enableSplitViewResizing: false,
