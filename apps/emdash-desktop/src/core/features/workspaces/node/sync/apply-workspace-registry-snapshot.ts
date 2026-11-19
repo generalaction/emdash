@@ -1,4 +1,5 @@
 import type { WorkspaceRecords } from '@emdash/core/runtimes/workspace-registry/api';
+import { isDeepEqual } from '@emdash/shared';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
   createWorkspaceRegistry,
@@ -9,7 +10,10 @@ import {
   type WorkspaceHostIdentity,
   type WorkspaceRegistry,
 } from '@core/features/workspaces/api/node/registry';
-import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
+import {
+  stableWorkspacePathDisplay,
+  workspacePathIdentityKey,
+} from '@core/features/workspaces/api/workspace-path-identity';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { type WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -19,7 +23,7 @@ export interface ApplyWorkspaceRegistrySnapshotInput {
   db: AppDb;
   host: WorkspaceHostIdentity;
   records: WorkspaceRecords;
-  /** Epoch-ms observation stamp; defaults to now. */
+  /** Epoch-ms observation override; otherwise each record retains its Host observation stamp. */
   observedAt?: number;
 }
 
@@ -73,7 +77,7 @@ export async function applyWorkspaceRegistrySnapshot(
   const result = input.db.transaction((tx) =>
     applyWorkspaceRegistrySnapshotTx(tx, input, registry, now)
   );
-  appDbPokes.workspaces.poke({});
+  if (Object.values(result).some((count) => count > 0)) appDbPokes.workspaces.poke({});
   return result;
 }
 
@@ -85,6 +89,7 @@ function applyWorkspaceRegistrySnapshotTx(
 ): ApplyWorkspaceRegistrySnapshotResult {
   const observedAt = input.observedAt ?? Date.now();
   const hostRows = loadLiveHostRows(tx, input.host);
+  const hostRowsById = new Map(hostRows.map((row) => [row.id, row]));
   const annotations = loadWorkspaceAnnotations(
     tx,
     hostRows.map((row) => row.id)
@@ -110,13 +115,24 @@ function applyWorkspaceRegistrySnapshotTx(
     if (tombstoned.has(record.id)) continue;
     // Matching is a primary-key lookup on the preserved workspace UUID — the host
     // already resolved moves and adoptions; no path or admin-name matching here.
-    const existing = registry.getLive(record.id, tx);
+    const existing = hostRowsById.get(record.id) ?? registry.getLive(record.id, tx);
+    const observation = {
+      ...workspaceObservationFromRecord(
+        record,
+        input.host,
+        input.observedAt ?? record.lastObservedAt
+      ),
+      path:
+        existing?.path !== undefined && existing.path !== null
+          ? stableWorkspacePathDisplay(existing.path, record.path)
+          : record.path,
+    };
     if (existing === undefined) {
       registry.adopt(
         {
           id: record.id,
           type: input.host.location === 'remote' ? 'project-ssh' : 'local',
-          ...workspaceObservationFromRecord(record, input.host, observedAt),
+          ...observation,
           createdAt: new Date(record.createdAt).toISOString(),
         },
         tx
@@ -124,7 +140,13 @@ function applyWorkspaceRegistrySnapshotTx(
       counts.adopted += 1;
       continue;
     }
-    registry.refresh(record.id, workspaceObservationFromRecord(record, input.host, observedAt), tx);
+    if (
+      Object.entries(observation).every(([key, value]) =>
+        isDeepEqual(existing[key as keyof WorkspaceRow], value)
+      )
+    )
+      continue;
+    registry.refresh(record.id, observation, tx);
     counts.refreshed += 1;
   }
 
@@ -146,8 +168,10 @@ function applyWorkspaceRegistrySnapshotTx(
     });
     if (annotated) {
       // Annotated rows stay visible as missing until the user acts.
-      registry.refresh(row.id, { observedStatus: 'missing', observedAt }, tx);
-      counts.markedMissing += 1;
+      if (row.observedStatus !== 'missing') {
+        registry.refresh(row.id, { observedStatus: 'missing', observedAt }, tx);
+        counts.markedMissing += 1;
+      }
     } else {
       // Pure mirror entries follow the mirror.
       registry.untrack([row.id], now, undefined, tx);
