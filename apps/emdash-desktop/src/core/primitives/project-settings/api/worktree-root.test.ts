@@ -37,6 +37,34 @@ describe('normalizeWorktreeRootPath', () => {
     expect(normalizeWorktreeRootPath('./pool', home)).toBeNull();
   });
 
+  it('resolves relative paths against the project path', () => {
+    const project = '/home/me/work/app';
+    expect(normalizeWorktreeRootPath('.worktrees', home, undefined, project)).toBe(
+      '/home/me/work/app/.worktrees'
+    );
+    expect(normalizeWorktreeRootPath('./.worktrees/', home, undefined, project)).toBe(
+      '/home/me/work/app/.worktrees'
+    );
+    expect(normalizeWorktreeRootPath('../app-worktrees', home, undefined, project)).toBe(
+      '/home/me/work/app-worktrees'
+    );
+  });
+
+  it('resolves relative paths against a windows project path', () => {
+    expect(
+      normalizeWorktreeRootPath('.worktrees', 'C:\\Users\\me', undefined, 'C:\\work\\app')
+    ).toBe('C:\\work\\app\\.worktrees');
+  });
+
+  it('does not treat other-dialect absolute paths as relative to the project', () => {
+    expect(
+      normalizeWorktreeRootPath('C:\\pool', home, POSIX_PATH_PROFILE, '/home/me/work/app')
+    ).toBeNull();
+    expect(
+      normalizeWorktreeRootPath('~other/pool', home, undefined, '/home/me/work/app')
+    ).toBeNull();
+  });
+
   it('rejects empty values', () => {
     expect(normalizeWorktreeRootPath('', home)).toBeNull();
     expect(normalizeWorktreeRootPath('   ', home)).toBeNull();
