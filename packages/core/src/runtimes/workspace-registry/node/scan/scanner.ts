@@ -123,6 +123,10 @@ export class RegistryScanner {
         await this.scanRefsOnly(record);
         return;
       }
+      if (request.mode === 'content') {
+        await this.scanContentOnly(record);
+        return;
+      }
       await this.scanRecordPass(record);
     });
   }
@@ -367,6 +371,32 @@ export class RegistryScanner {
       return;
     }
     const git = await this.observe.refs(record.path, record.git);
+    await this.landing.refreshConfig(record.id, record.path);
+    await this.landing.observation(record.id, { observedStatus: 'present', git }, now);
+  }
+
+  /**
+   * The working-tree path: one record's full observation without reconciling its
+   * repository, so siblings are not re-observed. A record whose directory is gone takes
+   * the reconcile pass, which owns relink-by-admin-name and vanish handling.
+   */
+  private async scanContentOnly(record: DurableWorkspaceRecord): Promise<void> {
+    if (!(await isDirectory(record.path))) {
+      await this.scanRecordPass(record);
+      return;
+    }
+    if (record.kind === 'directory') {
+      await this.scanStandalone(record);
+      return;
+    }
+    const now = this.clock.now();
+    // Locked/prunable come from the worktree listing; carry them forward like the refs
+    // path does. The next repository reconcile refreshes them.
+    const git = await this.observe.full(
+      record.path,
+      { locked: record.git?.locked ?? false, prunable: record.git?.prunable ?? false },
+      { untrackedCache: this.untrackedCacheFor(record.id) }
+    );
     await this.landing.refreshConfig(record.id, record.path);
     await this.landing.observation(record.id, { observedStatus: 'present', git }, now);
   }

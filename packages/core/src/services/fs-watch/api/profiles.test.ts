@@ -5,22 +5,26 @@ import { gitMetadataWatchProfile, workspaceContentWatchIgnore } from './profiles
 describe('workspaceContentWatchIgnore', () => {
   it('excludes Git metadata and the built-in high-volume trees by default', () => {
     const ignore = workspaceContentWatchIgnore();
-    expect(ignore).toEqual(['.git/**', ...DEFAULT_WATCHER_EXCLUDE]);
+    expect(ignore).toEqual(['.git/**', '**/.watchman-cookie-*', ...DEFAULT_WATCHER_EXCLUDE]);
     expect(ignore).toContain('**/node_modules/**');
   });
 
-  it('lets the host list replace the defaults while keeping the structural rule', () => {
-    expect(workspaceContentWatchIgnore(['**/dist/**'])).toEqual(['.git/**', '**/dist/**']);
+  it('lets the host list replace the defaults while keeping the structural rules', () => {
+    expect(workspaceContentWatchIgnore(['**/dist/**'])).toEqual([
+      '.git/**',
+      '**/.watchman-cookie-*',
+      '**/dist/**',
+    ]);
   });
 
   it('treats an empty host list as no optional exclusions', () => {
-    expect(workspaceContentWatchIgnore([])).toEqual(['.git/**']);
+    expect(workspaceContentWatchIgnore([])).toEqual(['.git/**', '**/.watchman-cookie-*']);
   });
 
   it('normalizes and deduplicates host patterns', () => {
     expect(
       workspaceContentWatchIgnore([' **/dist/** ', '**/dist/**', '.git/**', 'build\\**'])
-    ).toEqual(['.git/**', '**/dist/**', 'build/**']);
+    ).toEqual(['.git/**', '**/.watchman-cookie-*', '**/dist/**', 'build/**']);
   });
 });
 

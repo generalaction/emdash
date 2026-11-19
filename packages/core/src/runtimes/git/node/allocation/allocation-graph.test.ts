@@ -316,7 +316,11 @@ describe('GitAllocationGraph', () => {
       ignore: workspaceContentWatchIgnore(['**/dist/**']),
       backend: undefined,
     });
-    expect(watches.get('/repo')?.ignore).toEqual(['.git/**', '**/dist/**']);
+    expect(watches.get('/repo')?.ignore).toEqual([
+      '.git/**',
+      '**/.watchman-cookie-*',
+      '**/dist/**',
+    ]);
     await lease.release();
     await graph.dispose();
   });
