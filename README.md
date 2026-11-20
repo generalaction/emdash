@@ -1,8 +1,10 @@
-<img alt="Emdash" src="https://github.com/user-attachments/assets/a2ecaf3c-9d84-40ca-9a8e-d4f612cc1c6f" />
+# Emdash Classic
+
+Emdash Classic is the open-source desktop app for running coding agents in parallel. Run Claude Code, Codex, OpenCode, and more in separate Git worktrees, on your machine or over SSH. Review diffs and open PRs without leaving the app. Available for macOS, Windows, and Linux.
 
 <div align="center">
 
-[Download](https://emdash.sh/download) · [Docs](https://emdash.sh/docs) · [Releases](https://github.com/generalaction/emdash/releases/latest) · [Discord](https://discord.gg/f2fv7YxuR2) · [Contributing](CONTRIBUTING.md)
+[Download](https://emdash.com/download) · [Docs](https://emdash.com/docs) · [Releases](https://github.com/generalaction/emdash/releases/latest) · [Discord](https://discord.gg/f2fv7YxuR2) · [Contributing](CONTRIBUTING.md)
 
 <br />
 
@@ -14,18 +16,11 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
 <a href="https://www.ycombinator.com"><img src="https://img.shields.io/badge/Y%20Combinator-W26-orange" alt="Y Combinator W26"></a>
-[![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
+[![Follow @emdashcom on X](https://img.shields.io/twitter/follow/emdashcom?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashcom)
 
 </div>
 
-Emdash is a desktop app for running AI coding agents in parallel. Each task runs in its
-own Git worktree, so you can explore multiple fixes or features at once, review the
-diffs, and merge what works.
-
-It works with local projects and remote machines over SSH. Bring the CLI agents you
-already use: Claude Code, Codex, OpenCode, Amp, and more.
-
-<img alt="Emdash product screenshot" src="https://emdash.sh/media/blog/public-v1-beta/v1beta.jpg" />
+<img alt="Emdash Classic product screenshot" src="https://emdash.com/media/blog/public-v1-beta/v1beta.jpg" />
 
 ## What You Can Do
 
@@ -50,29 +45,28 @@ all desktop builds.
 
 ## Agents
 
-Emdash detects installed provider CLIs automatically. It supports agents like Claude
-Code, Codex, Cursor, OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub
-Copilot.
+The app automatically detects installed provider CLIs, including Claude Code, Codex, Cursor,
+OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub Copilot.
 
-For agents with lifecycle-hook support, Emdash installs marker-tagged entries in the agent's
-user-level config. These hooks let Emdash track status, notifications, and resumable sessions, and
-silently do nothing when the agent runs outside an Emdash session.
+For agents that support lifecycle hooks, the app adds marked entries to the agent's user config.
+These hooks track status, enable notifications, and support resuming sessions. They do nothing
+outside sessions started in the app.
 
-See [Providers](https://emdash.sh/docs/providers) for the full list, setup commands,
+See [Providers](https://emdash.com/docs/providers) for the full list, setup commands,
 and provider-specific behavior.
 
 ## Remote Projects
 
 Connect to remote machines with SSH/SFTP and run the same parallel workflow on remote
-codebases. Emdash supports SSH agent, key, and password authentication, including OpenSSH
-certificates held by the agent, with credentials stored in your OS keychain.
+codebases. You can authenticate with an SSH agent, a key, or a password. OpenSSH certificates held
+by the agent also work. The app stores credentials in your OS keychain.
 
-See [Remote Projects](https://emdash.sh/docs/remote-projects) for setup details.
+See [Remote Projects](https://emdash.com/docs/remote-development/remote-projects) for setup details.
 
 ## Privacy
 
-Emdash is local-first. App state is stored in a local SQLite database, and Emdash does
-not send your code or chats to Emdash servers.
+The app is local-first. It stores app state in a local SQLite database and does not send your code
+or chats to Emdash servers.
 
 Agent CLIs may send code, prompts, and context to their own providers. Their data
 handling depends on the provider you choose.
@@ -83,7 +77,7 @@ Telemetry is optional and can be disabled in Settings or by launching with:
 TELEMETRY_ENABLED=false
 ```
 
-See [Telemetry](https://emdash.sh/docs/telemetry) for details.
+See [Telemetry](https://emdash.com/docs/telemetry) for details.
 
 ## Contributing
 
@@ -93,3 +87,5 @@ issue, or join the [Discord](https://discord.gg/f2fv7YxuR2).
 ## License
 
 Licensed under the [Apache-2.0 license](LICENSE.md).
+
+Looking to run coding agents with your team, on your own infrastructure or in the cloud? See [Emdash](https://emdash.com).
