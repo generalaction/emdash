@@ -188,7 +188,7 @@ function buildCandidateRow(
 ): ProjectWorkspaceRow {
   const remote = candidate.workspace?.location === 'remote' || projectHost.type === 'remote';
   const hasActiveSessions = candidate.tasks.some(
-    (task) => !!dependencies.taskSessions.getTask(task.taskId)
+    (task) => !task.archivedAt && !!dependencies.taskSessions.getTask(task.taskId)
   );
   const lastActivityAt = latest(
     candidate.tasks.flatMap((task) => [task.lastInteractedAt, task.updatedAt])

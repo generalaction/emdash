@@ -433,4 +433,32 @@ describe('createWorkspaceRegistryWireController', () => {
       expect(registry.getLive('wt-abandoned')).toBeUndefined();
     });
   });
+
+  describe('cleanup', () => {
+    it('previews and untracks missing worktrees no open task needs', async () => {
+      seedRow('wt-missing');
+      createWorkspaceRegistry(fixture.db).refresh('wt-missing', {
+        observedStatus: 'missing',
+        observedAt: 1,
+      });
+      seedRow('wt-present');
+      const wire = controller();
+
+      const preview = (await wire.call('getCleanupPreview', undefined)) as {
+        missingWorktrees: { workspaceId: string }[];
+      };
+      expect(preview.missingWorktrees.map((row) => row.workspaceId)).toEqual(['wt-missing']);
+
+      const result = await wire.call('runCleanup', {
+        untrackMissing: true,
+        compactDatabase: false,
+      });
+      expect(result).toEqual({ success: true, data: { untracked: 1, freedBytes: 0 } });
+
+      const registry = createWorkspaceRegistry(fixture.db);
+      expect(registry.getLive('wt-missing')).toBeUndefined();
+      expect(registry.getLive('wt-present')).toBeDefined();
+      expect(hostVerbs.deleteWorktree).not.toHaveBeenCalled();
+    });
+  });
 });

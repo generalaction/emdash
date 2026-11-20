@@ -171,6 +171,50 @@ describe('listProjectWorkspaces', () => {
     });
   });
 
+  it('does not count sessions of archived tasks as active', async () => {
+    taskSessions.getTask.mockImplementation((() => ({})) as never);
+    select
+      .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
+      .mockReturnValueOnce(
+        taskRows([
+          {
+            taskId: 'task-archived',
+            name: 'Archived task',
+            status: 'in_progress',
+            archivedAt: '2026-01-02T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            lastInteractedAt: null,
+            workspaceId: 'workspace-archived',
+          },
+          {
+            taskId: 'task-open',
+            name: 'Open task',
+            status: 'in_progress',
+            archivedAt: null,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            lastInteractedAt: null,
+            workspaceId: 'workspace-open',
+          },
+        ])
+      )
+      .mockReturnValueOnce(
+        workspaceRows([
+          mirrorRow({ id: 'project-1-repository-workspace', kind: 'repository', path: '/repo' }),
+          mirrorRow({ id: 'workspace-archived', path: '/repo/archived', observedGit: null }),
+          mirrorRow({ id: 'workspace-open', path: '/repo/open', observedGit: null }),
+        ])
+      );
+
+    try {
+      const result = await list({ client: vi.fn() });
+      const byId = (id: string) => result.rows.find((row) => row.workspaceId === id);
+      expect(byId('workspace-archived')?.hasActiveSessions).toBe(false);
+      expect(byId('workspace-open')?.hasActiveSessions).toBe(true);
+    } finally {
+      taskSessions.getTask.mockImplementation(() => undefined);
+    }
+  });
+
   it('serves tombstoned rows as pending removals with the active terminal stop', async () => {
     select
       .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))

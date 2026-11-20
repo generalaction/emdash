@@ -27,6 +27,18 @@ export type ListWorkspacesInput = z.infer<typeof listWorkspacesInputSchema>;
 
 export const workspaceRegistryDomain = 'workspaceRegistry' as const;
 
+export const workspaceCleanupCandidateSchema = z.object({
+  workspaceId: z.string(),
+  path: z.string().nullable(),
+});
+export type WorkspaceCleanupCandidate = z.infer<typeof workspaceCleanupCandidateSchema>;
+
+export const workspaceCleanupPreviewSchema = z.object({
+  missingWorktrees: z.array(workspaceCleanupCandidateSchema),
+  database: z.object({ fileBytes: z.number(), freeBytes: z.number() }),
+});
+export type WorkspaceCleanupPreview = z.infer<typeof workspaceCleanupPreviewSchema>;
+
 export const workspaceClaimErrorSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('workspace-identity-conflict'),
@@ -183,6 +195,30 @@ export const workspaceRegistryWireContract = defineContract({
   abandonWorkspaceRemoval: procedure({
     input: z.object({ workspaceId: z.string().min(1) }),
     output: z.void(),
+  }),
+
+  /**
+   * What "Clean up" would do: missing worktree rows no open task needs, and the app
+   * database's reclaimable free space. Read-only.
+   */
+  getCleanupPreview: procedure({
+    input: z.void(),
+    output: workspaceCleanupPreviewSchema,
+  }),
+
+  /**
+   * Runs the selected cleanup steps. Missing worktrees are re-evaluated at run time and
+   * untracked (host files and branches untouched); compaction VACUUMs the app database.
+   */
+  runCleanup: fallible({
+    input: z.object({ untrackMissing: z.boolean(), compactDatabase: z.boolean() }),
+    data: z.object({ untracked: z.number(), freedBytes: z.number() }),
+    error: z.object({
+      type: z.literal('compact-failed'),
+      message: z.string(),
+      untracked: z.number(),
+    }),
+    callTimeoutMs: 0,
   }),
 });
 

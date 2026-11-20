@@ -26,6 +26,10 @@ import {
   decodeWorkspaceHost,
   retryWorkspaceRemoval,
 } from '@core/features/workspaces/node/operations/removal-affordances';
+import {
+  getWorkspaceCleanupPreview,
+  runWorkspaceCleanup,
+} from '@core/features/workspaces/node/operations/workspace-cleanup';
 import type { WorkspaceConfig, WorkspaceMirrorRow } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
@@ -143,6 +147,10 @@ export function createWorkspaceRegistryWireController(
 
     abandonWorkspaceRemoval: async ({ workspaceId }) =>
       abandonWorkspaceRemoval(options.db, options.sweep, workspaceId),
+
+    getCleanupPreview: async () => getWorkspaceCleanupPreview(options.db),
+
+    runCleanup: async (input) => runWorkspaceCleanup(options.db, input),
   });
 }
 

@@ -619,8 +619,9 @@ function scriptIssueLabel(issue: WorkspaceScriptIssue): string {
 }
 
 function activeTaskCount(row: ProjectWorkspaceRow): number {
-  return row.tasks.filter((task) => task.status === 'in_progress' || task.status === 'review')
-    .length;
+  return row.tasks.filter(
+    (task) => !task.archivedAt && (task.status === 'in_progress' || task.status === 'review')
+  ).length;
 }
 
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
