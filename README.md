@@ -45,13 +45,12 @@ all desktop builds.
 
 ## Agents
 
-Emdash Classic detects installed provider CLIs automatically. It supports agents like Claude
-Code, Codex, Cursor, OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub
-Copilot.
+The app automatically detects installed provider CLIs, including Claude Code, Codex, Cursor,
+OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub Copilot.
 
-For agents with lifecycle-hook support, Emdash Classic installs marker-tagged entries in the agent's
-user-level config. These hooks let Emdash Classic track status, notifications, and resumable sessions, and
-silently do nothing when the agent runs outside an Emdash Classic session.
+For agents that support lifecycle hooks, the app adds marked entries to the agent's user config.
+These hooks track status, enable notifications, and support resuming sessions. They do nothing
+outside sessions started in the app.
 
 See [Providers](https://emdash.com/docs/providers) for the full list, setup commands,
 and provider-specific behavior.
@@ -59,15 +58,15 @@ and provider-specific behavior.
 ## Remote Projects
 
 Connect to remote machines with SSH/SFTP and run the same parallel workflow on remote
-codebases. Emdash Classic supports SSH agent, key, and password authentication, including OpenSSH
-certificates held by the agent, with credentials stored in your OS keychain.
+codebases. You can authenticate with an SSH agent, a key, or a password. OpenSSH certificates held
+by the agent also work. The app stores credentials in your OS keychain.
 
 See [Remote Projects](https://emdash.com/docs/remote-development/remote-projects) for setup details.
 
 ## Privacy
 
-Emdash Classic is local-first. App state is stored in a local SQLite database, and Emdash Classic does
-not send your code or chats to Emdash servers.
+The app is local-first. It stores app state in a local SQLite database and does not send your code
+or chats to Emdash servers.
 
 Agent CLIs may send code, prompts, and context to their own providers. Their data
 handling depends on the provider you choose.
