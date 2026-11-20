@@ -1,3 +1,4 @@
+import { minimatch } from 'minimatch';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_WATCHER_EXCLUDE } from '#primitives/exclusion-policy/api';
 import { gitMetadataWatchProfile, workspaceContentWatchIgnore } from './profiles';
@@ -7,6 +8,17 @@ describe('workspaceContentWatchIgnore', () => {
     const ignore = workspaceContentWatchIgnore();
     expect(ignore).toEqual(['.git/**', ...DEFAULT_WATCHER_EXCLUDE]);
     expect(ignore).toContain('**/node_modules/**');
+  });
+
+  it('skips Flutter build output at the root only, keeping nested build/ sources watched', () => {
+    // Native watchers and the files runtime match ignore globs against root-relative paths.
+    const ignored = (path: string) =>
+      workspaceContentWatchIgnore().some((glob) => minimatch(path, glob, { dot: true }));
+    expect(ignored('build/app/outputs/a.apk')).toBe(true);
+    expect(ignored('.dart_tool/package_config.json')).toBe(true);
+    expect(ignored('ios/Pods/Manifest.lock')).toBe(true);
+    expect(ignored('apps/emdash-desktop/build/entitlements.plist')).toBe(false);
+    expect(ignored('lib/main.dart')).toBe(false);
   });
 
   it('lets the host list replace the defaults while keeping the structural rule', () => {

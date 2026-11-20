@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { blobSourceFromBytes, type BlobSource } from '@emdash/wire/rpc';
+import { claimOwnUpstream } from '#primitives/git/api';
 import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
   gitErr,
@@ -43,6 +44,8 @@ import { execGitWithProgress } from '#runtimes/git/node/exec/transfer-progress';
 import type { BoundExec } from '#services/exec/api';
 import { checkoutFailures, InvalidCheckoutPathError } from './errors';
 
+const MAX_IGNORE_CHECK_PATHS = 200;
+
 type GitCheckoutOptions = {
   identity: CheckoutIdentity;
   exec: BoundExec;
@@ -63,6 +66,19 @@ export class GitCheckout {
 
   get gitDir(): string {
     return this.identity.gitDir;
+  }
+
+  /** True only when git reports every path as ignored; tracked paths never are. Any failure,
+   * including exit 1 (none ignored), answers false so callers fall back to a refresh. */
+  async allIgnored(paths: readonly string[]): Promise<boolean> {
+    const unique = [...new Set(paths)];
+    if (unique.length === 0 || unique.length > MAX_IGNORE_CHECK_PATHS) return false;
+    try {
+      const { stdout } = await this.exec.exec(['check-ignore', '--', ...unique]);
+      return stdout.split('\n').filter(Boolean).length === unique.length;
+    } catch {
+      return false;
+    }
   }
 
   getStatus(): Promise<CheckoutStatusState> {
@@ -181,7 +197,10 @@ export class GitCheckout {
   }
 
   async switchBranch(branch: string): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() => this.exec.exec(['switch', branch]));
+    return this.commandMutation(async () => {
+      await this.exec.exec(['switch', branch]);
+      await claimOwnUpstream(this.exec, branch).catch(() => undefined);
+    });
   }
 
   async abortOperation(operation: string): Promise<Result<void, GitCommandError>> {
@@ -197,13 +216,34 @@ export class GitCheckout {
     try {
       const args = ['push', '--progress'];
       if (options.force) args.push('--force-with-lease');
-      if (options.remote) args.push(options.remote);
+      const renamed = await this.renamedUpstreamPush(options.remote);
+      if (renamed) args.push(...renamed);
+      else if (options.remote) args.push(options.remote);
       const { stdout, stderr } = await execGitWithProgress(this.exec, args, context);
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
       return pushFailed(error);
     }
+  }
+
+  /** `push.default=simple` refuses a branch tracking a differently named one: a PR task branch
+   * pushes to its PR head, any other branch (cut from origin/dev) to its own name. */
+  private async renamedUpstreamPush(remote?: string): Promise<string[] | null> {
+    const read = (args: string[]) =>
+      this.exec.exec(args).then(
+        (result) => result.stdout.trim(),
+        () => ''
+      );
+    const branch = await read(['symbolic-ref', '--short', '-q', 'HEAD']);
+    if (!branch) return null;
+    const upstreamRemote = await read(['config', '--get', `branch.${branch}.remote`]);
+    const merge = await read(['config', '--get', `branch.${branch}.merge`]);
+    if (!upstreamRemote || upstreamRemote === '.' || merge === `refs/heads/${branch}`) return null;
+    if (await read(['config', '--get', `branch.${branch}.emdash-pr-url`]))
+      return [upstreamRemote, `HEAD:${merge}`];
+    const ref = `refs/heads/${branch}`;
+    return ['--set-upstream', remote ?? upstreamRemote, `${ref}:${ref}`];
   }
 
   async publish(

@@ -185,9 +185,9 @@ export class LanguageServerSession {
     method: string,
     uri: string,
     version: number,
-    position: Position,
+    position: Position | undefined,
     signal?: AbortSignal,
-    context?: { includeDeclaration: boolean }
+    params?: Record<string, unknown>
   ): Promise<unknown> {
     const transport = await this.enqueue(async () => {
       signal?.throwIfAborted();
@@ -201,8 +201,8 @@ export class LanguageServerSession {
       method,
       {
         textDocument: { uri },
-        position,
-        ...(context ? { context } : {}),
+        ...(position ? { position } : {}),
+        ...params,
       },
       signal
     );
@@ -289,6 +289,7 @@ export class LanguageServerSession {
               hover: { contentFormat: ['markdown', 'plaintext'] },
               definition: { linkSupport: true },
               typeDefinition: { linkSupport: true },
+              formatting: { dynamicRegistration: false },
               publishDiagnostics: { versionSupport: true, relatedInformation: false },
             },
           },

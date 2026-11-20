@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type parcelWatcher from '@parcel/watcher';
@@ -82,13 +82,50 @@ describe('NativeWatch', () => {
     );
     callbacks[0](dropped, []);
     callbacks[0](dropped, []);
-    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(2_000);
 
     expect(onError).toHaveBeenCalledTimes(2);
     expect(resync).toHaveBeenCalledOnce();
     expect(subscribe).toHaveBeenCalledOnce();
     expect(unsubscribe).not.toHaveBeenCalled();
 
+    await watch.dispose();
+  });
+
+  it('resyncs once after a long dropped-event storm, at most every ten seconds', async () => {
+    queueSubscription({ unsubscribe: vi.fn(async () => {}) });
+    const resync = vi.fn();
+    const watch = await openWatch(resync);
+    const dropped = new Error(
+      'Events were dropped by the FSEvents client. File system must be re-scanned.'
+    );
+    for (let i = 0; i < 22; i += 1) {
+      callbacks[0](dropped, []);
+      await vi.advanceTimersByTimeAsync(500);
+    }
+    expect(resync).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(resync).toHaveBeenCalledTimes(2);
+    await watch.dispose();
+  });
+
+  it('skips nested git repositories when the root is a plain folder of repos', async () => {
+    await mkdir(path.join(root, 'app', '.git'), { recursive: true });
+    await mkdir(path.join(root, 'group', 'service', '.git'), { recursive: true });
+    await mkdir(path.join(root, 'notes'), { recursive: true });
+    queueSubscription({ unsubscribe: vi.fn(async () => {}) });
+    const watch = await openWatch();
+    const ignore = subscribe.mock.calls[0][2]?.ignore ?? [];
+    expect([...ignore].sort()).toEqual(['app', path.join('group', 'service')]);
+    await watch.dispose();
+  });
+
+  it('keeps watching everything when the root is itself a repository', async () => {
+    await mkdir(path.join(root, '.git'));
+    await mkdir(path.join(root, 'vendor', 'lib', '.git'), { recursive: true });
+    queueSubscription({ unsubscribe: vi.fn(async () => {}) });
+    const watch = await openWatch();
+    expect(subscribe.mock.calls[0][2]?.ignore).toEqual([]);
     await watch.dispose();
   });
 

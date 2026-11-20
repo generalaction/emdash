@@ -336,6 +336,8 @@ function createTerminalsConnector(
   store: () => TerminalStore | undefined
 ): FrontendPtyConnector {
   let logBinding: ReplicaLog | null = null;
+  /** Dropped input is logged once per streak, not per keystroke. */
+  let droppingInput = false;
   let runtimePromise: Promise<TerminalsClient> | null = null;
   const runtime = () => {
     runtimePromise ??= getTerminalsClient();
@@ -364,10 +366,18 @@ function createTerminalsConnector(
     sendInput(data: string) {
       store()?.noteInput();
       const sentGeneration = generation();
-      if (sentGeneration === undefined) return;
+      if (sentGeneration === undefined) {
+        if (!droppingInput) log.warn('TerminalManagerStore: input dropped, host not ready');
+        droppingInput = true;
+        return;
+      }
+      droppingInput = false;
       void Promise.all([runtime(), key()])
         .then(async ([terminalsRuntime, terminalKey]) => {
-          if (generation() !== sentGeneration) return;
+          if (generation() !== sentGeneration) {
+            log.warn('TerminalManagerStore: input dropped, host generation changed');
+            return;
+          }
           const result = await terminalsRuntime.sendInput({ ...terminalKey, data });
           if (!result.success) {
             log.warn('TerminalManagerStore: terminal input failed', {

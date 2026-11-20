@@ -5,11 +5,13 @@ import {
   lspDocumentChangeSchema,
   lspProjectRootQuerySchema,
   lspErrorSchema,
+  lspFormattingQuerySchema,
   lspHoverSchema,
   lspLocationSchema,
   lspQuerySchema,
   lspSessionKeySchema,
   lspStateSchema,
+  lspTextEditSchema,
 } from '@emdash/core/runtimes/lsp/api';
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
@@ -56,6 +58,11 @@ export const editorLspContract = defineContract({
   references: fallible({
     input: query.extend({ includeDeclaration: z.boolean() }),
     data: z.array(lspLocationSchema),
+    error: lspErrorSchema,
+  }),
+  formatting: fallible({
+    input: lspFormattingQuerySchema.extend({ session: editorLspSessionSchema }),
+    data: z.array(lspTextEditSchema),
     error: lspErrorSchema,
   }),
 });

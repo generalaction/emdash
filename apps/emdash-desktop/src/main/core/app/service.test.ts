@@ -292,6 +292,23 @@ describe('AppService.openIn', () => {
     }
   );
 
+  it('runs file-target open commands from the file folder, since a file cannot be a cwd', async () => {
+    setPlatform('darwin');
+    const dir = await realpath(await mkdtemp(path.join(os.tmpdir(), 'emdash-open-file-')));
+    const ipa = path.join(dir, 'Runner.ipa');
+    await writeFile(ipa, '');
+    try {
+      await appService.openIn({ app: 'transporter', path: ipa });
+      expect(mocks.exec).toHaveBeenCalledWith(
+        expect.stringContaining('Transporter'),
+        expect.objectContaining({ cwd: dir }),
+        expect.any(Function)
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('falls back to devenv on PATH when vswhere is missing', async () => {
     mocks.execFile.mockImplementation(
       (

@@ -90,6 +90,10 @@ export function createEditorLspImpl(
       call(input.session, (client, key) =>
         client.references({ ...input, session: key }, { signal: meta.signal })
       ),
+    formatting: (input, meta) =>
+      call(input.session, (client, key) =>
+        client.formatting({ ...input, session: key }, { signal: meta.signal })
+      ),
   };
 }
 function hostKey({ host: _host, ...key }: EditorLspSessionKey): LspSessionKey {

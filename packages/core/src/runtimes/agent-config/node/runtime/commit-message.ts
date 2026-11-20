@@ -104,6 +104,8 @@ async function runWithStdin(
   const child = await createBoundExec({ file: cli, cwd, env }).spawn(args, {
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
+  // A CLI that exits early (not logged in, bad flag) closes stdin: EPIPE is reported by its exit code.
+  child.stdin.on('error', () => undefined);
   child.stdin.end(input);
   let stdout = '';
   let stderr = '';

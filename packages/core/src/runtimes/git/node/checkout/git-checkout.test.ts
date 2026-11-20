@@ -84,6 +84,56 @@ describe('GitCheckout', () => {
     }
   });
 
+  it('reports a batch as ignored only when every path is gitignored', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await writeFile(path.join(repo, '.gitignore'), 'build/\n*.log\n', 'utf8');
+      const abs = (file: string) => path.join(repo, file);
+      expect(await checkout.allIgnored([abs('build/out.apk'), abs('debug.log')])).toBe(true);
+      expect(await checkout.allIgnored([abs('build/out.apk'), abs('lib/main.dart')])).toBe(false);
+      expect(await checkout.allIgnored([abs('tracked.txt')])).toBe(false);
+      expect(await checkout.allIgnored([abs('.gitignore')])).toBe(false);
+      expect(await checkout.allIgnored([])).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('pushes a branch cut from a differently named remote branch to its own name', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    const remote = await mkdtemp(path.join(tmpdir(), 'emdash-git-checkout-remote-'));
+    const git = (...args: string[]) => execFileAsync('git', args, { cwd: repo });
+    try {
+      await execFileAsync('git', ['init', '--bare'], { cwd: remote });
+      await git('remote', 'add', 'origin', remote);
+      await git('push', 'origin', 'main', 'main:refs/heads/feat-pr');
+      await git('fetch', 'origin');
+      const base = (await git('rev-parse', 'main')).stdout.trim();
+      await git('switch', '--track', '-c', 'feat/x', 'origin/main');
+      await git('commit', '--allow-empty', '-m', 'work');
+      const head = (await git('rev-parse', 'HEAD')).stdout.trim();
+
+      await expect(checkout.push({ remote: 'origin' })).resolves.toMatchObject({ success: true });
+      const remoteRef = (ref: string) =>
+        execFileAsync('git', ['rev-parse', ref], { cwd: remote }).then((r) => r.stdout.trim());
+      expect(await remoteRef('refs/heads/feat/x')).toBe(head);
+      expect(await remoteRef('refs/heads/main')).toBe(base);
+      expect((await git('rev-parse', '--abbrev-ref', '@{upstream}')).stdout.trim()).toBe(
+        'origin/feat/x'
+      );
+
+      await git('switch', '--track', '-c', 'task', 'origin/feat-pr');
+      await git('config', 'branch.task.emdash-pr-url', 'https://example.com/pr/1');
+      await git('commit', '--allow-empty', '-m', 'review fix');
+      const taskHead = (await git('rev-parse', 'HEAD')).stdout.trim();
+      await expect(checkout.push({ remote: 'origin' })).resolves.toMatchObject({ success: true });
+      expect(await remoteRef('refs/heads/feat-pr')).toBe(taskHead);
+    } finally {
+      await rm(remote, { recursive: true, force: true });
+      await cleanup();
+    }
+  });
+
   it('distinguishes remote upstream identity from tracking resolution', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();
     const remote = await mkdtemp(path.join(tmpdir(), 'emdash-git-checkout-remote-'));

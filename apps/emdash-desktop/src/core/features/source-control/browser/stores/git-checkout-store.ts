@@ -7,7 +7,7 @@ import {
   type GitChange,
 } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { createConcurrencyLimiter, createScope, type Scope } from '@emdash/shared/concurrency';
 import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import {
   cell,
@@ -52,6 +52,7 @@ const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 // show (with retry) instead of leaving the store in a permanent loading state.
 const CHECKOUT_MODEL_STARTUP_TIMEOUT_MS = 30_000;
 const MAX_UNTRACKED_STAT_BYTES = 2 * 1024 * 1024;
+const UNTRACKED_STAT_CONCURRENCY = 8;
 type CheckoutModel = typeof sourceControlContract.checkout.model;
 type CheckoutRemote = RemoteModel<CheckoutModel>;
 type CheckoutRemoteMember = ReturnType<CheckoutRemote>;
@@ -73,6 +74,7 @@ export class GitCheckoutStore {
   private changesMetadata: Cell<CheckoutChangesState> | null = null;
   private changesView: OptimisticView<CheckoutChangesState> | null = null;
   private changesRequest = 0;
+  private readonly untrackedLines: UntrackedLinesCache = new Map();
   private stagedChanges: GitChange[] = [];
   private unstagedChanges: GitChange[] = [];
   private revision = 0;
@@ -610,7 +612,12 @@ export class GitCheckoutStore {
       staged: stagedResult.data.files,
       unstaged: unstagedResult.data.files,
     });
-    await addUntrackedLineCounts(enriched.unstaged, this.workspacePath, this.sshConnectionId);
+    await addUntrackedLineCounts(
+      enriched.unstaged,
+      this.workspacePath,
+      this.sshConnectionId,
+      this.untrackedLines
+    );
     if (request !== this.changesRequest || !this.started) return;
     metadata.set(enriched);
     runInAction(() => {
@@ -680,28 +687,56 @@ function waitForCheckoutModel(
   });
 }
 
-async function addUntrackedLineCounts(
+/** Line counts of untracked files, keyed by path and valid while size and mtime match. */
+export type UntrackedLinesCache = Map<
+  string,
+  { size: number; mtimeMs: number; lines: number | null }
+>;
+
+/**
+ * git reports 0 lines for untracked files, so they are counted here. A `stat` per refresh decides
+ * whether a file must be re-read; unchanged files reuse their cached count.
+ */
+export async function addUntrackedLineCounts(
   changes: GitChange[],
   workspacePath: string,
-  sshConnectionId: string | undefined
+  sshConnectionId: string | undefined,
+  cache: UntrackedLinesCache
 ): Promise<void> {
   const untracked = changes.filter((change) => change.status === 'added' && change.additions === 0);
+  const live = new Set<string>(untracked.map((change) => change.path));
+  for (const path of cache.keys()) if (!live.has(path)) cache.delete(path);
   if (untracked.length === 0) return;
   const client = await getFilesClient();
+  const limiter = createConcurrencyLimiter(UNTRACKED_STAT_CONCURRENCY);
+  const signal = new AbortController().signal;
   await Promise.all(
-    untracked.map(async (change) => {
-      const result = await client.fs.readText({
-        uri: encodeResourceUri(
+    untracked.map((change) =>
+      limiter.run(signal, async () => {
+        const uri = encodeResourceUri(
           hostFileRefFromNativePath(
             resolveWorkspacePath(workspacePath, change.path),
             sshConnectionId
           )
-        ),
-        options: { maxBytes: MAX_UNTRACKED_STAT_BYTES },
-      });
-      if (result.success && !result.data.truncated) {
-        change.additions = result.data.content.split('\n').length - 1;
-      }
-    })
+        );
+        const stat = await client.fs.stat({ uri });
+        if (!stat.success) return;
+        const { size, mtimeMs } = stat.data;
+        let entry = cache.get(change.path);
+        if (!entry || entry.size !== size || entry.mtimeMs !== mtimeMs) {
+          const result =
+            size > MAX_UNTRACKED_STAT_BYTES
+              ? null
+              : await client.fs.readText({ uri, options: { maxBytes: MAX_UNTRACKED_STAT_BYTES } });
+          const lines =
+            result?.success && !result.data.truncated
+              ? result.data.content.split('\n').length - 1
+              : null;
+          entry = { size, mtimeMs, lines };
+          cache.set(change.path, entry);
+        }
+        if (entry.lines !== null) change.additions = entry.lines;
+      })
+    )
   );
 }

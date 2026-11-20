@@ -101,10 +101,15 @@ export const FlutterDevicePicker = observer(function FlutterDevicePicker() {
               <>
                 <DropdownMenu.Separator />
                 <DropdownMenu.Group>
-                  <DropdownMenu.Label>Offline emulators · click to boot</DropdownMenu.Label>
+                  <DropdownMenu.Label>
+                    {runner.runActive
+                      ? 'Offline emulators · stop the app to boot'
+                      : 'Offline emulators · click to boot'}
+                  </DropdownMenu.Label>
                   {targets.emulators.map((emulator) => (
                     <DropdownMenu.Item
                       key={emulator.id}
+                      disabled={runner.runActive}
                       onClick={() => select({ kind: 'emulator', emulator })}
                     >
                       <Smartphone className="size-3.5" />

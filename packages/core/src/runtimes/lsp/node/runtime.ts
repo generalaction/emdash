@@ -9,13 +9,20 @@ import type {
   LspDocument,
   LspDocumentChange,
   LspError,
+  LspFormattingQuery,
   LspQuery,
   LspSessionKey,
   LspProjectRootQuery,
 } from '../api/schemas';
 import { spawnLanguageServer, type LanguageServerLaunch } from './process-transport';
 import { resolveLanguageProjectRoot } from './project-resolution';
-import { documentUri, parseHover, parseLocations, projectSessionState } from './protocol-values';
+import {
+  documentUri,
+  parseHover,
+  parseLocations,
+  parseTextEdits,
+  projectSessionState,
+} from './protocol-values';
 import { createServerRequestHandlers } from './server-configuration';
 import { LanguageServerSession, DocumentOutOfSyncError, StaleQueryError } from './server-session';
 
@@ -141,14 +148,34 @@ export class LspRuntime {
   }
   references(input: LspQuery & { includeDeclaration: boolean }, signal?: AbortSignal) {
     return this.findLocations(input, 'references', signal, {
-      includeDeclaration: input.includeDeclaration,
+      context: { includeDeclaration: input.includeDeclaration },
     });
+  }
+  formatting(input: LspFormattingQuery, signal?: AbortSignal) {
+    return this.withSession(
+      input.session,
+      async (session) => {
+        await session.start();
+        if (!session.current.capabilities.documentFormattingProvider) return [];
+        return parseTextEdits(
+          await session.query(
+            'textDocument/formatting',
+            documentUri(input.path),
+            input.version,
+            undefined,
+            signal,
+            { options: input.options }
+          )
+        );
+      },
+      signal
+    );
   }
   private findLocations(
     input: LspQuery,
     kind: 'definition' | 'typeDefinition' | 'references',
     signal?: AbortSignal,
-    context?: { includeDeclaration: boolean }
+    params?: { context: { includeDeclaration: boolean } }
   ) {
     return this.withSession(
       input.session,
@@ -162,7 +189,7 @@ export class LspRuntime {
             input.version,
             input.position,
             signal,
-            context
+            params
           )
         );
       },

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PortableRelativePath } from '#primitives/path/api';
 import {
   canonicalExclusionPatterns,
+  DEFAULT_SEARCH_EXCLUDE,
   ExclusionPolicy,
   normalizeExclusionPatterns,
 } from './exclusion-policy';
@@ -15,6 +16,16 @@ describe('ExclusionPolicy', () => {
     expect(policy.excludes(relative('node_modules/pkg/index.js'))).toBe(true);
     expect(policy.excludes(relative('packages/app/.git/config'))).toBe(true);
     expect(policy.excludes(relative('src/node_modules.ts'))).toBe(false);
+  });
+
+  it('keeps Flutter generated and dependency trees out of search by default', () => {
+    const policy = new ExclusionPolicy(DEFAULT_SEARCH_EXCLUDE, { caseSensitive: true });
+
+    expect(policy.excludes(relative('ios/Pods/Firebase/x.h'))).toBe(true);
+    expect(policy.excludes(relative('.dart_tool/package_config.json'))).toBe(true);
+    expect(policy.excludes(relative('android/.gradle/8.0/file'))).toBe(true);
+    expect(policy.excludes(relative('lib/main.dart'))).toBe(false);
+    expect(policy.excludes(relative('pubspec.yaml'))).toBe(false);
   });
 
   it('matches glob patterns against paths and ancestor directories', () => {

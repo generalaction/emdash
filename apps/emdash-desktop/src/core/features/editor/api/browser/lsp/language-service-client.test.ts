@@ -31,7 +31,13 @@ function fixture() {
     phase: 'ready',
     generation: 'one',
     diagnostics: [],
-    capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+    capabilities: {
+      hover: true,
+      definition: true,
+      typeDefinition: true,
+      references: true,
+      formatting: false,
+    },
   };
   const state = cell(ready);
   const resolveProjectRoot = vi.fn(

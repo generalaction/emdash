@@ -16,6 +16,7 @@ export function isGitDiscoveryMiss(failure: { exitCode: number | null; stderr: s
   );
 }
 
+export { claimOwnUpstream } from './own-upstream';
 export {
   parseGitDubiousOwnership,
   safeDirectoryCommand,

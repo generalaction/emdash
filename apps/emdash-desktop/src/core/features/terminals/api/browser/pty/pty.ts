@@ -97,6 +97,8 @@ export class FrontendPty {
   static readonly bySession = new Map<string, FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
+  /** Session start, so the resize controller can tell a just-spawned TUI from a running one. */
+  readonly createdAt = Date.now();
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
   private hoveredOscLink: HoveredLink | null = null;

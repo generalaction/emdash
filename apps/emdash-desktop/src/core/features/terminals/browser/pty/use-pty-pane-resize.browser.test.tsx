@@ -95,6 +95,39 @@ describe('usePtyPaneResize', () => {
   });
 });
 
+describe('usePtyPaneResize redraw nudge', () => {
+  it('repaints a just-spawned session once its size settles, but not a running one', async () => {
+    const calls: Array<[number, number]> = [];
+    pty = new FrontendPty('pane-resize-nudge', undefined, undefined, undefined, {
+      connect: () => () => {},
+      resize: (cols, rows) => calls.push([cols, rows]),
+    });
+    const controls = renderController([pty.sessionId], 1120, 565);
+    act(() => controls.calibrateCell(8, 16));
+    const { cols, rows } = controls.getCurrentDimensions()!;
+
+    await expect.poll(() => calls.length, { timeout: 2000 }).toBe(3);
+    expect(calls).toEqual([
+      [cols, rows],
+      [cols, rows - 1],
+      [cols, rows],
+    ]);
+
+    const running = new FrontendPty('pane-resize-running', undefined, undefined, undefined, {
+      connect: () => () => {},
+      resize: (c, r) => calls.push([c, r]),
+    });
+    Object.defineProperty(running, 'createdAt', { value: Date.now() - 60_000 });
+    act(() => root?.unmount());
+    calls.length = 0;
+    const again = renderController([running.sessionId], 1120, 565);
+    act(() => again.calibrateCell(8, 16));
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(calls).toEqual([[cols, rows]]);
+    running.dispose();
+  });
+});
+
 describe('PtyPane remount', () => {
   // Task switching unmounts the pane and later mounts the parked terminal under a
   // fresh, uncalibrated controller. The pane's dimension sink outlives the view and

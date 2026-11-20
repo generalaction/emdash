@@ -1,7 +1,14 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { formatAbsolute, parseNativeAbsolute, type HostAbsolutePath } from '#primitives/path/api';
-import { lspRangeSchema, type LspHover, type LspLocation, type LspState } from '../api/schemas';
+import {
+  lspRangeSchema,
+  lspTextEditSchema,
+  type LspHover,
+  type LspLocation,
+  type LspState,
+  type LspTextEdit,
+} from '../api/schemas';
 import type { ServerSessionState } from './server-session';
 
 export function documentUri(value: HostAbsolutePath): string {
@@ -24,6 +31,7 @@ export function projectSessionState(state: ServerSessionState): LspState {
       definition: !!state.capabilities.definitionProvider,
       typeDefinition: !!state.capabilities.typeDefinitionProvider,
       references: !!state.capabilities.referencesProvider,
+      formatting: !!state.capabilities.documentFormattingProvider,
     },
     diagnostics: state.diagnostics.flatMap(({ uri, ...diagnostics }) => {
       try {
@@ -97,4 +105,8 @@ export function parseLocations(input: unknown): LspLocation[] {
         return [];
       }
     });
+}
+
+export function parseTextEdits(input: unknown): LspTextEdit[] {
+  return input === null ? [] : z.array(lspTextEditSchema).parse(input);
 }

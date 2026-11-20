@@ -3,6 +3,7 @@ import {
   FrontendPty,
   type FrontendPtyConnector,
 } from '@core/features/terminals/api/browser/pty/pty';
+import { log } from '@core/primitives/logging/browser/logger';
 
 export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
 
@@ -71,6 +72,8 @@ export class PtySession {
             if (prepared === false || !this.canConnect()) return;
             let pty = this.pty;
             if (!pty) {
+              // Logged once per drop streak, not per keystroke.
+              let droppingInput = false;
               pty = new FrontendPty(
                 this.sessionId,
                 undefined,
@@ -79,8 +82,17 @@ export class PtySession {
                 {
                   connect: (terminal) => this.connector.connect(terminal),
                   sendInput: (data) => {
-                    if (this.status === 'ready' && this.canConnect())
+                    if (this.status === 'ready' && this.canConnect()) {
+                      droppingInput = false;
                       this.connector.sendInput?.(data);
+                    } else if (!droppingInput) {
+                      droppingInput = true;
+                      log.warn('PtySession: input dropped', {
+                        sessionId: this.sessionId,
+                        status: this.status,
+                        canConnect: this.canConnect(),
+                      });
+                    }
                   },
                   resize: (cols, rows) => {
                     if (this.canConnect()) this.connector.resize?.(cols, rows);

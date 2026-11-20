@@ -56,6 +56,10 @@ export function createFilesWireController(options: CreateFilesWireControllerOpti
         withFileRuntime(options, input.uri, (files, ref) =>
           files.fs.realPath({ path: ref.path }, callOptions(meta))
         ),
+      stat: (input, meta) =>
+        withFileRuntime(options, input.uri, (files, ref) =>
+          files.fs.stat({ path: ref.path }, callOptions(meta))
+        ),
       readText: (input, meta) =>
         withFileRuntime(options, input.uri, (files, ref) =>
           files.fs.readText({ path: ref.path, options: input.options }, callOptions(meta))

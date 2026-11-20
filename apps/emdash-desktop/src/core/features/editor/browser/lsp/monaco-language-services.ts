@@ -23,6 +23,20 @@ import { toMonacoRange, toProtocolPosition } from '../monaco/language-coordinate
 import { ModelDiagnostics } from '../monaco/model-diagnostics';
 import { MonacoLanguageFallback, fallbackLanguageIds } from '../monaco/monaco-language-fallback';
 
+/** Monaco formats these itself; the LSP provider would only duplicate its entry. */
+const MONACO_FORMATTED = new Set([
+  'typescript',
+  'javascript',
+  'json',
+  'css',
+  'scss',
+  'less',
+  'html',
+]);
+/** Single canonical formatter each, so formatting cannot fight a project's own style. */
+const FORMAT_ON_SAVE = new Set(['dart', 'go', 'rust']);
+const FORMAT_ON_SAVE_TIMEOUT_MS = 3000;
+
 type NavigationContext = { projectId: string; taskId: string };
 type Context = { ref: HostFileRef; root: HostFileRef; navigation: NavigationContext; refs: number };
 type TrackedModel = {
@@ -87,6 +101,15 @@ export class MonacoLanguageServices {
         provideReferences: (model, position, context, token) =>
           this.references(model, position, context, token),
       }),
+      monaco.languages.registerDocumentFormattingEditProvider(
+        [...languages]
+          .filter((language) => !MONACO_FORMATTED.has(language))
+          .map((language) => ({ language })),
+        {
+          provideDocumentFormattingEdits: (model, options, token) =>
+            this.formatting(model, options, token),
+        }
+      ),
       monaco.editor.registerEditorOpener({
         openCodeEditor: (source, target, selection) => {
           const sourceModel = source.getModel();
@@ -171,6 +194,53 @@ export class MonacoLanguageServices {
     } catch (error) {
       this.report(error);
     }
+  }
+
+  /** Formats a format-on-save buffer in the editor showing it. Edits that miss the timeout or a
+   * changed buffer are dropped, so a late server never dirties the file it was saved as. */
+  async formatBeforeSave(ref: HostFileRef): Promise<void> {
+    const uri = encodeFacetUri(ref, { kind: 'buffer' });
+    const editor = this.monaco.editor
+      .getEditors()
+      .find((candidate) => candidate.getModel()?.uri.toString() === uri);
+    const model = editor?.getModel();
+    if (!editor || !model || !FORMAT_ON_SAVE.has(model.getLanguageId())) return;
+    const version = model.getVersionId();
+    const timeout = new this.monaco.CancellationTokenSource();
+    const timer = setTimeout(() => timeout.cancel(), FORMAT_ON_SAVE_TIMEOUT_MS);
+    try {
+      const { tabSize, insertSpaces } = model.getOptions();
+      const edits = await this.formatting(model, { tabSize, insertSpaces }, timeout.token);
+      if (!edits?.length || timeout.token.isCancellationRequested) return;
+      if (model.isDisposed() || model.getVersionId() !== version) return;
+      editor.pushUndoStop();
+      editor.executeEdits('format-on-save', edits);
+      editor.pushUndoStop();
+    } catch (error) {
+      this.report(error);
+    } finally {
+      clearTimeout(timer);
+      timeout.dispose();
+    }
+  }
+
+  private formatting(
+    model: Monaco.editor.ITextModel,
+    options: Pick<Monaco.languages.FormattingOptions, 'tabSize' | 'insertSpaces'>,
+    token: Monaco.CancellationToken
+  ): Promise<Monaco.languages.TextEdit[] | null> {
+    return this.query(
+      model,
+      { lineNumber: 1, column: 1 },
+      token,
+      async (binding, _, signal) =>
+        (
+          await binding.formatting(
+            { tabSize: options.tabSize, insertSpaces: options.insertSpaces },
+            signal
+          )
+        )?.map((edit) => ({ range: toMonacoRange(edit.range), text: edit.newText })) ?? null
+    );
   }
 
   hover(

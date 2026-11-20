@@ -39,6 +39,10 @@ export const lspQuerySchema = z.object({
   version: lspDocumentSchema.shape.version,
   position: lspPositionSchema,
 });
+export const lspFormattingQuerySchema = lspQuerySchema.omit({ position: true }).extend({
+  options: z.object({ tabSize: z.number().int().min(1).max(32), insertSpaces: z.boolean() }),
+});
+export const lspTextEditSchema = z.object({ range: lspRangeSchema, newText: z.string() });
 export const lspDocumentEditSchema = z.object({
   start: z.number().int().min(0).max(MAX_LSP_DOCUMENT_LENGTH),
   deleteCount: z.number().int().min(0).max(MAX_LSP_DOCUMENT_LENGTH),
@@ -77,6 +81,8 @@ export const lspCapabilitiesSchema = z.object({
   definition: z.boolean(),
   typeDefinition: z.boolean(),
   references: z.boolean(),
+  // Hosts built before formatting support omit it.
+  formatting: z.boolean().default(false),
 });
 
 export const lspStateSchema = z.object({
@@ -109,6 +115,8 @@ export type LspDocumentEdit = z.infer<typeof lspDocumentEditSchema>;
 export type LspDocumentChange = z.infer<typeof lspDocumentChangeSchema>;
 export type LspDocument = z.infer<typeof lspDocumentSchema>;
 export type LspQuery = z.infer<typeof lspQuerySchema>;
+export type LspFormattingQuery = z.infer<typeof lspFormattingQuerySchema>;
+export type LspTextEdit = z.infer<typeof lspTextEditSchema>;
 export type LspError = z.infer<typeof lspErrorSchema>;
 export type LspState = z.infer<typeof lspStateSchema>;
 export type LspHover = z.infer<typeof lspHoverSchema>;

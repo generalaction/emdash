@@ -13,6 +13,7 @@ describe('filesWireContract', () => {
     expect(Object.keys(filesWireContract.fs)).toEqual([
       'exists',
       'realPath',
+      'stat',
       'readText',
       'readBytes',
       'upload',

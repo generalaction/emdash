@@ -6,11 +6,13 @@ import {
   lspDocumentChangeSchema,
   lspProjectRootQuerySchema,
   lspErrorSchema,
+  lspFormattingQuerySchema,
   lspHoverSchema,
   lspLocationSchema,
   lspQuerySchema,
   lspSessionKeySchema,
   lspStateSchema,
+  lspTextEditSchema,
 } from './schemas';
 
 const documentKey = z.object({ session: lspSessionKeySchema, path: hostAbsolutePathSchema });
@@ -56,6 +58,11 @@ export const lspContract = defineContract({
   references: fallible({
     input: lspQuerySchema.extend({ includeDeclaration: z.boolean() }),
     data: z.array(lspLocationSchema),
+    error: lspErrorSchema,
+  }),
+  formatting: fallible({
+    input: lspFormattingQuerySchema,
+    data: z.array(lspTextEditSchema),
     error: lspErrorSchema,
   }),
 });

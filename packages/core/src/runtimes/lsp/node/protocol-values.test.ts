@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { parseNativeAbsolute } from '#primitives/path/api';
-import { documentUri, parseHover, parseLocations, projectSessionState } from './protocol-values';
+import {
+  documentUri,
+  parseHover,
+  parseLocations,
+  parseTextEdits,
+  projectSessionState,
+} from './protocol-values';
 
 const range = { start: { line: 1, character: 2 }, end: { line: 2, character: 3 } };
 const native = process.platform === 'win32' ? 'C:\\work space\\a#b.ts' : '/work space/a#b.ts';
@@ -70,8 +76,19 @@ describe('language protocol boundaries', () => {
     ).toEqual({
       phase: 'ready',
       generation: '1',
-      capabilities: { hover: true, definition: false, typeDefinition: true, references: false },
+      capabilities: {
+        hover: true,
+        definition: false,
+        typeDefinition: true,
+        references: false,
+        formatting: false,
+      },
       diagnostics: [],
     });
+  });
+  it('parses formatting edits and treats null as no edits', () => {
+    const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } };
+    expect(parseTextEdits(null)).toEqual([]);
+    expect(parseTextEdits([{ range, newText: 'a' }])).toEqual([{ range, newText: 'a' }]);
   });
 });

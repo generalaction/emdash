@@ -54,7 +54,13 @@ function fixture(
   const state = cell<LspState>({
     phase: 'ready',
     generation: 'one',
-    capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+    capabilities: {
+      hover: true,
+      definition: true,
+      typeDefinition: true,
+      references: true,
+      formatting: false,
+    },
     diagnostics: [],
   });
   const setDocumentSnapshot = vi.fn(async (_input: unknown) => ok(undefined));
@@ -69,6 +75,14 @@ function fixture(
       ok({ contents: '**string**' })
   );
   const references = vi.fn(async (_input: unknown) => ok([]));
+  const formatting = vi.fn(async (_input: unknown) =>
+    ok([
+      {
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
+        newText: 'let',
+      },
+    ])
+  );
   const onError = vi.fn();
   const target = file('/outside/dependency.d.ts', host);
   const wire = createTestWire(
@@ -91,6 +105,7 @@ function fixture(
         ]),
       typeDefinition: async () => ok([]),
       references,
+      formatting,
     },
     { validate: 'full' }
   );
@@ -132,6 +147,7 @@ function fixture(
     applyDocumentEdit,
     restartServer,
     references,
+    formatting,
     onError,
   };
 }
@@ -186,6 +202,89 @@ describe('Monaco language services', () => {
     expect(f.model.getLanguageId()).toBe('typescript');
     register.mockRestore();
   });
+  it('routes LSP formatting only to languages Monaco cannot format', async () => {
+    const register = vi.spyOn(monaco.languages, 'registerDocumentFormattingEditProvider');
+    const f = fixture();
+    const [selector, provider] = register.mock.calls.at(-1)!;
+    expect(selector).toEqual(expect.arrayContaining([{ language: 'dart' }, { language: 'go' }]));
+    expect(selector).not.toEqual(expect.arrayContaining([{ language: 'typescript' }]));
+    register.mockRestore();
+    f.state.set({
+      phase: 'ready',
+      generation: 'one',
+      capabilities: {
+        hover: true,
+        definition: true,
+        typeDefinition: true,
+        references: true,
+        formatting: true,
+      },
+      diagnostics: [],
+    });
+    const options = { tabSize: 4, insertSpaces: false };
+    const edits = await provider.provideDocumentFormattingEdits(f.model, options, token);
+    expect(edits).toEqual([
+      {
+        range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 },
+        text: 'let',
+      },
+    ]);
+    expect(f.formatting.mock.calls[0][0]).toMatchObject({ options });
+  });
+  describe('format on save', () => {
+    function dartEditor() {
+      const f = fixture();
+      f.state.set({
+        phase: 'ready',
+        generation: 'one',
+        capabilities: {
+          hover: true,
+          definition: true,
+          typeDefinition: true,
+          references: true,
+          formatting: true,
+        },
+        diagnostics: [],
+      });
+      const ref = file('/workspace/main.dart');
+      cleanup.push(
+        f.services.registerContext(ref, file('/workspace'), { projectId: 'p', taskId: 't' })
+      );
+      const model = monaco.editor.createModel(
+        'void main(){}',
+        'dart',
+        monaco.Uri.parse(encodeFacetUri(ref, { kind: 'buffer' }))
+      );
+      cleanup.push(() => model.dispose());
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      cleanup.push(() => container.remove());
+      const editor = monaco.editor.create(container, { model });
+      cleanup.push(() => editor.dispose());
+      return { ...f, ref, model };
+    }
+
+    it('applies the server edits as one undoable step', async () => {
+      const f = dartEditor();
+      await f.services.formatBeforeSave(f.ref);
+      expect(f.model.getValue()).toBe('letmain(){}');
+      f.model.undo();
+      expect(f.model.getValue()).toBe('void main(){}');
+    });
+
+    it('drops edits that arrive after the timeout instead of dirtying the saved buffer', async () => {
+      const f = dartEditor();
+      const late = deferred<void>();
+      f.formatting.mockImplementationOnce(async () => {
+        await late.promise;
+        return ok([]);
+      });
+      await f.services.formatBeforeSave(f.ref);
+      late.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(f.model.getValue()).toBe('void main(){}');
+    }, 10_000);
+  });
   it('synchronizes unsaved text before hover and converts one-based positions', async () => {
     const f = fixture();
     f.model.setValue('const value = "unsaved";');
@@ -234,7 +333,13 @@ describe('Monaco language services', () => {
     const ready = {
       phase: 'ready' as const,
       generation: 'one',
-      capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+      capabilities: {
+        hover: true,
+        definition: true,
+        typeDefinition: true,
+        references: true,
+        formatting: false,
+      },
     };
     const publishDiagnostics = () =>
       f.state.set({
@@ -297,7 +402,13 @@ describe('Monaco language-service lifetimes', () => {
     f.state.set({
       phase: 'ready',
       generation: 'two',
-      capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+      capabilities: {
+        hover: true,
+        definition: true,
+        typeDefinition: true,
+        references: true,
+        formatting: false,
+      },
       diagnostics: [],
     });
     await expect.poll(() => f.setDocumentSnapshot.mock.calls.length).toBeGreaterThan(before);
@@ -310,7 +421,13 @@ describe('Monaco language-service lifetimes', () => {
     f.state.set({
       phase: 'ready',
       generation: 'one',
-      capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+      capabilities: {
+        hover: true,
+        definition: true,
+        typeDefinition: true,
+        references: true,
+        formatting: false,
+      },
       diagnostics: [
         {
           path: f.ref.path,
@@ -369,7 +486,13 @@ it('replays documents when a replacement worker transitions through starting', a
   const f = fixture();
   await f.services.hover(f.model, { lineNumber: 1, column: 8 }, token);
   const before = f.setDocumentSnapshot.mock.calls.length;
-  const capabilities = { hover: true, definition: true, typeDefinition: true, references: true };
+  const capabilities = {
+    hover: true,
+    definition: true,
+    typeDefinition: true,
+    references: true,
+    formatting: false,
+  };
   f.state.set({ phase: 'starting', generation: 'new-worker', capabilities, diagnostics: [] });
   await expect
     .poll(() => f.services.status(f.ref)?.connection)
@@ -597,7 +720,13 @@ it.each(['starting', 'failed'] as const)(
     const ready = {
       phase: 'ready' as const,
       generation: 'one',
-      capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+      capabilities: {
+        hover: true,
+        definition: true,
+        typeDefinition: true,
+        references: true,
+        formatting: false,
+      },
       diagnostics: [],
     };
     f.state.set({ ...ready, phase });
@@ -618,7 +747,13 @@ it('falls back for unsupported capabilities and preserves successful empty host 
   const ready = {
     phase: 'ready' as const,
     generation: 'one',
-    capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+    capabilities: {
+      hover: true,
+      definition: true,
+      typeDefinition: true,
+      references: true,
+      formatting: false,
+    },
     diagnostics: [],
   };
   f.state.set({ ...ready, capabilities: { ...ready.capabilities, hover: false } });
@@ -706,7 +841,13 @@ it('keeps host diagnostic ownership after edits until the server becomes unavail
   f.state.set({
     phase: 'failed',
     generation: 'one',
-    capabilities: { hover: true, definition: true, typeDefinition: true, references: true },
+    capabilities: {
+      hover: true,
+      definition: true,
+      typeDefinition: true,
+      references: true,
+      formatting: false,
+    },
     error: 'server stopped',
     diagnostics: [],
   });

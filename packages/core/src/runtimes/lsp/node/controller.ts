@@ -15,5 +15,6 @@ export function createLspController(runtime: LspRuntime) {
     definition: (input, meta) => runtime.definition(input, meta.signal),
     typeDefinition: (input, meta) => runtime.typeDefinition(input, meta.signal),
     references: (input, meta) => runtime.references(input, meta.signal),
+    formatting: (input, meta) => runtime.formatting(input, meta.signal),
   });
 }

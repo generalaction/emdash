@@ -34,6 +34,20 @@ import type { PaneDimensionSink } from '@core/primitives/workbench-shell/browser
 import { createResizeScheduler, type ResizeScheduler } from './resize-scheduler';
 
 const PTY_RESIZE_DEBOUNCE_MS = 60;
+/** Quiet period after the last resize before a just-spawned session gets its redraw nudge. */
+const REDRAW_NUDGE_SETTLE_MS = 500;
+/** Sessions older than this are running TUIs: a nudge would only replay their transcript. */
+const REDRAW_NUDGE_SPAWN_WINDOW_MS = 10_000;
+
+/** A TUI resized mid-first-paint can leave lines over its prompt; a settled
+ * rows-1/rows SIGWINCH pair repaints it, like dragging the window edge. */
+function nudgeRedraw(sessionId: string, dims: { cols: number; rows: number }): void {
+  const frontendPty = getFrontendPty(sessionId);
+  if (!frontendPty || dims.rows < 2) return;
+  if (Date.now() - frontendPty.createdAt > REDRAW_NUDGE_SPAWN_WINDOW_MS) return;
+  frontendPty.resizeBackend(dims.cols, dims.rows - 1);
+  setTimeout(() => getFrontendPty(sessionId)?.resizeBackend(dims.cols, dims.rows), 50);
+}
 
 export interface PtyPaneResizeControls {
   /**
@@ -78,10 +92,28 @@ export function usePtyPaneResize(
   // until a real terminal has calibrated the cell size via calibrateCell().
   const hasCalibratedRef = useRef(false);
 
+  // ── Post-spawn redraw nudge (once per session, after resizes settle) ───────
+  const nudgedRef = useRef(new Set<string>());
+  const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleNudgeRef = useRef(() => {
+    if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+    nudgeTimerRef.current = setTimeout(() => {
+      nudgeTimerRef.current = null;
+      const dims = controllerDimsBoxRef.current?.get();
+      if (!dims) return;
+      for (const id of sessionsRef.current) {
+        if (nudgedRef.current.has(id)) continue;
+        nudgedRef.current.add(id);
+        nudgeRedraw(id, dims);
+      }
+    }, REDRAW_NUDGE_SETTLE_MS);
+  });
+
   // ── Broadcast scheduler ─────────────────────────────────────────────────────
   const schedulerRef = useRef<ResizeScheduler<{ cols: number; rows: number }> | null>(null);
   if (schedulerRef.current === null) {
     schedulerRef.current = createResizeScheduler((dims) => {
+      scheduleNudgeRef.current();
       for (const id of sessionsRef.current) {
         const frontendPty = getFrontendPty(id);
         frontendPty?.resizeBackend(dims.cols, dims.rows);
@@ -194,6 +226,7 @@ export function usePtyPaneResize(
     sessionsRef.current = sessionIds;
     const dims = controllerDimsBoxRef.current!.get();
     if (dims && added.length > 0 && hasCalibratedRef.current) {
+      scheduleNudgeRef.current();
       for (const id of added) {
         const frontendPty = getFrontendPty(id);
         frontendPty?.resizeBackend(dims.cols, dims.rows);
@@ -207,7 +240,10 @@ export function usePtyPaneResize(
 
   // ── Cancel pending flush on unmount ─────────────────────────────────────────
   useEffect(() => {
-    return () => schedulerRef.current?.cancel();
+    return () => {
+      schedulerRef.current?.cancel();
+      if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+    };
   }, []);
 
   // ── Public API ──────────────────────────────────────────────────────────────

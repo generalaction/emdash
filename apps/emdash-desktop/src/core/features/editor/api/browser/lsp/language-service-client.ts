@@ -10,7 +10,9 @@ import {
   type LspState,
   type LspHover,
   type LspLocation,
+  type LspFormattingQuery,
   type LspQuery,
+  type LspTextEdit,
 } from '@emdash/core/runtimes/lsp/api';
 import { waitWithSignal } from '@emdash/shared/scheduling';
 import { observable, runInAction, type IObservableValue } from 'mobx';
@@ -48,6 +50,10 @@ export interface LanguageDocumentBinding {
     options: { includeDeclaration: boolean },
     signal?: AbortSignal
   ): Promise<LspLocation[] | null>;
+  formatting(
+    options: LspFormattingQuery['options'],
+    signal?: AbortSignal
+  ): Promise<LspTextEdit[] | null>;
   dispose(): Promise<void>;
 }
 interface BoundDocument {
@@ -135,20 +141,24 @@ export class LanguageServiceClient {
         }
       },
       hover: (position, signal) =>
-        this.query(record, 'hover', position, signal, (client, input, signal) =>
+        this.query(record, 'hover', { position }, signal, (client, input, signal) =>
           client.hover(input, { signal }).then(unwrap)
         ),
       definition: (position, signal) =>
-        this.query(record, 'definition', position, signal, (client, input, signal) =>
+        this.query(record, 'definition', { position }, signal, (client, input, signal) =>
           client.definition(input, { signal }).then(unwrap)
         ),
       typeDefinition: (position, signal) =>
-        this.query(record, 'typeDefinition', position, signal, (client, input, signal) =>
+        this.query(record, 'typeDefinition', { position }, signal, (client, input, signal) =>
           client.typeDefinition(input, { signal }).then(unwrap)
         ),
       references: (position, options, signal) =>
-        this.query(record, 'references', position, signal, (client, input, signal) =>
+        this.query(record, 'references', { position }, signal, (client, input, signal) =>
           client.references({ ...input, ...options }, { signal }).then(unwrap)
+        ),
+      formatting: (options, signal) =>
+        this.query(record, 'formatting', { options }, signal, (client, input, signal) =>
+          client.formatting(input, { signal }).then(unwrap)
         ),
       dispose: () => this.release(record),
     };
@@ -303,14 +313,14 @@ export class LanguageServiceClient {
     }
   }
 
-  private async query<T>(
+  private async query<T, P extends object>(
     record: BoundDocument,
     capability: keyof LspState['capabilities'],
-    position: Position,
+    params: P,
     signal: AbortSignal | undefined,
     request: (
       client: LanguageClient,
-      input: Parameters<LanguageClient['hover']>[0],
+      input: Omit<Parameters<LanguageClient['hover']>[0], 'position'> & P,
       signal: AbortSignal
     ) => Promise<T>
   ): Promise<T | null> {
@@ -352,7 +362,7 @@ export class LanguageServiceClient {
       const result = await waitWithSignal(
         request(
           client,
-          { session: session.key, path: record.source.ref.path, version, position },
+          { session: session.key, path: record.source.ref.path, version, ...params },
           abort
         ),
         abort

@@ -48,6 +48,10 @@ export const DEFAULT_SEARCH_EXCLUDE = [
   '.worktrees',
   '.emdash',
   'node_modules',
+  // Flutter / iOS / Android generated and dependency trees.
+  '.dart_tool',
+  'Pods',
+  '.gradle',
 ] as const;
 
 export const DEFAULT_TREE_EXCLUDE = ['.git', '.DS_Store', 'Thumbs.db'] as const;
@@ -57,6 +61,12 @@ export const DEFAULT_WATCHER_EXCLUDE = [
   '**/.git/subtree-cache/**',
   '**/node_modules/**',
   '**/.hg/store/**',
+  // Flutter/mobile build output: a build rewrites thousands of files and overflows FSEvents.
+  // Root-only: nested build/ folders can hold tracked sources (packaging assets, scripts).
+  'build/**',
+  '**/.dart_tool/**',
+  '**/ios/Pods/**',
+  '**/.gradle/**',
 ] as const;
 
 export interface ExclusionMatcher {

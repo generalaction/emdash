@@ -5,6 +5,7 @@ import { openFile } from '@core/features/workbench/api/browser/open-file';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { getEditorClient } from '../../api/browser/client';
 import { openFileStore } from '../../api/browser/open-file-store/open-file-store';
+import { setBeforeSaveHook } from '../../api/browser/task-editor/stores/editor-view-store';
 import type { FileTabResource } from '../../api/browser/task-editor/stores/file-tab-resource';
 import { MonacoLanguageServices } from './monaco-language-services';
 
@@ -78,5 +79,6 @@ export function installLanguageServices(monaco: typeof Monaco): void {
       registration.context
     );
   openFileStore.onDidSave(({ ref, text }) => services.documentSaved(ref, text));
+  setBeforeSaveHook((ref) => services.formatBeforeSave(ref));
   runInAction(() => instance.set(services));
 }

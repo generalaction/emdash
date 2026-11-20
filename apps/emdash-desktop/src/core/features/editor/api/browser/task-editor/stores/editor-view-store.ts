@@ -3,6 +3,7 @@ import {
   decodeResourceUri,
   hostFileRef,
   parseNativeAbsolute,
+  type HostFileRef,
 } from '@emdash/core/primitives/path/api';
 import { type Result } from '@emdash/shared';
 import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
@@ -40,6 +41,14 @@ export type RevealFileRequest =
  * leases. This store focuses on save commands, conflict resolution, buffer
  * restore after a crash, and the sidebar file tree.
  */
+type BeforeSaveHook = (ref: HostFileRef) => Promise<void>;
+let beforeSave: BeforeSaveHook | undefined;
+
+/** Language services register format-on-save here, so this store never imports the UI layer. */
+export function setBeforeSaveHook(hook: BeforeSaveHook | undefined): void {
+  beforeSave = hook;
+}
+
 export class EditorViewStore {
   isSaving = false;
   /**
@@ -277,6 +286,8 @@ export class EditorViewStore {
       this.isSaving = true;
     });
     try {
+      const ref = decodeResourceUri(entry.uri);
+      if (ref.success) await beforeSave?.(ref.data);
       const result = await openFileStore.save(entry);
       if (!result.success) {
         if (result.error.type === 'conflict') {

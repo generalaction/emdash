@@ -175,6 +175,21 @@ describe('LSP runtime over Wire', () => {
       data: [],
     });
   });
+  it('returns server formatting edits for the synchronized version', async () => {
+    const { wire, session, document } = await fixture();
+    cleanups.push(await attach(wire.client.session, session));
+    await wire.client.setDocumentSnapshot({
+      session,
+      document: { ...document, text: 'export const   answer=42;' },
+    });
+    const query = { session, path: document.path, options: { tabSize: 2, insertSpaces: true } };
+    const result = await wire.client.formatting({ ...query, version: 1 });
+    expect(result.success && result.data.length).toBeGreaterThan(0);
+    expect(await wire.client.formatting({ ...query, version: 0 })).toMatchObject({
+      success: false,
+      error: { type: 'stale-query' },
+    });
+  });
   it('identifies stale queries without failing the server', async () => {
     const { wire, session, document } = await fixture();
     const states: LspState[] = [];

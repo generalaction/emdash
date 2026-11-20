@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { claimOwnUpstream } from '#primitives/git/api';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceGitSetup } from '../api/schemas';
@@ -161,6 +162,7 @@ export async function executeCreateWorktree(
         await retryTransientLock(() =>
           exec.exec(['worktree', 'add', execution.worktreePath, execution.branch])
         );
+        await claimOwnUpstream(exec, execution.branch).catch(() => undefined);
       } else if (execution.baseRef !== null) {
         const baseRef = execution.baseRef;
         // A remote-only branch used by its own name: git's add DWIMs it from <remote>/<name>,

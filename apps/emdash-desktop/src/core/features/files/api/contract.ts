@@ -47,6 +47,7 @@ const fromToUriKeySchema = z.object({ from: resourceUriSchema, to: resourceUriSc
 const filesFsContract = defineContract({
   exists: runtimeFallibleProcedure(uriKeySchema, filesContract.fs.exists.output),
   realPath: runtimeFallibleProcedure(uriKeySchema, filesContract.fs.realPath.output),
+  stat: runtimeFallibleProcedure(uriKeySchema, filesContract.fs.stat.output),
   readText: runtimeFallibleProcedure(
     uriKeySchema.extend(readOptionsShape),
     filesContract.fs.readText.output

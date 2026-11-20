@@ -14,13 +14,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { sourceControlContract } from '../../api';
-import { GitCheckoutStore } from './git-checkout-store';
+import {
+  addUntrackedLineCounts,
+  GitCheckoutStore,
+  type UntrackedLinesCache,
+} from './git-checkout-store';
 
 const mocks = vi.hoisted(() => ({
   getChangedFiles: vi.fn(),
   getGitRepositoryStore: vi.fn(),
   pushRun: vi.fn(),
   readFileText: vi.fn(),
+  statFile: vi.fn(),
   getPullRequestsForHead: vi.fn(),
   refreshPullRequest: vi.fn(),
   refreshRepository: vi.fn(),
@@ -47,6 +52,7 @@ vi.mock('@core/features/files/api/browser/client', () => ({
   getFilesClient: async () => ({
     fs: {
       readText: mocks.readFileText,
+      stat: mocks.statFile,
     },
   }),
 }));
@@ -643,3 +649,29 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   }
   expect(predicate()).toBe(true);
 }
+
+describe('addUntrackedLineCounts', () => {
+  const added = (path: string) => ({ path, status: 'added' as const, additions: 0, deletions: 0 });
+
+  it('reads an untracked file only when its size or mtime changed', async () => {
+    const cache: UntrackedLinesCache = new Map();
+    let mtimeMs = 1;
+    mocks.statFile.mockImplementation(async () => ok({ size: 6, mtimeMs }));
+    mocks.readFileText.mockResolvedValue(ok({ content: 'a\nb\nc\n', truncated: false }));
+    const run = async () => {
+      const changes = [added('new.dart')] as never[];
+      await addUntrackedLineCounts(changes, '/repo', undefined, cache);
+      return (changes[0] as { additions: number }).additions;
+    };
+
+    expect(await run()).toBe(3);
+    expect(await run()).toBe(3);
+    expect(mocks.readFileText).toHaveBeenCalledTimes(1);
+    mtimeMs = 2;
+    expect(await run()).toBe(3);
+    expect(mocks.readFileText).toHaveBeenCalledTimes(2);
+
+    await addUntrackedLineCounts([], '/repo', undefined, cache);
+    expect(cache.size).toBe(0);
+  });
+});
