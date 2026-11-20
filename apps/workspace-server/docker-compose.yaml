@@ -43,6 +43,7 @@ services:
       - "2223:22"
     volumes:
       - workspace-remote-home:/home/devuser
+      - "${WORKSPACE_REMOTE_AUTHORIZED_KEYS_FILE:?Set WORKSPACE_REMOTE_AUTHORIZED_KEYS_FILE to an SSH public key file}:/run/secrets/devuser_authorized_keys:ro"
     restart: unless-stopped
 
 volumes:

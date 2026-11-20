@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { Command } from '@emdash/core/primitives/exec/api';
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { joinAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
@@ -21,12 +22,20 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
   it('installs, resolves a runtime, and preserves the session across an SSH reconnect', async () => {
     const connectionId = 'docker-workspace-server-smoke';
     const scope = createScope({ label: 'workspace-server-docker-test' });
+    const privateKeyPath = process.env['EMDASH_TEST_REMOTE_WSS_PRIVATE_KEY_PATH'];
+    if (!privateKeyPath) {
+      throw new Error(
+        'EMDASH_TEST_REMOTE_WSS_PRIVATE_KEY_PATH must point to the private key matching ' +
+          'WORKSPACE_REMOTE_AUTHORIZED_KEYS_FILE'
+      );
+    }
+
     const manager = new SshConnectionManager();
     const connectConfig: ConnectConfig = {
       host: '127.0.0.1',
       port: 2223,
       username: 'devuser',
-      password: 'devpass',
+      privateKey: readFileSync(privateKeyPath),
       readyTimeout: 10_000,
       keepaliveInterval: 1_000,
       keepaliveCountMax: 3,

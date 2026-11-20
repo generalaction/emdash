@@ -10,6 +10,16 @@ matching the production topology.
 
 ## Connection
 
+Create a local SSH key pair for this container once, then mount its public key at runtime:
+
+```bash
+mkdir -p ~/.ssh
+if [ ! -f ~/.ssh/emdash-workspace-remote ]; then
+  ssh-keygen -t ed25519 -N '' -f ~/.ssh/emdash-workspace-remote
+fi
+export WORKSPACE_REMOTE_AUTHORIZED_KEYS_FILE="$HOME/.ssh/emdash-workspace-remote.pub"
+```
+
 Start the container from `apps/workspace-server/`:
 
 ```bash
@@ -21,18 +31,20 @@ Use these SSH connection settings in Emdash:
 - Host: `localhost`
 - Port: `2223`
 - User: `devuser`
-- Password: `devpass`
+- Authentication: SSH key (`~/.ssh/emdash-workspace-remote`)
+
+The Compose service mounts the public key at runtime; the private key stays on the host.
 
 For a command-line session:
 
 ```bash
-ssh -p 2223 devuser@localhost
+ssh -i ~/.ssh/emdash-workspace-remote -p 2223 devuser@localhost
 ```
 
 The default mode is intentionally empty. Confirm that it has no host Node.js installation:
 
 ```bash
-ssh -p 2223 devuser@localhost 'node --version'
+ssh -i ~/.ssh/emdash-workspace-remote -p 2223 devuser@localhost 'node --version'
 # bash: node: command not found
 ```
 
@@ -101,13 +113,15 @@ version, and restarts the daemon.
 Run the desktop connection smoke test against the installed daemon:
 
 ```bash
-pnpm --dir ../emdash-desktop run test:workspace-server-remote
+EMDASH_TEST_REMOTE_WSS_PRIVATE_KEY_PATH="$HOME/.ssh/emdash-workspace-remote" \
+  pnpm --dir ../emdash-desktop run test:workspace-server-remote
 ```
 
-The test uses the Compose service's fixed `localhost:2223` and `devuser`/`devpass` credentials. It
-expects `pnpm run dev:remote` to have already published artifacts to minio, resets the
-desktop-managed root, installs through the curl installer, exercises a runtime call and SSH
-reconnection, then stops the daemon and removes its temporary workspace.
+The test uses the Compose service's fixed `localhost:2223`, `devuser`, and the private key selected by
+`EMDASH_TEST_REMOTE_WSS_PRIVATE_KEY_PATH`. Its public key must match
+`WORKSPACE_REMOTE_AUTHORIZED_KEYS_FILE`. It expects `pnpm run dev:remote` to have already published
+artifacts to minio, resets the desktop-managed root, installs through the curl installer, exercises a
+runtime call and SSH reconnection, then stops the daemon and removes its temporary workspace.
 
 ## Logs And Socket Forwarding
 
@@ -122,7 +136,7 @@ To inspect streamlocal forwarding manually, first start the daemon, then run:
 
 ```bash
 rm -f /tmp/emdash-workspace-server.sock
-ssh -p 2223 -N \
+ssh -i ~/.ssh/emdash-workspace-remote -p 2223 -N \
   -L /tmp/emdash-workspace-server.sock:/home/devuser/.emdash/workspace-server/run/workspace.sock \
   devuser@localhost
 ```
@@ -136,7 +150,7 @@ runtime services.
 Stop the Compose project and delete its named volumes:
 
 ```bash
-docker compose down -v
+WORKSPACE_REMOTE_AUTHORIZED_KEYS_FILE="$HOME/.ssh/emdash-workspace-remote.pub" docker compose down -v
 ```
 
 This removes only the workspace remote container, network, and its `emdash-workspace-remote-home`

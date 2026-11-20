@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   await verifyPublishedVersion(expectedVersion);
 
   process.stdout.write(`
-Docker remote is ready on localhost:2223 (devuser / devpass).
+Docker remote is ready on localhost:2223 (devuser, SSH public-key authentication).
 Workspace-server ${expectedVersion} is published to ${minioArtifactsUrl}.
 
 Launch the desktop app with:
