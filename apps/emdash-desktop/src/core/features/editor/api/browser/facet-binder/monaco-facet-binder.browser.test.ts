@@ -8,7 +8,7 @@ import { defineContract } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import * as monaco from 'monaco-editor';
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   Facet,

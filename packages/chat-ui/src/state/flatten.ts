@@ -130,7 +130,7 @@ export function flattenTier(
 
   for (const turn of turns) {
     const items = turn.items as readonly ChatItem[];
-    for (let i = 0; i < items.length; ) {
+    for (let i = 0; i < items.length;) {
       const item = items[i];
       if (item.kind !== 'thinking') {
         processItem(item);

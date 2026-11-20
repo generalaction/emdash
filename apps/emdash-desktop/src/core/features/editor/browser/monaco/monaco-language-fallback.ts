@@ -260,19 +260,28 @@ export class MonacoLanguageFallback {
         : html
           ? this.monaco.html.htmlDefaults
           : stylesheet;
-      const worker = this.monaco.createWebWorker<LocalProtocolWorker>({
-        moduleId: `vs/language/${json ? 'json/jsonWorker' : html ? 'html/htmlWorker' : 'css/cssWorker'}`,
-        label: language,
-        createData: json
-          ? {
-              languageId: language,
-              languageSettings: this.monaco.json.jsonDefaults.diagnosticsOptions,
-              enableSchemaRequest:
-                this.monaco.json.jsonDefaults.diagnosticsOptions.enableSchemaRequest,
-            }
-          : html
-            ? { languageId: language, languageSettings: this.monaco.html.htmlDefaults.options }
-            : { languageId: language, options: stylesheet.options },
+      const moduleId = `vs/language/${json ? 'json/jsonWorker' : html ? 'html/htmlWorker' : 'css/cssWorker'}`;
+      const createData = json
+        ? {
+            languageId: language,
+            languageSettings: this.monaco.json.jsonDefaults.diagnosticsOptions,
+            enableSchemaRequest:
+              this.monaco.json.jsonDefaults.diagnosticsOptions.enableSchemaRequest,
+          }
+        : html
+          ? { languageId: language, languageSettings: this.monaco.html.htmlDefaults.options }
+          : { languageId: language, options: stylesheet.options };
+      const getWorker = self.MonacoEnvironment?.getWorker;
+      if (!getWorker) {
+        throw new Error('MonacoEnvironment.getWorker is not configured');
+      }
+      const rawWorker = Promise.resolve(getWorker(moduleId, language)).then((w) => {
+        w.postMessage('ignore');
+        w.postMessage(createData);
+        return w;
+      });
+      const worker = this.monaco.editor.createWebWorker<LocalProtocolWorker>({
+        worker: rawWorker,
       });
       entry = {
         worker,

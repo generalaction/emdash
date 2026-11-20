@@ -211,13 +211,22 @@ export async function cleanupExpiredDroppedBlobs(now = Date.now()): Promise<void
 }
 
 export async function persistClipboardImagePath(): Promise<string | null> {
-  const image = clipboard.readImage();
-  if (image.isEmpty()) return null;
-  const png = image.toPNG();
-  if (png.byteLength === 0) return null;
-  return persistDroppedBlobBytes({
-    bytes: new Uint8Array(png),
-    name: 'paste.png',
-    mimeType: 'image/png',
-  });
+  const items = await clipboard.read();
+  for (const item of items) {
+    const imageType = item.types.includes('image/png')
+      ? 'image/png'
+      : item.types.find((type) => type.startsWith('image/'));
+    if (!imageType) continue;
+    const blob = await item.getType(imageType);
+    if (!(blob instanceof Blob)) continue;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (bytes.byteLength === 0) continue;
+    const ext = imageType === 'image/png' ? 'png' : imageType.split('/')[1]?.split('+')[0] || 'png';
+    return persistDroppedBlobBytes({
+      bytes,
+      name: `paste.${ext}`,
+      mimeType: imageType,
+    });
+  }
+  return null;
 }

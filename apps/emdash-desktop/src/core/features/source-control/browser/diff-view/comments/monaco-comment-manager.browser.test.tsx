@@ -1,6 +1,6 @@
 import { observable, runInAction } from 'mobx';
 import * as monaco from 'monaco-editor';
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 import { act } from 'react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { DraftCommentsStore } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';

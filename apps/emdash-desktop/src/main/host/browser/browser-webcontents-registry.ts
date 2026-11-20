@@ -1,4 +1,5 @@
 import {
+  ClipboardItem,
   clipboard,
   Menu,
   session,
@@ -170,7 +171,11 @@ export class BrowserWebContentsRegistry {
     try {
       const image = await webContents.capturePage();
       if (image.isEmpty()) return false;
-      clipboard.writeImage(image);
+      const png = image.toPNG();
+      if (png.byteLength === 0) return false;
+      await clipboard.write([
+        new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) }),
+      ]);
       return true;
     } catch {
       return false;

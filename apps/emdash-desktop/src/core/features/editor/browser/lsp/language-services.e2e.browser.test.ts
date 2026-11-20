@@ -1,8 +1,8 @@
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { client, connect, type WireMessage, type WireTransport } from '@emdash/wire/rpc';
 import * as monaco from 'monaco-editor';
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import editorWorker from 'monaco-editor/editor/editor.worker?worker';
+import tsWorker from 'monaco-editor/language/typescript/ts.worker?worker';
 import { expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import { encodeFacetUri } from '../../api/browser/facet-binder/facet-uri';

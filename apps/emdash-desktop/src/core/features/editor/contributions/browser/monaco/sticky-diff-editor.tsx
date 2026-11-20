@@ -90,8 +90,8 @@ function diffNotice(
   modified: DiffSideModel | null,
   attached: boolean
 ): DiffNotice | null {
-  const sides = [original, modified].map(
-    (side): ResolvedSide => (side ? resolveSide(side) : { type: 'pending' })
+  const sides = [original, modified].map((side): ResolvedSide =>
+    side ? resolveSide(side) : { type: 'pending' }
   );
   const placement = attached ? 'banner' : 'cover';
   const error = sides.find((side) => side.type === 'error');

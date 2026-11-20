@@ -181,16 +181,14 @@ function createIntentFixture(options: {
     dropConnection: vi.fn(async () => {}),
     getConnectionState: vi.fn(() => options.state ?? 'connected'),
   } as unknown as SshConnectionManager;
-  const resolveConnectConfig = vi.fn(
-    async (): Promise<SshConnectResult> => ({
-      config: {
-        host: 'corp.example.com',
-        username: 'alice',
-      },
-      cleanup: () => {},
-      debugLogs: [],
-    })
-  );
+  const resolveConnectConfig = vi.fn(async (): Promise<SshConnectResult> => ({
+    config: {
+      host: 'corp.example.com',
+      username: 'alice',
+    },
+    cleanup: () => {},
+    debugLogs: [],
+  }));
   const service = new SshService({
     db,
     manager,

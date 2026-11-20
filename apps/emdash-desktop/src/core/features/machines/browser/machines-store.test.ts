@@ -198,12 +198,10 @@ function setup(
   const updateRuntime = (update: (runtime: SshConnectionsRuntime) => void): void => {
     runtime.set(produce(peek(runtime), update));
   };
-  const saveMachine = vi.fn(
-    async (input: SaveMachineInput): Promise<SshConfig> => ({
-      ...input,
-      id: input.id ?? 'ssh-1',
-    })
-  );
+  const saveMachine = vi.fn(async (input: SaveMachineInput): Promise<SshConfig> => ({
+    ...input,
+    id: input.id ?? 'ssh-1',
+  }));
   const renameMachine = vi.fn(async (_input: { id: string; name: string }) => {});
   const deleteMachine = vi.fn(async ({ id }: { id: string }) => {
     if (!options.removeRuntimeOnDelete) return;

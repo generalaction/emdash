@@ -24,12 +24,11 @@ export class WorkspaceCreations {
     const existing = this.inFlight.get(workspaceId);
     if (existing) return existing;
     const promise = work()
-      .catch(
-        (error): WorkspaceCreationOutcome =>
-          err({
-            stage: 'transport',
-            message: error instanceof Error ? error.message : String(error),
-          })
+      .catch((error): WorkspaceCreationOutcome =>
+        err({
+          stage: 'transport',
+          message: error instanceof Error ? error.message : String(error),
+        })
       )
       .finally(() => {
         this.inFlight.delete(workspaceId);

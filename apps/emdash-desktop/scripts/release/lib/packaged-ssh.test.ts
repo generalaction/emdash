@@ -1,4 +1,5 @@
-import { cp, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -23,8 +24,12 @@ async function buildSshProbe(root: string): Promise<void> {
     `import ssh2, { BaseAgent } from 'ssh2';
      console.log(typeof ssh2.Client, typeof BaseAgent);`
   );
-  const configFile = join(root, 'electron.vite.config.mjs');
+  const cacheDir = resolve('node_modules/.cache');
+  await mkdir(cacheDir, { recursive: true });
+  const configFile = join(cacheDir, `electron.vite.config.ssh-probe-${randomUUID()}.mjs`);
   // Keep production transforms/externalization; omit the adapter-copy plugin's checkout writes.
+  // Place the temporary config under apps/emdash-desktop so Vite 8's bundled config can resolve
+  // workspace/app dependencies imported by electron.vite.config.ts.
   await writeFile(
     configFile,
     `import config from ${JSON.stringify(resolve('electron.vite.config.ts'))};
@@ -41,7 +46,11 @@ async function buildSshProbe(root: string): Promise<void> {
        }
      } };`
   );
-  await build({ configFile });
+  try {
+    await build({ configFile });
+  } finally {
+    await rm(configFile, { force: true });
+  }
 }
 
 it('emits the real ssh2 entry without bundling its directory-relative runtime', async () => {

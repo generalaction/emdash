@@ -55,16 +55,14 @@ export function createTaskPaletteProviderDef({
     keyword: '@tasks',
     minQueryLength: 1,
     idle: async (context) => {
-      const notifications = source.notifications(context).map(
-        (notification): TaskPaletteMatch => ({
-          id: `notification:${notification.id}`,
-          title: notification.title,
-          subtitle: notification.subtitle,
-          section: 'Notifications',
-          relevance: { band: 'exact', score: 1 },
-          target: notification.target,
-        })
-      );
+      const notifications = source.notifications(context).map((notification): TaskPaletteMatch => ({
+        id: `notification:${notification.id}`,
+        title: notification.title,
+        subtitle: notification.subtitle,
+        section: 'Notifications',
+        relevance: { band: 'exact', score: 1 },
+        target: notification.target,
+      }));
       let recentItems: readonly SearchItem[] = [];
       try {
         recentItems = await source.searchPaletteEntities({

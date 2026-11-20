@@ -94,7 +94,7 @@ export function wrapToolRuns<T extends { kind: string; id: string; seq: number }
   items: T[]
 ): Array<T | ToolGroup> {
   const result: Array<T | ToolGroup> = [];
-  for (let i = 0; i < items.length; ) {
+  for (let i = 0; i < items.length;) {
     const item = items[i];
     if (!isGroupable(item)) {
       result.push(item);

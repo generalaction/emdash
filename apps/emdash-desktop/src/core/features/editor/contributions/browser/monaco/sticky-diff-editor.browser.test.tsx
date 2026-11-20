@@ -1,7 +1,7 @@
 import { encodeResourceUri, resourceKeyFromFileRef } from '@emdash/core/primitives/path/api';
 import { observable, runInAction } from 'mobx';
 import * as monaco from 'monaco-editor';
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 import { act, StrictMode, type RefCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
