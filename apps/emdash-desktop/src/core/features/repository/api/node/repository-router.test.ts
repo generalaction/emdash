@@ -137,6 +137,16 @@ describe('RepositoryRouter', () => {
     );
   });
 
+  it('routes by the other connected accounts when one integration cannot list its accounts', async () => {
+    accounts.set('forgejo', [{ host: 'git.example.com' }]);
+    listAccounts.mockRejectedValueOnce(new Error('malformed stored connection'));
+    expect(
+      await router([plugin('gitlab', { knownHosts: ['gitlab.com'] }), plugin('forgejo')]).route(
+        'https://git.example.com/team/repo'
+      )
+    ).toMatchObject({ success: true, data: { integrationId: 'forgejo' } });
+  });
+
   it('probes unclaimed hosts, so unconnected GitHub Enterprise still routes', async () => {
     const probe = vi.fn(async (_hostname: string): Promise<RepositoryHostProbeResult> => ok());
     expect(
