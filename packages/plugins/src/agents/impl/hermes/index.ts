@@ -49,7 +49,11 @@ export const plugin = definePlugin(
       },
     },
     prompt: {
-      kind: 'pty-only',
+      // `-q/--query` seeds an interactive session on a TTY; `-Q/--quiet` or
+      // `--oneshot` is what makes it answer and exit. `chat` is required so -q
+      // is parsed by the chat subcommand, not as a top-level positional.
+      kind: 'argv',
+      flag: '-q',
     },
     sessions: {
       kind: 'resumable',
@@ -65,7 +69,9 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        defaultArgs: ['chat'],
         autoApproveFlag: '--yolo',
+        initialPromptFlag: '-q',
         resumeFlag: '--continue',
       }),
   },

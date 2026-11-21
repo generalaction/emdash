@@ -41,6 +41,25 @@ describe('prompt delivery (ENG-1546 regression)', () => {
     expect(args).not.toContain('--prompt');
   });
 
+  it('hermes passes the prompt via -q, once, and never on resume', () => {
+    const plugin = pluginRegistry.get('hermes')!;
+    expect(plugin.capabilities.prompt).toMatchObject({ kind: 'argv', flag: '-q' });
+
+    expect(buildArgs('hermes', freshCtx())).toEqual(['chat', '--yolo', '-q', PROMPT_TOKEN]);
+
+    expect(
+      buildArgs(
+        'hermes',
+        freshCtx({ initialPrompt: 'line one\nline two --flag', extraArgs: ['-m', 'a/model'] })
+      )
+    ).toEqual(['chat', '--yolo', '-m', 'a/model', '-q', 'line one\nline two --flag']);
+
+    const resumeArgs = buildArgs('hermes', freshCtx({ isResuming: true }));
+    expect(resumeArgs).toEqual(['chat', '--continue', '--yolo']);
+    expect(resumeArgs).not.toContain(PROMPT_TOKEN);
+    expect(resumeArgs).not.toContain('-q');
+  });
+
   // PTY-only agents accept manual input in the TUI; prompts must never leak into
   // argv (their CLIs reject/parse a bare positional differently).
   it.each(['jules', 'freebuff'])('%s uses PTY-only delivery and no argv prompt', (id) => {
