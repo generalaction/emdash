@@ -150,6 +150,10 @@ export function useProjectSettingsForm({
     (key, value) => updateSection('gitIdentity', key, value),
     [updateSection]
   );
+  const updateJiraSync = useCallback<FormUpdate<FormState['jiraSync']>>(
+    (key, value) => updateSection('jiraSync', key, value),
+    [updateSection]
+  );
   const updatePlacement = useCallback<FormUpdate<PlacementFormState>>(
     (key, value) => updateSection('placement', key, value),
     [updateSection]
@@ -312,6 +316,7 @@ export function useProjectSettingsForm({
     updateGitIdentity,
     updateIntegrationAccounts,
     updatePlacement,
+    updateJiraSync,
     getOverrideSources,
     handleSave,
     openShareConfigModal,
@@ -331,6 +336,7 @@ function mergeProjectSettingsPage(
     environment: host.environment,
     gitIdentity: page.durable.gitIdentity,
     integrationAccounts: page.durable.integrationAccounts,
+    jiraSync: page.durable.jiraSync,
     placement: {
       ...host.placement,
       ...page.durable.placement,

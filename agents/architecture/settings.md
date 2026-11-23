@@ -111,8 +111,9 @@ an optimistic projection, not a separate persistence owner.
 | `provider-options` | host, provider, transport (`acp`), configuration fingerprint | `{ version: '1', options: ProviderConfigOption[] }` |
 
 Preferences contain only explicit selections, using native provider option IDs and string/boolean
-values. Missing overrides use provider defaults. Pickers contain only discovered choices, including
-any provider-owned default alias; there is no synthetic default entry or reset action.
+values. New Codex task model selectors and ACP conversations default to `gpt-6-sol` unless a
+model was explicitly selected; other providers use their own defaults. Pickers contain only discovered
+choices, including any provider-owned default alias; there is no synthetic default entry or reset action.
 Preference patches are discriminated by transport: ACP accepts only native `options`, and PTY
 accepts only `autoApprove`. The Wire boundary rejects fields belonging to the other transport.
 Per-field patches are serialized in main; database read failures cannot become empty

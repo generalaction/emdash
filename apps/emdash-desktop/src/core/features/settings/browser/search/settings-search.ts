@@ -317,6 +317,13 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Hide the on-screen context trigger.',
   },
   {
+    id: 'board-by-default',
+    label: 'Board by default',
+    tab: 'interface',
+    description: 'Open Board instead of Tasks when entering a project.',
+    keywords: ['kanban', 'project', 'default view'],
+  },
+  {
     id: 'keyboard-shortcuts',
     label: 'Keyboard shortcuts',
     tab: 'interface',

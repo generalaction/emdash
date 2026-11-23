@@ -1,3 +1,4 @@
+import { nsName } from '@emdash/theme';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { svgContainer, svgSmSize } from '@styles/effects/svg-helpers.css';
@@ -52,6 +53,7 @@ export const badge = recipe({
       warning: { color: vars.foregroundWarning },
       error: { color: vars.foregroundError },
       info: { color: vars.foregroundInfo },
+      purple: { color: `var(${nsName('purple-11')})` },
     },
   },
 

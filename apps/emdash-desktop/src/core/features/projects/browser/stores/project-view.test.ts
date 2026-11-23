@@ -67,6 +67,21 @@ describe('TaskViewStore selection', () => {
 });
 
 describe('ProjectViewStore memento state', () => {
+  it('uses Board on entry when enabled, while preserving explicit project sections', () => {
+    const store = new ProjectViewStore(createHandle());
+    store.applyDefaultTaskView(false);
+    expect(store.activeView).toBe('tasks');
+    store.applyDefaultTaskView(true);
+    expect(store.activeView).toBe('board');
+    store.setProjectView('tasks');
+    expect(store.activeView).toBe('tasks');
+    for (const view of ['settings', 'pull-request', 'workspaces'] as const) {
+      store.setProjectView(view);
+      store.applyDefaultTaskView(true);
+      expect(store.activeView).toBe(view);
+    }
+  });
+
   it('writes project view fields through the handle', () => {
     const handle = createHandle();
     const store = new ProjectViewStore(handle);
@@ -89,11 +104,24 @@ describe('ProjectViewStore memento state', () => {
 
     expect(store.taskView.sortBy).toBe('updated-at');
   });
+
+  it('keeps a manual board column only for the observed agent status', () => {
+    const handle = createHandle();
+    const store = new ProjectViewStore(handle);
+
+    store.setBoardOverride('task-1', 'Review', '[["session-1","working"]]');
+    expect(store.boardOverride('task-1', '[["session-1","working"]]')).toBe('Review');
+    expect(handle.value.boardOverrides?.['task-1']?.column).toBe('Review');
+    expect(store.boardOverride('task-1', '[["session-1","completed"]]')).toBeUndefined();
+
+    store.setBoardOverride('task-1', null);
+    expect(handle.value.boardOverrides?.['task-1']).toBeUndefined();
+  });
 });
 
 function createHandle(): MementoHandle<ProjectViewState> {
   let value: ProjectViewState = {
-    version: '1',
+    version: '3',
     activeView: 'tasks',
     taskViewTab: 'active',
   };

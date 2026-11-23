@@ -27,6 +27,53 @@ function createTracker() {
 }
 
 describe('TuiAgentStates', () => {
+  it('keeps completion when a late idle reminder arrives, but accepts a new question', () => {
+    const { tracker, onAgentStateChanged } = createTracker();
+    tracker.applyCanonicalEvent('conv-1', 'claude', { kind: 'status', type: 'stop' });
+    tracker.applyCanonicalEvent('conv-1', 'claude', {
+      kind: 'status',
+      type: 'notification',
+      notificationType: 'idle_prompt',
+    });
+    expect(tracker.current('conv-1')?.status).toBe('completed');
+    expect(onAgentStateChanged).toHaveBeenCalledTimes(1);
+    tracker.applyCanonicalEvent('conv-1', 'claude', {
+      kind: 'status',
+      type: 'notification',
+      notificationType: 'elicitation_dialog',
+    });
+    expect(tracker.current('conv-1')?.status).toBe('awaiting-input');
+  });
+
+  it('clears the question when an answer resumes work, then records completion', () => {
+    const { tracker } = createTracker();
+    tracker.applyCanonicalEvent('conv-1', 'codex', { kind: 'status', type: 'start' });
+    tracker.applyCanonicalEvent('conv-1', 'codex', {
+      kind: 'status',
+      type: 'notification',
+      notificationType: 'elicitation_dialog',
+      toolUseId: 'question',
+    });
+    expect(tracker.current('conv-1')?.status).toBe('awaiting-input');
+    tracker.applyCanonicalEvent('conv-1', 'codex', {
+      kind: 'status',
+      type: 'start',
+      toolUseId: 'other-tool',
+    });
+    expect(tracker.current('conv-1')?.status).toBe('awaiting-input');
+    tracker.applyCanonicalEvent('conv-1', 'codex', {
+      kind: 'status',
+      type: 'start',
+      toolUseId: 'question',
+    });
+    expect(tracker.current('conv-1')).toMatchObject({
+      status: 'working',
+      notificationType: undefined,
+    });
+    tracker.applyCanonicalEvent('conv-1', 'codex', { kind: 'status', type: 'stop' });
+    expect(tracker.current('conv-1')?.status).toBe('completed');
+  });
+
   it('maps canonical status hook events to agent state', () => {
     const { tracker, agentStates } = createTracker();
 
