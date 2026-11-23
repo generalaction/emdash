@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { issueMentionToken } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { resolveBranchPrefix } from '@core/primitives/project-settings/api';
 import { resolveTaskBranchName } from '@core/primitives/tasks/api';
 
 export type BranchNameState = {
@@ -10,6 +12,11 @@ export type BranchNameState = {
   setBranchName: (value: string) => void;
   isUserModified: boolean;
   branchAlreadyExists: boolean;
+  /**
+   * The generated name cannot be used yet: the project settings, which can
+   * override the app branch prefix, are still loading.
+   */
+  branchPrefixPending: boolean;
 };
 
 export function useBranchName(opts: {
@@ -21,7 +28,17 @@ export function useBranchName(opts: {
   const { taskName, linkedIssue, projectId, resetKey } = opts;
 
   const { value: project } = useAppSettingsKey('project');
-  const branchPrefix = project?.branchPrefix ?? '';
+  const projectSettings = projectId ? getProjectSettingsStore(projectId) : undefined;
+  const projectDurable = projectSettings?.durableDomains;
+  const projectBranchPrefix = projectDurable?.gitIdentity.stored.branchPrefix;
+  // Until the project settings load, a missing override cannot be told apart
+  // from one that is not known yet. If the load fails, the app prefix applies.
+  const projectSettingsLoading =
+    !!projectSettings && !projectDurable && !projectSettings.pageData.error;
+  const branchPrefix = resolveBranchPrefix({
+    projectBranchPrefix,
+    appBranchPrefix: project?.branchPrefix ?? '',
+  }).value;
   const appendRandomSuffix = project?.appendRandomBranchSuffix ?? true;
 
   // Generate random suffix once per modal session.
@@ -76,5 +93,7 @@ export function useBranchName(opts: {
     branchName.trim().length > 0 &&
     (repo?.localBranches.some((branch) => branch.ref === `refs/heads/${branchName}`) ?? false);
 
-  return { branchName, setBranchName, isUserModified, branchAlreadyExists };
+  const branchPrefixPending = !isUserModified && projectSettingsLoading;
+
+  return { branchName, setBranchName, isUserModified, branchAlreadyExists, branchPrefixPending };
 }

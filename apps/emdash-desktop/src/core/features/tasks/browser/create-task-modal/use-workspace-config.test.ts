@@ -49,13 +49,17 @@ vi.mock('@core/features/tasks/api/browser/create-task-modal/use-project-workspac
   useProjectWorkspaceOptions: () => ({ data: workspaceOptionsMock.current, isLoading: false }),
 }));
 
-const branchNameMock = vi.hoisted(() => ({ current: 'generated-task-branch' }));
+const branchNameMock = vi.hoisted(() => ({
+  current: 'generated-task-branch',
+  prefixPending: false,
+}));
 
 vi.mock('./use-branch-name', () => ({
   useBranchName: () => ({
     branchName: branchNameMock.current,
     setBranchName: vi.fn(),
     branchAlreadyExists: false,
+    branchPrefixPending: branchNameMock.prefixPending,
   }),
 }));
 
@@ -135,6 +139,7 @@ describe('useWorkspaceConfig branch selection', () => {
     latestState = undefined;
     defaultBranch = { type: 'local', branch: 'main' };
     branchNameMock.current = 'generated-task-branch';
+    branchNameMock.prefixPending = false;
     workspaceOptionsMock.current = [];
     projectConfigMock.preservePatterns = ['.env'];
     repositoryStoreMock.current = {
@@ -372,6 +377,16 @@ describe('useWorkspaceConfig branch selection', () => {
     expect(latestState?.setupSteps).toEqual([]);
     expect(latestState?.isValid).toBe(false);
     expect(latestState?.missingBranch).toBe(false);
+  });
+
+  it('blocks submission while the branch prefix of the project is still loading', async () => {
+    branchNameMock.prefixPending = true;
+    await renderProbe({ mode: 'new-worktree', presetId: 'new-worktree' });
+    expect(latestState?.isValid).toBe(false);
+
+    branchNameMock.prefixPending = false;
+    await renderProbe({ mode: 'new-worktree', presetId: 'new-worktree' });
+    expect(latestState?.isValid).toBe(true);
   });
 
   it('reports a missing branch until one is picked when the default branch is unresolved', async () => {
