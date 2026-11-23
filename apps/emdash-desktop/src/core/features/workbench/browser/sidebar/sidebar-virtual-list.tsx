@@ -3,6 +3,7 @@ import {
   DndContext,
   DragOverlay,
   MeasuringStrategy,
+  useDroppable,
   PointerSensor,
   pointerWithin,
   useSensor,
@@ -103,18 +104,19 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const allDndIds = useMemo(() => rows.map(rowToDndId), [rows]);
   // Slide rows to where the drop will put the project (see `projectDropIndex`).
   const sortingStrategy = useMemo<SortingStrategy>(
-    () => (args) => {
-      if (rows[args.activeIndex]?.kind !== 'project') return verticalListSortingStrategy(args);
-      // The ungrouped slot is a target, not a place in the list: nothing slides.
-      const overIndex =
-        rows[args.overIndex]?.kind === 'ungrouped-slot'
-          ? args.activeIndex
-          : projectDropIndex(rows, args.activeIndex, args.overIndex);
-      return verticalListSortingStrategy({ ...args, overIndex });
-    },
+    () => (args) =>
+      verticalListSortingStrategy(
+        rows[args.activeIndex]?.kind === 'project'
+          ? { ...args, overIndex: projectDropIndex(rows, args.activeIndex, args.overIndex) }
+          : args
+      ),
     [rows]
   );
   const activeDragIndex = activeDragId ? allDndIds.indexOf(activeDragId) : -1;
+  const showUngroupTarget =
+    activeDragId !== null &&
+    parseDndId(activeDragId)?.kind === 'project' &&
+    sidebar.projectGroups.length > 0;
   // Folding removes rows above the dragged one. Reserve their space instead of
   // scrolling (which the browser clamps near the top), so the dragged row stays
   // exactly where it was picked up, under the pointer, and a drop without moving
@@ -205,7 +207,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     const id = String(event.active.id);
     const dragged = parseDndId(id);
     setActiveDragId(id);
-    if (!dragged || dragged.kind === 'task' || dragged.kind === 'ungrouped-slot') return;
+    if (!dragged || dragged.kind === 'task' || dragged.kind === 'ungroup-target') return;
     const index = allDndIds.indexOf(id);
     if (index !== -1) setDragStart({ index, totalSize: virtualizer.getTotalSize() });
     sidebar.beginDragFold(dragged.kind);
@@ -257,17 +259,20 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       onDragCancel={() => endDrag()}
     >
       <SortableContext items={allDndIds} strategy={sortingStrategy}>
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
-          <div
-            style={{
-              height: Math.max(virtualizer.getTotalSize(), dragStart?.totalSize ?? 0),
-              position: 'relative',
-            }}
-          >
-            {virtualizer.getVirtualItems().map((vItem) => {
-              const row = rows[vItem.index];
-              return row ? renderRow(row, vItem.start, vItem.size) : null;
-            })}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {showUngroupTarget && <UngroupTarget />}
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
+            <div
+              style={{
+                height: Math.max(virtualizer.getTotalSize(), dragStart?.totalSize ?? 0),
+                position: 'relative',
+              }}
+            >
+              {virtualizer.getVirtualItems().map((vItem) => {
+                const row = rows[vItem.index];
+                return row ? renderRow(row, vItem.start, vItem.size) : null;
+              })}
+            </div>
           </div>
         </div>
       </SortableContext>
@@ -288,9 +293,6 @@ function renderRow(row: SidebarRow, top: number, height: number) {
     height: `${height}px`,
     paddingLeft: rowIndent(row),
   };
-  if (row.kind === 'ungrouped-slot') {
-    return <UngroupedSlot key={dndId} dndId={dndId} style={style} />;
-  }
   const guide =
     row.kind !== 'group' && getSidebarStore().groupIdForProject(row.projectId) ? (
       <span
@@ -331,23 +333,22 @@ function rowIndent(row: SidebarRow): number {
 const toGroupDndId = (id: string) => `group::${id}`;
 const toProjectDndId = (id: string) => `proj::${id}`;
 const toTaskDndId = (projectId: string, taskId: string) => `task::${projectId}::${taskId}`;
-const UNGROUPED_SLOT_DND_ID = 'ungrouped-slot';
+const UNGROUP_TARGET_DND_ID = 'ungroup-target';
 
 type SidebarDndId =
   | { kind: 'group'; groupId: string }
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string }
-  | { kind: 'ungrouped-slot' };
+  | { kind: 'ungroup-target' };
 
 function rowToDndId(row: SidebarRow): string {
   if (row.kind === 'group') return toGroupDndId(row.groupId);
   if (row.kind === 'project') return toProjectDndId(row.projectId);
-  if (row.kind === 'ungrouped-slot') return UNGROUPED_SLOT_DND_ID;
   return toTaskDndId(row.projectId, row.taskId);
 }
 
 function parseDndId(id: string): SidebarDndId | null {
-  if (id === UNGROUPED_SLOT_DND_ID) return { kind: 'ungrouped-slot' };
+  if (id === UNGROUP_TARGET_DND_ID) return { kind: 'ungroup-target' };
   if (id.startsWith('group::')) return { kind: 'group', groupId: id.slice(7) };
   if (id.startsWith('proj::')) return { kind: 'project', projectId: id.slice(6) };
   if (id.startsWith('task::')) {
@@ -366,7 +367,7 @@ function parseDndId(id: string): SidebarDndId | null {
  */
 const sidebarCollision: CollisionDetection = (args) => {
   const dragged = parseDndId(String(args.active.id));
-  if (!dragged || dragged.kind === 'ungrouped-slot') return [];
+  if (!dragged || dragged.kind === 'ungroup-target') return [];
   // The dragged row's own spot stays a target ("stay here"); without it the
   // nearest neighbour counts as hovered and slides as soon as a drag starts.
   const containers = args.droppableContainers.filter((c) => {
@@ -374,14 +375,20 @@ const sidebarCollision: CollisionDetection = (args) => {
     if (dragged.kind === 'group') return target?.kind === 'group';
     if (dragged.kind === 'project') {
       return (
-        target?.kind === 'group' || target?.kind === 'project' || target?.kind === 'ungrouped-slot'
+        target?.kind === 'group' || target?.kind === 'project' || target?.kind === 'ungroup-target'
       );
     }
     return target?.kind === 'task' && target.projectId === dragged.projectId;
   });
   const filteredArgs = { ...args, droppableContainers: containers };
   const pointerCollisions = pointerWithin(filteredArgs);
-  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(filteredArgs);
+  if (pointerCollisions.length > 0) return pointerCollisions;
+  // The ungroup target only counts with the pointer on it, never as the
+  // nearest row when the pointer is outside the list.
+  return closestCenter({
+    ...filteredArgs,
+    droppableContainers: containers.filter((c) => c.id !== UNGROUP_TARGET_DND_ID),
+  });
 };
 
 /**
@@ -399,7 +406,11 @@ function applyDrop(
   const from = ids.indexOf(activeId);
   const to = ids.indexOf(overId);
   const dragged = parseDndId(activeId);
-  if (!dragged || dragged.kind === 'ungrouped-slot') return undefined;
+  if (!dragged || dragged.kind === 'ungroup-target') return undefined;
+  if (dragged.kind === 'project' && overId === UNGROUP_TARGET_DND_ID) {
+    sidebar.placeProject(dragged.projectId, null, 0);
+    return null;
+  }
   if (from === -1 || to === -1 || from === to) return undefined;
 
   if (dragged.kind === 'group') {
@@ -414,10 +425,6 @@ function applyDrop(
   }
 
   if (dragged.kind === 'project') {
-    if (parseDndId(overId)?.kind === 'ungrouped-slot') {
-      sidebar.placeProject(dragged.projectId, null, 0);
-      return null;
-    }
     const placement = projectPlacementAfterMove(rows, from, projectDropIndex(rows, from, to));
     if (!placement) return undefined;
     sidebar.placeProject(dragged.projectId, placement.groupId, placement.index);
@@ -442,7 +449,7 @@ function applyDrop(
 
 function DragOverlayContent({ dndId }: { dndId: string }) {
   const parsed = parseDndId(dndId);
-  if (!parsed || parsed.kind === 'ungrouped-slot') return null;
+  if (!parsed || parsed.kind === 'ungroup-target') return null;
   return (
     <div className="px-3">
       <div className="rounded-lg bg-background-tertiary-2 shadow-md">
@@ -458,15 +465,23 @@ function DragOverlayContent({ dndId }: { dndId: string }) {
   );
 }
 
-/** Drop target for leaving a group; see `SidebarStore.sidebarRows`. */
-function UngroupedSlot({ dndId, style }: { dndId: string; style: React.CSSProperties }) {
-  const { setNodeRef, isOver } = useSortable({ id: dndId, disabled: { draggable: true } });
+/**
+ * While a project is dragged, covers the "Projects" header just above the list
+ * (where ungrouped projects start) as a drop target for leaving its group. It
+ * adds no row, so nothing in the list shifts.
+ */
+function UngroupTarget() {
+  const { setNodeRef, isOver } = useDroppable({ id: UNGROUP_TARGET_DND_ID });
   return (
-    <div ref={setNodeRef} style={style}>
+    <div
+      ref={setNodeRef}
+      className="absolute inset-x-0 bottom-full z-10 flex h-[40px] items-center bg-(--em-surface) pr-2.5 pl-3"
+    >
       <div
         className={cn(
-          'flex h-8 items-center rounded-lg border border-dashed border-border px-3 text-sm text-foreground-tertiary-passive',
-          isOver && 'bg-background-tertiary-2 text-foreground-tertiary'
+          'flex h-8 flex-1 items-center rounded-lg border border-dashed border-border px-2 text-sm text-foreground-tertiary-passive',
+          isOver &&
+            'border-foreground-tertiary-passive bg-background-tertiary-2 text-foreground-tertiary'
         )}
       >
         No group

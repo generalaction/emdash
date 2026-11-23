@@ -48,9 +48,7 @@ function isVisibleRegularTask(task: TaskStore): boolean {
 export type SidebarRow =
   | { kind: 'group'; groupId: string }
   | { kind: 'project'; projectId: string }
-  | { kind: 'task'; projectId: string; taskId: string }
-  /** Drop target for ungrouping, shown while a project is dragged and every project is grouped. */
-  | { kind: 'ungrouped-slot' };
+  | { kind: 'task'; projectId: string; taskId: string };
 
 /** A contiguous run of projects in the sidebar: the ungrouped section (`group: null`) or one group. */
 export type SidebarProjectSection = {
@@ -238,12 +236,6 @@ export class SidebarStore {
       for (const projectId of section.projectIds) {
         this.pushProjectRows(rows, projectId);
       }
-    }
-    // With every project in a group there is no ungrouped row to drop on, so a
-    // dragged project gets a slot below the last group to leave its group.
-    const ungrouped = this.projectSections[0]?.projectIds ?? [];
-    if (this._dragFold === 'projects' && this.projectGroups.length > 0 && ungrouped.length === 0) {
-      rows.push({ kind: 'ungrouped-slot' });
     }
     return rows;
   }
