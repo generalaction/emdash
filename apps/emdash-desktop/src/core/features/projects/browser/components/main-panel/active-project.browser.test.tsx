@@ -40,6 +40,10 @@ vi.mock('@core/features/projects/browser/components/task-view/task-list', () => 
   TaskList: () => <div>Tasks panel</div>,
 }));
 
+vi.mock('@core/features/projects/browser/components/task-view/task-board', () => ({
+  TaskBoard: ({ projectId }: { projectId: string }) => <div>Board for {projectId}</div>,
+}));
+
 vi.mock(
   '@core/features/projects/browser/components/workspaces-view/project-workspaces-view',
   () => ({
@@ -117,11 +121,25 @@ describe('ActiveProject section state', () => {
     ).toBe(true);
     expect(window.location.href).toBe(initialUrl);
   });
+
+  it('remembers the board when returning from a task', async () => {
+    await act(async () => root.render(<ActiveProject />));
+    const board = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+      (tab) => tab.textContent === 'Board'
+    );
+    await act(async () => board?.click());
+    expect(handle.value.activeView).toBe('board');
+    expect(host.querySelector('[role="tabpanel"]')?.textContent).toBe('Board for project-1');
+
+    await act(async () => root.render(null));
+    await act(async () => root.render(<ActiveProject />));
+    expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Board');
+  });
 });
 
 function createHandle(activeView: ProjectViewState['activeView']): MementoHandle<ProjectViewState> {
   const value = observable.box<ProjectViewState>({
-    version: '1',
+    version: '2',
     activeView,
     taskViewTab: 'active',
   });

@@ -8,7 +8,7 @@ import type {
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 
-export type ProjectView = 'tasks' | 'pull-request' | 'workspaces' | 'settings';
+export type ProjectView = ProjectViewState['activeView'];
 
 export class ProjectViewStore {
   readonly taskView: TaskViewStore;
@@ -28,6 +28,11 @@ export class ProjectViewStore {
 
   setProjectView(view: ProjectView) {
     this.handle.update((current) => ({ ...current, activeView: view }));
+  }
+
+  applyDefaultTaskView(boardByDefault: boolean) {
+    // Preserve explicit navigation to Settings, PRs, and Workspaces.
+    if (boardByDefault && this.activeView === 'tasks') this.setProjectView('board');
   }
 
   setSelectedIssueProvider(provider: IssueProviderType | null) {

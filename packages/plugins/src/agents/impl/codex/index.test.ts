@@ -12,6 +12,17 @@ const baseContext = {
 };
 
 describe('codex provider', () => {
+  it.each([false, true])('isolates hook environments when resuming=%s', (isResuming) => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      isResuming,
+      providerSessionId: isResuming ? 'native-session' : undefined,
+    });
+    expect(command.args).toEqual(
+      isResuming ? ['--no-daemon', 'resume', 'native-session'] : ['--no-daemon']
+    );
+  });
+
   it('passes unquoted config overrides when auto-approve is enabled', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
@@ -21,6 +32,7 @@ describe('codex provider', () => {
     expect(command).toEqual({
       command: 'codex',
       args: [
+        '--no-daemon',
         '-c',
         'approval_policy=never',
         '-c',

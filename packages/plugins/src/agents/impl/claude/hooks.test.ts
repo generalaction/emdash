@@ -23,6 +23,32 @@ function createMemoryFs(files = new Map<string, string>()): PluginFs {
 describe('claude hooks', () => {
   const parse = provider.behavior.hooks!.parseHookEvent!;
 
+  it('detects questions without classifying ordinary tools as attention', () => {
+    expect(
+      parse('pre-tool-use', {
+        tool_name: 'AskUserQuestion',
+        session_id: RESUMED_SESSION_ID,
+        tool_use_id: 'question-1',
+      })
+    ).toEqual({
+      kind: 'status',
+      type: 'notification',
+      notificationType: 'elicitation_dialog',
+      toolUseId: 'question-1',
+      providerSessionId: RESUMED_SESSION_ID,
+    });
+    expect(parse('pre-tool-use', { tool_name: 'Read' })).toEqual({ kind: 'ignore' });
+  });
+
+  it('honors explicit notification types instead of guessing from the message', () => {
+    expect(
+      parse('notification', { notification_type: 'auth_success', message: 'Approval succeeded' })
+    ).toMatchObject({ notificationType: 'auth_success' });
+    expect(parse('notification', { notification_type: 'elicitation_dialog' })).toMatchObject({
+      notificationType: 'elicitation_dialog',
+    });
+  });
+
   it('carries the session id on start events so an in-session /resume is tracked', () => {
     expect(
       parse('start', {
@@ -109,5 +135,8 @@ describe('claude hooks', () => {
     expect(settings.hooks.SessionStart).toEqual([
       { hooks: [{ type: 'command', command: makeStdinHookCommand('session-start') }] },
     ]);
+    for (const name of ['PermissionRequest', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure']) {
+      expect(settings.hooks[name]).toHaveLength(1);
+    }
   });
 });
