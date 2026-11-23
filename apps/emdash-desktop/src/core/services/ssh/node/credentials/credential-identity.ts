@@ -21,7 +21,7 @@ export function assertPasswordDestination(
   effective: Omit<SshConfig, 'id'>
 ) {
   if (
-    config.authType === 'password' &&
+    (config.authType === 'password' || config.authType === 'key+password') &&
     (config.host !== effective.host ||
       config.port !== effective.port ||
       config.username !== effective.username)
@@ -34,10 +34,11 @@ export function assertPasswordDestination(
 
 export function sshCredentialIdentity(
   config: Omit<SshConfig, 'id'>,
-  keyFingerprint?: string
+  keyFingerprint?: string,
+  bindKey = true
 ): string {
-  if (config.authType === 'key' && !keyFingerprint)
-    throw new Error('Private key identity is required');
+  const isKeyMode = (config.authType === 'key' || config.authType === 'key+password') && bindKey;
+  if (isKeyMode && !keyFingerprint) throw new Error('Private key identity is required');
   return createHash('sha256')
     .update(
       JSON.stringify([
@@ -47,8 +48,8 @@ export function sshCredentialIdentity(
         config.authType,
         config.sshConfigAlias || '',
         config.sshConfigAlias ? '' : config.proxyJump || '',
-        config.authType === 'key' ? config.privateKeyPath?.trim() || '' : '',
-        config.authType === 'key' ? keyFingerprint : '',
+        isKeyMode ? config.privateKeyPath?.trim() || '' : '',
+        isKeyMode ? keyFingerprint : '',
       ])
     )
     .digest('hex');

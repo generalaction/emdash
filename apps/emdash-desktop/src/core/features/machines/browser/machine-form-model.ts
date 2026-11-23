@@ -99,12 +99,19 @@ export function machineConnectionConfig(
     username: value.username || alias || value.host,
     sshConfigAlias: alias,
     authType: value.authType,
-    privateKeyPath: value.authType === 'key' ? value.privateKeyPath.trim() || undefined : undefined,
+    privateKeyPath:
+      value.authType === 'key' || value.authType === 'key+password'
+        ? value.privateKeyPath.trim() || undefined
+        : undefined,
     useAgent: value.authType === 'agent',
     forwardAgent: alias ? undefined : value.forwardAgent,
     proxyJump: alias ? undefined : value.proxyJump.trim(),
-    password: value.authType === 'password' ? value.password : undefined,
-    passphrase: value.authType === 'key' ? value.passphrase : undefined,
+    password:
+      value.authType === 'password' || value.authType === 'key+password'
+        ? value.password
+        : undefined,
+    passphrase:
+      value.authType === 'key' || value.authType === 'key+password' ? value.passphrase : undefined,
   };
 }
 
