@@ -37,8 +37,14 @@ import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
-/** How far projects in a group, and their tasks, are indented under the group header. */
-const GROUP_INDENT_PX = 12;
+/**
+ * How far projects in a group, and their tasks, are indented: one icon column
+ * (row padding 4 + icon 24), so a grouped project's icon sits under the group
+ * name and every level lines up with the one above it.
+ */
+const GROUP_INDENT_PX = 28;
+/** Horizontal center of a row's icon column, where a group's guide line runs. */
+const GROUP_GUIDE_X_PX = 16;
 /** How long a project must hover over a collapsed group before it opens. */
 const OPEN_GROUP_DELAY_MS = 600;
 
@@ -254,6 +260,13 @@ function renderRow(row: SidebarRow, top: number, height: number) {
     height: `${height}px`,
     paddingLeft: rowIndent(row),
   };
+  const guide = style.paddingLeft ? (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 w-px bg-border"
+      style={{ left: GROUP_GUIDE_X_PX }}
+    />
+  ) : null;
   if (row.kind === 'group') {
     return (
       <SortableRow key={dndId} dndId={dndId} style={style}>
@@ -264,12 +277,14 @@ function renderRow(row: SidebarRow, top: number, height: number) {
   if (row.kind === 'project') {
     return (
       <SortableRow key={row.projectId} dndId={dndId} style={style}>
+        {guide}
         <SidebarProjectItem projectId={row.projectId} />
       </SortableRow>
     );
   }
   return (
     <SortableRow key={`${row.projectId}:${row.taskId}`} dndId={dndId} style={style}>
+      {guide}
       <SidebarTaskItem projectId={row.projectId} taskId={row.taskId} />
     </SortableRow>
   );

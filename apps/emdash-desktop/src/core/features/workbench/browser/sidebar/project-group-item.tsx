@@ -29,7 +29,7 @@ export const SidebarProjectGroupItem = observer(function SidebarProjectGroupItem
     <ContextMenu.Root>
       <ContextMenu.Trigger>
         <SidebarMenuRow
-          className="group/row h-8 px-1"
+          className="group/row h-8 gap-1 px-1"
           onMouseDown={(e) => e.preventDefault()}
           onClick={toggle}
         >
@@ -50,9 +50,7 @@ export const SidebarProjectGroupItem = observer(function SidebarProjectGroupItem
             />
           </SidebarItemMiniButton>
           <SidebarMenuAction aria-label={`Group ${group.name}`} className="gap-2">
-            <MicroLabel className="truncate font-medium text-foreground-muted">
-              {group.name}
-            </MicroLabel>
+            <span className="truncate font-semibold text-foreground-tertiary">{group.name}</span>
             <MicroLabel className="ml-auto pr-2 text-foreground-tertiary-passive tabular-nums">
               {projectCount}
             </MicroLabel>
