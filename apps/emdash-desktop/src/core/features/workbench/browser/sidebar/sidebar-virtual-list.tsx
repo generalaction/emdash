@@ -43,11 +43,12 @@ import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
 /**
- * Indent per level once the sidebar has groups: group headers are level 0,
- * every project (grouped or not) level 1 and tasks level 2, so each level's
- * text starts one step right of its parent's. Without groups nothing shifts.
+ * Indents once the sidebar has groups: group headers stay put, every project
+ * (grouped or not) moves one step in and tasks a half step further, so each
+ * level's text starts right of its parent's. Without groups nothing shifts.
  */
-const LEVEL_INDENT_PX = 16;
+const PROJECT_INDENT_PX = 16;
+const TASK_INDENT_PX = PROJECT_INDENT_PX + 8;
 /** Horizontal center of a row's icon column, where a group's guide line runs. */
 const GROUP_GUIDE_X_PX = 16;
 /** How long a project must hover over a collapsed group before it opens. */
@@ -306,10 +307,10 @@ function renderRow(row: SidebarRow, top: number, height: number) {
   );
 }
 
-/** Left indent of a row; see `LEVEL_INDENT_PX`. */
+/** Left indent of a row; see `PROJECT_INDENT_PX`. */
 function rowIndent(row: SidebarRow): number {
   if (row.kind === 'group' || getSidebarStore().projectGroups.length === 0) return 0;
-  return row.kind === 'project' ? LEVEL_INDENT_PX : 2 * LEVEL_INDENT_PX;
+  return row.kind === 'project' ? PROJECT_INDENT_PX : TASK_INDENT_PX;
 }
 
 const toGroupDndId = (id: string) => `group::${id}`;

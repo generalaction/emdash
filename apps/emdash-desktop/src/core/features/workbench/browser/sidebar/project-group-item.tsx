@@ -1,5 +1,13 @@
 import { ContextMenu, MicroLabel } from '@emdash/ui/react/primitives';
-import { ArrowDown, ArrowUp, ChevronRight, FolderPlus, Pencil, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  FolderPlus,
+  Folders,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -37,14 +45,17 @@ export const SidebarProjectGroupItem = observer(function SidebarProjectGroupItem
             type="button"
             aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} group ${group.name}`}
             aria-expanded={!isCollapsed}
+            className="relative"
             onClick={(e) => {
               e.stopPropagation();
               toggle();
             }}
           >
+            {/* Like a project row: the group icon turns into the chevron on hover. */}
+            <Folders className="absolute h-4 w-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
             <ChevronRight
               className={cn(
-                'h-4 w-4 transition-transform duration-150',
+                'absolute h-4 w-4 opacity-0 transition-all duration-150 group-hover/row:opacity-100',
                 !isCollapsed && 'rotate-90'
               )}
             />
