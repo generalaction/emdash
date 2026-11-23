@@ -242,7 +242,32 @@ describe('SidebarStore project ordering', () => {
     expect(store.pinnedSidebarEntries).toEqual([
       { projectId: 'project-1', taskId: 'regular-task' },
     ]);
-    expect(store.visibleTaskIdsForProject('project-1')).toEqual([]);
-    expect(store.sidebarRows).toEqual([{ kind: 'project', projectId: 'project-1' }]);
+    // A pinned task stays in its project's list too; only the automation run is hidden.
+    expect(store.visibleTaskIdsForProject('project-1')).toEqual(['regular-task']);
+    expect(store.sidebarRows).toEqual([
+      { kind: 'project', projectId: 'project-1' },
+      { kind: 'task', projectId: 'project-1', taskId: 'regular-task' },
+    ]);
+  });
+
+  it('keeps the Pinned list in the saved order, with newly pinned tasks after it', () => {
+    const manager = projectManagerWithTasks([
+      { id: 'project-1', createdAt: '2026-01-01T00:00:00.000Z', taskIds: ['a', 'b', 'c'] },
+    ]);
+    const project = manager.projects.get('project-1')!;
+    const context = project.context?.kind === 'available' ? project.context.context : undefined;
+    const tasks = context!.get(taskManagerStoreToken).tasks;
+    for (const id of ['a', 'b', 'c']) tasks.get(id)!.data.isPinned = true;
+    const store = new SidebarStore(manager);
+    const ids = () => store.pinnedSidebarEntries.map((entry) => entry.taskId);
+    const defaultOrder = ids();
+
+    store.setPinnedOrder([
+      { projectId: 'project-1', taskId: 'c' },
+      { projectId: 'project-1', taskId: 'a' },
+    ]);
+    // `b` is not in the saved order, so it follows the saved ones.
+    expect(ids()).toEqual(['c', 'a', 'b']);
+    expect(defaultOrder).toHaveLength(3);
   });
 });

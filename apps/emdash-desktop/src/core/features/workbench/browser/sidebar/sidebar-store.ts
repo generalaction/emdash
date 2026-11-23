@@ -6,6 +6,8 @@ import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-sto
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import {
   workbenchSidebarMemento,
+  workbenchSidebarPinsMemento,
+  type WorkbenchSidebarPinsState,
   type WorkbenchSidebarState,
 } from '@core/features/workbench/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
@@ -46,9 +48,16 @@ export type SidebarRow =
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string };
 
+/** Key of a pinned task in the saved pin order. */
+export function pinKey(projectId: string, taskId: string): string {
+  return `${projectId}:${taskId}`;
+}
+
 export class SidebarStore {
   private _handle: MementoHandle<WorkbenchSidebarState> | undefined;
   private _fallbackState: WorkbenchSidebarState = workbenchSidebarMemento.default;
+  private _pinsHandle: MementoHandle<WorkbenchSidebarPinsState> | undefined;
+  private _fallbackPinsState: WorkbenchSidebarPinsState = workbenchSidebarPinsMemento.default;
   private readonly _revealedProjectIds = observable.set<string>();
 
   constructor(private readonly projectManager: ProjectManagerStore) {
@@ -57,10 +66,17 @@ export class SidebarStore {
     // and freeze at the fallback value forever.
     makeAutoObservable<
       SidebarStore,
-      '_fallbackState' | '_handle' | '_revealedProjectIds' | 'projectManager'
+      | '_fallbackState'
+      | '_handle'
+      | '_fallbackPinsState'
+      | '_pinsHandle'
+      | '_revealedProjectIds'
+      | 'projectManager'
     >(this, {
       _fallbackState: false,
       _handle: observable.ref,
+      _fallbackPinsState: false,
+      _pinsHandle: observable.ref,
       _revealedProjectIds: false,
       projectManager: false,
       expandedProjectIds: computed.struct,
@@ -118,7 +134,6 @@ export class SidebarStore {
           ? this.mergeTaskOrder(projectId, tasks)
           : this.sortTasksForSidebar(tasks);
         for (const task of ordered) {
-          if (task.data.isPinned) continue;
           rows.push({ kind: 'task', projectId, taskId: task.data.id });
         }
       }
@@ -126,14 +141,18 @@ export class SidebarStore {
     return rows;
   }
 
-  /** Visible unpinned tasks in the same order they are rendered in the project tree. */
+  /** Visible tasks in the same order they are rendered in the project tree (pinned ones included). */
   get visibleTaskEntries(): { projectId: string; taskId: string }[] {
     return this.sidebarRows
       .filter((row): row is Extract<SidebarRow, { kind: 'task' }> => row.kind === 'task')
       .map(({ projectId, taskId }) => ({ projectId, taskId }));
   }
 
-  /** Flat list of pinned tasks from available Project contexts, in project-tree sort order. */
+  /**
+   * Flat list of pinned tasks from available Project contexts, in the saved pin
+   * order. Tasks pinned since the order was last saved follow, in project-tree
+   * sort order. A pinned task also stays in its project's list.
+   */
   get pinnedSidebarEntries(): { projectId: string; taskId: string }[] {
     const pairs: { projectId: string; task: TaskStore }[] = [];
     for (const project of this.projectManager.projects.values()) {
@@ -145,12 +164,21 @@ export class SidebarStore {
         pairs.push({ projectId, task });
       }
     }
-    pairs.sort((a, b) => this.compareSidebarTasks(a.task, b.task));
+    const order = this.pinsState.order;
+    const position = (projectId: string, task: TaskStore) => {
+      const index = order.indexOf(pinKey(projectId, task.data.id));
+      return index === -1 ? Number.POSITIVE_INFINITY : index;
+    };
+    pairs.sort(
+      (a, b) =>
+        position(a.projectId, a.task) - position(b.projectId, b.task) ||
+        this.compareSidebarTasks(a.task, b.task)
+    );
     return pairs.map(({ projectId, task }) => ({ projectId, taskId: task.data.id }));
   }
 
   /**
-   * Visible unpinned task IDs for a project in sidebar order. Archived tasks are
+   * Visible task IDs for a project in sidebar order, pinned ones included. Archived tasks are
    * and automation tasks are excluded. Independent of expand state so Next/Previous
    * Task navigation works even when the project is collapsed.
    */
@@ -160,13 +188,32 @@ export class SidebarStore {
     const context = asAvailableProject(project);
     if (!context) return [];
     const tasks = Array.from(context.get(taskManagerStoreToken).tasks.values()).filter(
-      (task) => isVisibleRegularTask(task) && !task.data.isPinned
+      isVisibleRegularTask
     );
     const manualOrder = this.taskOrderByProject[projectId];
     const ordered = manualOrder?.length
       ? this.mergeTaskOrder(projectId, tasks)
       : this.sortTasksForSidebar(tasks);
     return ordered.map((t) => t.data.id);
+  }
+
+  attachPinsMemento(handle: MementoHandle<WorkbenchSidebarPinsState>): void {
+    if (this._pinsHandle) throw new Error('Sidebar pins memento is already attached');
+    this._pinsHandle = handle;
+  }
+
+  /** Save the Pinned list's order, e.g. after a drag. */
+  setPinnedOrder(entries: readonly { projectId: string; taskId: string }[]): void {
+    const order = entries.map(({ projectId, taskId }) => pinKey(projectId, taskId));
+    if (this._pinsHandle) {
+      this._pinsHandle.update((current) => ({ ...current, order }));
+    } else {
+      this._fallbackPinsState = { ...this._fallbackPinsState, order };
+    }
+  }
+
+  private get pinsState(): WorkbenchSidebarPinsState {
+    return this._pinsHandle?.value ?? this._fallbackPinsState;
   }
 
   get isEmpty(): boolean {
