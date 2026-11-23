@@ -172,6 +172,7 @@ export async function createProvider(
             builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory, pathProfile),
             homeDirectory,
             pathProfile,
+            projectPath: project.path,
             hostTmux: hostDefaults.tmux ?? null,
             appDefaultTmux: appDefaults.tmuxByDefault,
           };

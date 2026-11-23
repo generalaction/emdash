@@ -20,6 +20,20 @@ describe('worktree-directory', () => {
       ).resolves.toEqual(invalidWorktreeDirectory);
     });
 
+    it('resolves posix relative paths against the project path', async () => {
+      await expect(
+        normalizeWorktreeDirectory('.worktrees', {
+          pathApi: path.posix,
+          pathPlatform: 'posix',
+          homeDirectory: '/Users/test',
+          projectPath: '/Users/test/work/app/',
+        })
+      ).resolves.toEqual({
+        success: true,
+        data: '/Users/test/work/app/.worktrees',
+      });
+    });
+
     it('accepts posix absolute paths', async () => {
       await expect(
         normalizeWorktreeDirectory('/Users/test/worktrees', {
