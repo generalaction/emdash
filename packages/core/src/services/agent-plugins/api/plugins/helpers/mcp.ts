@@ -1,6 +1,7 @@
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 import type { McpServerRegistration } from '#services/agent-plugins/api/plugins/capabilities/mcp';
+import type { ConfigRootResolver } from './config-root';
 
 // ── Internal helpers ────────────────────────────────────────────────────────
 
@@ -48,6 +49,13 @@ function stripInjectedHeaders(entry: Record<string, unknown>): void {
 type McpConfigShape = {
   /** Primary config path: the only file written to. */
   configPath: string;
+  /**
+   * Optional: resolves the root configPath is relative to, honoring a
+   * provider-specific env override (e.g. CLAUDE_CONFIG_DIR) instead of the
+   * host's fixed plugin fs. Exposed on the returned behavior as
+   * `resolveConfigRoot` for AgentPluginHost to consume.
+   */
+  resolveConfigRoot?: ConfigRootResolver;
   /** Extra paths read for migration only — never written. */
   legacyReadPaths?: string[];
   /** Optional server key used only by legacyReadPaths. */
@@ -200,16 +208,22 @@ export function createMcpAdapter(shape: McpConfigShape) {
         await removeFromPath(fs, legacyPath, name, legacyServersKey, legacyServersKeyIsLiteral);
       }
     },
+    ...(shape.resolveConfigRoot ? { resolveConfigRoot: shape.resolveConfigRoot } : {}),
   };
 }
 
 // ── Per-provider adapters ───────────────────────────────────────────────────
 
 /** Passthrough adapter — agent uses canonical format (mcpServers JSON key). */
-export function passthroughMcpAdapter(configPath: string, legacyReadPaths?: string[]) {
+export function passthroughMcpAdapter(
+  configPath: string,
+  legacyReadPaths?: string[],
+  resolveConfigRoot?: ConfigRootResolver
+) {
   return createMcpAdapter({
     configPath,
     legacyReadPaths,
+    resolveConfigRoot,
     format: 'json',
     serversKey: 'mcpServers',
     toNative(s) {
