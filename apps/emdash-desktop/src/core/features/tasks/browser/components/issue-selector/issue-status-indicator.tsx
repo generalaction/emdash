@@ -170,7 +170,10 @@ export function IssueStatusIndicator({
   }
 }
 
-export function toIssueStatus(raw: string | undefined): IssueStatus {
+export function toIssueStatus(
+  raw: string | undefined,
+  category?: 'todo' | 'in_progress' | 'done'
+): IssueStatus {
   if (!raw) return 'todo';
   const s = raw.toLowerCase().trim();
   if (s === 'done' || s === 'closed' || s === 'completed' || s === 'resolved' || s === 'fixed') {
@@ -211,5 +214,7 @@ export function toIssueStatus(raw: string | undefined): IssueStatus {
     return 'todo';
   }
 
+  if (category === 'in_progress') return 'in_progress';
+  if (category === 'done') return 'done';
   return 'todo';
 }

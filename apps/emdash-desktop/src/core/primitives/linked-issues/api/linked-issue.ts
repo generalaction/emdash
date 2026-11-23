@@ -32,6 +32,7 @@ const v0Schema = z.object({
   context: z.string().optional(),
   branchName: z.string().optional(),
   status: z.string().optional(),
+  statusCategory: z.enum(['todo', 'in_progress', 'done']).optional(),
   assignees: z.array(z.string()).optional(),
   project: z.string().optional(),
   updatedAt: z.string().optional(),

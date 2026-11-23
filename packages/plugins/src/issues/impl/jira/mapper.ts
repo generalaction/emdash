@@ -16,6 +16,7 @@ export function toIssueData(issue: JiraIssue, siteUrl: string): IssueData {
     url: `${base}/browse/${issue.key}`,
     description: issue.fields.description ? flattenAdf(issue.fields.description) : undefined,
     status: issue.fields.status?.name ?? undefined,
+    statusCategory: toStatusCategory(issue.fields.status?.statusCategory?.key),
     assignees:
       issue.fields.assignee?.displayName != null
         ? [issue.fields.assignee.displayName ?? issue.fields.assignee.name ?? ''].filter(Boolean)
@@ -38,4 +39,12 @@ function flattenAdf(node: AdfNode | string | null | undefined): string {
   }
 
   return '';
+}
+
+/** Jira keys are `new`, `indeterminate` and `done`; the category survives custom status names. */
+function toStatusCategory(key: string | undefined): IssueData['statusCategory'] {
+  if (key === 'new') return 'todo';
+  if (key === 'indeterminate') return 'in_progress';
+  if (key === 'done') return 'done';
+  return undefined;
 }

@@ -7,6 +7,7 @@ import {
   type RepoFacts,
   type StoredProjectGitSettings,
   type StoredIntegrationAccounts,
+  type StoredIssueFilters,
 } from '@core/primitives/project-settings/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
@@ -90,6 +91,7 @@ export function storedGitSettingsFromRow(
 ): StoredProjectGitSettings {
   const {
     integrationAccounts: _accounts,
+    issueFilters: _issueFilters,
     tmux: _tmux,
     tmuxDefaultMigrated: _migration,
     ...git
@@ -135,4 +137,16 @@ export async function loadStoredIntegrationAccounts(
     .where(eq(projectSettings.projectId, projectId))
     .limit(1);
   return row ? (readStoredProjectSettings(row.base).integrationAccounts ?? {}) : {};
+}
+
+export async function loadStoredIssueFilters(
+  db: AppDb,
+  projectId: string
+): Promise<StoredIssueFilters> {
+  const [row] = await db
+    .select({ base: projectSettings.baseProjectSettingsJson })
+    .from(projectSettings)
+    .where(eq(projectSettings.projectId, projectId))
+    .limit(1);
+  return row ? (readStoredProjectSettings(row.base).issueFilters ?? {}) : {};
 }

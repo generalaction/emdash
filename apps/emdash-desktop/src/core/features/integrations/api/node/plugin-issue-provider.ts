@@ -32,6 +32,8 @@ import type { ProjectIntegrationAccountResolver } from './project-integration-ac
 
 export type PluginIssueProviderDependencies = {
   resolveProjectIntegrationAccount: ProjectIntegrationAccountResolver;
+  /** The project's stored issue filter for a provider, if any. */
+  getProjectIssueFilter?: (projectId: string, provider: string) => Promise<string | undefined>;
 };
 
 export function createPluginIssueProvider(
@@ -150,13 +152,16 @@ export function createPluginIssueProvider(
 
     ...createIssueListOperations(plugin, async (opts) => {
       const account = await getConnectedAccount(opts);
-      return account.success
-        ? ok({
-            host: { log: pluginLog, credentials: account.data.credentials },
-            accountId: account.data.accountId,
-            repositoryUrl: repositoryUrl(opts),
-          })
-        : account;
+      if (!account.success) return account;
+      const issueFilter = opts.projectId
+        ? await dependencies.getProjectIssueFilter?.(opts.projectId, provider)
+        : undefined;
+      return ok({
+        host: { log: pluginLog, credentials: account.data.credentials },
+        accountId: account.data.accountId,
+        repositoryUrl: repositoryUrl(opts),
+        ...(issueFilter ? { issueFilter } : {}),
+      });
     }),
 
     getIssueContext: plugin.behavior.issues?.getIssue
