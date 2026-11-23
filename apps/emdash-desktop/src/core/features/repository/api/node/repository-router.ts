@@ -86,11 +86,19 @@ export class RepositoryRouter {
   ): Promise<string[]> {
     const matches = await Promise.all(
       plugins.map(async (plugin) => {
-        const accounts = await this.dependencies.listAccounts(plugin.metadata.integrationId);
+        const integrationId = plugin.metadata.integrationId;
+        // One provider's broken account store must not fail routing for every remote.
+        const accounts = await this.dependencies.listAccounts(integrationId).catch((error) => {
+          log.warn('RepositoryRouter: failed to list accounts', {
+            integrationId,
+            error: String(error),
+          });
+          return [];
+        });
         return accounts.some(
           (account) => account.host !== undefined && normalizeRepositoryHost(account.host) === host
         )
-          ? [plugin.metadata.integrationId]
+          ? [integrationId]
           : [];
       })
     );
