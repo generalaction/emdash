@@ -53,7 +53,7 @@ describe('projectPlacementAfterMove', () => {
     expect(projectPlacementAfterMove(rows, 0, 6)).toEqual({ groupId: 'C', index: 1 });
   });
 
-  it('ungroups when moved above the first group', () => {
+  it('ungroups when moved above the first group header (raw list move)', () => {
     expect(projectPlacementAfterMove(rows, 3, 1)).toEqual({ groupId: null, index: 1 });
     expect(projectPlacementAfterMove(rows, 6, 0)).toEqual({ groupId: null, index: 0 });
   });

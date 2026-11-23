@@ -45,7 +45,8 @@ export const ProjectGroupNameModal = observer(function ProjectGroupNameModal(
               placeholder="e.g. Customers"
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSubmit();
+                // Enter also confirms an IME candidate; only submit outside composition.
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmit();
               }}
               autoFocus
             />

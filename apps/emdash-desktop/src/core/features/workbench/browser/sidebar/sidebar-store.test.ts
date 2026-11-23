@@ -350,6 +350,38 @@ describe('SidebarStore project groups', () => {
     expect(handle.value.groups[0]?.collapsed).toBe(false);
   });
 
+  it('counts only visible projects as open', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('Customers', 'b');
+    store.collapseAll();
+    store.toggleProjectExpanded('b');
+    // `b` is expanded but hidden inside the collapsed group.
+    expect(store.hasOpenItems).toBe(false);
+
+    store.toggleGroupCollapsed(groupId);
+    expect(store.hasOpenItems).toBe(true);
+  });
+
+  it('offers an ungroup slot while dragging a project when every project is grouped', () => {
+    const store = threeProjects();
+    const groupId = store.createGroup('All', 'a');
+    store.moveProjectToGroup('b', groupId);
+
+    store.beginDragFold('project');
+    expect(store.sidebarRows).not.toContainEqual({ kind: 'ungrouped-slot' });
+    store.endDragFold();
+
+    store.moveProjectToGroup('c', groupId);
+    store.beginDragFold('group');
+    expect(store.sidebarRows).not.toContainEqual({ kind: 'ungrouped-slot' });
+    store.endDragFold();
+
+    store.beginDragFold('project');
+    expect(store.sidebarRows.at(-1)).toEqual({ kind: 'ungrouped-slot' });
+    store.endDragFold();
+    expect(store.sidebarRows).not.toContainEqual({ kind: 'ungrouped-slot' });
+  });
+
   it('opens a hovered group while dragging a project, keeping it open only when dropped into', () => {
     const store = threeProjects();
     const handle = groupsMementoHandle();
