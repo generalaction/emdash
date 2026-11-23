@@ -1,6 +1,6 @@
-import { ContextMenu } from '@emdash/ui/react/primitives';
+import { ContextMenu, toast } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
@@ -11,13 +11,17 @@ import {
 import { AddContextPopover } from '@core/features/tasks/browser/context-bar/add-context-popover';
 import {
   buildTaskContextActions,
+  buildTerminalOutputContextActions,
+  readContextActionText,
   type ContextAction,
 } from '@core/features/tasks/browser/context-bar/context-actions';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { pastePromptInjection } from '@core/features/terminals/api/browser/pty/prompt-injection';
+import { readPtySessionOutput } from '@core/features/terminals/api/browser/pty/terminal-output';
 import {
   useConversations,
   useTaskComposition,
+  useTerminals,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
@@ -34,6 +38,7 @@ export const ContextBar = observer(function ContextBar({
   const { paneId } = usePaneContext();
   const taskView = useTaskComposition();
   const conversations = useConversations();
+  const terminals = useTerminals();
   const { update: updateInterfaceSettings, isSaving: isSavingInterfaceSettings } =
     useAppSettingsKey('interface');
   const task = getRegisteredTaskData(projectId, taskId);
@@ -48,21 +53,39 @@ export const ContextBar = observer(function ContextBar({
   const hasConversation = conversations.conversations.size > 0;
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const actions = useMemo(
-    () => buildTaskContextActions(task?.linkedIssue, draftComments?.comments ?? [], promptLibrary),
-    [task?.linkedIssue, draftComments?.comments, promptLibrary]
+  const terminalActions = buildTerminalOutputContextActions(
+    Array.from(terminals.terminals.values(), ({ data }) => ({
+      id: data.id,
+      name: data.name,
+      readOutput: async () => {
+        const session = terminals.sessions.get(data.id);
+        return session ? readPtySessionOutput(session) : '';
+      },
+    }))
+  );
+  const actions = buildTaskContextActions(
+    task?.linkedIssue,
+    draftComments?.comments ?? [],
+    promptLibrary,
+    terminalActions
   );
 
   const isActivePane = taskView.paneLayout.activePaneId === paneId;
   const hasVisibleContextBar = Boolean(draftComments && hasConversation && actions.length > 0);
   const popoverActions = canApplyContext ? actions : [];
 
-  const handleApplyAction = async (
-    text: string,
-    action: ContextAction,
-    opts?: { andSend?: boolean }
-  ) => {
-    if (!activeSessionId || !text) return;
+  const handleApplyAction = async (action: ContextAction, opts?: { andSend?: boolean }) => {
+    if (!activeSessionId) return;
+    let text: string;
+    try {
+      text = await readContextActionText(action);
+    } catch (error) {
+      toast.error('Could not add context', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
+      return;
+    }
+    if (!text) return;
 
     await pastePromptInjection({
       providerId: activeConversationStore?.data.providerId,
