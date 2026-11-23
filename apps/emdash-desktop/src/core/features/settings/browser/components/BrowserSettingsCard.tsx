@@ -15,6 +15,7 @@ import { browserSessionStore } from '@core/features/browser/api/browser/browser-
 import { getBrowserClient } from '@core/features/browser/api/browser/client';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import type { LinkOpenTarget } from '@core/primitives/app-settings/api';
 import {
   BROWSER_ISOLATED_PROFILE_ID,
   DEFAULT_BROWSER_PROFILE_ID,
@@ -49,6 +50,7 @@ export function BrowserSettingsCard() {
     browserSettings?.defaultProfileId,
     profiles
   );
+  const selectedLinkOpenTarget = browserSettings?.openLinksIn ?? 'ask';
   const disabled = isLoading || isSaving;
 
   const addProfile = (name: string) => {
@@ -138,6 +140,31 @@ export function BrowserSettingsCard() {
     <div className="flex flex-col gap-8">
       <SettingsCard>
         <SeparatedList gap="1rem" direction="column">
+          <SettingRow
+            title="Open links in"
+            description="Where links clicked in chats and terminals open. Emdash browser falls back to your system browser when no task is open."
+            control={
+              <Select.Root
+                value={selectedLinkOpenTarget}
+                onValueChange={(next) => {
+                  if (next) update({ openLinksIn: next });
+                }}
+                disabled={disabled}
+              >
+                <Select.Trigger className="w-[190px] shrink-0 gap-2">
+                  <Select.Value>{LINK_OPEN_TARGET_LABELS[selectedLinkOpenTarget]}</Select.Value>
+                </Select.Trigger>
+                <Select.Content align="end">
+                  {LINK_OPEN_TARGETS.map((target) => (
+                    <Select.Item key={target} value={target}>
+                      {LINK_OPEN_TARGET_LABELS[target]}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            }
+          />
+
           <SettingRow
             title="Default browser profile"
             description="New browser tabs open with this profile. You can switch an individual tab's profile from its toolbar menu."
@@ -401,6 +428,14 @@ export function BrowserSettingsCard() {
     </div>
   );
 }
+
+const LINK_OPEN_TARGET_LABELS: Record<LinkOpenTarget, string> = {
+  ask: 'Ask every time',
+  'emdash-browser': 'Emdash browser',
+  'external-browser': 'System browser',
+};
+
+const LINK_OPEN_TARGETS = Object.keys(LINK_OPEN_TARGET_LABELS) as LinkOpenTarget[];
 
 const BROWSING_DATA_CATEGORIES: ReadonlyArray<{
   kind: Exclude<BrowsingDataKind, 'all'>;
