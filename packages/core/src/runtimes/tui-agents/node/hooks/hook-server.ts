@@ -8,6 +8,7 @@ export class TuiHookServer {
   private port = 0;
   private token = '';
   private starting: Promise<HookServerHandle> | null = null;
+  private cancelStart: (() => void) | null = null;
 
   constructor(
     private readonly handler: HookHandler,
@@ -18,14 +19,15 @@ export class TuiHookServer {
     if (this.server && this.port > 0) return { port: this.port, token: this.token };
     if (this.starting) return this.starting;
 
-    this.token = crypto.randomUUID();
-    this.server = http.createServer((req, res) => {
+    const token = crypto.randomUUID();
+    this.token = token;
+    const server = http.createServer((req, res) => {
       if (req.method !== 'POST' || req.url !== '/hook') {
         res.writeHead(404);
         res.end();
         return;
       }
-      if (req.headers['x-emdash-token'] !== this.token) {
+      if (req.headers['x-emdash-token'] !== token) {
         this.logger.warn('TuiHookServer: rejected request with invalid token');
         res.writeHead(403);
         res.end();
@@ -62,34 +64,45 @@ export class TuiHookServer {
       });
     });
 
-    this.starting = new Promise<HookServerHandle>((resolve, reject) => {
-      this.server!.listen(0, '127.0.0.1', () => {
-        const addr = this.server!.address();
+    this.server = server;
+    const starting = new Promise<HookServerHandle>((resolve, reject) => {
+      this.cancelStart = () => reject(new Error('Hook server stopped'));
+      server.listen(0, '127.0.0.1', () => {
+        if (this.server !== server) return;
+        const addr = server.address();
         if (addr && typeof addr === 'object') {
           this.port = addr.port;
         }
         this.logger.info('TuiHookServer: started', { port: this.port });
-        resolve({ port: this.port, token: this.token });
+        resolve({ port: this.port, token });
       });
-      this.server!.on('error', (error) => {
+      server.once('error', (error) => {
+        if (this.server !== server) return;
         this.logger.error('TuiHookServer: failed to start', { error: String(error) });
         this.server = null;
         this.port = 0;
-        this.starting = null;
         reject(error);
       });
-    }).finally(() => {
-      this.starting = null;
     });
+    const pending = starting.finally(() => {
+      if (this.starting === pending) {
+        this.starting = null;
+        this.cancelStart = null;
+      }
+    });
+    this.starting = pending;
 
     return this.starting;
   }
 
   stop(): void {
-    if (this.server) {
-      this.server.close();
-      this.server = null;
-      this.port = 0;
-    }
+    const server = this.server;
+    this.server = null;
+    this.port = 0;
+    this.token = '';
+    this.cancelStart?.();
+    this.cancelStart = null;
+    this.starting = null;
+    server?.close();
   }
 }
