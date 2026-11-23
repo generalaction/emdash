@@ -113,10 +113,13 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     [rows]
   );
   const activeDragIndex = activeDragId ? allDndIds.indexOf(activeDragId) : -1;
+  // Only needed when every project is grouped: otherwise the ungrouped
+  // projects at the top are where a project leaves its group.
   const showUngroupTarget =
     activeDragId !== null &&
     parseDndId(activeDragId)?.kind === 'project' &&
-    sidebar.projectGroups.length > 0;
+    sidebar.projectGroups.length > 0 &&
+    sidebar.projectSections[0]?.projectIds.length === 0;
   // Folding removes rows above the dragged one. Reserve their space instead of
   // scrolling (which the browser clamps near the top), so the dragged row stays
   // exactly where it was picked up, under the pointer, and a drop without moving
@@ -466,9 +469,9 @@ function DragOverlayContent({ dndId }: { dndId: string }) {
 }
 
 /**
- * While a project is dragged, covers the "Projects" header just above the list
- * (where ungrouped projects start) as a drop target for leaving its group. It
- * adds no row, so nothing in the list shifts.
+ * While a project is dragged and every project is grouped, covers the
+ * "Projects" header just above the list (where ungrouped projects start) as a
+ * drop target for leaving its group. It adds no row, so nothing shifts.
  */
 function UngroupTarget() {
   const { setNodeRef, isOver } = useDroppable({ id: UNGROUP_TARGET_DND_ID });
