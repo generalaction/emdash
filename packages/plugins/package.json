@@ -13,6 +13,11 @@
       "types": "./dist/agents.d.mts",
       "default": "./dist/agents.mjs"
     },
+    "./agents/configured-instances": {
+      "development": "./src/agents/configured-instances.ts",
+      "types": "./dist/agents/configured-instances.d.mts",
+      "default": "./dist/agents/configured-instances.mjs"
+    },
     "./agents/types": {
       "development": "./src/agents/types.ts",
       "types": "./dist/agents/types.d.mts",
