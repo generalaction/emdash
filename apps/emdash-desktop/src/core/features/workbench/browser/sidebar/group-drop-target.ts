@@ -48,3 +48,13 @@ export function projectPlacementAfterMove(
   }
   return { groupId, index };
 }
+
+/**
+ * Target index for a project dropped on row `to`. A group header always means
+ * "into this group": coming from below, the list would put the project above
+ * the header (in the section before it), so it takes the slot just under the
+ * header instead. Every other target is used as is.
+ */
+export function projectDropIndex(rows: readonly SidebarRow[], from: number, to: number): number {
+  return rows[to]?.kind === 'group' && from > to ? to + 1 : to;
+}

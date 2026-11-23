@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { groupOrderAfterMove, projectPlacementAfterMove } from './group-drop-target';
+import {
+  groupOrderAfterMove,
+  projectDropIndex,
+  projectPlacementAfterMove,
+} from './group-drop-target';
 import type { SidebarRow } from './sidebar-store';
 
 // Folded for a project drag: 0 p-ungrouped | 1 [A] | 2 p-a1 | 3 p-a2 | 4 [B] | 5 [C] | 6 p-c
@@ -56,5 +60,25 @@ describe('projectPlacementAfterMove', () => {
 
   it('ignores moves of anything but a project', () => {
     expect(projectPlacementAfterMove(rows, 1, 0)).toBeNull();
+  });
+});
+
+describe('projectDropIndex', () => {
+  const place = (from: number, to: number) =>
+    projectPlacementAfterMove(rows, from, projectDropIndex(rows, from, to));
+
+  it('drops into a group whose header is reached from below', () => {
+    expect(place(6, 4)).toEqual({ groupId: 'B', index: 0 });
+    expect(place(6, 1)).toEqual({ groupId: 'A', index: 0 });
+    expect(place(3, 1)).toEqual({ groupId: 'A', index: 0 });
+  });
+
+  it('drops into a group whose header is reached from above', () => {
+    expect(place(0, 5)).toEqual({ groupId: 'C', index: 0 });
+  });
+
+  it('leaves project targets alone', () => {
+    expect(projectDropIndex(rows, 6, 0)).toBe(0);
+    expect(place(6, 0)).toEqual({ groupId: null, index: 0 });
   });
 });

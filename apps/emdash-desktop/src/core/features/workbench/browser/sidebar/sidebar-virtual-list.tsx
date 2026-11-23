@@ -17,6 +17,7 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  type SortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
@@ -31,18 +32,22 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
-import { groupOrderAfterMove, projectPlacementAfterMove } from './group-drop-target';
+import {
+  groupOrderAfterMove,
+  projectDropIndex,
+  projectPlacementAfterMove,
+} from './group-drop-target';
 import { SidebarProjectGroupItem } from './project-group-item';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
 /**
- * How far projects in a group, and their tasks, are indented: one icon column
- * (row padding 4 + icon 24), so a grouped project's icon sits under the group
- * name and every level lines up with the one above it.
+ * Indent per level once the sidebar has groups: group headers are level 0,
+ * every project (grouped or not) level 1 and tasks level 2, so each level's
+ * text starts one step right of its parent's. Without groups nothing shifts.
  */
-const GROUP_INDENT_PX = 28;
+const LEVEL_INDENT_PX = 16;
 /** Horizontal center of a row's icon column, where a group's guide line runs. */
 const GROUP_GUIDE_X_PX = 16;
 /** How long a project must hover over a collapsed group before it opens. */
@@ -94,6 +99,16 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const navCollapsed = navStateRef.current.collapsed;
 
   const allDndIds = useMemo(() => rows.map(rowToDndId), [rows]);
+  // Slide rows to where the drop will put the project (see `projectDropIndex`).
+  const sortingStrategy = useMemo<SortingStrategy>(
+    () => (args) =>
+      verticalListSortingStrategy(
+        rows[args.activeIndex]?.kind === 'project'
+          ? { ...args, overIndex: projectDropIndex(rows, args.activeIndex, args.overIndex) }
+          : args
+      ),
+    [rows]
+  );
   const activeDragIndex = activeDragId ? allDndIds.indexOf(activeDragId) : -1;
   // Folding removes rows above the dragged one. Reserve their space instead of
   // scrolling (which the browser clamps near the top), so the dragged row stays
@@ -228,7 +243,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => endDrag()}
     >
-      <SortableContext items={allDndIds} strategy={verticalListSortingStrategy}>
+      <SortableContext items={allDndIds} strategy={sortingStrategy}>
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
           <div
             style={{
@@ -260,13 +275,14 @@ function renderRow(row: SidebarRow, top: number, height: number) {
     height: `${height}px`,
     paddingLeft: rowIndent(row),
   };
-  const guide = style.paddingLeft ? (
-    <span
-      aria-hidden
-      className="pointer-events-none absolute inset-y-0 w-px bg-border"
-      style={{ left: GROUP_GUIDE_X_PX }}
-    />
-  ) : null;
+  const guide =
+    row.kind !== 'group' && getSidebarStore().groupIdForProject(row.projectId) ? (
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 w-px bg-border"
+        style={{ left: GROUP_GUIDE_X_PX }}
+      />
+    ) : null;
   if (row.kind === 'group') {
     return (
       <SortableRow key={dndId} dndId={dndId} style={style}>
@@ -290,10 +306,10 @@ function renderRow(row: SidebarRow, top: number, height: number) {
   );
 }
 
-/** Projects in a group and their tasks sit one step in from the group header. */
+/** Left indent of a row; see `LEVEL_INDENT_PX`. */
 function rowIndent(row: SidebarRow): number {
-  if (row.kind === 'group') return 0;
-  return getSidebarStore().groupIdForProject(row.projectId) ? GROUP_INDENT_PX : 0;
+  if (row.kind === 'group' || getSidebarStore().projectGroups.length === 0) return 0;
+  return row.kind === 'project' ? LEVEL_INDENT_PX : 2 * LEVEL_INDENT_PX;
 }
 
 const toGroupDndId = (id: string) => `group::${id}`;
@@ -373,7 +389,7 @@ function applyDrop(
   }
 
   if (dragged.kind === 'project') {
-    const placement = projectPlacementAfterMove(rows, from, to);
+    const placement = projectPlacementAfterMove(rows, from, projectDropIndex(rows, from, to));
     if (!placement) return undefined;
     sidebar.placeProject(dragged.projectId, placement.groupId, placement.index);
     return placement.groupId;
