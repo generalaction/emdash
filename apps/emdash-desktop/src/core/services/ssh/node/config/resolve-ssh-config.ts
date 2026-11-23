@@ -28,6 +28,12 @@ export interface ResolvedSshConfig {
   connectTimeout?: number;
   serverAliveInterval?: number;
   serverAliveCountMax?: number;
+  /** `HostKeyAlias`: the name host keys are looked up under instead of the hostname. */
+  hostKeyAlias?: string;
+  /** `UserKnownHostsFile` entries, unexpanded (`~` allowed); the first one records new hosts. */
+  userKnownHostsFile?: string[];
+  /** `GlobalKnownHostsFile` entries, read-only. */
+  globalKnownHostsFile?: string[];
 }
 
 export interface ResolveSshConfigOptions {
@@ -39,6 +45,9 @@ export interface ResolveSshConfigOptions {
 }
 
 const SSH_ALIAS_PATTERN = /^[A-Za-z0-9._@%+:/[\]-]+$/;
+// How a path in `ssh -G` output can begin: POSIX root, home, Windows drive or share, or the
+// `__PROGRAMDATA__` placeholder OpenSSH for Windows prints for its system directory.
+const STARTS_PATH = /^(?:[/~]|[A-Za-z]:[\\/]|\\\\|__PROGRAMDATA__)/;
 const DEFAULT_SSH_G_TIMEOUT_MS = 10_000;
 const DEFAULT_SSH_G_MAX_BUFFER = 256 * 1024;
 
@@ -86,6 +95,30 @@ export function parseSshGOutput(output: string): ResolvedSshConfig {
   const normalizedForwardAgent = forwardAgentValue?.toLowerCase();
   const forwardAgent = forwardAgentValue ? normalizedForwardAgent !== 'no' : false;
 
+  // `ssh -G` prints a file list on one line, separated by spaces and unquoted, so a space
+  // inside a path (C:\Users\Jane Doe) looks like a separator. A token that does not start
+  // like an absolute or `~` path therefore continues the entry before it, when that entry
+  // is such a path. Entries relative to the working directory are split at every space,
+  // since nothing tells a space inside one from a separator. `none` disables the list.
+  const latestPaths = (key: string): string[] | undefined => {
+    const value = latest(key);
+    if (value === undefined) return undefined;
+    if (value.trim().toLowerCase() === 'none') return [];
+    const paths: string[] = [];
+    for (const token of value.split(' ')) {
+      const last = paths.length - 1;
+      if (last >= 0 && STARTS_PATH.test(paths[last]!) && !STARTS_PATH.test(token)) {
+        paths[last] += ` ${token}`;
+      } else if (token) {
+        paths.push(token);
+      }
+    }
+    return paths;
+  };
+  const hostKeyAlias = latestOptional('hostkeyalias');
+  const userKnownHostsFile = latestPaths('userknownhostsfile');
+  const globalKnownHostsFile = latestPaths('globalknownhostsfile');
+
   return {
     hostname: latestOptional('hostname') ?? '',
     user: latestOptional('user') ?? '',
@@ -104,6 +137,9 @@ export function parseSshGOutput(output: string): ResolvedSshConfig {
     connectTimeout: latestInt('connecttimeout'),
     serverAliveInterval: latestInt('serveraliveinterval'),
     serverAliveCountMax: latestInt('serveralivecountmax'),
+    ...(hostKeyAlias !== undefined && { hostKeyAlias }),
+    ...(userKnownHostsFile !== undefined && { userKnownHostsFile }),
+    ...(globalKnownHostsFile !== undefined && { globalKnownHostsFile }),
   };
 }
 
