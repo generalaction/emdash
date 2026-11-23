@@ -140,16 +140,10 @@ you select an OrcaRouter model from the OpenCode model picker.
   synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP
   sessions receive those definitions through `session/new`, and Prime exposes them to the model
   through its pre-imported `mcp` Python program.
-- IBM Bob (Bob Shell 2.x) runs `bob chat` in terminal mode and its native ACP server
-  (`bob acp`) in chat mode. The initial prompt is passed after `--` because Bob rejects a
-  positional that looks like an option. A bare `--resume` reopens the latest task of the
-  worktree. Emdash never passes `--accept-license` or `--trust`: Bob's license and SSO sign-in
-  are completed by the user in the TUI (ACP sessions report `auth_required` until then, or use
-  `BOB_API_KEY`). When worktree auto-trust applies, Emdash records the worktree in
-  `~/.bob/trustedFolders.json` so Bob does not ask per task; a decision the user already made
-  for that folder, or entries that already make it trusted, are left alone. MCP servers are
-  synchronized to `~/.bob/settings/mcp.json`. Bob has no hook integration yet, so terminal
-  sessions only get input-derived status.
+- IBM Bob runs `bob chat` in terminal mode and its native ACP server (`bob acp`) in chat mode.
+  The initial prompt follows `--` because Bob rejects a positional that looks like an option.
+  Emdash never passes `--accept-license` or `--trust`; auto-trusted worktrees are recorded in
+  `~/.bob/trustedFolders.json`, and MCP servers sync to `~/.bob/settings/mcp.json`.
 
 ## Adding Or Changing A Provider
 
