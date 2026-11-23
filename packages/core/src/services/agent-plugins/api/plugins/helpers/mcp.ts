@@ -245,6 +245,68 @@ export function cursorMcpAdapter(configPath = '.cursor/mcp.json') {
   });
 }
 
+const BOB_MANAGED_KEYS = [
+  'type',
+  'transport',
+  'command',
+  'args',
+  'env',
+  'cwd',
+  'url',
+  'headers',
+  'timeout',
+  'oauth',
+  'enabled',
+  'disabled',
+];
+
+/**
+ * Bob adapter — `mcpServers` JSON in the shape `bob mcp add` writes: an HTTP server is a bare
+ * `url` (no `type`), and a server is switched off with `disabled: true`. Bob-only settings on
+ * an existing entry (`alwaysAllow`, `disabledTools`) are kept.
+ * Config: ~/.bob/settings/mcp.json, key: mcpServers, JSON.
+ */
+export function bobMcpAdapter(configPath = '.bob/settings/mcp.json') {
+  return createMcpAdapter({
+    configPath,
+    format: 'json',
+    serversKey: 'mcpServers',
+    toNative(s, current) {
+      const preserved = current ? deepClone(current) : {};
+      for (const key of BOB_MANAGED_KEYS) delete preserved[key];
+
+      const entry: Record<string, unknown> = {};
+      const isHttp =
+        s.transport === 'http' ||
+        s.type === 'http' ||
+        (typeof s.url === 'string' && typeof s.command !== 'string');
+      if (isHttp) {
+        if (s.url !== undefined) entry.url = s.url;
+        if (s.headers !== undefined) entry.headers = s.headers;
+        // Bob turns OAuth off with `oauth.enabled: false` rather than a bare `false`.
+        if (s.oauth !== undefined) entry.oauth = s.oauth === false ? { enabled: false } : s.oauth;
+      } else {
+        if (s.command !== undefined) entry.command = s.command;
+        if (s.args !== undefined) entry.args = s.args;
+        if (s.env !== undefined) entry.env = s.env;
+        if (s.cwd !== undefined) entry.cwd = s.cwd;
+      }
+      if (s.timeout !== undefined) entry.timeout = s.timeout;
+      if (s.enabled === false) entry.disabled = true;
+      return { ...entry, ...preserved };
+    },
+    fromNative(name, raw) {
+      const { disabled, ...entry } = deepClone(raw);
+      if (typeof entry.url === 'string' && typeof entry.command !== 'string') {
+        entry.transport = 'http';
+        entry.type = 'http';
+      }
+      if (disabled === true) entry.enabled = false;
+      return { name, ...entry } as McpServerRegistration;
+    },
+  });
+}
+
 /**
  * Codex adapter — TOML file with stdio and streamable HTTP servers.
  * Config: ~/.codex/config.toml, key: mcp_servers.

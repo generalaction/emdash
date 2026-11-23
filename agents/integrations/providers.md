@@ -7,13 +7,13 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (37)
+## Current Providers (38)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero, bob
 
-## Current ACP-Capable Providers (23)
+## Current ACP-Capable Providers (24)
 
-codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, prime-agent, codebuddy
+codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, prime-agent, codebuddy, bob
 
 ## Provider Metadata Includes
 
@@ -140,6 +140,16 @@ you select an OrcaRouter model from the OpenCode model picker.
   synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP
   sessions receive those definitions through `session/new`, and Prime exposes them to the model
   through its pre-imported `mcp` Python program.
+- IBM Bob (Bob Shell 2.x) runs `bob chat` in terminal mode and its native ACP server
+  (`bob acp`) in chat mode. The initial prompt is passed after `--` because Bob rejects a
+  positional that looks like an option. A bare `--resume` reopens the latest task of the
+  worktree. Emdash never passes `--accept-license` or `--trust`: Bob's license and SSO sign-in
+  are completed by the user in the TUI (ACP sessions report `auth_required` until then, or use
+  `BOB_API_KEY`). When worktree auto-trust applies, Emdash records the worktree in
+  `~/.bob/trustedFolders.json` so Bob does not ask per task; a decision the user already made
+  for that folder, or entries that already make it trusted, are left alone. MCP servers are
+  synchronized to `~/.bob/settings/mcp.json`. Bob has no hook integration yet, so terminal
+  sessions only get input-derived status.
 
 ## Adding Or Changing A Provider
 

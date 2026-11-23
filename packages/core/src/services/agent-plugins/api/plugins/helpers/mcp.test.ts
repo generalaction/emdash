@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 import {
   ampMcpAdapter,
+  bobMcpAdapter,
   codexMcpAdapter,
   createMcpAdapter,
   crushMcpAdapter,
@@ -257,6 +258,117 @@ describe('droidMcpAdapter', () => {
     const result = await adapter.readServers(fs);
 
     expect(result.map((server) => server.name).sort()).toEqual(['droidLegacy', 'factoryLegacy']);
+  });
+});
+
+// ── Bob adapter ─────────────────────────────────────────────────────────────
+
+describe('bobMcpAdapter', () => {
+  const adapter = bobMcpAdapter();
+
+  it('writes servers the way `bob mcp add` does', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'playwright',
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', '@playwright/mcp'],
+        env: { BROWSER: 'chromium' },
+        cwd: '/work',
+        enabled: false,
+      },
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer token' },
+        timeout: 30_000,
+        enabled: true,
+      },
+      { name: 'no-oauth', type: 'http', url: 'https://example.com/open', oauth: false },
+    ]);
+
+    const raw = await fs.read('.bob/settings/mcp.json');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw!)).toEqual({
+      mcpServers: {
+        playwright: {
+          command: 'npx',
+          args: ['-y', '@playwright/mcp'],
+          env: { BROWSER: 'chromium' },
+          cwd: '/work',
+          disabled: true,
+        },
+        docs: {
+          url: 'https://example.com/mcp',
+          headers: { Authorization: 'Bearer token' },
+          timeout: 30_000,
+        },
+        'no-oauth': { url: 'https://example.com/open', oauth: { enabled: false } },
+      },
+    });
+  });
+
+  it('reads entries written by the Bob CLI', async () => {
+    const fs = createMemoryFs({
+      '.bob/settings/mcp.json': jsonFile({
+        mcpServers: {
+          remote: { url: 'https://example.com/mcp', alwaysAllow: ['search'] },
+          local: { command: 'node', args: ['server.js'], disabled: true },
+          enabledAgain: { command: 'node', disabled: false },
+        },
+      }),
+    });
+
+    const servers = await adapter.readServers(fs);
+
+    expect(servers).toEqual([
+      {
+        name: 'remote',
+        url: 'https://example.com/mcp',
+        alwaysAllow: ['search'],
+        transport: 'http',
+        type: 'http',
+      },
+      { name: 'local', command: 'node', args: ['server.js'], enabled: false },
+      { name: 'enabledAgain', command: 'node' },
+    ]);
+  });
+
+  it('keeps Bob-only tool settings and unrelated config when rewriting a server', async () => {
+    const fs = createMemoryFs({
+      '.bob/settings/mcp.json': jsonFile({
+        somethingElse: true,
+        mcpServers: {
+          docs: {
+            type: 'http',
+            url: 'https://old.example.com/mcp',
+            headers: { 'X-Old': '1' },
+            alwaysAllow: ['search'],
+            disabledTools: ['delete'],
+            disabled: true,
+          },
+        },
+      }),
+    });
+
+    await adapter.writeServers(fs, [
+      { name: 'docs', transport: 'http', type: 'http', url: 'https://new.example.com/mcp' },
+    ]);
+
+    expect(JSON.parse((await fs.read('.bob/settings/mcp.json'))!)).toEqual({
+      somethingElse: true,
+      mcpServers: {
+        docs: {
+          url: 'https://new.example.com/mcp',
+          alwaysAllow: ['search'],
+          disabledTools: ['delete'],
+        },
+      },
+    });
   });
 });
 

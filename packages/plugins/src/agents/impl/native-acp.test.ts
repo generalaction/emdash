@@ -19,6 +19,7 @@ const nativeAcpProviders: Array<{
     args: ['--acp'],
     env: { AUGMENT_DISABLE_AUTO_UPDATE: '1' },
   },
+  { id: 'bob', args: ['acp'] },
   { id: 'cline', args: ['--acp'] },
   { id: 'codebuddy', args: ['--acp'] },
   { id: 'copilot', args: ['--acp'] },

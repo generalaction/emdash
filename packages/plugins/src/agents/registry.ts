@@ -5,6 +5,7 @@ import { provider as amp } from './impl/amp';
 import { provider as antigravity } from './impl/antigravity';
 import { provider as auggie } from './impl/auggie';
 import { provider as autohand } from './impl/autohand';
+import { provider as bob } from './impl/bob';
 import { provider as charm } from './impl/charm';
 import { provider as claude } from './impl/claude';
 import { provider as cline } from './impl/cline';
@@ -82,6 +83,7 @@ for (const p of [
   mimocode,
   muse,
   zero,
+  bob,
 ]) {
   pluginRegistry.register(p);
 }
