@@ -7,13 +7,13 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (37)
+## Current Providers (38)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero, bob
 
-## Current ACP-Capable Providers (23)
+## Current ACP-Capable Providers (24)
 
-codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, prime-agent, codebuddy
+codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, prime-agent, codebuddy, bob
 
 ## Provider Metadata Includes
 
@@ -140,6 +140,10 @@ you select an OrcaRouter model from the OpenCode model picker.
   synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP
   sessions receive those definitions through `session/new`, and Prime exposes them to the model
   through its pre-imported `mcp` Python program.
+- IBM Bob runs `bob chat` in terminal mode and its native ACP server (`bob acp`) in chat mode.
+  The initial prompt follows `--` because Bob rejects a positional that looks like an option.
+  Emdash never passes `--accept-license` or `--trust`; auto-trusted worktrees are recorded in
+  `~/.bob/trustedFolders.json`, and MCP servers sync to `~/.bob/settings/mcp.json`.
 
 ## Adding Or Changing A Provider
 
