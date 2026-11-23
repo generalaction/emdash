@@ -775,6 +775,10 @@
   --chat-code-bg: var(--background-1);
   --chat-code-inline-bg: rgba(0, 0, 0, 0.06);
   --chat-table-header-bg: var(--background-1);
+  /* Keep in sync with CHAT_FONT_SANS / CHAT_FONT_MONO in
+     src/core/features/conversations/api/browser/chat/chat-font-stacks.ts — chat-ui
+     pre-measures transcript text with those stacks, so a mismatch here clips text
+     at the right edge of the chat column. Guarded by chat-font-stacks.test.ts. */
   --chat-font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
     'Droid Sans', 'Helvetica Neue', sans-serif;
@@ -819,6 +823,10 @@
   --chat-code-bg: var(--background-2);
   --chat-code-inline-bg: rgba(255, 255, 255, 0.08);
   --chat-table-header-bg: var(--background-2);
+  /* Keep in sync with CHAT_FONT_SANS / CHAT_FONT_MONO in
+     src/core/features/conversations/api/browser/chat/chat-font-stacks.ts — chat-ui
+     pre-measures transcript text with those stacks, so a mismatch here clips text
+     at the right edge of the chat column. Guarded by chat-font-stacks.test.ts. */
   --chat-font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
     'Droid Sans', 'Helvetica Neue', sans-serif;
