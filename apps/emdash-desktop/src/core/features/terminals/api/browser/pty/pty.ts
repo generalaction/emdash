@@ -26,6 +26,9 @@ export const TERMINAL_PADDING_PX = 8;
 // default line height so ANSI block QR codes have no vertical seams.
 export const TERMINAL_LINE_HEIGHT = 1;
 export const TERMINAL_LETTER_SPACING = 0;
+// TUIs such as Claude Code emit ANSI black text that disappears on the dark
+// theme's background; xterm lifts any colour below this WCAG ratio.
+export const TERMINAL_MINIMUM_CONTRAST_RATIO = 4.5;
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
@@ -130,6 +133,7 @@ export class FrontendPty {
       fontSize: 13,
       lineHeight: TERMINAL_LINE_HEIGHT,
       letterSpacing: TERMINAL_LETTER_SPACING,
+      minimumContrastRatio: TERMINAL_MINIMUM_CONTRAST_RATIO,
       allowProposedApi: true,
       scrollOnUserInput: false,
       linkHandler: {
