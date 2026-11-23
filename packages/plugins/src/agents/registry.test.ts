@@ -22,6 +22,7 @@ const GLOBAL_HOOK_PROVIDERS = [
   'mistral',
   'muse',
   'oh-my-pi',
+  'omo',
   'opencode',
   'pi',
   'prime-agent',

@@ -39,7 +39,7 @@ describe('TuiConversationProvider', () => {
     expect(resume).not.toHaveBeenCalled();
   });
 
-  it.each(['antigravity', 'codex', 'prime-agent'])(
+  it.each(['antigravity', 'codex', 'prime-agent', 'omo'])(
     'routes native-id provider %s to the runtime resume path when a native id exists',
     async (providerId) => {
       const provider = createProvider();
@@ -54,6 +54,26 @@ describe('TuiConversationProvider', () => {
         expect.objectContaining({
           providerId,
           sessionId: 'native-session',
+          initialPrompt: undefined,
+        })
+      );
+      expect(start).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([undefined, 'conversation-1'])(
+    'does not substitute the conversation UUID for a missing OmO native session (%s)',
+    async (sessionId) => {
+      const provider = createProvider();
+      await provider.ensureSession({
+        conversation: conversation({ providerId: 'omo', sessionId }),
+        mode: 'resume',
+        initialPrompt: 'do not replay',
+      });
+      expect(resume).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: null,
+          chosenSessionId: null,
           initialPrompt: undefined,
         })
       );

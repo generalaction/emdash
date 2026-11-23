@@ -92,16 +92,17 @@ export class AgentHookInstaller {
     if (!plugin || !descriptor || descriptor.kind === 'none') return null;
 
     const baseConfigContext = await this.options.agentHost.configRootContext();
-    const configContext = params.env
-      ? {
-          ...baseConfigContext,
-          env: mergeAgentEnvLayers(
+    const configContext = {
+      ...baseConfigContext,
+      cwd: params.workspacePath,
+      env: params.env
+        ? mergeAgentEnvLayers(
             baseConfigContext.platform === 'windows' ? 'windows' : 'posix',
             baseConfigContext.env,
             params.env
-          ),
-        }
-      : baseConfigContext;
+          )
+        : baseConfigContext.env,
+    };
     if (descriptor.kind === 'config' && plugin.behavior.hooks) {
       const behavior = plugin.behavior.hooks;
       const roots =

@@ -72,7 +72,8 @@ describe('AgentPluginHost', () => {
     });
   });
 
-  it('resolves TUI providers with prompt and hook behavior', () => {
+  it('resolves TUI providers with prompt, hooks and strict resume policy', () => {
+    const resumeFallback = 'error';
     const buildCommand = (_ctx: CommandContext): AgentCommand => ({
       command: 'test',
       args: [],
@@ -83,6 +84,7 @@ describe('AgentPluginHost', () => {
       plugin({
         prompt: { kind: 'pty-only' },
         hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['start'] },
+        sessions: { kind: 'resumable', resumeFallback },
         behavior: {
           prompt: { buildCommand },
           hooks: {
@@ -101,6 +103,7 @@ describe('AgentPluginHost', () => {
       name: 'Test Agent',
       prompt: { kind: 'pty-only' },
       hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['start'] },
+      resumeFallback,
       buildCommand,
       parseHookEvent,
     });
@@ -464,6 +467,7 @@ function plugin(
         };
     prompt?: CLIAgentPluginProvider['capabilities']['prompt'];
     hooks?: CLIAgentPluginProvider['capabilities']['hooks'];
+    sessions?: CLIAgentPluginProvider['capabilities']['sessions'];
     mcp?: CLIAgentPluginProvider['capabilities']['mcp'];
     behavior?: Partial<CLIAgentPluginProvider['behavior']>;
   } = {}
@@ -480,6 +484,7 @@ function plugin(
       auth: overrides.auth ?? { kind: 'none' },
       prompt: overrides.prompt ?? { kind: 'argv' },
       hooks: overrides.hooks ?? { kind: 'none' },
+      sessions: overrides.sessions ?? { kind: 'resumable' },
       mcp: overrides.mcp ?? { kind: 'none' },
       hostDependency: {
         binaryNames: ['test'],
