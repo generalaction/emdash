@@ -1,6 +1,6 @@
 import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
 import { openFixture } from '@tooling/utils/db';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sshConnections } from '@core/services/app-db/node/schema';
 import {
   createWorkspaceRegistry,
@@ -41,6 +41,7 @@ describe('WorkspaceRegistry', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     fixture.close();
   });
 
@@ -107,6 +108,36 @@ describe('WorkspaceRegistry', () => {
       observedAt: Date.parse('2026-01-01T00:00:00.000Z'),
       updatedAt: '2026-01-02T00:00:00.000Z',
     });
+  });
+
+  it.each([
+    ['/repo', '/repo', '/repo'],
+    ['C:\\Repo', 'c:\\REPO', 'C:\\Repo'],
+    ['/repo/../repo', '/repo', '/repo'],
+  ])(
+    'refreshes an unchanged path identity without scanning the host: %s',
+    (path, incoming, display) => {
+      const registry = createWorkspaceRegistry(fixture.db);
+      registry.adopt({ id: 'workspace', type: 'local', location: 'local', path });
+      const lookup = vi.spyOn(registry, 'findLiveByPath');
+
+      registry.refresh('workspace', { path: incoming, observedStatus: 'present' });
+
+      expect(lookup).not.toHaveBeenCalled();
+      expect(registry.getLive('workspace')).toMatchObject({
+        path: display,
+        observedStatus: 'present',
+      });
+    }
+  );
+
+  it('still rejects a refresh that moves into another workspace path', () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.adopt({ id: 'first', type: 'local', location: 'local', path: '/first' });
+    registry.adopt({ id: 'second', type: 'local', location: 'local', path: '/second' });
+
+    expect(() => registry.refresh('first', { path: '/second' })).toThrow('collision');
+    expect(registry.getLive('first')?.path).toBe('/first');
   });
 
   it('claims a Host record and explicitly retracks the same canonical id', () => {
