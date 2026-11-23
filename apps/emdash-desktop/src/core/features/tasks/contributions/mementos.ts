@@ -89,6 +89,8 @@ const taskDiffPreferencesV1Schema = z.object({
   // it (ChangesViewStore keeps "never set" semantics); optional-on-v1 so
   // older app versions still parse documents written by newer ones.
   expandedSections: changesExpandedSectionsSchema.optional(),
+  // Collapse unchanged diff regions. Optional-on-v1 for the same reason.
+  collapseUnchanged: z.boolean().optional(),
 });
 
 export const taskDiffPreferencesSchema = defineVersionedSchema()
