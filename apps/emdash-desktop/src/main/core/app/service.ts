@@ -593,7 +593,8 @@ class AppService implements Disposable {
   }): Promise<string | undefined> {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       title: args.title,
-      properties: ['openDirectory'],
+      // `createDirectory` adds the New Folder button on macOS; other platforms always offer it.
+      properties: ['openDirectory', 'createDirectory'],
       message: args.message,
       defaultPath: args.defaultPath,
     });
