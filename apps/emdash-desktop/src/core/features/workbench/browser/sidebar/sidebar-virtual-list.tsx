@@ -11,6 +11,7 @@ import {
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import {
@@ -69,7 +70,12 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   /** Where the dragged row was and how tall the list was when the drag started. */
-  const [dragStart, setDragStart] = useState<{ index: number; totalSize: number } | null>(null);
+  const [dragStart, setDragStart] = useState<{
+    index: number;
+    totalSize: number;
+    /** The pointer has left the picked-up row, so the reserved space can go. */
+    moved: boolean;
+  } | null>(null);
   const openGroupTimerRef = useRef<{
     groupId: string;
     timer: ReturnType<typeof setTimeout>;
@@ -120,13 +126,14 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     parseDndId(activeDragId)?.kind === 'project' &&
     sidebar.projectGroups.length > 0 &&
     sidebar.projectSections[0]?.projectIds.length === 0;
-  // Folding removes rows above the dragged one. Reserve their space instead of
-  // scrolling (which the browser clamps near the top), so the dragged row stays
-  // exactly where it was picked up, under the pointer, and a drop without moving
-  // keeps the order. The list keeps at least its old height so the scroll
+  // Folding removes rows above the dragged one. Until the pointer leaves the
+  // picked-up row, reserve their space instead of scrolling (which the browser
+  // clamps near the top), so the row stays under the pointer and a drop without
+  // moving keeps the order. Once it moves the space goes, so no gap is left
+  // under the list's top. The list keeps at least its old height so the scroll
   // position is never clamped either.
   const foldOffset =
-    dragStart && sidebar.isDragFolded && activeDragIndex !== -1
+    dragStart && !dragStart.moved && sidebar.isDragFolded && activeDragIndex !== -1
       ? Math.max(0, (dragStart.index - activeDragIndex) * ROW_HEIGHT)
       : 0;
 
@@ -212,8 +219,14 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     setActiveDragId(id);
     if (!dragged || dragged.kind === 'task' || dragged.kind === 'ungroup-target') return;
     const index = allDndIds.indexOf(id);
-    if (index !== -1) setDragStart({ index, totalSize: virtualizer.getTotalSize() });
+    if (index !== -1) setDragStart({ index, totalSize: virtualizer.getTotalSize(), moved: false });
     sidebar.beginDragFold(dragged.kind);
+  }
+
+  function handleDragMove({ delta }: DragMoveEvent) {
+    if (dragStart && !dragStart.moved && Math.abs(delta.y) > ROW_HEIGHT / 2) {
+      setDragStart({ ...dragStart, moved: true });
+    }
   }
 
   // Hovering a project over a collapsed group for a moment opens it.
@@ -257,6 +270,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       autoScroll={{ threshold: { x: 0, y: 0.18 }, acceleration: 8, interval: 5 }}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={() => endDrag()}
