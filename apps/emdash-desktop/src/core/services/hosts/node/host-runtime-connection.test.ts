@@ -16,6 +16,10 @@ describe('HostRuntimeConnection', () => {
   let peer: ReturnType<typeof createFaultPeer>;
   let runtime: HostRuntimeConnection;
   let afterMessage: (() => void) | undefined;
+  const activityListeners = new Set<() => void>();
+  const emitActivity = () => {
+    for (const listener of activityListeners) listener();
+  };
   const onDisconnect = vi.fn();
   const onRequestTimeout = vi.fn();
 
@@ -24,6 +28,7 @@ describe('HostRuntimeConnection', () => {
     onDisconnect.mockClear();
     onRequestTimeout.mockClear();
     afterMessage = undefined;
+    activityListeners.clear();
     scope = createScope({ label: 'runtime-connection-test' });
     peer = createFaultPeer();
     runtime = new HostRuntimeConnection({
@@ -38,6 +43,10 @@ describe('HostRuntimeConnection', () => {
               listener(message);
               afterMessage?.();
             }),
+          onActivity: (listener) => {
+            activityListeners.add(listener);
+            return () => activityListeners.delete(listener);
+          },
         };
       },
       openTimeoutMs: 100,
@@ -159,6 +168,23 @@ describe('HostRuntimeConnection', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(probe.outcome).toBe('fulfilled');
+    releaseHealth();
+  });
+
+  it('accepts a late health reply while one large frame is still arriving', async () => {
+    // On a slow link a single multi-megabyte frame (a resync snapshot) can take longer than the
+    // health deadline to complete. No whole message arrives meanwhile, but bytes do.
+    await runtime.establish(target, scope.signal);
+    const releaseHealth = peer.stallHealth();
+    const probe = observePromise(runtime.probe(scope.signal));
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(20);
+      emitActivity();
+    }
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(probe.outcome).toBe('fulfilled');
+    expect(activityListeners.size).toBe(0);
     releaseHealth();
   });
 

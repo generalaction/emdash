@@ -83,6 +83,33 @@ describe('streamTransport', () => {
     expect(messages).toEqual([{ kind: 'blob-chunk', channel: 'blob', seq: 7, data: payload }]);
   });
 
+  it('reports inbound activity before a split frame completes', () => {
+    const senderInput = new FakeReadable();
+    const senderOutput = new FakeWritable();
+    streamTransport(senderInput, senderOutput).post({ kind: 'cancel', id: 'call-1' });
+    const frame = concatChunks(senderOutput.chunks);
+
+    const input = new FakeReadable();
+    const receiver = streamTransport(input, new FakeWritable());
+    const messages: WireMessage[] = [];
+    let activity = 0;
+    receiver.onMessage((message) => messages.push(message));
+    const stop = receiver.onActivity?.(() => activity++);
+
+    input.push(frame.subarray(0, 4));
+    input.push(frame.subarray(4, frame.byteLength - 1));
+    expect(activity).toBe(2);
+    expect(messages).toEqual([]);
+
+    input.push(frame.subarray(frame.byteLength - 1));
+    expect(activity).toBe(3);
+    expect(messages).toEqual([{ kind: 'cancel', id: 'call-1' }]);
+
+    stop?.();
+    input.push(frame);
+    expect(activity).toBe(3);
+  });
+
   it('disconnects on corrupt frames', () => {
     const input = new FakeReadable();
     const output = new FakeWritable();

@@ -140,6 +140,11 @@ export type WireTransport = {
   onMessage(cb: (message: WireMessage) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
   /**
+   * Fires whenever inbound bytes arrive, before they complete a message. A large frame on a slow
+   * link can take many seconds to finish; byte arrival is still proof the peer is alive.
+   */
+  onActivity?(cb: () => void): Unsubscribe;
+  /**
    * Fires whenever the transport establishes connectivity, including the first
    * time. Presence of this hook marks the transport as reconnect-capable and
    * opts connections into holding calls issued while disconnected until the

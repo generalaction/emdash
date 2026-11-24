@@ -119,12 +119,20 @@ export class HostRuntimeConnection {
       callTimeoutMs: this.options.healthTimeoutMs,
     });
     // The transport is one ordered stream, so a busy host (a post-reconnect state burst, many
-    // agent sessions) can hold the health reply behind other traffic past the deadline. Messages
-    // still arriving on this transport prove it is alive; only silence is evidence of failure.
+    // agent sessions) can hold the health reply behind other traffic past the deadline. Traffic
+    // still arriving on this transport proves it is alive; only silence is evidence of failure.
+    // Bytes count, not just whole messages: on a slow link one multi-megabyte frame can take
+    // longer than the deadline to complete while data flows the whole time.
     let delivered = false;
-    const stopObserving = physical.onMessage(() => {
+    const markDelivered = () => {
       delivered = true;
-    });
+    };
+    const stopObservingMessages = physical.onMessage(markDelivered);
+    const stopObservingActivity = physical.onActivity?.(markDelivered);
+    const stopObserving = () => {
+      stopObservingMessages();
+      stopObservingActivity?.();
+    };
     try {
       await client(workspaceWireContract, connection).health(undefined, { signal });
       if (generation !== this.transport.generation) throw new Error('Superseded health response');
