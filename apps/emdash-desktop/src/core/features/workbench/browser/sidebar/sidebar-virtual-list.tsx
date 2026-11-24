@@ -3,14 +3,14 @@ import {
   DndContext,
   DragOverlay,
   MeasuringStrategy,
+  useDroppable,
   PointerSensor,
   pointerWithin,
-  useDndContext,
   useSensor,
   useSensors,
-  type ClientRect,
   type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
@@ -19,12 +19,12 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  type SortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
@@ -34,13 +34,32 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
+import { cn } from '@core/primitives/styling/browser/cn';
+import {
+  groupOrderAfterMove,
+  projectDropIndex,
+  projectPlacementAfterMove,
+} from './group-drop-target';
+import { SidebarProjectGroupItem } from './project-group-item';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
+/**
+ * Projects inside a group move one step in; ungrouped projects stay level with
+ * the group headers. Tasks sit a half step right of their project either way,
+ * so each level's text starts right of its parent's.
+ */
+const PROJECT_INDENT_PX = 16;
+const TASK_INDENT_PX = 8;
+/** Horizontal center of a row's icon column, where a group's guide line runs. */
+const GROUP_GUIDE_X_PX = 16;
+/** How long a project must hover over a collapsed group before it opens. */
+const OPEN_GROUP_DELAY_MS = 600;
 
 export const SidebarVirtualList = observer(function SidebarVirtualList() {
-  const rows = getSidebarStore().sidebarRows;
+  const sidebar = getSidebarStore();
+  const rows = sidebar.sidebarRows;
   const { currentView } = useWorkspaceSlots();
   const taskParams = useViewParams(taskViewDef) ?? {
     projectId: undefined,
@@ -49,29 +68,91 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const projectParams = useViewParams(projectViewDef) ?? { projectId: undefined };
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const initialPointerYRef = useRef<number | null>(null);
-  const initialScrollTopRef = useRef(0);
-  const dragPointerYRef = useRef<number | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const [dragPointerY, setDragPointerY] = useState<number | null>(null);
+  /** Where the dragged row was and how tall the list was when the drag started. */
+  const [dragStart, setDragStart] = useState<{
+    index: number;
+    totalSize: number;
+    /** The pointer has left the picked-up row, so the reserved space can go. */
+    moved: boolean;
+  } | null>(null);
+  const openGroupTimerRef = useRef<{
+    groupId: string;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const activeTaskProjectExpanded =
     currentView === 'task' && taskParams.projectId
-      ? getSidebarStore().expandedProjectIds.has(taskParams.projectId)
+      ? sidebar.expandedProjectIds.has(taskParams.projectId)
       : null;
+  const activeProjectId =
+    currentView === 'task'
+      ? taskParams.projectId
+      : currentView === 'project'
+        ? projectParams.projectId
+        : undefined;
+  const activeGroupId = activeProjectId ? sidebar.groupIdForProject(activeProjectId) : undefined;
+  const activeGroupCollapsed = activeGroupId ? sidebar.isGroupCollapsed(activeGroupId) : null;
+  // Folding for a drag is temporary: hold the values from before it so the
+  // effect below does not scroll to the active row when a drag starts or ends.
+  const navStateRef = useRef({
+    expanded: activeTaskProjectExpanded,
+    collapsed: activeGroupCollapsed,
+  });
+  if (!sidebar.isDragFolded) {
+    navStateRef.current = { expanded: activeTaskProjectExpanded, collapsed: activeGroupCollapsed };
+  }
+  const navExpanded = navStateRef.current.expanded;
+  const navCollapsed = navStateRef.current.collapsed;
+
   const allDndIds = useMemo(() => rows.map(rowToDndId), [rows]);
+  // Slide rows to where the drop will put the project (see `projectDropIndex`).
+  const sortingStrategy = useMemo<SortingStrategy>(
+    () => (args) =>
+      verticalListSortingStrategy(
+        rows[args.activeIndex]?.kind === 'project'
+          ? { ...args, overIndex: projectDropIndex(rows, args.activeIndex, args.overIndex) }
+          : args
+      ),
+    [rows]
+  );
+  const activeDragIndex = activeDragId ? allDndIds.indexOf(activeDragId) : -1;
+  // Only needed when every project is grouped: otherwise the ungrouped
+  // projects at the top are where a project leaves its group.
+  const showUngroupTarget =
+    activeDragId !== null &&
+    parseDndId(activeDragId)?.kind === 'project' &&
+    sidebar.projectGroups.length > 0 &&
+    sidebar.projectSections[0]?.projectIds.length === 0;
+  // Folding removes rows above the dragged one. Until the pointer leaves the
+  // picked-up row, reserve their space instead of scrolling (which the browser
+  // clamps near the top), so the row stays under the pointer and a drop without
+  // moving keeps the order. Once it moves the space goes, so no gap is left
+  // under the list's top. The list keeps at least its old height so the scroll
+  // position is never clamped either.
+  const foldOffset =
+    dragStart && !dragStart.moved && sidebar.isDragFolded && activeDragIndex !== -1
+      ? Math.max(0, (dragStart.index - activeDragIndex) * ROW_HEIGHT)
+      : 0;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
+    paddingStart: foldOffset,
+    // Keep the dragged row mounted even when folding moves it out of view.
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+      if (activeDragIndex === -1 || indexes.includes(activeDragIndex)) return indexes;
+      return [...indexes, activeDragIndex].sort((a, b) => a - b);
+    },
   });
 
   // Scroll the active project/task into view only when the navigation target itself
-  // changes, plus the active task's project expansion state. Re-running on every
+  // changes, plus the active task's project expansion state and its group's collapse state. Re-running on every
   // `rows` change would yank the user back to the active row whenever the
   // sidebar mutates (e.g. deleting an unrelated task), but direct navigation to a
   // task in a collapsed project needs one rerun after `revealProject`.
@@ -114,83 +195,72 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     taskParams.projectId,
     taskParams.taskId,
     projectParams.projectId,
-    activeTaskProjectExpanded,
+    navExpanded,
+    navCollapsed,
     virtualizer,
   ]);
 
-  function setCurrentDragPointerY(pointerY: number | null) {
-    dragPointerYRef.current = pointerY;
-    setDragPointerY(pointerY);
+  // A pending hover-open must not fire after the list is gone.
+  useEffect(
+    () => () => {
+      if (openGroupTimerRef.current) clearTimeout(openGroupTimerRef.current.timer);
+    },
+    []
+  );
+
+  function cancelOpenGroupTimer() {
+    if (openGroupTimerRef.current) clearTimeout(openGroupTimerRef.current.timer);
+    openGroupTimerRef.current = null;
   }
 
   function handleDragStart(event: DragStartEvent) {
-    const pointerY = getEventClientY(event.activatorEvent);
-    initialPointerYRef.current = pointerY;
-    initialScrollTopRef.current = scrollRef.current?.scrollTop ?? 0;
-    setActiveDragId(String(event.active.id));
-    setCurrentDragPointerY(pointerY);
+    const id = String(event.active.id);
+    const dragged = parseDndId(id);
+    setActiveDragId(id);
+    if (!dragged || dragged.kind === 'task' || dragged.kind === 'ungroup-target') return;
+    const index = allDndIds.indexOf(id);
+    if (index !== -1) setDragStart({ index, totalSize: virtualizer.getTotalSize(), moved: false });
+    sidebar.beginDragFold(dragged.kind);
   }
 
-  function handleDragMove(event: DragMoveEvent) {
-    const initialPointerY = initialPointerYRef.current;
-    if (initialPointerY === null) return;
-    // dnd-kit's `delta` is scroll-adjusted: pointer travel plus however far the list has
-    // scrolled since the drag started. `over.rect` reads in viewport space, so strip the
-    // scroll component to keep the pointer in viewport space for the above/below decision.
-    const scrollTop = scrollRef.current?.scrollTop ?? initialScrollTopRef.current;
-    const scrollDelta = scrollTop - initialScrollTopRef.current;
-    setCurrentDragPointerY(initialPointerY + event.delta.y - scrollDelta);
+  function handleDragMove({ delta }: DragMoveEvent) {
+    if (dragStart && !dragStart.moved && Math.abs(delta.y) > ROW_HEIGHT / 2) {
+      setDragStart({ ...dragStart, moved: true });
+    }
   }
 
-  function clearDragPointerY() {
-    initialPointerYRef.current = null;
+  // Hovering a project over a collapsed group for a moment opens it.
+  function handleDragOver(event: DragOverEvent) {
+    const dragged = parseDndId(String(event.active.id));
+    const over = event.over ? parseDndId(String(event.over.id)) : null;
+    const groupId =
+      dragged?.kind === 'project' &&
+      over?.kind === 'group' &&
+      sidebar.isGroupCollapsed(over.groupId)
+        ? over.groupId
+        : null;
+    if (openGroupTimerRef.current?.groupId === groupId) return;
+    cancelOpenGroupTimer();
+    if (!groupId) return;
+    openGroupTimerRef.current = {
+      groupId,
+      timer: setTimeout(() => {
+        openGroupTimerRef.current = null;
+        sidebar.openGroupWhileDragging(groupId);
+      }, OPEN_GROUP_DELAY_MS),
+    };
+  }
+
+  function endDrag(droppedIntoGroupId?: string | null) {
+    cancelOpenGroupTimer();
+    setDragStart(null);
     setActiveDragId(null);
-    setCurrentDragPointerY(null);
+    sidebar.endDragFold(droppedIntoGroupId);
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    const pointerY = dragPointerYRef.current;
-    clearDragPointerY();
-    if (!over || active.id === over.id) return;
-    const aParsed = parseDndId(String(active.id));
-    const oParsed = parseDndId(String(over.id));
-    if (!aParsed || !oParsed) return;
-
-    const isAbove = isCursorAbove(pointerY, active.rect.current.translated, over.rect);
-
-    if (aParsed.kind === 'project') {
-      const overRowIdx = rows.findIndex((r) => rowToDndId(r) === String(over.id));
-      if (overRowIdx === -1) return;
-      const insertionRowIdx = isAbove ? overRowIdx : overRowIdx + 1;
-      const ids = getSidebarStore()
-        .orderedProjects.map((p) => (p.state === 'unregistered' ? p.id : (p.data?.id ?? '')))
-        .filter(Boolean);
-      const oldIdx = ids.indexOf(aParsed.projectId);
-      if (oldIdx === -1) return;
-      const projectsAbove = rows
-        .slice(0, insertionRowIdx)
-        .filter((r) => r.kind === 'project').length;
-      let newIdx = projectsAbove;
-      if (newIdx > oldIdx) newIdx -= 1;
-      if (newIdx === oldIdx) return;
-      getSidebarStore().setProjectOrder(arrayMove(ids, oldIdx, newIdx));
-    } else if (oParsed.kind === 'task' && oParsed.projectId === aParsed.projectId) {
-      const projectId = aParsed.projectId;
-      const taskIds = rows
-        .filter(
-          (r): r is Extract<SidebarRow, { kind: 'task' }> =>
-            r.kind === 'task' && r.projectId === projectId
-        )
-        .map((r) => r.taskId);
-      const oldIdx = taskIds.indexOf(aParsed.taskId);
-      const overTaskIdx = taskIds.indexOf(oParsed.taskId);
-      if (oldIdx === -1 || overTaskIdx === -1) return;
-      let newIdx = isAbove ? overTaskIdx : overTaskIdx + 1;
-      if (newIdx > oldIdx) newIdx -= 1;
-      if (newIdx === oldIdx) return;
-      getSidebarStore().setTaskOrder(projectId, arrayMove(taskIds, oldIdx, newIdx));
-    }
+    endDrag(over ? applyDrop(rows, String(active.id), String(over.id)) : undefined);
   }
 
   return (
@@ -201,60 +271,103 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       autoScroll={{ threshold: { x: 0, y: 0.18 }, acceleration: 8, interval: 5 }}
       onDragStart={handleDragStart}
       onDragMove={handleDragMove}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={clearDragPointerY}
+      onDragCancel={() => endDrag()}
     >
-      <SortableContext items={allDndIds} strategy={verticalListSortingStrategy}>
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-            {virtualizer.getVirtualItems().map((vItem) => {
-              const row = rows[vItem.index];
-              if (!row) return null;
-              const dndId = rowToDndId(row);
-              const vStyle: React.CSSProperties = {
-                position: 'absolute',
-                top: vItem.start,
-                left: 0,
-                width: '100%',
-                height: `${vItem.size}px`,
-              };
-              if (row.kind === 'project') {
-                return (
-                  <SortableRow key={row.projectId} dndId={dndId} style={vStyle}>
-                    <SidebarProjectItem projectId={row.projectId} />
-                  </SortableRow>
-                );
-              }
-              return (
-                <SortableRow key={`${row.projectId}:${row.taskId}`} dndId={dndId} style={vStyle}>
-                  <SidebarTaskItem projectId={row.projectId} taskId={row.taskId} />
-                </SortableRow>
-              );
-            })}
+      <SortableContext items={allDndIds} strategy={sortingStrategy}>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {showUngroupTarget && <UngroupTarget />}
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
+            <div
+              style={{
+                height: Math.max(virtualizer.getTotalSize(), dragStart?.totalSize ?? 0),
+                position: 'relative',
+              }}
+            >
+              {virtualizer.getVirtualItems().map((vItem) => {
+                const row = rows[vItem.index];
+                return row ? renderRow(row, vItem.start, vItem.size) : null;
+              })}
+            </div>
           </div>
         </div>
       </SortableContext>
       <DragOverlay dropAnimation={null}>
         {activeDragId ? <DragOverlayContent dndId={activeDragId} /> : null}
       </DragOverlay>
-      <InsertionIndicator pointerY={dragPointerY} />
     </DndContext>
   );
 });
 
+function renderRow(row: SidebarRow, top: number, height: number) {
+  const dndId = rowToDndId(row);
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    top,
+    left: 0,
+    width: '100%',
+    height: `${height}px`,
+    paddingLeft: rowIndent(row),
+  };
+  const guide =
+    row.kind !== 'group' && getSidebarStore().groupIdForProject(row.projectId) ? (
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 w-px bg-border"
+        style={{ left: GROUP_GUIDE_X_PX }}
+      />
+    ) : null;
+  if (row.kind === 'group') {
+    return (
+      <SortableRow key={dndId} dndId={dndId} style={style}>
+        <SidebarProjectGroupItem groupId={row.groupId} />
+      </SortableRow>
+    );
+  }
+  if (row.kind === 'project') {
+    return (
+      <SortableRow key={row.projectId} dndId={dndId} style={style}>
+        {guide}
+        <SidebarProjectItem projectId={row.projectId} />
+      </SortableRow>
+    );
+  }
+  return (
+    <SortableRow key={`${row.projectId}:${row.taskId}`} dndId={dndId} style={style}>
+      {guide}
+      <SidebarTaskItem projectId={row.projectId} taskId={row.taskId} />
+    </SortableRow>
+  );
+}
+
+/** Left indent of a row; see `PROJECT_INDENT_PX`. */
+function rowIndent(row: SidebarRow): number {
+  if (row.kind === 'group') return 0;
+  const base = getSidebarStore().groupIdForProject(row.projectId) ? PROJECT_INDENT_PX : 0;
+  return row.kind === 'task' ? base + TASK_INDENT_PX : base;
+}
+
+const toGroupDndId = (id: string) => `group::${id}`;
 const toProjectDndId = (id: string) => `proj::${id}`;
 const toTaskDndId = (projectId: string, taskId: string) => `task::${projectId}::${taskId}`;
+const UNGROUP_TARGET_DND_ID = 'ungroup-target';
 
 type SidebarDndId =
+  | { kind: 'group'; groupId: string }
   | { kind: 'project'; projectId: string }
-  | { kind: 'task'; projectId: string; taskId: string };
+  | { kind: 'task'; projectId: string; taskId: string }
+  | { kind: 'ungroup-target' };
 
 function rowToDndId(row: SidebarRow): string {
+  if (row.kind === 'group') return toGroupDndId(row.groupId);
   if (row.kind === 'project') return toProjectDndId(row.projectId);
   return toTaskDndId(row.projectId, row.taskId);
 }
 
 function parseDndId(id: string): SidebarDndId | null {
+  if (id === UNGROUP_TARGET_DND_ID) return { kind: 'ungroup-target' };
+  if (id.startsWith('group::')) return { kind: 'group', groupId: id.slice(7) };
   if (id.startsWith('proj::')) return { kind: 'project', projectId: id.slice(6) };
   if (id.startsWith('task::')) {
     const [, projectId, taskId] = id.split('::');
@@ -263,55 +376,104 @@ function parseDndId(id: string): SidebarDndId | null {
   return null;
 }
 
-// Project drags consider every visible row so dropping over a task maps to its
-// owning project in onDragEnd without changing the virtualized list mid-drag.
-// Task drags stay restricted to their own project's tasks.
+/**
+ * While dragging, the sidebar is folded to one level (see `beginDragFold`), so
+ * the drop is plain sortable semantics: the dragged row takes the place of the
+ * row it is over, exactly as the sliding rows show. Group drags only target
+ * group headers, project drags projects and headers, task drags the tasks of
+ * their own project.
+ */
 const sidebarCollision: CollisionDetection = (args) => {
-  const activeId = String(args.active.id);
-  const parsed = parseDndId(activeId);
-  if (!parsed) return [];
+  const dragged = parseDndId(String(args.active.id));
+  if (!dragged || dragged.kind === 'ungroup-target') return [];
+  // The dragged row's own spot stays a target ("stay here"); without it the
+  // nearest neighbour counts as hovered and slides as soon as a drag starts.
   const containers = args.droppableContainers.filter((c) => {
-    const id = String(c.id);
-    if (id === activeId) return false;
-    if (parsed.kind === 'task') {
-      const cParsed = parseDndId(id);
-      return cParsed?.kind === 'task' && cParsed.projectId === parsed.projectId;
+    const target = parseDndId(String(c.id));
+    if (dragged.kind === 'group') return target?.kind === 'group';
+    if (dragged.kind === 'project') {
+      return (
+        target?.kind === 'group' || target?.kind === 'project' || target?.kind === 'ungroup-target'
+      );
     }
-    return true;
+    return target?.kind === 'task' && target.projectId === dragged.projectId;
   });
   const filteredArgs = { ...args, droppableContainers: containers };
   const pointerCollisions = pointerWithin(filteredArgs);
-  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(filteredArgs);
+  if (pointerCollisions.length > 0) return pointerCollisions;
+  // The ungroup target only counts with the pointer on it, never as the
+  // nearest row when the pointer is outside the list.
+  return closestCenter({
+    ...filteredArgs,
+    droppableContainers: containers.filter((c) => c.id !== UNGROUP_TARGET_DND_ID),
+  });
 };
 
-function getEventClientY(event: Event): number | null {
-  if ('clientY' in event && typeof event.clientY === 'number') return event.clientY;
-  if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent) {
-    const touch = event.touches[0] ?? event.changedTouches[0];
-    return touch?.clientY ?? null;
+/**
+ * Applies a drop of `activeId` onto `overId` in the folded `rows`. Returns the
+ * group a project was dropped into (`null` for ungrouped), so a group opened by
+ * hovering can stay open.
+ */
+function applyDrop(
+  rows: SidebarRow[],
+  activeId: string,
+  overId: string
+): string | null | undefined {
+  const sidebar = getSidebarStore();
+  const ids = rows.map(rowToDndId);
+  const from = ids.indexOf(activeId);
+  const to = ids.indexOf(overId);
+  const dragged = parseDndId(activeId);
+  if (!dragged || dragged.kind === 'ungroup-target') return undefined;
+  if (dragged.kind === 'project' && overId === UNGROUP_TARGET_DND_ID) {
+    sidebar.placeProject(dragged.projectId, null, 0);
+    return null;
   }
-  return null;
-}
+  if (from === -1 || to === -1 || from === to) return undefined;
 
-function isCursorAbove(
-  pointerY: number | null,
-  translated: ClientRect | null,
-  overRect: ClientRect
-): boolean {
-  if (pointerY !== null) return pointerY < overRect.top + overRect.height / 2;
-  if (!translated) return true;
-  const cursorY = translated.top + translated.height / 2;
-  const overCenterY = overRect.top + overRect.height / 2;
-  return cursorY < overCenterY;
+  if (dragged.kind === 'group') {
+    const order = groupOrderAfterMove(rows, from, to);
+    const oldPos = sidebar.projectGroups.findIndex((g) => g.id === dragged.groupId);
+    const newPos = order.indexOf(dragged.groupId);
+    if (oldPos !== -1 && newPos !== -1 && newPos !== oldPos) {
+      // `moveGroupTo` counts positions before the group is removed.
+      sidebar.moveGroupTo(dragged.groupId, newPos > oldPos ? newPos + 1 : newPos);
+    }
+    return undefined;
+  }
+
+  if (dragged.kind === 'project') {
+    const placement = projectPlacementAfterMove(rows, from, projectDropIndex(rows, from, to));
+    if (!placement) return undefined;
+    sidebar.placeProject(dragged.projectId, placement.groupId, placement.index);
+    return placement.groupId;
+  }
+
+  const over = parseDndId(overId);
+  if (over?.kind !== 'task' || over.projectId !== dragged.projectId) return undefined;
+  const taskIds = rows
+    .filter(
+      (r): r is Extract<SidebarRow, { kind: 'task' }> =>
+        r.kind === 'task' && r.projectId === dragged.projectId
+    )
+    .map((r) => r.taskId);
+  const oldIdx = taskIds.indexOf(dragged.taskId);
+  const newIdx = taskIds.indexOf(over.taskId);
+  if (oldIdx !== -1 && newIdx !== -1) {
+    sidebar.setTaskOrder(dragged.projectId, arrayMove(taskIds, oldIdx, newIdx));
+  }
+  return undefined;
 }
 
 function DragOverlayContent({ dndId }: { dndId: string }) {
   const parsed = parseDndId(dndId);
-  if (!parsed) return null;
+  if (!parsed || parsed.kind === 'ungroup-target') return null;
   return (
     <div className="px-3">
       <div className="rounded-lg bg-background-tertiary-2 shadow-md">
-        {parsed.kind === 'project' ? (
+        {parsed.kind === 'group' ? (
+          <SidebarProjectGroupItem groupId={parsed.groupId} />
+        ) : parsed.kind === 'project' ? (
           <SidebarProjectItem projectId={parsed.projectId} />
         ) : (
           <SidebarTaskItem projectId={parsed.projectId} taskId={parsed.taskId} />
@@ -321,38 +483,28 @@ function DragOverlayContent({ dndId }: { dndId: string }) {
   );
 }
 
-function InsertionIndicator({ pointerY }: { pointerY: number | null }) {
-  const { active, over } = useDndContext();
-  if (!active || !over || active.id === over.id) return null;
-  const activeParsed = parseDndId(String(active.id));
-  const overParsed = parseDndId(String(over.id));
-  if (!activeParsed || !overParsed) return null;
-  if (
-    activeParsed.kind === 'project' &&
-    overParsed.kind === 'task' &&
-    overParsed.projectId === activeParsed.projectId
-  ) {
-    return null;
-  }
-  const overRect = over.rect;
-  if (!overRect) return null;
-  const isAbove = isCursorAbove(pointerY, active.rect.current.translated, overRect);
-  const top = isAbove ? overRect.top : overRect.top + overRect.height;
-  return createPortal(
+/**
+ * While a project is dragged and every project is grouped, covers the
+ * "Projects" header just above the list (where ungrouped projects start) as a
+ * drop target for leaving its group. It adds no row, so nothing shifts.
+ */
+function UngroupTarget() {
+  const { setNodeRef, isOver } = useDroppable({ id: UNGROUP_TARGET_DND_ID });
+  return (
     <div
-      className="bg-primary"
-      style={{
-        position: 'fixed',
-        left: overRect.left + 8,
-        top: top - 1.5,
-        width: Math.max(0, overRect.width - 16),
-        height: 3,
-        borderRadius: 2,
-        pointerEvents: 'none',
-        zIndex: 9999,
-      }}
-    />,
-    document.body
+      ref={setNodeRef}
+      className="absolute inset-x-0 bottom-full z-10 flex h-[40px] items-center bg-(--em-surface) pr-2.5 pl-3"
+    >
+      <div
+        className={cn(
+          'flex h-8 flex-1 items-center rounded-lg border border-dashed border-border px-2 text-sm text-foreground-tertiary-passive',
+          isOver &&
+            'border-foreground-tertiary-passive bg-background-tertiary-2 text-foreground-tertiary'
+        )}
+      >
+        No group
+      </div>
+    </div>
   );
 }
 
