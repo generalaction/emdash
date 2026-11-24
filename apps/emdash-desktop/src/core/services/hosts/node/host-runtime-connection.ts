@@ -5,6 +5,7 @@ import {
   client,
   connect,
   replaceableTransport,
+  WireError,
   type Connection,
   type ContractClient,
   type WireTransport,
@@ -117,10 +118,26 @@ export class HostRuntimeConnection {
       clock: this.options.clock,
       callTimeoutMs: this.options.healthTimeoutMs,
     });
+    // The transport is one ordered stream, so a busy host (a post-reconnect state burst, many
+    // agent sessions) can hold the health reply behind other traffic past the deadline. Messages
+    // still arriving on this transport prove it is alive; only silence is evidence of failure.
+    let delivered = false;
+    const stopObserving = physical.onMessage(() => {
+      delivered = true;
+    });
     try {
       await client(workspaceWireContract, connection).health(undefined, { signal });
       if (generation !== this.transport.generation) throw new Error('Superseded health response');
+    } catch (error) {
+      const congested =
+        delivered &&
+        error instanceof WireError &&
+        error.code === 'TIMEOUT' &&
+        !signal.aborted &&
+        generation === this.transport.generation;
+      if (!congested) throw error;
     } finally {
+      stopObserving();
       connection.dispose();
     }
   }
