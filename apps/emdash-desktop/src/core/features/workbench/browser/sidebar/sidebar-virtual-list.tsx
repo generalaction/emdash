@@ -45,9 +45,9 @@ import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
 /**
- * Indents once the sidebar has groups: group headers stay put, every project
- * (grouped or not) moves one step in and tasks a half step further, so each
- * level's text starts right of its parent's. Without groups nothing shifts.
+ * Indents for rows inside a group: the group's projects move one step in and
+ * their tasks a half step further, so each level's text starts right of its
+ * parent's. Ungrouped projects and their tasks keep the plain layout.
  */
 const PROJECT_INDENT_PX = 16;
 const TASK_INDENT_PX = PROJECT_INDENT_PX + 8;
@@ -329,7 +329,7 @@ function renderRow(row: SidebarRow, top: number, height: number) {
 
 /** Left indent of a row; see `PROJECT_INDENT_PX`. */
 function rowIndent(row: SidebarRow): number {
-  if (row.kind === 'group' || getSidebarStore().projectGroups.length === 0) return 0;
+  if (row.kind === 'group' || !getSidebarStore().groupIdForProject(row.projectId)) return 0;
   return row.kind === 'task' ? TASK_INDENT_PX : PROJECT_INDENT_PX;
 }
 

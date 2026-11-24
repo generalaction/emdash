@@ -61,7 +61,7 @@ export const SidebarProjectGroupItem = observer(function SidebarProjectGroupItem
             />
           </SidebarItemMiniButton>
           <SidebarMenuAction aria-label={`Group ${group.name}`} className="gap-2">
-            <span className="truncate font-semibold text-foreground-tertiary">{group.name}</span>
+            <span className="truncate text-foreground-tertiary">{group.name}</span>
             <MicroLabel className="ml-auto pr-2 text-foreground-tertiary-passive tabular-nums">
               {projectCount}
             </MicroLabel>
