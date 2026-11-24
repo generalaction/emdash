@@ -21,6 +21,7 @@ const MAX_FRAME_BYTES = 16 * 1024 * 1024;
 export function streamTransport(input: ReadableLike, output: WritableLike): WireTransport {
   const messageListeners = new Set<(message: WireMessage) => void>();
   const disconnectListeners = new Set<() => void>();
+  const activityListeners = new Set<() => void>();
   let buffer: Bytes = new Uint8Array(0);
   let disconnected = false;
 
@@ -32,6 +33,7 @@ export function streamTransport(input: ReadableLike, output: WritableLike): Wire
 
   input.on('data', (chunk) => {
     if (disconnected) return;
+    for (const listener of activityListeners) listener();
     buffer = concat(buffer, normalizeChunk(chunk));
     try {
       buffer = emitParsedFrames(buffer, messageListeners, notifyDisconnect);
@@ -56,9 +58,14 @@ export function streamTransport(input: ReadableLike, output: WritableLike): Wire
       disconnectListeners.add(cb);
       return () => disconnectListeners.delete(cb);
     },
+    onActivity(cb): Unsubscribe {
+      activityListeners.add(cb);
+      return () => activityListeners.delete(cb);
+    },
     close() {
       notifyDisconnect();
       messageListeners.clear();
+      activityListeners.clear();
       disconnectListeners.clear();
       buffer = new Uint8Array(0);
     },

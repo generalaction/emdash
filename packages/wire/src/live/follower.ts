@@ -39,6 +39,12 @@ export type LiveResyncFailurePolicy = (
 const DEFAULT_RESYNC_RETRY_DELAYS_MS = [250, 1_000, 2_500, 5_000];
 
 /**
+ * Updates held while a resync refetch is in flight, replayed on top of the new snapshot. Past
+ * this many the follower stops holding them and refetches once more after the current seed.
+ */
+const MAX_UPDATES_HELD_DURING_RESYNC = 1_000;
+
+/**
  * Retry the snapshot refetch on a bounded backoff until it succeeds or the
  * follower is disposed. The default schedule repeats its last delay forever.
  */
@@ -84,6 +90,7 @@ export class LiveFollower<T> {
   private resyncAttempt = 0;
   private loop: Promise<void> | undefined;
   private waiters: RefreshWaiter[] = [];
+  private heldDuringResync: LiveUpdate[] = [];
   private disposed = false;
   private readonly disposeController = new AbortController();
   private readonly clock: Clock;
@@ -122,6 +129,39 @@ export class LiveFollower<T> {
 
   applyUpdate(update: LiveUpdate): void {
     if (this.disposed) return;
+    // While a refetch is in flight the local cursor is about to be replaced, so judging the
+    // update against it would only schedule another refetch. Hold it and replay it against
+    // the new snapshot instead; on a busy source a refetch window always catches an update,
+    // and re-running the loop for each one would never settle.
+    if (this.loop) {
+      this.holdDuringResync(update);
+      return;
+    }
+    this.applyNow(update);
+  }
+
+  private holdDuringResync(update: LiveUpdate): void {
+    if (this.heldDuringResync.length >= MAX_UPDATES_HELD_DURING_RESYNC) {
+      this.heldDuringResync = [];
+      this.triggerResync('sequence-gap', { reason: 'resync-hold-overflow' });
+      return;
+    }
+    this.heldDuringResync.push(update);
+  }
+
+  /** Replays held updates on a fresh seed; a gap or generation change triggers another resync. */
+  private replayHeldUpdates(): void {
+    const held = this.heldDuringResync;
+    this.heldDuringResync = [];
+    for (const update of held) {
+      if (this.needsResync) return;
+      // Already folded into the snapshot.
+      if (update.generation === this.generation && update.sequence <= this.sequence) continue;
+      this.applyNow(update);
+    }
+  }
+
+  private applyNow(update: LiveUpdate): void {
     if (!this.isReady()) {
       this.triggerResync('sequence-gap', { reason: 'update-before-seed' });
       return;
@@ -155,8 +195,9 @@ export class LiveFollower<T> {
 
   /**
    * Forces a resync and resolves only once the follower is fresh: concurrent
-   * calls coalesce onto the in-flight resync, and a resync trigger arriving
-   * mid-flight re-runs the loop before resolution. Rejects when the failure
+   * calls coalesce onto the in-flight resync, and updates arriving mid-flight
+   * are replayed on the new snapshot, re-running the loop before resolution
+   * only when one leaves a gap or changes generation. Rejects when the failure
    * policy gives up or the follower is disposed.
    */
   refresh(): Promise<void> {
@@ -186,6 +227,7 @@ export class LiveFollower<T> {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.heldDuringResync = [];
     this.disposeController.abort(this.disposedError());
     this.settleWaiters((waiter) => waiter.reject(this.disposedError()));
   }
@@ -211,6 +253,7 @@ export class LiveFollower<T> {
         const snapshot = await this.refetchSnapshot();
         if (this.disposed) return;
         this.seed(snapshot);
+        this.replayHeldUpdates();
         this.resyncAttempt = 0;
       } catch (error) {
         if (this.disposed) return;
@@ -237,6 +280,8 @@ export class LiveFollower<T> {
         });
         if (decision.kind === 'give-up') {
           this.resyncAttempt = 0;
+          // Stale until the next trigger, whose resync starts from a fresh snapshot.
+          this.heldDuringResync = [];
           this.settleWaiters((waiter) => waiter.reject(toError(error)));
           return;
         }

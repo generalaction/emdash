@@ -1,8 +1,13 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock } from '@emdash/shared/scheduling';
+import { client } from '@emdash/wire/rpc';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HostRuntimeConnection } from './host-runtime-connection';
-import { createFaultPeer } from './testing/connection-supervisor-fixture';
+import {
+  createFaultPeer,
+  observePromise,
+  peerContract,
+} from './testing/connection-supervisor-fixture';
 
 const target = { kind: 'ssh' as const, sshConnectionId: 'test', socketPath: '/workspace.sock' };
 
@@ -11,6 +16,10 @@ describe('HostRuntimeConnection', () => {
   let peer: ReturnType<typeof createFaultPeer>;
   let runtime: HostRuntimeConnection;
   let afterMessage: (() => void) | undefined;
+  const activityListeners = new Set<() => void>();
+  const emitActivity = () => {
+    for (const listener of activityListeners) listener();
+  };
   const onDisconnect = vi.fn();
   const onRequestTimeout = vi.fn();
 
@@ -19,6 +28,7 @@ describe('HostRuntimeConnection', () => {
     onDisconnect.mockClear();
     onRequestTimeout.mockClear();
     afterMessage = undefined;
+    activityListeners.clear();
     scope = createScope({ label: 'runtime-connection-test' });
     peer = createFaultPeer();
     runtime = new HostRuntimeConnection({
@@ -33,6 +43,10 @@ describe('HostRuntimeConnection', () => {
               listener(message);
               afterMessage?.();
             }),
+          onActivity: (listener) => {
+            activityListeners.add(listener);
+            return () => activityListeners.delete(listener);
+          },
         };
       },
       openTimeoutMs: 100,
@@ -136,6 +150,51 @@ describe('HostRuntimeConnection', () => {
     };
     await expect(runtime.probe(scope.signal)).rejects.toThrow('Superseded health response');
     expect(onDisconnect).toHaveBeenCalledOnce();
+  });
+
+  it('accepts a late health reply while the transport keeps delivering other traffic', async () => {
+    // A busy host streams megabytes after each reconnect; the health reply queues behind that
+    // ordered traffic. Messages still arriving on the probed transport prove it is alive, so a
+    // slow reply must not be reported as a dead connection (which would reconnect and re-trigger
+    // the same burst, forever).
+    await runtime.establish(target, scope.signal);
+    const releaseHealth = peer.stallHealth();
+    const probe = observePromise(runtime.probe(scope.signal));
+    const traffic = client(peerContract, runtime.connection);
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(20);
+      await traffic.increment();
+    }
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(probe.outcome).toBe('fulfilled');
+    releaseHealth();
+  });
+
+  it('accepts a late health reply while one large frame is still arriving', async () => {
+    // On a slow link a single multi-megabyte frame (a resync snapshot) can take longer than the
+    // health deadline to complete. No whole message arrives meanwhile, but bytes do.
+    await runtime.establish(target, scope.signal);
+    const releaseHealth = peer.stallHealth();
+    const probe = observePromise(runtime.probe(scope.signal));
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(20);
+      emitActivity();
+    }
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(probe.outcome).toBe('fulfilled');
+    expect(activityListeners.size).toBe(0);
+    releaseHealth();
+  });
+
+  it('still fails the probe when nothing arrives on the transport', async () => {
+    await runtime.establish(target, scope.signal);
+    const releaseHealth = peer.stallHealth();
+    const rejected = expect(runtime.probe(scope.signal)).rejects.toMatchObject({ code: 'TIMEOUT' });
+    await vi.advanceTimersByTimeAsync(51);
+    await rejected;
+    releaseHealth();
   });
 
   it('reports RPC timeouts without deciding to replace or retry the connection', async () => {
