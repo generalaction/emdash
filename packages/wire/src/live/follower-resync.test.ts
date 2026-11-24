@@ -192,6 +192,74 @@ describe('follower resync failure policy', () => {
     expect(client.stale).toBe(false);
   });
 
+  it('converges in one reseed when same-generation updates keep arriving mid-reseed', async () => {
+    // A busy host (many agent sessions) streams updates continuously. Updates that land while
+    // the snapshot refetch is in flight must not force another refetch: the ones the snapshot
+    // already covers are dropped and the newer ones are applied on top. Otherwise every refetch
+    // window catches an update, the loop never settles, and refresh() never resolves.
+    const clock = createManualClock();
+    let refetches = 0;
+    let release: (snapshot: LiveSnapshot<State>) => void = () => {};
+    const client = new LiveStateClient<State>(
+      stateSchema,
+      () => {
+        refetches += 1;
+        return new Promise<LiveSnapshot<State>>((resolve) => {
+          release = resolve;
+        });
+      },
+      () => {},
+      { clock, onResyncFailed: resyncRetry() }
+    );
+    client.seed(snapshotOf(0, 1, 0));
+
+    // Reconnect after missed updates: a sequence gap starts the resync.
+    client.applyUpdate(updateOf(1, 5, 6));
+    await clock.advanceBy(0);
+    expect(refetches).toBe(1);
+
+    // While the refetch is in flight: one update the snapshot will include (9 -> 10)
+    // and one that is newer than it (10 -> 11).
+    client.applyUpdate(updateOf(1, 9, 10));
+    client.applyUpdate(updateOf(1, 10, 11));
+    release(snapshotOf(10, 1, 10));
+    await clock.advanceBy(0);
+
+    expect(refetches).toBe(1);
+    expect(client.stale).toBe(false);
+    expect(client.getSnapshot()).toEqual({ count: 11 });
+    expect(client.cursor).toEqual({ generation: 1, sequence: 11 });
+  });
+
+  it('reseeds again when an update held mid-reseed leaves a gap past the snapshot', async () => {
+    const clock = createManualClock();
+    const releases: Array<(snapshot: LiveSnapshot<State>) => void> = [];
+    const client = new LiveStateClient<State>(
+      stateSchema,
+      () =>
+        new Promise<LiveSnapshot<State>>((resolve) => {
+          releases.push(resolve);
+        }),
+      () => {},
+      { clock, onResyncFailed: resyncRetry() }
+    );
+    client.seed(snapshotOf(0, 1, 0));
+
+    client.applyUpdate(updateOf(1, 5, 6));
+    await clock.advanceBy(0);
+    // Held update 12 -> 13 cannot follow a snapshot at sequence 10: 10..12 are missing.
+    client.applyUpdate(updateOf(1, 12, 13));
+    releases[0](snapshotOf(10, 1, 10));
+    await clock.advanceBy(0);
+
+    expect(releases).toHaveLength(2);
+    expect(client.stale).toBe(true);
+    releases[1](snapshotOf(13, 1, 13));
+    await clock.advanceBy(0);
+    expect(client.stale).toBe(false);
+    expect(client.getSnapshot()).toEqual({ count: 13 });
+  });
+
   it('rejects pending refresh and waiters on dispose, including wait-forever waiters', async () => {
     const clock = createManualClock();
     const client = new LiveStateClient<State>(
