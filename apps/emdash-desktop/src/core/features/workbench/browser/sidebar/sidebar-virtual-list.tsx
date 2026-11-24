@@ -45,12 +45,12 @@ import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
 /**
- * Indents for rows inside a group: the group's projects move one step in and
- * their tasks a half step further, so each level's text starts right of its
- * parent's. Ungrouped projects and their tasks keep the plain layout.
+ * Projects inside a group move one step in; ungrouped projects stay level with
+ * the group headers. Tasks sit a half step right of their project either way,
+ * so each level's text starts right of its parent's.
  */
 const PROJECT_INDENT_PX = 16;
-const TASK_INDENT_PX = PROJECT_INDENT_PX + 8;
+const TASK_INDENT_PX = 8;
 /** Horizontal center of a row's icon column, where a group's guide line runs. */
 const GROUP_GUIDE_X_PX = 16;
 /** How long a project must hover over a collapsed group before it opens. */
@@ -329,8 +329,9 @@ function renderRow(row: SidebarRow, top: number, height: number) {
 
 /** Left indent of a row; see `PROJECT_INDENT_PX`. */
 function rowIndent(row: SidebarRow): number {
-  if (row.kind === 'group' || !getSidebarStore().groupIdForProject(row.projectId)) return 0;
-  return row.kind === 'task' ? TASK_INDENT_PX : PROJECT_INDENT_PX;
+  if (row.kind === 'group') return 0;
+  const base = getSidebarStore().groupIdForProject(row.projectId) ? PROJECT_INDENT_PX : 0;
+  return row.kind === 'task' ? base + TASK_INDENT_PX : base;
 }
 
 const toGroupDndId = (id: string) => `group::${id}`;
