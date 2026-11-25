@@ -393,6 +393,31 @@ describe('topic attachment compatibility', () => {
     h.close();
   });
 
+  it('drops a stale error after a shared attach was cancelled before its result arrived', async () => {
+    const h = harness();
+    const second = connect(h.pair.client, { callTimeoutMs: 0 });
+    await h.connection.attach(topic, () => {});
+    h.pair.serverToClient.held = true;
+    const controller = new AbortController();
+    const cancelled = second.attach(topic, () => {}, { signal: controller.signal });
+    await vi.waitFor(() =>
+      expect(h.pair.serverToClient.queue.some((m) => m.kind === 'result' && m.ok)).toBe(true)
+    );
+    h.subscriptions[0].onError(new WireError('HANDLER_ERROR', 'old'), { retrying: false });
+    controller.abort();
+    await cancelled.catch(() => {});
+    const updates: LiveUpdate[] = [];
+    const reopened = second.attach(topic, (update) => updates.push(update));
+    h.pair.serverToClient.flush();
+    await reopened;
+    await vi.waitFor(() => expect(h.subscriptions).toHaveLength(2));
+    h.subscriptions[1].push(u2);
+
+    expect(updates).toEqual([u2]);
+    second.dispose();
+    h.close();
+  });
+
   it('re-attaches after disconnect and ignores frames from the old session', async () => {
     const h = harness();
     const updates: LiveUpdate[] = [];

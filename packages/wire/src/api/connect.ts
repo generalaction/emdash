@@ -119,6 +119,10 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       abandonedAttachIds.delete(abandonedAttachIds.keys().next().value as string);
     }
   }
+  // Attach requests cancelled before their result arrived. A late result still tells us the id of the
+  // attachment the server shared with us, so frames stamped with it can be recognised.
+  const cancelledAttaches = new Map<string, string>();
+  const MAX_CANCELLED_ATTACHES = 256;
   const isAbandoned = (topic: string, attachId: string | undefined): boolean =>
     attachId !== undefined && (abandonedAttachIds.get(topic)?.has(attachId) ?? false);
   const blobConsumers = new Map<string, BlobConsumer>();
@@ -142,7 +146,15 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     if (disposed) return;
     if (message.kind === 'result') {
       const pendingCall = pending.get(message.id);
-      if (!pendingCall) return;
+      if (!pendingCall) {
+        const cancelledTopic = cancelledAttaches.get(message.id);
+        if (cancelledTopic !== undefined) {
+          cancelledAttaches.delete(message.id);
+          if (message.ok && typeof message.value === 'string')
+            abandon(cancelledTopic, message.value);
+        }
+        return;
+      }
       pending.delete(message.id);
       pendingCall.cleanup();
       if (message.ok) {
@@ -574,6 +586,12 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         attachments.delete(topic);
         abandon(topic, current.attachId);
         abandon(topic, current.serverAttachId);
+        if (!current.establishedSettled && current.attachId !== undefined) {
+          cancelledAttaches.set(current.attachId, topic);
+          if (cancelledAttaches.size > MAX_CANCELLED_ATTACHES) {
+            cancelledAttaches.delete(cancelledAttaches.keys().next().value as string);
+          }
+        }
         current.attemptAbort?.abort(new WireError('CANCELLED', 'Wire attach cancelled'));
         current.attemptAbort = null;
         try {
