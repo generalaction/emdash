@@ -76,6 +76,10 @@ export class LiveStateClient<T> {
     this.follower.seed(snapshot);
   }
 
+  seedFrom(request: () => Promise<LiveSnapshot<T>>): Promise<void> {
+    return this.follower.fetchSeed(request);
+  }
+
   applyUpdate(update: LiveUpdate): void {
     this.follower.applyUpdate(update);
   }

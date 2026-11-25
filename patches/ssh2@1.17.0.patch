@@ -183,3 +183,32 @@ index a276c1aed3dca46469b0c566ad12f989c65e92e5..3df4a1927e855c8ca2542dbd73688dfa
        data = binaryKeyParser.readRaw();
        if (data !== undefined) {
          ret = parseDER(data, type, '', type);
+diff --git a/lib/Channel.js b/lib/Channel.js
+index 0120779..8b88128 100644
+--- a/lib/Channel.js
++++ b/lib/Channel.js
+@@ -145,6 +145,15 @@ class Channel extends DuplexStream {
+     this.on('end', onEnd).on('close', onEnd);
+   }
+ 
++  // Emdash: lets the receiver size this channel's window to the path (grows at once,
++  // shrinks as granted credit is used). Default stays MAX_WINDOW.
++  setReceiveWindow(bytes) {
++    this._maxWindow = bytes;
++    // While unread data waits (push() returned false), _read() refills once it drains.
++    if (!this._waitChanDrain)
++      windowAdjust(this);
++  }
++
+   _read(n) {
+     if (this._waitChanDrain) {
+       this._waitChanDrain = false;
+@@ -279,7 +288,7 @@ function onEnd() {
+ function windowAdjust(self) {
+   if (self.outgoing.state === 'closed')
+     return;
+-  const amt = MAX_WINDOW - self.incoming.window;
++  const amt = (self._maxWindow || MAX_WINDOW) - self.incoming.window;
+   if (amt <= 0)
+     return;
+   self.incoming.window += amt;

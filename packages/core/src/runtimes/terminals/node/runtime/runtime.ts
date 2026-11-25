@@ -268,9 +268,9 @@ export class TerminalsRuntime {
     const sessionKey = sessionKeyFor(key);
     return {
       snapshot: () => source.snapshot(),
-      subscribe: (cb) => {
+      subscribe: (cb, options) => {
         this.lifecycle.attach(sessionKey);
-        const unsubscribe = source.subscribe(cb);
+        const unsubscribe = source.subscribe(cb, options);
         return () => {
           unsubscribe();
           this.lifecycle.detach(sessionKey);

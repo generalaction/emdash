@@ -75,6 +75,92 @@ describe('LiveLogSource', () => {
       },
     });
   });
+
+  it('returns only bytes retained after a since offset', () => {
+    const server = new LiveLogSource({ generation: 1000, maxBufferBytes: 5 });
+
+    server.append('abc');
+    server.append('de');
+    server.append('fg');
+
+    expect(server.snapshot({ since: { generation: 1000, offset: 5 } })).toMatchObject({
+      generation: 1000,
+      sequence: 3,
+      data: {
+        baseOffset: 5,
+        text: 'fg',
+        truncated: true,
+      },
+    });
+  });
+
+  it('returns the full tail when the since generation differs', () => {
+    const server = new LiveLogSource({ generation: 1000, maxBufferBytes: 5 });
+
+    server.append('abc');
+    server.append('de');
+    server.append('fg');
+
+    expect(server.snapshot({ since: { generation: 999, offset: 5 } })).toMatchObject({
+      generation: 1000,
+      sequence: 3,
+      data: {
+        baseOffset: 3,
+        text: 'defg',
+        truncated: true,
+      },
+    });
+  });
+
+  it('returns the full tail when the since offset is outside the retained range', () => {
+    const server = new LiveLogSource({ generation: 1000, maxBufferBytes: 5 });
+
+    server.append('abc');
+    server.append('de');
+    server.append('fg');
+
+    expect(server.snapshot({ since: { generation: 1000, offset: 2 } }).data).toMatchObject({
+      baseOffset: 3,
+      text: 'defg',
+      truncated: true,
+    });
+    expect(server.snapshot({ since: { generation: 1000, offset: 8 } }).data).toMatchObject({
+      baseOffset: 3,
+      text: 'defg',
+      truncated: true,
+    });
+  });
+
+  it('never splits a multi-byte code point and accepts a valid boundary after it', () => {
+    const server = new LiveLogSource({ generation: 1000 });
+
+    server.append('a😀b');
+
+    expect(server.snapshot({ since: { generation: 1000, offset: 3 } }).data).toMatchObject({
+      baseOffset: 0,
+      text: 'a😀b',
+      truncated: false,
+    });
+    expect(server.snapshot({ since: { generation: 1000, offset: 5 } }).data).toMatchObject({
+      baseOffset: 5,
+      text: 'b',
+      truncated: false,
+    });
+  });
+
+  it('slices since offsets from retained chunk byte lengths, not joined text', () => {
+    const server = new LiveLogSource({ generation: 1000 });
+
+    server.append('\ud800');
+    server.append('\udc00');
+    server.append('abc');
+
+    expect(server.snapshot({ since: { generation: 1000, offset: 6 } }).data).toMatchObject({
+      baseOffset: 6,
+      text: 'abc',
+      truncated: false,
+    });
+  });
 });
 
 describe('LiveLogClient', () => {

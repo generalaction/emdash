@@ -6,6 +6,7 @@ import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
 import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import { applyGitCredentialsToEnv } from '#primitives/git-credentials/api';
+import { InputSequenceGate, type InputSequence } from '#primitives/terminal-input/api';
 import type {
   PersistedTuiAgentStartInput,
   TuiAgentStartInput,
@@ -91,6 +92,7 @@ export class TuiAgentsRuntime {
   private readonly registry: PtyRegistry;
   private readonly launchMutex = new KeyedMutex();
   private readonly sessions = new Map<string, TuiAgentSession>();
+  private readonly inputGate = new InputSequenceGate();
   private readonly logs = new Map<string, RetainedOutput>();
   private readonly configs = new Map<string, TuiSessionConfig>();
   private readonly generations = new Map<string, number>();
@@ -432,9 +434,16 @@ export class TuiAgentsRuntime {
     return ok(undefined);
   }
 
-  sendInput(conversationId: string, data: string): Result<void, TuiInputError> {
+  sendInput(
+    conversationId: string,
+    data: string,
+    sequence?: InputSequence
+  ): Result<void, TuiInputError> {
     const active = this.sessions.get(conversationId);
     if (!active?.pty) return err({ type: 'not-found', conversationId });
+    const admission = this.inputGate.admit(active.pty, sequence);
+    if (admission === 'unconfirmed') return err({ type: 'input-unconfirmed', conversationId });
+    if (admission === 'duplicate') return ok(undefined);
     active.pty.write(data);
     this.lifecycle.recordInput(conversationId);
     this.agentStates.markInputSubmitted(
@@ -457,11 +466,11 @@ export class TuiAgentsRuntime {
   outputLog(key: { conversationId: string }): LiveSource {
     return {
       snapshot: async () => this.outputFor(key.conversationId).source.snapshot(),
-      subscribe: (cb) => {
+      subscribe: (cb, options) => {
         const log = this.outputFor(key.conversationId);
         log.subscribers++;
         this.lifecycle.attach(key.conversationId);
-        const unsubscribe = log.source.subscribe(cb);
+        const unsubscribe = log.source.subscribe(cb, options);
         let disposed = false;
         return () => {
           if (disposed) return;

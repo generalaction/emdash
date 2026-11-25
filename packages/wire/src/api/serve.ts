@@ -1,5 +1,6 @@
 import { toSerializedError, type Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
+import { abortableWait } from '@emdash/shared/scheduling';
 import {
   createBlobConsumer,
   createBlobProducer,
@@ -8,9 +9,17 @@ import {
   type BlobProducer,
 } from './blob-channel';
 import { isDownloadFileOpenResult } from './blob-channel';
+import { anyPressure, createPressureSignal, type LiveUpdate, type SnapshotSince } from './channel';
 import type { Controller } from './controller';
+import { createCreditGate, type CreditGate } from './credit-gate';
 import type { WireInstrumentation } from './instrumentation';
-import { serializeWireError, WireError, type WireMessage, type WireTransport } from './protocol';
+import {
+  creditSize,
+  serializeWireError,
+  WireError,
+  type WireMessage,
+  type WireTransport,
+} from './protocol';
 import { formatStructuredCloneFailure, isStructuredCloneError } from './structured-clone';
 
 export type ServeOptions = {
@@ -19,10 +28,14 @@ export type ServeOptions = {
 };
 
 type ServerAttachment = {
+  attachId: string;
   ready: Promise<void>;
   unsubscribe?: Unsubscribe;
   release: () => Promise<void>;
   disposed: boolean;
+  pressure?: ReturnType<typeof createPressureSignal>;
+  relayedPressure: ReturnType<typeof createPressureSignal>;
+  subscriptionPressure: ReturnType<typeof anyPressure>;
 };
 
 type PostAttempt = { ok: true } | { ok: false; error: unknown };
@@ -36,6 +49,7 @@ export function serve(
   const calls = new Map<string, AbortController>();
   const blobProducers = new Map<string, BlobProducer>();
   const blobConsumers = new Map<string, BlobConsumer>();
+  const creditGates = new Map<string, CreditGate<LiveUpdate>>();
   const instrumentation = options.instrumentation;
 
   function tryPost(message: WireMessage): PostAttempt {
@@ -201,7 +215,7 @@ export function serve(
     );
   }
 
-  function replySnapshot(id: string, topic: string): void {
+  function replySnapshot(id: string, topic: string, since?: SnapshotSince): void {
     const start = performanceNow();
     replyRequest(id, `snapshot '${topic}'`, async (signal) => {
       if (signal.aborted) throw new WireError('CANCELLED', 'Wire snapshot cancelled');
@@ -209,7 +223,7 @@ export function serve(
         const lease = requireLiveLease(controller, topic);
         try {
           const source = await lease.ready();
-          const snapshot = await source.snapshot();
+          const snapshot = since ? await source.snapshot({ since }) : await source.snapshot();
           instrumentation?.snapshot?.({
             requestId: id,
             topic,
@@ -236,11 +250,15 @@ export function serve(
   function detachAll(): void {
     for (const attachment of attached.values()) disposeAttachment(attachment);
     attached.clear();
+    closeAllCreditGates();
   }
 
   function disposeAttachment(attachment: ServerAttachment): void {
     if (attachment.disposed) return;
     attachment.disposed = true;
+    attachment.relayedPressure.set(false);
+    attachment.pressure?.set(false);
+    attachment.subscriptionPressure.dispose();
     attachment.unsubscribe?.();
     // Release is fire-and-forget; a rejection here must never escape as an
     // unhandled rejection (fatal in the Electron main process).
@@ -248,6 +266,32 @@ export function serve(
       const logger = options.logger ?? getCurrentLogger();
       logger.warn('Wire attachment release failed', { error: toSerializedError(error) });
     });
+  }
+
+  // One timer for every gate's stall check, running only while a gate exists.
+  let creditTimer: ReturnType<typeof setInterval> | undefined;
+
+  function watchCreditGates(): void {
+    creditTimer ??= setInterval(() => {
+      for (const gate of creditGates.values()) gate.check();
+    }, 1000);
+  }
+
+  function disposeCreditGate(topic: string): void {
+    creditGates.get(topic)?.dispose();
+    creditGates.delete(topic);
+    if (creditGates.size === 0) stopCreditTimer();
+  }
+
+  function closeAllCreditGates(): void {
+    for (const gate of creditGates.values()) gate.dispose();
+    creditGates.clear();
+    stopCreditTimer();
+  }
+
+  function stopCreditTimer(): void {
+    if (creditTimer !== undefined) clearInterval(creditTimer);
+    creditTimer = undefined;
   }
 
   function closeAllBlobChannels(): void {
@@ -265,33 +309,82 @@ export function serve(
     calls.clear();
   }
 
+  function matchingAttachment(topic: string, attachId?: string): ServerAttachment | undefined {
+    const attachment = attached.get(topic);
+    return attachment && (attachId === undefined || attachment.attachId === attachId)
+      ? attachment
+      : undefined;
+  }
+
   function handleMessage(message: WireMessage): void {
     switch (message.kind) {
       case 'call':
         replyControllerCallWithUpload(message.id, message.path, message.input, message.upload);
         break;
       case 'snapshot':
-        replySnapshot(message.id, message.topic);
+        replySnapshot(message.id, message.topic, snapshotSince(message.since));
         break;
       case 'attach':
         replyRequest(message.id, `attach '${message.topic}'`, async (signal) => {
           if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
+          const attachResult =
+            message.window !== undefined ? { window: message.window } : undefined;
           const existing = attached.get(message.topic);
-          if (existing) {
+          if (existing?.attachId === message.id) {
             await existing.ready;
             if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
-            return undefined;
+            return attachResult;
+          }
+          if (existing) {
+            attached.delete(message.topic);
+            disposeAttachment(existing);
+            disposeCreditGate(message.topic);
           }
           const lease = requireLiveLease(controller, message.topic);
+          const relayedPressure = createPressureSignal();
+          if (message.paused) relayedPressure.set(true);
+          const gatePressure = message.window !== undefined ? createPressureSignal() : undefined;
+          const subscriptionPressure = anyPressure(relayedPressure, gatePressure);
+          const creditGate =
+            message.window !== undefined && gatePressure
+              ? createCreditGate<LiveUpdate>({
+                  window: message.window,
+                  now: performanceNow,
+                  send: (update) =>
+                    post({
+                      kind: 'update',
+                      topic: message.topic,
+                      attachId: message.id,
+                      update,
+                      flow: true,
+                    }),
+                  onPressure: (paused) => gatePressure.set(paused),
+                  onOverflow: () =>
+                    post({ kind: 'topic-gap', topic: message.topic, attachId: message.id }),
+                })
+              : undefined;
+          if (creditGate) {
+            creditGates.set(message.topic, creditGate);
+            watchCreditGates();
+          }
           const attachment: ServerAttachment = {
+            attachId: message.id,
             ready: Promise.resolve(),
             release: lease.release,
             disposed: false,
+            pressure: gatePressure,
+            relayedPressure,
+            subscriptionPressure,
           };
           attached.set(message.topic, attachment);
           attachment.ready = (async () => {
             try {
-              const source = await lease.ready();
+              const source = await abortableWait<Awaited<ReturnType<typeof lease.ready>>>(
+                { signal, fallback: 'Wire attach cancelled' },
+                (settle) => {
+                  Promise.resolve(lease.ready()).then(settle.resolve, settle.reject);
+                }
+              );
               if (
                 attachment.disposed ||
                 signal.aborted ||
@@ -301,19 +394,29 @@ export function serve(
               }
 
               const unsubscribe = await source.subscribe(
-                (update) => post({ kind: 'update', topic: message.topic, update }),
+                (update) => {
+                  if (creditGate) {
+                    creditGate.offer(update, creditSize(update));
+                  } else {
+                    post({ kind: 'update', topic: message.topic, attachId: message.id, update });
+                  }
+                },
                 {
-                  onGap: () => post({ kind: 'topic-gap', topic: message.topic }),
+                  onGap: () =>
+                    post({ kind: 'topic-gap', topic: message.topic, attachId: message.id }),
                   signal,
+                  pressure: subscriptionPressure,
                   onError: (error, context) => {
                     post({
                       kind: 'topic-error',
                       topic: message.topic,
+                      attachId: message.id,
                       error: serializeWireError(error),
                       retrying: context.retrying,
                     });
                     if (!context.retrying && attached.get(message.topic) === attachment) {
                       attached.delete(message.topic);
+                      disposeCreditGate(message.topic);
                       disposeAttachment(attachment);
                     }
                   },
@@ -334,6 +437,9 @@ export function serve(
               });
             } catch (error) {
               if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+              if (creditGate && creditGates.get(message.topic) === creditGate) {
+                disposeCreditGate(message.topic);
+              }
               disposeAttachment(attachment);
               throw error;
             }
@@ -341,18 +447,22 @@ export function serve(
           await attachment.ready;
           if (signal.aborted) {
             if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+            if (creditGate && creditGates.get(message.topic) === creditGate) {
+              disposeCreditGate(message.topic);
+            }
             disposeAttachment(attachment);
             throw new WireError('CANCELLED', 'Wire attach cancelled');
           }
-          return undefined;
+          return attachResult;
         });
         break;
       case 'detach':
         {
-          const attachment = attached.get(message.topic);
+          const attachment = matchingAttachment(message.topic, message.attachId);
           if (attachment) {
             attached.delete(message.topic);
             disposeAttachment(attachment);
+            disposeCreditGate(message.topic);
           }
         }
         instrumentation?.topicDetach?.({
@@ -363,6 +473,14 @@ export function serve(
       case 'cancel':
         instrumentation?.cancel?.({ callId: message.id, side: 'server' });
         calls.get(message.id)?.abort();
+        break;
+      case 'topic-credit':
+        if (matchingAttachment(message.topic, message.attachId)) {
+          creditGates.get(message.topic)?.credit(message.consumed);
+        }
+        break;
+      case 'topic-pressure':
+        matchingAttachment(message.topic, message.attachId)?.relayedPressure.set(message.paused);
         break;
       case 'blob-pull':
         blobProducers.get(message.channel)?.grant(message.credit);
@@ -416,6 +534,22 @@ export function serve(
 
 function performanceNow(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function snapshotSince(value: unknown): SnapshotSince | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const { generation, offset } = value as { generation?: unknown; offset?: unknown };
+  if (
+    typeof generation !== 'number' ||
+    !Number.isSafeInteger(generation) ||
+    generation < 0 ||
+    typeof offset !== 'number' ||
+    !Number.isSafeInteger(offset) ||
+    offset < 0
+  ) {
+    return undefined;
+  }
+  return { generation, offset };
 }
 
 function createChannelId(): string {

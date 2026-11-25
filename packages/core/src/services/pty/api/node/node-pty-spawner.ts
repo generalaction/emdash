@@ -18,6 +18,8 @@ type NodePtyLike = {
   write(data: string): void;
   resize(cols: number, rows: number): void;
   kill(): void;
+  pause?(): void;
+  resume?(): void;
   onData(handler: (data: string) => void): void;
   onExit(
     handler: (event: { exitCode: number | null; signal?: number | string | null }) => void
@@ -85,6 +87,14 @@ class NodePtyProcess implements PtyProcess {
 
   write(data: string): void {
     this.proc.write(data);
+  }
+
+  pause(): void {
+    this.proc.pause?.();
+  }
+
+  resume(): void {
+    this.proc.resume?.();
   }
 
   resize(cols: number, rows: number): void {

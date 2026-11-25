@@ -27,6 +27,7 @@ export {
   type LiveSubscribeOptions,
   type LiveUpdate,
   type Mutator,
+  type SnapshotOptions,
 } from '../api/channel';
 export {
   type ClientOptions,

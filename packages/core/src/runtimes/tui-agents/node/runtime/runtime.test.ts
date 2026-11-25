@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock, deferred, type ManualClock } from '@emdash/shared/testing';
 import { ReplicaLog } from '@emdash/wire/live';
@@ -519,6 +519,25 @@ describe('TuiAgentsRuntime', () => {
     await runtime.reconcile();
     await runtime.dispose();
     expect(exec.exec).not.toHaveBeenCalled();
+  });
+
+  it('writes a replayed key once and refuses replays into a PTY that never saw the writer', async () => {
+    const { runtime, spawner } = createRuntime();
+    const sequence = (seq: number, replay?: boolean) => ({ writer: 'desktop', seq, replay });
+    await runtime.startSession(startInput());
+
+    expect(runtime.sendInput('conversation-1', 'a', sequence(0))).toEqual(ok(undefined));
+    expect(runtime.sendInput('conversation-1', 'a', sequence(0, true))).toEqual(ok(undefined));
+    expect(runtime.sendInput('conversation-1', 'b', sequence(1, true))).toEqual(ok(undefined));
+    expect(spawner.processes[0]!.writes).toEqual(['a', 'b']);
+
+    await runtime.killSession('conversation-1');
+    await runtime.startSession(startInput());
+    expect(runtime.sendInput('conversation-1', 'c', sequence(2, true))).toEqual(
+      err({ type: 'input-unconfirmed', conversationId: 'conversation-1' })
+    );
+    expect(spawner.processes.at(-1)!.writes).toEqual([]);
+    await runtime.dispose();
   });
 
   it('attaches to an already running session without replacing config', async () => {

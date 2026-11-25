@@ -51,6 +51,25 @@ describe('LiveStateSource and LiveStateClient', () => {
     expect(server.cursor).toEqual(cursor);
   });
 
+  it('advances generation when reseeding at the same system time', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1234));
+    try {
+      const { server, client } = setup(makeState(), 1234);
+      server.produce((draft) => {
+        draft.count = 1;
+      });
+
+      server.reseed(makeState({ count: 99 }));
+      await client.refresh();
+
+      expect(client.getSnapshot()).toMatchObject({ count: 99 });
+      expect(client.cursor?.generation).toBeGreaterThan(1234);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('emits mutation IDs on tagged produce calls', () => {
     const server = new LiveStateSource<State>(makeState(), 1000);
     const updates: unknown[] = [];

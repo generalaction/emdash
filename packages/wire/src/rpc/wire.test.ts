@@ -337,7 +337,11 @@ describe('wire serve/connect', () => {
     expect(errors).toEqual([{ code: 'DISCONNECTED', retrying: true }]);
     expect(updates).toHaveLength(1);
     detach();
-    expect(transport.sent).toContainEqual({ kind: 'detach', topic: 'live.topic' });
+    expect(transport.sent).toContainEqual({
+      kind: 'detach',
+      topic: 'live.topic',
+      attachId: transport.latestAttachId('live.topic'),
+    });
   });
 
   it('terminates attachments on non-retryable reattach failures', async () => {
@@ -371,7 +375,11 @@ describe('wire serve/connect', () => {
 
     expect(errors).toEqual([{ code: 'UNKNOWN_TOPIC', retrying: false }]);
     expect(updates).toEqual([]);
-    expect(transport.sent).not.toContainEqual({ kind: 'detach', topic: 'live.topic' });
+    expect(
+      transport.sent.filter(
+        (message) => message.kind === 'detach' && message.topic === 'live.topic'
+      )
+    ).toEqual([]);
   });
 
   it('ignores stale reattach failures from older attempts', async () => {

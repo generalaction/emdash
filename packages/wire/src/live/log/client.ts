@@ -1,6 +1,11 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
-import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
+import type {
+  LiveLogSnapshotData,
+  LiveSnapshot,
+  LiveUpdate,
+  SnapshotSince,
+} from '../../api/channel';
 import type { WireInstrumentation } from '../../api/instrumentation';
 import {
   LiveFollower,
@@ -38,6 +43,13 @@ export class LiveLogClient {
     return this.materializer.writtenOffset;
   }
 
+  get position(): SnapshotSince | undefined {
+    const generation = this.materializer.generation;
+    return generation === undefined
+      ? undefined
+      : { generation, offset: this.materializer.writtenOffset };
+  }
+
   isReady(): boolean {
     return this.follower.isReady();
   }
@@ -49,6 +61,10 @@ export class LiveLogClient {
 
   seed(snapshot: LiveSnapshot<LiveLogSnapshotData>): void {
     this.follower.seed(snapshot);
+  }
+
+  seedFrom(request: () => Promise<LiveSnapshot<LiveLogSnapshotData>>): Promise<void> {
+    return this.follower.fetchSeed(request);
   }
 
   applyUpdate(update: LiveUpdate): void {
@@ -72,7 +88,7 @@ export class LiveLogClient {
 }
 
 class LiveLogMaterializer implements LiveMaterializer<LiveLogSnapshotData> {
-  private generation: number | undefined;
+  generation: number | undefined = undefined;
   writtenOffset = 0;
 
   constructor(private readonly deps: LiveLogClientDeps) {}

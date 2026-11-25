@@ -1,6 +1,11 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { ResourceCache } from '@emdash/shared/concurrency';
-import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../../api/channel';
+import type {
+  LiveSource,
+  LiveSubscribeOptions,
+  LiveUpdate,
+  SnapshotOptions,
+} from '../../api/channel';
 
 export function resourceCachedLiveSource<K, T>(
   source: ResourceCache<K, T>,
@@ -8,10 +13,10 @@ export function resourceCachedLiveSource<K, T>(
   getSource: (value: T) => LiveSource
 ): LiveSource {
   return {
-    async snapshot() {
+    async snapshot(options?: SnapshotOptions) {
       const lease = await source.acquire(key);
       try {
-        return await getSource(await lease.ready()).snapshot();
+        return await getSource(await lease.ready()).snapshot(options);
       } finally {
         await lease.release();
       }

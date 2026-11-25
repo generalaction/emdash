@@ -65,9 +65,11 @@ export class ReplicaState<T> implements LiveSource {
     this.detachPromise = handle.attach((update) => this.applyUpdate(update), {
       onReattach: () => this.client.invalidate(),
     });
-    this.ready = Promise.all([handle.snapshot(), this.detachPromise]).then(([snapshot]) =>
-      this.seed(snapshot)
-    );
+    this.ready = this.client.seedFrom(async () => {
+      const snapshot = await handle.snapshot();
+      await this.detachPromise;
+      return snapshot;
+    });
   }
 
   current(): T {
@@ -161,6 +163,13 @@ export class ReplicaState<T> implements LiveSource {
 
   /** Renumbers the local generation before the seed change fans out. */
   private handleSeeded(): void {
+    const cursor = this.client.cursor;
+    if (cursor) {
+      this.upstreamBase = {
+        generation: cursor.generation,
+        sequence: cursor.sequence,
+      };
+    }
     this.localGeneration = nextGeneration(this.localGeneration);
     this.localSequence = 0;
   }

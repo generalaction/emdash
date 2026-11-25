@@ -18,6 +18,8 @@ export class PtySession {
   readonly startedAt = Date.now();
   private disposed = false;
   private exitInfo: PtyExitInfo | null = null;
+  private outputPaused = false;
+  private stopWatchingPressure: (() => void) | undefined;
 
   constructor(
     readonly key: string,
@@ -26,6 +28,14 @@ export class PtySession {
     private readonly options: PtySessionOptions = {}
   ) {
     this.output = options.output ?? new LiveLogSource(options.log);
+    this.stopWatchingPressure = this.output.watchPressure((paused) => {
+      this.outputPaused = paused;
+      if (paused) {
+        this.process.pause?.();
+      } else {
+        this.process.resume?.();
+      }
+    });
     const capabilities = options.tmux
       ? new TerminalCapabilityResponder((reply) => this.write(reply))
       : null;
@@ -44,6 +54,8 @@ export class PtySession {
         this.output.append(pending);
         this.options.onData?.(pending);
       }
+      this.resumeProcessIfPaused();
+      this.stopWatchingOutputPressure();
       this.exitInfo = normalizeExitInfo(info);
       this.options.onExit?.(this.exitInfo);
       this.options.onStateChange?.();
@@ -75,12 +87,25 @@ export class PtySession {
 
   dispose(): void {
     if (this.disposed) return;
+    this.resumeProcessIfPaused();
+    this.stopWatchingOutputPressure();
     this.kill();
     this.disposed = true;
   }
 
   getPid(): number | undefined {
     return this.process.getPid?.();
+  }
+
+  private resumeProcessIfPaused(): void {
+    if (!this.outputPaused) return;
+    this.outputPaused = false;
+    this.process.resume?.();
+  }
+
+  private stopWatchingOutputPressure(): void {
+    this.stopWatchingPressure?.();
+    this.stopWatchingPressure = undefined;
   }
 }
 

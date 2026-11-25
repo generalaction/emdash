@@ -1,5 +1,6 @@
 import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { inputSequenceSchema } from '#primitives/terminal-input/api';
 import {
   tuiAgentStartInputSchema,
   tuiAgentStateListSchema,
@@ -76,7 +77,7 @@ export const tuiAgentsContract = defineContract({
    * Writes raw bytes into the PTY stdin.
    */
   sendInput: fallible({
-    input: conv.extend({ data: z.string() }),
+    input: conv.extend({ data: z.string(), sequence: inputSequenceSchema.optional() }),
     data: z.void(),
     error: tuiInputErrorSchema,
   }),

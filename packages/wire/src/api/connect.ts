@@ -7,9 +7,10 @@ import {
   type BlobProducer,
   type BlobSource,
 } from './blob-channel';
-import type { LiveSnapshot, LiveUpdate } from './channel';
+import type { LiveSnapshot, LiveUpdate, PressureSignal, SnapshotOptions } from './channel';
 import type { WireInstrumentation } from './instrumentation';
 import {
+  creditSize,
   WireError,
   type SerializedWireError,
   type WireFileMeta,
@@ -39,6 +40,7 @@ export type AttachOptions = {
   onReattach?: () => void;
   onReattachError?: (error: WireError, context: { retrying: boolean }) => void;
   signal?: AbortSignal;
+  pressure?: PressureSignal;
 };
 
 export type ConnectOptions = {
@@ -52,6 +54,11 @@ export type ConnectOptions = {
    */
   callTimeoutMs?: number;
   /**
+   * Flow-control window for live attach traffic. When set, attaches include
+   * `window` and the client reports credit for received flow updates.
+   */
+  creditWindow?: number;
+  /**
    * Bound on calls held while disconnected. Overflow rejects the newly issued
    * call immediately; held calls are never silently dropped.
    */
@@ -60,6 +67,9 @@ export type ConnectOptions = {
 
 export const DEFAULT_CALL_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_HELD_CALLS = 1_000;
+const CREDIT_REPORT_IDLE_MS = 50;
+const RETRY_INITIAL_MS = 100;
+const RETRY_MAX_MS = 5_000;
 
 type PendingCall = {
   message: WireMessage & { id: string };
@@ -68,6 +78,18 @@ type PendingCall = {
   cleanup(): void;
   posted: boolean;
   deadline: TimerHandle | undefined;
+};
+
+type AttachmentCredit = {
+  window: number;
+  consumed: number;
+  lastReported: number;
+  timer: TimerHandle | undefined;
+};
+
+type AttachmentPressure = {
+  unsubscribe: () => void;
+  count: number;
 };
 
 type Attachment = {
@@ -79,13 +101,18 @@ type Attachment = {
   attempt: object | null;
   attemptAbort: AbortController | null;
   attachId: string | undefined;
+  credit: AttachmentCredit | undefined;
+  /** Credit for flow updates that arrived before the attach result configured `credit`. */
+  earlyCredit: number;
+  pressures: Map<PressureSignal, AttachmentPressure>;
+  pressureDirty: boolean;
 };
 
 export type Connection = {
   call(path: string, input: unknown, options?: CallOptions): Promise<unknown>;
   openBlobConsumer(channel: string): BlobConsumer;
   openBlobProducer(channel: string, source: BlobSource): BlobProducer;
-  snapshot(topic: string): Promise<LiveSnapshot<unknown>>;
+  snapshot(topic: string, options?: SnapshotOptions): Promise<LiveSnapshot<unknown>>;
   attach(
     topic: string,
     push: (update: LiveUpdate) => void,
@@ -100,6 +127,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
   const pending = new Map<string, PendingCall>();
   const heldCallIds: string[] = [];
   const attachments = new Map<string, Attachment>();
+  const owedDetaches = new Map<string, { topic: string; detach: boolean; unpause: boolean }>();
   const blobConsumers = new Map<string, BlobConsumer>();
   const blobProducers = new Map<string, BlobProducer>();
   const disconnectListeners = new Set<() => void>();
@@ -107,6 +135,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
   const clock = options.clock ?? systemClock;
   const callTimeoutMs = options.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
   const maxHeldCalls = Math.max(0, options.maxHeldCalls ?? DEFAULT_MAX_HELD_CALLS);
+  const creditWindow = options.creditWindow;
   // Only reconnect-capable transports can restore connectivity, so only they
   // opt calls into hold-until-deadline; plain transports keep failing fast.
   const holdsWhileDisconnected = typeof transport.onReconnect === 'function';
@@ -114,6 +143,8 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
   let terminal = false;
   let terminalCause: unknown;
   let disposed = false;
+  let retryTimer: TimerHandle | undefined;
+  let retryDelayMs = RETRY_INITIAL_MS;
 
   instrumentation?.transport?.({ event: 'connect' });
 
@@ -125,6 +156,12 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       pending.delete(message.id);
       pendingCall.cleanup();
       if (message.ok) {
+        if (pendingCall.message.kind === 'attach') {
+          // A confirmed replacement has removed all earlier attachments for this topic.
+          for (const [attachId, debt] of owedDetaches) {
+            if (debt.topic === pendingCall.message.topic) owedDetaches.delete(attachId);
+          }
+        }
         pendingCall.resolve(message.value);
       } else {
         pendingCall.reject(
@@ -138,20 +175,32 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     }
 
     if (message.kind === 'update') {
-      for (const push of attachments.get(message.topic)?.pushes ?? []) push(message.update);
+      const entry = attachments.get(message.topic);
+      if (entry && message.attachId !== undefined && message.attachId !== entry.attachId) return;
+      if (entry && message.flow) recordCredit(entry, message.topic, message.update);
+      for (const push of entry?.pushes ?? []) push(message.update);
       return;
     }
 
     if (message.kind === 'topic-gap') {
-      notifyReattached(attachments.get(message.topic));
+      const entry = attachments.get(message.topic);
+      if (entry && message.attachId !== undefined && message.attachId !== entry.attachId) return;
+      notifyReattached(entry);
       return;
     }
 
     if (message.kind === 'topic-error') {
       const entry = attachments.get(message.topic);
+      if (entry && message.attachId !== undefined && message.attachId !== entry.attachId) return;
       const error = wireErrorFromSerialized(message.error);
       notifyReattachError(entry, error, { retrying: message.retrying });
-      if (!message.retrying) attachments.delete(message.topic);
+      if (!message.retrying) {
+        if (entry) {
+          resetAttachmentCredit(entry);
+          resetAttachmentPressures(entry);
+        }
+        attachments.delete(message.topic);
+      }
       return;
     }
 
@@ -190,6 +239,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
   const unsubscribeDisconnect = transport.onDisconnect(() => {
     if (disposed) return;
     if (holdsWhileDisconnected) connected = false;
+    stopRetry();
     instrumentation?.transport?.({ event: 'disconnect' });
     // In-flight calls lost their peer and reject; calls held while
     // disconnected stay held until reconnect or their deadline.
@@ -230,6 +280,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       }
       entry.established = establishAttachment(topic, entry, true);
     }
+    retryOwedPosts();
   });
 
   const unsubscribeTerminalFailure = transport.onTerminalFailure?.((cause) => {
@@ -237,12 +288,14 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     terminal = true;
     terminalCause = cause;
     connected = false;
+    stopRetry();
     for (const pendingCall of pending.values()) {
       pendingCall.cleanup();
       pendingCall.reject(terminalFailureError(pendingCall.posted));
     }
     pending.clear();
     heldCallIds.length = 0;
+    owedDetaches.clear();
 
     for (const consumer of blobConsumers.values()) consumer.fail(terminalFailureError());
     blobConsumers.clear();
@@ -430,6 +483,61 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     }
   }
 
+  function postOwedDetaches(): void {
+    for (const [attachId, debt] of owedDetaches) {
+      if (debt.unpause) {
+        try {
+          transport.post({ kind: 'topic-pressure', topic: debt.topic, attachId, paused: false });
+          debt.unpause = false;
+        } catch {
+          // A failed unpause must not prevent the detach from being tried.
+        }
+      }
+      if (debt.detach) {
+        try {
+          transport.post({ kind: 'detach', topic: debt.topic, attachId });
+          debt.detach = false;
+          debt.unpause = false;
+        } catch {
+          // Retry this detach independently of the unpause.
+        }
+      }
+      if (!debt.unpause && !debt.detach) owedDetaches.delete(attachId);
+    }
+  }
+
+  function stopRetry(): void {
+    retryTimer?.dispose();
+    retryTimer = undefined;
+    retryDelayMs = RETRY_INITIAL_MS;
+  }
+
+  function retryOwedPosts(): void {
+    if (!connected) return;
+    postOwedDetaches();
+    for (const [topic, entry] of attachments) {
+      if (entry.pressureDirty && entry.establishedSettled) postCurrentPressure(topic, entry);
+    }
+    if (owedDetaches.size > 0 || [...attachments.values()].some((entry) => entry.pressureDirty)) {
+      scheduleRetry();
+    } else if (retryTimer === undefined) {
+      retryDelayMs = RETRY_INITIAL_MS;
+    }
+  }
+
+  function scheduleRetry(): void {
+    if (retryTimer || disposed || terminal || !connected) return;
+    retryTimer = clock.schedule(
+      retryDelayMs,
+      () => {
+        retryTimer = undefined;
+        retryDelayMs = Math.min(retryDelayMs * 2, RETRY_MAX_MS);
+        retryOwedPosts();
+      },
+      { unref: true }
+    );
+  }
+
   function flushHeldCalls(): Set<string> {
     const flushed = new Set<string>();
     const ids = heldCallIds.splice(0);
@@ -522,19 +630,25 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       blobProducers.set(channel, producer);
       return producer;
     },
-    snapshot(topic) {
-      return request({ kind: 'snapshot', id: createRequestId(), topic }) as Promise<
-        LiveSnapshot<unknown>
-      >;
+    snapshot(topic, options) {
+      const id = createRequestId();
+      return request(
+        options?.since
+          ? { kind: 'snapshot', id, topic, since: options.since }
+          : { kind: 'snapshot', id, topic }
+      ) as Promise<LiveSnapshot<unknown>>;
     },
     async attach(topic, push, attachOptions = {}) {
       if (attachOptions.signal?.aborted) {
         throw new WireError('CANCELLED', 'Wire attach cancelled');
       }
-      const entry = getOrCreateAttachment(topic);
+      const entry = getOrCreateAttachment(topic, attachOptions.pressure?.paused ?? false);
       entry.pushes.add(push);
       if (attachOptions.onReattach) entry.onReattach.add(attachOptions.onReattach);
       if (attachOptions.onReattachError) entry.onReattachError.add(attachOptions.onReattachError);
+      const removePressure = attachOptions.pressure
+        ? addAttachmentPressure(topic, entry, attachOptions.pressure)
+        : undefined;
 
       let detached = false;
       const detach = (): void => {
@@ -544,16 +658,35 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         if (attachOptions.onReattach) entry.onReattach.delete(attachOptions.onReattach);
         if (attachOptions.onReattachError)
           entry.onReattachError.delete(attachOptions.onReattachError);
+        const unpauseOwed = removePressure ? !removePressure() : false;
 
         const current = attachments.get(topic);
         if (current !== entry || current.pushes.size > 0) return;
+        resetAttachmentCredit(current);
+        resetAttachmentPressures(current);
         attachments.delete(topic);
         current.attemptAbort?.abort(new WireError('CANCELLED', 'Wire attach cancelled'));
         current.attemptAbort = null;
+        let detachOwed = false;
         try {
-          transport.post({ kind: 'detach', topic });
+          transport.post({ kind: 'detach', topic, attachId: current.attachId });
         } catch {
-          // The peer may already be disconnected; local teardown is complete.
+          // The peer may already be disconnected; remember to tell a future peer.
+          detachOwed = true;
+        }
+        if (current.attachId !== undefined) {
+          if (!detachOwed) {
+            owedDetaches.delete(current.attachId);
+          } else {
+            // Never dropped: each debt may be a live server attachment. The count is bounded by the attachments
+            // this caller detached while detach posts failed; the session's end disposes them all.
+            owedDetaches.set(current.attachId, {
+              topic,
+              detach: true,
+              unpause: unpauseOwed,
+            });
+            scheduleRetry();
+          }
         }
       };
 
@@ -571,6 +704,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         detach();
         throw new WireError('CANCELLED', 'Wire attach cancelled');
       }
+      if (attachOptions.pressure?.paused) postCurrentPressure(topic, entry);
       return detach;
     },
     onDisconnect(cb): Unsubscribe {
@@ -581,16 +715,21 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     dispose() {
       if (disposed) return;
       disposed = true;
+      stopRetry();
 
+      let orphaned = owedDetaches.size > 0;
       for (const [topic, entry] of attachments) {
+        resetAttachmentCredit(entry);
+        resetAttachmentPressures(entry);
         entry.attemptAbort?.abort(new WireError('DISCONNECTED', 'Wire connection disposed'));
         try {
-          transport.post({ kind: 'detach', topic });
+          transport.post({ kind: 'detach', topic, attachId: entry.attachId });
         } catch {
-          // The underlying transport may already be disconnected.
+          orphaned = true; // The underlying transport may already be disconnected.
         }
       }
       attachments.clear();
+      owedDetaches.clear();
 
       for (const pendingCall of pending.values()) {
         pendingCall.cleanup();
@@ -614,6 +753,15 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       unsubscribeDisconnect();
       unsubscribeMessage();
       disconnectListeners.clear();
+      // A detach that never reached the server would leave its attachment live for as long as the session lasts;
+      // ending the session makes the server dispose it. Call-only connections never owe one, so they never close.
+      if (orphaned) {
+        try {
+          transport.close?.();
+        } catch {
+          // Local disposal is already complete; a transport that cannot close keeps the stated limit.
+        }
+      }
     },
   };
 
@@ -636,7 +784,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     }
   }
 
-  function getOrCreateAttachment(topic: string): Attachment {
+  function getOrCreateAttachment(topic: string, initialPaused = false): Attachment {
     const current = attachments.get(topic);
     if (current) return current;
     const created: Attachment = {
@@ -644,26 +792,32 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       onReattach: new Set(),
       onReattachError: new Set(),
       established: Promise.resolve(),
+      credit: undefined,
+      earlyCredit: 0,
+      pressures: new Map(),
+      pressureDirty: false,
       establishedSettled: true,
       attempt: null,
       attemptAbort: null,
       attachId: undefined,
     };
     attachments.set(topic, created);
-    created.established = establishAttachment(topic, created, false);
+    created.established = establishAttachment(topic, created, false, initialPaused);
     return created;
   }
 
   function establishAttachment(
     topic: string,
     entry: Attachment,
-    notifyReattach: boolean
+    notifyReattach: boolean,
+    pausedOverride?: boolean
   ): Promise<void> {
     const attempt = {};
     const attemptAbort = new AbortController();
     entry.attempt = attempt;
     entry.attemptAbort = attemptAbort;
     entry.establishedSettled = false;
+    resetAttachmentCredit(entry);
     const staleAttachId = entry.attachId;
     const id = createRequestId();
     entry.attachId = id;
@@ -677,16 +831,29 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         stale.reject(new WireError('DISCONNECTED', 'Wire attach superseded by reconnect'));
       }
     }
+    const paused = pausedOverride ?? currentPressurePaused(entry);
     const established = request(
-      { kind: 'attach', id, topic },
+      {
+        kind: 'attach',
+        id,
+        topic,
+        ...(creditWindow !== undefined ? { window: creditWindow } : {}),
+        ...(paused ? { paused: true as const } : {}),
+      },
       { signal: attemptAbort.signal }
-    ).then(() => {});
+    ).then((attachResult) => {
+      if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
+      configureAttachmentCredit(topic, entry, attachResult);
+    });
     established.then(
       () => {
         if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
         entry.establishedSettled = true;
         entry.attemptAbort = null;
-        if (notifyReattach) notifyReattached(entry);
+        if (notifyReattach) {
+          notifyReattached(entry);
+          if (entry.pressures.size > 0 || entry.pressureDirty) postCurrentPressure(topic, entry);
+        }
       },
       (error: unknown) => {
         if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
@@ -696,9 +863,15 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         if (notifyReattach) {
           const retrying = wireError.code === 'DISCONNECTED';
           notifyReattachError(entry, wireError, { retrying });
-          if (!retrying) attachments.delete(topic);
+          if (!retrying) {
+            resetAttachmentCredit(entry);
+            resetAttachmentPressures(entry);
+            attachments.delete(topic);
+          }
           return;
         }
+        resetAttachmentCredit(entry);
+        resetAttachmentPressures(entry);
         attachments.delete(topic);
       }
     );
@@ -743,6 +916,138 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       } catch {
         // Reattach observers are best-effort and must not break the connection.
       }
+    }
+  }
+
+  function resetAttachmentCredit(entry: Attachment): void {
+    cancelCreditTimer(entry.credit);
+    entry.credit = undefined;
+    entry.earlyCredit = 0;
+  }
+
+  function resetAttachmentPressures(entry: Attachment): void {
+    for (const { unsubscribe } of entry.pressures.values()) unsubscribe();
+    entry.pressures.clear();
+  }
+
+  function addAttachmentPressure(
+    topic: string,
+    entry: Attachment,
+    pressure: PressureSignal
+  ): () => boolean {
+    const current = entry.pressures.get(pressure);
+    if (current) {
+      current.count += 1;
+      return () => removeAttachmentPressure(topic, entry, pressure);
+    }
+    const unsubscribe = pressure.onChange(() => {
+      if (attachments.get(topic) === entry) postCurrentPressure(topic, entry);
+    });
+    entry.pressures.set(pressure, { unsubscribe, count: 1 });
+    return () => removeAttachmentPressure(topic, entry, pressure);
+  }
+
+  function removeAttachmentPressure(
+    topic: string,
+    entry: Attachment,
+    pressure: PressureSignal
+  ): boolean {
+    const current = entry.pressures.get(pressure);
+    if (!current) return true;
+    current.count -= 1;
+    if (current.count > 0) return true;
+    current.unsubscribe();
+    entry.pressures.delete(pressure);
+    return postCurrentPressure(topic, entry);
+  }
+
+  // False only when a pressure post was needed and failed.
+  function postCurrentPressure(topic: string, entry: Attachment): boolean {
+    if (attachments.get(topic) !== entry) return true;
+    return postTopicPressure(topic, currentPressurePaused(entry));
+  }
+
+  function postTopicPressure(topic: string, paused: boolean): boolean {
+    const entry = attachments.get(topic);
+    try {
+      transport.post({ kind: 'topic-pressure', topic, attachId: entry?.attachId, paused });
+      if (entry) entry.pressureDirty = false;
+      return true;
+    } catch {
+      if (entry) entry.pressureDirty = true;
+      scheduleRetry();
+      return false;
+    }
+  }
+
+  function currentPressurePaused(entry: Attachment): boolean {
+    for (const pressure of entry.pressures.keys()) {
+      if (pressure.paused) return true;
+    }
+    return false;
+  }
+
+  function cancelCreditTimer(credit: AttachmentCredit | undefined): void {
+    credit?.timer?.dispose();
+    if (credit) credit.timer = undefined;
+  }
+
+  function configureAttachmentCredit(
+    topic: string,
+    entry: Attachment,
+    attachResult: unknown
+  ): void {
+    const early = entry.earlyCredit;
+    entry.earlyCredit = 0;
+    const window = (attachResult as { window?: unknown } | undefined)?.window;
+    if (typeof window !== 'number' || !Number.isFinite(window) || window < 0) return;
+    entry.credit = { window, consumed: early, lastReported: 0, timer: undefined };
+    scheduleCreditReport(topic, entry);
+  }
+
+  function recordCredit(entry: Attachment, topic: string, update: LiveUpdate): void {
+    const credit = entry.credit;
+    if (!credit) {
+      // The result and the first updates can arrive in one chunk, before the result is handled.
+      entry.earlyCredit += creditSize(update);
+      return;
+    }
+    credit.consumed += creditSize(update);
+    scheduleCreditReport(topic, entry);
+  }
+
+  function scheduleCreditReport(topic: string, entry: Attachment): void {
+    const credit = entry.credit;
+    if (!credit) return;
+    if (credit.consumed <= credit.lastReported) return;
+    if (credit.consumed - credit.lastReported >= credit.window / 4) {
+      reportCredit(topic, entry);
+      return;
+    }
+    if (credit.timer === undefined) {
+      credit.timer = clock.schedule(
+        CREDIT_REPORT_IDLE_MS,
+        () => {
+          credit.timer = undefined;
+          if (credit.consumed > credit.lastReported) reportCredit(topic, entry);
+        },
+        { unref: true }
+      );
+    }
+  }
+
+  function reportCredit(topic: string, entry: Attachment): void {
+    const credit = entry.credit;
+    if (!credit) return;
+    cancelCreditTimer(credit);
+    const consumed = credit.consumed;
+    if (consumed === credit.lastReported) return;
+    credit.lastReported = consumed;
+    try {
+      transport.post({ kind: 'topic-credit', topic, attachId: entry.attachId, consumed });
+    } catch {
+      // Credit reports are best-effort; the server's stall gap and the next
+      // attach reset recover lost reports after a disconnect.
     }
   }
 

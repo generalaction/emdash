@@ -102,6 +102,8 @@ export function createHostService(options: CreateHostServiceOptions): HostServic
   const managed = new ManagedHostConnection({
     scope,
     host: options.host,
+    interactiveLane: true,
+    adaptiveBulkWindow: true,
     nextGeneration: options.nextGeneration,
     intent: {
       read: () => {
