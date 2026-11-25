@@ -60,10 +60,74 @@ export type LiveSubscribeOptions = {
   onGap?: () => void;
   onError?: (error: unknown, context: LiveAttachmentErrorContext) => void;
   signal?: AbortSignal;
+  pressure?: PressureSignal;
+};
+
+export type PressureSignal = {
+  readonly paused: boolean;
+  onChange(cb: (paused: boolean) => void): () => void;
+};
+
+export function createPressureSignal(): PressureSignal & { set(paused: boolean): void } {
+  let paused = false;
+  const listeners = new Set<(paused: boolean) => void>();
+  return {
+    get paused() {
+      return paused;
+    },
+    onChange(cb) {
+      listeners.add(cb);
+      return () => {
+        listeners.delete(cb);
+      };
+    },
+    set(next: boolean) {
+      if (next === paused) return;
+      paused = next;
+      for (const listener of [...listeners]) listener(paused);
+    },
+  };
+}
+
+export function anyPressure(
+  ...signals: Array<PressureSignal | undefined | null>
+): PressureSignal & { dispose(): void } {
+  const active = signals.filter((signal): signal is PressureSignal => signal != null);
+  const combined = createPressureSignal();
+  const unsubscribers: Array<() => void> = [];
+  let disposed = false;
+  const update = (): void => combined.set(active.some((signal) => signal.paused));
+  for (const signal of active) unsubscribers.push(signal.onChange(update));
+  update();
+  return {
+    get paused() {
+      return combined.paused;
+    },
+    onChange(cb) {
+      if (disposed) return () => {};
+      return combined.onChange(cb);
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      combined.set(false);
+      for (const unsubscribe of unsubscribers) unsubscribe();
+      unsubscribers.length = 0;
+    },
+  };
+}
+
+export type SnapshotSince = {
+  generation: number;
+  offset: number;
+};
+
+export type SnapshotOptions = {
+  since?: SnapshotSince;
 };
 
 export interface LiveSource {
-  snapshot(): LiveSnapshot<unknown> | Promise<LiveSnapshot<unknown>>;
+  snapshot(options?: SnapshotOptions): LiveSnapshot<unknown> | Promise<LiveSnapshot<unknown>>;
   subscribe(
     cb: (update: LiveUpdate) => void,
     options?: LiveSubscribeOptions

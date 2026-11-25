@@ -585,3 +585,20 @@ describe('SshConnectionManager', () => {
     }
   });
 });
+
+describe('withCompression', () => {
+  it('prefers zlib and keeps an uncompressed fallback', async () => {
+    const { withCompression } = await import('./ssh-connection-manager');
+    expect(withCompression({ host: 'h' }).algorithms?.compress).toEqual([
+      'zlib@openssh.com',
+      'zlib',
+      'none',
+    ]);
+  });
+
+  it('leaves an explicit choice alone', async () => {
+    const { withCompression } = await import('./ssh-connection-manager');
+    const config = { host: 'h', algorithms: { compress: ['none' as const] } };
+    expect(withCompression(config)).toBe(config);
+  });
+});

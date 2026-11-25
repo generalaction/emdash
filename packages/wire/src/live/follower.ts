@@ -80,6 +80,8 @@ type RefreshWaiter = {
 export class LiveFollower<T> {
   private generation = -1;
   private sequence = -1;
+  private snapshotRequestEpoch = 0;
+  private appliedSnapshotEpoch = -1;
   private needsResync = false;
   private resyncAttempt = 0;
   private loop: Promise<void> | undefined;
@@ -114,10 +116,19 @@ export class LiveFollower<T> {
   }
 
   seed(snapshot: LiveSnapshot<T>): void {
-    this.materializer.seed(snapshot);
-    this.generation = snapshot.generation;
-    this.sequence = snapshot.sequence;
-    this.options.onSeeded?.();
+    const epoch = ++this.snapshotRequestEpoch;
+    this.applySnapshot(snapshot, epoch);
+  }
+
+  /**
+   * Fetches a snapshot and seeds it only if no newer snapshot arrived while
+   * the request was in flight.
+   */
+  async fetchSeed(request: () => Promise<LiveSnapshot<T>>): Promise<void> {
+    const epoch = ++this.snapshotRequestEpoch;
+    const snapshot = await request();
+    if (this.disposed) return;
+    this.applySnapshot(snapshot, epoch);
   }
 
   applyUpdate(update: LiveUpdate): void {
@@ -134,6 +145,10 @@ export class LiveFollower<T> {
       });
       return;
     }
+
+    // A delayed update the snapshot already covers carries nothing new: a congested sender lets
+    // snapshot results overtake queued updates, and resyncing on them would loop.
+    if (update.sequence <= this.sequence) return;
 
     if (update.baseSequence !== this.sequence) {
       this.triggerResync('sequence-gap', {
@@ -208,9 +223,8 @@ export class LiveFollower<T> {
     while (this.needsResync && !this.disposed) {
       this.needsResync = false;
       try {
-        const snapshot = await this.refetchSnapshot();
+        await this.fetchSeed(() => this.refetchSnapshot());
         if (this.disposed) return;
-        this.seed(snapshot);
         this.resyncAttempt = 0;
       } catch (error) {
         if (this.disposed) return;
@@ -252,6 +266,48 @@ export class LiveFollower<T> {
       }
     }
     if (!this.disposed) this.settleWaiters((waiter) => waiter.resolve());
+  }
+
+  private applySnapshot(snapshot: LiveSnapshot<T>, epoch: number): void {
+    if (epoch < this.appliedSnapshotEpoch) {
+      this.applyOlderSnapshot(snapshot, epoch);
+      return;
+    }
+
+    // Updates applied while this snapshot was in flight already cover it; seeding would move back.
+    if (snapshot.generation === this.generation && snapshot.sequence < this.sequence) {
+      this.appliedSnapshotEpoch = epoch;
+      return;
+    }
+
+    this.materializeSnapshot(snapshot);
+    this.appliedSnapshotEpoch = epoch;
+  }
+
+  private applyOlderSnapshot(snapshot: LiveSnapshot<T>, epoch: number): void {
+    if (snapshot.generation !== this.generation) {
+      // Different generations are not comparable from snapshot age alone. Resync
+      // so the source returns an authoritative read instead of this snapshot guessing.
+      this.triggerResync('generation', {
+        local: this.generation,
+        incoming: snapshot.generation,
+        snapshotEpoch: epoch,
+        appliedEpoch: this.appliedSnapshotEpoch,
+      });
+      return;
+    }
+
+    // Same generation and a sequence at or behind the cursor is already covered.
+    if (snapshot.sequence > this.sequence) {
+      this.materializeSnapshot(snapshot);
+    }
+  }
+
+  private materializeSnapshot(snapshot: LiveSnapshot<T>): void {
+    this.materializer.seed(snapshot);
+    this.generation = snapshot.generation;
+    this.sequence = snapshot.sequence;
+    this.options.onSeeded?.();
   }
 
   private settleWaiters(settle: (waiter: RefreshWaiter) => void): void {

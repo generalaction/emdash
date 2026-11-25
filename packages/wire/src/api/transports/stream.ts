@@ -1,13 +1,15 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { log } from '@emdash/shared/logger';
 import { isWireMessage, type WireMessage, type WireTransport } from '../protocol';
+import {
+  createOutboundQueue,
+  type DrainableWritable,
+  type OutboundQueueOptions,
+} from './outbound-queue';
 
 type ReadableLike = {
   on(event: 'data', cb: (chunk: Uint8Array | string) => void): unknown;
   on(event: 'close' | 'end' | 'error', cb: () => void): unknown;
-};
-
-type WritableLike = {
-  write(chunk: string | Uint8Array): unknown;
 };
 
 type Bytes = Uint8Array<ArrayBufferLike>;
@@ -18,7 +20,13 @@ const HEADER_BYTES = 5;
 const BODY_LENGTH_BYTES = 4;
 const MAX_FRAME_BYTES = 16 * 1024 * 1024;
 
-export function streamTransport(input: ReadableLike, output: WritableLike): WireTransport {
+export function streamTransport(
+  input: ReadableLike,
+  output: DrainableWritable,
+  options: OutboundQueueOptions = {}
+): WireTransport {
+  // Past the memory bound the peer is treated as gone; its owner closes the stream.
+  const outbound = createOutboundQueue(output, encodeFrame, () => overflow(), options);
   const messageListeners = new Set<(message: WireMessage) => void>();
   const disconnectListeners = new Set<() => void>();
   let buffer: Bytes = new Uint8Array(0);
@@ -27,7 +35,16 @@ export function streamTransport(input: ReadableLike, output: WritableLike): Wire
   const notifyDisconnect = (): void => {
     if (disconnected) return;
     disconnected = true;
+    outbound.clear();
     for (const listener of disconnectListeners) listener();
+  };
+
+  const overflow = (): void => {
+    if (disconnected) return;
+    log.warn('wire stream transport outbound queue past its bound, disconnecting', {
+      queuedBytes: outbound.queuedBytes,
+    });
+    notifyDisconnect();
   };
 
   input.on('data', (chunk) => {
@@ -46,7 +63,7 @@ export function streamTransport(input: ReadableLike, output: WritableLike): Wire
   return {
     post(message) {
       if (disconnected) throw new Error('Stream transport disconnected');
-      output.write(encodeFrame(message));
+      outbound.post(message);
     },
     onMessage(cb): Unsubscribe {
       messageListeners.add(cb);

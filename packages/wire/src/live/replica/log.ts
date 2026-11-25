@@ -1,6 +1,13 @@
 import { createEmitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
 import { stableStringify } from '@emdash/shared/util';
-import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
+import type {
+  LiveLogSnapshotData,
+  LiveSnapshot,
+  LiveSource,
+  LiveSubscribeOptions,
+  LiveUpdate,
+  SnapshotOptions,
+} from '../../api/channel';
 import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';
 import type { WireInstrumentation } from '../../api/instrumentation';
@@ -41,17 +48,22 @@ export class ReplicaLog implements LiveSource {
   ) {
     if (!options.store) this.local = new LiveLogSource(options);
     this.client = new LiveLogClient({
-      refetchSnapshot: () => handle.snapshot(),
+      refetchSnapshot: () => this.refetchSnapshot(),
       onReset: (data) => this.reset(data),
       onAppend: (chunk) => this.append(chunk),
       onResyncFailed: options.onResyncFailed ?? resyncRetry(),
       instrumentation: options.instrumentation,
       topic: handle.topic,
     });
-    this.ready = handle.snapshot().then((snapshot) => this.client.seed(snapshot));
+    this.ready = this.client.seedFrom(() => handle.snapshot());
     this.detachPromise = handle.attach((update) => this.client.applyUpdate(update), {
       onReattach: () => this.client.invalidate(),
     });
+  }
+
+  /** True while a resync is needed or in flight, including after a give-up. */
+  get stale(): boolean {
+    return this.client.stale;
   }
 
   text(): string {
@@ -65,13 +77,13 @@ export class ReplicaLog implements LiveSource {
     return this.appendEmitter.subscribe(cb);
   }
 
-  async snapshot(): Promise<LiveSnapshot<LiveLogSnapshotData>> {
+  async snapshot(options?: SnapshotOptions): Promise<LiveSnapshot<LiveLogSnapshotData>> {
     await this.ready;
-    return this.localSource().snapshot();
+    return this.localSource().snapshot(options);
   }
 
-  subscribe(cb: (update: LiveUpdate) => void): Unsubscribe {
-    return this.localSource().subscribe(cb);
+  subscribe(cb: (update: LiveUpdate) => void, options?: LiveSubscribeOptions): Unsubscribe {
+    return this.localSource().subscribe(cb, options);
   }
 
   async dispose(): Promise<void> {
@@ -80,6 +92,11 @@ export class ReplicaLog implements LiveSource {
     this.client.dispose();
     this.appendEmitter.clear();
     (await this.detachPromise)();
+  }
+
+  private refetchSnapshot(): Promise<LiveSnapshot<LiveLogSnapshotData>> {
+    const position = this.client.position;
+    return position ? this.handle.snapshot({ since: position }) : this.handle.snapshot();
   }
 
   private reset(data: LiveLogSnapshotData): void {

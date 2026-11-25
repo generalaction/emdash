@@ -1,3 +1,4 @@
+import type { LiveSubscribeOptions } from '@emdash/wire/rpc';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
 
 export interface FakePtyOptions {
@@ -17,6 +18,8 @@ export class FakePtyProcess implements PtyProcess {
   readonly writes: string[] = [];
   readonly resizes: Array<{ cols: number; rows: number }> = [];
   killCount = 0;
+  pauseCalls = 0;
+  resumeCalls = 0;
   private readonly dataHandlers: Array<(data: string) => void> = [];
   private readonly exitHandlers: Array<(info: PtyExitInfo) => void> = [];
   private exited = false;
@@ -39,6 +42,14 @@ export class FakePtyProcess implements PtyProcess {
     if (this.options.exitOnKill ?? true) {
       this.emitExit({ exitCode: null, signal: 'SIGTERM' });
     }
+  }
+
+  pause(): void {
+    this.pauseCalls += 1;
+  }
+
+  resume(): void {
+    this.resumeCalls += 1;
   }
 
   onData(handler: (data: string) => void): void {
@@ -65,6 +76,24 @@ export class FakePtyProcess implements PtyProcess {
     if (this.exited) return;
     this.exited = true;
     for (const handler of this.exitHandlers) handler(info);
+  }
+}
+
+/** A viewer's back-pressure, as the wire's credit gate sets it. */
+export class TestPressureSignal implements NonNullable<LiveSubscribeOptions['pressure']> {
+  paused = false;
+  private readonly listeners = new Set<(paused: boolean) => void>();
+
+  set(paused: boolean): void {
+    this.paused = paused;
+    for (const listener of this.listeners) listener(paused);
+  }
+
+  onChange(listener: (paused: boolean) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 }
 

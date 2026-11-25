@@ -108,7 +108,7 @@ export class LiveStateSource<T> {
    */
   reseed(next?: T): void {
     if (next !== undefined) this.current = next;
-    this.generation = Date.now();
+    this.generation = Math.max(this.generation + 1, Date.now());
     this.sequence = 0;
   }
 

@@ -13,6 +13,7 @@ import type {
   LiveSnapshot,
   LiveSource,
   LiveUpdate,
+  SnapshotOptions,
 } from './channel';
 import type { AttachOptions, CallOptions, Connection } from './connect';
 import type {
@@ -76,7 +77,7 @@ export type ClientOptions = {
 
 export type LiveClientHandle<T = unknown> = {
   readonly topic: string;
-  snapshot(): Promise<LiveSnapshot<T>>;
+  snapshot(options?: SnapshotOptions): Promise<LiveSnapshot<T>>;
   attach(push: (update: LiveUpdate) => void, options?: AttachOptions): Promise<Unsubscribe>;
   asLiveSource(): LiveSource;
 };
@@ -312,16 +313,18 @@ export function createLiveClientHandle<T>(
 ): LiveClientHandle<T> {
   return {
     topic,
-    snapshot: () => connection.snapshot(topic) as Promise<LiveSnapshot<T>>,
+    snapshot: (options?: SnapshotOptions) =>
+      connection.snapshot(topic, options) as Promise<LiveSnapshot<T>>,
     attach: (push, options) => connection.attach(topic, push, options),
     asLiveSource() {
       return {
-        snapshot: () => connection.snapshot(topic),
+        snapshot: (options?: SnapshotOptions) => connection.snapshot(topic, options),
         subscribe: (cb, options) =>
           connection.attach(topic, cb, {
             onReattach: options?.onGap,
             onReattachError: options?.onError,
             signal: options?.signal,
+            pressure: options?.pressure,
           }),
       };
     },

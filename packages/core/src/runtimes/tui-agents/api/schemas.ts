@@ -187,8 +187,14 @@ export const tuiStartErrorSchema = z.discriminatedUnion('type', [
 ]);
 export const tuiResumeErrorSchema = tuiStartErrorSchema;
 export const tuiSessionControlErrorSchema = runtimeUnavailableErrorSchema;
+/** A replayed key the host cannot confirm was written, after a runtime or PTY restart. */
+export const tuiInputUnconfirmedErrorSchema = z.object({
+  type: z.literal('input-unconfirmed'),
+  conversationId: z.string(),
+});
 export const tuiInputErrorSchema = z.discriminatedUnion('type', [
   tuiNotFoundErrorSchema,
+  tuiInputUnconfirmedErrorSchema,
   runtimeUnavailableErrorSchema,
 ]);
 export const tuiAgentErrorSchema = z.discriminatedUnion('type', [

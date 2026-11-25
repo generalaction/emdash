@@ -1,5 +1,5 @@
 import { toSerializedError, type SerializedError, type Unsubscribe } from '@emdash/shared';
-import type { LiveUpdate } from './channel';
+import type { LiveUpdate, SnapshotSince } from './channel';
 
 export type WireErrorCode =
   | 'CANCELLED'
@@ -29,17 +29,23 @@ export type WireSnapshotMessage = {
   kind: 'snapshot';
   id: string;
   topic: string;
+  since?: SnapshotSince;
 };
 
 export type WireAttachMessage = {
   kind: 'attach';
   id: string;
   topic: string;
+  window?: number;
+  /** Set on attach/reattach while the client's current pressure is paused. */
+  paused?: true;
 };
 
 export type WireDetachMessage = {
   kind: 'detach';
   topic: string;
+  /** Epoch protection requires both peers to stamp and check ids; legacy peers use topic-only behavior. */
+  attachId?: string;
 };
 
 export type WireCancelMessage = {
@@ -67,19 +73,38 @@ export type WireResultMessage =
 export type WireUpdateMessage = {
   kind: 'update';
   topic: string;
+  attachId?: string;
   update: LiveUpdate;
+  /** Marked by the server credit gate for updates sent under a windowed attach. */
+  flow?: boolean;
 };
 
 export type WireTopicGapMessage = {
   kind: 'topic-gap';
   topic: string;
+  attachId?: string;
 };
 
 export type WireTopicErrorMessage = {
   kind: 'topic-error';
   topic: string;
+  attachId?: string;
   error: SerializedWireError;
   retrying: boolean;
+};
+
+export type WireTopicCreditMessage = {
+  kind: 'topic-credit';
+  topic: string;
+  attachId?: string;
+  consumed: number;
+};
+
+export type WireTopicPressureMessage = {
+  kind: 'topic-pressure';
+  topic: string;
+  attachId?: string;
+  paused: boolean;
 };
 
 export type WireFileMeta = {
@@ -129,6 +154,8 @@ export type WireMessage =
   | WireUpdateMessage
   | WireTopicGapMessage
   | WireTopicErrorMessage
+  | WireTopicCreditMessage
+  | WireTopicPressureMessage
   | WireBlobPullMessage
   | WireBlobChunkMessage
   | WireBlobEndMessage
@@ -197,6 +224,11 @@ export function isWireError(error: unknown, code?: WireErrorCode): error is Wire
   return error instanceof WireError && (code === undefined || error.code === code);
 }
 
+/** The credit unit both peers count the same way: the length of the update's JSON text. */
+export function creditSize(update: LiveUpdate): number {
+  return JSON.stringify(update).length;
+}
+
 export function isWireMessage(value: unknown): value is WireMessage {
   if (typeof value !== 'object' || value === null) return false;
   const message = value as Record<string, unknown>;
@@ -204,10 +236,16 @@ export function isWireMessage(value: unknown): value is WireMessage {
     case 'call':
       return typeof message.id === 'string' && typeof message.path === 'string';
     case 'snapshot':
-    case 'attach':
       return typeof message.id === 'string' && typeof message.topic === 'string';
+    case 'attach':
+      return (
+        typeof message.id === 'string' &&
+        typeof message.topic === 'string' &&
+        (message.window === undefined || isNonNegativeSafeInteger(message.window)) &&
+        (message.paused === undefined || message.paused === true)
+      );
     case 'detach':
-      return typeof message.topic === 'string';
+      return typeof message.topic === 'string' && hasValidAttachId(message);
     case 'cancel':
       return typeof message.id === 'string';
     case 'result':
@@ -219,14 +257,31 @@ export function isWireMessage(value: unknown): value is WireMessage {
         typeof message.message === 'string'
       );
     case 'update':
-      return typeof message.topic === 'string' && typeof message.update === 'object';
+      return (
+        typeof message.topic === 'string' &&
+        hasValidAttachId(message) &&
+        typeof message.update === 'object'
+      );
     case 'topic-gap':
-      return typeof message.topic === 'string';
+      return typeof message.topic === 'string' && hasValidAttachId(message);
     case 'topic-error':
       return (
         typeof message.topic === 'string' &&
+        hasValidAttachId(message) &&
         typeof message.error === 'object' &&
         typeof message.retrying === 'boolean'
+      );
+    case 'topic-credit':
+      return (
+        typeof message.topic === 'string' &&
+        hasValidAttachId(message) &&
+        isNonNegativeSafeInteger(message.consumed)
+      );
+    case 'topic-pressure':
+      return (
+        typeof message.topic === 'string' &&
+        hasValidAttachId(message) &&
+        typeof message.paused === 'boolean'
       );
     case 'blob-pull':
       return typeof message.channel === 'string' && typeof message.credit === 'number';
@@ -244,6 +299,14 @@ export function isWireMessage(value: unknown): value is WireMessage {
     default:
       return false;
   }
+}
+
+function hasValidAttachId(message: Record<string, unknown>): boolean {
+  return message.attachId === undefined || typeof message.attachId === 'string';
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function serializeCause(cause: unknown): SerializedError | undefined {

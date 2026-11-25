@@ -17,6 +17,8 @@ export interface PtyProcess {
   kill(): void;
   onData(handler: (data: string) => void): void;
   onExit(handler: (info: PtyExitInfo) => void): void;
+  pause?(): void;
+  resume?(): void;
   getPid?(): number;
 }
 

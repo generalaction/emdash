@@ -67,6 +67,10 @@ export type HostConnectionSupervisorOptions = {
   openTimeoutMs?: number;
   initializeTimeoutMs?: number;
   preparationTimeoutMs?: number;
+  /** Carries keystrokes, typed sessions' output and health probes on a second Wire channel. */
+  interactiveLane?: boolean;
+  /** Sizes the bulk channel's SSH receive window from the lane's round trips (needs the lane). */
+  adaptiveBulkWindow?: boolean;
   client?: { id: string; appVersion: string };
   onReady?(attachment: WorkspaceServerConnection): void;
   log?(state: HostConnectionState, detail: Record<string, unknown>): void;
@@ -123,6 +127,8 @@ export class HostConnectionSupervisor {
       openTimeoutMs: options.openTimeoutMs ?? 10_000,
       initializeTimeoutMs: options.initializeTimeoutMs ?? 10_000,
       healthTimeoutMs: options.healthTimeoutMs ?? 5_000,
+      interactiveLane: options.interactiveLane,
+      adaptiveBulkWindow: options.adaptiveBulkWindow,
       client: options.client,
       onRequestTimeout: () => this.revalidate('rpc-timeout'),
       onDisconnect: () => {

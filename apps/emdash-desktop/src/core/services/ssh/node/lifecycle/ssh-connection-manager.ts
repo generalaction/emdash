@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { waitWithSignal } from '@emdash/shared/scheduling';
-import ssh2, { type Client } from 'ssh2';
+import ssh2, { type Client, type ConnectConfig } from 'ssh2';
 import type { ConnectionState, SshConnectionEvent, SshHealthState } from '@core/primitives/ssh/api';
 import { SshConnectionFailure } from '@core/primitives/ssh/api/node/connection-control';
 import type {
@@ -268,7 +268,7 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
       });
       client.on('close', () => lose(new SshConnectionError('SSH connection closed before ready')));
       try {
-        client.connect(resolved.config);
+        client.connect(withCompression(resolved.config));
         // ssh2 assigns its socket during connect; disable Nagle before handshake traffic.
         // For proxy streams without setNoDelay, ssh2 safely leaves the transport unchanged.
         client.setNoDelay(true);
@@ -308,4 +308,16 @@ function classifyError(error: Error): SshConnectionFailure {
   if (message.includes('timeout') || message.includes('timed out'))
     return new SshTimeoutError(error.message);
   return new SshConnectionError(error.message);
+}
+
+/**
+ * Prefers SSH compression unless the config already chooses: agent output is text that compresses several times,
+ * and on slow or busy links bytes on the wire, not CPU, limit how fresh background terminals are.
+ */
+export function withCompression(config: ConnectConfig): ConnectConfig {
+  if (config.algorithms?.compress) return config;
+  return {
+    ...config,
+    algorithms: { ...config.algorithms, compress: ['zlib@openssh.com', 'zlib', 'none'] },
+  };
 }

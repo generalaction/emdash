@@ -1,4 +1,5 @@
 import type { Result } from '@emdash/shared';
+import type { InputSequence } from '#primitives/terminal-input/api';
 import type {
   TuiAgentStartInput,
   TuiInputError,
@@ -33,8 +34,12 @@ export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
     kill(input: { conversationId: string }): Promise<Result<void, TuiSessionControlError>> {
       return runtime.killSession(input.conversationId);
     },
-    sendInput(input: { conversationId: string; data: string }): Result<void, TuiInputError> {
-      return runtime.sendInput(input.conversationId, input.data);
+    sendInput(input: {
+      conversationId: string;
+      data: string;
+      sequence?: InputSequence;
+    }): Result<void, TuiInputError> {
+      return runtime.sendInput(input.conversationId, input.data, input.sequence);
     },
     resize(input: {
       conversationId: string;

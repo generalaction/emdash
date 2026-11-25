@@ -7,6 +7,7 @@ import {
   type Connection,
   type LiveSnapshot,
   type LiveUpdate,
+  type SnapshotOptions,
 } from '@emdash/wire/rpc';
 import { hostRuntimesContract } from './contract';
 import type { HostRuntimesClient } from './runtime-broker';
@@ -124,10 +125,10 @@ class RebindableConnection implements Connection {
     return this.current.openBlobProducer(channel, source);
   }
 
-  snapshot(topic: string): Promise<LiveSnapshot<unknown>> {
+  snapshot(topic: string, options?: SnapshotOptions): Promise<LiveSnapshot<unknown>> {
     if (this.disposed)
       return Promise.reject(new WireError('DISCONNECTED', 'Runtime identity disposed'));
-    return this.current.snapshot(topic);
+    return this.current.snapshot(topic, options);
   }
 
   async attach(
