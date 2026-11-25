@@ -14,6 +14,7 @@ import { ACTIVE_IDLE_MS, interactiveLaneConnection, MOVE_RETRY_MS } from './inte
 type Call = {
   path: string;
   input: Record<string, unknown>;
+  options?: { signal?: AbortSignal; timeoutMs?: number };
   resolve(value?: unknown): void;
   reject(error: Error): void;
 };
@@ -39,9 +40,15 @@ class FakeConnection {
   }> = [];
 
   readonly connection = {
-    call: (path: string, input: unknown) =>
+    call: (path: string, input: unknown, options?: Call['options']) =>
       new Promise((resolve, reject) => {
-        this.calls.push({ path, input: input as Record<string, unknown>, resolve, reject });
+        this.calls.push({
+          path,
+          input: input as Record<string, unknown>,
+          options,
+          resolve,
+          reject,
+        });
       }),
     snapshot: async () => {
       const captured = this.snapshotData;
@@ -447,5 +454,131 @@ describe('interactiveLaneConnection input replay', () => {
     const sent = sendKey(connection, 'c1', 'a');
     lane.calls[0]!.reject(new WireError('HANDLER_ERROR', 'boom'));
     await expect(sent).rejects.toThrow('boom');
+  });
+});
+
+describe('interactiveLaneConnection input while the lane is disconnected', () => {
+  const key = (
+    connection: Connection,
+    data: string,
+    options?: { signal?: AbortSignal; timeoutMs?: number }
+  ) => connection.call('tuiAgents.sendInput', { conversationId: 'c1', data }, options);
+  const settleState = (promise: Promise<unknown>) => {
+    const state = { value: 'pending' as string };
+    promise.then(
+      () => (state.value = 'resolved'),
+      (error: unknown) => (state.value = error instanceof WireError ? error.code : 'error')
+    );
+    return state;
+  };
+  const cut = async (lane: FakeConnection, disconnect: () => void) => {
+    disconnect();
+    for (const call of lane.calls.splice(0)) call.reject(disconnected());
+    await flush();
+  };
+
+  it('rejects cancelled input at once and never replays it', async () => {
+    const { lane, connection, disconnect, reconnect } = setup();
+    const kept = key(connection, 'a');
+    await cut(lane, disconnect);
+    const controller = new AbortController();
+    const cancelled = key(connection, 'b', { signal: controller.signal });
+    const state = settleState(cancelled);
+    controller.abort();
+    await flush();
+
+    expect(state.value).toBe('CANCELLED');
+    reconnect();
+    expect(lane.calls.map((call) => call.input.data)).toEqual(['a']);
+    lane.calls[0]!.resolve({ success: true });
+    await kept;
+  });
+
+  it('frees the buffer slot of cancelled input', async () => {
+    const { lane, connection, disconnect } = setup();
+    void key(connection, 'a');
+    await cut(lane, disconnect);
+    const states: Array<{ value: string }> = [];
+    for (let index = 0; index < 1100; index++) {
+      const controller = new AbortController();
+      states.push(settleState(key(connection, 'x', { signal: controller.signal })));
+      controller.abort();
+    }
+    await flush();
+
+    expect(states.every((state) => state.value === 'CANCELLED')).toBe(true);
+  });
+
+  it('rejects input whose signal was already aborted', async () => {
+    const { connection } = setup();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(key(connection, 'a', { signal: controller.signal })).rejects.toMatchObject({
+      code: 'CANCELLED',
+    });
+  });
+
+  it('expires queued input at its timeout and does not replay it', async () => {
+    const { lane, clock, connection, disconnect, reconnect } = setup();
+    void key(connection, 'a');
+    await cut(lane, disconnect);
+    const state = settleState(key(connection, 'b', { timeoutMs: 1_000 }));
+    await clock.advanceBy(1_000);
+    await flush();
+
+    expect(state.value).toBe('TIMEOUT');
+    reconnect();
+    expect(lane.calls.map((call) => call.input.data)).toEqual(['a']);
+  });
+
+  it('passes only the remaining timeout to a later attempt', async () => {
+    const { lane, clock, connection, disconnect, reconnect } = setup();
+    void key(connection, 'a', { timeoutMs: 1_000 });
+    expect(lane.calls[0]!.options?.timeoutMs).toBe(1_000);
+    await cut(lane, disconnect);
+    await clock.advanceBy(300);
+    reconnect();
+
+    expect(lane.calls).toHaveLength(1);
+    expect(lane.calls[0]!.options?.timeoutMs).toBe(700);
+  });
+
+  it('releases timers and abort listeners when input settles or the connection disposes', async () => {
+    const { lane, connection, disconnect, reconnect, pendingTimers } = setup();
+    const controller = new AbortController();
+    let added = 0;
+    let removed = 0;
+    const addListener = controller.signal.addEventListener.bind(controller.signal);
+    const removeListener = controller.signal.removeEventListener.bind(controller.signal);
+    controller.signal.addEventListener = ((...args: Parameters<typeof addListener>) => {
+      added += 1;
+      addListener(...args);
+    }) as typeof addListener;
+    controller.signal.removeEventListener = ((...args: Parameters<typeof removeListener>) => {
+      removed += 1;
+      removeListener(...args);
+    }) as typeof removeListener;
+
+    const plain = key(connection, 'p');
+    lane.calls[0]!.resolve({ success: true });
+    await plain;
+    lane.calls.length = 0;
+    const baseline = pendingTimers.size;
+
+    const settled = key(connection, 'a', { signal: controller.signal, timeoutMs: 5_000 });
+    await cut(lane, disconnect);
+    reconnect();
+    lane.calls[0]!.resolve({ success: true });
+    await settled;
+    expect(pendingTimers.size).toBe(baseline);
+    expect(removed).toBe(added);
+    expect(added).toBeGreaterThan(0);
+
+    const queued = key(connection, 'b', { timeoutMs: 5_000 });
+    const state = settleState(queued);
+    connection.dispose();
+    await flush();
+    expect(state.value).toBe('DISCONNECTED');
+    expect(pendingTimers.size).toBe(0);
   });
 });

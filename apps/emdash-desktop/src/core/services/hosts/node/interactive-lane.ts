@@ -242,6 +242,10 @@ type PendingInput = {
   sent: boolean;
   /** Lane generation of the attempt in flight, if any. */
   attempt: number | undefined;
+  /** Clock time at which an explicit `timeoutMs` runs out, counted from when the input was queued. */
+  deadlineAt: number | undefined;
+  /** Stops the deadline timer and the abort listener. */
+  cleanup(): void;
   resolve(value: unknown): void;
   reject(error: unknown): void;
 };
@@ -265,7 +269,41 @@ function createInputReplay(lane: Connection, options: InteractiveLaneOptions) {
   };
 
   const settle = (entry: PendingInput): void => {
-    queue.splice(queue.indexOf(entry), 1);
+    entry.cleanup();
+    const index = queue.indexOf(entry);
+    if (index >= 0) queue.splice(index, 1);
+  };
+
+  // Cancellation and deadlines also apply while the input waits for the lane. An attempt in flight
+  // is cancelled or timed out by the call itself.
+  const abandon = (entry: PendingInput, error: WireError): void => {
+    if (entry.attempt !== undefined || !queue.includes(entry)) return;
+    settle(entry);
+    entry.reject(error);
+  };
+
+  const cancelled = (sent: boolean) =>
+    new WireError('CANCELLED', 'Wire call cancelled', sent ? {} : { delivery: 'not-sent' });
+  const timedOut = (entry: PendingInput, timeoutMs: number) =>
+    new WireError(
+      'TIMEOUT',
+      `Interactive input timed out after ${timeoutMs}ms`,
+      entry.sent ? {} : { delivery: 'not-sent' }
+    );
+
+  const watch = (entry: PendingInput): void => {
+    const timeoutMs = entry.options?.timeoutMs;
+    const signal = entry.options?.signal;
+    const timer =
+      entry.deadlineAt !== undefined && timeoutMs !== undefined
+        ? options.clock.schedule(timeoutMs, () => abandon(entry, timedOut(entry, timeoutMs)))
+        : undefined;
+    const onAbort = (): void => abandon(entry, cancelled(entry.sent));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    entry.cleanup = () => {
+      void timer?.dispose();
+      signal?.removeEventListener('abort', onAbort);
+    };
   };
 
   const refuse = (entry: PendingInput): void => {
@@ -282,9 +320,18 @@ function createInputReplay(lane: Connection, options: InteractiveLaneOptions) {
 
   const post = (entry: PendingInput, generation: number): void => {
     const input = entry.sent ? asReplay(entry.input) : entry.input;
+    let callOptions = entry.options;
+    if (entry.deadlineAt !== undefined && entry.options?.timeoutMs !== undefined) {
+      const remaining = Math.ceil(entry.deadlineAt - options.clock.now());
+      if (remaining <= 0) {
+        abandon(entry, timedOut(entry, entry.options.timeoutMs));
+        return;
+      }
+      callOptions = { ...entry.options, timeoutMs: remaining };
+    }
     entry.sent = true;
     entry.attempt = generation;
-    lane.call(entry.path, input, entry.options).then(
+    lane.call(entry.path, input, callOptions).then(
       (value) => {
         settle(entry);
         entry.resolve(value);
@@ -324,6 +371,7 @@ function createInputReplay(lane: Connection, options: InteractiveLaneOptions) {
     ): Promise<unknown> {
       const scope = options.replayScope();
       if (scope === undefined) return lane.call(path, input, callOptions);
+      if (callOptions?.signal?.aborted) return Promise.reject(cancelled(false));
       if (queue.length >= MAX_PENDING_INPUTS) {
         return Promise.reject(
           new WireError('DISCONNECTED', 'Interactive input buffer is full', {
@@ -332,22 +380,29 @@ function createInputReplay(lane: Connection, options: InteractiveLaneOptions) {
         );
       }
       return new Promise((resolve, reject) => {
-        queue.push({
+        const timeoutMs = callOptions?.timeoutMs;
+        const entry: PendingInput = {
           path,
           input: { ...input, sequence: { writer, seq: sequence(target) } },
           options: callOptions,
           scope,
           sent: false,
           attempt: undefined,
+          deadlineAt:
+            timeoutMs !== undefined && timeoutMs > 0 ? options.clock.now() + timeoutMs : undefined,
+          cleanup: () => {},
           resolve,
           reject,
-        });
+        };
+        watch(entry);
+        queue.push(entry);
         pump();
       });
     },
     pump,
     dispose(): void {
       for (const entry of queue.splice(0)) {
+        entry.cleanup();
         entry.reject(new WireError('DISCONNECTED', 'Wire connection disposed'));
       }
     },
