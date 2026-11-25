@@ -67,17 +67,21 @@ export type WireResultMessage =
 export type WireUpdateMessage = {
   kind: 'update';
   topic: string;
+  /** Old peers omit this and retain topic-only matching. */
+  attachId?: string;
   update: LiveUpdate;
 };
 
 export type WireTopicGapMessage = {
   kind: 'topic-gap';
   topic: string;
+  attachId?: string;
 };
 
 export type WireTopicErrorMessage = {
   kind: 'topic-error';
   topic: string;
+  attachId?: string;
   error: SerializedWireError;
   retrying: boolean;
 };
@@ -219,14 +223,22 @@ export function isWireMessage(value: unknown): value is WireMessage {
         typeof message.message === 'string'
       );
     case 'update':
-      return typeof message.topic === 'string' && typeof message.update === 'object';
+      return (
+        typeof message.topic === 'string' &&
+        typeof message.update === 'object' &&
+        (message.attachId === undefined || typeof message.attachId === 'string')
+      );
     case 'topic-gap':
-      return typeof message.topic === 'string';
+      return (
+        typeof message.topic === 'string' &&
+        (message.attachId === undefined || typeof message.attachId === 'string')
+      );
     case 'topic-error':
       return (
         typeof message.topic === 'string' &&
         typeof message.error === 'object' &&
-        typeof message.retrying === 'boolean'
+        typeof message.retrying === 'boolean' &&
+        (message.attachId === undefined || typeof message.attachId === 'string')
       );
     case 'blob-pull':
       return typeof message.channel === 'string' && typeof message.credit === 'number';
