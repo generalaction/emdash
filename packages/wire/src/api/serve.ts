@@ -19,6 +19,7 @@ export type ServeOptions = {
 };
 
 type ServerAttachment = {
+  attachId: string;
   ready: Promise<void>;
   unsubscribe?: Unsubscribe;
   release: () => Promise<void>;
@@ -280,10 +281,11 @@ export function serve(
           if (existing) {
             await existing.ready;
             if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
-            return undefined;
+            return existing.attachId;
           }
           const lease = requireLiveLease(controller, message.topic);
           const attachment: ServerAttachment = {
+            attachId: message.id,
             ready: Promise.resolve(),
             release: lease.release,
             disposed: false,
@@ -301,14 +303,26 @@ export function serve(
               }
 
               const unsubscribe = await source.subscribe(
-                (update) => post({ kind: 'update', topic: message.topic, update }),
+                (update) =>
+                  post({
+                    kind: 'update',
+                    topic: message.topic,
+                    attachId: attachment.attachId,
+                    update,
+                  }),
                 {
-                  onGap: () => post({ kind: 'topic-gap', topic: message.topic }),
+                  onGap: () =>
+                    post({
+                      kind: 'topic-gap',
+                      topic: message.topic,
+                      attachId: attachment.attachId,
+                    }),
                   signal,
                   onError: (error, context) => {
                     post({
                       kind: 'topic-error',
                       topic: message.topic,
+                      attachId: attachment.attachId,
                       error: serializeWireError(error),
                       retrying: context.retrying,
                     });
@@ -344,7 +358,7 @@ export function serve(
             disposeAttachment(attachment);
             throw new WireError('CANCELLED', 'Wire attach cancelled');
           }
-          return undefined;
+          return attachment.attachId;
         });
         break;
       case 'detach':

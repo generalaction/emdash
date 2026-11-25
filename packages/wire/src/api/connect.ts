@@ -79,6 +79,8 @@ type Attachment = {
   attempt: object | null;
   attemptAbort: AbortController | null;
   attachId: string | undefined;
+  /** The attach id the server stamps on this topic's frames. It differs from `attachId` when the attachment is shared. */
+  serverAttachId: string | undefined;
 };
 
 export type Connection = {
@@ -100,6 +102,25 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
   const pending = new Map<string, PendingCall>();
   const heldCallIds: string[] = [];
   const attachments = new Map<string, Attachment>();
+  // Attach ids this connection gave up on, per topic. A frame still in flight for one of them must not
+  // reach a newer attachment of the same topic. A stale frame can be delayed by transport queueing, so
+  // the memory is bounded per topic (activity on other topics cannot evict it) and by topic count.
+  const abandonedAttachIds = new Map<string, Set<string>>();
+  const MAX_ABANDONED_PER_TOPIC = 32;
+  const MAX_ABANDONED_TOPICS = 4096;
+  function abandon(topic: string, attachId: string | undefined): void {
+    if (attachId === undefined) return;
+    const ids = abandonedAttachIds.get(topic) ?? new Set<string>();
+    abandonedAttachIds.delete(topic);
+    ids.add(attachId);
+    if (ids.size > MAX_ABANDONED_PER_TOPIC) ids.delete(ids.values().next().value as string);
+    abandonedAttachIds.set(topic, ids);
+    if (abandonedAttachIds.size > MAX_ABANDONED_TOPICS) {
+      abandonedAttachIds.delete(abandonedAttachIds.keys().next().value as string);
+    }
+  }
+  const isAbandoned = (topic: string, attachId: string | undefined): boolean =>
+    attachId !== undefined && (abandonedAttachIds.get(topic)?.has(attachId) ?? false);
   const blobConsumers = new Map<string, BlobConsumer>();
   const blobProducers = new Map<string, BlobProducer>();
   const disconnectListeners = new Set<() => void>();
@@ -138,16 +159,19 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     }
 
     if (message.kind === 'update') {
+      if (isAbandoned(message.topic, message.attachId)) return;
       for (const push of attachments.get(message.topic)?.pushes ?? []) push(message.update);
       return;
     }
 
     if (message.kind === 'topic-gap') {
+      if (isAbandoned(message.topic, message.attachId)) return;
       notifyReattached(attachments.get(message.topic));
       return;
     }
 
     if (message.kind === 'topic-error') {
+      if (isAbandoned(message.topic, message.attachId)) return;
       const entry = attachments.get(message.topic);
       const error = wireErrorFromSerialized(message.error);
       notifyReattachError(entry, error, { retrying: message.retrying });
@@ -548,6 +572,8 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         const current = attachments.get(topic);
         if (current !== entry || current.pushes.size > 0) return;
         attachments.delete(topic);
+        abandon(topic, current.attachId);
+        abandon(topic, current.serverAttachId);
         current.attemptAbort?.abort(new WireError('CANCELLED', 'Wire attach cancelled'));
         current.attemptAbort = null;
         try {
@@ -648,6 +674,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       attempt: null,
       attemptAbort: null,
       attachId: undefined,
+      serverAttachId: undefined,
     };
     attachments.set(topic, created);
     created.established = establishAttachment(topic, created, false);
@@ -665,8 +692,12 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     entry.attemptAbort = attemptAbort;
     entry.establishedSettled = false;
     const staleAttachId = entry.attachId;
+    const staleServerAttachId = entry.serverAttachId;
     const id = createRequestId();
     entry.attachId = id;
+    entry.serverAttachId = undefined;
+    abandon(topic, staleAttachId);
+    abandon(topic, staleServerAttachId);
     // A superseded in-flight attach was addressed to a previous peer; drop it
     // so a stale late result can never win over this attempt.
     if (staleAttachId !== undefined) {
@@ -677,13 +708,17 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         stale.reject(new WireError('DISCONNECTED', 'Wire attach superseded by reconnect'));
       }
     }
+    let serverAttachId: string | undefined;
     const established = request(
       { kind: 'attach', id, topic },
       { signal: attemptAbort.signal }
-    ).then(() => {});
+    ).then((value) => {
+      serverAttachId = typeof value === 'string' ? value : undefined;
+    });
     established.then(
       () => {
         if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
+        entry.serverAttachId = serverAttachId;
         entry.establishedSettled = true;
         entry.attemptAbort = null;
         if (notifyReattach) notifyReattached(entry);
