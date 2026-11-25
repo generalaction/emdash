@@ -53,15 +53,23 @@ class TestTransport implements WireTransport {
   private readonly disconnectListeners = new Set<() => void>();
   private readonly reconnectListeners = new Set<() => void>();
 
-  constructor(private readonly attachResult: unknown = undefined) {}
+  /** `early[n]` is delivered in the same chunk as the result of the n-th attach. */
+  constructor(
+    private readonly attachResult: unknown = undefined,
+    private readonly early: WireMessage[][] = []
+  ) {}
 
   post(message: WireMessage): void {
     this.sent.push(message);
     if (message.kind === 'attach') {
       const result = this.attachResult;
+      const early = this.early.shift() ?? [];
       queueMicrotask(() => {
         for (const listener of this.messageListeners) {
           listener({ kind: 'result', id: message.id, ok: true, value: result });
+        }
+        for (const frame of early) {
+          for (const listener of this.messageListeners) listener(frame);
         }
       });
     }
@@ -281,5 +289,112 @@ describe('connect credit client', () => {
     connection.dispose();
     disposeServer();
     pair.disconnect();
+  });
+});
+
+describe('connect credit for updates that arrive with the attach result', () => {
+  const flowUpdate = (sequence: number): WireMessage => ({
+    kind: 'update',
+    topic: 'items',
+    update: update(sequence),
+    flow: true,
+  });
+
+  it('reports credit for updates delivered in the same chunk as the result', async () => {
+    const transport = new TestTransport({ window: WINDOW }, [[flowUpdate(0), flowUpdate(1)]]);
+    const pushed: LiveUpdate[] = [];
+    const connection = connect(transport, { creditWindow: WINDOW, clock: new ManualClock() });
+
+    await connection.attach('items', (item) => pushed.push(item));
+    await flush();
+
+    expect(pushed).toHaveLength(2);
+    expect(transport.topicCreditMessages.at(-1)).toMatchObject({
+      topic: 'items',
+      consumed: 2 * SIZE,
+    });
+    connection.dispose();
+  });
+
+  it('does not count those updates twice', async () => {
+    const transport = new TestTransport({ window: WINDOW }, [
+      [flowUpdate(0), flowUpdate(1), flowUpdate(2)],
+    ]);
+    const clock = new ManualClock();
+    const connection = connect(transport, { creditWindow: WINDOW, clock });
+    await connection.attach('items', () => {});
+    await flush();
+
+    transport.emit(flowUpdate(3));
+    await flush();
+    clock.advance(CREDIT_IDLE_MS);
+
+    expect(transport.topicCreditMessages.at(-1)).toMatchObject({ consumed: 4 * SIZE });
+    connection.dispose();
+  });
+
+  it('returns the credit of a startup burst that fills the window', async () => {
+    const burst = Array.from({ length: 8 }, (_, index) => flowUpdate(index));
+    const transport = new TestTransport({ window: WINDOW }, [burst]);
+    const clock = new ManualClock();
+    const connection = connect(transport, { creditWindow: WINDOW, clock });
+    await connection.attach('items', () => {});
+    await flush();
+
+    expect(transport.topicCreditMessages.at(-1)).toMatchObject({ consumed: WINDOW });
+    transport.emit(flowUpdate(8));
+    await flush();
+    clock.advance(CREDIT_IDLE_MS);
+    expect(transport.topicCreditMessages.at(-1)).toMatchObject({ consumed: WINDOW + SIZE });
+    connection.dispose();
+  });
+
+  it('starts from zero again after a reconnect', async () => {
+    const transport = new TestTransport({ window: WINDOW }, [[flowUpdate(0), flowUpdate(1)], []]);
+    const clock = new ManualClock();
+    const connection = connect(transport, { creditWindow: WINDOW, clock });
+    await connection.attach('items', () => {});
+    await flush();
+    transport.sent.length = 0;
+
+    transport.reconnect();
+    await waitFor(() => transport.attachMessages.length === 1);
+    await flush();
+    transport.emit(flowUpdate(0));
+    await flush();
+    clock.advance(CREDIT_IDLE_MS);
+
+    expect(transport.topicCreditMessages.at(-1)).toMatchObject({ consumed: SIZE });
+    connection.dispose();
+  });
+
+  it('ignores such updates when the attach was cancelled', async () => {
+    const transport = new TestTransport({ window: WINDOW }, [[flowUpdate(0), flowUpdate(1)]]);
+    const pushed: LiveUpdate[] = [];
+    const connection = connect(transport, { creditWindow: WINDOW, clock: new ManualClock() });
+    const controller = new AbortController();
+
+    const cancelled = connection.attach('items', (item) => pushed.push(item), {
+      signal: controller.signal,
+    });
+    controller.abort();
+    await cancelled.catch(() => {});
+    await flush();
+
+    expect(pushed).toEqual([]);
+    expect(transport.topicCreditMessages).toHaveLength(0);
+    connection.dispose();
+  });
+
+  it('sends no credit to a peer whose result has no window', async () => {
+    const transport = new TestTransport(undefined, [[flowUpdate(0), flowUpdate(1)]]);
+    const clock = new ManualClock();
+    const connection = connect(transport, { creditWindow: WINDOW, clock });
+    await connection.attach('items', () => {});
+    await flush();
+    clock.advance(CREDIT_IDLE_MS);
+
+    expect(transport.topicCreditMessages).toHaveLength(0);
+    connection.dispose();
   });
 });

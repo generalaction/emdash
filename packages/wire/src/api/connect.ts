@@ -102,6 +102,8 @@ type Attachment = {
   attemptAbort: AbortController | null;
   attachId: string | undefined;
   credit: AttachmentCredit | undefined;
+  /** Credit for flow updates that arrived before the attach result configured `credit`. */
+  earlyCredit: number;
   pressures: Map<PressureSignal, AttachmentPressure>;
   pressureDirty: boolean;
 };
@@ -791,6 +793,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       onReattachError: new Set(),
       established: Promise.resolve(),
       credit: undefined,
+      earlyCredit: 0,
       pressures: new Map(),
       pressureDirty: false,
       establishedSettled: true,
@@ -840,7 +843,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       { signal: attemptAbort.signal }
     ).then((attachResult) => {
       if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
-      configureAttachmentCredit(entry, attachResult);
+      configureAttachmentCredit(topic, entry, attachResult);
     });
     established.then(
       () => {
@@ -919,6 +922,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
   function resetAttachmentCredit(entry: Attachment): void {
     cancelCreditTimer(entry.credit);
     entry.credit = undefined;
+    entry.earlyCredit = 0;
   }
 
   function resetAttachmentPressures(entry: Attachment): void {
@@ -988,15 +992,26 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     if (credit) credit.timer = undefined;
   }
 
-  function configureAttachmentCredit(entry: Attachment, attachResult: unknown): void {
+  function configureAttachmentCredit(
+    topic: string,
+    entry: Attachment,
+    attachResult: unknown
+  ): void {
+    const early = entry.earlyCredit;
+    entry.earlyCredit = 0;
     const window = (attachResult as { window?: unknown } | undefined)?.window;
     if (typeof window !== 'number' || !Number.isFinite(window) || window < 0) return;
-    entry.credit = { window, consumed: 0, lastReported: 0, timer: undefined };
+    entry.credit = { window, consumed: early, lastReported: 0, timer: undefined };
+    scheduleCreditReport(topic, entry);
   }
 
   function recordCredit(entry: Attachment, topic: string, update: LiveUpdate): void {
     const credit = entry.credit;
-    if (!credit) return;
+    if (!credit) {
+      // The result and the first updates can arrive in one chunk, before the result is handled.
+      entry.earlyCredit += creditSize(update);
+      return;
+    }
     credit.consumed += creditSize(update);
     scheduleCreditReport(topic, entry);
   }
