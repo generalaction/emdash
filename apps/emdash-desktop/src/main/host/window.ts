@@ -1,9 +1,9 @@
 import { join } from 'node:path';
+import { app, BrowserWindow, nativeTheme, screen } from 'electron';
+import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import type { Theme } from '@core/primitives/app-settings/api';
-import { app, BrowserWindow, nativeTheme, screen } from 'electron';
-import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { recordWindowVisible } from '@main/bootstrap/core/boot-report';
 import { reportBootSuccessSignal } from '@main/bootstrap/core/boot-status';
 import {
@@ -21,8 +21,14 @@ import { registerExternalLinkHandlers } from '@main/host/externalLinks';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { APP_ORIGIN } from './protocol';
-import { readWindowPlacement, restoreWindowBounds, saveWindowPlacement } from './window-placement';
+import {
+  type WindowPlacement,
+  readWindowPlacement,
+  restoreWindowBounds,
+  saveWindowPlacement,
+} from './window-placement';
 
+const placementsBeforeClose = new WeakMap<BrowserWindow, WindowPlacement>();
 let mainWindow: BrowserWindow | null = null;
 
 export function applyNativeTheme(theme: Theme): void {
@@ -35,9 +41,9 @@ export function createMainWindow(): BrowserWindow {
   const saved = readWindowPlacement(path);
   const bounds = saved
     ? restoreWindowBounds(saved, screen.getAllDisplays(), screen.getPrimaryDisplay())
-    : { width: 1400, height: 900 };
+    : undefined;
   const win = new BrowserWindow({
-    ...bounds,
+    ...(bounds ?? { width: 1400, height: 900 }),
     minWidth: 700,
     minHeight: 500,
     title: PRODUCT_NAME,
@@ -76,17 +82,22 @@ export function createMainWindow(): BrowserWindow {
   });
   mainWindow = win;
   const savePlacement = () => {
-    if (win.isDestroyed()) return;
+    if (win.isDestroyed() || (!win.isVisible() && !win.isMinimized())) return;
     try {
-      const normal = win.getNormalBounds();
+      const maximized = win.isMaximized();
+      const fullscreen = win.isFullScreen();
+      const normal =
+        maximized || fullscreen || win.isMinimized() ? win.getNormalBounds() : win.getBounds();
       const display = screen.getDisplayMatching(normal);
-      saveWindowPlacement(path, {
+      const placement = {
         bounds: normal,
         displayId: display.id,
         workArea: display.workArea,
-        maximized: win.isMaximized(),
-        fullscreen: win.isFullScreen(),
-      });
+        maximized,
+        fullscreen,
+      };
+      placementsBeforeClose.set(win, placement);
+      saveWindowPlacement(path, placement);
     } catch (error) {
       log.warn('Could not save main window placement', { error });
     }
@@ -130,8 +141,12 @@ export function createMainWindow(): BrowserWindow {
   if (saved?.maximized) win.maximize();
   if (saved?.fullscreen) win.setFullScreen(true);
   mainWindow.show();
+  if (bounds && !saved?.maximized && !saved?.fullscreen) ensureShownBounds(win, bounds);
   const windowVisibleMs = Date.now() - (process.getCreationTime() ?? Date.now());
-  log.info('boot-timeline', { mark: 'window-visible', sinceProcessStartMs: windowVisibleMs });
+  log.info('boot-timeline', {
+    mark: 'window-visible',
+    sinceProcessStartMs: windowVisibleMs,
+  });
   recordWindowVisible(windowVisibleMs);
 
   // Diagnostic only (the window is already visible): marks when the renderer
@@ -166,10 +181,16 @@ export function createMainWindow(): BrowserWindow {
   // Keep the renderer's custom window controls (Linux) in sync with the
   // actual maximize state so the maximize/restore icon stays correct.
   mainWindow.on('maximize', () => {
-    desktopHostEvents.emit(undefined, { type: 'window-maximize-changed', maximized: true });
+    desktopHostEvents.emit(undefined, {
+      type: 'window-maximize-changed',
+      maximized: true,
+    });
   });
   mainWindow.on('unmaximize', () => {
-    desktopHostEvents.emit(undefined, { type: 'window-maximize-changed', maximized: false });
+    desktopHostEvents.emit(undefined, {
+      type: 'window-maximize-changed',
+      maximized: false,
+    });
   });
 
   // Cleanup reference on close
@@ -180,6 +201,19 @@ export function createMainWindow(): BrowserWindow {
   return mainWindow;
 }
 
+function ensureShownBounds(win: BrowserWindow, bounds: Electron.Rectangle): void {
+  if (process.platform !== 'darwin') return;
+  const actual = win.getBounds();
+  if (
+    actual.x !== bounds.x ||
+    actual.y !== bounds.y ||
+    actual.width !== bounds.width ||
+    actual.height !== bounds.height
+  ) {
+    win.setBounds(bounds);
+  }
+}
+
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
@@ -187,7 +221,18 @@ export function getMainWindow(): BrowserWindow | null {
 export function showMainWindow(): BrowserWindow {
   const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createMainWindow();
   if (win.isMinimized()) win.restore();
+  const hiddenPlacement =
+    process.platform === 'darwin' && !win.isVisible() && !win.isMaximized() && !win.isFullScreen()
+      ? placementsBeforeClose.get(win)
+      : undefined;
   win.show();
+  if (hiddenPlacement) {
+    ensureShownBounds(
+      win,
+      restoreWindowBounds(hiddenPlacement, screen.getAllDisplays(), screen.getPrimaryDisplay())
+    );
+  }
+  placementsBeforeClose.delete(win);
   if (process.platform === 'darwin') {
     app.focus({ steal: true });
   } else {
@@ -216,7 +261,9 @@ function registerBrowserWebviewHandlers(win: BrowserWindow): void {
     );
     if (!validation.ok) {
       event.preventDefault();
-      log.warn('Denied browser webview attachment', { reason: validation.reason });
+      log.warn('Denied browser webview attachment', {
+        reason: validation.reason,
+      });
       return;
     }
 

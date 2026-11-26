@@ -17,10 +17,10 @@ const placement = z.object({
   fullscreen: z.boolean(),
 });
 
-type Placement = z.infer<typeof placement>;
+export type WindowPlacement = z.infer<typeof placement>;
 type WindowDisplay = Pick<Display, 'id' | 'workArea'>;
 
-export function readWindowPlacement(path: string): Placement | undefined {
+export function readWindowPlacement(path: string): WindowPlacement | undefined {
   try {
     return placement.parse(JSON.parse(readFileSync(path, 'utf8')));
   } catch {
@@ -28,7 +28,7 @@ export function readWindowPlacement(path: string): Placement | undefined {
   }
 }
 
-export function saveWindowPlacement(path: string, state: Placement): void {
+export function saveWindowPlacement(path: string, state: WindowPlacement): void {
   const tmp = `${path}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify(state), { mode: 0o600 });
   renameSync(tmp, path);
@@ -57,7 +57,7 @@ function fullyVisible(bounds: Rectangle, displays: readonly WindowDisplay[]): bo
 }
 
 export function restoreWindowBounds(
-  saved: Placement,
+  saved: WindowPlacement,
   displays: readonly WindowDisplay[],
   primary: WindowDisplay
 ): Rectangle {
