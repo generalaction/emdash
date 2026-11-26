@@ -1,9 +1,9 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, nativeTheme } from 'electron';
-import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import type { Theme } from '@core/primitives/app-settings/api';
+import { app, BrowserWindow, nativeTheme, screen } from 'electron';
+import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { recordWindowVisible } from '@main/bootstrap/core/boot-report';
 import { reportBootSuccessSignal } from '@main/bootstrap/core/boot-status';
 import {
@@ -21,6 +21,7 @@ import { registerExternalLinkHandlers } from '@main/host/externalLinks';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { APP_ORIGIN } from './protocol';
+import { readWindowPlacement, restoreWindowBounds, saveWindowPlacement } from './window-placement';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -30,9 +31,13 @@ export function applyNativeTheme(theme: Theme): void {
 }
 
 export function createMainWindow(): BrowserWindow {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+  const path = join(app.getPath('userData'), 'main-window-placement.json');
+  const saved = readWindowPlacement(path);
+  const bounds = saved
+    ? restoreWindowBounds(saved, screen.getAllDisplays(), screen.getPrimaryDisplay())
+    : { width: 1400, height: 900 };
+  const win = new BrowserWindow({
+    ...bounds,
     minWidth: 700,
     minHeight: 500,
     title: PRODUCT_NAME,
@@ -69,6 +74,28 @@ export function createMainWindow(): BrowserWindow {
     ...(process.platform === 'linux' ? { frame: false } : {}),
     show: false,
   });
+  mainWindow = win;
+  const savePlacement = () => {
+    if (win.isDestroyed()) return;
+    try {
+      const normal = win.getNormalBounds();
+      const display = screen.getDisplayMatching(normal);
+      saveWindowPlacement(path, {
+        bounds: normal,
+        displayId: display.id,
+        workArea: display.workArea,
+        maximized: win.isMaximized(),
+        fullscreen: win.isFullScreen(),
+      });
+    } catch (error) {
+      log.warn('Could not save main window placement', { error });
+    }
+  };
+  // Closing may hide the window. The shutdown coordinator may also call
+  // app.exit() without a window close event.
+  win.on('close', savePlacement);
+  app.on('before-quit', savePlacement);
+  win.once('closed', () => app.off('before-quit', savePlacement));
   watchWindow(mainWindow);
   mainWindow.webContents.once('did-finish-load', () => {
     log.info('boot-timeline', {
@@ -100,6 +127,8 @@ export function createMainWindow(): BrowserWindow {
   // the full renderer load. Electron's own guidance for complex apps is to
   // show immediately with a backgroundColor; the static splash in index.html
   // paints on top as soon as the HTML parses.
+  if (saved?.maximized) win.maximize();
+  if (saved?.fullscreen) win.setFullScreen(true);
   mainWindow.show();
   const windowVisibleMs = Date.now() - (process.getCreationTime() ?? Date.now());
   log.info('boot-timeline', { mark: 'window-visible', sinceProcessStartMs: windowVisibleMs });
