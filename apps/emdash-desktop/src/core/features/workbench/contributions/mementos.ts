@@ -30,6 +30,27 @@ export const workbenchSidebarMemento = defineMemento({
   },
 });
 
+// Kept apart from `workbench.sidebar` so that schema stays unchanged and older
+// builds keep reading it.
+const workbenchSidebarPinsV1Schema = z.object({
+  version: z.literal('1'),
+  /** Pinned tasks in display order, as `projectId:taskId`. */
+  order: z.array(z.string()),
+});
+
+export const workbenchSidebarPinsSchema = defineVersionedSchema()
+  .initial('1', workbenchSidebarPinsV1Schema)
+  .build();
+
+export type WorkbenchSidebarPinsState = typeof workbenchSidebarPinsSchema.Type;
+
+export const workbenchSidebarPinsMemento = defineMemento({
+  id: 'workbench.sidebar-pins',
+  subject: appSubject,
+  schema: workbenchSidebarPinsSchema,
+  default: { version: '1' as const, order: [] },
+});
+
 const workbenchPanelLayoutsV1Schema = z.object({
   version: z.literal('1'),
   layouts: z.record(z.string(), z.string()),

@@ -1,3 +1,5 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
+import { Pin, PinOff } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -24,7 +26,7 @@ import {
 import { cn } from '@core/primitives/styling/browser/cn';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 import { PrBadge } from '@root/src/core/services/pull-requests/browser/components/pr-badge';
-import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
+import { SidebarItemMiniButton, SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
   taskId: string;
@@ -132,6 +134,13 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
           {showLineChanges && <TaskGitDiffStats task={task} />}
           {showPrStatus && <RenderPrBadge task={task} />}
+          {canPin && (
+            <PinToggle
+              isPinned={task.data.isPinned}
+              inPinnedList={rowVariant === 'pinned'}
+              onToggle={() => void task.setPinned(!task.data.isPinned)}
+            />
+          )}
           <TaskSidebarTrailingSlot task={task} showTimestamp={showTimestamps} />
         </div>
       </SidebarMenuRow>
@@ -147,3 +156,46 @@ const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStor
     </span>
   ) : null;
 });
+
+/**
+ * Pins a task to the Pinned list at the top, or unpins it. Shown on hover; in
+ * the project list it stays visible on pinned tasks to mark them.
+ */
+function PinToggle({
+  isPinned,
+  inPinnedList,
+  onToggle,
+}: {
+  isPinned: boolean;
+  inPinnedList: boolean;
+  onToggle: () => void;
+}) {
+  const label = isPinned ? 'Unpin' : 'Pin to top';
+  const Icon = isPinned && inPinnedList ? PinOff : Pin;
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={
+          <SidebarItemMiniButton
+            type="button"
+            aria-label={label}
+            aria-pressed={isPinned}
+            className={cn(
+              'size-5',
+              isPinned && !inPinnedList
+                ? 'flex'
+                : 'hidden group-focus-within/row:flex group-hover/row:flex'
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+          >
+            <Icon className="size-3.5" />
+          </SidebarItemMiniButton>
+        }
+      />
+      <Tooltip.Content>{label}</Tooltip.Content>
+    </Tooltip.Root>
+  );
+}

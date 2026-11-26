@@ -15,6 +15,7 @@ import {
 import {
   workbenchPanelLayoutsMemento,
   workbenchSidebarMemento,
+  workbenchSidebarPinsMemento,
 } from '@core/features/workbench/contributions/mementos';
 import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
 import { workbenchHistoryMemento } from '@core/primitives/navigation/api/mementos';
@@ -39,6 +40,7 @@ export const mementoCatalog: readonly MementoCatalogEntry[] = [
   taskPanelLayoutsMemento,
   workbenchPanelLayoutsMemento,
   workbenchSidebarMemento,
+  workbenchSidebarPinsMemento,
   workbenchHistoryMemento,
 ];
 
