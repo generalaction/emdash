@@ -37,6 +37,17 @@ describe('main window placement', () => {
     });
   });
 
+  it('keeps a spanning window only while the whole window is reachable', () => {
+    const right = { id: 3, workArea: { ...primary.workArea, x: 1280 } };
+    const bounds = { x: 800, y: 60, width: 900, height: 600 };
+    const span = { ...saved, bounds, displayId: primary.id, workArea: primary.workArea };
+    expect(restoreWindowBounds(span, [primary, right], primary)).toEqual(bounds);
+    const fitted = { ...bounds, x: 380 };
+    expect(restoreWindowBounds(span, [primary], primary)).toEqual(fitted);
+    const offset = { ...right, workArea: { ...right.workArea, y: 200 } };
+    expect(restoreWindowBounds(span, [primary, primary, offset], primary)).toEqual(fitted);
+  });
+
   it('recovers a window whose title bar is offscreen', () => {
     const bounds = restoreWindowBounds(
       { ...saved, bounds: { ...saved.bounds, y: -500 } },

@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import type { Rectangle } from 'electron';
 import { expect, it, vi } from 'vitest';
 import { createMainWindow } from './window';
+import { readWindowPlacement } from './window-placement';
 
 let profile: string;
+let fullscreen: boolean;
 const bounds = { x: -1200, y: 60, width: 900, height: 600 };
 
 vi.mock('electron', async () => {
@@ -19,8 +21,9 @@ vi.mock('electron', async () => {
     }
     getNormalBounds = () => bounds;
     isDestroyed = () => false;
-    isMaximized = () => true;
-    isFullScreen = () => false;
+    isMaximized = () => !fullscreen;
+    isFullScreen = () => fullscreen;
+    setFullScreen = vi.fn();
     maximize = vi.fn();
     show = vi.fn();
     setMenuBarVisibility = vi.fn();
@@ -53,9 +56,14 @@ vi.mock('@main/lib/logger', () => ({ log: { info: vi.fn() } }));
 vi.mock('@main/lib/telemetry', () => ({ telemetryService: {} }));
 vi.mock('./protocol', () => ({ APP_ORIGIN: 'app://emdash' }));
 
-it.each(['close', 'before-quit'])(
-  'restores placement on the next launch after %s',
-  async (event) => {
+it.each([
+  ['close', false],
+  ['before-quit', false],
+  ['before-quit', true],
+] as const)(
+  'restores placement on the next launch after %s (fullscreen=%s)',
+  async (event, inFullscreen) => {
+    fullscreen = inFullscreen;
     const { app } = await import('electron');
     profile = mkdtempSync(join(tmpdir(), 'emdash-relaunch-'));
     const getCreationTime = process.getCreationTime;
@@ -65,11 +73,15 @@ it.each(['close', 'before-quit'])(
       expect(first).toMatchObject({ options: { width: 1400, height: 900 } });
       const emitter: EventEmitter = event === 'close' ? first : app;
       emitter.emit(event);
+      expect(readWindowPlacement(join(profile, 'main-window-placement.json'))?.fullscreen).toBe(
+        fullscreen
+      );
       first.emit('closed');
       expect(app.listenerCount('before-quit')).toBe(0);
       const reopened = createMainWindow();
       expect(reopened).toMatchObject({ options: bounds });
-      expect(reopened.maximize).toHaveBeenCalledOnce();
+      if (fullscreen) expect(reopened.setFullScreen).toHaveBeenCalledWith(true);
+      else expect(reopened.maximize).toHaveBeenCalledOnce();
       reopened.emit('closed');
     } finally {
       process.getCreationTime = getCreationTime;

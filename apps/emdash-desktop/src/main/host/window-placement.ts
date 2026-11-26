@@ -34,6 +34,28 @@ export function saveWindowPlacement(path: string, state: Placement): void {
   renameSync(tmp, path);
 }
 
+// Within each vertical strip between display edges, the available y intervals
+// are constant. Check their union so mirrored displays cannot hide a gap.
+function fullyVisible(bounds: Rectangle, displays: readonly WindowDisplay[]): boolean {
+  const right = bounds.x + bounds.width;
+  const bottom = bounds.y + bounds.height;
+  const areas = displays.map(({ workArea }) => workArea).sort((a, b) => a.y - b.y);
+  const edges = areas
+    .flatMap((area) => [area.x, area.x + area.width])
+    .filter((x) => x > bounds.x && x < right);
+  const cuts = [...new Set([bounds.x, ...edges, right])].sort((a, b) => a - b);
+  for (let i = 1; i < cuts.length; i++) {
+    let coveredY = bounds.y;
+    for (const area of areas) {
+      if (area.x <= cuts[i - 1] && area.x + area.width >= cuts[i] && area.y <= coveredY) {
+        coveredY = Math.max(coveredY, area.y + area.height);
+      }
+    }
+    if (coveredY < bottom) return false;
+  }
+  return true;
+}
+
 export function restoreWindowBounds(
   saved: Placement,
   displays: readonly WindowDisplay[],
@@ -51,16 +73,7 @@ export function restoreWindowBounds(
   const area = display?.workArea ?? primary.workArea;
   const { bounds } = saved;
   // Preserve deliberate tiling and windows spanning adjacent displays.
-  if (
-    display &&
-    sameArea(area) &&
-    displays.some(
-      ({ workArea: w }) =>
-        bounds.y >= w.y &&
-        bounds.y + 24 <= w.y + w.height &&
-        Math.min(bounds.x + bounds.width, w.x + w.width) - Math.max(bounds.x, w.x) >= 64
-    )
-  ) {
+  if (display && sameArea(area) && fullyVisible(bounds, displays)) {
     return bounds;
   }
 
