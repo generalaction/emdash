@@ -182,7 +182,9 @@ function PinToggle({
             aria-pressed={isPinned}
             className={cn(
               'size-5',
-              isPinned && !inPinnedList ? 'flex' : 'hidden group-focus-within/row:flex group-hover/row:flex'
+              isPinned && !inPinnedList
+                ? 'flex'
+                : 'hidden group-focus-within/row:flex group-hover/row:flex'
             )}
             onClick={(e) => {
               e.stopPropagation();
