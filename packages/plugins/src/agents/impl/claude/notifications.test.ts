@@ -167,6 +167,37 @@ describe('Claude background notifications', () => {
     }
   });
 
+  it('settles a background agent with usage metadata even without an attached chat view', () => {
+    const launch: SessionUpdate = {
+      sessionUpdate: 'tool_call',
+      toolCallId: 'review-tool',
+      title: 'Review',
+      _meta: {
+        claudeCode: {
+          toolName: 'Agent',
+          toolResponse: { isAsync: true, status: 'async_launched', agentId: 'review' },
+        },
+      },
+    };
+    const completed = raw(
+      '<task-notification><task-id>review</task-id><tool-use-id>review-tool</tool-use-id>' +
+        '<status>completed</status><summary>Review finished</summary><result>OK</result>' +
+        '<usage><subagent_tokens>15</subagent_tokens><tool_uses>2</tool_uses>' +
+        '<duration_ms>120</duration_ms></usage></task-notification>'
+    );
+    const deps = { conversationId: 'background', enrich: enrichClaudeUpdate };
+    const background = new AcpTranscriptParser(deps);
+    const foreground = new AcpTranscriptParser({ ...deps, conversationId: 'selected' });
+    background.push(launch, 0);
+    background.endTurn(1);
+    foreground.push(launch, 2);
+    background.push(completed, 3);
+    expect(background.agents[0]?.status).toBe('completed');
+    expect(foreground.agents[0]?.status).toBe('running');
+    const replay = AcpTranscriptParser.replay([launch, completed], deps);
+    expect(replay.agents[0]?.status).toBe('completed');
+  });
+
   it('produces the same typed notice on live and replay paths', () => {
     const updates: SessionUpdate[] = [
       raw('Compare main'),
