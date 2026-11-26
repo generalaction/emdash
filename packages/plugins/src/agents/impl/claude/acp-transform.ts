@@ -39,6 +39,7 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
           fields.status ? `Status: ${fields.status}` : undefined,
           fields.note,
           fields.result,
+          fields.usage,
           fields['output-file'] ? `Output: ${fields['output-file']}` : undefined,
         ]
           .filter(Boolean)
@@ -241,7 +242,15 @@ export function parseTaskNotification(text: string): TaskNotification | null {
 
 type TaskFields = Partial<
   Record<
-    'task-id' | 'tool-use-id' | 'status' | 'summary' | 'event' | 'note' | 'result' | 'output-file',
+    | 'task-id'
+    | 'tool-use-id'
+    | 'status'
+    | 'summary'
+    | 'event'
+    | 'note'
+    | 'result'
+    | 'output-file'
+    | 'usage',
     string
   >
 >;
@@ -252,7 +261,7 @@ function parseTaskFields(text: string): TaskFields | null {
   if (body === undefined) return null;
   const fields: TaskFields = {};
   const pattern =
-    /<(task-id|tool-use-id|status|summary|event|note|result|output-file)>([\s\S]*?)<\/\1>/g;
+    /<(task-id|tool-use-id|status|summary|event|note|result|output-file|usage)>([\s\S]*?)<\/\1>/g;
   let end = 0;
   for (const match of body.matchAll(pattern)) {
     const key = match[1] as keyof TaskFields;
