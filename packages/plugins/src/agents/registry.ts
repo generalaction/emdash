@@ -9,6 +9,7 @@ import { provider as bob } from './impl/bob';
 import { provider as charm } from './impl/charm';
 import { provider as claude } from './impl/claude';
 import { provider as cline } from './impl/cline';
+import { provider as codePuppy } from './impl/code-puppy';
 import { provider as codebuddy } from './impl/codebuddy';
 import { provider as codebuff } from './impl/codebuff';
 import { provider as codex } from './impl/codex';
@@ -33,6 +34,7 @@ import { provider as mistral } from './impl/mistral';
 import { provider as muse } from './impl/muse';
 import { provider as ohMyPi } from './impl/oh-my-pi';
 import { provider as opencode } from './impl/opencode';
+import { provider as pax } from './impl/pax';
 import { provider as pi } from './impl/pi';
 import { provider as primeAgent } from './impl/prime-agent';
 import { provider as qoder } from './impl/qoder';
@@ -84,6 +86,8 @@ for (const p of [
   muse,
   zero,
   bob,
+  pax,
+  codePuppy,
 ]) {
   pluginRegistry.register(p);
 }

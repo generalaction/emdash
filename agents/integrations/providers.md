@@ -7,9 +7,9 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (38)
+## Current Providers (40)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero, bob
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero, bob, pax, code-puppy
 
 ## Current ACP-Capable Providers (24)
 
@@ -144,6 +144,14 @@ you select an OrcaRouter model from the OpenCode model picker.
   The initial prompt follows `--` because Bob rejects a positional that looks like an option.
   Emdash never passes `--accept-license` or `--trust`; auto-trusted worktrees are recorded in
   `~/.bob/trustedFolders.json`, and MCP servers sync to `~/.bob/settings/mcp.json`.
+- Pax (`pax`, PyPI `pydantic-ai-pax`) and Code Puppy (`code-puppy`/`pup`, PyPI `code-puppy`, a
+  distribution of Pax) share one CLI and are installed with `uv tool install`; `<cli> update`
+  self-updates. They are terminal-only and take no prompt argument for an interactive start
+  (`-p` is a headless one-shot), so prompt delivery is `pty-only`. Resume uses `--continue`, the
+  worktree's most recent saved session, because `--resume <id>` exits for a session that was
+  never saved. Pax runs tools without asking by default and has no approval flag, so they declare
+  no auto-approve. ACP, hooks, MCP sync, and workspace trust are not integrated yet: Pax asks once
+  per repository whether to trust it, and terminal sessions only get input-derived status.
 
 ## Adding Or Changing A Provider
 
