@@ -4,7 +4,7 @@ import { provider } from './index';
 
 function ctx(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
-    cli: 'pax',
+    cli: 'pydantic-ai-pax',
     autoApprove: false,
     isResuming: false,
     model: '',
@@ -29,10 +29,11 @@ describe('Pax plugin', () => {
     expect(provider.validate()).toEqual([]);
   });
 
-  it('probes the pax binary, installs it with uv, and self-updates', () => {
+  it('probes only the unambiguous pydantic-ai-pax command, installs it with uv, and self-updates', () => {
     const dependency = provider.capabilities.hostDependency;
 
-    expect(dependency.binaryNames).toEqual(['pax']);
+    // Plain `pax` is also the POSIX archiver (`/bin/pax` on macOS) and must never be picked up.
+    expect(dependency.binaryNames).toEqual(['pydantic-ai-pax']);
     expect(dependency.updateCommand).toEqual({ kind: 'self', args: ['update'] });
     for (const platform of ['macos', 'linux'] as const) {
       expect(dependency.installCommands?.[platform]).toEqual([
@@ -50,7 +51,7 @@ describe('Pax plugin', () => {
 describe('Pax terminal command', () => {
   it('starts the interactive TUI without putting the prompt in argv', () => {
     expect(buildArgs()).toEqual([]);
-    // `pax <text>` is not a prompt and `-p` runs headless, so the prompt must never reach argv.
+    // `pydantic-ai-pax <text>` is not a prompt and `-p` runs headless, so the prompt must never reach argv.
     expect(buildArgs({ initialPrompt: 'fix the build', sessionId: 'conv-1' })).toEqual([]);
     expect(buildArgs({ autoApprove: true })).toEqual([]);
   });

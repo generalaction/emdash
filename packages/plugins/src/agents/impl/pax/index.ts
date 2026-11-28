@@ -23,13 +23,16 @@ export const plugin = definePlugin(
   {
     hostDependency: {
       id: 'pax',
-      binaryNames: ['pax'],
+      // `uv tool install pydantic-ai-pax` installs the same entry point as `pax` and
+      // `pydantic-ai-pax`. Only the latter is probed: `pax` is also the POSIX archiver
+      // (`/bin/pax` on macOS), and discovery is PATH-only, so it cannot tell the two apart.
+      binaryNames: ['pydantic-ai-pax'],
       installCommands: {
         macos: [uvInstall],
         linux: [uvInstall],
       },
       installDocs: 'https://github.com/pydantic/pydantic-ai/tree/main/src/pydantic_ai_pax',
-      // `pax update` installs the newest Pax with uv and exits.
+      // `pydantic-ai-pax update` installs the newest Pax with uv and exits.
       updateCommand: {
         kind: 'self',
         args: ['update'],
